@@ -268,14 +268,25 @@ suite('TextModelWithTokens regression tests', () => {
 			if (forceTokenization) {
 				model.forceTokenization(lineNumber);
 			}
-			let actual = model.getLineTokens(lineNumber).inflate();
+			let _actual = model.getLineTokens(lineNumber).inflate();
+			interface ISimpleViewToken {
+				endIndex: number;
+				foreground: number;
+			}
+			let actual: ISimpleViewToken[] = [];
+			for (let i = 0, len = _actual.getCount(); i < len; i++) {
+				actual[i] = {
+					endIndex: _actual.getEndIndex(i),
+					foreground: _actual.getForeground(i)
+				};
+			}
 			let decode = (token: ViewLineToken) => {
 				return {
 					endIndex: token.endIndex,
 					foreground: token.getForeground()
 				};
 			};
-			assert.deepEqual(actual.map(decode), expected.map(decode));
+			assert.deepEqual(actual, expected.map(decode));
 		}
 
 		let _tokenId = 10;

@@ -5,7 +5,7 @@
 'use strict';
 
 import { INewScrollPosition, EndOfLinePreference, IViewState, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewEvent, IViewEventListener } from 'vs/editor/common/view/viewEvents';
@@ -180,13 +180,13 @@ export class ViewLineData {
 	/**
 	 * The tokens at this view line.
 	 */
-	public readonly tokens: ViewLineToken[];
+	public readonly tokens: ViewLineTokens;
 
 	constructor(
 		content: string,
 		minColumn: number,
 		maxColumn: number,
-		tokens: ViewLineToken[]
+		tokens: ViewLineTokens
 	) {
 		this.content = content;
 		this.minColumn = minColumn;
@@ -219,7 +219,7 @@ export class ViewLineRenderingData {
 	/**
 	 * The tokens at this view line.
 	 */
-	public readonly tokens: ViewLineToken[];
+	public readonly tokens: ViewLineTokens;
 	/**
 	 * Inline decorations at this view line.
 	 */
@@ -235,7 +235,7 @@ export class ViewLineRenderingData {
 		content: string,
 		mightContainRTL: boolean,
 		mightContainNonBasicASCII: boolean,
-		tokens: ViewLineToken[],
+		tokens: ViewLineTokens,
 		inlineDecorations: InlineDecoration[],
 		tabSize: number
 	) {

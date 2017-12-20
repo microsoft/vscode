@@ -5,7 +5,7 @@
 'use strict';
 
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { ViewLineTokenFactory, ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineTokenFactory, ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { ColorId, FontStyle, StandardTokenType, LanguageId } from 'vs/editor/common/modes';
 
 export class LineToken {
@@ -169,12 +169,20 @@ export class LineTokens {
 		return this.tokenAt(this._tokensCount - 1);
 	}
 
-	public inflate(): ViewLineToken[] {
+	private _inflate(): ViewLineToken[] {
 		return ViewLineTokenFactory.inflateArr(this._tokens);
 	}
 
-	public sliceAndInflate(startOffset: number, endOffset: number, deltaOffset: number): ViewLineToken[] {
+	public inflate(): ViewLineTokens {
+		return new ViewLineTokens(this._inflate());
+	}
+
+	private _sliceAndInflate(startOffset: number, endOffset: number, deltaOffset: number): ViewLineToken[] {
 		return ViewLineTokenFactory.sliceAndInflate(this._tokens, startOffset, endOffset, deltaOffset, this._textLength);
+	}
+
+	public sliceAndInflate(startOffset: number, endOffset: number, deltaOffset: number): ViewLineTokens {
+		return new ViewLineTokens(this._sliceAndInflate(startOffset, endOffset, deltaOffset));
 	}
 
 	public static convertToEndOffset(tokens: Uint32Array, lineTextLength: number): void {

@@ -10,7 +10,7 @@ import { IModel } from 'vs/editor/common/editorCommon';
 import { ColorId, MetadataConsts, FontStyle, TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { renderViewLine2 as renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
@@ -94,7 +94,7 @@ export class Colorizer {
 		});
 	}
 
-	public static colorizeLine(line: string, mightContainRTL: boolean, tokens: ViewLineToken[], tabSize: number = 4): string {
+	public static colorizeLine(line: string, mightContainRTL: boolean, tokens: ViewLineTokens, tabSize: number = 4): string {
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
 			line,
@@ -142,7 +142,7 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 			line,
 			false,
 			0,
-			[new ViewLineToken(line.length, defaultMetadata)],
+			new ViewLineTokens([new ViewLineToken(line.length, defaultMetadata)]),
 			[],
 			tabSize,
 			0,

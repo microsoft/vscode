@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import * as strings from 'vs/base/common/strings';
@@ -32,31 +32,6 @@ class LinePart {
 	}
 }
 
-export class ViewLineTokens {
-
-	private readonly _actual: ViewLineToken[];
-
-	constructor(actual: ViewLineToken[]) {
-		this._actual = actual;
-	}
-
-	public equals(other: ViewLineTokens): boolean {
-		return ViewLineToken.equalsArr(this._actual, other._actual);
-	}
-
-	public getCount(): number {
-		return this._actual.length;
-	}
-
-	public getEndIndex(tokenIndex: number): number {
-		return this._actual[tokenIndex].endIndex;
-	}
-
-	public getType(tokenIndex: number): string {
-		return this._actual[tokenIndex].getType();
-	}
-}
-
 export class RenderLineInput {
 
 	public readonly useMonospaceOptimizations: boolean;
@@ -77,7 +52,7 @@ export class RenderLineInput {
 		lineContent: string,
 		mightContainRTL: boolean,
 		fauxIndentLength: number,
-		lineTokens: ViewLineToken[],
+		lineTokens: ViewLineTokens,
 		lineDecorations: LineDecoration[],
 		tabSize: number,
 		spaceWidth: number,
@@ -90,7 +65,7 @@ export class RenderLineInput {
 		this.lineContent = lineContent;
 		this.mightContainRTL = mightContainRTL;
 		this.fauxIndentLength = fauxIndentLength;
-		this.lineTokens = new ViewLineTokens(lineTokens);
+		this.lineTokens = lineTokens;
 		this.lineDecorations = lineDecorations;
 		this.tabSize = tabSize;
 		this.spaceWidth = spaceWidth;

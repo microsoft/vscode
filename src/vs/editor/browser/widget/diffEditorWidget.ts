@@ -24,7 +24,7 @@ import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
@@ -1971,7 +1971,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			lineContent,
 			originalModel.mightContainRTL(),
 			0,
-			[new ViewLineToken(lineContent.length, defaultMetadata)],
+			new ViewLineTokens([new ViewLineToken(lineContent.length, defaultMetadata)]),
 			actualDecorations,
 			tabSize,
 			config.fontInfo.spaceWidth,

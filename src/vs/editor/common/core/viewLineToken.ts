@@ -58,6 +58,39 @@ export class ViewLineToken {
 	}
 }
 
+export class ViewLineTokens {
+
+	private readonly _actual: ViewLineToken[];
+
+	constructor(actual: ViewLineToken[]) {
+		this._actual = actual;
+	}
+
+	public equals(other: ViewLineTokens): boolean {
+		return ViewLineToken.equalsArr(this._actual, other._actual);
+	}
+
+	public getCount(): number {
+		return this._actual.length;
+	}
+
+	public getForeground(tokenIndex: number): ColorId {
+		return this._actual[tokenIndex].getForeground();
+	}
+
+	public getEndIndex(tokenIndex: number): number {
+		return this._actual[tokenIndex].endIndex;
+	}
+
+	public getType(tokenIndex: number): string {
+		return this._actual[tokenIndex].getType();
+	}
+
+	public getInlineStyle(tokenIndex: number, colorMap: string[]): string {
+		return this._actual[tokenIndex].getInlineStyle(colorMap);
+	}
+}
+
 export class ViewLineTokenFactory {
 
 	public static inflateArr(tokens: Uint32Array): ViewLineToken[] {

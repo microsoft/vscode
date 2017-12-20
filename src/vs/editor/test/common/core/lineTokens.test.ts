@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { MetadataConsts } from 'vs/editor/common/modes';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 
 suite('LineTokens', () => {
 
@@ -205,13 +205,15 @@ suite('LineTokens', () => {
 		foreground: number;
 	}
 
-	function assertViewLineTokens(actual: ViewLineToken[], expected: ITestViewLineToken[]): void {
-		assert.deepEqual(actual.map(token => {
-			return {
-				endIndex: token.endIndex,
-				foreground: token.getForeground()
+	function assertViewLineTokens(_actual: ViewLineTokens, expected: ITestViewLineToken[]): void {
+		let actual: ITestViewLineToken[] = [];
+		for (let i = 0, len = _actual.getCount(); i < len; i++) {
+			actual[i] = {
+				endIndex: _actual.getEndIndex(i),
+				foreground: _actual.getForeground(i)
 			};
-		}), expected);
+		}
+		assert.deepEqual(actual, expected);
 	}
 
 	test('inflate', () => {

@@ -7,25 +7,36 @@
 import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ModelLine, ILineEdit, computeIndentLevel } from 'vs/editor/common/model/modelLine';
-import { MetadataConsts, LanguageIdentifier } from 'vs/editor/common/modes';
+import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/common/core/viewLineToken';
 import { EditableTextModel } from 'vs/editor/common/model/editableTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
 
-function assertLineTokens(_actual: LineTokens, _expected: TestToken[]): void {
+function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
 	let tmp = TestToken.toTokens(_expected);
-	LineTokens.convertToEndOffset(tmp, _actual.getLineContent().length);
+	LineTokens.convertToEndOffset(tmp, __actual.getLineContent().length);
 	let expected = ViewLineTokenFactory.inflateArr(tmp);
-	let actual = _actual.inflate();
+	let _actual = __actual.inflate();
+	interface ITestToken {
+		endIndex: number;
+		type: string;
+	}
+	let actual: ITestToken[] = [];
+	for (let i = 0, len = _actual.getCount(); i < len; i++) {
+		actual[i] = {
+			endIndex: _actual.getEndIndex(i),
+			type: _actual.getType(i)
+		};
+	}
 	let decode = (token: ViewLineToken) => {
 		return {
 			endIndex: token.endIndex,
 			type: token.getType()
 		};
 	};
-	assert.deepEqual(actual.map(decode), expected.map(decode));
+	assert.deepEqual(actual, expected.map(decode));
 }
 
 suite('ModelLine - getIndentLevel', () => {
