@@ -38,7 +38,7 @@ Please see also our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 * Ask a question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode).
 * Request a new feature on [GitHub](CONTRIBUTING.md).
-* Vote for [popular feature requests](https://github.com/Microsoft/vscode/issues?q=is:open+is:issue+label:feature-request+sort:reactions-%2B1-desc).
+* Vote for [popular feature requests](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc).
 * File a bug in [GitHub Issues](https://github.com/Microsoft/vscode/issues).
 * [Tweet](https://twitter.com/code) us with other feedback.
 
