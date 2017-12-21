@@ -22,6 +22,8 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { LOG_SCHEME } from 'vs/workbench/parts/output/common/output';
 
+export const LOG_VIEWER_EDITOR_ID = 'workbench.editors.logViewer';
+
 export class LogViewerInput extends ResourceEditorInput {
 
 	public static readonly ID = 'workbench.editorinputs.output';
@@ -55,6 +57,10 @@ export class LogViewer extends TextResourceEditor {
 		@ITextFileService textFileService: ITextFileService
 	) {
 		super(telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
+	}
+
+	public getId(): string {
+		return LOG_VIEWER_EDITOR_ID;
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {
