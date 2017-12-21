@@ -11,7 +11,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
+import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -44,7 +44,7 @@ export class LogViewerInput extends ResourceEditorInput {
 	}
 }
 
-export class LogViewer extends TextResourceEditor {
+export class LogViewer extends AbstractTextResourceEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -56,7 +56,7 @@ export class LogViewer extends TextResourceEditor {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
+		super(LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
 	}
 
 	public getId(): string {

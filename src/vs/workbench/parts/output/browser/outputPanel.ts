@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
+import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOutputScrollLockAction } from 'vs/workbench/parts/output/browser/outputActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -25,7 +25,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export class OutputPanel extends TextResourceEditor {
+export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[];
 	private scopedInstantiationService: IInstantiationService;
 
@@ -41,7 +41,7 @@ export class OutputPanel extends TextResourceEditor {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
 
 		this.scopedInstantiationService = instantiationService;
 	}
