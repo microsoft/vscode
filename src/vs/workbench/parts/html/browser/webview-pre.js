@@ -129,7 +129,9 @@
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
 			newDocument.querySelectorAll('a').forEach(a => {
-				a.title = a.href;
+				if (!a.title) {
+					a.title = a.href;
+				}
 			});
 
 			// set base-url if applicable
