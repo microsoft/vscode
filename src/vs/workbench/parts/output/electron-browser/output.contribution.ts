@@ -19,7 +19,7 @@ import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/c
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
 import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
-import { LogViewer, LogViewerInput, LOG_VIEWER_EDITOR_ID } from 'vs/workbench/parts/output/browser/logViewer';
+import { LogViewer, LogViewerInput } from 'vs/workbench/parts/output/browser/logViewer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -52,7 +52,7 @@ Registry.as<PanelRegistry>(Extensions.Panels).registerPanel(new PanelDescriptor(
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
 		LogViewer,
-		LOG_VIEWER_EDITOR_ID,
+		LogViewer.LOG_VIEWER_EDITOR_ID,
 		nls.localize('logViewer', "Log Viewer")
 	),
 	[
