@@ -68,6 +68,9 @@ export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
 export const NEW_FOLDER_COMMAND_ID = 'workbench.command.files.newFolder';
 export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder");
 
+export const TRIGGER_RENAME_COMMAND_ID = 'workbench.command.files.rename';
+export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename");
+
 export class BaseErrorReportingAction extends Action {
 
 	constructor(
@@ -149,7 +152,7 @@ export class BaseFileAction extends BaseErrorReportingAction {
 	}
 }
 
-export class TriggerRenameFileAction extends BaseFileAction {
+class TriggerRenameFileAction extends BaseFileAction {
 
 	public static readonly ID = 'renameFile';
 
@@ -164,7 +167,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(TriggerRenameFileAction.ID, nls.localize('rename', "Rename"), fileService, messageService, textFileService);
+		super(TriggerRenameFileAction.ID, TRIGGER_RENAME_LABEL, fileService, messageService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
@@ -1783,5 +1786,16 @@ CommandsRegistry.registerCommand({
 		const newFolderAction = instantationService.createInstance(NewFolderAction, listService.lastFocusedList, explorerContext.stat);
 
 		return newFolderAction.run(explorerContext);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: TRIGGER_RENAME_COMMAND_ID,
+	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
+		const instantationService = accessor.get(IInstantiationService);
+		const listService = accessor.get(IListService);
+		const renameAction = instantationService.createInstance(TriggerRenameFileAction, listService.lastFocusedList, explorerContext.stat);
+
+		return renameAction.run(explorerContext);
 	}
 });
