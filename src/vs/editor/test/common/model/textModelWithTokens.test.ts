@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { Model } from 'vs/editor/common/model/model';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
 import { ITokenizationSupport, TokenizationRegistry, LanguageId, LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
 import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { Range } from 'vs/editor/common/core/range';

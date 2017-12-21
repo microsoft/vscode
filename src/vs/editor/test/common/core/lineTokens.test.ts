@@ -6,9 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens, IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { MetadataConsts } from 'vs/editor/common/modes';
-import { IViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 
 suite('LineTokens', () => {
 

@@ -9,7 +9,7 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ModelLine, ILineEdit, computeIndentLevel } from 'vs/editor/common/model/modelLine';
 import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
-import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
 import { EditableTextModel } from 'vs/editor/common/model/editableTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { RawTextSource } from 'vs/editor/common/model/textSource';

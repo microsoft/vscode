@@ -6,6 +6,7 @@
 
 import { ColorId } from 'vs/editor/common/modes';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 
 /**
  * A token on a line.
@@ -56,15 +57,6 @@ export class ViewLineToken {
 		}
 		return true;
 	}
-}
-
-export interface IViewLineTokens {
-	equals(other: IViewLineTokens): boolean;
-	getCount(): number;
-	getForeground(tokenIndex: number): ColorId;
-	getEndOffset(tokenIndex: number): number;
-	getClassName(tokenIndex: number): string;
-	getInlineStyle(tokenIndex: number, colorMap: string[]): string;
 }
 
 export class ViewLineTokens implements IViewLineTokens {
@@ -119,50 +111,4 @@ export class ViewLineTokenFactory {
 		return result;
 	}
 
-	public static sliceAndInflate(tokens: Uint32Array, startOffset: number, endOffset: number, deltaOffset: number, lineLength: number): ViewLineToken[] {
-		const tokenIndex = this.findIndexInSegmentsArray(tokens, startOffset);
-		const maxEndOffset = (endOffset - startOffset + deltaOffset);
-		let result: ViewLineToken[] = [], resultLen = 0;
-
-		for (let i = tokenIndex, len = (tokens.length >>> 1); i < len; i++) {
-			const tokenStartOffset = (i > 0 ? tokens[((i - 1) << 1)] : 0);
-
-			if (tokenStartOffset >= endOffset) {
-				break;
-			}
-
-			const tokenEndOffset = tokens[(i << 1)];
-			const newEndOffset = Math.min(maxEndOffset, tokenEndOffset - startOffset + deltaOffset);
-			const metadata = tokens[(i << 1) + 1];
-
-			result[resultLen++] = new ViewLineToken(newEndOffset, metadata);
-		}
-
-		return result;
-	}
-
-	public static findIndexInSegmentsArray(tokens: Uint32Array, desiredIndex: number): number {
-		if (tokens.length <= 2) {
-			return 0;
-		}
-
-		let low = 0;
-		let high = (tokens.length >>> 1) - 1;
-
-		while (low < high) {
-
-			let mid = low + Math.floor((high - low) / 2);
-			let endOffset = tokens[(mid << 1)];
-
-			if (endOffset === desiredIndex) {
-				return mid + 1;
-			} else if (endOffset < desiredIndex) {
-				low = mid + 1;
-			} else if (endOffset > desiredIndex) {
-				high = mid;
-			}
-		}
-
-		return low;
-	}
 }

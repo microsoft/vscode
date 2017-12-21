@@ -10,8 +10,7 @@ import { IModel } from 'vs/editor/common/editorCommon';
 import { ColorId, MetadataConsts, FontStyle, TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { renderViewLine2 as renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineToken, ViewLineTokens, IViewLineTokens } from 'vs/editor/common/core/viewLineToken';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens, IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 
@@ -134,15 +133,22 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 	) >>> 0;
 
+	const tokens = new Uint32Array(2);
+	tokens[0] = 0;
+	tokens[1] = defaultMetadata;
+
 	for (let i = 0, length = lines.length; i < length; i++) {
 		let line = lines[i];
+
+		tokens[0] = line.length;
+		const lineTokens = new LineTokens(tokens, line);
 
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
 			line,
 			false,
 			0,
-			new ViewLineTokens([new ViewLineToken(line.length, defaultMetadata)]),
+			lineTokens,
 			[],
 			tabSize,
 			0,

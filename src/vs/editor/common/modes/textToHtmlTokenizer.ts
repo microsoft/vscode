@@ -7,9 +7,8 @@
 import * as strings from 'vs/base/common/strings';
 import { IState, ITokenizationSupport, TokenizationRegistry, LanguageId } from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens, IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { CharCode } from 'vs/base/common/charCode';
-import { IViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 
 export function tokenizeToString(text: string, languageId: string): string {
 	return _tokenizeToString(text, _getSafeTokenizationSupport(languageId));

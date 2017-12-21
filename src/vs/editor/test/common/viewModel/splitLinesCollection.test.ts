@@ -16,9 +16,9 @@ import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { Range } from 'vs/editor/common/core/range';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {

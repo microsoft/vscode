@@ -5,7 +5,7 @@
 'use strict';
 
 import { INewScrollPosition, EndOfLinePreference, IViewState, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
-import { IViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewEvent, IViewEventListener } from 'vs/editor/common/view/viewEvents';

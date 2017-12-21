@@ -5,7 +5,6 @@
 'use strict';
 
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { ViewLineTokenFactory, IViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { ColorId, FontStyle, StandardTokenType, LanguageId } from 'vs/editor/common/modes';
 
 export class LineTokensIterator {
@@ -77,6 +76,15 @@ export class LineTokensIterator {
 		this._source.tokenAt(this._tokenIndex + 1, this);
 		return this;
 	}
+}
+
+export interface IViewLineTokens {
+	equals(other: IViewLineTokens): boolean;
+	getCount(): number;
+	getForeground(tokenIndex: number): ColorId;
+	getEndOffset(tokenIndex: number): number;
+	getClassName(tokenIndex: number): string;
+	getInlineStyle(tokenIndex: number, colorMap: string[]): string;
 }
 
 export class LineTokens implements IViewLineTokens {
@@ -168,7 +176,7 @@ export class LineTokens implements IViewLineTokens {
 	 * @return The index of the token containing the offset.
 	 */
 	public findTokenIndexAtOffset(offset: number): number {
-		return ViewLineTokenFactory.findIndexInSegmentsArray(this._tokens, offset);
+		return LineTokens.findIndexInTokensArray(this._tokens, offset);
 	}
 
 	public findTokenAtOffset(offset: number): LineTokensIterator {
@@ -221,6 +229,31 @@ export class LineTokens implements IViewLineTokens {
 			tokens[tokenIndex << 1] = tokens[(tokenIndex + 1) << 1];
 		}
 		tokens[lastTokenIndex << 1] = lineTextLength;
+	}
+
+	public static findIndexInTokensArray(tokens: Uint32Array, desiredIndex: number): number {
+		if (tokens.length <= 2) {
+			return 0;
+		}
+
+		let low = 0;
+		let high = (tokens.length >>> 1) - 1;
+
+		while (low < high) {
+
+			let mid = low + Math.floor((high - low) / 2);
+			let endOffset = tokens[(mid << 1)];
+
+			if (endOffset === desiredIndex) {
+				return mid + 1;
+			} else if (endOffset < desiredIndex) {
+				low = mid + 1;
+			} else if (endOffset > desiredIndex) {
+				high = mid;
+			}
+		}
+
+		return low;
 	}
 }
 

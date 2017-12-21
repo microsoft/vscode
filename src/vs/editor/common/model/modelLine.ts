@@ -7,7 +7,6 @@
 import { IState, FontStyle, StandardTokenType, MetadataConsts, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { ViewLineTokenFactory } from 'vs/editor/common/core/viewLineToken';
 import * as arrays from 'vs/base/common/arrays';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -222,7 +221,7 @@ class ModelLineTokens {
 			return;
 		}
 
-		const fromTokenIndex = ViewLineTokenFactory.findIndexInSegmentsArray(tokens, fromChIndex);
+		const fromTokenIndex = LineTokens.findIndexInTokensArray(tokens, fromChIndex);
 		const fromTokenStartOffset = (fromTokenIndex > 0 ? tokens[(fromTokenIndex - 1) << 1] : 0);
 		const fromTokenEndOffset = tokens[fromTokenIndex << 1];
 
@@ -306,7 +305,7 @@ class ModelLineTokens {
 		const tokens = new Uint32Array(this._lineTokens);
 		const tokensCount = (tokens.length >>> 1);
 
-		let fromTokenIndex = ViewLineTokenFactory.findIndexInSegmentsArray(tokens, chIndex);
+		let fromTokenIndex = LineTokens.findIndexInTokensArray(tokens, chIndex);
 		if (fromTokenIndex > 0) {
 			const fromTokenStartOffset = (fromTokenIndex > 0 ? tokens[(fromTokenIndex - 1) << 1] : 0);
 			if (fromTokenStartOffset === chIndex) {

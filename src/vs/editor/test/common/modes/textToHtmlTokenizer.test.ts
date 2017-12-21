@@ -9,7 +9,7 @@ import { TokenizationRegistry, IState, LanguageIdentifier, ColorId, FontStyle, M
 import { tokenizeToString, tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 	function toStr(pieces: { className: string; text: string }[]): string {

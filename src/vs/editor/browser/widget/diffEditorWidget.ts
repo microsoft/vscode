@@ -24,7 +24,7 @@ import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
@@ -1957,6 +1957,12 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 		) >>> 0;
 
+		const tokens = new Uint32Array(2);
+		tokens[0] = lineContent.length;
+		tokens[1] = defaultMetadata;
+
+		const lineTokens = new LineTokens(tokens, lineContent);
+
 		sb.appendASCIIString('<div class="view-line');
 		if (decorations.length === 0) {
 			// No char changes
@@ -1971,7 +1977,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			lineContent,
 			originalModel.mightContainRTL(),
 			0,
-			new ViewLineTokens([new ViewLineToken(lineContent.length, defaultMetadata)]),
+			lineTokens,
 			actualDecorations,
 			tabSize,
 			config.fontInfo.spaceWidth,
