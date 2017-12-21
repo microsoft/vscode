@@ -83,11 +83,34 @@ function setup() {
 	// 	electron.ipcRenderer.send('issueInfoRequest');
 	// }, 4000);
 
-	document.getElementById('issue-type').addEventListener('change', () => {
+	document.getElementById('issue-type').addEventListener('change', (event) => {
 		state.issueType = parseInt(event.target.value);
 		render(state);
 	});
+
+	document.getElementById('issue-title').addEventListener('blur', (event) => {
+		const query = `is:issue+repo:microsoft/vscode+${event.target.value}`;
+		window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
+			response.json().then(result => {
+				if (result.items.length) {
+					const similarIssues = document.getElementById('similar-issues');
+					let issues = '<ul>';
+					for (let i = 0; i < 10; i++) {
+						issues += `<li><a href="${result.items[i].url}">${result.items[i].title}</a></li>`;
+					}
+
+					issues += '</ul>';
+					similarIssues.innerHTML = issues;
+				}
+			}).catch((error) => {
+				console.log(error);
+			});
+		}).catch((error) => {
+			console.log(error);
+		});
+	});
 }
+
 // window.renderExtensionsInfo = () => {
 // 	electron.ipcRenderer.on('extensionInfoResponse', (event, arg) => {
 // 		document.querySelector('.block-extensions .block-info-table').textContent = arg;
