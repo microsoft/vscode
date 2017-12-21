@@ -13,7 +13,8 @@
 			{
 				"id": "log",
 				"extensions": [
-					".log"
+					".log",
+					"*.log.?"
 				],
 				"aliases": [
 					"log"
