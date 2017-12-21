@@ -6,7 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, IPreferencesSearchModel, IFilterResult2 } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -85,7 +85,7 @@ export class LocalSearchProvider {
 		this._filter = filter;
 	}
 
-	filterPreferences(preferencesModel: ISettingsEditorModel): IFilterResult2 {
+	filterPreferences(preferencesModel: ISettingsEditorModel): ISearchResult {
 		if (!this._filter) {
 			return null;
 		}
@@ -103,8 +103,7 @@ export class LocalSearchProvider {
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, groupFilter, settingMatcher);
 		return {
-			filterMatches,
-			query: this._filter
+			filterMatches
 		};
 	}
 }
@@ -119,10 +118,12 @@ export class RemoteSearchProvider implements IDisposable {
 		@IRequestService private requestService: IRequestService
 	) {
 		this._filter = filter;
-		this._remoteSearchP = filter ? this.getSettingsFromBing(filter, endpoint) : TPromise.wrap(null);
+		this._remoteSearchP = filter ?
+			this.getSettingsFromBing(filter, endpoint).then(null, e => null) :
+			TPromise.wrap(null);
 	}
 
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult2> {
+	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
 		return this._remoteSearchP.then(remoteResult => {
 			if (!this._isDisposed && remoteResult) {
 				let sortedNames = Object.keys(remoteResult.scoredResults).sort((a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a]);
@@ -134,11 +135,9 @@ export class RemoteSearchProvider implements IDisposable {
 
 				const settingMatcher = this.getRemoteSettingMatcher(sortedNames, preferencesModel);
 				const filterMatches = preferencesModel.filterSettings(this._filter, group => null, settingMatcher, sortedNames);
-				return <IFilterResult2>{
-					allGroups: preferencesModel.settingsGroups,
+				return <ISearchResult>{
 					filterMatches,
-					metadata: remoteResult,
-					query: this._filter
+					metadata: remoteResult
 				};
 			} else {
 				return null;

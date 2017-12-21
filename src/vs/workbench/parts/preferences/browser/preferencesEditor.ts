@@ -25,7 +25,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, IPreferencesSearchService,
-	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, IPreferencesSearchModel, IFilterResult2
+	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, ISearchResult, IMultiSearchResult
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -376,9 +376,6 @@ class PreferencesRenderers extends Disposable {
 	private _defaultPreferencesRenderer: IPreferencesRenderer<ISetting>;
 	private _defaultPreferencesRendererDisposables: IDisposable[] = [];
 
-	private _defaultPreferencesFilterResult: IFilterResult;
-	private _editablePreferencesFilterResult: IFilterResult;
-
 	private _editablePreferencesRenderer: IPreferencesRenderer<ISetting>;
 	private _editablePreferencesRendererDisposables: IDisposable[] = [];
 
@@ -391,7 +388,8 @@ class PreferencesRenderers extends Disposable {
 	private _lastDefaultFilterResult: IFilterResult;
 	private _lastEditableFilterResult: IFilterResult;
 
-	private _remoteSearchThrottle: ThrottledDelayer<void>;
+	private _currentNlpResult: ISearchResult;
+	private _currentMultiSearchResult: IMultiSearchResult;
 
 	private _onTriggeredFuzzy: Emitter<void> = this._register(new Emitter<void>());
 	public onTriggeredFuzzy: Event<void> = this._onTriggeredFuzzy.event;
@@ -403,8 +401,6 @@ class PreferencesRenderers extends Disposable {
 		private preferencesSearchService: IPreferencesSearchService
 	) {
 		super();
-
-		this._remoteSearchThrottle = new ThrottledDelayer(200);
 	}
 
 	get defaultPreferencesRenderer(): IPreferencesRenderer<ISetting> {
@@ -538,13 +534,14 @@ class PreferencesRenderers extends Disposable {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
 			const filterResult = provider.filterPreferences(model);
 			if (filterResult) {
-				const result = model.renderFilteredMatches(filterResult.filterMatches, filterResult.query);
-				preferencesRenderer.filterPreferences(result);
-				return result;
+				return preferencesRenderer.renderFilteredPreferences(filter, {
+					id: 'filterResult',
+					label: nls.localize('filterResult', "Filtered Results"),
+					result: filterResult
+				});
 			}
 		}
 
-		preferencesRenderer.filterPreferences(null);
 		return null;
 	}
 
@@ -553,27 +550,24 @@ class PreferencesRenderers extends Disposable {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
 			provider.filterPreferences(model).then(filterResult => {
 				if (filterResult) {
-					this._removeDuplicateResults(mergeResult, filterResult);
-					const result = model.renderSearchMatches(filterResult.filterMatches, filterResult.query);
-					if (mergeResult) {
-						result.filteredGroups = [...mergeResult.filteredGroups, ...result.filteredGroups];
-						result.matches = [...mergeResult.matches, ...result.matches];
-					}
-
-					preferencesRenderer.filterPreferences(result);
+					return preferencesRenderer.renderNlpPreferences(filter, {
+						id: 'nlpResult',
+						label: nls.localize('nlpResult', "Natural Language Results"),
+						result: filterResult
+					});
+				} else if (filter) {
+					return preferencesRenderer.renderNlpPreferences(filter, {
+						id: 'nlpResult',
+						label: nls.localize('nlpResult', "Natural Language Results"),
+						result: {
+							filterMatches: [{ matches: [], setting: preferencesRenderer.preferencesModel.getPreference('editor.tabSize') }]
+						}
+					});
 				}
 			});
 		}
 
 		return TPromise.as(null);
-	}
-
-	private _removeDuplicateResults(filterResult: IFilterResult, searchResult: IFilterResult2): void {
-		// Remove duplicates between local and remote results
-		// TODO simplify
-		const localSet = new Set<string>();
-		filterResult.filteredGroups[0].sections[0].settings.forEach(s => localSet.add(s.key));
-		searchResult.filterMatches = searchResult.filterMatches.filter(s => !localSet.has(s.setting.key));
 	}
 
 	private consolidateAndUpdate(): number {

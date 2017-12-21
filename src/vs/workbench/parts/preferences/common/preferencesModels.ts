@@ -15,7 +15,7 @@ import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection, IGroupFilter, ISettingMatcher, IFilterMatch } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection, IGroupFilter, ISettingMatcher, ISettingMatch, IMultiSearchResult, ISearchResultGroup } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -27,7 +27,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 		return this.settingsGroups.map(group => '@' + group.id);
 	}
 
-	public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): IFilterMatch[] {
+	public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[] {
 		// TODO@Rob - exclude the Commonly Used settings group
 		const allGroups = this.settingsGroups.slice(1);
 
@@ -52,7 +52,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 		// 	};
 		// }
 
-		const filterMatches: IFilterMatch[] = [];
+		const filterMatches: ISettingMatch[] = [];
 		const matches: IRange[] = [];
 		// const filteredGroups: ISettingsGroup[] = [];
 		for (const group of allGroups) {
@@ -167,7 +167,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	// 	return this.doFilterSettings(filter, groupFilter, settingMatcher);
 	// }
 
-	renderFilteredMatches(filteredMatches: IFilterMatch[], filter: string): IFilterResult {
+	renderFilteredMatches(filteredMatches: ISettingMatch[], filter: string): IFilterResult {
 		return {
 			allGroups: this.settingsGroups,
 			filteredGroups: this.settingsGroups,
@@ -176,7 +176,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 		};
 	}
 
-	renderSearchMatches(searchMatches: IFilterMatch[], filter: string): IFilterResult {
+	renderSearchMatches(searchMatches: ISettingMatch[], filter: string): IFilterResult {
 		return {
 			allGroups: this.settingsGroups,
 			filteredGroups: this.settingsGroups,
@@ -600,8 +600,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	// private _filterGroupRange: Range;
 	// private _searchGroupRange: Range;
-	private _filterGroupStartLine = 0;
-	private _searchGroupStartLine = 0;
+	private _resultsGroupsStartLine = 0;
 
 	constructor(
 		private _uri: URI,
@@ -624,41 +623,37 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return this.defaultSettings.settingsGroups;
 	}
 
-	renderSearchMatches(searchMatches: IFilterMatch[], filter: string): IFilterResult {
-		if (!this._searchGroupStartLine) {
-			this._searchGroupStartLine = this._filterGroupStartLine + DefaultSettingsEditorModel.GROUP_SIZE;
+	renderFullSearchResults(result: IMultiSearchResult): IFilterResult {
+		if (!this._resultsGroupsStartLine) {
+			this._resultsGroupsStartLine = tail(this.settingsGroups).range.endLineNumber + 2;
 		}
 
-		const searchGroup = this.getSearchResultsGroup(searchMatches.map(m => m.setting));
-		const fixedMatches = this.renderGroup(searchGroup, this._searchGroupStartLine, searchMatches);
+		let startLine = this._resultsGroupsStartLine;
+		const settingsGroups: ISettingsGroup[] = [];
+		const matches: IRange[] = [];
+		result.resultGroups.forEach(resultGroup => {
+			const renderResult = this.renderResultGroup(resultGroup, startLine);
+			settingsGroups.push(renderResult[0]);
+			matches.push(...renderResult[1]);
+			startLine = renderResult[0].range.endLineNumber + 2; // ??
+		});
 
-		const result: IFilterResult = {
+		return <IFilterResult>{
 			allGroups: this.settingsGroups,
-			filteredGroups: [searchGroup],
-			matches: fixedMatches,
-			query: filter
+			filteredGroups: settingsGroups,
+			matches,
+			metadata: null, // todo
+			query: result.query
 		};
-		return result;
 	}
 
-	renderFilteredMatches(filteredMatches: IFilterMatch[], filter: string): IFilterResult {
-		if (!this._filterGroupStartLine) {
-			this._filterGroupStartLine = tail(this.settingsGroups).range.endLineNumber + 2;
-		}
-
-		const literalGroup = this.getLiteralResultsGroup(filteredMatches.map(m => m.setting));
-		const fixedMatches = this.renderGroup(literalGroup, this._filterGroupStartLine, filteredMatches);
-
-		const result: IFilterResult = {
-			allGroups: this.settingsGroups,
-			filteredGroups: [literalGroup],
-			matches: fixedMatches,
-			query: filter
-		};
-		return result;
+	private renderResultGroup(resultGroup: ISearchResultGroup, startLine: number): any[] {
+		const settingsGroup = this.getGroup(resultGroup);
+		const fixedMatches = this.renderGroup(settingsGroup, startLine, resultGroup.result.filterMatches);
+		return [settingsGroup, fixedMatches];
 	}
 
-	private renderGroup(group: ISettingsGroup, startLine: number, filteredMatches: IFilterMatch[]): IRange[] {
+	private renderGroup(group: ISettingsGroup, startLine: number, filteredMatches: ISettingMatch[]): IRange[] {
 		const builder = new SettingsContentBuilder(startLine - 1);
 		builder.pushLine(',');
 		builder.pushGroups([group]);
@@ -738,6 +733,20 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			sections: [
 				{
 					settings: this.getSettings(rankedSettings)
+				}
+			]
+		};
+	}
+
+	private getGroup(resultGroup: ISearchResultGroup): ISettingsGroup {
+		return <ISettingsGroup>{
+			id: resultGroup.id,
+			range: null,
+			title: resultGroup.label,
+			titleRange: null,
+			sections: [
+				{
+					settings: this.getSettings(resultGroup.result.filterMatches.map(m => m.setting));
 				}
 			]
 		};

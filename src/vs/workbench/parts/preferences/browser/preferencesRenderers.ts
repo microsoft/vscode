@@ -17,7 +17,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults, IWorkbenchSettingsConfiguration, ISearchResult, ISearchResultGroup, IMultiSearchResult } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
@@ -43,14 +43,63 @@ export interface IPreferencesRenderer<T> extends IDisposable {
 	onUpdatePreference?: Event<{ key: string, value: any, source: T, index: number }>;
 	onTriggeredFuzzy?: Event<void>;
 
+
 	render(): void;
 	updatePreference(key: string, value: any, source: T, index: number): void;
 	filterPreferences(filterResult: IFilterResult): void;
+	renderFilteredPreferences(query: string, resultGroup: ISearchResultGroup): IFilterResult;
+	renderNlpPreferences(query: string, resultGroup: ISearchResultGroup): void;
 	focusPreference(setting: T): void;
 	clearFocus(setting: T): void;
 }
 
-export class UserSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
+export abstract class AbstractSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
+
+	protected _currentFilterResult: ISearchResultGroup;
+	protected _currentNlpResult: ISearchResultGroup;
+
+	abstract preferencesModel: IPreferencesEditorModel<ISetting>;
+	abstract associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
+
+	abstract onFocusPreference: Event<ISetting>;
+	abstract onClearFocusPreference: Event<ISetting>;
+	abstract onUpdatePreference?: Event<{ key: string, value: any, source: ISetting, index: number }>;
+	abstract onTriggeredFuzzy?: Event<void>;
+
+
+	abstract render(): void;
+	abstract updatePreference(key: string, value: any, source: ISetting, index: number): void;
+	abstract filterPreferences(filterResult: IFilterResult): void;
+	abstract focusPreference(setting: ISetting): void;
+	abstract clearFocus(setting: ISetting): void;
+
+	// TODO - this should handle an arbitrary set of result groups, and shouldn't know about filtered vs nlp results
+	renderFilteredPreferences(query: string, resultGroup: ISearchResultGroup): IFilterResult {
+		this._currentFilterResult = resultGroup;
+		this._removeDuplicateResults(this._currentFilterResult, this._currentNlpResult);
+		return this.onResultGroupsUpdated(query);
+	}
+
+	renderNlpPreferences(query: string, resultGroup: ISearchResultGroup): IFilterResult {
+		this._currentNlpResult = resultGroup;
+		this._removeDuplicateResults(this._currentFilterResult, this._currentNlpResult);
+		return this.onResultGroupsUpdated(query);
+	}
+
+	protected abstract onResultGroupsUpdated(query: string): IFilterResult;
+
+	// Remove duplicates between local and remote results
+	// TODO simplify, maybe move to upstream renderer
+	private _removeDuplicateResults(filterGroup: ISearchResultGroup, nlpGroup: ISearchResultGroup): void {
+		if (nlpGroup && filterGroup) {
+			const localSet = new Set<string>();
+			filterGroup.result.filterMatches.forEach(s => localSet.add(s.setting.key));
+			nlpGroup.result.filterMatches = nlpGroup.result.filterMatches.filter(s => !localSet.has(s.setting.key));
+		}
+	}
+}
+
+export class UserSettingsRenderer extends AbstractSettingsRenderer implements IPreferencesRenderer<ISetting> {
 
 	private settingHighlighter: SettingHighlighter;
 	private editSettingActionRenderer: EditSettingRenderer;
@@ -164,6 +213,10 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		return this.preferencesModel.getPreference(key);
 	}
 
+	protected onResultGroupsUpdated(query: string): IFilterResult {
+		return null;
+	}
+
 	public filterPreferences(filterResult: IFilterResult): void {
 		this.filterResult = filterResult;
 		this.settingHighlighter.clear(true);
@@ -236,7 +289,7 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 	}
 }
 
-export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
+export class DefaultSettingsRenderer extends AbstractSettingsRenderer implements IPreferencesRenderer<ISetting> {
 
 	private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 	private settingHighlighter: SettingHighlighter;
@@ -258,8 +311,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	public readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
 
 	public readonly onTriggeredFuzzy: Event<void>;
-
-	private filterResult: IFilterResult;
 
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
@@ -289,6 +340,30 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	public set associatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>) {
 		this._associatedPreferencesModel = associatedPreferencesModel;
 		// this.editSettingActionRenderer.associatedPreferencesModel = associatedPreferencesModel;
+	}
+
+	protected onResultGroupsUpdated(query: string): IFilterResult {
+		const multiResult = this._getMultiSearchResult(query, this._currentFilterResult, this._currentNlpResult);
+		const filterResult = this.preferencesModel.renderFullSearchResults(multiResult);
+		this.filterPreferences(filterResult);
+		return filterResult;
+	}
+
+	private _getMultiSearchResult(query: string, filterResult: ISearchResultGroup, nlpResult: ISearchResultGroup): IMultiSearchResult {
+		const result = <IMultiSearchResult>{
+			query,
+			resultGroups: []
+		};
+
+		if (filterResult) {
+			result.resultGroups.push(filterResult);
+		}
+
+		if (nlpResult) {
+			result.resultGroups.push(nlpResult);
+		}
+
+		return result;
 	}
 
 	public render() {

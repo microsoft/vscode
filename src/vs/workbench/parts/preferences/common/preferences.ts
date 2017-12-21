@@ -57,6 +57,22 @@ export interface ISetting {
 	overrideOf?: ISetting;
 }
 
+export interface ISearchResult {
+	filterMatches: ISettingMatch[];
+	metadata?: IFilterMetadata;
+}
+
+export interface ISearchResultGroup {
+	id: string;
+	label: string;
+	result: ISearchResult;
+}
+
+export interface IMultiSearchResult {
+	query: string;
+	resultGroups: ISearchResultGroup[];
+}
+
 export interface IFilterResult {
 	query: string;
 	filteredGroups: ISettingsGroup[];
@@ -65,15 +81,9 @@ export interface IFilterResult {
 	metadata?: IFilterMetadata;
 }
 
-export interface IFilterMatch {
+export interface ISettingMatch {
 	setting: ISetting;
 	matches: IRange[];
-}
-
-export interface IFilterResult2 {
-	query: string;
-	filterMatches: IFilterMatch[];
-	metadata?: IFilterMetadata;
 }
 
 export interface IScoredResults {
@@ -103,10 +113,10 @@ export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> 
 	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
-	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher, mostRelevantSettings?: string[]): IFilterMatch[];
+	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher, mostRelevantSettings?: string[]): ISettingMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
-	renderFilteredMatches(filteredMatches: IFilterMatch[], filter: string): IFilterResult;
-	renderSearchMatches(searchMatches: IFilterMatch[], filter: string): IFilterResult;
+	renderFilteredMatches(filteredMatches: ISettingMatch[], filter: string): IFilterResult;
+	renderSearchMatches(searchMatches: ISettingMatch[], filter: string): IFilterResult;
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
