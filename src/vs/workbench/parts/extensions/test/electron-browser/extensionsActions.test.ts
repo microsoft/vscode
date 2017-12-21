@@ -29,8 +29,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 suite('ExtensionsActions Test', () => {
 
@@ -51,6 +53,8 @@ suite('ExtensionsActions Test', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(ILogService, NullLogService);
+		instantiationService.stub(IWindowService, TestWindowService);
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, onDidChangeConfiguration: () => { }, getConfiguration: () => ({}) });
