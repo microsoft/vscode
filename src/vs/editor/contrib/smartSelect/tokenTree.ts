@@ -7,7 +7,7 @@
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { LineTokensIterator } from 'vs/editor/common/core/lineTokens';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -132,13 +132,13 @@ class RawToken {
 	public type: StandardTokenType;
 	public languageId: LanguageId;
 
-	constructor(source: LineTokensIterator, lineNumber: number, lineText: string) {
+	constructor(source: LineTokens, tokenIndex: number, lineNumber: number) {
 		this.lineNumber = lineNumber;
-		this.lineText = lineText;
-		this.startOffset = source.startOffset;
-		this.endOffset = source.endOffset;
-		this.type = source.tokenType;
-		this.languageId = source.languageId;
+		this.lineText = source.getLineContent();
+		this.startOffset = source.getStartOffset(tokenIndex);
+		this.endOffset = source.getEndOffset(tokenIndex);
+		this.type = source.getStandardTokenType(tokenIndex);
+		this.languageId = source.getLanguageId(tokenIndex);
 	}
 }
 
@@ -148,38 +148,48 @@ class ModelRawTokenScanner {
 	private _lineCount: number;
 	private _versionId: number;
 	private _lineNumber: number;
-	private _lineText: string;
-	private _next: LineTokensIterator;
+	private _tokenIndex: number;
+	private _lineTokens: LineTokens;
 
 	constructor(model: IModel) {
 		this._model = model;
 		this._lineCount = this._model.getLineCount();
 		this._versionId = this._model.getVersionId();
 		this._lineNumber = 0;
-		this._lineText = null;
+		this._tokenIndex = 0;
+		this._lineTokens = null;
 		this._advance();
 	}
 
 	private _advance(): void {
-		this._next = (this._next ? this._next.next() : null);
-		while (!this._next && this._lineNumber < this._lineCount) {
+		if (this._lineTokens) {
+			this._tokenIndex++;
+			if (this._tokenIndex >= this._lineTokens.getCount()) {
+				this._lineTokens = null;
+			}
+		}
+
+		while (this._lineNumber < this._lineCount && !this._lineTokens) {
 			this._lineNumber++;
-			this._lineText = this._model.getLineContent(this._lineNumber);
 			this._model.forceTokenization(this._lineNumber);
-			let currentLineTokens = this._model.getLineTokens(this._lineNumber);
-			this._next = currentLineTokens.firstToken();
+			this._lineTokens = this._model.getLineTokens(this._lineNumber);
+			this._tokenIndex = 0;
+			if (this._lineTokens.getCount() === 0) {
+				// Skip empty lines
+				this._lineTokens = null;
+			}
 		}
 	}
 
 	public next(): RawToken {
-		if (!this._next) {
+		if (!this._lineTokens) {
 			return null;
 		}
 		if (this._model.getVersionId() !== this._versionId) {
 			return null;
 		}
 
-		let result = new RawToken(this._next, this._lineNumber, this._lineText);
+		let result = new RawToken(this._lineTokens, this._tokenIndex, this._lineNumber);
 		this._advance();
 		return result;
 	}
