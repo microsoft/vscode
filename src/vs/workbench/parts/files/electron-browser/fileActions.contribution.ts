@@ -11,7 +11,7 @@ import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTI
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { copyFocusedFilesExplorerViewItem, openWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, EditorWithResourceFocusedInOpenEditorsContext, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, UntitledEditorFocusedInOpenEditorsContext, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, GroupFocusedInOpenEditorsContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, EditorFocusedInOpenEditorsContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { copyFocusedFilesExplorerViewItem, openWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -145,7 +145,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '1_files',
 	order: 10,
 	command: openToSideCommand,
-	when: EditorWithResourceFocusedInOpenEditorsContext
+	when: ResourceContextKey.HasResource
 });
 
 const revealInOsCommand = {
@@ -156,7 +156,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '1_files',
 	order: 20,
 	command: revealInOsCommand,
-	when: EditorWithResourceFocusedInOpenEditorsContext
+	when: ResourceContextKey.Scheme.isEqualTo('file')
 });
 
 const copyPathCommand = {
@@ -167,7 +167,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '1_files',
 	order: 40,
 	command: copyPathCommand,
-	when: EditorWithResourceFocusedInOpenEditorsContext
+	when: ResourceContextKey.HasResource
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -177,7 +177,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: SAVE_FILE_COMMAND_ID,
 		title: SAVE_FILE_LABEL
 	},
-	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext)
+	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveNotAfterDelayContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -187,7 +187,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: REVERT_FILE_COMMAND_ID,
 		title: nls.localize('revert', "Revert File")
 	},
-	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext, UntitledEditorFocusedInOpenEditorsContext.toNegated())
+	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveNotAfterDelayContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -196,7 +196,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: SAVE_FILE_AS_COMMAND_ID,
 		title: SAVE_FILE_AS_LABEL
 	},
-	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext)
+	when: ResourceContextKey.Scheme.isEqualTo('untitled')
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -205,7 +205,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: SAVE_ALL_IN_GROUP_COMMAND_ID,
 		title: nls.localize('saveAll', "Save All")
 	},
-	when: ContextKeyExpr.and(GroupFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext)
+	when: ContextKeyExpr.and(OpenEditorsGroupContext, AutoSaveNotAfterDelayContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -215,7 +215,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: COMPARE_WITH_SAVED_COMMAND_ID,
 		title: nls.localize('compareWithSaved', "Compare with Saved")
 	},
-	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext.toNegated())
+	when: ResourceContextKey.IsFile
 });
 
 const compareResourceCommand = {
@@ -226,7 +226,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 20,
 	command: compareResourceCommand,
-	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, )
+	when: ResourceContextKey.HasResource
 });
 
 const selectForCompareCommand = {
@@ -237,7 +237,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 30,
 	command: selectForCompareCommand,
-	when: EditorWithResourceFocusedInOpenEditorsContext
+	when: ResourceContextKey.HasResource
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -247,7 +247,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close")
 	},
-	when: EditorFocusedInOpenEditorsContext
+	when: OpenEditorsGroupContext.toNegated()
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -257,7 +257,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeOthers', "Close Others")
 	},
-	when: EditorFocusedInOpenEditorsContext
+	when: OpenEditorsGroupContext.toNegated()
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -311,7 +311,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '1_files',
 	order: 20,
 	command: revealInOsCommand,
-	when: ResourceContextKey.Scheme.isEqualTo('file')
+	when: ResourceContextKey.HasResource
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {

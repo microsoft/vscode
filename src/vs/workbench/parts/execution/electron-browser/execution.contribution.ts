@@ -25,7 +25,6 @@ import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINA
 import { WinTerminalService, MacTerminalService, LinuxTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorWithResourceFocusedInOpenEditorsContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 
 if (env.isWindows) {
@@ -166,7 +165,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '1_files',
 	order: 30,
 	command: openConsoleCommand,
-	when: EditorWithResourceFocusedInOpenEditorsContext
+	when: ResourceContextKey.Scheme.isEqualTo('file')
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
