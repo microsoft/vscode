@@ -106,11 +106,11 @@
 	overflow: visible; /* fixes https://github.com/Microsoft/vscode/issues/20182 */
 }
 
-.sizing-shrink > .monaco-icon-label > .monaco-icon-label-description-container {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink > .monaco-icon-label > .monaco-icon-label-description-container {
 	text-overflow: clip;
 }
 
-.hc-black .sizing-shrink > .monaco-icon-label > .monaco-icon-label-description-container {
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink > .monaco-icon-label > .monaco-icon-label-description-container {
 	text-overflow: ellipsis;
 }
 
