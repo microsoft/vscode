@@ -185,7 +185,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 					showDropDown = true;
 				}
 			} else {
-				if (event.keyCode === KeyCode.DownArrow && event.altKey || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
+				if (event.keyCode === KeyCode.DownArrow && event.altKey || event.keyCode === KeyCode.UpArrow && event.altKey || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
 					showDropDown = true;
 				}
 			}
