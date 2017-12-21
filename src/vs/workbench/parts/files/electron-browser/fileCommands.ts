@@ -30,7 +30,7 @@ import { basename } from 'vs/base/common/paths';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -66,6 +66,7 @@ export const SAVE_FILES_COMMAND_ID = 'workbench.command.files.saveFiles';
 export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
 
 export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
+export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('resourceSelectedForCompare', false);
 
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
 	const windowsService = accessor.get(IWindowsService);
@@ -145,8 +146,6 @@ export const moveFocusedFilesExplorerViewItemToTrashCommand = (accessor: Service
 export const copyFocusedFilesExplorerViewItem = (accessor: ServicesAccessor) => {
 	runActionOnFocusedFilesExplorerViewItem(accessor, 'filesExplorer.copy');
 };
-
-let globalResourceToCompare: URI;
 
 function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
 	textFileService: ITextFileService, editorGroupService: IEditorGroupService): TPromise<any> {
@@ -382,6 +381,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+let globalResourceToCompare: URI;
+let resourceSelectedForCompareContext: IContextKey<boolean>;
 CommandsRegistry.registerCommand({
 	id: SELECT_FOR_COMPARE_COMMAND_ID,
 	handler: (accessor, resource: URI) => {
@@ -394,6 +395,10 @@ CommandsRegistry.registerCommand({
 		}
 
 		globalResourceToCompare = resource;
+		if (!resourceSelectedForCompareContext) {
+			resourceSelectedForCompareContext = ResourceSelectedForCompareContext.bindTo(accessor.get(IContextKeyService));
+		}
+		resourceSelectedForCompareContext.set(true);
 	}
 });
 
