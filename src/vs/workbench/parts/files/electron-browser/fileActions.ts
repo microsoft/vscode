@@ -41,7 +41,7 @@ import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAct
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, COMPARE_WITH_SAVED_SCHEMA, NEW_FILE_LABEL, NEW_FILE_COMMAND_ID, IExplorerContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, COMPARE_WITH_SAVED_SCHEMA, IExplorerContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
@@ -61,6 +61,12 @@ export interface IFileViewletState {
 	setEditable(stat: IFileStat, editableData: IEditableData): void;
 	clearEditable(stat: IFileStat): void;
 }
+
+export const NEW_FILE_COMMAND_ID = 'workbench.command.files.newFile';
+export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
+
+export const NEW_FOLDER_COMMAND_ID = 'workbench.command.files.newFolder';
+export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder");
 
 export class BaseErrorReportingAction extends Action {
 
@@ -462,7 +468,7 @@ export class NewFolderAction extends BaseNewAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('explorer.newFolder', nls.localize('newFolder', "New Folder"), tree, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, messageService, textFileService);
+		super('explorer.newFolder', NEW_FOLDER_LABEL, tree, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, messageService, textFileService);
 
 		this.class = 'explorer-action new-folder';
 		this._updateEnablement();
@@ -1756,6 +1762,8 @@ if (!diag) {
 	});
 }
 
+// TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
+// It should be the other way around, that actions call into commands.
 CommandsRegistry.registerCommand({
 	id: NEW_FILE_COMMAND_ID,
 	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
@@ -1764,5 +1772,16 @@ CommandsRegistry.registerCommand({
 		const newFileAction = instantationService.createInstance(NewFileAction, listService.lastFocusedList, explorerContext.stat);
 
 		return newFileAction.run(explorerContext);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: NEW_FOLDER_COMMAND_ID,
+	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
+		const instantationService = accessor.get(IInstantiationService);
+		const listService = accessor.get(IListService);
+		const newFolderAction = instantationService.createInstance(NewFolderAction, listService.lastFocusedList, explorerContext.stat);
+
+		return newFolderAction.run(explorerContext);
 	}
 });

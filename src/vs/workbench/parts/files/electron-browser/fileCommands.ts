@@ -66,9 +66,6 @@ export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.action.files.saveAllInGro
 export const SAVE_FILES_COMMAND_ID = 'workbench.command.files.saveFiles';
 export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
 
-export const NEW_FILE_COMMAND_ID = 'workbench.command.files.newFile';
-export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
-
 export const EditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('editorFocusedInOpenEditors', false);
 export const EditorWithResourceFocusedInOpenEditorsContext = new RawContextKey<boolean>('editorWithResourceFocusedInOpenEditors', false);
 export const UntitledEditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('untitledEditorFocusedInOpenEditors', false);
