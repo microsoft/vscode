@@ -7,7 +7,6 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
-import { parse } from 'vs/base/common/marshalling';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
@@ -68,7 +67,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 		const first = protocol.onMessage(raw => {
 			first.dispose();
 
-			const initData = parse(raw);
+			const initData = <IInitData>JSON.parse(raw);
 
 			// Print a console message when rejection isn't handled within N seconds. For details:
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection

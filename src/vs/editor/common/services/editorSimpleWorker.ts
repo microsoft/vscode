@@ -313,7 +313,6 @@ export abstract class BaseEditorSimpleWorker {
 		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
 			shouldPostProcessCharChanges: true,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
-			shouldConsiderTrimWhitespaceInEmptyCase: true,
 			shouldMakePrettyDiff: true
 		});
 		return TPromise.as(diffComputer.computeDiff());
@@ -331,7 +330,6 @@ export abstract class BaseEditorSimpleWorker {
 		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
 			shouldPostProcessCharChanges: false,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
-			shouldConsiderTrimWhitespaceInEmptyCase: false,
 			shouldMakePrettyDiff: true
 		});
 		return TPromise.as(diffComputer.computeDiff());

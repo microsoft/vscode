@@ -31,6 +31,7 @@ import 'vs/workbench/browser/actions/toggleZenMode';
 import 'vs/workbench/browser/actions/toggleTabsVisibility';
 import 'vs/workbench/parts/preferences/electron-browser/preferences.contribution';
 import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
+import 'vs/workbench/parts/logs/electron-browser/logs.contribution';
 
 import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';
@@ -71,7 +72,7 @@ import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // ca
 
 import 'vs/workbench/parts/welcome/page/electron-browser/welcomePage.contribution';
 
-import 'vs/workbench/parts/output/browser/output.contribution';
+import 'vs/workbench/parts/output/electron-browser/output.contribution';
 import 'vs/workbench/parts/output/browser/outputPanel'; // can be packaged separately
 
 import 'vs/workbench/parts/terminal/electron-browser/terminal.contribution';
@@ -124,3 +125,5 @@ import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution
 import 'vs/workbench/parts/watermark/electron-browser/watermark';
 
 import 'vs/workbench/parts/welcome/overlay/browser/welcomeOverlay';
+
+import 'vs/workbench/parts/holidays/electron-browser/holidays.contribution';

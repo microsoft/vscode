@@ -63,7 +63,7 @@ export interface IViewLayout {
 	getWhitespaces(): IEditorWhitespace[];
 
 	saveState(): IViewState;
-	restoreState(state: IViewState): void;
+	reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; };
 
 	isAfterLines(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
@@ -144,7 +144,8 @@ export interface IViewModel {
 	validateModelPosition(modelPosition: IPosition): Position;
 
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
-	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
+	getEOL(): string;
+	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | string[];
 	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
 }
 

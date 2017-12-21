@@ -23,17 +23,13 @@ export interface IViewCursorRenderData {
 }
 
 class ViewCursorRenderData {
-	public readonly top: number;
-	public readonly left: number;
-	public readonly width: number;
-	public readonly textContent: string;
-
-	constructor(top: number, left: number, width: number, textContent: string) {
-		this.top = top;
-		this.left = left;
-		this.width = width;
-		this.textContent = textContent;
-	}
+	constructor(
+		public readonly top: number,
+		public readonly left: number,
+		public readonly width: number,
+		public readonly height: number,
+		public readonly textContent: string
+	) { }
 }
 
 export class ViewCursor {
@@ -136,7 +132,7 @@ export class ViewCursor {
 				width = dom.computeScreenAwareSize(1);
 			}
 			const top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
-			return new ViewCursorRenderData(top, visibleRange.left, width, '');
+			return new ViewCursorRenderData(top, visibleRange.left, width, this._lineHeight, '');
 		}
 
 		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(this._position.lineNumber, this._position.column, this._position.lineNumber, this._position.column + 1), false);
@@ -155,8 +151,16 @@ export class ViewCursor {
 			textContent = lineContent.charAt(this._position.column - 1);
 		}
 
-		const top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
-		return new ViewCursorRenderData(top, range.left, width, textContent);
+		let top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
+		let height = this._lineHeight;
+
+		// Underline might interfere with clicking
+		if (this._cursorStyle === TextEditorCursorStyle.Underline || this._cursorStyle === TextEditorCursorStyle.UnderlineThin) {
+			top += this._lineHeight - 2;
+			height = 2;
+		}
+
+		return new ViewCursorRenderData(top, range.left, width, height, textContent);
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
@@ -178,14 +182,14 @@ export class ViewCursor {
 		this._domNode.setTop(this._renderData.top);
 		this._domNode.setLeft(this._renderData.left);
 		this._domNode.setWidth(this._renderData.width);
-		this._domNode.setLineHeight(this._lineHeight);
-		this._domNode.setHeight(this._lineHeight);
+		this._domNode.setLineHeight(this._renderData.height);
+		this._domNode.setHeight(this._renderData.height);
 
 		return {
 			domNode: this._domNode.domNode,
 			position: this._position,
 			contentLeft: this._renderData.left,
-			height: this._lineHeight,
+			height: this._renderData.height,
 			width: 2
 		};
 	}

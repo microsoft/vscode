@@ -19,13 +19,13 @@ import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/pa
 import { ILifecycleService, UnloadReason, IWindowUnloadEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, ReadyState, IPathsToWaitFor, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, ReadyState, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderPath } from 'vs/code/node/windowsFinder';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isEqual } from 'vs/base/common/paths';
-import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -35,6 +35,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { normalizeNFC } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
+import { Queue } from 'vs/base/common/async';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -108,7 +109,7 @@ export class WindowsManager implements IWindowsMainService {
 	private windowsState: IWindowsState;
 	private lastClosedWindowState: IWindowState;
 
-	private fileDialog: FileDialog;
+	private dialogs: Dialogs;
 	private workspacesManager: WorkspacesManager;
 
 	private _onWindowReady = new Emitter<CodeWindow>();
@@ -147,7 +148,7 @@ export class WindowsManager implements IWindowsMainService {
 			this.windowsState.openedWindows = [];
 		}
 
-		this.fileDialog = new FileDialog(environmentService, telemetryService, stateService, this);
+		this.dialogs = new Dialogs(environmentService, telemetryService, stateService, this, this.logService);
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, environmentService, this);
 	}
 
@@ -790,12 +791,7 @@ export class WindowsManager implements IWindowsMainService {
 					noLink: true
 				};
 
-				const activeWindow = BrowserWindow.getFocusedWindow();
-				if (activeWindow) {
-					dialog.showMessageBox(activeWindow, options);
-				} else {
-					dialog.showMessageBox(options);
-				}
+				this.dialogs.showMessageBox(options, this.getFocusedWindow());
 			}
 
 			return path;
@@ -1330,7 +1326,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle untitled workspaces with prompt as needed
-		this.workspacesManager.promptToSaveUntitledWorkspace(e, workspace);
+		e.veto(this.workspacesManager.promptToSaveUntitledWorkspace(this.getWindowById(e.window.id), workspace));
 	}
 
 	public focusLastActive(cli: ParsedArgs, context: OpenContext): CodeWindow {
@@ -1418,48 +1414,48 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
-			const result = dialog.showMessageBox(window.win, {
+			this.dialogs.showMessageBox({
 				title: product.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message: localize('appStalled', "The window is no longer responding"),
 				detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 				noLink: true
+			}, window).then(result => {
+				if (!window.win) {
+					return; // Return early if the window has been going down already
+				}
+
+				if (result.button === 0) {
+					window.reload();
+				} else if (result.button === 2) {
+					this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
+					window.win.destroy(); // make sure to destroy the window as it is unresponsive
+				}
 			});
-
-			if (!window.win) {
-				return; // Return early if the window has been going down already
-			}
-
-			if (result === 0) {
-				window.reload();
-			} else if (result === 2) {
-				this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
-				window.win.destroy(); // make sure to destroy the window as it is unresponsive
-			}
 		}
 
 		// Crashed
 		else {
-			const result = dialog.showMessageBox(window.win, {
+			this.dialogs.showMessageBox({
 				title: product.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message: localize('appCrashed', "The window has crashed"),
 				detail: localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
 				noLink: true
+			}, window).then(result => {
+				if (!window.win) {
+					return; // Return early if the window has been going down already
+				}
+
+				if (result.button === 0) {
+					window.reload();
+				} else if (result.button === 1) {
+					this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
+					window.win.destroy(); // make sure to destroy the window as it has crashed
+				}
 			});
-
-			if (!window.win) {
-				return; // Return early if the window has been going down already
-			}
-
-			if (result === 0) {
-				window.reload();
-			} else if (result === 1) {
-				this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
-				window.win.destroy(); // make sure to destroy the window as it has crashed
-			}
 		}
 	}
 
@@ -1519,7 +1515,19 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		this.fileDialog.pickAndOpen(internalOptions);
+		this.dialogs.pickAndOpen(internalOptions);
+	}
+
+	public showMessageBox(options: Electron.MessageBoxOptions, win?: CodeWindow): TPromise<IMessageBoxResult> {
+		return this.dialogs.showMessageBox(options, win);
+	}
+
+	public showSaveDialog(options: Electron.SaveDialogOptions, win?: CodeWindow): TPromise<string> {
+		return this.dialogs.showSaveDialog(options, win);
+	}
+
+	public showOpenDialog(options: Electron.OpenDialogOptions, win?: CodeWindow): TPromise<string[]> {
+		return this.dialogs.showOpenDialog(options, win);
 	}
 
 	public quit(): void {
@@ -1545,20 +1553,26 @@ interface IInternalNativeOpenDialogOptions extends INativeOpenDialogOptions {
 	pickFiles?: boolean;
 }
 
-class FileDialog {
+class Dialogs {
 
 	private static readonly workingDirPickerStorageKey = 'pickerWorkingDir';
+
+	private mapWindowToDialogQueue: Map<number, Queue<any>>;
+	private noWindowDialogQueue: Queue<any>;
 
 	constructor(
 		private environmentService: IEnvironmentService,
 		private telemetryService: ITelemetryService,
 		private stateService: IStateService,
-		private windowsMainService: IWindowsMainService
+		private windowsMainService: IWindowsMainService,
+		private logService: ILogService // TODO@Ben remove logging when no longer needed
 	) {
+		this.mapWindowToDialogQueue = new Map<number, Queue<any>>();
+		this.noWindowDialogQueue = new Queue<any>();
 	}
 
 	public pickAndOpen(options: INativeOpenDialogOptions): void {
-		this.getFileOrFolderPaths(options, (paths: string[]) => {
+		this.getFileOrFolderPaths(options).then(paths => {
 			const numberOfPaths = paths ? paths.length : 0;
 
 			// Telemetry
@@ -1584,7 +1598,7 @@ class FileDialog {
 		});
 	}
 
-	private getFileOrFolderPaths(options: IInternalNativeOpenDialogOptions, clb: (paths: string[]) => void): void {
+	private getFileOrFolderPaths(options: IInternalNativeOpenDialogOptions): TPromise<string[]> {
 
 		// Ensure dialog options
 		if (!options.dialogOptions) {
@@ -1593,7 +1607,7 @@ class FileDialog {
 
 		// Ensure defaultPath
 		if (!options.dialogOptions.defaultPath) {
-			options.dialogOptions.defaultPath = this.stateService.getItem<string>(FileDialog.workingDirPickerStorageKey);
+			options.dialogOptions.defaultPath = this.stateService.getItem<string>(Dialogs.workingDirPickerStorageKey);
 		}
 
 		// Ensure properties
@@ -1615,20 +1629,93 @@ class FileDialog {
 
 		// Show Dialog
 		const focusedWindow = this.windowsMainService.getWindowById(options.windowId) || this.windowsMainService.getFocusedWindow();
-		let paths = dialog.showOpenDialog(focusedWindow && focusedWindow.win, options.dialogOptions);
-		if (paths && paths.length > 0) {
-			if (isMacintosh) {
+
+		return this.showOpenDialog(options.dialogOptions, focusedWindow).then(paths => {
+			if (paths && paths.length > 0) {
+
+				// Remember path in storage for next time
+				this.stateService.setItem(Dialogs.workingDirPickerStorageKey, dirname(paths[0]));
+
+				return paths;
+			}
+
+			return void 0;
+		});
+	}
+
+	private getDialogQueue(window?: ICodeWindow): Queue<any> {
+		if (!window) {
+			this.logService.info('getDialogQueue: using NO WINDOW queue. size: ', this.noWindowDialogQueue.size);
+			return this.noWindowDialogQueue;
+		}
+
+		let windowDialogQueue = this.mapWindowToDialogQueue.get(window.id);
+		if (!windowDialogQueue) {
+			this.logService.info('getDialogQueue: creating window dialog queue for window:', window.id);
+			windowDialogQueue = new Queue<any>();
+			this.mapWindowToDialogQueue.set(window.id, windowDialogQueue);
+		} else {
+			this.logService.info('getDialogQueue: found existing window dialog queue for window:', window.id);
+		}
+
+		this.logService.info('getDialogQueue: size: ', windowDialogQueue.size);
+
+		return windowDialogQueue;
+	}
+
+	public showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): TPromise<IMessageBoxResult> {
+		this.logService.info('showMessageBox begin: ', options, window ? window.id : 'No Window');
+		return this.getDialogQueue(window).queue(() => {
+			return new TPromise((c, e) => {
+				this.logService.info('showMessageBox opening');
+				dialog.showMessageBox(window ? window.win : void 0, options, (response: number, checkboxChecked: boolean) => {
+					this.logService.info('showMessageBox closed, response: ', response, checkboxChecked);
+					c({ button: response, checkboxChecked });
+				});
+			});
+		});
+	}
+
+	public showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): TPromise<string> {
+		function normalizePath(path: string): string {
+			if (path && isMacintosh) {
+				path = normalizeNFC(path); // normalize paths returned from the OS
+			}
+
+			return path;
+		}
+
+		this.logService.info('showSaveDialog begin: ', options, window ? window.id : 'No Window');
+		return this.getDialogQueue(window).queue(() => {
+			return new TPromise((c, e) => {
+				this.logService.info('showSaveDialog opening');
+				dialog.showSaveDialog(window ? window.win : void 0, options, path => {
+					this.logService.info('showSaveDialog closed, response: ', path);
+					c(normalizePath(path));
+				});
+			});
+		});
+	}
+
+	public showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): TPromise<string[]> {
+		function normalizePaths(paths: string[]): string[] {
+			if (paths && paths.length > 0 && isMacintosh) {
 				paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
 			}
 
-			// Remember path in storage for next time
-			this.stateService.setItem(FileDialog.workingDirPickerStorageKey, dirname(paths[0]));
-
-			// Return
-			return clb(paths);
+			return paths;
 		}
 
-		return clb(void (0));
+		this.logService.info('showOpenDialog begin: ', options, window ? window.id : 'No Window');
+		return this.getDialogQueue(window).queue(() => {
+			return new TPromise((c, e) => {
+				this.logService.info('showOpenDialog opening');
+				dialog.showOpenDialog(window ? window.win : void 0, options, paths => {
+					this.logService.info('showOpenDialog closed, response: ', paths);
+					c(normalizePaths(paths));
+				});
+			});
+		});
 	}
 }
 
@@ -1651,22 +1738,29 @@ class WorkspacesManager {
 	}
 
 	public createAndEnterWorkspace(window: CodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
-		if (!window || !window.win || window.readyState !== ReadyState.READY || !this.isValidTargetWorkspacePath(window, path)) {
+		if (!window || !window.win || window.readyState !== ReadyState.READY) {
 			return TPromise.as(null); // return early if the window is not ready or disposed
 		}
 
-		return this.workspacesService.createWorkspace(folders).then(workspace => {
-			return this.doSaveAndOpenWorkspace(window, workspace, path);
+		return this.isValidTargetWorkspacePath(window, path).then(isValid => {
+			if (!isValid) {
+				return TPromise.as(null); // return early if the workspace is not valid
+			}
+
+			return this.workspacesService.createWorkspace(folders).then(workspace => {
+				return this.doSaveAndOpenWorkspace(window, workspace, path);
+			});
 		});
+
 	}
 
-	private isValidTargetWorkspacePath(window: CodeWindow, path?: string): boolean {
+	private isValidTargetWorkspacePath(window: CodeWindow, path?: string): TPromise<boolean> {
 		if (!path) {
-			return true;
+			return TPromise.wrap(true);
 		}
 
 		if (window.openedWorkspace && window.openedWorkspace.configPath === path) {
-			return false; // window is already opened on a workspace with that path
+			return TPromise.wrap(false); // window is already opened on a workspace with that path
 		}
 
 		// Prevent overwriting a workspace that is currently opened in another window
@@ -1680,17 +1774,10 @@ class WorkspacesManager {
 				noLink: true
 			};
 
-			const activeWindow = BrowserWindow.getFocusedWindow();
-			if (activeWindow) {
-				dialog.showMessageBox(activeWindow, options);
-			} else {
-				dialog.showMessageBox(options);
-			}
-
-			return false;
+			return this.windowsMainService.showMessageBox(options, this.windowsMainService.getFocusedWindow()).then(() => false);
 		}
 
-		return true; // OK
+		return TPromise.wrap(true); // OK
 	}
 
 	private doSaveAndOpenWorkspace(window: CodeWindow, workspace: IWorkspaceIdentifier, path?: string): TPromise<IEnterWorkspaceResult> {
@@ -1737,7 +1824,7 @@ class WorkspacesManager {
 		});
 	}
 
-	public promptToSaveUntitledWorkspace(e: IWindowUnloadEvent, workspace: IWorkspaceIdentifier): void {
+	public promptToSaveUntitledWorkspace(window: ICodeWindow, workspace: IWorkspaceIdentifier): TPromise<boolean> {
 		enum ConfirmResult {
 			SAVE,
 			DONT_SAVE,
@@ -1771,41 +1858,35 @@ class WorkspacesManager {
 			options.defaultId = 2;
 		}
 
-		const res = dialog.showMessageBox(e.window.win, options);
+		return this.windowsMainService.showMessageBox(options, window).then(res => {
+			switch (buttons[res.button].result) {
 
-		switch (buttons[res].result) {
+				// Cancel: veto unload
+				case ConfirmResult.CANCEL:
+					return true;
 
-			// Cancel: veto unload
-			case ConfirmResult.CANCEL:
-				e.veto(true);
-				break;
+				// Don't Save: delete workspace
+				case ConfirmResult.DONT_SAVE:
+					this.workspacesService.deleteUntitledWorkspaceSync(workspace);
+					return false;
 
-			// Don't Save: delete workspace
-			case ConfirmResult.DONT_SAVE:
-				this.workspacesService.deleteUntitledWorkspaceSync(workspace);
-				e.veto(false);
-				break;
+				// Save: save workspace, but do not veto unload
+				case ConfirmResult.SAVE: {
+					return this.windowsMainService.showSaveDialog({
+						buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
+						title: localize('saveWorkspace', "Save Workspace"),
+						filters: WORKSPACE_FILTER,
+						defaultPath: this.getUntitledWorkspaceSaveDialogDefaultPath(workspace)
+					}, window).then(target => {
+						if (target) {
+							return this.workspacesService.saveWorkspace(workspace, target).then(() => false, () => false);
+						}
 
-			// Save: save workspace, but do not veto unload
-			case ConfirmResult.SAVE: {
-				let target = dialog.showSaveDialog(e.window.win, {
-					buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
-					title: localize('saveWorkspace', "Save Workspace"),
-					filters: WORKSPACE_FILTER,
-					defaultPath: this.getUntitledWorkspaceSaveDialogDefaultPath(workspace)
-				});
-
-				if (target) {
-					if (isMacintosh) {
-						target = normalizeNFC(target); // normalize paths returned from the OS
-					}
-
-					e.veto(this.workspacesService.saveWorkspace(workspace, target).then(() => false, () => false));
-				} else {
-					e.veto(true); // keep veto if no target was provided
+						return true; // keep veto if no target was provided
+					});
 				}
 			}
-		}
+		});
 	}
 
 	private getUntitledWorkspaceSaveDialogDefaultPath(workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {

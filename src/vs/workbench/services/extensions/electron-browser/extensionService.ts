@@ -262,7 +262,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const expected: ProxyIdentifier<any>[] = Object.keys(MainContext).map((key) => MainContext[key]);
 		this._extensionHostProcessRPCProtocol.assertRegistered(expected);
 
-		return this._extensionHostProcessRPCProtocol.get(ExtHostContext.ExtHostExtensionService);
+		return this._extensionHostProcessRPCProtocol.getProxy(ExtHostContext.ExtHostExtensionService);
 	}
 
 	// ---- begin IExtensionService
@@ -486,6 +486,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const expected = await ExtensionScanner.scanExtensions(input, new NullLogger());
 
 		const cacheContents = await this._readExtensionCache(environmentService, cacheKey);
+		if (!cacheContents) {
+			// Cache has been deleted by someone else, which is perfectly fine...
+			return;
+		}
 		const actual = cacheContents.result;
 
 		if (objects.equals(expected, actual)) {

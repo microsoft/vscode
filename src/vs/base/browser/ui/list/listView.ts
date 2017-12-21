@@ -52,10 +52,12 @@ interface IItem<T> {
 
 export interface IListViewOptions {
 	useShadows?: boolean;
+	verticalScrollMode?: ScrollbarVisibility;
 }
 
 const DefaultOptions: IListViewOptions = {
-	useShadows: true
+	useShadows: true,
+	verticalScrollMode: ScrollbarVisibility.Auto
 };
 
 export class ListView<T> implements ISpliceable<T>, IDisposable {
@@ -106,7 +108,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.scrollableElement = new ScrollableElement(this.rowsContainer, {
 			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Auto,
+			vertical: getOrDefault(options, o => o.verticalScrollMode, DefaultOptions.verticalScrollMode),
 			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows)
 		});
 

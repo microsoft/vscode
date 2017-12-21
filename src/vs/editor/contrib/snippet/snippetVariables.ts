@@ -9,7 +9,7 @@ import { basename, dirname } from 'vs/base/common/paths';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
-import { getLeadingWhitespace, commonPrefixLength } from 'vs/base/common/strings';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export const KnownSnippetVariableNames = Object.freeze({
@@ -145,14 +145,28 @@ export class ModelBasedVariableResolver implements VariableResolver {
 export class ClipboardBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _clipboardService: IClipboardService
+		private readonly _clipboardService: IClipboardService,
+		private readonly _selectionIdx: number,
+		private readonly _selectionCount: number
 	) {
 		//
 	}
 
 	resolve(variable: Variable): string {
-		return (variable.name === 'CLIPBOARD' && this._clipboardService)
-			? this._clipboardService.readText() || undefined
-			: undefined;
+		if (variable.name !== 'CLIPBOARD' || !this._clipboardService) {
+			return undefined;
+		}
+
+		const text = this._clipboardService.readText();
+		if (!text) {
+			return undefined;
+		}
+
+		const lines = text.split(/\r\n|\n|\r/).filter(s => !isFalsyOrWhitespace(s));
+		if (lines.length === this._selectionCount) {
+			return lines[this._selectionIdx];
+		} else {
+			return text;
+		}
 	}
 }

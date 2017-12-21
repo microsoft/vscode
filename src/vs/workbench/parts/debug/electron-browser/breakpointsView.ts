@@ -267,7 +267,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		// noop
 	}
 
-	static ID = 'breakpoints';
+	static readonly ID = 'breakpoints';
 
 	get templateId() {
 		return BreakpointsRenderer.ID;
@@ -331,7 +331,7 @@ class ExceptionBreakpointsRenderer implements IRenderer<IExceptionBreakpoint, IB
 		// noop
 	}
 
-	static ID = 'exceptionbreakpoints';
+	static readonly ID = 'exceptionbreakpoints';
 
 	get templateId() {
 		return ExceptionBreakpointsRenderer.ID;
@@ -376,7 +376,7 @@ class FunctionBreakpointsRenderer implements IRenderer<IFunctionBreakpoint, IBas
 		// noop
 	}
 
-	static ID = 'functionbreakpoints';
+	static readonly ID = 'functionbreakpoints';
 
 	get templateId() {
 		return FunctionBreakpointsRenderer.ID;
@@ -429,7 +429,7 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 		// noop
 	}
 
-	static ID = 'functionbreakpointinput';
+	static readonly ID = 'functionbreakpointinput';
 
 	get templateId() {
 		return FunctionBreakpointInputRenderer.ID;

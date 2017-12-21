@@ -308,7 +308,7 @@ export class MainThreadDocumentsAndEditors {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentsAndEditors);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
 		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService);
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
@@ -398,7 +398,7 @@ export class MainThreadDocumentsAndEditors {
 
 	private _toModelAddData(model: IModel): IModelAddedData {
 		return {
-			url: model.uri,
+			uri: model.uri,
 			versionId: model.getVersionId(),
 			lines: model.getLinesContent(),
 			EOL: model.getEOL(),
@@ -410,7 +410,7 @@ export class MainThreadDocumentsAndEditors {
 	private _toTextEditorAddData(textEditor: MainThreadTextEditor): ITextEditorAddData {
 		return {
 			id: textEditor.getId(),
-			document: textEditor.getModel().uri,
+			documentUri: textEditor.getModel().uri,
 			options: textEditor.getConfiguration(),
 			selections: textEditor.getSelections(),
 			editorPosition: this._findEditorPosition(textEditor)

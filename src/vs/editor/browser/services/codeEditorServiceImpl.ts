@@ -210,6 +210,8 @@ const _CSS_MAP = {
 	borderStyle: 'border-style:{0};',
 	borderWidth: 'border-width:{0};',
 
+	fontStyle: 'font-style:{0};',
+	fontWeight: 'font-weight:{0};',
 	textDecoration: 'text-decoration:{0};',
 	cursor: 'cursor:{0};',
 	letterSpacing: 'letter-spacing:{0};',
@@ -357,7 +359,7 @@ class DecorationCSSRules {
 			return '';
 		}
 		let cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['textDecoration', 'cursor', 'color', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'letterSpacing'], cssTextArr);
 		return cssTextArr.join('');
 	}
 
@@ -372,10 +374,12 @@ class DecorationCSSRules {
 
 		if (typeof opts !== 'undefined') {
 			this.collectBorderSettingsCSSText(opts, cssTextArr);
-			if (typeof opts.contentIconPath === 'string') {
-				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, URI.file(opts.contentIconPath).toString().replace(/'/g, '%27')));
-			} else if (opts.contentIconPath instanceof URI) {
-				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, opts.contentIconPath.toString(true).replace(/'/g, '%27')));
+			if (typeof opts.contentIconPath !== 'undefined') {
+				if (typeof opts.contentIconPath === 'string') {
+					cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, URI.file(opts.contentIconPath).toString().replace(/'/g, '%27')));
+				} else {
+					cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, URI.revive(opts.contentIconPath).toString(true).replace(/'/g, '%27')));
+				}
 			}
 			if (typeof opts.contentText === 'string') {
 				const truncated = opts.contentText.match(/^.*$/m)[0]; // only take first line
@@ -383,7 +387,7 @@ class DecorationCSSRules {
 
 				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
 			}
-			this.collectCSSText(opts, ['textDecoration', 'color', 'backgroundColor', 'margin'], cssTextArr);
+			this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'color', 'backgroundColor', 'margin'], cssTextArr);
 			if (this.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
 				cssTextArr.push('display:inline-block;');
 			}
@@ -405,7 +409,7 @@ class DecorationCSSRules {
 			if (typeof opts.gutterIconPath === 'string') {
 				cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, URI.file(opts.gutterIconPath).toString()));
 			} else {
-				cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, opts.gutterIconPath.toString(true).replace(/'/g, '%27')));
+				cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, URI.revive(opts.gutterIconPath).toString(true).replace(/'/g, '%27')));
 			}
 			if (typeof opts.gutterIconSize !== 'undefined') {
 				cssTextArr.push(strings.format(_CSS_MAP.gutterIconSize, opts.gutterIconSize));

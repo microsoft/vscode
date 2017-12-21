@@ -211,7 +211,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('lineNumbers.interval', "Line numbers are rendered every 10 lines.")
 			],
 			'default': 'on',
-			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', and 'relative'.")
+			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', 'relative' and 'interval'.")
 		},
 		'editor.rulers': {
 			'type': 'array',
@@ -293,7 +293,8 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.find.globalFindClipboard': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.globalFindClipboard,
-			'description': nls.localize('find.globalFindClipboard', "Controls if the Find Widget should read or modify the shared find clipboard on macOS")
+			'description': nls.localize('find.globalFindClipboard', "Controls if the Find Widget should read or modify the shared find clipboard on macOS"),
+			'included': platform.isMacintosh
 		},
 		'editor.wordWrap': {
 			'type': 'string',

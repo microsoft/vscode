@@ -114,7 +114,7 @@ export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroup
 	dark: editorBackground,
 	light: editorBackground,
 	hc: editorBackground
-}, nls.localize('editorGroupHeaderBackground', "Background color of the editor group title header when tabs are disabled. Editor groups are the containers of editors."));
+}, nls.localize('editorGroupHeaderBackground', "Background color of the editor group title header when tabs are disabled (`\"workbench.editor.showTabs\": false`). Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_BORDER = registerColor('editorGroup.border', {
 	dark: '#444444',
@@ -223,13 +223,13 @@ export const STATUS_BAR_PROMINENT_ITEM_BACKGROUND = registerColor('statusBarItem
 	dark: '#388A34',
 	light: '#388A34',
 	hc: '#3883A4'
-}, nls.localize('statusBarProminentItemBackground', "Status bar prominent items background color. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
+}, nls.localize('statusBarProminentItemBackground', "Status bar prominent items background color. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.prominentHoverBackground', {
 	dark: '#369432',
 	light: '#369432',
 	hc: '#369432'
-}, nls.localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
+}, nls.localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
 
 
 

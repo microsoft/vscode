@@ -18,9 +18,10 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
 import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { range } from 'vs/base/common/arrays';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 // --- List Commands
 
@@ -303,7 +304,7 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'list.selectAll',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: WorkbenchListFocusContextKey,
+		when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListSupportsMultiSelectContextKey),
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
 		handler: (accessor) => {
 			const focused = accessor.get(IListService).lastFocusedList;

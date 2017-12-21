@@ -435,7 +435,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 					return this._proxy.$trySetDecorationsFast(
 						this._id,
 						decorationType.key,
-						/*TODO: marshaller is too slow*/JSON.stringify(_ranges)
+						_ranges
 					);
 				}
 			}

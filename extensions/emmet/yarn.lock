@@ -13,9 +13,9 @@
   version "0.1.3"
   resolved "https://registry.yarnpkg.com/@emmetio/extract-abbreviation/-/extract-abbreviation-0.1.3.tgz#dc00bf488ddf86a2a82ca95fb2ccb575bd832f68"
 
-"@emmetio/html-matcher@^0.3.1":
-  version "0.3.2"
-  resolved "https://registry.yarnpkg.com/@emmetio/html-matcher/-/html-matcher-0.3.2.tgz#efe0023e97191de1639f01fdcf0a198b588d3624"
+"@emmetio/html-matcher@^0.3.3":
+  version "0.3.3"
+  resolved "https://registry.yarnpkg.com/@emmetio/html-matcher/-/html-matcher-0.3.3.tgz#0bbdadc0882e185950f03737dc6dbf8f7bd90728"
   dependencies:
     "@emmetio/stream-reader" "^2.0.0"
     "@emmetio/stream-reader-utils" "^0.1.0"
@@ -2048,9 +2048,9 @@ vinyl@~2.0.1:
     remove-trailing-separator "^1.0.1"
     replace-ext "^1.0.0"
 
-vscode-emmet-helper@^1.1.19:
-  version "1.1.19"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.1.19.tgz#e5b607076171555c6be3655a8eb11c17f980b2dd"
+vscode-emmet-helper@^1.1.20:
+  version "1.1.20"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.1.20.tgz#7523dc7f635f74e4becc44d4e519a9db5055a023"
   dependencies:
     "@emmetio/extract-abbreviation" "^0.1.1"
     vscode-languageserver-types "^3.0.3"

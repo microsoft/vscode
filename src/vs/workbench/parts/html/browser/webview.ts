@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
-import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -268,6 +268,7 @@ export default class Webview {
 			'font-family': fontFamily,
 			'font-weight': fontWeight,
 			'font-size': fontSize,
+			'link-color': theme.getColor(textLinkForeground).toString()
 		};
 
 		let activeTheme: ApiThemeClassName;

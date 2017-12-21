@@ -338,13 +338,9 @@ export class ElectronWindow extends Themable {
 				// Update title
 				this.titleService.updateProperties({ isAdmin });
 
-				// Show warning message
-				if (isAdmin) {
-					if (isWindows) {
-						this.messageService.show(Severity.Warning, nls.localize('runningAsAdmin', "It is not recommended to run {0} as Administrator.", product.nameShort));
-					} else {
-						this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
-					}
+				// Show warning message (unix only)
+				if (isAdmin && !isWindows) {
+					this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
 				}
 			});
 		});

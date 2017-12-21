@@ -23,7 +23,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
-	static ID = VIEWLET_ID;
+	static readonly ID = VIEWLET_ID;
 	static LABEL = localize('toggleGitViewlet', "Show Git");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
@@ -66,8 +66,14 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'scm',
 	order: 5,
+	title: localize('scmConfigurationTitle', "SCM"),
 	type: 'object',
 	properties: {
+		'scm.alwaysShowProviders': {
+			type: 'boolean',
+			description: localize('alwaysShowProviders', "Whether to always show the Source Control Provider section."),
+			default: false
+		},
 		'scm.diffDecorations': {
 			type: 'string',
 			enum: ['all', 'gutter', 'overview', 'none'],

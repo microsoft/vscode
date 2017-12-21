@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/06831946d0a23cb56be0c1ead7cab10be01306cd",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/1d2625adfc812f02e7dd5e7b06a859b9ef2a2de2",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"fileTypes": [
@@ -142,6 +142,19 @@
 		"expression": {
 			"patterns": [
 				{
+					"include": "#expressionWithoutIdentifiers"
+				},
+				{
+					"include": "#identifiers"
+				},
+				{
+					"include": "#expressionPunctuations"
+				}
+			]
+		},
+		"expressionWithoutIdentifiers": {
+			"patterns": [
+				{
 					"include": "#string"
 				},
 				{
@@ -187,11 +200,12 @@
 					"include": "#support-objects"
 				},
 				{
-					"include": "#identifiers"
-				},
-				{
 					"include": "#paren-expression"
-				},
+				}
+			]
+		},
+		"expressionPunctuations": {
+			"patterns": [
 				{
 					"include": "#punctuation-comma"
 				},
@@ -1244,11 +1258,6 @@
 				}
 			},
 			"end": "(?=\\{)",
-			"endCaptures": {
-				"1": {
-					"name": "punctuation.definition.block.ts"
-				}
-			},
 			"patterns": [
 				{
 					"include": "#comment"
@@ -1260,7 +1269,10 @@
 					"include": "#type-parameters"
 				},
 				{
-					"match": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\.)(?=\\s*[_$[:alpha:]][_$[:alnum:]]*(\\s*\\.\\s*[_$[:alpha:]][_$[:alnum:]]*)*\\s*([,<{]|extends|implements|//|/\\*))",
+					"include": "#expressionWithoutIdentifiers"
+				},
+				{
+					"match": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\.)(?=\\s*[_$[:alpha:]][_$[:alnum:]]*(\\s*\\.\\s*[_$[:alpha:]][_$[:alnum:]]*)*\\s*)",
 					"captures": {
 						"1": {
 							"name": "entity.name.type.module.ts"
@@ -1271,7 +1283,7 @@
 					}
 				},
 				{
-					"match": "([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*([,<{]|extends|implements|//|/\\*))",
+					"match": "([_$[:alpha:]][_$[:alnum:]]*)",
 					"captures": {
 						"1": {
 							"name": "entity.other.inherited-class.ts"
@@ -1279,7 +1291,7 @@
 					}
 				},
 				{
-					"include": "#expression"
+					"include": "#expressionPunctuations"
 				}
 			]
 		},

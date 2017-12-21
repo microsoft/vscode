@@ -22,7 +22,7 @@ import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDE
 
 export class OpenFileAction extends Action {
 
-	static ID = 'workbench.action.files.openFile';
+	static readonly ID = 'workbench.action.files.openFile';
 	static LABEL = nls.localize('openFile', "Open File...");
 
 	constructor(
@@ -42,7 +42,7 @@ export class OpenFileAction extends Action {
 
 export class OpenFolderAction extends Action {
 
-	static ID = 'workbench.action.files.openFolder';
+	static readonly ID = 'workbench.action.files.openFolder';
 	static LABEL = nls.localize('openFolder', "Open Folder...");
 
 	constructor(
@@ -62,7 +62,7 @@ export class OpenFolderAction extends Action {
 
 export class OpenFileFolderAction extends Action {
 
-	static ID = 'workbench.action.files.openFileFolder';
+	static readonly ID = 'workbench.action.files.openFileFolder';
 	static LABEL = nls.localize('openFileFolder', "Open...");
 
 	constructor(
@@ -82,7 +82,7 @@ export class OpenFileFolderAction extends Action {
 
 export class AddRootFolderAction extends Action {
 
-	static ID = 'workbench.action.addRootFolder';
+	static readonly ID = 'workbench.action.addRootFolder';
 	static LABEL = ADD_ROOT_FOLDER_LABEL;
 
 	constructor(
@@ -100,7 +100,7 @@ export class AddRootFolderAction extends Action {
 
 export class GlobalRemoveRootFolderAction extends Action {
 
-	static ID = 'workbench.action.removeRootFolder';
+	static readonly ID = 'workbench.action.removeRootFolder';
 	static LABEL = nls.localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace...");
 
 	constructor(
@@ -133,7 +133,7 @@ export class GlobalRemoveRootFolderAction extends Action {
 
 export class SaveWorkspaceAsAction extends Action {
 
-	static ID = 'workbench.action.saveWorkspaceAs';
+	static readonly ID = 'workbench.action.saveWorkspaceAs';
 	static LABEL = nls.localize('saveWorkspaceAsAction', "Save Workspace As...");
 
 	constructor(
@@ -178,7 +178,7 @@ export class SaveWorkspaceAsAction extends Action {
 
 export class OpenWorkspaceAction extends Action {
 
-	static ID = 'workbench.action.openWorkspace';
+	static readonly ID = 'workbench.action.openWorkspace';
 	static LABEL = nls.localize('openWorkspaceAction', "Open Workspace...");
 
 	constructor(

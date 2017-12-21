@@ -227,7 +227,7 @@ export class FileService implements IFileService {
 
 	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
 		return TPromise.join(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
-			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
+			.then(stat => ({ stat, success: true }), error => ({ stat: void 0, success: false }))));
 	}
 
 	public existsFile(resource: uri): TPromise<boolean> {
@@ -262,17 +262,18 @@ export class FileService implements IFileService {
 		if (resource.scheme !== 'file' || !resource.fsPath) {
 			return TPromise.wrapError<IStreamContent>(new FileOperationError(
 				nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString(true)),
-				FileOperationResult.FILE_INVALID_PATH
+				FileOperationResult.FILE_INVALID_PATH,
+				options
 			));
 		}
 
 		const result: IStreamContent = {
-			resource: undefined,
-			name: undefined,
-			mtime: undefined,
-			etag: undefined,
-			encoding: undefined,
-			value: undefined
+			resource: void 0,
+			name: void 0,
+			mtime: void 0,
+			etag: void 0,
+			encoding: void 0,
+			value: void 0
 		};
 
 		const contentResolverToken = new CancellationTokenSource();
@@ -298,7 +299,8 @@ export class FileService implements IFileService {
 			if (stat.isDirectory) {
 				return onStatError(new FileOperationError(
 					nls.localize('fileIsDirectoryError', "File is directory"),
-					FileOperationResult.FILE_IS_DIRECTORY
+					FileOperationResult.FILE_IS_DIRECTORY,
+					options
 				));
 			}
 
@@ -306,7 +308,8 @@ export class FileService implements IFileService {
 			if (options && options.etag && options.etag === stat.etag) {
 				return onStatError(new FileOperationError(
 					nls.localize('fileNotModifiedError', "File not modified since"),
-					FileOperationResult.FILE_NOT_MODIFIED_SINCE
+					FileOperationResult.FILE_NOT_MODIFIED_SINCE,
+					options
 				));
 			}
 
@@ -314,18 +317,20 @@ export class FileService implements IFileService {
 			if (typeof stat.size === 'number' && stat.size > MAX_FILE_SIZE) {
 				return onStatError(new FileOperationError(
 					nls.localize('fileTooLargeError', "File too large to open"),
-					FileOperationResult.FILE_TOO_LARGE
+					FileOperationResult.FILE_TOO_LARGE,
+					options
 				));
 			}
 
-			return undefined;
+			return void 0;
 		}, err => {
 
 			// Wrap file not found errors
 			if (err.code === 'ENOENT') {
 				return onStatError(new FileOperationError(
 					nls.localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
-					FileOperationResult.FILE_NOT_FOUND
+					FileOperationResult.FILE_NOT_FOUND,
+					options
 				));
 			}
 
@@ -363,8 +368,8 @@ export class FileService implements IFileService {
 		const chunkBuffer = BufferPool._64K.acquire();
 
 		const result: IContentData = {
-			encoding: undefined,
-			stream: undefined,
+			encoding: void 0,
+			stream: void 0
 		};
 
 		return new Promise<IContentData>((resolve, reject) => {
@@ -374,7 +379,8 @@ export class FileService implements IFileService {
 						// Wrap file not found errors
 						err = new FileOperationError(
 							nls.localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
-							FileOperationResult.FILE_NOT_FOUND
+							FileOperationResult.FILE_NOT_FOUND,
+							options
 						);
 					}
 
@@ -391,7 +397,8 @@ export class FileService implements IFileService {
 							// Wrap EISDIR errors (fs.open on a directory works, but you cannot read from it)
 							err = new FileOperationError(
 								nls.localize('fileIsDirectoryError', "File is directory"),
-								FileOperationResult.FILE_IS_DIRECTORY
+								FileOperationResult.FILE_IS_DIRECTORY,
+								options
 							);
 						}
 						if (decoder) {
@@ -434,15 +441,24 @@ export class FileService implements IFileService {
 					}
 				};
 
+				let currentPosition: number = (options && options.position) || null;
+
 				const readChunk = () => {
-					fs.read(fd, chunkBuffer, 0, chunkBuffer.length, null, (err, bytesRead) => {
+					fs.read(fd, chunkBuffer, 0, chunkBuffer.length, currentPosition, (err, bytesRead) => {
 						totalBytesRead += bytesRead;
+
+						if (typeof currentPosition === 'number') {
+							// if we received a position argument as option we need to ensure that
+							// we advance the position by the number of bytesread
+							currentPosition += bytesRead;
+						}
 
 						if (totalBytesRead > MAX_FILE_SIZE) {
 							// stop when reading too much
 							finish(new FileOperationError(
 								nls.localize('fileTooLargeError', "File too large to open"),
-								FileOperationResult.FILE_TOO_LARGE
+								FileOperationResult.FILE_TOO_LARGE,
+								options
 							));
 						} else if (err) {
 							// some error happened
@@ -464,7 +480,8 @@ export class FileService implements IFileService {
 									// Return error early if client only accepts text and this is not text
 									finish(new FileOperationError(
 										nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
-										FileOperationResult.FILE_IS_BINARY
+										FileOperationResult.FILE_IS_BINARY,
+										options
 									));
 
 								} else {
@@ -474,7 +491,7 @@ export class FileService implements IFileService {
 									handleChunk(bytesRead);
 								}
 
-							}).then(undefined, err => {
+							}).then(void 0, err => {
 								// failed to get encoding
 								finish(err);
 							});
@@ -531,7 +548,7 @@ export class FileService implements IFileService {
 				return addBomPromise.then(addBom => {
 
 					// 4.) set contents and resolve
-					return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { mode: 0o666, flag: 'w' }).then(undefined, error => {
+					return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite).then(void 0, error => {
 						if (!exists || error.code !== 'EPERM' || !isWindows) {
 							return TPromise.wrapError(error);
 						}
@@ -544,7 +561,7 @@ export class FileService implements IFileService {
 						return pfs.truncate(absolutePath, 0).then(() => {
 
 							// 6.) set contents (this time with r+ mode) and resolve again
-							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { mode: 0o666, flag: 'r+' });
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' });
 						});
 					});
 				});
@@ -553,7 +570,8 @@ export class FileService implements IFileService {
 			if (error.code === 'EACCES' || error.code === 'EPERM') {
 				return TPromise.wrapError(new FileOperationError(
 					nls.localize('filePermission', "Permission denied writing to file ({0})", resource.toString(true)),
-					FileOperationResult.FILE_PERMISSION_DENIED
+					FileOperationResult.FILE_PERMISSION_DENIED,
+					options
 				));
 			}
 
@@ -561,7 +579,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string, addBOM: boolean, encodingToWrite: string, options: { mode?: number; flag?: string; }): TPromise<IFileStat> {
+	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string, addBOM: boolean, encodingToWrite: string, options?: { mode?: number; flag?: string; }): TPromise<IFileStat> {
 		let writeFilePromise: TPromise<void>;
 
 		// Write fast if we do UTF 8 without BOM
@@ -587,7 +605,7 @@ export class FileService implements IFileService {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file
-		return this.checkFile(absolutePath, options).then(exists => {
+		return this.checkFile(absolutePath, options, options.overwriteReadonly /* ignore readonly if we overwrite readonly, this is handled via sudo later */).then(exists => {
 			const writeOptions: IUpdateContentOptions = assign(Object.create(null), options);
 			writeOptions.writeElevated = false;
 			writeOptions.encoding = this.getEncoding(resource, options.encoding);
@@ -600,7 +618,14 @@ export class FileService implements IFileService {
 				return (import('sudo-prompt')).then(sudoPrompt => {
 					return new TPromise<void>((c, e) => {
 						const promptOptions = { name: this.options.elevationSupport.promptTitle.replace('-', ''), icns: this.options.elevationSupport.promptIcnsPath };
-						sudoPrompt.exec(`"${this.options.elevationSupport.cliPath}" --write-elevated-helper "${tmpPath}" "${absolutePath}"`, promptOptions, (error: string, stdout: string, stderr: string) => {
+
+						const sudoCommand: string[] = [`"${this.options.elevationSupport.cliPath}"`];
+						if (options.overwriteReadonly) {
+							sudoCommand.push('--file-chmod');
+						}
+						sudoCommand.push('--file-write', `"${tmpPath}"`, `"${absolutePath}"`);
+
+						sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
 							if (error || stderr) {
 								e(error || stderr);
 							} else {
@@ -610,8 +635,12 @@ export class FileService implements IFileService {
 					});
 				}).then(() => {
 
-					// 3.) resolve again
-					return this.resolve(resource);
+					// 3.) delete temp file
+					return pfs.del(tmpPath, this.tmpPath).then(() => {
+
+						// 4.) resolve again
+						return this.resolve(resource);
+					});
 				});
 			});
 		}).then(null, error => {
@@ -622,7 +651,8 @@ export class FileService implements IFileService {
 			if (!(error instanceof FileOperationError)) {
 				error = new FileOperationError(
 					nls.localize('filePermission', "Permission denied writing to file ({0})", resource.toString(true)),
-					FileOperationResult.FILE_PERMISSION_DENIED
+					FileOperationResult.FILE_PERMISSION_DENIED,
+					options
 				);
 			}
 
@@ -645,7 +675,8 @@ export class FileService implements IFileService {
 			if (exists && !options.overwrite) {
 				return TPromise.wrapError<IFileStat>(new FileOperationError(
 					nls.localize('fileExists', "File to create already exists ({0})", resource.toString(true)),
-					FileOperationResult.FILE_MODIFIED_SINCE
+					FileOperationResult.FILE_MODIFIED_SINCE,
+					options
 				));
 			}
 
@@ -901,7 +932,7 @@ export class FileService implements IFileService {
 		return null;
 	}
 
-	private checkFile(absolutePath: string, options: IUpdateContentOptions = Object.create(null)): TPromise<boolean /* exists */> {
+	private checkFile(absolutePath: string, options: IUpdateContentOptions = Object.create(null), ignoreReadonly?: boolean): TPromise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then(exists => {
 			if (exists) {
 				return pfs.stat(absolutePath).then(stat => {
@@ -914,25 +945,30 @@ export class FileService implements IFileService {
 
 						// Find out if content length has changed
 						if (options.etag !== etag(stat.size, options.mtime)) {
-							return TPromise.wrapError<boolean>(new FileOperationError(nls.localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE));
+							return TPromise.wrapError<boolean>(new FileOperationError(nls.localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE, options));
 						}
 					}
 
-					let mode = stat.mode;
-					const readonly = !(mode & 128);
-
 					// Throw if file is readonly and we are not instructed to overwrite
-					if (readonly && !options.overwriteReadonly) {
-						return TPromise.wrapError<boolean>(new FileOperationError(
-							nls.localize('fileReadOnlyError', "File is Read Only"),
-							FileOperationResult.FILE_READ_ONLY
-						));
-					}
+					if (!ignoreReadonly && !(stat.mode & 128) /* readonly */) {
+						if (!options.overwriteReadonly) {
+							return this.readOnlyError<boolean>(options);
+						}
 
-					if (readonly) {
+						// Try to change mode to writeable
+						let mode = stat.mode;
 						mode = mode | 128;
+						return pfs.chmod(absolutePath, mode).then(() => {
 
-						return pfs.chmod(absolutePath, mode).then(() => exists);
+							// Make sure to check the mode again, it could have failed
+							return pfs.stat(absolutePath).then(stat => {
+								if (!(stat.mode & 128) /* readonly */) {
+									return this.readOnlyError<boolean>(options);
+								}
+
+								return exists;
+							});
+						});
 					}
 
 					return TPromise.as<boolean>(exists);
@@ -941,6 +977,14 @@ export class FileService implements IFileService {
 
 			return TPromise.as<boolean>(exists);
 		});
+	}
+
+	private readOnlyError<T>(options: IUpdateContentOptions): TPromise<T> {
+		return TPromise.wrapError<T>(new FileOperationError(
+			nls.localize('fileReadOnlyError', "File is Read Only"),
+			FileOperationResult.FILE_READ_ONLY,
+			options
+		));
 	}
 
 	public watchFileChanges(resource: uri): void {

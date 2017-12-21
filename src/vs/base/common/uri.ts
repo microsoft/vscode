@@ -315,10 +315,16 @@ export default class URI implements UriComponents {
 	}
 
 	static revive(data: UriComponents | any): URI {
-		let result = new _URI(data);
-		result._fsPath = (<UriState>data).fsPath;
-		result._formatted = (<UriState>data).external;
-		return result;
+		if (!data) {
+			return data;
+		} else if (data instanceof URI) {
+			return data;
+		} else {
+			let result = new _URI(data);
+			result._fsPath = (<UriState>data).fsPath;
+			result._formatted = (<UriState>data).external;
+			return result;
+		}
 	}
 }
 

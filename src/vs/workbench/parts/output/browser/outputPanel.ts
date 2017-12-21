@@ -17,15 +17,15 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { OutputEditors, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
+import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
+import { OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOutputScrollLockAction } from 'vs/workbench/parts/output/browser/outputActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export class OutputPanel extends TextResourceEditor {
+export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[];
 	private scopedInstantiationService: IInstantiationService;
 
@@ -41,7 +41,7 @@ export class OutputPanel extends TextResourceEditor {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
 
 		this.scopedInstantiationService = instantiationService;
 	}
@@ -101,11 +101,24 @@ export class OutputPanel extends TextResourceEditor {
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
+		if (input.matches(this.input)) {
+			return TPromise.as(null);
+		}
+
+		if (this.input) {
+			this.input.dispose();
+		}
 		return super.setInput(input, options).then(() => this.revealLastLine());
 	}
 
-	protected createEditor(parent: Builder): void {
+	public clearInput(): void {
+		if (this.input) {
+			this.input.dispose();
+		}
+		super.clearInput();
+	}
 
+	protected createEditor(parent: Builder): void {
 		// First create the scoped instantation service and only then construct the editor using the scoped service
 		const scopedContextKeyService = this.contextKeyService.createScoped(parent.getHTMLElement());
 		this.toUnbind.push(scopedContextKeyService);
@@ -113,7 +126,6 @@ export class OutputPanel extends TextResourceEditor {
 		super.createEditor(parent);
 
 		CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
-		this.setInput(OutputEditors.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null);
 	}
 
 	public get instantiationService(): IInstantiationService {

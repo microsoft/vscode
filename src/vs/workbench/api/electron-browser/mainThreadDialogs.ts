@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { MainThreadDiaglogsShape, MainContext, IExtHostContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -56,7 +57,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 			result.buttonLabel = options.openLabel;
 		}
 		if (options.defaultUri) {
-			result.defaultPath = options.defaultUri.fsPath;
+			result.defaultPath = URI.revive(options.defaultUri).fsPath;
 		}
 		if (!options.canSelectFiles && !options.canSelectFolders) {
 			options.canSelectFiles = true;
@@ -82,7 +83,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 
 		};
 		if (options.defaultUri) {
-			result.defaultPath = options.defaultUri.fsPath;
+			result.defaultPath = URI.revive(options.defaultUri).fsPath;
 		}
 		if (options.saveLabel) {
 			result.buttonLabel = options.saveLabel;

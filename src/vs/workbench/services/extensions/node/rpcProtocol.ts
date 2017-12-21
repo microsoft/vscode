@@ -9,12 +9,12 @@ import * as marshalling from 'vs/base/common/marshalling';
 import * as errors from 'vs/base/common/errors';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
 
 declare var Proxy: any; // TODO@TypeScript
 
-export class RPCProtocol {
+export class RPCProtocol implements IRPCProtocol {
 
 	private _isDisposed: boolean;
 	private readonly _locals: { [id: string]: any; };
@@ -44,19 +44,19 @@ export class RPCProtocol {
 		});
 	}
 
-	public get<T>(identifier: ProxyIdentifier<T>): T {
+	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
 		if (!this._proxies[identifier.id]) {
-			this._proxies[identifier.id] = this._createProxy(identifier.id);
+			this._proxies[identifier.id] = this._createProxy(identifier.id, identifier.isFancy);
 		}
 		return this._proxies[identifier.id];
 	}
 
-	private _createProxy<T>(proxyId: string): T {
+	private _createProxy<T>(proxyId: string, isFancy: boolean): T {
 		let handler = {
 			get: (target, name: string) => {
 				if (!target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
-						return this.fancyRemoteCall(proxyId, name, myArgs);
+						return this._remoteCall(proxyId, name, myArgs, isFancy);
 					};
 				}
 				return target[name];
@@ -186,14 +186,6 @@ export class RPCProtocol {
 		return method.apply(actor, args);
 	}
 
-	public remoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
-		return this._remoteCall(proxyId, methodName, args, false);
-	}
-
-	public fancyRemoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
-		return this._remoteCall(proxyId, methodName, args, true);
-	}
-
 	private _remoteCall(proxyId: string, methodName: string, args: any[], isFancy: boolean): TPromise<any> {
 		if (this._isDisposed) {
 			return TPromise.wrapError<any>(errors.canceled());
@@ -290,7 +282,7 @@ class MessageFactory {
 	}
 }
 
-export const enum MessageType {
+const enum MessageType {
 	Request = 1,
 	FancyRequest = 2,
 	Cancel = 3,

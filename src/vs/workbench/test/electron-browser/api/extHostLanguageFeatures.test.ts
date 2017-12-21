@@ -14,7 +14,7 @@ import * as EditorCommon from 'vs/editor/common/editorCommon';
 import { Model as EditorModel } from 'vs/editor/common/model/model';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { TestThreadService } from './testThreadService';
+import { TestRPCProtocol } from './testRPCProtocol';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
@@ -60,14 +60,14 @@ const model: EditorCommon.IModel = EditorModel.createFromString(
 let extHost: ExtHostLanguageFeatures;
 let mainThread: MainThreadLanguageFeatures;
 let disposables: vscode.Disposable[] = [];
-let threadService: TestThreadService;
+let rpcProtocol: TestRPCProtocol;
 let originalErrorHandler: (e: any) => any;
 
 suite('ExtHostLanguageFeatures', function () {
 
 	suiteSetup(() => {
 
-		threadService = new TestThreadService();
+		rpcProtocol = new TestRPCProtocol();
 
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
@@ -87,33 +87,33 @@ suite('ExtHostLanguageFeatures', function () {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(threadService);
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol);
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
 				versionId: model.getVersionId(),
 				modeId: model.getLanguageIdentifier().language,
-				url: model.uri,
+				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
 			}]
 		});
-		const extHostDocuments = new ExtHostDocuments(threadService, extHostDocumentsAndEditors);
-		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
+		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
+		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
 		const heapService = new ExtHostHeapService();
 
-		const commands = new ExtHostCommands(threadService, heapService, new NullLogService());
-		threadService.set(ExtHostContext.ExtHostCommands, commands);
-		threadService.setTestInstance(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
+		const commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
+		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
+		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 
-		const diagnostics = new ExtHostDiagnostics(threadService);
-		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
+		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
-		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, extHostDocuments, commands, heapService, diagnostics);
+		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
-		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, threadService));
+		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
 	});
 
 	suiteTeardown(() => {
@@ -126,7 +126,7 @@ suite('ExtHostLanguageFeatures', function () {
 		while (disposables.length) {
 			disposables.pop().dispose();
 		}
-		return threadService.sync();
+		return rpcProtocol.sync();
 	});
 
 	// --- outline
@@ -139,10 +139,10 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		});
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			assert.equal(DocumentSymbolProviderRegistry.all(model).length, 1);
 			d1.dispose();
-			return threadService.sync();
+			return rpcProtocol.sync();
 		});
 
 	});
@@ -159,7 +159,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getDocumentSymbols(model).then(value => {
 				assert.equal(value.entries.length, 1);
@@ -174,7 +174,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getDocumentSymbols(model).then(value => {
 				assert.equal(value.entries.length, 1);
@@ -201,7 +201,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getCodeLensData(model).then(value => {
 				assert.equal(value.length, 1);
 			});
@@ -221,7 +221,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getCodeLensData(model).then(value => {
 				assert.equal(value.length, 1);
@@ -245,7 +245,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getCodeLensData(model).then(value => {
 				assert.equal(value.length, 1);
@@ -272,7 +272,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
@@ -296,7 +296,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
@@ -318,7 +318,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
@@ -343,7 +343,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
@@ -361,7 +361,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getImplementationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
@@ -381,7 +381,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getTypeDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
@@ -401,7 +401,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
@@ -419,7 +419,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
@@ -444,7 +444,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 				let [first, second] = value as Hover[];
@@ -468,7 +468,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			getHover(model, new EditorPosition(1, 1)).then(value => {
 
@@ -487,7 +487,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getOccurrencesAtPosition(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
@@ -511,7 +511,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getOccurrencesAtPosition(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
@@ -535,7 +535,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getOccurrencesAtPosition(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
@@ -560,7 +560,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getOccurrencesAtPosition(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
@@ -584,7 +584,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return provideReferences(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 2);
@@ -604,7 +604,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return provideReferences(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
@@ -630,7 +630,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return provideReferences(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
@@ -652,7 +652,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 2);
 
@@ -677,7 +677,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 1);
 			});
@@ -697,7 +697,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 1);
 			});
@@ -720,7 +720,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return getWorkspaceSymbols('').then(value => {
 				assert.equal(value.length, 1);
@@ -742,7 +742,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
 				throw Error();
@@ -760,7 +760,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
 				assert.equal(value.rejectReason, 'evil');
@@ -784,7 +784,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
 				assert.equal(value.edits.length, 1);
@@ -809,7 +809,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
 				assert.equal(value.edits.length, 2); // least relevant renamer
@@ -837,7 +837,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return provideSignatureHelp(model, new EditorPosition(1, 1)).then(value => {
 				assert.ok(value);
@@ -852,7 +852,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return provideSignatureHelp(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value, undefined);
@@ -876,7 +876,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 1);
 				assert.equal(value[0].suggestion.insertText, 'testing2');
@@ -898,7 +898,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 1);
 				assert.equal(value[0].suggestion.insertText, 'weak-selector');
@@ -920,7 +920,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value.length, 2);
 				assert.equal(value[0].suggestion.insertText, 'strong-1'); // sort by label
@@ -944,7 +944,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			return provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value[0].container.incomplete, undefined);
@@ -960,7 +960,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 
 			provideSuggestionItems(model, new EditorPosition(1, 1), 'none').then(value => {
 				assert.equal(value[0].container.incomplete, true);
@@ -977,7 +977,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 2);
 				let [first, second] = value;
@@ -998,7 +998,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 });
 		});
 	});
@@ -1016,7 +1016,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -1033,7 +1033,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -1054,7 +1054,7 @@ suite('ExtHostLanguageFeatures', function () {
 				return [new types.TextEdit(new types.Range(0, 0, 1, 1), 'doc')];
 			}
 		}));
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -1070,7 +1070,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 });
 		});
 	});
@@ -1083,7 +1083,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}, [';']));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getOnTypeFormattingEdits(model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -1102,7 +1102,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getLinks(model).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -1127,7 +1127,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return getLinks(model).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;

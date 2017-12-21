@@ -23,7 +23,7 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	get state(): WindowState { return this._state; }
 
 	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadWindow);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadWindow);
 		this._proxy.$getWindowVisibility().then(isFocused => this.$onDidChangeWindowFocus(isFocused));
 	}
 

@@ -49,11 +49,11 @@ export function markdownDocumentation(
 	tags: Proto.JSDocTagInfo[]
 ): MarkdownString {
 	const out = new MarkdownString();
-	addmarkdownDocumentation(out, documentation, tags);
+	addMarkdownDocumentation(out, documentation, tags);
 	return out;
 }
 
-export function addmarkdownDocumentation(
+export function addMarkdownDocumentation(
 	out: MarkdownString,
 	documentation: Proto.SymbolDisplayPart[],
 	tags: Proto.JSDocTagInfo[]

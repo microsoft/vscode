@@ -14,7 +14,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { QueryBuilder, ISearchPathsResult } from 'vs/workbench/parts/search/common/queryBuilder';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TestContextService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
+
 
 import { ISearchQuery, QueryType, IPatternInfo, IFolderQuery } from 'vs/platform/search/common/search';
 
@@ -43,6 +45,8 @@ suite('QueryBuilder', () => {
 		mockWorkspace = new Workspace('workspace', 'workspace', toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }]));
 		mockContextService.setWorkspace(mockWorkspace);
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
+
+		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
 	});

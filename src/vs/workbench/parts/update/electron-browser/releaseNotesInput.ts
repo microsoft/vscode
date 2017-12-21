@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 
 export class ReleaseNotesInput extends EditorInput {
 
-	static get ID() { return 'workbench.releaseNotes.input'; }
+	static readonly ID = 'workbench.releaseNotes.input';
 
 	get version(): string { return this._version; }
 	get text(): string { return this._text; }

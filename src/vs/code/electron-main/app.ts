@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, BrowserWindow, dialog } from 'electron';
+import { app, ipcMain as ipc, BrowserWindow } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
@@ -264,7 +264,7 @@ export class CodeApplication {
 			// Spawn shared process
 			this.sharedProcess = new SharedProcess(this.environmentService, machineId, this.userEnv);
 			this.toDispose.push(this.sharedProcess);
-			this.sharedProcessClient = TPromise.timeout(5000).then(() => this.sharedProcess.whenReady()).then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 			// Services
 			const appInstantiationService = this.initServices(machineId);
@@ -376,6 +376,7 @@ export class CodeApplication {
 
 	private afterWindowOpen(accessor: ServicesAccessor): void {
 		const appInstantiationService = accessor.get(IInstantiationService);
+		const windowsMainService = accessor.get(IWindowsMainService);
 
 		let windowsMutex: Mutex = null;
 		if (platform.isWindows) {
@@ -387,7 +388,7 @@ export class CodeApplication {
 				this.toDispose.push({ dispose: () => windowsMutex.release() });
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
-					dialog.showMessageBox({
+					windowsMainService.showMessageBox({
 						title: product.nameLong,
 						type: 'warning',
 						message: 'Failed to load windows-mutex!',
@@ -403,7 +404,7 @@ export class CodeApplication {
 				<any>require.__$__nodeRequire('windows-foreground-love');
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
-					dialog.showMessageBox({
+					windowsMainService.showMessageBox({
 						title: product.nameLong,
 						type: 'warning',
 						message: 'Failed to load windows-foreground-love!',

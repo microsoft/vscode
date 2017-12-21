@@ -106,6 +106,21 @@ suite('Workbench - TerminalConfigHelper', () => {
 
 		configurationService = new MockConfigurationService({
 			editor: {
+				fontFamily: 'foo'
+			},
+			terminal: {
+				integrated: {
+					fontFamily: 0,
+					fontSize: 1500
+				}
+			}
+		});
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
+		configHelper.panelContainer = fixture;
+		assert.equal(configHelper.getFont().fontSize, 25, 'The maximum terminal font size should be used when terminal.integrated.fontSize more than it');
+
+		configurationService = new MockConfigurationService({
+			editor: {
 				fontFamily: 'foo',
 			},
 			terminal: {

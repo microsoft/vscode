@@ -72,7 +72,7 @@ export function toLineRanges(selections: Selection[], textDocument: TextDocument
 	return result;
 }
 
-function getModifiedRange(textDocument: TextDocument, diff: LineChange): Range {
+export function getModifiedRange(textDocument: TextDocument, diff: LineChange): Range {
 	if (diff.modifiedEndLineNumber === 0) {
 		if (diff.modifiedStartLineNumber === 0) {
 			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
