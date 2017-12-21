@@ -1185,7 +1185,7 @@ export class SaveFileAction extends BaseErrorReportingAction {
 	}
 
 	public run(context?: any): TPromise<boolean> {
-		return this.commandService.executeCommand(SAVE_FILE_COMMAND_ID, { resource: this.resource }).then(() => true, error => {
+		return this.commandService.executeCommand(SAVE_FILE_COMMAND_ID, this.resource).then(() => true, error => {
 			this.onError(error);
 			return null;
 		});
@@ -1213,7 +1213,7 @@ export class SaveFileAsAction extends BaseErrorReportingAction {
 	}
 
 	public run(context?: any): TPromise<boolean> {
-		return this.commandService.executeCommand(SAVE_FILE_AS_COMMAND_ID, { resource: this.resource }).then(() => true, error => {
+		return this.commandService.executeCommand(SAVE_FILE_AS_COMMAND_ID, this.resource).then(() => true, error => {
 			this.onError(error);
 			return null;
 		});
@@ -1350,7 +1350,7 @@ export class RevertFileAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand(REVERT_FILE_COMMAND_ID, { resource: this.resource });
+		return this.commandService.executeCommand(REVERT_FILE_COMMAND_ID, this.resource);
 	}
 }
 
@@ -1521,7 +1521,7 @@ export class RevealInOSAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand(REVEAL_IN_OS_COMMAND_ID, { resource: this.resource });
+		return this.commandService.executeCommand(REVEAL_IN_OS_COMMAND_ID, this.resource);
 	}
 }
 
@@ -1557,7 +1557,7 @@ export class CopyPathAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand(COPY_PATH_COMMAND_ID, { resource: this.resource });
+		return this.commandService.executeCommand(COPY_PATH_COMMAND_ID, this.resource);
 	}
 }
 
@@ -1672,7 +1672,7 @@ export class CompareWithSavedAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand(COMPARE_WITH_SAVED_COMMAND_ID, { resource: this.resource });
+		return this.commandService.executeCommand(COMPARE_WITH_SAVED_COMMAND_ID, this.resource);
 	}
 
 	public dispose(): void {
