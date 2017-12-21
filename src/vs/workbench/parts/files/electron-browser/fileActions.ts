@@ -116,34 +116,18 @@ export class BaseErrorReportingAction extends Action {
 }
 
 export class BaseFileAction extends BaseErrorReportingAction {
-	private _element: FileStat;
+	public element: FileStat;
 
 	constructor(
 		id: string,
 		label: string,
-		@IFileService private _fileService: IFileService,
+		@IFileService protected fileService: IFileService,
 		@IMessageService _messageService: IMessageService,
-		@ITextFileService private _textFileService: ITextFileService
+		@ITextFileService protected textFileService: ITextFileService
 	) {
 		super(id, label, _messageService);
 
 		this.enabled = false;
-	}
-
-	public get fileService() {
-		return this._fileService;
-	}
-
-	public get textFileService() {
-		return this._textFileService;
-	}
-
-	public get element() {
-		return this._element;
-	}
-
-	public set element(element: FileStat) {
-		this._element = element;
 	}
 
 	_isEnabled(): boolean {
@@ -151,7 +135,7 @@ export class BaseFileAction extends BaseErrorReportingAction {
 	}
 
 	_updateEnablement(): void {
-		this.enabled = !!(this._fileService && this._isEnabled());
+		this.enabled = !!(this.fileService && this._isEnabled());
 	}
 }
 
