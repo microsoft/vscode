@@ -220,8 +220,8 @@ CommandsRegistry.registerCommand({
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '3_find',
-	order: 20,
+	group: '2_navigation',
+	order: 50,
 	command: {
 		id: FIND_IN_FOLDER_ID,
 		title: nls.localize('findInFolder', "Find in Folder...")
@@ -230,7 +230,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '3_find',
+	group: '2_navigation',
 	order: 20,
 	command: {
 		id: FIND_IN_WORKSPACE_ID,

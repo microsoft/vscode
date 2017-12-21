@@ -30,7 +30,6 @@ import { basename } from 'vs/base/common/paths';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';

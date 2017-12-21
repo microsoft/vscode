@@ -91,7 +91,7 @@ export class TextFileModelChangeEvent {
 }
 
 export const TEXT_FILE_SERVICE_ID = 'textFileService';
-export const AutoSaveNotAfterDelayContext = new RawContextKey<boolean>('autoSaveNotAfterDelayContext', true);
+export const AutoSaveContext = new RawContextKey<string>('config.files.autoSave', undefined);
 
 export interface ITextFileOperationResult {
 	results: IResult[];

@@ -20,7 +20,7 @@ import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { OPEN_FOLDER_SETTINGS_COMMAND, OPEN_FOLDER_SETTINGS_LABEL } from 'vs/workbench/parts/preferences/browser/preferencesActions';
-import { AutoSaveNotAfterDelayContext } from 'vs/workbench/services/textfile/common/textfiles';
+import { AutoSaveContext } from 'vs/workbench/services/textfile/common/textfiles';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 
 
@@ -130,7 +130,7 @@ function appendSaveConflictEditorTitleAction(id: string, title: string, iconClas
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		command: { id, title, iconClass },
 		when: ContextKeyExpr.equals(CONFLICT_RESOLUTION_CONTEXT, true),
-		group: 'navigation',
+		group: '2_navigation',
 		order
 	});
 }
@@ -142,7 +142,7 @@ const openToSideCommand = {
 	title: nls.localize('openToSide', "Open to the Side")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '1_files',
+	group: '2_navigation',
 	order: 10,
 	command: openToSideCommand,
 	when: ResourceContextKey.HasResource
@@ -153,7 +153,7 @@ const revealInOsCommand = {
 	title: isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '1_files',
+	group: '2_navigation',
 	order: 20,
 	command: revealInOsCommand,
 	when: ResourceContextKey.Scheme.isEqualTo('file')
@@ -164,7 +164,7 @@ const copyPathCommand = {
 	title: nls.localize('copyPath', "Copy Path")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '1_files',
+	group: '2_navigation',
 	order: 40,
 	command: copyPathCommand,
 	when: ResourceContextKey.HasResource
@@ -177,7 +177,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: SAVE_FILE_COMMAND_ID,
 		title: SAVE_FILE_LABEL
 	},
-	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveNotAfterDelayContext)
+	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveContext.notEqualsTo('afterDelay'))
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -187,7 +187,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: REVERT_FILE_COMMAND_ID,
 		title: nls.localize('revert', "Revert File")
 	},
-	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveNotAfterDelayContext)
+	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveContext.notEqualsTo('afterDelay'))
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -205,7 +205,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: SAVE_ALL_IN_GROUP_COMMAND_ID,
 		title: nls.localize('saveAll', "Save All")
 	},
-	when: ContextKeyExpr.and(OpenEditorsGroupContext, AutoSaveNotAfterDelayContext)
+	when: ContextKeyExpr.and(OpenEditorsGroupContext, AutoSaveContext.notEqualsTo('afterDelay'))
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -281,7 +281,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 // Menu registration - explorer
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '1_files',
+	group: '1_new',
 	order: 4,
 	command: {
 		id: NEW_FILE_COMMAND_ID,
@@ -291,7 +291,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '1_files',
+	group: '1_new',
 	order: 6,
 	command: {
 		id: NEW_FOLDER_COMMAND_ID,
@@ -301,14 +301,14 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '1_files',
+	group: '2_navigation',
 	order: 10,
 	command: openToSideCommand,
 	when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo('file'), ExplorerFolderContext.toNegated())
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '1_files',
+	group: '2_navigation',
 	order: 20,
 	command: revealInOsCommand,
 	when: ResourceContextKey.HasResource
@@ -329,7 +329,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '5_copy',
+	group: '5_cutcopypaste',
 	order: 10,
 	command: {
 		id: COPY_FILE_ID,
@@ -339,7 +339,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '5_copy',
+	group: '5_cutcopypaste',
 	order: 20,
 	command: {
 		id: PASTE_FILE_ID,
@@ -349,7 +349,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '5_copy',
+	group: '5_cutcopypaste',
 	order: 30,
 	command: copyPathCommand,
 	when: ResourceContextKey.Scheme.isEqualTo('file')
@@ -386,7 +386,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '7_modify',
+	group: '7_modification',
 	order: 10,
 	command: {
 		id: TRIGGER_RENAME_COMMAND_ID,
@@ -396,7 +396,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '7_modify',
+	group: '7_modification',
 	order: 20,
 	command: {
 		id: MOVE_FILE_TO_TRASH_ID,

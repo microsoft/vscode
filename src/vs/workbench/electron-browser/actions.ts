@@ -49,6 +49,7 @@ import { IEditor } from 'vs/platform/editor/common/editor';
 
 // --- actions
 
+// TODO@Isidor this action needs to be removed
 export class CloseEditorAction extends Action {
 
 	public static readonly ID = 'workbench.action.closeActiveEditor';

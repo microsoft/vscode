@@ -14,7 +14,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveNotAfterDelayContext } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -57,7 +57,7 @@ export abstract class TextFileService implements ITextFileService {
 	private configuredAutoSaveOnFocusChange: boolean;
 	private configuredAutoSaveOnWindowChange: boolean;
 
-	private autoSaveNotAfterDelayContext: IContextKey<boolean>;
+	private autoSaveContext: IContextKey<string>;
 
 	private configuredHotExit: string;
 
@@ -84,7 +84,7 @@ export abstract class TextFileService implements ITextFileService {
 		this.toUnbind.push(this._onFilesAssociationChange);
 
 		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
-		this.autoSaveNotAfterDelayContext = AutoSaveNotAfterDelayContext.bindTo(contextKeyService);
+		this.autoSaveContext = AutoSaveContext.bindTo(contextKeyService);
 
 		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 		this.currentFilesAssociationConfig = configuration && configuration.files && configuration.files.associations;
@@ -311,33 +311,30 @@ export abstract class TextFileService implements ITextFileService {
 		const wasAutoSaveEnabled = (this.getAutoSaveMode() !== AutoSaveMode.OFF);
 
 		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveConfiguration.OFF;
+		this.autoSaveContext.set(autoSaveMode);
 		switch (autoSaveMode) {
 			case AutoSaveConfiguration.AFTER_DELAY:
 				this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
 				this.configuredAutoSaveOnFocusChange = false;
 				this.configuredAutoSaveOnWindowChange = false;
-				this.autoSaveNotAfterDelayContext.set(false);
 				break;
 
 			case AutoSaveConfiguration.ON_FOCUS_CHANGE:
 				this.configuredAutoSaveDelay = void 0;
 				this.configuredAutoSaveOnFocusChange = true;
 				this.configuredAutoSaveOnWindowChange = false;
-				this.autoSaveNotAfterDelayContext.set(true);
 				break;
 
 			case AutoSaveConfiguration.ON_WINDOW_CHANGE:
 				this.configuredAutoSaveDelay = void 0;
 				this.configuredAutoSaveOnFocusChange = false;
 				this.configuredAutoSaveOnWindowChange = true;
-				this.autoSaveNotAfterDelayContext.set(true);
 				break;
 
 			default:
 				this.configuredAutoSaveDelay = void 0;
 				this.configuredAutoSaveOnFocusChange = false;
 				this.configuredAutoSaveOnWindowChange = false;
-				this.autoSaveNotAfterDelayContext.set(true);
 				break;
 		}
 

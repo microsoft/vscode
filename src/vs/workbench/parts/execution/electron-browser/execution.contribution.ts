@@ -118,6 +118,7 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
 
 const OPEN_CONSOLE_COMMAND_ID = 'workbench.command.terminal.openNativeConsole';
 
+// TODO@Isidor Open in terminal does not seem to work
 CommandsRegistry.registerCommand({
 	id: OPEN_CONSOLE_COMMAND_ID,
 	handler: (accessor, resource: uri) => {
@@ -162,14 +163,14 @@ const openConsoleCommand = {
 };
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '1_files',
+	group: '2_navigation',
 	order: 30,
 	command: openConsoleCommand,
 	when: ResourceContextKey.Scheme.isEqualTo('file')
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '1_files',
+	group: '2_navigation',
 	order: 30,
 	command: openConsoleCommand,
 	when: ResourceContextKey.Scheme.isEqualTo('file')

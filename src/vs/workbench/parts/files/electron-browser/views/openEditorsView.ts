@@ -96,7 +96,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			this.needsRefresh = false;
 		}, this.structuralRefreshDelay);
 		this.contributedContextMenu = menuService.createMenu(MenuId.OpenEditorsContext, contextKeyService);
-		this.contributedContextMenu.getActions();
+		this.disposables.push(this.contributedContextMenu);
 
 		// update on model changes
 		this.disposables.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));

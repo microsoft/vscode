@@ -340,6 +340,7 @@ export class FileController extends DefaultController {
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ });
 
+		// TODO@isidor dispsoe this
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
 
 		this.state = state;
