@@ -1553,3 +1553,27 @@ export class MoveEditorToNextGroupAction extends Action {
 		return TPromise.as(true);
 	}
 }
+
+export class MoveEditorToFirstGroupAction extends Action {
+
+	public static readonly ID = 'workbench.action.moveEditorToFirstGroupAction';
+	public static readonly LABEL = nls.localize('moveEditorToFirstGroup', "Move Editor into First Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor && activeEditor.position !== Position.ONE) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, Position.ONE);
+		}
+
+		return TPromise.as(true);
+	}
+}
