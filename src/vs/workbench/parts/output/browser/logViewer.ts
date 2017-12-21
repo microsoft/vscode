@@ -70,22 +70,4 @@ export class LogViewer extends AbstractTextResourceEditor {
 		options.scrollBeyondLastLine = false;
 		return options;
 	}
-
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-		if (input.matches(this.input)) {
-			return TPromise.as(null);
-		}
-
-		if (this.input) {
-			this.input.dispose();
-		}
-		return super.setInput(input, options).then(() => this.revealLastLine());
-	}
-
-	public clearInput(): void {
-		if (this.input) {
-			this.input.dispose();
-		}
-		super.clearInput();
-	}
 }
