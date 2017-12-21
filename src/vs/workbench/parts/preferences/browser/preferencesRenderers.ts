@@ -6,8 +6,9 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
-import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
+import * as strings from 'vs/base/common/strings';
+import * as map from 'vs/base/common/map';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -41,30 +42,23 @@ export interface IPreferencesRenderer<T> extends IDisposable {
 	onFocusPreference: Event<T>;
 	onClearFocusPreference: Event<T>;
 	onUpdatePreference?: Event<{ key: string, value: any, source: T, index: number }>;
-	onTriggeredFuzzy?: Event<void>;
-
 
 	render(): void;
 	updatePreference(key: string, value: any, source: T, index: number): void;
-	filterPreferences(filterResult: IFilterResult): void;
-	renderFilteredPreferences(query: string, resultGroup: ISearchResultGroup): IFilterResult;
-	renderNlpPreferences(query: string, resultGroup: ISearchResultGroup): void;
+	renderSearchResultGroup(query: string, id: string, resultGroup: ISearchResultGroup): IFilterResult;
 	focusPreference(setting: T): void;
 	clearFocus(setting: T): void;
 }
 
 export abstract class AbstractSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
 
-	protected _currentFilterResult: ISearchResultGroup;
-	protected _currentNlpResult: ISearchResultGroup;
+	protected _currentResultGroups = new Map<string, ISearchResultGroup>();
 
 	abstract preferencesModel: IPreferencesEditorModel<ISetting>;
 	abstract associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 
 	abstract onFocusPreference: Event<ISetting>;
 	abstract onClearFocusPreference: Event<ISetting>;
-	abstract onUpdatePreference?: Event<{ key: string, value: any, source: ISetting, index: number }>;
-	abstract onTriggeredFuzzy?: Event<void>;
 
 
 	abstract render(): void;
@@ -73,16 +67,9 @@ export abstract class AbstractSettingsRenderer extends Disposable implements IPr
 	abstract focusPreference(setting: ISetting): void;
 	abstract clearFocus(setting: ISetting): void;
 
-	// TODO - this should handle an arbitrary set of result groups, and shouldn't know about filtered vs nlp results
-	renderFilteredPreferences(query: string, resultGroup: ISearchResultGroup): IFilterResult {
-		this._currentFilterResult = resultGroup;
-		this._removeDuplicateResults(this._currentFilterResult, this._currentNlpResult);
-		return this.onResultGroupsUpdated(query);
-	}
-
-	renderNlpPreferences(query: string, resultGroup: ISearchResultGroup): IFilterResult {
-		this._currentNlpResult = resultGroup;
-		this._removeDuplicateResults(this._currentFilterResult, this._currentNlpResult);
+	renderSearchResultGroup(query: string, id: string, resultGroup: ISearchResultGroup): IFilterResult {
+		this._currentResultGroups.set(id, resultGroup);
+		this._removeDuplicateResults();
 		return this.onResultGroupsUpdated(query);
 	}
 
@@ -90,11 +77,14 @@ export abstract class AbstractSettingsRenderer extends Disposable implements IPr
 
 	// Remove duplicates between local and remote results
 	// TODO simplify, maybe move to upstream renderer
-	private _removeDuplicateResults(filterGroup: ISearchResultGroup, nlpGroup: ISearchResultGroup): void {
-		if (nlpGroup && filterGroup) {
-			const localSet = new Set<string>();
-			filterGroup.result.filterMatches.forEach(s => localSet.add(s.setting.key));
-			nlpGroup.result.filterMatches = nlpGroup.result.filterMatches.filter(s => !localSet.has(s.setting.key));
+	private _removeDuplicateResults(): void {
+		const keys = map.keys(this._currentResultGroups);
+		if (keys.length > 1) {
+			const keySet = new Set<string>();
+			const firstGroup = this._currentResultGroups.get(keys[0]);
+			const secondGroup = this._currentResultGroups.get(keys[1]);
+			firstGroup.result.filterMatches.forEach(s => keySet.add(s.setting.key));
+			secondGroup.result.filterMatches = secondGroup.result.filterMatches.filter(s => !keySet.has(s.setting.key));
 		}
 	}
 }
@@ -310,8 +300,6 @@ export class DefaultSettingsRenderer extends AbstractSettingsRenderer implements
 	private _onClearFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
 
-	public readonly onTriggeredFuzzy: Event<void>;
-
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@IInstantiationService protected instantiationService: IInstantiationService
@@ -329,8 +317,6 @@ export class DefaultSettingsRenderer extends AbstractSettingsRenderer implements
 		// this._register(this.editSettingActionRenderer.onUpdateSetting(e => this._onUpdatePreference.fire(e)));
 		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
 		this._register(preferencesModel.onDidChangeGroups(() => this.render()));
-
-		this.onTriggeredFuzzy = this.settingsHeaderRenderer.onClick;
 	}
 
 	public get associatedPreferencesModel(): IPreferencesEditorModel<ISetting> {
@@ -343,27 +329,14 @@ export class DefaultSettingsRenderer extends AbstractSettingsRenderer implements
 	}
 
 	protected onResultGroupsUpdated(query: string): IFilterResult {
-		const multiResult = this._getMultiSearchResult(query, this._currentFilterResult, this._currentNlpResult);
+		const multiResult = <IMultiSearchResult>{
+			query,
+			resultGroups: map.values(this._currentResultGroups)
+		};
+
 		const filterResult = this.preferencesModel.renderFullSearchResults(multiResult);
 		this.filterPreferences(filterResult);
 		return filterResult;
-	}
-
-	private _getMultiSearchResult(query: string, filterResult: ISearchResultGroup, nlpResult: ISearchResultGroup): IMultiSearchResult {
-		const result = <IMultiSearchResult>{
-			query,
-			resultGroups: []
-		};
-
-		if (filterResult) {
-			result.resultGroups.push(filterResult);
-		}
-
-		if (nlpResult) {
-			result.resultGroups.push(nlpResult);
-		}
-
-		return result;
 	}
 
 	public render() {
@@ -377,7 +350,7 @@ export class DefaultSettingsRenderer extends AbstractSettingsRenderer implements
 	}
 
 	public filterPreferences(filterResult: IFilterResult): void {
-		this.filterResult = filterResult;
+		// this.filterResult = filterResult;
 		if (filterResult) {
 			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);

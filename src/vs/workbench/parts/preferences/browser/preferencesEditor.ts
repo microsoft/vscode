@@ -421,9 +421,6 @@ class PreferencesRenderers extends Disposable {
 				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source, index }) => this._updatePreference(key, value, source, index, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 				this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 				this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
-				if (this._defaultPreferencesRenderer.onTriggeredFuzzy) {
-					this._register(this._defaultPreferencesRenderer.onTriggeredFuzzy(() => this._onTriggeredFuzzy.fire()));
-				}
 			}
 		}
 	}
@@ -454,8 +451,8 @@ class PreferencesRenderers extends Disposable {
 		}
 
 		this._currentRemoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(filter);
-		this._searchPreferences(filter, this.defaultPreferencesRenderer, this._currentRemoteSearchProvider, this._lastDefaultFilterResult);
-		this._searchPreferences(filter, this.editablePreferencesRenderer, this._currentRemoteSearchProvider, this._lastEditableFilterResult);
+		this._nlpSearchPreferences(filter, this.defaultPreferencesRenderer, this._currentRemoteSearchProvider, this._lastDefaultFilterResult);
+		this._nlpSearchPreferences(filter, this.editablePreferencesRenderer, this._currentRemoteSearchProvider, this._lastEditableFilterResult);
 		return TPromise.wrap(null);
 
 		// call twice with two prefs models
@@ -525,16 +522,12 @@ class PreferencesRenderers extends Disposable {
 		return null;
 	}
 
-	private _getAllPreferences(preferencesRenderer: IPreferencesRenderer<ISetting>): ISettingsGroup[] {
-		return preferencesRenderer ? (<ISettingsEditorModel>preferencesRenderer.preferencesModel).settingsGroups : [];
-	}
-
 	private _filterPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: LocalSearchProvider): IFilterResult {
 		if (preferencesRenderer) {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
 			const filterResult = provider.filterPreferences(model);
 			if (filterResult) {
-				return preferencesRenderer.renderFilteredPreferences(filter, {
+				return preferencesRenderer.renderSearchResultGroup(filter, 'filterResult', {
 					id: 'filterResult',
 					label: nls.localize('filterResult', "Filtered Results"),
 					result: filterResult
@@ -545,24 +538,26 @@ class PreferencesRenderers extends Disposable {
 		return null;
 	}
 
-	private _searchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: RemoteSearchProvider, mergeResult: IFilterResult): TPromise<IFilterResult> {
+	private _nlpSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: RemoteSearchProvider, mergeResult: IFilterResult): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
 			provider.filterPreferences(model).then(filterResult => {
 				if (filterResult) {
-					return preferencesRenderer.renderNlpPreferences(filter, {
+					return preferencesRenderer.renderSearchResultGroup(filter, 'nlpResult', {
 						id: 'nlpResult',
 						label: nls.localize('nlpResult', "Natural Language Results"),
 						result: filterResult
 					});
 				} else if (filter) {
-					return preferencesRenderer.renderNlpPreferences(filter, {
+					return preferencesRenderer.renderSearchResultGroup(filter, 'nlpResult', {
 						id: 'nlpResult',
 						label: nls.localize('nlpResult', "Natural Language Results"),
 						result: {
-							filterMatches: [{ matches: [], setting: preferencesRenderer.preferencesModel.getPreference('editor.tabSize') }]
+							filterMatches: [{ matches: [], setting: preferencesRenderer.preferencesModel.getPreference('debug.inlineValues') }]
 						}
 					});
+				} else {
+					return null;
 				}
 			});
 		}
