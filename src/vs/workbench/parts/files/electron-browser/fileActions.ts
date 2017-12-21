@@ -50,6 +50,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IEditableData {
 	action: IAction;
@@ -73,6 +74,14 @@ export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename");
 
 export const MOVE_FILE_TO_TRASH_ID = 'workbench.command.files.moveToTrash';
 export const MOVE_FILE_TO_TRASH_LABEL = nls.localize('delete', "Delete");
+
+export const COPY_FILE_ID = 'workbench.command.files.copyFile';
+export const COPY_FILE_LABEL = nls.localize('copyFile', "Copy");
+
+export const PASTE_FILE_ID = 'workbench.command.files.pasteFile';
+export const PASTE_FILE_LABEL = nls.localize('pasteFile', "Paste");
+
+export const FileCopiedContext = new RawContextKey<boolean>('fileCopied', false);
 
 export class BaseErrorReportingAction extends Action {
 
@@ -780,7 +789,6 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 /* Move File/Folder to trash */
 export class MoveFileToTrashAction extends BaseDeleteFileAction {
-	public static readonly ID = 'moveFileToTrash';
 
 	constructor(
 		tree: ITree,
@@ -790,14 +798,13 @@ export class MoveFileToTrashAction extends BaseDeleteFileAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(MoveFileToTrashAction.ID, MOVE_FILE_TO_TRASH_LABEL, tree, element, true, fileService, messageService, textFileService, configurationService);
+		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, tree, element, true, fileService, messageService, textFileService, configurationService);
 	}
 }
 
 /* Import File */
 export class ImportFileAction extends BaseFileAction {
 
-	public static readonly ID = 'workbench.files.action.importFile';
 	private tree: ITree;
 
 	constructor(
@@ -809,7 +816,7 @@ export class ImportFileAction extends BaseFileAction {
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(ImportFileAction.ID, nls.localize('importFiles', "Import Files"), fileService, messageService, textFileService);
+		super('workbench.files.action.importFile', nls.localize('importFiles', "Import Files"), fileService, messageService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
@@ -912,9 +919,9 @@ export class ImportFileAction extends BaseFileAction {
 
 // Copy File/Folder
 let fileToCopy: FileStat;
-export class CopyFileAction extends BaseFileAction {
+let fileCopiedContextKey: IContextKey<boolean>;
 
-	public static readonly ID = 'filesExplorer.copy';
+class CopyFileAction extends BaseFileAction {
 
 	private tree: ITree;
 	constructor(
@@ -922,12 +929,16 @@ export class CopyFileAction extends BaseFileAction {
 		element: FileStat,
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(CopyFileAction.ID, nls.localize('copyFile', "Copy"), fileService, messageService, textFileService);
+		super('filesExplorer.copy', COPY_FILE_LABEL, fileService, messageService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
+		if (!fileCopiedContextKey) {
+			fileCopiedContextKey = FileCopiedContext.bindTo(contextKeyService);
+		}
 		this._updateEnablement();
 	}
 
@@ -935,6 +946,7 @@ export class CopyFileAction extends BaseFileAction {
 
 		// Remember as file/folder to copy
 		fileToCopy = this.element;
+		fileCopiedContextKey.set(!!this.element);
 
 		// Remove highlight
 		if (this.tree) {
@@ -948,7 +960,7 @@ export class CopyFileAction extends BaseFileAction {
 }
 
 // Paste File/Folder
-export class PasteFileAction extends BaseFileAction {
+class PasteFileAction extends BaseFileAction {
 
 	public static readonly ID = 'filesExplorer.paste';
 
@@ -962,7 +974,7 @@ export class PasteFileAction extends BaseFileAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(PasteFileAction.ID, nls.localize('pasteFile', "Paste"), fileService, messageService, textFileService);
+		super(PasteFileAction.ID, PASTE_FILE_LABEL, fileService, messageService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
@@ -973,29 +985,19 @@ export class PasteFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	_isEnabled(): boolean {
+	public run(): TPromise<any> {
 
-		// Need at least a file to copy
-		if (!fileToCopy) {
-			return false;
-		}
-
-		// Check if file was deleted or moved meanwhile
 		const exists = fileToCopy.root.find(fileToCopy.resource);
 		if (!exists) {
 			fileToCopy = null;
-			return false;
+			fileCopiedContextKey.set(false);
+			throw new Error(nls.localize('fileDeleted', "File was deleted or moved meanwhile"));
 		}
 
 		// Check if target is ancestor of pasted folder
 		if (this.element.resource.toString() !== fileToCopy.resource.toString() && resources.isEqualOrParent(this.element.resource, fileToCopy.resource, !isLinux /* ignorecase */)) {
-			return false;
+			throw new Error(nls.localize('fileIsAncestor', "File to copy is an ancestor of the desitnation folder"));
 		}
-
-		return true;
-	}
-
-	public run(): TPromise<any> {
 
 		// Find target
 		let target: FileStat;
@@ -1795,5 +1797,27 @@ CommandsRegistry.registerCommand({
 		const moveFileToTrashAction = instantationService.createInstance(MoveFileToTrashAction, listService.lastFocusedList, explorerContext.stat);
 
 		return moveFileToTrashAction.run(explorerContext);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: COPY_FILE_ID,
+	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
+		const instantationService = accessor.get(IInstantiationService);
+		const listService = accessor.get(IListService);
+		const copyFileAction = instantationService.createInstance(CopyFileAction, listService.lastFocusedList, explorerContext.stat);
+
+		return copyFileAction.run();
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: PASTE_FILE_ID,
+	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
+		const instantationService = accessor.get(IInstantiationService);
+		const listService = accessor.get(IListService);
+		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
+
+		return pasteFileAction.run();
 	}
 });

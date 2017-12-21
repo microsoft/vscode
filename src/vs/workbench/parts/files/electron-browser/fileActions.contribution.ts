@@ -6,16 +6,10 @@
 
 import nls = require('vs/nls');
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Action, IAction } from 'vs/base/common/actions';
-import { ActionItem, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
-import { GlobalNewUntitledFileAction, SaveFileAsAction, ShowOpenedFileInNewWindow, CopyPathAction, GlobalCopyPathAction, RevealInOSAction, GlobalRevealInOSAction, pasteIntoFocusedFilesExplorerViewItem, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, PasteFileAction, CopyFileAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView, CompareWithSavedAction, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_COMMAND_ID, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_ID, MOVE_FILE_TO_TRASH_LABEL } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { GlobalNewUntitledFileAction, SaveFileAsAction, ShowOpenedFileInNewWindow, CopyPathAction, GlobalCopyPathAction, RevealInOSAction, GlobalRevealInOSAction, pasteIntoFocusedFilesExplorerViewItem, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView, CompareWithSavedAction, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_COMMAND_ID, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_ID, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_ID, COPY_FILE_LABEL, PASTE_FILE_ID, PASTE_FILE_LABEL, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTION_CONTEXT } from 'vs/workbench/parts/files/electron-browser/saveErrorHandler';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { copyFocusedFilesExplorerViewItem, openWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, EditorWithResourceFocusedInOpenEditorsContext, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, UntitledEditorFocusedInOpenEditorsContext, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, GroupFocusedInOpenEditorsContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, EditorFocusedInOpenEditorsContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -29,60 +23,6 @@ import { OPEN_FOLDER_SETTINGS_COMMAND, OPEN_FOLDER_SETTINGS_LABEL } from 'vs/wor
 import { AutoSaveNotAfterDelayContext } from 'vs/workbench/services/textfile/common/textfiles';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 
-class FilesViewerActionContributor extends ActionBarContributor {
-
-	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IKeybindingService private keybindingService: IKeybindingService
-	) {
-		super();
-	}
-
-	public hasSecondaryActions(context: any): boolean {
-		const element = context.element;
-
-		// Contribute only on Stat Objects (File Explorer)
-		return element instanceof FileStat || element instanceof Model;
-	}
-
-	public getSecondaryActions(context: any): IAction[] {
-		const stat = (<FileStat | Model>context.element);
-		const tree = context.viewer;
-		const actions: IAction[] = [];
-		if (stat instanceof Model) {
-			return [];
-		}
-
-		// Copy File/Folder
-		if (!stat.isRoot) {
-			actions.push(this.instantiationService.createInstance(CopyFileAction, tree, <FileStat>stat));
-		}
-
-		// Paste File/Folder
-		if (stat.isDirectory) {
-			actions.push(this.instantiationService.createInstance(PasteFileAction, tree, <FileStat>stat));
-		}
-
-		return actions;
-	}
-
-	public getActionItem(context: any, action: Action): BaseActionItem {
-		if (context && context.element instanceof FileStat) {
-
-			// Any other item with keybinding
-			const keybinding = this.keybindingService.lookupKeybinding(action.id);
-			if (keybinding) {
-				return new ActionItem(context, action, { label: true, keybinding: keybinding.getLabel() });
-			}
-		}
-
-		return null;
-	}
-}
-
-// Contribute to Viewers that show Files
-const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
-actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FilesViewerActionContributor);
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "File");
@@ -342,6 +282,26 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '1_files',
+	order: 4,
+	command: {
+		id: NEW_FILE_COMMAND_ID,
+		title: NEW_FILE_LABEL
+	},
+	when: ContextKeyExpr.and(ExplorerFolderContext)
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '1_files',
+	order: 6,
+	command: {
+		id: NEW_FOLDER_COMMAND_ID,
+		title: NEW_FOLDER_LABEL
+	},
+	when: ContextKeyExpr.and(ExplorerFolderContext)
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '1_files',
 	order: 10,
 	command: openToSideCommand,
 	when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo('file'), ExplorerFolderContext.toNegated())
@@ -351,13 +311,6 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '1_files',
 	order: 20,
 	command: revealInOsCommand,
-	when: ResourceContextKey.Scheme.isEqualTo('file')
-});
-
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '1_files',
-	order: 40,
-	command: copyPathCommand,
 	when: ResourceContextKey.Scheme.isEqualTo('file')
 });
 
@@ -373,6 +326,33 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 30,
 	command: selectForCompareCommand,
 	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.Scheme.isEqualTo('file'))
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '5_copy',
+	order: 10,
+	command: {
+		id: COPY_FILE_ID,
+		title: COPY_FILE_LABEL
+	},
+	when: ExplorerRootContext.toNegated()
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '5_copy',
+	order: 20,
+	command: {
+		id: PASTE_FILE_ID,
+		title: PASTE_FILE_LABEL
+	},
+	when: ContextKeyExpr.and(ExplorerFolderContext, FileCopiedContext)
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '5_copy',
+	order: 30,
+	command: copyPathCommand,
+	when: ResourceContextKey.Scheme.isEqualTo('file')
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -406,27 +386,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '3_create',
-	order: 10,
-	command: {
-		id: NEW_FILE_COMMAND_ID,
-		title: NEW_FILE_LABEL
-	},
-	when: ContextKeyExpr.and(ExplorerFolderContext)
-});
-
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '3_create',
-	order: 20,
-	command: {
-		id: NEW_FOLDER_COMMAND_ID,
-		title: NEW_FOLDER_LABEL
-	},
-	when: ContextKeyExpr.and(ExplorerFolderContext)
-});
-
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '5_modify',
+	group: '7_modify',
 	order: 10,
 	command: {
 		id: TRIGGER_RENAME_COMMAND_ID,
@@ -436,7 +396,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '5_modify',
+	group: '7_modify',
 	order: 20,
 	command: {
 		id: MOVE_FILE_TO_TRASH_ID,
