@@ -6,10 +6,10 @@
 [![Gitter](https://img.shields.io/badge/chat-on%20gitter-blue.svg)](https://gitter.im/Microsoft/vscode)
 
 [VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
-a code editor with what developers need for their core edit-build-debug cycle. Code
+a code editor with what developers need for their core edit-build-debug cycle. The code
 provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
 
-VS Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [VS Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated at least daily.
+VS Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [VS Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds on the master branch and is updated at least daily.
 
 <p align="center">
   <img alt="VS Code in action" src="https://cloud.githubusercontent.com/assets/11839736/16642200/6624dde0-43bd-11e6-8595-c81885ba0dc2.png">
@@ -38,7 +38,7 @@ Please see also our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 * Ask a question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode).
 * Request a new feature on [GitHub](CONTRIBUTING.md).
-* Vote for [popular feature requests](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc).
+* Vote for [popular feature requests](https://github.com/Microsoft/vscode/issues?q=is:open+is:issue+label:feature-request+sort:reactions-%2B1-desc).
 * File a bug in [GitHub Issues](https://github.com/Microsoft/vscode/issues).
 * [Tweet](https://twitter.com/code) us with other feedback.
 
