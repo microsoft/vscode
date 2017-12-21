@@ -1577,3 +1577,54 @@ export class MoveEditorToFirstGroupAction extends Action {
 		return TPromise.as(true);
 	}
 }
+
+
+export class MoveEditorToSecondGroupAction extends Action {
+
+	public static readonly ID = 'workbench.action.moveEditorToSecondGroupAction';
+	public static readonly LABEL = nls.localize('moveEditorToSecondGroup', "Move Editor into Second Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor && activeEditor.position !== Position.TWO) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, Position.TWO);
+		}
+
+		return TPromise.as(true);
+	}
+}
+
+
+
+export class MoveEditorToThirdGroupAction extends Action {
+
+	public static readonly ID = 'workbench.action.moveEditorToThirdGroupAction';
+	public static readonly LABEL = nls.localize('moveEditorToThirdGroup', "Move Editor into Third Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor && activeEditor.position !== Position.THREE) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, Position.THREE);
+		}
+
+		return TPromise.as(true);
+	}
+}
