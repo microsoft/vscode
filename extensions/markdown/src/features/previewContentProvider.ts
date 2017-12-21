@@ -22,16 +22,16 @@ const previewStrings = {
 
 export function isMarkdownFile(document: vscode.TextDocument) {
 	return document.languageId === 'markdown'
-		&& document.uri.scheme !== 'markdown'; // prevent processing of own documents
+		&& document.uri.scheme !== MDDocumentContentProvider.scheme; // prevent processing of own documents
 }
 
 export function getMarkdownUri(uri: vscode.Uri) {
-	if (uri.scheme === 'markdown') {
+	if (uri.scheme === MDDocumentContentProvider.scheme) {
 		return uri;
 	}
 
 	return uri.with({
-		scheme: 'markdown',
+		scheme: MDDocumentContentProvider.scheme,
 		path: uri.path + '.rendered',
 		query: uri.toString()
 	});
@@ -139,6 +139,8 @@ class PreviewConfigManager {
 }
 
 export class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
+	public static readonly scheme = 'markdown';
+
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean = false;
 	private previewConfigurations = new PreviewConfigManager();
@@ -279,7 +281,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	public updateConfiguration() {
 		// update all generated md documents
 		for (const document of vscode.workspace.textDocuments) {
-			if (document.uri.scheme === 'markdown') {
+			if (document.uri.scheme === MDDocumentContentProvider.scheme) {
 				const sourceUri = vscode.Uri.parse(document.uri.query);
 				if (this.previewConfigurations.shouldUpdateConfiguration(sourceUri)) {
 					this.update(document.uri);
