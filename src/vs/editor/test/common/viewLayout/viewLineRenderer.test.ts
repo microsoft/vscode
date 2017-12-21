@@ -6,13 +6,13 @@
 
 import * as assert from 'assert';
 import { renderViewLine2 as renderViewLine, RenderLineInput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken, ViewLineTokens, IViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { MetadataConsts } from 'vs/editor/common/modes';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
-function createViewLineTokens(viewLineTokens: ViewLineToken[]): ViewLineTokens {
+function createViewLineTokens(viewLineTokens: ViewLineToken[]): IViewLineTokens {
 	return new ViewLineTokens(viewLineTokens);
 }
 

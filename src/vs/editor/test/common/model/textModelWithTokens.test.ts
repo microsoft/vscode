@@ -276,7 +276,7 @@ suite('TextModelWithTokens regression tests', () => {
 			let actual: ISimpleViewToken[] = [];
 			for (let i = 0, len = _actual.getCount(); i < len; i++) {
 				actual[i] = {
-					endIndex: _actual.getEndIndex(i),
+					endIndex: _actual.getEndOffset(i),
 					foreground: _actual.getForeground(i)
 				};
 			}

@@ -18,7 +18,7 @@ import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets, RichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
+import { LineTokens, LineTokensIterator } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
@@ -610,7 +610,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			const lineTokens = this._getLineTokens(lineNumber);
 			const lineText = this._lines[lineNumber - 1].text;
 
-			let currentToken: LineToken;
+			let currentToken: LineTokensIterator;
 			let searchStopOffset: number;
 			if (lineNumber === position.lineNumber) {
 				currentToken = lineTokens.findTokenAtOffset(position.column - 1);
@@ -669,7 +669,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			const lineTokens = this._getLineTokens(lineNumber);
 			const lineText = this._lines[lineNumber - 1].text;
 
-			let currentToken: LineToken;
+			let currentToken: LineTokensIterator;
 			let searchStartOffset: number;
 			if (lineNumber === position.lineNumber) {
 				currentToken = lineTokens.findTokenAtOffset(position.column - 1);
@@ -725,7 +725,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			const lineTokens = this._getLineTokens(lineNumber);
 			const lineText = this._lines[lineNumber - 1].text;
 
-			let currentToken: LineToken;
+			let currentToken: LineTokensIterator;
 			let searchStopOffset: number;
 			if (lineNumber === position.lineNumber) {
 				currentToken = lineTokens.findTokenAtOffset(position.column - 1);
@@ -768,7 +768,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			const lineTokens = this._getLineTokens(lineNumber);
 			const lineText = this._lines[lineNumber - 1].text;
 
-			let currentToken: LineToken;
+			let currentToken: LineTokensIterator;
 			let searchStartOffset: number;
 			if (lineNumber === position.lineNumber) {
 				currentToken = lineTokens.findTokenAtOffset(position.column - 1);

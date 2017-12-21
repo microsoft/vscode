@@ -554,7 +554,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			return true;
 		}
 		let tokens = model.getLineTokens(lineNumber);
-		if (tokens.getTokenCount() > 0) {
+		if (tokens.getCount() > 0) {
 			let firstNonWhiteSpaceToken = tokens.findTokenAtOffset(nonWhiteSpaceColumn);
 			if (firstNonWhiteSpaceToken && firstNonWhiteSpaceToken.tokenType === StandardTokenType.Comment) {
 				return true;

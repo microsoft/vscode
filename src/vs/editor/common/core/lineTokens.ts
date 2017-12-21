@@ -5,12 +5,10 @@
 'use strict';
 
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { ViewLineTokenFactory, ViewLineToken, ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineTokenFactory, ViewLineToken, ViewLineTokens, IViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { ColorId, FontStyle, StandardTokenType, LanguageId } from 'vs/editor/common/modes';
 
-export class LineToken {
-	_lineTokenBrand: void;
-
+export class LineTokensIterator {
 	private readonly _source: LineTokens;
 	private readonly _tokenCount: number;
 
@@ -53,8 +51,8 @@ export class LineToken {
 		this._set(tokenIndex, startOffset, endOffset, metadata);
 	}
 
-	public clone(): LineToken {
-		return new LineToken(this._source, this._tokenIndex, this._tokenCount, this._startOffset, this._endOffset, this._metadata);
+	public clone(): LineTokensIterator {
+		return new LineTokensIterator(this._source, this._tokenIndex, this._tokenCount, this._startOffset, this._endOffset, this._metadata);
 	}
 
 	_set(tokenIndex: number, startOffset: number, endOffset: number, metadata: number): void {
@@ -64,7 +62,7 @@ export class LineToken {
 		this._endOffset = endOffset;
 	}
 
-	public prev(): LineToken {
+	public prev(): LineTokensIterator {
 		if (!this.hasPrev) {
 			return null;
 		}
@@ -72,7 +70,7 @@ export class LineToken {
 		return this;
 	}
 
-	public next(): LineToken {
+	public next(): LineTokensIterator {
 		if (!this.hasNext) {
 			return null;
 		}
@@ -81,7 +79,7 @@ export class LineToken {
 	}
 }
 
-export class LineTokens {
+export class LineTokens implements IViewLineTokens {
 	_lineTokensBrand: void;
 
 	private readonly _tokens: Uint32Array;
@@ -96,15 +94,33 @@ export class LineTokens {
 		this._textLength = this._text.length;
 	}
 
-	public getTokenCount(): number {
-		return this._tokensCount;
+	public equals(other: IViewLineTokens): boolean {
+		if (other instanceof LineTokens) {
+			if (this._text !== other._text) {
+				return false;
+			}
+			if (this._tokensCount !== other._tokensCount) {
+				return false;
+			}
+			for (let i = 0, len = this._tokens.length; i < len; i++) {
+				if (this._tokens[i] !== other._tokens[i]) {
+					return false;
+				}
+			}
+			return true;
+		}
+		return false;
 	}
 
 	public getLineContent(): string {
 		return this._text;
 	}
 
-	public getTokenStartOffset(tokenIndex: number): number {
+	public getCount(): number {
+		return this._tokensCount;
+	}
+
+	public getStartOffset(tokenIndex: number): number {
 		if (tokenIndex > 0) {
 			return this._tokens[(tokenIndex - 1) << 1];
 		}
@@ -112,16 +128,31 @@ export class LineTokens {
 	}
 
 	public getLanguageId(tokenIndex: number): LanguageId {
-		let metadata = this._tokens[(tokenIndex << 1) + 1];
+		const metadata = this._tokens[(tokenIndex << 1) + 1];
 		return TokenMetadata.getLanguageId(metadata);
 	}
 
 	public getStandardTokenType(tokenIndex: number): StandardTokenType {
-		let metadata = this._tokens[(tokenIndex << 1) + 1];
+		const metadata = this._tokens[(tokenIndex << 1) + 1];
 		return TokenMetadata.getTokenType(metadata);
 	}
 
-	public getTokenEndOffset(tokenIndex: number): number {
+	public getForeground(tokenIndex: number): ColorId {
+		const metadata = this._tokens[(tokenIndex << 1) + 1];
+		return TokenMetadata.getForeground(metadata);
+	}
+
+	public getClassName(tokenIndex: number): string {
+		const metadata = this._tokens[(tokenIndex << 1) + 1];
+		return TokenMetadata.getClassNameFromMetadata(metadata);
+	}
+
+	public getInlineStyle(tokenIndex: number, colorMap: string[]): string {
+		const metadata = this._tokens[(tokenIndex << 1) + 1];
+		return TokenMetadata.getInlineStyleFromMetadata(metadata, colorMap);
+	}
+
+	public getEndOffset(tokenIndex: number): number {
 		return this._tokens[tokenIndex << 1];
 	}
 
@@ -134,12 +165,12 @@ export class LineTokens {
 		return ViewLineTokenFactory.findIndexInSegmentsArray(this._tokens, offset);
 	}
 
-	public findTokenAtOffset(offset: number): LineToken {
+	public findTokenAtOffset(offset: number): LineTokensIterator {
 		let tokenIndex = this.findTokenIndexAtOffset(offset);
 		return this.tokenAt(tokenIndex);
 	}
 
-	public tokenAt(tokenIndex: number, dest?: LineToken): LineToken {
+	public tokenAt(tokenIndex: number, dest?: LineTokensIterator): LineTokensIterator {
 		const startOffset = (
 			tokenIndex > 0
 				? this._tokens[(tokenIndex - 1) << 1]
@@ -152,17 +183,17 @@ export class LineTokens {
 			dest._set(tokenIndex, startOffset, endOffset, metadata);
 			return dest;
 		}
-		return new LineToken(this, tokenIndex, this._tokensCount, startOffset, endOffset, metadata);
+		return new LineTokensIterator(this, tokenIndex, this._tokensCount, startOffset, endOffset, metadata);
 	}
 
-	public firstToken(): LineToken {
+	public firstToken(): LineTokensIterator {
 		if (this._textLength === 0) {
 			return null;
 		}
 		return this.tokenAt(0);
 	}
 
-	public lastToken(): LineToken {
+	public lastToken(): LineTokensIterator {
 		if (this._textLength === 0) {
 			return null;
 		}

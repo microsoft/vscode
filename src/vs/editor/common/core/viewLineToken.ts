@@ -58,7 +58,16 @@ export class ViewLineToken {
 	}
 }
 
-export class ViewLineTokens {
+export interface IViewLineTokens {
+	equals(other: IViewLineTokens): boolean;
+	getCount(): number;
+	getForeground(tokenIndex: number): ColorId;
+	getEndOffset(tokenIndex: number): number;
+	getClassName(tokenIndex: number): string;
+	getInlineStyle(tokenIndex: number, colorMap: string[]): string;
+}
+
+export class ViewLineTokens implements IViewLineTokens {
 
 	private readonly _actual: ViewLineToken[];
 
@@ -66,8 +75,11 @@ export class ViewLineTokens {
 		this._actual = actual;
 	}
 
-	public equals(other: ViewLineTokens): boolean {
-		return ViewLineToken.equalsArr(this._actual, other._actual);
+	public equals(other: IViewLineTokens): boolean {
+		if (other instanceof ViewLineTokens) {
+			return ViewLineToken.equalsArr(this._actual, other._actual);
+		}
+		return false;
 	}
 
 	public getCount(): number {
@@ -78,11 +90,11 @@ export class ViewLineTokens {
 		return this._actual[tokenIndex].getForeground();
 	}
 
-	public getEndIndex(tokenIndex: number): number {
+	public getEndOffset(tokenIndex: number): number {
 		return this._actual[tokenIndex].endIndex;
 	}
 
-	public getType(tokenIndex: number): string {
+	public getClassName(tokenIndex: number): string {
 		return this._actual[tokenIndex].getType();
 	}
 

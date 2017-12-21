@@ -9,19 +9,19 @@ import { IState, ITokenizationSupport, TokenizationRegistry, LanguageId } from '
 import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { CharCode } from 'vs/base/common/charCode';
-import { ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { IViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 
 export function tokenizeToString(text: string, languageId: string): string {
 	return _tokenizeToString(text, _getSafeTokenizationSupport(languageId));
 }
 
-export function tokenizeLineToHTML(text: string, viewLineTokens: ViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number): string {
+export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number): string {
 	let result = `<div>`;
 	let charIndex = startOffset;
 	let tabsCharDelta = 0;
 
 	for (let tokenIndex = 0, tokenCount = viewLineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
-		const tokenEndIndex = viewLineTokens.getEndIndex(tokenIndex);
+		const tokenEndIndex = viewLineTokens.getEndOffset(tokenIndex);
 
 		if (tokenEndIndex <= startOffset) {
 			continue;
@@ -114,8 +114,8 @@ function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSuppo
 
 		let startOffset = 0;
 		for (let j = 0, lenJ = viewLineTokens.getCount(); j < lenJ; j++) {
-			const type = viewLineTokens.getType(j);
-			const endIndex = viewLineTokens.getEndIndex(j);
+			const type = viewLineTokens.getClassName(j);
+			const endIndex = viewLineTokens.getEndOffset(j);
 			result += `<span class="${type}">${strings.escape(line.substring(startOffset, endIndex))}</span>`;
 			startOffset = endIndex;
 		}

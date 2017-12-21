@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { IViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import * as strings from 'vs/base/common/strings';
@@ -38,7 +38,7 @@ export class RenderLineInput {
 	public readonly lineContent: string;
 	public readonly mightContainRTL: boolean;
 	public readonly fauxIndentLength: number;
-	public readonly lineTokens: ViewLineTokens;
+	public readonly lineTokens: IViewLineTokens;
 	public readonly lineDecorations: LineDecoration[];
 	public readonly tabSize: number;
 	public readonly spaceWidth: number;
@@ -52,7 +52,7 @@ export class RenderLineInput {
 		lineContent: string,
 		mightContainRTL: boolean,
 		fauxIndentLength: number,
-		lineTokens: ViewLineTokens,
+		lineTokens: IViewLineTokens,
 		lineDecorations: LineDecoration[],
 		tabSize: number,
 		spaceWidth: number,
@@ -357,7 +357,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
  * In the rendering phase, characters are always looped until token.endIndex.
  * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
  */
-function transformAndRemoveOverflowing(tokens: ViewLineTokens, fauxIndentLength: number, len: number): LinePart[] {
+function transformAndRemoveOverflowing(tokens: IViewLineTokens, fauxIndentLength: number, len: number): LinePart[] {
 	let result: LinePart[] = [], resultLen = 0;
 
 	// The faux indent part of the line should have no token type
@@ -366,12 +366,12 @@ function transformAndRemoveOverflowing(tokens: ViewLineTokens, fauxIndentLength:
 	}
 
 	for (let tokenIndex = 0, tokensLen = tokens.getCount(); tokenIndex < tokensLen; tokenIndex++) {
-		const endIndex = tokens.getEndIndex(tokenIndex);
+		const endIndex = tokens.getEndOffset(tokenIndex);
 		if (endIndex <= fauxIndentLength) {
 			// The faux indent part of the line should have no token type
 			continue;
 		}
-		const type = tokens.getType(tokenIndex);
+		const type = tokens.getClassName(tokenIndex);
 		if (endIndex >= len) {
 			result[resultLen++] = new LinePart(len, type);
 			break;

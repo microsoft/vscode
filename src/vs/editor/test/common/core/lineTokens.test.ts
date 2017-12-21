@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { MetadataConsts } from 'vs/editor/common/modes';
-import { ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { IViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 
 suite('LineTokens', () => {
 
@@ -50,22 +50,22 @@ suite('LineTokens', () => {
 
 		assert.equal(lineTokens.getLineContent(), 'Hello world, this is a lovely day');
 		assert.equal(lineTokens.getLineContent().length, 33);
-		assert.equal(lineTokens.getTokenCount(), 7);
+		assert.equal(lineTokens.getCount(), 7);
 
-		assert.equal(lineTokens.getTokenStartOffset(0), 0);
-		assert.equal(lineTokens.getTokenEndOffset(0), 6);
-		assert.equal(lineTokens.getTokenStartOffset(1), 6);
-		assert.equal(lineTokens.getTokenEndOffset(1), 13);
-		assert.equal(lineTokens.getTokenStartOffset(2), 13);
-		assert.equal(lineTokens.getTokenEndOffset(2), 18);
-		assert.equal(lineTokens.getTokenStartOffset(3), 18);
-		assert.equal(lineTokens.getTokenEndOffset(3), 21);
-		assert.equal(lineTokens.getTokenStartOffset(4), 21);
-		assert.equal(lineTokens.getTokenEndOffset(4), 23);
-		assert.equal(lineTokens.getTokenStartOffset(5), 23);
-		assert.equal(lineTokens.getTokenEndOffset(5), 30);
-		assert.equal(lineTokens.getTokenStartOffset(6), 30);
-		assert.equal(lineTokens.getTokenEndOffset(6), 33);
+		assert.equal(lineTokens.getStartOffset(0), 0);
+		assert.equal(lineTokens.getEndOffset(0), 6);
+		assert.equal(lineTokens.getStartOffset(1), 6);
+		assert.equal(lineTokens.getEndOffset(1), 13);
+		assert.equal(lineTokens.getStartOffset(2), 13);
+		assert.equal(lineTokens.getEndOffset(2), 18);
+		assert.equal(lineTokens.getStartOffset(3), 18);
+		assert.equal(lineTokens.getEndOffset(3), 21);
+		assert.equal(lineTokens.getStartOffset(4), 21);
+		assert.equal(lineTokens.getEndOffset(4), 23);
+		assert.equal(lineTokens.getStartOffset(5), 23);
+		assert.equal(lineTokens.getEndOffset(5), 30);
+		assert.equal(lineTokens.getStartOffset(6), 30);
+		assert.equal(lineTokens.getEndOffset(6), 33);
 	});
 
 	test('findToken', () => {
@@ -205,11 +205,11 @@ suite('LineTokens', () => {
 		foreground: number;
 	}
 
-	function assertViewLineTokens(_actual: ViewLineTokens, expected: ITestViewLineToken[]): void {
+	function assertViewLineTokens(_actual: IViewLineTokens, expected: ITestViewLineToken[]): void {
 		let actual: ITestViewLineToken[] = [];
 		for (let i = 0, len = _actual.getCount(); i < len; i++) {
 			actual[i] = {
-				endIndex: _actual.getEndIndex(i),
+				endIndex: _actual.getEndOffset(i),
 				foreground: _actual.getForeground(i)
 			};
 		}

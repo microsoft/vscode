@@ -26,8 +26,8 @@ function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
 	let actual: ITestToken[] = [];
 	for (let i = 0, len = _actual.getCount(); i < len; i++) {
 		actual[i] = {
-			endIndex: _actual.getEndIndex(i),
-			type: _actual.getType(i)
+			endIndex: _actual.getEndOffset(i),
+			type: _actual.getClassName(i)
 		};
 	}
 	let decode = (token: ViewLineToken) => {

@@ -7,7 +7,7 @@
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { LineToken } from 'vs/editor/common/core/lineTokens';
+import { LineTokensIterator } from 'vs/editor/common/core/lineTokens';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -132,7 +132,7 @@ class RawToken {
 	public type: StandardTokenType;
 	public languageId: LanguageId;
 
-	constructor(source: LineToken, lineNumber: number, lineText: string) {
+	constructor(source: LineTokensIterator, lineNumber: number, lineText: string) {
 		this.lineNumber = lineNumber;
 		this.lineText = lineText;
 		this.startOffset = source.startOffset;
@@ -149,7 +149,7 @@ class ModelRawTokenScanner {
 	private _versionId: number;
 	private _lineNumber: number;
 	private _lineText: string;
-	private _next: LineToken;
+	private _next: LineTokensIterator;
 
 	constructor(model: IModel) {
 		this._model = model;

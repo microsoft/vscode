@@ -16,7 +16,7 @@ import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ViewLineTokens } from 'vs/editor/common/core/viewLineToken';
+import { IViewLineTokens } from 'vs/editor/common/core/viewLineToken';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { Range } from 'vs/editor/common/core/range';
 
@@ -363,11 +363,11 @@ suite('SplitLinesCollection', () => {
 		value: number;
 	}
 
-	function assertViewLineTokens(_actual: ViewLineTokens, expected: ITestViewLineToken[]): void {
+	function assertViewLineTokens(_actual: IViewLineTokens, expected: ITestViewLineToken[]): void {
 		let actual: ITestViewLineToken[] = [];
 		for (let i = 0, len = _actual.getCount(); i < len; i++) {
 			actual[i] = {
-				endIndex: _actual.getEndIndex(i),
+				endIndex: _actual.getEndOffset(i),
 				value: _actual.getForeground(i)
 			};
 		}
