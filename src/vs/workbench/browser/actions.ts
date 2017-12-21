@@ -57,12 +57,6 @@ export class ActionBarContributor {
  * Some predefined scopes to contribute actions to
  */
 export const Scope = {
-
-	/**
-	 * Actions inside editors.
-	 */
-	EDITOR: 'editor',
-
 	/**
 	 * Actions inside tree widgets.
 	 */
