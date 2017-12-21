@@ -48,6 +48,11 @@
 	text-overflow: ellipsis;
 }
 
+.default-preferences-editor-container > .preferences-header-container > .default-preferences-header,
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not([aria-haspopup]) {
+ 	display: block;
+}
+
 .settings-tabs-widget > .monaco-action-bar .actions-container {
 	justify-content: flex-start;
 }
