@@ -71,6 +71,9 @@ export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder");
 export const TRIGGER_RENAME_COMMAND_ID = 'workbench.command.files.rename';
 export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename");
 
+export const MOVE_FILE_TO_TRASH_ID = 'workbench.command.files.moveToTrash';
+export const MOVE_FILE_TO_TRASH_LABEL = nls.localize('delete', "Delete");
+
 export class BaseErrorReportingAction extends Action {
 
 	constructor(
@@ -803,7 +806,7 @@ export class MoveFileToTrashAction extends BaseDeleteFileAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(MoveFileToTrashAction.ID, nls.localize('delete', "Delete"), tree, element, true, fileService, messageService, textFileService, configurationService);
+		super(MoveFileToTrashAction.ID, MOVE_FILE_TO_TRASH_LABEL, tree, element, true, fileService, messageService, textFileService, configurationService);
 	}
 }
 
@@ -1797,5 +1800,16 @@ CommandsRegistry.registerCommand({
 		const renameAction = instantationService.createInstance(TriggerRenameFileAction, listService.lastFocusedList, explorerContext.stat);
 
 		return renameAction.run(explorerContext);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: MOVE_FILE_TO_TRASH_ID,
+	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
+		const instantationService = accessor.get(IInstantiationService);
+		const listService = accessor.get(IListService);
+		const moveFileToTrashAction = instantationService.createInstance(MoveFileToTrashAction, listService.lastFocusedList, explorerContext.stat);
+
+		return moveFileToTrashAction.run(explorerContext);
 	}
 });

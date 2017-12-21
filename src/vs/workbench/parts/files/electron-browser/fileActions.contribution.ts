@@ -7,9 +7,9 @@
 import nls = require('vs/nls');
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
-import { ActionItem, BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionItem, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
-import { GlobalNewUntitledFileAction, SaveFileAsAction, ShowOpenedFileInNewWindow, CopyPathAction, GlobalCopyPathAction, RevealInOSAction, GlobalRevealInOSAction, pasteIntoFocusedFilesExplorerViewItem, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, MoveFileToTrashAction, PasteFileAction, CopyFileAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView, CompareWithSavedAction, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_COMMAND_ID, TRIGGER_RENAME_LABEL } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { GlobalNewUntitledFileAction, SaveFileAsAction, ShowOpenedFileInNewWindow, CopyPathAction, GlobalCopyPathAction, RevealInOSAction, GlobalRevealInOSAction, pasteIntoFocusedFilesExplorerViewItem, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, PasteFileAction, CopyFileAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView, CompareWithSavedAction, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_COMMAND_ID, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_ID, MOVE_FILE_TO_TRASH_LABEL } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTION_CONTEXT } from 'vs/workbench/parts/files/electron-browser/saveErrorHandler';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -61,25 +61,6 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		// Paste File/Folder
 		if (stat.isDirectory) {
 			actions.push(this.instantiationService.createInstance(PasteFileAction, tree, <FileStat>stat));
-		}
-
-		// Rename File/Folder
-		if (!stat.isRoot) {
-			actions.push(new Separator(null, 150));
-			// Delete File/Folder
-			actions.push(this.instantiationService.createInstance(MoveFileToTrashAction, tree, <FileStat>stat));
-		}
-
-		// Set Order
-		let curOrder = 10;
-		for (let i = 0; i < actions.length; i++) {
-			const action = <any>actions[i];
-			if (!action.order) {
-				curOrder += 10;
-				action.order = curOrder;
-			} else {
-				curOrder = action.order;
-			}
 		}
 
 		return actions;
@@ -450,6 +431,16 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: {
 		id: TRIGGER_RENAME_COMMAND_ID,
 		title: TRIGGER_RENAME_LABEL
+	},
+	when: ExplorerRootContext.toNegated()
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '5_modify',
+	order: 20,
+	command: {
+		id: MOVE_FILE_TO_TRASH_ID,
+		title: MOVE_FILE_TO_TRASH_LABEL
 	},
 	when: ExplorerRootContext.toNegated()
 });
