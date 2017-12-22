@@ -1556,7 +1556,7 @@ export class MoveEditorToNextGroupAction extends Action {
 
 export class MoveEditorToFirstGroupAction extends Action {
 
-	public static readonly ID = 'workbench.action.moveEditorToFirstGroupAction';
+	public static readonly ID = 'workbench.action.moveEditorToFirstGroup';
 	public static readonly LABEL = nls.localize('moveEditorToFirstGroup', "Move Editor into First Group");
 
 	constructor(
@@ -1578,10 +1578,9 @@ export class MoveEditorToFirstGroupAction extends Action {
 	}
 }
 
-
 export class MoveEditorToSecondGroupAction extends Action {
 
-	public static readonly ID = 'workbench.action.moveEditorToSecondGroupAction';
+	public static readonly ID = 'workbench.action.moveEditorToSecondGroup';
 	public static readonly LABEL = nls.localize('moveEditorToSecondGroup', "Move Editor into Second Group");
 
 	constructor(
@@ -1603,11 +1602,9 @@ export class MoveEditorToSecondGroupAction extends Action {
 	}
 }
 
-
-
 export class MoveEditorToThirdGroupAction extends Action {
 
-	public static readonly ID = 'workbench.action.moveEditorToThirdGroupAction';
+	public static readonly ID = 'workbench.action.moveEditorToThirdGroup';
 	public static readonly LABEL = nls.localize('moveEditorToThirdGroup', "Move Editor into Third Group");
 
 	constructor(
