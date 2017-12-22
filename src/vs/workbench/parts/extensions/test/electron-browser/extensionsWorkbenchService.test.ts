@@ -29,9 +29,11 @@ import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 suite('ExtensionsWorkbenchService Test', () => {
 
@@ -52,6 +54,8 @@ suite('ExtensionsWorkbenchService Test', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(ILogService, NullLogService);
+		instantiationService.stub(IWindowService, TestWindowService);
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 

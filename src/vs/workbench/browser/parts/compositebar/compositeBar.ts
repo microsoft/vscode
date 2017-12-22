@@ -210,7 +210,7 @@ export class CompositeBar implements ICompositeBar {
 			return; // We have not been rendered yet so there is nothing to update.
 		}
 
-		let compositesToShow = this.pinnedComposites;
+		let compositesToShow = this.pinnedComposites.slice(0); // never modify original array
 
 		// Always show the active composite even if it is marked to be hidden
 		if (this.activeCompositeId && !compositesToShow.some(id => id === this.activeCompositeId)) {

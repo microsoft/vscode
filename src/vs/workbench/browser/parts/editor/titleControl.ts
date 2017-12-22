@@ -441,7 +441,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		return keybinding ? keybinding.getLabel() : void 0;
 	}
 
-	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
+	private getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
 		const { editor, group } = identifier;
 
 		// Enablement
@@ -454,8 +454,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			this.closeEditorAction,
 			this.closeOtherEditorsAction
 		];
-		const tabOptions = this.editorGroupService.getTabOptions();
 
+		const tabOptions = this.editorGroupService.getTabOptions();
 		if (tabOptions.showTabs) {
 			actions.push(this.closeRightEditorsAction);
 		}

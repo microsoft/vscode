@@ -94,8 +94,12 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	services.set(IWindowsService, windowsService);
 
 	const activeWindowManager = new ActiveWindowManager(windowsService);
-
-	const choiceChannel = server.getChannel('choice', { route: () => activeWindowManager.activeClientId });
+	const choiceChannel = server.getChannel('choice', {
+		route: () => {
+			logService.info('Routing choice request to the client', activeWindowManager.activeClientId);
+			return activeWindowManager.activeClientId;
+		}
+	});
 	services.set(IChoiceService, new ChoiceChannelClient(choiceChannel));
 
 	const instantiationService = new InstantiationService(services);

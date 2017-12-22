@@ -80,10 +80,11 @@ export class ColorThemeData implements IColorTheme {
 
 	public setCustomColors(colors: IColorCustomizations) {
 		this.customColorMap = {};
-		for (let id in colors) {
-			let colorVal = colors[id];
-			if (typeof colorVal === 'string') {
-				this.customColorMap[id] = Color.fromHex(colorVal);
+		this.overwriteCustomColors(colors);
+		if (`[${this.settingsId}]` in colors) {
+			const themeSpecificColors = (colors[`[${this.settingsId}]`] || {}) as IColorCustomizations;
+			if (types.isObject(themeSpecificColors)) {
+				this.overwriteCustomColors(themeSpecificColors);
 			}
 		}
 		if (this.themeTokenColors && this.themeTokenColors.length) {
@@ -91,7 +92,33 @@ export class ColorThemeData implements IColorTheme {
 		}
 	}
 
+	private overwriteCustomColors(colors: IColorCustomizations) {
+		for (let id in colors) {
+			let colorVal = colors[id];
+			if (typeof colorVal === 'string') {
+				this.customColorMap[id] = Color.fromHex(colorVal);
+			}
+		}
+	}
+
 	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
+		this.customTokenColors = [];
+		let customTokenColorsWithoutThemeSpecific: ITokenColorCustomizations = {};
+		for (let key in customTokenColors) {
+			if (key[0] !== '[') {
+				customTokenColorsWithoutThemeSpecific[key] = customTokenColors[key];
+			}
+		}
+		this.addCustomTokenColors(customTokenColorsWithoutThemeSpecific);
+		if (`[${this.settingsId}]` in customTokenColors) {
+			const themeSpecificTokenColors: ITokenColorCustomizations = customTokenColors[`[${this.settingsId}]`];
+			if (types.isObject(themeSpecificTokenColors)) {
+				this.addCustomTokenColors(themeSpecificTokenColors);
+			}
+		}
+	}
+
+	private addCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
 		let generalRules: ITokenColorizationRule[] = [];
 
 		Object.keys(tokenGroupToScopesMap).forEach(key => {
@@ -112,7 +139,7 @@ export class ColorThemeData implements IColorTheme {
 
 		// Put the general customizations such as comments, strings, etc. first so that
 		// they can be overridden by specific customizations like "string.interpolated"
-		this.customTokenColors = generalRules.concat(textMateRules);
+		this.customTokenColors = this.customTokenColors.concat(generalRules, textMateRules);
 	}
 
 	public ensureLoaded(themeService: WorkbenchThemeService): TPromise<void> {

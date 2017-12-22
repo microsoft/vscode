@@ -73,6 +73,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 	private static SELECT_DROPDOWN_BOTTOM_MARGIN = 10;
 
+	private _isVisible: boolean;
 	private selectElement: HTMLSelectElement;
 	private options: string[];
 	private selected: number;
@@ -91,6 +92,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles) {
 
 		this.toDispose = [];
+		this._isVisible = false;
 
 		this.selectElement = document.createElement('select');
 		this.selectElement.className = 'select-box';
@@ -150,8 +152,13 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		// Intercept mouse events to override normal select actions on parents
 
 		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.CLICK, (e) => {
-			this.showSelectDropDown();
 			dom.EventHelper.stop(e);
+
+			if (this._isVisible) {
+				this.hideSelectDropDown(true);
+			} else {
+				this.showSelectDropDown();
+			}
 		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.MOUSE_UP, (e) => {
@@ -178,7 +185,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 					showDropDown = true;
 				}
 			} else {
-				if (event.keyCode === KeyCode.DownArrow && event.altKey || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
+				if (event.keyCode === KeyCode.DownArrow && event.altKey || event.keyCode === KeyCode.UpArrow && event.altKey || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
 					showDropDown = true;
 				}
 			}
@@ -347,10 +354,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	// ContextView dropdown methods
 
 	private showSelectDropDown() {
-		if (!this.contextViewProvider) {
+		if (!this.contextViewProvider || this._isVisible) {
 			return;
 		}
 
+		this._isVisible = true;
 		this.cloneElementFont(this.selectElement, this.selectDropDownContainer);
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.selectElement,
@@ -363,9 +371,15 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		});
 	}
 
-	private hideSelectDropDown() {
-		if (!this.contextViewProvider) {
+	private hideSelectDropDown(focusSelect: boolean) {
+		if (!this.contextViewProvider || !this._isVisible) {
 			return;
+		}
+
+		this._isVisible = false;
+
+		if (focusSelect) {
+			this.selectElement.focus();
 		}
 		this.contextViewProvider.hideContextView();
 	}
@@ -511,7 +525,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 				index: this.selectElement.selectedIndex,
 				selected: this.selectElement.title
 			});
-			this.hideSelectDropDown();
+			this.hideSelectDropDown(true);
 		}
 		dom.EventHelper.stop(e);
 	}
@@ -524,7 +538,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 			selected: this.selectElement.title
 		});
 
-		this.hideSelectDropDown();
+		this.hideSelectDropDown(false);
 	}
 
 	// List keyboard controller
@@ -532,8 +546,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private onEscape(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
 
-		this.hideSelectDropDown();
-		this.selectElement.focus();
+		this.hideSelectDropDown(true);
+
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
 			selected: this.selectElement.title
@@ -544,8 +558,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private onEnter(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
 
-		this.selectElement.focus();
-		this.hideSelectDropDown();
+		this.hideSelectDropDown(true);
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
 			selected: this.selectElement.title

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-css/commit/ec289867164a34fce48a69776b7f8dc380e3dc37",
+	"version": "https://github.com/atom/language-css/commit/b781e2152b677d4a38c4501de477948cb6a04f65",
 	"scopeName": "source.css",
 	"name": "CSS",
 	"fileTypes": [
@@ -1058,7 +1058,7 @@
 							"name": "support.constant.text-direction.css"
 						},
 						{
-							"include": "#property-value"
+							"include": "#property-values"
 						}
 					]
 				},

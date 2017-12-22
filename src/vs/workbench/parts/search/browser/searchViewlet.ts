@@ -1063,7 +1063,7 @@ export class SearchViewlet extends Viewlet {
 		this.showEmptyStage();
 
 		let isDone = false;
-		const outputChannel = this.outputService.getChannel('search');
+		const outputChannel = this.outputService.getChannel(Constants.SEARCH_OUTPUT_CHANNEL_ID);
 		let onComplete = (completed?: ISearchComplete) => {
 			if (query.useRipgrep) {
 				outputChannel.append('\n');

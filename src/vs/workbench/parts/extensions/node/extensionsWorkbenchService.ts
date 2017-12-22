@@ -34,6 +34,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -343,7 +344,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IChoiceService private choiceService: IChoiceService,
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@ILogService private logService: ILogService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -588,6 +590,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrapError<void>(new Error('Missing local'));
 		}
 
+		this.logService.info(`Requested uninstalling the extension ${extension.id} from window ${this.windowService.getCurrentWindowId()}`);
 		return this.extensionService.uninstall(local);
 
 	}
@@ -774,6 +777,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private onUninstallExtension({ id }: IExtensionIdentifier): void {
+		this.logService.info(`Uninstalling the extension ${id} from window ${this.windowService.getCurrentWindowId()}`);
 		const extension = this.installed.filter(e => e.local.identifier.id === id)[0];
 		const newLength = this.installed.filter(e => e.local.identifier.id !== id).length;
 		// TODO: Ask @Joao why is this?
