@@ -10,7 +10,6 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ModelLine, IModelLine, MinimalModelLine } from 'vs/editor/common/model/modelLine';
 import { guessIndentation, IndentationGuesserTextBufferTarget, IndentationGuesserStringArrayTarget } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
@@ -121,13 +120,6 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 		this._setVersionId(1);
 		this._isDisposed = false;
 		this._isDisposing = false;
-	}
-
-	protected _createModelLine(text: string): IModelLine {
-		if (this._isTooLargeForTokenization) {
-			return new MinimalModelLine(text);
-		}
-		return new ModelLine(text);
 	}
 
 	protected _assertNotDisposed(): void {

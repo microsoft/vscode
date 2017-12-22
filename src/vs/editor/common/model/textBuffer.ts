@@ -500,7 +500,7 @@ export class TextBuffer {
 				}
 
 				// this._invalidateLine(currentLineNumber - 1); //TODO@TextBuffer
-				this._lines[currentLineNumber - 1] = applyLineEdits2(
+				this._lines[currentLineNumber - 1] = applyLineEdits(
 					this._lines[currentLineNumber - 1],
 					lineEditsQueue.slice(currentLineNumberStart, i)
 				);
@@ -514,7 +514,7 @@ export class TextBuffer {
 			}
 
 			// this._invalidateLine(currentLineNumber - 1); //TODO@TextBuffer
-			this._lines[currentLineNumber - 1] = applyLineEdits2(
+			this._lines[currentLineNumber - 1] = applyLineEdits(
 				this._lines[currentLineNumber - 1],
 				lineEditsQueue.slice(currentLineNumberStart, lineEditsQueue.length)
 			);
@@ -570,7 +570,7 @@ export class TextBuffer {
 
 				const spliceStartLineNumber = startLineNumber + editingLinesCnt;
 
-				const [t1, t2] = split(this._lines[endLineNumber - 1], endColumn);
+				const [t1, t2] = splitLine(this._lines[endLineNumber - 1], endColumn);
 				this._lines[endLineNumber - 1] = t1;
 				const endLineRemains = t2;
 				// this._invalidateLine(spliceStartLineNumber - 1); //TODO@TextBuffer
@@ -606,7 +606,7 @@ export class TextBuffer {
 				}
 
 				// Split last line
-				const [t1, t2] = split(this._lines[spliceLineNumber - 1], spliceColumn);
+				const [t1, t2] = splitLine(this._lines[spliceLineNumber - 1], spliceColumn);
 				this._lines[spliceLineNumber - 1] = t1;
 				const leftoverLine = t2;
 				this._lineStarts.changeValue(spliceLineNumber - 1, this._lines[spliceLineNumber - 1].length + this._EOL.length);
@@ -718,7 +718,7 @@ export class TextBuffer {
 	//#endregion
 }
 
-function applyLineEdits2(text: string, edits: ILineEdit[]): string {
+export function applyLineEdits(text: string, edits: ILineEdit[]): string {
 	let deltaColumn = 0;
 	let resultText = text;
 
@@ -744,7 +744,7 @@ function applyLineEdits2(text: string, edits: ILineEdit[]): string {
 	return resultText;
 }
 
-function split(text: string, splitColumn: number): [string, string] {
+export function splitLine(text: string, splitColumn: number): [string, string] {
 	const myText = text.substring(0, splitColumn - 1);
 	const otherText = text.substring(splitColumn - 1);
 

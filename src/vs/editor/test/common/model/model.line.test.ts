@@ -6,13 +6,14 @@
 
 import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { ModelLine, ILineEdit, computeIndentLevel } from 'vs/editor/common/model/modelLine';
+import { ILineEdit, computeIndentLevel } from 'vs/editor/common/model/modelLine';
 import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
 import { EditableTextModel } from 'vs/editor/common/model/editableTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
+import { applyLineEdits, splitLine } from 'vs/editor/common/model/textBuffer';
 
 function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
 	let tmp = TestToken.toTokens(_expected);
@@ -66,9 +67,8 @@ suite('ModelLine - getIndentLevel', () => {
 suite('Editor Model - modelLine.applyEdits text', () => {
 
 	function testEdits(initial: string, edits: ILineEdit[], expected: string): void {
-		var line = new ModelLine(initial);
-		line.applyEdits(edits);
-		assert.equal(line.text, expected);
+		const actual = applyLineEdits(initial, edits);
+		assert.equal(actual, expected);
 	}
 
 	function editOp(startColumn: number, endColumn: number, text: string): ILineEdit {
@@ -212,10 +212,9 @@ suite('Editor Model - modelLine.applyEdits text', () => {
 suite('Editor Model - modelLine.split text', () => {
 
 	function testLineSplit(initial: string, splitColumn: number, expected1: string, expected2: string): void {
-		var line = new ModelLine(initial);
-		var newLine = line.split(splitColumn);
-		assert.equal(line.text, expected1);
-		assert.equal(newLine.text, expected2);
+		const [actual1, actual2] = splitLine(initial, splitColumn);
+		assert.equal(actual1, expected1);
+		assert.equal(actual2, expected2);
 	}
 
 	test('split at the beginning', () => {
@@ -242,40 +241,6 @@ suite('Editor Model - modelLine.split text', () => {
 			3,
 			'qw',
 			'erty'
-		);
-	});
-});
-
-suite('Editor Model - modelLine.append text', () => {
-
-	function testLineAppend(a: string, b: string, expected: string): void {
-		var line1 = new ModelLine(a);
-		var line2 = new ModelLine(b);
-		line1.append(line2);
-		assert.equal(line1.text, expected);
-	}
-
-	test('append at the beginning', () => {
-		testLineAppend(
-			'',
-			'qwerty',
-			'qwerty'
-		);
-	});
-
-	test('append at the end', () => {
-		testLineAppend(
-			'qwerty',
-			'',
-			'qwerty'
-		);
-	});
-
-	test('append in the middle', () => {
-		testLineAppend(
-			'qw',
-			'erty',
-			'qwerty'
 		);
 	});
 });
@@ -1418,11 +1383,8 @@ suite('ModelLinesTokens', () => {
 suite('Editor Model - modelLine.applyEdits', () => {
 
 	function testLineEdit(initialText: string, edits: ILineEdit[], expectedText: string): void {
-		let line = new ModelLine(initialText);
-
-		line.applyEdits(edits);
-
-		assert.equal(line.text, expectedText, 'text');
+		const actual = applyLineEdits(initialText, edits);
+		assert.equal(actual, expectedText, 'text');
 	}
 
 	test('insertion: updates markers 1', () => {
@@ -1773,12 +1735,10 @@ suite('Editor Model - modelLine.applyEdits', () => {
 suite('Editor Model - modelLine.split', () => {
 
 	function testLineSplit(initialText: string, splitColumn: number, forceMoveMarkers: boolean, expectedText1: string, expectedText2: string): void {
-		let line = new ModelLine(initialText);
+		const [l1, l2] = splitLine(initialText, splitColumn);
 
-		let otherLine = line.split(splitColumn);
-
-		assert.equal(line.text, expectedText1, 'text');
-		assert.equal(otherLine.text, expectedText2, 'text');
+		assert.equal(l1, expectedText1, 'text');
+		assert.equal(l2, expectedText2, 'text');
 	}
 
 	test('split at the beginning', () => {
@@ -1848,50 +1808,6 @@ suite('Editor Model - modelLine.split', () => {
 			false,
 			'abcd ',
 			'efgh',
-		);
-	});
-});
-
-suite('Editor Model - modelLine.append', () => {
-
-	function testLinePrependMarkers(aText: string, bText: string, expectedText: string): void {
-		let a = new ModelLine(aText);
-		let b = new ModelLine(bText);
-
-		a.append(b);
-
-		assert.equal(a.text, expectedText, 'text');
-	}
-
-	test('append to an empty', () => {
-		testLinePrependMarkers(
-			'abcd efgh',
-			'',
-			'abcd efgh',
-		);
-	});
-
-	test('append an empty', () => {
-		testLinePrependMarkers(
-			'',
-			'abcd efgh',
-			'abcd efgh',
-		);
-	});
-
-	test('append 1', () => {
-		testLinePrependMarkers(
-			'abcd',
-			' efgh',
-			'abcd efgh',
-		);
-	});
-
-	test('append 2', () => {
-		testLinePrependMarkers(
-			'abcd e',
-			'fgh',
-			'abcd efgh',
 		);
 	});
 });
