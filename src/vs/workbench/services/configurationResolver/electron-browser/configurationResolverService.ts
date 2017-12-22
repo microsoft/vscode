@@ -103,6 +103,22 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return '';
 	}
 
+	private get selectedText(): string {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor) {
+			const editorControl = (<ICodeEditor>activeEditor.getControl());
+			if (editorControl) {
+				const editorModel = editorControl.getModel();
+				const editorSelection = editorControl.getSelection();
+				if (editorModel && editorSelection) {
+					return editorModel.getValueInRange(editorSelection);
+				}
+			}
+		}
+
+		return '';
+	}
+
 	private getFilePath(): string {
 		let input = this.editorService.getActiveEditorInput();
 		if (input instanceof DiffEditorInput) {

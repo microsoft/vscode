@@ -56,6 +56,10 @@ suite('Configuration Resolver Service', () => {
 		assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${lineNumber} xyz'), `abc ${editorService.mockLineNumber} xyz`);
 	});
 
+	test('current selected text', () => {
+		assert.strictEqual(configurationResolverService.resolve(workspace, 'abc ${selectedText} xyz'), `abc ${editorService.mockSelectedText} xyz`);
+	});
+
 	test('substitute many', () => {
 		if (platform.isWindows) {
 			assert.strictEqual(configurationResolverService.resolve(workspace, '${workspaceFolder} - ${workspaceFolder}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation');
