@@ -289,7 +289,7 @@ suite('ModelLinesTokens', () => {
 		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
 			const lineTokens = initial[lineIndex].tokens;
 			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
-			model._tokens.setTokens(0, lineIndex, lineTextLength, TestToken.toTokens(lineTokens));
+			model._tokens._setTokens(0, lineIndex, lineTextLength, TestToken.toTokens(lineTokens));
 		}
 
 		model.applyEdits(edits.map((ed) => ({
@@ -620,7 +620,7 @@ suite('ModelLinesTokens', () => {
 
 	test('insertion on empty line', () => {
 		const model = new EditableTextModel(RawTextSource.fromString('some text'), TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
-		model._tokens.setTokens(0, 0, model.getLineMaxColumn(1) - 1, TestToken.toTokens([new TestToken(0, 1)]));
+		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, TestToken.toTokens([new TestToken(0, 1)]));
 
 		model.applyEdits([{
 			identifier: null,
@@ -629,7 +629,7 @@ suite('ModelLinesTokens', () => {
 			forceMoveMarkers: false
 		}]);
 
-		model._tokens.setTokens(0, 0, model.getLineMaxColumn(1) - 1, new Uint32Array(0));
+		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, new Uint32Array(0));
 
 		model.applyEdits([{
 			identifier: null,

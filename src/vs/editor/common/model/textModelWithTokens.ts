@@ -4,65 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITokenizationSupport, IState, TokenizationRegistry, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { NULL_LANGUAGE_IDENTIFIER, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { TokenizationRegistry, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets, RichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IModelTokensChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { ModelLinesTokens, computeIndentLevel } from 'vs/editor/common/model/modelLine';
-
-class ModelTokensChangedEventBuilder {
-
-	private _ranges: { fromLineNumber: number; toLineNumber: number; }[];
-
-	constructor() {
-		this._ranges = [];
-	}
-
-	public registerChangedTokens(lineNumber: number): void {
-		const ranges = this._ranges;
-		const rangesLength = ranges.length;
-		const previousRange = rangesLength > 0 ? ranges[rangesLength - 1] : null;
-
-		if (previousRange && previousRange.toLineNumber === lineNumber - 1) {
-			// extend previous range
-			previousRange.toLineNumber++;
-		} else {
-			// insert new range
-			ranges[rangesLength] = {
-				fromLineNumber: lineNumber,
-				toLineNumber: lineNumber
-			};
-		}
-	}
-
-	public build(): IModelTokensChangedEvent {
-		if (this._ranges.length === 0) {
-			return null;
-		}
-		return {
-			ranges: this._ranges
-		};
-	}
-}
+import { ModelLinesTokens, computeIndentLevel, ModelTokensChangedEventBuilder } from 'vs/editor/common/model/modelLine';
 
 export class TextModelWithTokens extends TextModel implements editorCommon.ITokenizedModel {
-
-	private static readonly MODE_TOKENIZATION_FAILED_MSG = nls.localize('mode.tokenizationSupportFailed', "The mode has failed while tokenizing the input.");
 
 	private readonly _onDidChangeLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
 	public readonly onDidChangeLanguage: Event<IModelLanguageChangedEvent> = this._onDidChangeLanguage.event;
@@ -75,10 +35,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private _languageIdentifier: LanguageIdentifier;
 	private _tokenizationListener: IDisposable;
-	private _tokenizationSupport: ITokenizationSupport;
-
-	private _invalidLineStartIndex: number;
-	private _lastState: IState;
 
 	private _languageRegistryListener: IDisposable;
 
@@ -122,7 +78,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._tokenizationListener.dispose();
 		this._languageRegistryListener.dispose();
 		this._clearTimers();
-		this._lastState = null;
+		this._tokens = null;
 
 		super.dispose();
 	}
@@ -139,30 +95,12 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	protected _resetTokenizationState(): void {
 		this._clearTimers();
-		this._tokens = new ModelLinesTokens();
-
-		this._tokenizationSupport = null;
-		if (!this._isTooLargeForTokenization) {
-			this._tokenizationSupport = TokenizationRegistry.get(this._languageIdentifier.language);
-		}
-
-		if (this._tokenizationSupport) {
-			let initialState: IState = null;
-			try {
-				initialState = this._tokenizationSupport.getInitialState();
-			} catch (e) {
-				e.friendlyMessage = TextModelWithTokens.MODE_TOKENIZATION_FAILED_MSG;
-				onUnexpectedError(e);
-				this._tokenizationSupport = null;
-			}
-
-			if (initialState) {
-				this._tokens.setInitialState(initialState);
-			}
-		}
-
-		this._lastState = null;
-		this._invalidLineStartIndex = 0;
+		let tokenizationSupport = (
+			this._isTooLargeForTokenization
+				? null
+				: TokenizationRegistry.get(this._languageIdentifier.language)
+		);
+		this._tokens = new ModelLinesTokens(this._languageIdentifier, tokenizationSupport);
 		this._beginBackgroundTokenization();
 	}
 
@@ -180,7 +118,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		const eventBuilder = new ModelTokensChangedEventBuilder();
 
-		this._updateTokensUntilLine(eventBuilder, lineNumber);
+		this._tokens._updateTokensUntilLine(this._buffer, eventBuilder, lineNumber);
 
 		const e = eventBuilder.build();
 		if (e) {
@@ -189,8 +127,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
-		const firstInvalidLineNumber = this._invalidLineStartIndex + 1;
-		return (firstInvalidLineNumber >= lineNumber);
+		return this._tokens.isCheapToTokenize(lineNumber);
 	}
 
 	public tokenizeIfCheap(lineNumber: number): void {
@@ -247,7 +184,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public getLanguageIdAtPosition(_lineNumber: number, _column: number): LanguageId {
-		if (!this._tokenizationSupport) {
+		if (!this._tokens.tokenizationSupport) {
 			return this._languageIdentifier.id;
 		}
 		let { lineNumber, column } = this.validatePosition({ lineNumber: _lineNumber, column: _column });
@@ -257,12 +194,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	protected _invalidateLine(lineIndex: number): void {
-		this._tokens.setIsInvalid(lineIndex, true);
-		if (lineIndex < this._invalidLineStartIndex) {
-			if (this._invalidLineStartIndex < this._buffer.getLineCount()) {
-				this._tokens.setIsInvalid(this._invalidLineStartIndex, true);
-			}
-			this._invalidLineStartIndex = lineIndex;
+		this._tokens.invalidateLine(this._buffer, lineIndex);
+		if (this._tokens.hasLinesToTokenize(this._buffer)) {
 			this._beginBackgroundTokenization();
 		}
 	}
@@ -281,60 +214,30 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		var maxLineNumber = Math.min(100, this.getLineCount());
 		this._revalidateTokensNow(maxLineNumber);
 
-		if (this._invalidLineStartIndex < this._buffer.getLineCount()) {
+		if (this._tokens.hasLinesToTokenize(this._buffer)) {
 			this._beginBackgroundTokenization();
 		}
 	}
 
-	private _revalidateTokensNow(toLineNumber: number = this._invalidLineStartIndex + 1000000): void {
-
+	private _revalidateTokensNow(toLineNumber: number = this._buffer.getLineCount()): void {
+		const MAX_ALLOWED_TIME = 20;
 		const eventBuilder = new ModelTokensChangedEventBuilder();
+		const sw = StopWatch.create(false);
 
-		toLineNumber = Math.min(this._buffer.getLineCount(), toLineNumber);
-
-		var MAX_ALLOWED_TIME = 20,
-			fromLineNumber = this._invalidLineStartIndex + 1,
-			tokenizedChars = 0,
-			currentCharsToTokenize = 0,
-			currentEstimatedTimeToTokenize = 0,
-			sw = StopWatch.create(false),
-			elapsedTime: number;
-
-		// Tokenize at most 1000 lines. Estimate the tokenization speed per character and stop when:
-		// - MAX_ALLOWED_TIME is reached
-		// - tokenizing the next line would go above MAX_ALLOWED_TIME
-
-		for (var lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
-			elapsedTime = sw.elapsed();
-			if (elapsedTime > MAX_ALLOWED_TIME) {
+		while (this._tokens.hasLinesToTokenize(this._buffer)) {
+			if (sw.elapsed() > MAX_ALLOWED_TIME) {
 				// Stop if MAX_ALLOWED_TIME is reached
-				toLineNumber = lineNumber - 1;
 				break;
 			}
 
-			// Compute how many characters will be tokenized for this line
-			currentCharsToTokenize = this._buffer.getLineLength(lineNumber);
+			const tokenizedLineNumber = this._tokens._tokenizeOneLine(this._buffer, eventBuilder);
 
-			if (tokenizedChars > 0) {
-				// If we have enough history, estimate how long tokenizing this line would take
-				currentEstimatedTimeToTokenize = (elapsedTime / tokenizedChars) * currentCharsToTokenize;
-				if (elapsedTime + currentEstimatedTimeToTokenize > MAX_ALLOWED_TIME) {
-					// Tokenizing this line will go above MAX_ALLOWED_TIME
-					toLineNumber = lineNumber - 1;
-					break;
-				}
+			if (tokenizedLineNumber >= toLineNumber) {
+				break;
 			}
-
-			this._updateTokensUntilLine(eventBuilder, lineNumber);
-			tokenizedChars += currentCharsToTokenize;
-
-			// Skip the lines that got tokenized
-			lineNumber = Math.max(lineNumber, this._invalidLineStartIndex + 1);
 		}
 
-		elapsedTime = sw.elapsed();
-
-		if (this._invalidLineStartIndex < this._buffer.getLineCount()) {
+		if (this._tokens.hasLinesToTokenize(this._buffer)) {
 			this._beginBackgroundTokenization();
 		}
 
@@ -342,68 +245,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		if (e) {
 			this._onDidChangeTokens.fire(e);
 		}
-	}
-
-	private _updateTokensUntilLine(eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
-		if (!this._tokenizationSupport) {
-			this._invalidLineStartIndex = this._buffer.getLineCount();
-			return;
-		}
-
-		const linesLength = this._buffer.getLineCount();
-		const endLineIndex = lineNumber - 1;
-
-		// Validate all states up to and including endLineIndex
-		for (let lineIndex = this._invalidLineStartIndex; lineIndex <= endLineIndex; lineIndex++) {
-			const endStateIndex = lineIndex + 1;
-			let r: TokenizationResult2 = null;
-			const text = this._buffer.getLineContent(lineIndex + 1);
-
-			try {
-				// Tokenize only the first X characters
-				let freshState = this._tokens.getState(lineIndex).clone();
-				r = this._tokenizationSupport.tokenize2(text, freshState, 0);
-			} catch (e) {
-				e.friendlyMessage = TextModelWithTokens.MODE_TOKENIZATION_FAILED_MSG;
-				onUnexpectedError(e);
-			}
-
-			if (!r) {
-				r = nullTokenize2(this._languageIdentifier.id, text, this._tokens.getState(lineIndex), 0);
-			}
-			this._tokens.setTokens(this._languageIdentifier.id, lineIndex, text.length, r.tokens);
-			eventBuilder.registerChangedTokens(lineIndex + 1);
-			this._tokens.setIsInvalid(lineIndex, false);
-
-			if (endStateIndex < linesLength) {
-				if (this._tokens.getState(endStateIndex) !== null && r.endState.equals(this._tokens.getState(endStateIndex))) {
-					// The end state of this line remains the same
-					let nextInvalidLineIndex = lineIndex + 1;
-					while (nextInvalidLineIndex < linesLength) {
-						if (this._tokens.isInvalid(nextInvalidLineIndex)) {
-							break;
-						}
-						if (nextInvalidLineIndex + 1 < linesLength) {
-							if (this._tokens.getState(nextInvalidLineIndex + 1) === null) {
-								break;
-							}
-						} else {
-							if (this._lastState === null) {
-								break;
-							}
-						}
-						nextInvalidLineIndex++;
-					}
-					this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, nextInvalidLineIndex);
-					lineIndex = nextInvalidLineIndex - 1; // -1 because the outer loop increments it
-				} else {
-					this._tokens.setState(endStateIndex, r.endState);
-				}
-			} else {
-				this._lastState = r.endState;
-			}
-		}
-		this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, endLineIndex + 1);
 	}
 
 	private emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
@@ -418,17 +259,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._assertNotDisposed();
 		const position = this.validatePosition(_position);
 		const lineContent = this.getLineContent(position.lineNumber);
-
-		if (this._invalidLineStartIndex <= position.lineNumber - 1) {
-			// this line is not tokenized
-			return getWordAtText(
-				position.column,
-				LanguageConfigurationRegistry.getWordDefinition(this._languageIdentifier.id),
-				lineContent,
-				0
-			);
-		}
-
 		const lineTokens = this._getLineTokens(position.lineNumber);
 		const offset = position.column - 1;
 		const tokenIndex = lineTokens.findTokenIndexAtOffset(offset);

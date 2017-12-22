@@ -185,7 +185,7 @@ suite('Editor Model - Model Modes 2', () => {
 	function invalidEqual(model: Model, expected: number[]): void {
 		let actual: number[] = [];
 		for (let i = 0, len = model.getLineCount(); i < len; i++) {
-			if (model._tokens.isInvalid(i)) {
+			if (model._tokens._isInvalid(i)) {
 				actual.push(i);
 			}
 		}
@@ -199,7 +199,7 @@ suite('Editor Model - Model Modes 2', () => {
 	function statesEqual(model: Model, states: string[]): void {
 		var i, len = states.length - 1;
 		for (i = 0; i < len; i++) {
-			stateEqual(model._tokens.getState(i), states[i]);
+			stateEqual(model._tokens._getState(i), states[i]);
 		}
 		stateEqual((<any>model)._lastState, states[len]);
 	}
