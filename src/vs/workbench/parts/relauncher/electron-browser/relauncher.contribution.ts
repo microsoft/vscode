@@ -24,6 +24,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
+	keyboard: { touchbar: { enabled: boolean } };
 }
 
 export class SettingsChangeRelauncher implements IWorkbenchContribution {
@@ -34,7 +35,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private nativeTabs: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
-	private touchbarSupport: boolean;
+	private touchbarEnabled: boolean;
 
 	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -80,12 +81,6 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 			changed = true;
 		}
 
-		// TouchBar support
-		if (config.window && typeof config.window.touchbarSupport === 'boolean' && config.window.touchbarSupport !== this.touchbarSupport) {
-			this.touchbarSupport = config.window.touchbarSupport;
-			changed = true;
-		}
-
 		// Update channel
 		if (config.update && typeof config.update.channel === 'string' && config.update.channel !== this.updateChannel) {
 			this.updateChannel = config.update.channel;
@@ -95,6 +90,12 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		// Crash reporter
 		if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
 			this.enableCrashReporter = config.telemetry.enableCrashReporter;
+			changed = true;
+		}
+
+		// Touchbar config
+		if (config.keyboard && typeof config.keyboard.touchbar.enabled === 'boolean' && config.keyboard.touchbar.enabled !== this.touchbarEnabled) {
+			this.touchbarEnabled = config.keyboard.touchbar.enabled;
 			changed = true;
 		}
 
