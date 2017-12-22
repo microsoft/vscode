@@ -257,12 +257,10 @@ export class ModelLinesTokens {
 		return (this._invalidLineStartIndex < buffer.getLineCount());
 	}
 
-	public invalidateLine(buffer: TextBuffer, lineIndex: number): void {
+	public invalidateLine(lineIndex: number): void {
 		this._setIsInvalid(lineIndex, true);
 		if (lineIndex < this._invalidLineStartIndex) {
-			if (this._invalidLineStartIndex < buffer.getLineCount()) {
-				this._setIsInvalid(this._invalidLineStartIndex, true);
-			}
+			this._setIsInvalid(this._invalidLineStartIndex, true);
 			this._invalidLineStartIndex = lineIndex;
 		}
 	}
@@ -323,7 +321,32 @@ export class ModelLinesTokens {
 
 	//#region Editing
 
+	// TODO: simplify
 	public applyEdits(range: Range, lines: string[]): void {
+
+		const deletingLinesCnt = range.endLineNumber - range.startLineNumber;
+		const insertingLinesCnt = (lines ? lines.length - 1 : 0);
+		const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
+
+		// Iterating descending to overlap with previous op
+		// in case there are common lines being edited in both
+		for (let j = editingLinesCnt; j >= 0; j--) {
+			const editLineNumber = range.startLineNumber + j;
+			this.invalidateLine(editLineNumber - 1);
+		}
+
+		if (editingLinesCnt < deletingLinesCnt) {
+			// Must delete some lines
+			const spliceStartLineNumber = range.startLineNumber + editingLinesCnt;
+			this.invalidateLine(spliceStartLineNumber - 1);
+		}
+
+		if (editingLinesCnt < insertingLinesCnt) {
+			// Must insert some lines
+			const spliceLineNumber = range.startLineNumber + editingLinesCnt;
+			this.invalidateLine(spliceLineNumber - 1);
+		}
+
 		this._acceptDeleteRange(range);
 		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), lines);
 	}

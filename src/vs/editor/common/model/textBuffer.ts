@@ -464,6 +464,7 @@ export class TextBuffer {
 		};
 	}
 
+	// TODO: simplify
 	private _doApplyEdits(operations: IValidatedEditOperation[]): [ModelRawChange[], IInternalModelContentChange[]] {
 
 		// Sort operations descending
@@ -499,7 +500,6 @@ export class TextBuffer {
 					continue;
 				}
 
-				// this._invalidateLine(currentLineNumber - 1); //TODO@TextBuffer
 				this._lines[currentLineNumber - 1] = applyLineEdits(
 					this._lines[currentLineNumber - 1],
 					lineEditsQueue.slice(currentLineNumberStart, i)
@@ -513,7 +513,6 @@ export class TextBuffer {
 				currentLineNumberStart = i;
 			}
 
-			// this._invalidateLine(currentLineNumber - 1); //TODO@TextBuffer
 			this._lines[currentLineNumber - 1] = applyLineEdits(
 				this._lines[currentLineNumber - 1],
 				lineEditsQueue.slice(currentLineNumberStart, lineEditsQueue.length)
@@ -573,7 +572,6 @@ export class TextBuffer {
 				const [t1, t2] = splitLine(this._lines[endLineNumber - 1], endColumn);
 				this._lines[endLineNumber - 1] = t1;
 				const endLineRemains = t2;
-				// this._invalidateLine(spliceStartLineNumber - 1); //TODO@TextBuffer
 
 				const spliceCnt = endLineNumber - spliceStartLineNumber;
 
@@ -613,7 +611,6 @@ export class TextBuffer {
 				rawContentChanges.push(
 					new ModelRawLineChanged(spliceLineNumber, this._lines[spliceLineNumber - 1])
 				);
-				// this._invalidateLine(spliceLineNumber - 1); //TODO@TextBuffer
 
 				// Lines in the middle
 				let newLines: string[] = [];

@@ -202,6 +202,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			);
 		}
 
+		if (this._tokens.hasLinesToTokenize(this._buffer)) {
+			this._beginBackgroundTokenization();
+		}
+
 		return result.reverseEdits;
 	}
 

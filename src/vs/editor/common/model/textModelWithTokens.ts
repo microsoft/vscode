@@ -193,14 +193,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return lineTokens.getLanguageId(lineTokens.findTokenIndexAtOffset(column - 1));
 	}
 
-	protected _invalidateLine(lineIndex: number): void {
-		this._tokens.invalidateLine(this._buffer, lineIndex);
-		if (this._tokens.hasLinesToTokenize(this._buffer)) {
-			this._beginBackgroundTokenization();
-		}
-	}
-
-	private _beginBackgroundTokenization(): void {
+	protected _beginBackgroundTokenization(): void {
 		if (this._shouldAutoTokenize() && this._revalidateTokensTimeout === -1) {
 			this._revalidateTokensTimeout = setTimeout(() => {
 				this._revalidateTokensTimeout = -1;
