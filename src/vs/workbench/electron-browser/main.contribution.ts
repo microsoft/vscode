@@ -220,7 +220,7 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'type': 'string',
 		'enum': ['bottom', 'right'],
 		'default': 'bottom',
-		'description': nls.localize('panelDefaultLocation', "Controls the location of the panel. It can either show at the bottom or on the right of the workbench.")
+		'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel. It can either show at the bottom or on the right of the workbench.")
 	},
 	'workbench.statusBar.visible': {
 		'type': 'boolean',
