@@ -15,8 +15,12 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class MarkdownRenderer {
+
+	private _onDidRenderCodeBlock = new Emitter<void>();
+	readonly onDidRenderCodeBlock: Event<void> = this._onDidRenderCodeBlock.event;
 
 	private readonly _options: RenderOptions;
 
@@ -42,7 +46,8 @@ export class MarkdownRenderer {
 				}).then(code => {
 					return `<span style="font-family: ${editor.getConfiguration().fontInfo.fontFamily}">${code}</span>`;
 				});
-			}
+			},
+			codeBlockRenderCallback: () => this._onDidRenderCodeBlock.fire()
 		};
 	}
 
