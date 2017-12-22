@@ -232,6 +232,12 @@ configurationRegistry.registerConfiguration({
 			'default': 'left',
 			'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
 		},
+		'workbench.panel.defaultLocation': {
+			'type': 'string',
+			'enum': ['bottom', 'right'],
+			'default': 'bottom',
+			'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel. It can either show at the bottom or on the right of the workbench.")
+		},
 		'workbench.statusBar.visible': {
 			'type': 'boolean',
 			'default': true,
