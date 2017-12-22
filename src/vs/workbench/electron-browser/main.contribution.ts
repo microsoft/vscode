@@ -133,142 +133,135 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
-let workbenchProperties: { [path: string]: IJSONSchema; } = {
-	'workbench.editor.showTabs': {
-		'type': 'boolean',
-		'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
-		'default': true
-	},
-	'workbench.editor.labelFormat': {
-		'type': 'string',
-		'enum': ['default', 'short', 'medium', 'long'],
-		'enumDescriptions': [
-			nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguinshing sections of each file's path are added. When tabs are disabled, the path relative to the workspace folder is shown if the editor is active."),
-			nls.localize('workbench.editor.labelFormat.short', "Show the name of the file followed by it's directory name."),
-			nls.localize('workbench.editor.labelFormat.medium', "Show the name of the file followed by it's path relative to the workspace folder."),
-			nls.localize('workbench.editor.labelFormat.long', "Show the name of the file followed by it's absolute path.")
-		],
-		'default': 'default',
-		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'tabDescription' },
-			"Controls the format of the label for an editor. Changing this setting can for example make it easier to understand the location of a file:\n- short:   'parent'\n- medium:  'workspace/src/parent'\n- long:    '/home/user/workspace/src/parent'\n- default: '.../parent', when another tab shares the same title, or the relative workspace path if tabs are disabled"),
-	},
-	'workbench.editor.tabCloseButton': {
-		'type': 'string',
-		'enum': ['left', 'right', 'off'],
-		'default': 'right',
-		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
-	},
-	'workbench.editor.tabSizing': {
-		'type': 'string',
-		'enum': ['fit', 'shrink'],
-		'default': 'fit',
-		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. Set to 'fit' to keep tabs always large enough to show the full editor label. Set to 'shrink' to allow tabs to get smaller when the available space is not enough to show all tabs at once.")
-	},
-	'workbench.editor.showIcons': {
-		'type': 'boolean',
-		'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
-		'default': true
-	},
-	'workbench.editor.enablePreview': {
-		'type': 'boolean',
-		'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing) and show up with an italic font style."),
-		'default': true
-	},
-	'workbench.editor.enablePreviewFromQuickOpen': {
-		'type': 'boolean',
-		'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from Quick Open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
-		'default': true
-	},
-	'workbench.editor.openPositioning': {
-		'type': 'string',
-		'enum': ['left', 'right', 'first', 'last'],
-		'default': 'right',
-		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the currently active one. Select 'first' or 'last' to open editors independently from the currently active one.")
-	},
-	'workbench.editor.revealIfOpen': {
-		'type': 'boolean',
-		'description': nls.localize('revealIfOpen', "Controls if an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
-		'default': false
-	},
-	'workbench.commandPalette.history': {
-		'type': 'number',
-		'description': nls.localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
-		'default': 50
-	},
-	'workbench.commandPalette.preserveInput': {
-		'type': 'boolean',
-		'description': nls.localize('preserveInput', "Controls if the last typed input to the command palette should be restored when opening it the next time."),
-		'default': false
-	},
-	'workbench.quickOpen.closeOnFocusLost': {
-		'type': 'boolean',
-		'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),
-		'default': true
-	},
-	'workbench.settings.openDefaultSettings': {
-		'type': 'boolean',
-		'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
-		'default': true
-	},
-	'workbench.sideBar.location': {
-		'type': 'string',
-		'enum': ['left', 'right'],
-		'default': 'left',
-		'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
-	},
-	'workbench.statusBar.visible': {
-		'type': 'boolean',
-		'default': true,
-		'description': nls.localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
-	},
-	'workbench.activityBar.visible': {
-		'type': 'boolean',
-		'default': true,
-		'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
-	},
-	'workbench.editor.closeOnFileDelete': {
-		'type': 'boolean',
-		'description': nls.localize('closeOnFileDelete', "Controls if editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
-		'default': true
-	}
-};
-
-if (product.quality !== 'stable') {
-	workbenchProperties['workbench.settings.enableNaturalLanguageSearch'] = {
-		'type': 'boolean',
-		'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
-		'default': true
-	};
-}
-
-if (isMacintosh) {
-	workbenchProperties['workbench.fontAliasing'] = {
-		'type': 'string',
-		'enum': ['default', 'antialiased', 'none'],
-		'default': 'default',
-		'description':
-			nls.localize('fontAliasing', "Controls font aliasing method in the workbench.\n- default: Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text\n- antialiased: Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall\n- none: Disables font smoothing. Text will show with jagged sharp edges"),
-		'enumDescriptions': [
-			nls.localize('workbench.fontAliasing.default', "Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text."),
-			nls.localize('workbench.fontAliasing.antialiased', "Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall."),
-			nls.localize('workbench.fontAliasing.none', "Disables font smoothing. Text will show with jagged sharp edges.")
-		],
-	};
-
-	workbenchProperties['workbench.editor.swipeToNavigate'] = {
-		'type': 'boolean',
-		'description': nls.localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally."),
-		'default': false
-	};
-}
-
-
 configurationRegistry.registerConfiguration({
 	'id': 'workbench',
 	'order': 7,
 	'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
 	'type': 'object',
-	'properties': workbenchProperties
+	'properties': {
+		'workbench.editor.showTabs': {
+			'type': 'boolean',
+			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
+			'default': true
+		},
+		'workbench.editor.labelFormat': {
+			'type': 'string',
+			'enum': ['default', 'short', 'medium', 'long'],
+			'enumDescriptions': [
+				nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguinshing sections of each file's path are added. When tabs are disabled, the path relative to the workspace folder is shown if the editor is active."),
+				nls.localize('workbench.editor.labelFormat.short', "Show the name of the file followed by it's directory name."),
+				nls.localize('workbench.editor.labelFormat.medium', "Show the name of the file followed by it's path relative to the workspace folder."),
+				nls.localize('workbench.editor.labelFormat.long', "Show the name of the file followed by it's absolute path.")
+			],
+			'default': 'default',
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'tabDescription' },
+				"Controls the format of the label for an editor. Changing this setting can for example make it easier to understand the location of a file:\n- short:   'parent'\n- medium:  'workspace/src/parent'\n- long:    '/home/user/workspace/src/parent'\n- default: '.../parent', when another tab shares the same title, or the relative workspace path if tabs are disabled"),
+		},
+		'workbench.editor.tabCloseButton': {
+			'type': 'string',
+			'enum': ['left', 'right', 'off'],
+			'default': 'right',
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
+		},
+		'workbench.editor.tabSizing': {
+			'type': 'string',
+			'enum': ['fit', 'shrink'],
+			'default': 'fit',
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. Set to 'fit' to keep tabs always large enough to show the full editor label. Set to 'shrink' to allow tabs to get smaller when the available space is not enough to show all tabs at once.")
+		},
+		'workbench.editor.showIcons': {
+			'type': 'boolean',
+			'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
+			'default': true
+		},
+		'workbench.editor.enablePreview': {
+			'type': 'boolean',
+			'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing) and show up with an italic font style."),
+			'default': true
+		},
+		'workbench.editor.enablePreviewFromQuickOpen': {
+			'type': 'boolean',
+			'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from Quick Open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+			'default': true
+		},
+		'workbench.editor.closeOnFileDelete': {
+			'type': 'boolean',
+			'description': nls.localize('closeOnFileDelete', "Controls if editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
+			'default': true
+		},
+		'workbench.editor.openPositioning': {
+			'type': 'string',
+			'enum': ['left', 'right', 'first', 'last'],
+			'default': 'right',
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the currently active one. Select 'first' or 'last' to open editors independently from the currently active one.")
+		},
+		'workbench.editor.revealIfOpen': {
+			'type': 'boolean',
+			'description': nls.localize('revealIfOpen', "Controls if an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
+			'default': false
+		},
+		'workbench.editor.swipeToNavigate': {
+			'type': 'boolean',
+			'description': nls.localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally."),
+			'default': false,
+			'included': isMacintosh
+		},
+		'workbench.commandPalette.history': {
+			'type': 'number',
+			'description': nls.localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
+			'default': 50
+		},
+		'workbench.commandPalette.preserveInput': {
+			'type': 'boolean',
+			'description': nls.localize('preserveInput', "Controls if the last typed input to the command palette should be restored when opening it the next time."),
+			'default': false
+		},
+		'workbench.quickOpen.closeOnFocusLost': {
+			'type': 'boolean',
+			'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),
+			'default': true
+		},
+		'workbench.settings.openDefaultSettings': {
+			'type': 'boolean',
+			'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
+			'default': true
+		},
+		'workbench.sideBar.location': {
+			'type': 'string',
+			'enum': ['left', 'right'],
+			'default': 'left',
+			'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
+		},
+		'workbench.statusBar.visible': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
+		},
+		'workbench.activityBar.visible': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
+		},
+		'workbench.fontAliasing': {
+			'type': 'string',
+			'enum': ['default', 'antialiased', 'none'],
+			'default': 'default',
+			'description':
+				nls.localize('fontAliasing', "Controls font aliasing method in the workbench.\n- default: Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text\n- antialiased: Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall\n- none: Disables font smoothing. Text will show with jagged sharp edges"),
+			'enumDescriptions': [
+				nls.localize('workbench.fontAliasing.default', "Sub-pixel font smoothing. On most non-retina displays this will give the sharpest text."),
+				nls.localize('workbench.fontAliasing.antialiased', "Smooth the font on the level of the pixel, as opposed to the subpixel. Can make the font appear lighter overall."),
+				nls.localize('workbench.fontAliasing.none', "Disables font smoothing. Text will show with jagged sharp edges.")
+			],
+			'included': isMacintosh
+		},
+		'workbench.settings.enableNaturalLanguageSearch': {
+			'type': 'boolean',
+			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
+			'default': true,
+			'included': product.quality !== 'stable'
+		}
+	}
 });
 
 
@@ -301,8 +294,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)")
 			],
 			'default': 'default',
-			'description': nls.localize('openFoldersInNewWindow', "Controls if folders should open in a new window or replace the last active window.\n- default: folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)\n- on: folders will open in a new window\n- off: folders will replace the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option)."
-			)
+			'description': nls.localize('openFoldersInNewWindow', "Controls if folders should open in a new window or replace the last active window.\n- default: folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)\n- on: folders will open in a new window\n- off: folders will replace the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
 		},
 		'window.restoreWindows': {
 			'type': 'string',
