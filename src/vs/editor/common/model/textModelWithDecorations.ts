@@ -101,8 +101,8 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 
 			const delta = node.cachedAbsoluteStart - node.start;
 
-			const startOffset = this._lineStarts.getAccumulatedValue(node.range.startLineNumber - 2) + node.range.startColumn - 1;
-			const endOffset = this._lineStarts.getAccumulatedValue(node.range.endLineNumber - 2) + node.range.endColumn - 1;
+			const startOffset = this._buffer.getOffsetAt2(node.range.startLineNumber, node.range.startColumn);
+			const endOffset = this._buffer.getOffsetAt2(node.range.endLineNumber, node.range.endColumn);
 
 			node.cachedAbsoluteStart = startOffset;
 			node.cachedAbsoluteEnd = endOffset;
@@ -211,8 +211,8 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 
 		// node exists, the request is to set => change the tracked range and its options
 		const range = this._validateRangeRelaxedNoAllocations(newRange);
-		const startOffset = this._lineStarts.getAccumulatedValue(range.startLineNumber - 2) + range.startColumn - 1;
-		const endOffset = this._lineStarts.getAccumulatedValue(range.endLineNumber - 2) + range.endColumn - 1;
+		const startOffset = this._buffer.getOffsetAt2(range.startLineNumber, range.startColumn);
+		const endOffset = this._buffer.getOffsetAt2(range.endLineNumber, range.endColumn);
 		this._decorationsTree.delete(node);
 		node.reset(this.getVersionId(), startOffset, endOffset, range);
 		node.setOptions(TRACKED_RANGE_OPTIONS[newStickiness]);
@@ -290,8 +290,8 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 	}
 
 	private _getDecorationsInRange(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): IntervalNode[] {
-		const startOffset = this._lineStarts.getAccumulatedValue(filterRange.startLineNumber - 2) + filterRange.startColumn - 1;
-		const endOffset = this._lineStarts.getAccumulatedValue(filterRange.endLineNumber - 2) + filterRange.endColumn - 1;
+		const startOffset = this._buffer.getOffsetAt2(filterRange.startLineNumber, filterRange.startColumn);
+		const endOffset = this._buffer.getOffsetAt2(filterRange.endLineNumber, filterRange.endColumn);
 
 		const versionId = this.getVersionId();
 		const result = this._decorationsTree.intervalSearch(startOffset, endOffset, filterOwnerId, filterOutValidation, versionId);
@@ -309,16 +309,9 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 		return nodes;
 	}
 
+	// TODO@TextModel
 	private _getRangeAt(start: number, end: number): Range {
-		const startResult = this._lineStarts.getIndexOf(start);
-		const startLineLength = this._lines[startResult.index].text.length;
-		const startColumn = Math.min(startResult.remainder + 1, startLineLength + 1);
-
-		const endResult = this._lineStarts.getIndexOf(end);
-		const endLineLength = this._lines[endResult.index].text.length;
-		const endColumn = Math.min(endResult.remainder + 1, endLineLength + 1);
-
-		return new Range(startResult.index + 1, startColumn, endResult.index + 1, endColumn);
+		return this._buffer.getRangeAt(start, end);
 	}
 
 	private _changeDecorationImpl(decorationId: string, _range: IRange): void {
@@ -327,8 +320,8 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 			return;
 		}
 		const range = this._validateRangeRelaxedNoAllocations(_range);
-		const startOffset = this._lineStarts.getAccumulatedValue(range.startLineNumber - 2) + range.startColumn - 1;
-		const endOffset = this._lineStarts.getAccumulatedValue(range.endLineNumber - 2) + range.endColumn - 1;
+		const startOffset = this._buffer.getOffsetAt2(range.startLineNumber, range.startColumn);
+		const endOffset = this._buffer.getOffsetAt2(range.endLineNumber, range.endColumn);
 
 		this._decorationsTree.delete(node);
 		node.reset(this.getVersionId(), startOffset, endOffset, range);
@@ -393,8 +386,8 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 				const newDecoration = newDecorations[newDecorationIndex];
 				const range = this._validateRangeRelaxedNoAllocations(newDecoration.range);
 				const options = _normalizeOptions(newDecoration.options);
-				const startOffset = this._lineStarts.getAccumulatedValue(range.startLineNumber - 2) + range.startColumn - 1;
-				const endOffset = this._lineStarts.getAccumulatedValue(range.endLineNumber - 2) + range.endColumn - 1;
+				const startOffset = this._buffer.getOffsetAt2(range.startLineNumber, range.startColumn);
+				const endOffset = this._buffer.getOffsetAt2(range.endLineNumber, range.endColumn);
 
 				node.ownerId = ownerId;
 				node.reset(versionId, startOffset, endOffset, range);

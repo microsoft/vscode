@@ -208,7 +208,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	private _getLineTokens(lineNumber: number): LineTokens {
-		const lineText = this._lines[lineNumber - 1].text;
+		const lineText = this._buffer.getLineContent(lineNumber);
 		return this._tokens.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
 	}
 
@@ -259,7 +259,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	protected _invalidateLine(lineIndex: number): void {
 		this._tokens.setIsInvalid(lineIndex, true);
 		if (lineIndex < this._invalidLineStartIndex) {
-			if (this._invalidLineStartIndex < this._lines.length) {
+			if (this._invalidLineStartIndex < this._buffer.getLineCount()) {
 				this._tokens.setIsInvalid(this._invalidLineStartIndex, true);
 			}
 			this._invalidLineStartIndex = lineIndex;
@@ -281,7 +281,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		var maxLineNumber = Math.min(100, this.getLineCount());
 		this._revalidateTokensNow(maxLineNumber);
 
-		if (this._invalidLineStartIndex < this._lines.length) {
+		if (this._invalidLineStartIndex < this._buffer.getLineCount()) {
 			this._beginBackgroundTokenization();
 		}
 	}
@@ -290,7 +290,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		const eventBuilder = new ModelTokensChangedEventBuilder();
 
-		toLineNumber = Math.min(this._lines.length, toLineNumber);
+		toLineNumber = Math.min(this._buffer.getLineCount(), toLineNumber);
 
 		var MAX_ALLOWED_TIME = 20,
 			fromLineNumber = this._invalidLineStartIndex + 1,
@@ -313,7 +313,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			}
 
 			// Compute how many characters will be tokenized for this line
-			currentCharsToTokenize = this._lines[lineNumber - 1].text.length;
+			currentCharsToTokenize = this._buffer.getLineLength(lineNumber);
 
 			if (tokenizedChars > 0) {
 				// If we have enough history, estimate how long tokenizing this line would take
@@ -334,7 +334,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		elapsedTime = sw.elapsed();
 
-		if (this._invalidLineStartIndex < this._lines.length) {
+		if (this._invalidLineStartIndex < this._buffer.getLineCount()) {
 			this._beginBackgroundTokenization();
 		}
 
@@ -346,23 +346,23 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private _updateTokensUntilLine(eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
 		if (!this._tokenizationSupport) {
-			this._invalidLineStartIndex = this._lines.length;
+			this._invalidLineStartIndex = this._buffer.getLineCount();
 			return;
 		}
 
-		const linesLength = this._lines.length;
+		const linesLength = this._buffer.getLineCount();
 		const endLineIndex = lineNumber - 1;
 
 		// Validate all states up to and including endLineIndex
 		for (let lineIndex = this._invalidLineStartIndex; lineIndex <= endLineIndex; lineIndex++) {
 			const endStateIndex = lineIndex + 1;
 			let r: TokenizationResult2 = null;
-			const text = this._lines[lineIndex].text;
+			const text = this._buffer.getLineContent(lineIndex + 1);
 
 			try {
 				// Tokenize only the first X characters
 				let freshState = this._tokens.getState(lineIndex).clone();
-				r = this._tokenizationSupport.tokenize2(this._lines[lineIndex].text, freshState, 0);
+				r = this._tokenizationSupport.tokenize2(text, freshState, 0);
 			} catch (e) {
 				e.friendlyMessage = TextModelWithTokens.MODE_TOKENIZATION_FAILED_MSG;
 				onUnexpectedError(e);
@@ -371,7 +371,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			if (!r) {
 				r = nullTokenize2(this._languageIdentifier.id, text, this._tokens.getState(lineIndex), 0);
 			}
-			this._tokens.setTokens(this._languageIdentifier.id, lineIndex, this._lines[lineIndex].text.length, r.tokens);
+			this._tokens.setTokens(this._languageIdentifier.id, lineIndex, text.length, r.tokens);
 			eventBuilder.registerChangedTokens(lineIndex + 1);
 			this._tokens.setIsInvalid(lineIndex, false);
 
@@ -498,7 +498,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _matchBracket(position: Position): [Range, Range] {
 		const lineNumber = position.lineNumber;
 		const lineTokens = this._getLineTokens(lineNumber);
-		const lineText = this._lines[lineNumber - 1].text;
+		const lineText = this._buffer.getLineContent(lineNumber);
 
 		let tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
 		if (tokenIndex < 0) {
@@ -608,7 +608,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
 			const lineTokens = this._getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
-			const lineText = this._lines[lineNumber - 1].text;
+			const lineText = this._buffer.getLineContent(lineNumber);
 
 			let tokenIndex = tokenCount - 1;
 			let searchStopOffset = -1;
@@ -669,7 +669,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		for (let lineNumber = position.lineNumber, lineCount = this.getLineCount(); lineNumber <= lineCount; lineNumber++) {
 			const lineTokens = this._getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
-			const lineText = this._lines[lineNumber - 1].text;
+			const lineText = this._buffer.getLineContent(lineNumber);
 
 			let tokenIndex = 0;
 			let searchStartOffset = 0;
@@ -727,7 +727,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
 			const lineTokens = this._getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
-			const lineText = this._lines[lineNumber - 1].text;
+			const lineText = this._buffer.getLineContent(lineNumber);
 
 			let tokenIndex = tokenCount - 1;
 			let searchStopOffset = -1;
@@ -771,7 +771,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		for (let lineNumber = position.lineNumber, lineCount = this.getLineCount(); lineNumber <= lineCount; lineNumber++) {
 			const lineTokens = this._getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
-			const lineText = this._lines[lineNumber - 1].text;
+			const lineText = this._buffer.getLineContent(lineNumber);
 
 			let tokenIndex = 0;
 			let searchStartOffset = 0;
@@ -830,7 +830,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	private _computeIndentLevel(lineIndex: number): number {
-		return computeIndentLevel(this._lines[lineIndex].text, this._options.tabSize);
+		return computeIndentLevel(this._buffer.getLineContent(lineIndex + 1), this._options.tabSize);
 	}
 
 	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {

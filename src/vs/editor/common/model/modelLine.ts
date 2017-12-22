@@ -402,7 +402,7 @@ export class ModelLinesTokens {
 
 	// --- editing
 
-	public applyEdits2(range: Range, lines: string[]): void {
+	public applyEdits(range: Range, lines: string[]): void {
 		this._acceptDeleteRange(range);
 		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), lines);
 	}

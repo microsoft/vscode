@@ -11,13 +11,13 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ModelLine, IModelLine, MinimalModelLine } from 'vs/editor/common/model/modelLine';
-import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
+import { guessIndentation, IndentationGuesserTextBufferTarget, IndentationGuesserStringArrayTarget } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { IModelContentChangedEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawEOLChanged, IModelOptionsChangedEvent, InternalModelContentChangeEvent } from 'vs/editor/common/model/textModelEvents';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { TextBuffer } from 'vs/editor/common/model/textBuffer';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
@@ -49,7 +49,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 
 		let resolvedOpts: editorCommon.TextModelResolvedOptions;
 		if (options.detectIndentation) {
-			const guessedIndentation = guessIndentation(textSource.lines, options.tabSize, options.insertSpaces);
+			const guessedIndentation = guessIndentation(new IndentationGuesserStringArrayTarget(textSource.lines), options.tabSize, options.insertSpaces);
 			resolvedOpts = new editorCommon.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
@@ -83,24 +83,20 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
 	}
 
-	/*protected*/ _lines: IModelLine[];
-	protected _EOL: string;
 	protected _isDisposed: boolean;
 	protected _isDisposing: boolean;
 	protected _options: editorCommon.TextModelResolvedOptions;
-	protected _lineStarts: PrefixSumComputer;
 
 	private _versionId: number;
 	/**
 	 * Unlike, versionId, this can go down (via undo) or go to previous values (via redo)
 	 */
 	private _alternativeVersionId: number;
-	private _BOM: string;
-	protected _mightContainRTL: boolean;
-	protected _mightContainNonBasicASCII: boolean;
 
 	private readonly _shouldSimplifyMode: boolean;
 	protected readonly _isTooLargeForTokenization: boolean;
+
+	protected _buffer: TextBuffer;
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
 		super();
@@ -178,8 +174,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 
 	public detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void {
 		this._assertNotDisposed();
-		let lines = this._lines.map(line => line.text);
-		let guessedIndentation = guessIndentation(lines, defaultTabSize, defaultInsertSpaces);
+		let guessedIndentation = guessIndentation(new IndentationGuesserTextBufferTarget(this._buffer), defaultTabSize, defaultInsertSpaces);
 		this.updateOptions({
 			insertSpaces: guessedIndentation.insertSpaces,
 			tabSize: guessedIndentation.tabSize
@@ -247,11 +242,11 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 	}
 
 	public mightContainRTL(): boolean {
-		return this._mightContainRTL;
+		return this._buffer.mightContainRTL();
 	}
 
 	public mightContainNonBasicASCII(): boolean {
-		return this._mightContainNonBasicASCII;
+		return this._buffer.mightContainNonBasicASCII();
 	}
 
 	public getAlternativeVersionId(): number {
@@ -262,20 +257,12 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 	public getOffsetAt(rawPosition: IPosition): number {
 		this._assertNotDisposed();
 		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, false);
-		return this._lineStarts.getAccumulatedValue(position.lineNumber - 2) + position.column - 1;
+		return this._buffer.getOffsetAt(position);
 	}
 
 	public getPositionAt(offset: number): Position {
 		this._assertNotDisposed();
-		offset = Math.floor(offset);
-		offset = Math.max(0, offset);
-
-		let out = this._lineStarts.getIndexOf(offset);
-
-		let lineLength = this._lines[out.index].text.length;
-
-		// Ensure we return a valid position
-		return new Position(out.index + 1, Math.min(out.remainder + 1, lineLength + 1));
+		return this._buffer.getPositionAt(offset);
 	}
 
 	protected _increaseVersionId(): void {
@@ -298,9 +285,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 	public dispose(): void {
 		this._isDisposed = true;
 		// Null out members, such that any use of a disposed model will throw exceptions sooner rather than later
-		this._lines = null;
-		this._EOL = null;
-		this._BOM = null;
+		this._buffer = null;
 
 		super.dispose();
 	}
@@ -312,7 +297,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 				rangeLength: rangeLength,
 				text: text,
 			}],
-			eol: this._EOL,
+			eol: this._buffer.getEOL(),
 			versionId: this.getVersionId(),
 			isUndoing: isUndoing,
 			isRedoing: isRedoing,
@@ -327,21 +312,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 
 	public equals(other: ITextSource): boolean {
 		this._assertNotDisposed();
-		if (this._BOM !== other.BOM) {
-			return false;
-		}
-		if (this._EOL !== other.EOL) {
-			return false;
-		}
-		if (this._lines.length !== other.lines.length) {
-			return false;
-		}
-		for (let i = 0, len = this._lines.length; i < len; i++) {
-			if (this._lines[i].text !== other.lines[i]) {
-				return false;
-			}
-		}
-		return true;
+		return this._buffer.equals(other);
 	}
 
 	public setValue(value: string): void {
@@ -386,7 +357,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 		var fullModelValue = this.getValueInRange(fullModelRange, eol);
 
 		if (preserveBOM) {
-			return this._BOM + fullModelValue;
+			return this._buffer.getBOM() + fullModelValue;
 		}
 
 		return fullModelValue;
@@ -394,11 +365,11 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 
 	public getValueLength(eol?: editorCommon.EndOfLinePreference, preserveBOM: boolean = false): number {
 		this._assertNotDisposed();
-		var fullModelRange = this.getFullModelRange();
-		var fullModelValue = this.getValueLengthInRange(fullModelRange, eol);
+		const fullModelRange = this.getFullModelRange();
+		const fullModelValue = this.getValueLengthInRange(fullModelRange, eol);
 
 		if (preserveBOM) {
-			return this._BOM.length + fullModelValue;
+			return this._buffer.getBOM().length + fullModelValue;
 		}
 
 		return fullModelValue;
@@ -406,58 +377,23 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 
 	public getValueInRange(rawRange: IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
 		this._assertNotDisposed();
-		var range = this.validateRange(rawRange);
-
-		if (range.isEmpty()) {
-			return '';
-		}
-
-		if (range.startLineNumber === range.endLineNumber) {
-			return this._lines[range.startLineNumber - 1].text.substring(range.startColumn - 1, range.endColumn - 1);
-		}
-
-		var lineEnding = this._getEndOfLine(eol),
-			startLineIndex = range.startLineNumber - 1,
-			endLineIndex = range.endLineNumber - 1,
-			resultLines: string[] = [];
-
-		resultLines.push(this._lines[startLineIndex].text.substring(range.startColumn - 1));
-		for (var i = startLineIndex + 1; i < endLineIndex; i++) {
-			resultLines.push(this._lines[i].text);
-		}
-		resultLines.push(this._lines[endLineIndex].text.substring(0, range.endColumn - 1));
-
-		return resultLines.join(lineEnding);
+		return this._buffer.getValueInRange(this.validateRange(rawRange), eol);
 	}
 
 	public getValueLengthInRange(rawRange: IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): number {
 		this._assertNotDisposed();
 		var range = this.validateRange(rawRange);
-
-		if (range.isEmpty()) {
-			return 0;
-		}
-
-		if (range.startLineNumber === range.endLineNumber) {
-			return (range.endColumn - range.startColumn);
-		}
-
-		let startOffset = this.getOffsetAt(new Position(range.startLineNumber, range.startColumn));
-		let endOffset = this.getOffsetAt(new Position(range.endLineNumber, range.endColumn));
-		return endOffset - startOffset;
+		return this._buffer.getValueLengthInRange(range, eol);
 	}
 
 	public isDominatedByLongLines(): boolean {
 		this._assertNotDisposed();
-		var smallLineCharCount = 0,
-			longLineCharCount = 0,
-			i: number,
-			len: number,
-			lines = this._lines,
-			lineLength: number;
+		let smallLineCharCount = 0;
+		let longLineCharCount = 0;
 
-		for (i = 0, len = this._lines.length; i < len; i++) {
-			lineLength = lines[i].text.length;
+		const lineCount = this._buffer.getLineCount();
+		for (let lineNumber = 1; lineNumber <= lineCount; lineNumber++) {
+			const lineLength = this._buffer.getLineLength(lineNumber);
 			if (lineLength >= LONG_LINE_BOUNDARY) {
 				longLineCharCount += lineLength;
 			} else {
@@ -470,7 +406,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 
 	public getLineCount(): number {
 		this._assertNotDisposed();
-		return this._lines.length;
+		return this._buffer.getLineCount();
 	}
 
 	public getLineContent(lineNumber: number): string {
@@ -479,21 +415,17 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
 
-		return this._lines[lineNumber - 1].text;
+		return this._buffer.getLineContent(lineNumber);
 	}
 
 	public getLinesContent(): string[] {
 		this._assertNotDisposed();
-		var r: string[] = [];
-		for (var i = 0, len = this._lines.length; i < len; i++) {
-			r[i] = this._lines[i].text;
-		}
-		return r;
+		return this._buffer.getLinesContent();
 	}
 
 	public getEOL(): string {
 		this._assertNotDisposed();
-		return this._EOL;
+		return this._buffer.getEOL();
 	}
 
 	protected _onBeforeEOLChange(): void {
@@ -505,7 +437,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 	public setEOL(eol: editorCommon.EndOfLineSequence): void {
 		this._assertNotDisposed();
 		const newEOL = (eol === editorCommon.EndOfLineSequence.CRLF ? '\r\n' : '\n');
-		if (this._EOL === newEOL) {
+		if (this._buffer.getEOL() === newEOL) {
 			// Nothing to do
 			return;
 		}
@@ -516,8 +448,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 		const endColumn = this.getLineMaxColumn(endLineNumber);
 
 		this._onBeforeEOLChange();
-		this._EOL = newEOL;
-		this._constructLineStarts();
+		this._buffer.setEOL(newEOL);
 		this._increaseVersionId();
 		this._onAfterEOLChange();
 
@@ -544,8 +475,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
-
-		return this._lines[lineNumber - 1].text.length + 1;
+		return this._buffer.getLineMaxColumn(lineNumber);
 	}
 
 	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
@@ -553,12 +483,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
-
-		var result = strings.firstNonWhitespaceIndex(this._lines[lineNumber - 1].text);
-		if (result === -1) {
-			return 0;
-		}
-		return result + 1;
+		return this._buffer.getLineFirstNonWhitespaceColumn(lineNumber);
 	}
 
 	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
@@ -566,12 +491,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
-
-		var result = strings.lastNonWhitespaceIndex(this._lines[lineNumber - 1].text);
-		if (result === -1) {
-			return 0;
-		}
-		return result + 2;
+		return this._buffer.getLineLastNonWhitespaceColumn(lineNumber);
 	}
 
 	/**
@@ -579,7 +499,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 	 * Will try to not allocate if possible.
 	 */
 	protected _validateRangeRelaxedNoAllocations(range: IRange): Range {
-		const linesCount = this._lines.length;
+		const linesCount = this._buffer.getLineCount();
 
 		const initialStartLineNumber = range.startLineNumber;
 		const initialStartColumn = range.startColumn;
@@ -651,13 +571,14 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 	private _validatePosition(_lineNumber: number, _column: number, strict: boolean): Position {
 		const lineNumber = Math.floor(typeof _lineNumber === 'number' ? _lineNumber : 1);
 		const column = Math.floor(typeof _column === 'number' ? _column : 1);
+		const lineCount = this._buffer.getLineCount();
 
 		if (lineNumber < 1) {
 			return new Position(1, 1);
 		}
 
-		if (lineNumber > this._lines.length) {
-			return new Position(this._lines.length, this.getLineMaxColumn(this._lines.length));
+		if (lineNumber > lineCount) {
+			return new Position(lineCount, this.getLineMaxColumn(lineCount));
 		}
 
 		if (column <= 1) {
@@ -673,7 +594,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 			// If the position would end up in the middle of a high-low surrogate pair,
 			// we move it to before the pair
 			// !!At this point, column > 1
-			const charCodeBefore = this._lines[lineNumber - 1].text.charCodeAt(column - 2);
+			const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
 			if (strings.isHighSurrogate(charCodeBefore)) {
 				return new Position(lineNumber, column - 1);
 			}
@@ -697,11 +618,8 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 		const endLineNumber = end.lineNumber;
 		const endColumn = end.column;
 
-		const startLineText = this._lines[startLineNumber - 1].text;
-		const endLineText = this._lines[endLineNumber - 1].text;
-
-		const charCodeBeforeStart = (startColumn > 1 ? startLineText.charCodeAt(startColumn - 2) : 0);
-		const charCodeBeforeEnd = (endColumn > 1 && endColumn <= endLineText.length ? endLineText.charCodeAt(endColumn - 2) : 0);
+		const charCodeBeforeStart = (startColumn > 1 ? this._buffer.getLineCharCode(startLineNumber, startColumn - 2) : 0);
+		const charCodeBeforeEnd = (endColumn > 1 && endColumn <= this._buffer.getLineLength(endLineNumber) ? this._buffer.getLineCharCode(endLineNumber, endColumn - 2) : 0);
 
 		const startInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeStart);
 		const endInsideSurrogatePair = strings.isHighSurrogate(charCodeBeforeEnd);
@@ -749,40 +667,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 	}
 
 	private _constructLines(textSource: ITextSource): void {
-		let rawLines = textSource.lines;
-		let modelLines: IModelLine[] = new Array<IModelLine>(rawLines.length);
-
-		for (let i = 0, len = rawLines.length; i < len; i++) {
-			modelLines[i] = this._createModelLine(rawLines[i]);
-		}
-		this._BOM = textSource.BOM;
-		this._mightContainRTL = textSource.containsRTL;
-		this._mightContainNonBasicASCII = !textSource.isBasicASCII;
-		this._EOL = textSource.EOL;
-		this._lines = modelLines;
-		this._constructLineStarts();
-	}
-
-	private _constructLineStarts(): void {
-		const eolLength = this._EOL.length;
-		const linesLength = this._lines.length;
-		const lineStartValues = new Uint32Array(linesLength);
-		for (let i = 0; i < linesLength; i++) {
-			lineStartValues[i] = this._lines[i].text.length + eolLength;
-		}
-		this._lineStarts = new PrefixSumComputer(lineStartValues);
-	}
-
-	private _getEndOfLine(eol: editorCommon.EndOfLinePreference): string {
-		switch (eol) {
-			case editorCommon.EndOfLinePreference.LF:
-				return '\n';
-			case editorCommon.EndOfLinePreference.CRLF:
-				return '\r\n';
-			case editorCommon.EndOfLinePreference.TextDefined:
-				return this.getEOL();
-		}
-		throw new Error('Unknown EOL preference');
+		this._buffer = new TextBuffer(textSource);
 	}
 
 	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): editorCommon.FindMatch[] {
