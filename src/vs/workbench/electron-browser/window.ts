@@ -350,7 +350,10 @@ export class ElectronWindow extends Themable {
 		if (!isMacintosh) {
 			return; // macOS only
 		}
-
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		if (windowConfig && windowConfig.touchbarSupport === false) {
+			return; // tocuhbar support disabled
+		}
 		// Dispose old
 		this.touchBarDisposables = dispose(this.touchBarDisposables);
 

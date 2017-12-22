@@ -220,6 +220,7 @@ export interface IWindowSettings {
 	nativeTabs: boolean;
 	enableMenuBarMnemonics: boolean;
 	closeWhenEmpty: boolean;
+	touchbarSupport: boolean;
 }
 
 export enum OpenContext {

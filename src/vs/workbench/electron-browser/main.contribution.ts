@@ -386,6 +386,12 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
 			'included': isMacintosh && parseFloat(os.release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
+		},
+		'window.touchbarSupport': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('window.touchbarSupport', "Enables macOS tocuhbar buttons."),
+			'included': isMacintosh && parseFloat(os.release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
 		}
 	}
 });

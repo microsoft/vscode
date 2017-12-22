@@ -34,6 +34,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private nativeTabs: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
+	private touchbarSupport: boolean;
 
 	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -76,6 +77,12 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		// Native tabs
 		if (config.window && typeof config.window.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
 			this.nativeTabs = config.window.nativeTabs;
+			changed = true;
+		}
+
+		// TouchBar support
+		if (config.window && typeof config.window.touchbarSupport === 'boolean' && config.window.touchbarSupport !== this.touchbarSupport) {
+			this.touchbarSupport = config.window.touchbarSupport;
 			changed = true;
 		}
 
