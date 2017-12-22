@@ -232,11 +232,11 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 	}
 }
 
-const ACTION_ID = 'workbench.action.showAllSymbols';
-const ACTION_LABEL = nls.localize('showTriggerActions', "Go to Symbol in Workspace...");
-const ALL_SYMBOLS_PREFIX = '#';
 
 class ShowAllSymbolsAction extends Action {
+	static readonly ID = 'workbench.action.showAllSymbols';
+	static readonly LABEL = nls.localize('showTriggerActions', "Go to Symbol in Workspace...");
+	static readonly ALL_SYMBOLS_PREFIX = '#';
 
 	constructor(
 		actionId: string, actionLabel: string,
@@ -248,7 +248,7 @@ class ShowAllSymbolsAction extends Action {
 
 	public run(context?: any): TPromise<void> {
 
-		let prefix = ALL_SYMBOLS_PREFIX;
+		let prefix = ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX;
 		let inputSelection: { start: number; end: number; } = void 0;
 		let editor = this.editorService.getFocusedCodeEditor();
 		const word = editor && getSelectionSearchString(editor);
@@ -325,7 +325,10 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ShowPrev
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ShowNextSearchExcludeAction, searchActions.ShowNextSearchExcludeAction.ID, searchActions.ShowNextSearchExcludeAction.LABEL, ShowNextFindTermKeybinding, searchActions.ShowNextSearchExcludeAction.CONTEXT_KEY_EXPRESSION), 'Search: Show Next Search Exclude Pattern', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ShowPreviousSearchExcludeAction, searchActions.ShowPreviousSearchExcludeAction.ID, searchActions.ShowPreviousSearchExcludeAction.LABEL, ShowPreviousFindTermKeybinding, searchActions.ShowPreviousSearchExcludeAction.CONTEXT_KEY_EXPRESSION), 'Search: Show Previous Search Exclude Pattern', category);
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, ACTION_ID, ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_T }), 'Go to Symbol in Workspace...');
+registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.CollapseDeepestExpandedLevelAction, searchActions.CollapseDeepestExpandedLevelAction.ID, searchActions.CollapseDeepestExpandedLevelAction.LABEL), 'Search: Collapse All', category);
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, ShowAllSymbolsAction.ID, ShowAllSymbolsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_T }), 'Go to Symbol in Workspace...');
+
 
 // Contribute to Explorer Viewer
 const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
@@ -346,11 +349,11 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 	new QuickOpenHandlerDescriptor(
 		OpenSymbolHandler,
 		OpenSymbolHandler.ID,
-		ALL_SYMBOLS_PREFIX,
+		ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX,
 		'inWorkspaceSymbolsPicker',
 		[
 			{
-				prefix: ALL_SYMBOLS_PREFIX,
+				prefix: ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX,
 				needsEditor: false,
 				description: nls.localize('openSymbolDescriptionNormal', "Go to Symbol in Workspace")
 			}
