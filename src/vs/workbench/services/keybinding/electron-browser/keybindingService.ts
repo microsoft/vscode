@@ -36,6 +36,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { release } from 'os';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -583,6 +584,12 @@ const keyboardConfiguration: IConfigurationNode = {
 			'default': 'code',
 			'description': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
 			'included': OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
+		},
+		'keyboard.touchbar.enabled': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('window.touchbar.enabled', "Enables macOS tocuhbar buttons."),
+			'included': OS === OperatingSystem.Macintosh && parseFloat(release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
 		}
 	}
 };
