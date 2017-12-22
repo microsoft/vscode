@@ -33,7 +33,7 @@ export class MarkdownRenderer {
 			actionCallback: (content) => {
 				this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
 			},
-			codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
+			codeBlockRenderer: (languageAlias, value): TPromise<string> => {
 				// In markdown,
 				// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
 				// it is possible no alias is given in which case we fall back to the current editor lang
