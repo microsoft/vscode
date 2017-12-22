@@ -153,7 +153,6 @@ const configurationValueWhitelist = [
 	'php.validate.run',
 	'workbench.welcome.enabled',
 	'workbench.startupEditor',
-	'workbench.panel.defaultLocation',
 ];
 
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
