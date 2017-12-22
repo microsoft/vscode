@@ -352,8 +352,8 @@ export class ElectronWindow extends Themable {
 		}
 
 		const touchbarEnabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled');
-		if (touchbarEnabled === false) {
-			return;
+		if (!touchbarEnabled) {
+			return; // disabled via setting
 		}
 
 		// Dispose old

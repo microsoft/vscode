@@ -588,7 +588,7 @@ const keyboardConfiguration: IConfigurationNode = {
 		'keyboard.touchbar.enabled': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('window.touchbar.enabled', "Enables macOS tocuhbar buttons."),
+			'description': nls.localize('touchbar.enabled', "Enables the macOS touchbar buttons on the keyboard if available."),
 			'included': OS === OperatingSystem.Macintosh && parseFloat(release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
 		}
 	}
