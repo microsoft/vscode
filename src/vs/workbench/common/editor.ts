@@ -812,7 +812,7 @@ export interface IWorkbenchEditorConfiguration {
 		editor: {
 			showTabs: boolean;
 			tabCloseButton: 'left' | 'right' | 'off';
-			tabSizing: 'fit' | 'shrink';
+			tabSizing: 'fit' | 'shrink' | 'fixed';
 			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
