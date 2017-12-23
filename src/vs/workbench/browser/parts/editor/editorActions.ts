@@ -1554,7 +1554,29 @@ export class MoveEditorToNextGroupAction extends Action {
 	}
 }
 
-export class MoveEditorToFirstGroupAction extends Action {
+export abstract class MoveEditorToSpecificGroup extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private position: Position,
+		private editorGroupService: IEditorGroupService,
+		private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor && activeEditor.position !== this.position) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, this.position);
+		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class MoveEditorToFirstGroupAction extends MoveEditorToSpecificGroup {
 
 	public static readonly ID = 'workbench.action.moveEditorToFirstGroup';
 	public static readonly LABEL = nls.localize('moveEditorToFirstGroup', "Move Editor into First Group");
@@ -1562,23 +1584,14 @@ export class MoveEditorToFirstGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.position !== Position.ONE) {
-			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, Position.ONE);
-		}
-
-		return TPromise.as(true);
+		super(id, label, Position.ONE, editorGroupService, editorService);
 	}
 }
 
-export class MoveEditorToSecondGroupAction extends Action {
+export class MoveEditorToSecondGroupAction extends MoveEditorToSpecificGroup {
 
 	public static readonly ID = 'workbench.action.moveEditorToSecondGroup';
 	public static readonly LABEL = nls.localize('moveEditorToSecondGroup', "Move Editor into Second Group");
@@ -1586,23 +1599,14 @@ export class MoveEditorToSecondGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.position !== Position.TWO) {
-			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, Position.TWO);
-		}
-
-		return TPromise.as(true);
+		super(id, label, Position.TWO, editorGroupService, editorService);
 	}
 }
 
-export class MoveEditorToThirdGroupAction extends Action {
+export class MoveEditorToThirdGroupAction extends MoveEditorToSpecificGroup {
 
 	public static readonly ID = 'workbench.action.moveEditorToThirdGroup';
 	public static readonly LABEL = nls.localize('moveEditorToThirdGroup', "Move Editor into Third Group");
@@ -1610,18 +1614,9 @@ export class MoveEditorToThirdGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.position !== Position.THREE) {
-			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, Position.THREE);
-		}
-
-		return TPromise.as(true);
+		super(id, label, Position.THREE, editorGroupService, editorService);
 	}
 }
