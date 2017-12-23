@@ -115,6 +115,7 @@ export interface IPreferencesService {
 	openGlobalSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openWorkspaceSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openFolderSettings(folder: URI, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
+	openUserStylesheet(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 

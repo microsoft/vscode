@@ -161,6 +161,24 @@ export class OpenFolderSettingsAction extends Action {
 	}
 }
 
+export class OpenUserStylesheetAction extends Action {
+
+	public static readonly ID = 'workbench.action.openUserStylesheet';
+	public static readonly LABEL = nls.localize('openUserStylesheet', "Open User Stylesheet");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private preferencesService: IPreferencesService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.preferencesService.openUserStylesheet();
+	}
+}
+
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
 	public static readonly ID = 'workbench.action.configureLanguageBasedSettings';

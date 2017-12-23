@@ -103,6 +103,11 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
 
 	@memoize
+	get appUserStylesheetPath(): string {
+		return path.join(this.appSettingsHome, 'user.css');
+	}
+
+	@memoize
 	get settingsSearchBuildId(): number { return product.settingsSearchBuildId; }
 
 	@memoize
