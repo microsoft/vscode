@@ -372,9 +372,10 @@ export class FileRenderer implements IRenderer {
 
 		const done = once((commit: boolean) => {
 			tree.clearHighlight();
+			let actionPromise = TPromise.as(null);
 
 			if (commit && inputBox.value) {
-				this.state.actionProvider.runAction(tree, stat, editableData.action, { value: inputBox.value });
+				actionPromise = this.state.actionProvider.runAction(tree, stat, editableData.action, { value: inputBox.value });
 			}
 
 			const restoreFocus = document.activeElement === inputBox.inputElement; // https://github.com/Microsoft/vscode/issues/20269
@@ -385,6 +386,7 @@ export class FileRenderer implements IRenderer {
 				lifecycle.dispose(toDispose);
 				container.removeChild(label.element);
 			}, 0);
+			return actionPromise;
 		});
 
 		const toDispose = [
@@ -393,6 +395,27 @@ export class FileRenderer implements IRenderer {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
 						done(true);
+					}
+				} else if (e.keyCode === KeyCode.Tab) {
+					if (inputBox.validate()) {
+						let renameItem = tree.getFocus();
+						const nav = tree.getNavigator(renameItem, false);
+						if (e.shiftKey) {
+							renameItem = nav.previous();
+						} else {
+							renameItem = nav.next();
+						}
+						done(true).then(() => {
+							setTimeout(() => {
+								if (renameItem) {
+									tree.setFocus(renameItem);
+								} else {
+									e.shiftKey ? tree.focusLast() : tree.focusFirst();
+									renameItem = tree.getFocus();
+								}
+								this.state.actionProvider.runAction(tree, renameItem, 'renameFile', null).done(null, errors.onUnexpectedError);
+							}, 0);
+						});
 					}
 				} else if (e.equals(KeyCode.Escape)) {
 					done(false);
