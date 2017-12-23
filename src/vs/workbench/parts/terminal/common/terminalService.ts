@@ -65,6 +65,7 @@ export abstract class TerminalService implements ITerminalService {
 			}
 		});
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
+		lifecycleService.onShutdown(() => this._onShutdown());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
@@ -89,12 +90,16 @@ export abstract class TerminalService implements ITerminalService {
 			}
 		}
 
-		// Dispose all terminal instances and don't veto
 		this._isShuttingDown = true;
+
+		return false;
+	}
+
+	private _onShutdown(): void {
 		this.terminalInstances.forEach(instance => {
+			console.log('kill!');
 			instance.dispose();
 		});
-		return false;
 	}
 
 	public getInstanceLabels(): string[] {
