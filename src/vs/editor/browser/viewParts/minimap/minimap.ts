@@ -76,6 +76,8 @@ class MinimapOptions {
 
 	public readonly showSlider: 'always' | 'mouseover';
 
+	public readonly side: 'right' | 'left';
+
 	public readonly pixelRatio: number;
 
 	public readonly typicalHalfwidthCharacterWidth: number;
@@ -118,6 +120,7 @@ class MinimapOptions {
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
 		this.scrollBeyondLastLine = viewInfo.scrollBeyondLastLine;
 		this.showSlider = viewInfo.minimap.showSlider;
+		this.side = viewInfo.minimap.side;
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = configuration.editor.lineHeight;
@@ -135,6 +138,7 @@ class MinimapOptions {
 		return (this.renderMinimap === other.renderMinimap
 			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
 			&& this.showSlider === other.showSlider
+			&& this.side === other.side
 			&& this.pixelRatio === other.pixelRatio
 			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
 			&& this.lineHeight === other.lineHeight
@@ -456,7 +460,11 @@ export class Minimap extends ViewPart {
 		this._domNode.setPosition('absolute');
 		this._domNode.setAttribute('role', 'presentation');
 		this._domNode.setAttribute('aria-hidden', 'true');
-		this._domNode.setRight(this._context.configuration.editor.layoutInfo.verticalScrollbarWidth);
+		if (this._options.side === 'right') {
+			this._domNode.setRight(this._context.configuration.editor.layoutInfo.verticalScrollbarWidth);
+		} else {
+			this._domNode.setLeft(0);
+		}
 
 		this._shadow = createFastDomNode(document.createElement('div'));
 		this._shadow.setClassName('minimap-shadow-hidden');

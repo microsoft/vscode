@@ -75,6 +75,7 @@ const configurationValueWhitelist = [
 	'editor.roundedSelection',
 	'editor.scrollBeyondLastLine',
 	'editor.minimap.enabled',
+	'editor.minimap.side',
 	'editor.minimap.renderCharacters',
 	'editor.minimap.maxColumn',
 	'editor.find.seedSearchStringFromSelection',
