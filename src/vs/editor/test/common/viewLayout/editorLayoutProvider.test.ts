@@ -780,19 +780,19 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				width: 1000,
 				height: 800,
 
-				glyphMarginLeft: 0,
+				glyphMarginLeft: 47,
 				glyphMarginWidth: 0,
 				glyphMarginHeight: 800,
 
-				lineNumbersLeft: 0,
+				lineNumbersLeft: 47,
 				lineNumbersWidth: 0,
 				lineNumbersHeight: 800,
 
-				decorationsLeft: 0,
+				decorationsLeft: 47,
 				decorationsWidth: 10,
 				decorationsHeight: 800,
 
-				contentLeft: 10,
+				contentLeft: 57,
 				contentWidth: 943,
 				contentHeight: 800,
 
