@@ -27,7 +27,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -998,12 +998,16 @@ class InstallAdditionalSCMProvidersAction extends Action {
 	}
 }
 
+const scmViewletVisibleId = 'scmViewletVisible';
+export const ScmViewletVisibleContext = new RawContextKey<boolean>(scmViewletVisibleId, true);
+
 export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 	private el: HTMLElement;
 	private menus: SCMMenus;
 	private mainPanel: MainPanel | null = null;
 	private mainPanelDisposable: IDisposable = EmptyDisposable;
+	private viewletVisibleContextKey: IContextKey<boolean>;
 	private _repositories: ISCMRepository[] = [];
 	private repositoryPanels: RepositoryPanel[] = [];
 	private disposables: IDisposable[] = [];
@@ -1042,6 +1046,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
+		this.viewletVisibleContextKey = ScmViewletVisibleContext.bindTo(contextKeyService);
 	}
 
 	async create(parent: Builder): TPromise<void> {
@@ -1121,6 +1126,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	setVisible(visible: boolean): TPromise<void> {
 		const result = super.setVisible(visible);
 		this._onDidChangeVisibility.fire(visible);
+		this.viewletVisibleContextKey.set(visible);
 		return result;
 	}
 
