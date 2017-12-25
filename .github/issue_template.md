@@ -1,6 +1,6 @@
 <!-- Do you have a question? Please ask it on http://stackoverflow.com/questions/tagged/vscode. -->
 
-<!-- Use Help > Report Issues to prefill these. -->
+<!-- Use Help > Report Issue to prefill these. -->
 - VSCode Version:
 - OS Version:
 
