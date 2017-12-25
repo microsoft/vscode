@@ -22,6 +22,10 @@
 			{
 				"language": "coffeescript"
 			}
-		]
+		],
+		"snippets": [{
+			"language": "coffeescript",
+			"path": "./snippets/coffeescript.snippets.json"
+		}]
 	}
 }

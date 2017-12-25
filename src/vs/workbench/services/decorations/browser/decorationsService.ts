@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import Event, { Emitter, debounceEvent, any } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent, anyEvent } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -14,8 +14,9 @@ import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IIterator } from 'vs/base/common/iterator';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { localize } from 'vs/nls';
 
 class DecorationRule {
 
@@ -23,21 +24,23 @@ class DecorationRule {
 		if (Array.isArray(data)) {
 			return data.map(DecorationRule.keyOf).join(',');
 		} else {
-			const { color, opacity, letter } = data;
-			return `${color}/${opacity}/${letter}`;
+			const { color, letter } = data;
+			return `${color}/${letter}`;
 		}
 	}
 
 	private static readonly _classNames = new IdGenerator('monaco-decorations-style-');
 
 	readonly data: IDecorationData | IDecorationData[];
-	readonly labelClassName: string;
-	readonly badgeClassName: string;
+	readonly itemColorClassName: string;
+	readonly itemBadgeClassName: string;
+	readonly bubbleBadgeClassName: string;
 
 	constructor(data: IDecorationData | IDecorationData[]) {
 		this.data = data;
-		this.labelClassName = DecorationRule._classNames.nextId();
-		this.badgeClassName = DecorationRule._classNames.nextId();
+		this.itemColorClassName = DecorationRule._classNames.nextId();
+		this.itemBadgeClassName = DecorationRule._classNames.nextId();
+		this.bubbleBadgeClassName = DecorationRule._classNames.nextId();
 	}
 
 	appendCSSRules(element: HTMLStyleElement, theme: ITheme): void {
@@ -49,68 +52,44 @@ class DecorationRule {
 	}
 
 	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: ITheme): void {
-		const { color, opacity, letter } = data;
+		const { color, letter } = data;
 		// label
-		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
-		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
-		// badge
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
+		// letter
 		if (letter) {
-			createCSSRule(`.${this.badgeClassName}`, `background-color: ${theme.getColor(color)}; color: ${theme.getColor(listActiveSelectionForeground)};`, element);
-			createCSSRule(`.${this.badgeClassName}::before`, `content: "${letter}"`, element);
+			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${theme.getColor(color) || 'inherit'};`, element);
 		}
 	}
 
 	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
 		// label
-		const { color, opacity } = data[0];
-		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'}; opacity: ${opacity || 1};`, element);
-		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit; opacity: inherit;`, element);
+		const { color } = data[0];
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
 
 		// badge
-		let letters: string[] = [];
-		let colors: string[] = [];
-		for (const deco of data) {
-			letters.push(deco.letter);
-			colors.push(`${theme.getColor(deco.color).toString()} ${100 / data.length}%`);
+		const letters = data.filter(d => !isFalsyOrWhitespace(d.letter)).map(d => d.letter);
+		if (letters.length) {
+			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${theme.getColor(color) || 'inherit'};`, element);
 		}
-		createCSSRule(`.${this.badgeClassName}::before`, `content: "${letters.join('\u2002')}"`, element);
+
+		// bubble badge
 		createCSSRule(
-			`.${this.badgeClassName}`,
-			`background: linear-gradient(90deg, ${colors.join()}); color: ${theme.getColor(listActiveSelectionForeground)};`,
+			`.${this.bubbleBadgeClassName}::after`,
+			`content: "\uf052"; color: ${theme.getColor(color) || 'inherit'}; font-family: octicons; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
 			element
 		);
 	}
 
 	removeCSSRules(element: HTMLStyleElement): void {
-		removeCSSRulesContainingSelector(this.labelClassName, element);
-		removeCSSRulesContainingSelector(this.badgeClassName, element);
-	}
-}
-
-class ResourceDecoration implements IDecoration {
-
-	static from(data: IDecorationData | IDecorationData[]): ResourceDecoration {
-		let result = new ResourceDecoration(data);
-		if (Array.isArray(data)) {
-			result.weight = data[0].weight;
-			result.title = data.map(d => d.title).join(', ');
-		} else {
-			result.weight = data.weight;
-			result.title = data.title;
-		}
-		return result;
+		removeCSSRulesContainingSelector(this.itemColorClassName, element);
+		removeCSSRulesContainingSelector(this.itemBadgeClassName, element);
+		removeCSSRulesContainingSelector(this.bubbleBadgeClassName, element);
 	}
 
-	_decoBrand: undefined;
-	_data: IDecorationData | IDecorationData[];
-
-	weight?: number;
-	title?: string;
-	labelClassName?: string;
-	badgeClassName?: string;
-
-	private constructor(data: IDecorationData | IDecorationData[]) {
-		this._data = data;
+	isUnused(): boolean {
+		return !document.querySelector(`.${this.itemColorClassName}`)
+			&& !document.querySelector(`.${this.itemBadgeClassName}`)
+			&& !document.querySelector(`.${this.bubbleBadgeClassName}`);
 	}
 }
 
@@ -123,9 +102,7 @@ class DecorationStyles {
 	constructor(
 		private _themeService: IThemeService,
 	) {
-		this._disposables = [
-			this._themeService.onThemeChange(this._onThemeChange, this),
-		];
+		this._disposables = [this._themeService.onThemeChange(this._onThemeChange, this)];
 	}
 
 	dispose(): void {
@@ -133,10 +110,13 @@ class DecorationStyles {
 		this._styleElement.parentElement.removeChild(this._styleElement);
 	}
 
-	asDecoration(data: IDecorationData | IDecorationData[]): ResourceDecoration {
+	asDecoration(data: IDecorationData[], onlyChildren: boolean): IDecoration {
+
+		// sort by weight
+		data.sort((a, b) => b.weight - a.weight);
+
 		let key = DecorationRule.keyOf(data);
 		let rule = this._decorationRules.get(key);
-		let result = ResourceDecoration.from(data);
 
 		if (!rule) {
 			// new css rule
@@ -145,9 +125,44 @@ class DecorationStyles {
 			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
 		}
 
-		result.labelClassName = rule.labelClassName;
-		result.badgeClassName = rule.badgeClassName;
-		return result;
+		let labelClassName = rule.itemColorClassName;
+		let badgeClassName = rule.itemBadgeClassName;
+		let tooltip = data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(' • ');
+
+		if (onlyChildren) {
+			// show items from its children only
+			badgeClassName = rule.bubbleBadgeClassName;
+			tooltip = localize('bubbleTitle', "Contains emphasized items");
+		}
+
+		return {
+			labelClassName,
+			badgeClassName,
+			tooltip,
+			update: (source, insert) => {
+				let newData = data.slice();
+				if (!source) {
+					// add -> just append
+					newData.push(insert);
+
+				} else {
+					// remove/replace -> require a walk
+					for (let i = 0; i < newData.length; i++) {
+						if (newData[i].source === source) {
+							if (!insert) {
+								// remove
+								newData.splice(i, 1);
+								i--;
+							} else {
+								// replace
+								newData[i] = insert;
+							}
+						}
+					}
+				}
+				return this.asDecoration(newData, onlyChildren);
+			}
+		};
 	}
 
 	private _onThemeChange(): void {
@@ -160,29 +175,27 @@ class DecorationStyles {
 	cleanUp(iter: IIterator<DecorationProviderWrapper>): void {
 		// remove every rule for which no more
 		// decoration (data) is kept. this isn't cheap
-		let usedDecorations = new Set<IDecorationData>();
+		let usedDecorations = new Set<string>();
 		for (let e = iter.next(); !e.done; e = iter.next()) {
-			e.value.data.forEach(value => {
-				if (value instanceof ResourceDecoration) {
-					if (Array.isArray(value._data)) {
-						value._data.forEach(data => usedDecorations.add(data));
-					} else {
-						usedDecorations.add(value._data);
-					}
+			e.value.data.forEach((value, key) => {
+				if (!isThenable<any>(value) && value) {
+					usedDecorations.add(DecorationRule.keyOf(value));
 				}
 			});
 		}
 		this._decorationRules.forEach((value, index) => {
 			const { data } = value;
-			let remove: boolean;
-			if (Array.isArray(data)) {
-				remove = data.every(data => !usedDecorations.has(data));
-			} else if (!usedDecorations.has(data)) {
-				remove = true;
-			}
-			if (remove) {
-				value.removeCSSRules(this._styleElement);
-				this._decorationRules.delete(index);
+			if (value.isUnused()) {
+				let remove: boolean;
+				if (Array.isArray(data)) {
+					remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
+				} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
+					remove = true;
+				}
+				if (remove) {
+					value.removeCSSRules(this._styleElement);
+					this._decorationRules.delete(index);
+				}
 			}
 		});
 	}
@@ -221,12 +234,20 @@ class DecorationProviderWrapper {
 
 	constructor(
 		private readonly _provider: IDecorationsProvider,
-		private readonly _emitter: Emitter<URI | URI[]>
+		private readonly _uriEmitter: Emitter<URI | URI[]>,
+		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
 	) {
 		this._dispoable = this._provider.onDidChange(uris => {
-			for (const uri of uris) {
-				this.data.delete(uri.toString());
-				this._fetchData(uri);
+			if (!uris) {
+				// flush event -> drop all data, can affect everything
+				this.data.clear();
+				this._flushEmitter.fire({ affectsResource() { return true; } });
+
+			} else {
+				// selective changes -> drop for resource, fetch again, send event
+				for (const uri of uris) {
+					this._fetchData(uri);
+				}
 			}
 		});
 	}
@@ -249,15 +270,16 @@ class DecorationProviderWrapper {
 			return;
 		}
 
-		if (item === undefined && !includeChildren) {
-			// unknown, a leaf node -> trigger request
+		if (item === undefined) {
+			// unknown -> trigger request
 			item = this._fetchData(uri);
 		}
 
 		if (item) {
-			// leaf node
+			// found something
 			callback(item, false);
 		}
+
 		if (includeChildren) {
 			// (resolved) children
 			const childTree = this.data.findSuperstr(key);
@@ -291,8 +313,11 @@ class DecorationProviderWrapper {
 
 	private _keepItem(uri: URI, data: IDecorationData): IDecorationData {
 		let deco = data ? data : null;
-		this.data.set(uri.toString(), deco);
-		this._emitter.fire(uri);
+		let old = this.data.set(uri.toString(), deco);
+		if (deco || old) {
+			// only fire event when something changed
+			this._uriEmitter.fire(uri);
+		}
 		return deco;
 	}
 }
@@ -307,7 +332,7 @@ export class FileDecorationsService implements IDecorationsService {
 	private readonly _decorationStyles: DecorationStyles;
 	private readonly _disposables: IDisposable[];
 
-	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = any(
+	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = anyEvent(
 		this._onDidChangeDecorations.event,
 		debounceEvent<URI | URI[], FileDecorationChangeEvent>(
 			this._onDidChangeDecorationsDelayed.event,
@@ -344,9 +369,16 @@ export class FileDecorationsService implements IDecorationsService {
 
 		const wrapper = new DecorationProviderWrapper(
 			provider,
-			this._onDidChangeDecorationsDelayed
+			this._onDidChangeDecorationsDelayed,
+			this._onDidChangeDecorations
 		);
 		const remove = this._data.push(wrapper);
+
+		this._onDidChangeDecorations.fire({
+			// everything might have changed
+			affectsResource() { return true; }
+		});
+
 		return {
 			dispose: () => {
 				// fire event that says 'yes' for any resource
@@ -358,27 +390,33 @@ export class FileDecorationsService implements IDecorationsService {
 		};
 	}
 
-	getDecoration(uri: URI, includeChildren: boolean): IDecoration {
+	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration {
 		let data: IDecorationData[] = [];
-		let onlyChildren = true;
+		let containsChildren: boolean;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
 			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
-				// top = FileDecorationsService._pickBest(top, candidate);
-				data.push(deco);
-				onlyChildren = onlyChildren && isChild;
+				if (!isChild || deco.bubble) {
+					data.push(deco);
+					containsChildren = isChild || containsChildren;
+				}
 			});
 		}
 
 		if (data.length === 0) {
-			return undefined;
-		} else if (onlyChildren) {
-			let result = this._decorationStyles.asDecoration(data.sort((a, b) => b.weight - a.weight)[0]);
-			result.badgeClassName = '';
-			return result;
-		} else if (data.length === 1) {
-			return this._decorationStyles.asDecoration(data[0]);
+			// nothing, maybe overwrite data
+			if (overwrite) {
+				return this._decorationStyles.asDecoration([overwrite], containsChildren);
+			} else {
+				return undefined;
+			}
 		} else {
-			return this._decorationStyles.asDecoration(data.sort((a, b) => b.weight - a.weight));
+			// result, maybe overwrite
+			let result = this._decorationStyles.asDecoration(data, containsChildren);
+			if (overwrite) {
+				return result.update(overwrite.source, overwrite);
+			} else {
+				return result;
+			}
 		}
 	}
 }

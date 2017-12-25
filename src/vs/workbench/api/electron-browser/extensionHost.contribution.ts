@@ -8,6 +8,7 @@
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 // --- other interested parties
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
@@ -17,8 +18,8 @@ import { LanguageConfigurationFileHandler } from 'vs/workbench/parts/codeEditor/
 // --- mainThread participants
 import './mainThreadCommands';
 import './mainThreadConfiguration';
-import './mainThreadCredentials';
 import './mainThreadDebugService';
+import './mainThreadDecorations';
 import './mainThreadDiagnostics';
 import './mainThreadDialogs';
 import './mainThreadDocumentContentProviders';
@@ -58,12 +59,6 @@ export class ExtensionPoints implements IWorkbenchContribution {
 		this.instantiationService.createInstance(ColorExtensionPoint);
 		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
 	}
-
-	public getId(): string {
-		return 'vs.api.extensionPoints';
-	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	ExtensionPoints
-);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExtensionPoints, LifecyclePhase.Starting);

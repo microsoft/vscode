@@ -71,9 +71,9 @@ suite('Workbench - TextModelResolverService', () => {
 		let resource = URI.from({ scheme: 'test', authority: null, path: 'thePath' });
 		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
 
-		input.resolve().then((model: ResourceEditorModel) => {
+		input.resolve().then(model => {
 			assert.ok(model);
-			assert.equal(model.getValue(), 'Hello Test');
+			assert.equal((model as ResourceEditorModel).getValue(), 'Hello Test');
 
 			let disposed = false;
 			once(model.onDispose)(() => {

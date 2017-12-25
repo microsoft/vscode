@@ -7,9 +7,8 @@
 import * as nls from 'vs/nls';
 import network = require('vs/base/common/network');
 import Event, { Emitter } from 'vs/base/common/event';
-import { EmitterEvent } from 'vs/base/common/eventEmitter';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -25,8 +24,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IRawTextSource, TextSource, RawTextSource, ITextSource } from 'vs/editor/common/model/textSource';
-import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { ClassName } from 'vs/editor/common/model/textModelWithDecorations';
+import { IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -40,24 +39,26 @@ class ModelData implements IDisposable {
 	model: editorCommon.IModel;
 
 	private _markerDecorations: string[];
-	private _modelEventsListener: IDisposable;
+	private _modelEventListeners: IDisposable[];
 
-	constructor(model: editorCommon.IModel, eventsHandler: (modelData: ModelData, events: EmitterEvent[]) => void) {
+	constructor(
+		model: editorCommon.IModel,
+		onWillDispose: (model: editorCommon.IModel) => void,
+		onDidChangeLanguage: (model: editorCommon.IModel, e: IModelLanguageChangedEvent) => void
+	) {
 		this.model = model;
 
 		this._markerDecorations = [];
-		this._modelEventsListener = model.addBulkListener((events) => eventsHandler(this, events));
+
+		this._modelEventListeners = [];
+		this._modelEventListeners.push(model.onWillDispose(() => onWillDispose(model)));
+		this._modelEventListeners.push(model.onDidChangeLanguage((e) => onDidChangeLanguage(model, e)));
 	}
 
 	public dispose(): void {
 		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, []);
-		this._modelEventsListener.dispose();
-		this._modelEventsListener = null;
+		this._modelEventListeners = dispose(this._modelEventListeners);
 		this.model = null;
-	}
-
-	public getModelId(): string {
-		return MODEL_ID(this.model.uri);
 	}
 
 	public acceptMarkerDecorations(newDecorations: editorCommon.IModelDeltaDecoration[]): void {
@@ -224,7 +225,7 @@ export class ModelServiceImpl implements IModelService {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
 		}
 
-		this._configurationServiceSubscription = this._configurationService.onDidUpdateConfiguration(e => this._updateModelOptions());
+		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
 		this._updateModelOptions();
 	}
 
@@ -272,7 +273,7 @@ export class ModelServiceImpl implements IModelService {
 	public getCreationOptions(language: string, resource: URI): editorCommon.ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
-			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration({ overrideIdentifier: language, resource }));
+			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getValue({ overrideIdentifier: language, resource }));
 			this._modelCreationOptionsByLanguageAndResource[language + resource] = creationOptions;
 		}
 		return creationOptions;
@@ -366,7 +367,11 @@ export class ModelServiceImpl implements IModelService {
 			throw new Error('ModelService: Cannot add model because it already exists!');
 		}
 
-		let modelData = new ModelData(model, (modelData, events) => this._onModelEvents(modelData, events));
+		let modelData = new ModelData(
+			model,
+			(model) => this._onWillDispose(model),
+			(model, e) => this._onDidChangeLanguage(model, e)
+		);
 		this._models[modelId] = modelData;
 
 		return modelData;
@@ -559,7 +564,7 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- end IModelService
 
-	private _onModelDisposing(model: editorCommon.IModel): void {
+	private _onWillDispose(model: editorCommon.IModel): void {
 		let modelId = MODEL_ID(model.uri);
 		let modelData = this._models[modelId];
 
@@ -570,30 +575,12 @@ export class ModelServiceImpl implements IModelService {
 		this._onModelRemoved.fire(model);
 	}
 
-	private _onModelEvents(modelData: ModelData, events: EmitterEvent[]): void {
-
-		// First look for dispose
-		for (let i = 0, len = events.length; i < len; i++) {
-			let e = events[i];
-			if (e.type === textModelEvents.TextModelEventType.ModelDispose) {
-				this._onModelDisposing(modelData.model);
-				// no more processing since model got disposed
-				return;
-			}
-		}
-
-		// Second, look for mode change
-		for (let i = 0, len = events.length; i < len; i++) {
-			let e = events[i];
-			if (e.type === textModelEvents.TextModelEventType.ModelLanguageChanged) {
-				const model = modelData.model;
-				const oldModeId = (<textModelEvents.IModelLanguageChangedEvent>e.data).oldLanguage;
-				const newModeId = model.getLanguageIdentifier().language;
-				const oldOptions = this.getCreationOptions(oldModeId, model.uri);
-				const newOptions = this.getCreationOptions(newModeId, model.uri);
-				ModelServiceImpl._setModelOptionsForModel(model, newOptions, oldOptions);
-				this._onModelModeChanged.fire({ model, oldModeId });
-			}
-		}
+	private _onDidChangeLanguage(model: editorCommon.IModel, e: IModelLanguageChangedEvent): void {
+		const oldModeId = e.oldLanguage;
+		const newModeId = model.getLanguageIdentifier().language;
+		const oldOptions = this.getCreationOptions(oldModeId, model.uri);
+		const newOptions = this.getCreationOptions(newModeId, model.uri);
+		ModelServiceImpl._setModelOptionsForModel(model, newOptions, oldOptions);
+		this._onModelModeChanged.fire({ model, oldModeId });
 	}
 }

@@ -14,34 +14,32 @@ import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewsRegistry } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvider, TreeViewItemHandleArg } from 'vs/workbench/common/views';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 
-export class TreeView extends ViewsViewletPanel {
+export class TreeView extends TreeViewsViewletPanel {
 
 	private menus: Menus;
-	private viewFocusContext: IContextKey<boolean>;
 	private activated: boolean = false;
 	private treeInputPromise: TPromise<void>;
 
 	private dataProviderElementChangeListener: IDisposable;
+	private elementsToRefresh: ITreeItem[] = [];
 
 	constructor(
-		private options: IViewletViewOptions,
+		options: IViewletViewOptions,
 		@IMessageService private messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -54,7 +52,6 @@ export class TreeView extends ViewsViewletPanel {
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
-		this.viewFocusContext = this.contextKeyService.createKey<boolean>(this.id, void 0);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
 		this.themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
 		if (options.expanded) {
@@ -86,21 +83,22 @@ export class TreeView extends ViewsViewletPanel {
 		}
 	}
 
-	public createViewer(container: Builder): ITree {
+	public createViewer(container: Builder): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.id);
 		const renderer = this.instantiationService.createInstance(TreeRenderer);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, this.menus);
-		const tree = new Tree(container.getHTMLElement(), {
-			dataSource,
-			renderer,
-			controller
-		}, {
-				keyboardSupport: false
-			});
+		const tree = new WorkbenchTree(
+			container.getHTMLElement(),
+			{ dataSource, renderer, controller },
+			{ keyboardSupport: false },
+			this.contextKeyService,
+			this.listService,
+			this.themeService
+		);
 
-		this.disposables.push(attachListStyler(tree, this.themeService));
-		this.disposables.push(this.listService.register(tree, [this.viewFocusContext]));
-		tree.addListener('selection', (event: any) => this.onSelection());
+		tree.contextKeyService.createKey<boolean>(this.id, true);
+		this.disposables.push(tree.onDidChangeSelection(() => this.onSelection()));
+
 		return tree;
 	}
 
@@ -114,10 +112,6 @@ export class TreeView extends ViewsViewletPanel {
 
 	getActionItem(action: IAction): IActionItem {
 		return createActionItem(action, this.keybindingService, this.messageService);
-	}
-
-	public setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible);
 	}
 
 	private setInput(): TPromise<void> {
@@ -175,10 +169,29 @@ export class TreeView extends ViewsViewletPanel {
 		}
 	}
 
+	protected updateTreeVisibility(tree: WorkbenchTree, isVisible: boolean): void {
+		super.updateTreeVisibility(tree, isVisible);
+		if (isVisible && this.elementsToRefresh.length) {
+			this.doRefresh(this.elementsToRefresh);
+			this.elementsToRefresh = [];
+		}
+	}
+
 	private refresh(elements: ITreeItem[]): void {
-		elements = elements ? elements : [this.tree.getInput()];
+		if (!elements) {
+			const root: ITreeItem = this.tree.getInput();
+			root.children = null; // reset children
+			elements = [root];
+		}
+		if (this.isVisible() && this.isExpanded()) {
+			this.doRefresh(elements);
+		} else {
+			this.elementsToRefresh.push(...elements);
+		}
+	}
+
+	private doRefresh(elements: ITreeItem[]): void {
 		for (const element of elements) {
-			element.children = null;
 			this.tree.refresh(element);
 		}
 	}
@@ -195,7 +208,8 @@ export class TreeView extends ViewsViewletPanel {
 
 class Root implements ITreeItem {
 	label = 'root';
-	handle = -1;
+	handle = '0';
+	parentHandle = null;
 	collapsibleState = TreeItemCollapsibleState.Expanded;
 }
 
@@ -208,7 +222,7 @@ class TreeDataSource implements IDataSource {
 	}
 
 	public getId(tree: ITree, node: ITreeItem): string {
-		return '' + node.handle;
+		return node.handle;
 	}
 
 	public hasChildren(tree: ITree, node: ITreeItem): boolean {
@@ -255,8 +269,8 @@ interface ITreeExplorerTemplateData {
 
 class TreeRenderer implements IRenderer {
 
-	private static ITEM_HEIGHT = 22;
-	private static TREE_TEMPLATE_ID = 'treeExplorer';
+	private static readonly ITEM_HEIGHT = 22;
+	private static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 
 	constructor( @IThemeService private themeService: IThemeService) {
 	}

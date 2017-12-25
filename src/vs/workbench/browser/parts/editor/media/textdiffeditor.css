@@ -20,3 +20,19 @@
 .hc-black .monaco-workbench .textdiff-editor-action.previous {
 	background: url('previous-diff-inverse.svg') center center no-repeat;
 }
+
+.vs .monaco-workbench .textdiff-editor-action.toggleIgnoreTrimWhitespace {
+	background: url('IgnoreTrimWhiteSpace_16x.svg') center center no-repeat;
+}
+.vs-dark .monaco-workbench .textdiff-editor-action.toggleIgnoreTrimWhitespace,
+.hc-black .monaco-workbench .textdiff-editor-action.toggleIgnoreTrimWhitespace {
+	background: url('IgnoreTrimWhiteSpace_16x_inverse.svg	') center center no-repeat;
+}
+
+.vs .monaco-workbench .textdiff-editor-action.toggleIgnoreTrimWhitespace.is-checked {
+	background: url('IgnoreTrimWhiteSpaceChecked_16x.svg') center center no-repeat;
+}
+.vs-dark .monaco-workbench .textdiff-editor-action.toggleIgnoreTrimWhitespace.is-checked,
+.hc-black .monaco-workbench .textdiff-editor-action.toggleIgnoreTrimWhitespace.is-checked {
+	background: url('IgnoreTrimWhiteSpaceChecked_16x_inverse.svg	') center center no-repeat;
+}

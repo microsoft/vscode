@@ -108,12 +108,14 @@ function cleanEnv() {
 	var keys = [
 		'AMD_ENTRYPOINT',
 		'ELECTRON_RUN_AS_NODE',
+		'GOOGLE_API_KEY',
 		'PTYCWD',
 		'PTYPID',
 		'PTYSHELL',
 		'PTYCOLS',
 		'PTYROWS',
-		'PTYSHELLCMDLINE'
+		'PTYSHELLCMDLINE',
+		'VSCODE_LOGS'
 	];
 	keys.forEach(function (key) {
 		if (process.env[key]) {

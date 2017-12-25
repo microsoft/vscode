@@ -8,7 +8,7 @@
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, chain, mapEvent } from 'vs/base/common/event';
+import Event, { Emitter, chain, mapEvent, anyEvent, filterEvent } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -31,7 +31,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { MenuItemAction, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { MenuItemActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
@@ -39,20 +38,25 @@ import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider, Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { isSCMResource } from './scmUtil';
-import { attachListStyler, attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import * as platform from 'vs/base/common/platform';
+import { IMessage, InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Command } from 'vs/editor/common/modes';
 import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import * as platform from 'vs/base/common/platform';
+import { format } from 'vs/base/common/strings';
+import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
+import { firstIndex } from 'vs/base/common/arrays';
+import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -79,6 +83,10 @@ export interface IViewModel {
 	readonly repositories: ISCMRepository[];
 	readonly selectedRepositories: ISCMRepository[];
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>>;
+
+	isVisible(): boolean;
+	readonly onDidChangeVisibility: Event<boolean>;
+
 	hide(repository: ISCMRepository): void;
 }
 
@@ -146,9 +154,6 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 		const title = append(name, $('span.title'));
 		const type = append(name, $('span.type'));
 		const countContainer = append(provider, $('.count'));
-
-		append(provider, $('.spacer'));
-
 		const count = new CountBadge(countContainer);
 		const badgeStyler = attachBadgeStyler(count, this.themeService);
 		const actionBar = new ActionBar(provider, { actionItemProvider: a => new StatusBarActionItem(a as StatusBarAction) });
@@ -209,7 +214,9 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 class MainPanel extends ViewletPanel {
 
 	private list: List<ISCMRepository>;
+	private visibilityDisposables: IDisposable[] = [];
 
+	private previousSelection: ISCMRepository[] | undefined = undefined;
 	private _onSelectionChange = new Emitter<ISCMRepository[]>();
 	readonly onSelectionChange: Event<ISCMRepository[]> = this._onSelectionChange.event;
 
@@ -221,6 +228,7 @@ class MainPanel extends ViewletPanel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IListService private listService: IListService,
 		@IMenuService private menuService: IMenuService
 	) {
 		super(localize('scm providers', "Source Control Providers"), {}, keybindingService, contextMenuService);
@@ -248,6 +256,32 @@ class MainPanel extends ViewletPanel {
 		return this.list.getSelectedElements();
 	}
 
+	protected renderBody(container: HTMLElement): void {
+		const delegate = new ProvidersListDelegate();
+		const renderer = this.instantiationService.createInstance(ProviderRenderer);
+
+		this.list = new WorkbenchList<ISCMRepository>(container, delegate, [renderer], {
+			identityProvider: repository => repository.provider.id
+		}, this.contextKeyService, this.listService, this.themeService);
+
+		this.disposables.push(this.list);
+		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
+		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
+
+		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
+		this.onDidChangeVisibility(this.viewModel.isVisible());
+	}
+
+	private onDidChangeVisibility(visible: boolean): void {
+		if (visible) {
+			this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null, this.visibilityDisposables);
+			this.splice(0, 0, this.viewModel.repositories);
+		} else {
+			this.visibilityDisposables = dispose(this.visibilityDisposables);
+			this.splice(0, this.list.length);
+		}
+	}
+
 	private splice(index: number, deleteCount: number, repositories: ISCMRepository[] = []): void {
 		const wasEmpty = this.list.length === 0;
 
@@ -256,25 +290,8 @@ class MainPanel extends ViewletPanel {
 
 		// Automatically select the first one
 		if (wasEmpty && this.list.length > 0) {
-			this.list.setSelection([0]);
+			this.restoreSelection();
 		}
-	}
-
-	protected renderBody(container: HTMLElement): void {
-		const delegate = new ProvidersListDelegate();
-		const renderer = this.instantiationService.createInstance(ProviderRenderer);
-
-		this.list = new List<ISCMRepository>(container, delegate, [renderer], {
-			identityProvider: repository => repository.provider.id
-		});
-
-		this.disposables.push(this.list);
-		this.disposables.push(attachListStyler(this.list, this.themeService));
-		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
-		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
-
-		this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null, this.disposables);
-		this.splice(0, 0, this.viewModel.repositories);
 	}
 
 	protected layoutBody(size: number): void {
@@ -325,11 +342,31 @@ class MainPanel extends ViewletPanel {
 	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
 		// select one repository if the selected one is gone
 		if (e.elements.length === 0 && this.list.length > 0) {
-			this.list.setSelection([0]);
+			this.restoreSelection();
 			return;
 		}
 
+		if (e.elements.length > 0) {
+			this.previousSelection = e.elements;
+		}
+
 		this._onSelectionChange.fire(e.elements);
+	}
+
+	private restoreSelection(): void {
+		let selection: number[];
+
+		if (this.previousSelection) {
+			selection = this.previousSelection
+				.map(r => this.viewModel.repositories.indexOf(r))
+				.filter(i => i > -1);
+		}
+
+		if (!selection || selection.length === 0) {
+			selection = [0];
+		}
+
+		this.list.setSelection(selection);
 	}
 }
 
@@ -337,6 +374,7 @@ interface ResourceGroupTemplate {
 	name: HTMLElement;
 	count: CountBadge;
 	actionBar: ActionBar;
+	elementDisposable: IDisposable;
 	dispose: () => void;
 }
 
@@ -359,9 +397,10 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer);
 		const styler = attachBadgeStyler(count, this.themeService);
+		const elementDisposable = EmptyDisposable;
 
 		return {
-			name, count, actionBar, dispose: () => {
+			name, count, actionBar, elementDisposable, dispose: () => {
 				actionBar.dispose();
 				styler.dispose();
 			}
@@ -369,11 +408,16 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 	}
 
 	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
+		template.elementDisposable.dispose();
+
 		template.name.textContent = group.label;
-		template.count.setCount(group.resourceCollection.resources.length);
 		template.actionBar.clear();
 		template.actionBar.context = group;
 		template.actionBar.push(this.scmMenus.getResourceGroupActions(group), { icon: true, label: false });
+
+		const updateCount = () => template.count.setCount(group.elements.length);
+		template.elementDisposable = group.onDidSplice(updateCount);
+		updateCount();
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
@@ -429,7 +473,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		const element = append(container, $('.resource'));
 		const name = append(element, $('.name'));
 		const fileLabel = this.instantiationService.createInstance(FileLabel, name, void 0);
-		const actionsContainer = append(element, $('.actions'));
+		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionItemProvider: this.actionItemProvider,
 			actionRunner: new MultipleSelectionActionRunner(this.getSelectedResources)
@@ -446,20 +490,23 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
-		template.fileLabel.setFile(resource.sourceUri);
+
+		const theme = this.themeService.getTheme();
+		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
+
+		template.fileLabel.setFile(resource.sourceUri, { fileDecorations: { colors: false, badges: !icon, data: resource.decorations } });
 		template.actionBar.clear();
 		template.actionBar.context = resource;
 		template.actionBar.push(this.scmMenus.getResourceActions(resource), { icon: true, label: false });
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);
 
-		const theme = this.themeService.getTheme();
-		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
-
 		if (icon) {
+			template.decorationIcon.style.display = '';
 			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
 			template.decorationIcon.title = resource.decorations.tooltip;
 		} else {
+			template.decorationIcon.style.display = 'none';
 			template.decorationIcon.style.backgroundImage = '';
 		}
 	}
@@ -489,6 +536,143 @@ function scmResourceIdentityProvider(r: ISCMResourceGroup | ISCMResource): strin
 	}
 }
 
+function isGroupVisible(group: ISCMResourceGroup) {
+	return group.elements.length > 0 || !group.hideWhenEmpty;
+}
+
+interface IGroupItem {
+	readonly group: ISCMResourceGroup;
+	visible: boolean;
+	readonly disposable: IDisposable;
+}
+
+class ResourceGroupSplicer {
+
+	private items: IGroupItem[] = [];
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		groupSequence: ISequence<ISCMResourceGroup>,
+		private spliceable: ISpliceable<ISCMResourceGroup | ISCMResource>
+	) {
+		groupSequence.onDidSplice(this.onDidSpliceGroups, this, this.disposables);
+		this.onDidSpliceGroups({ start: 0, deleteCount: 0, toInsert: groupSequence.elements });
+	}
+
+	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
+		let absoluteStart = 0;
+
+		for (let i = 0; i < start; i++) {
+			const item = this.items[i];
+			absoluteStart += (item.visible ? 1 : 0) + item.group.elements.length;
+		}
+
+		let absoluteDeleteCount = 0;
+
+		for (let i = 0; i < deleteCount; i++) {
+			const item = this.items[start + i];
+			absoluteDeleteCount += (item.visible ? 1 : 0) + item.group.elements.length;
+		}
+
+		const itemsToInsert: IGroupItem[] = [];
+		const absoluteToInsert: (ISCMResourceGroup | ISCMResource)[] = [];
+
+		for (const group of toInsert) {
+			const visible = isGroupVisible(group);
+
+			if (visible) {
+				absoluteToInsert.push(group);
+			}
+
+			for (const element of group.elements) {
+				absoluteToInsert.push(element);
+			}
+
+			const disposable = combinedDisposable([
+				group.onDidChange(() => this.onDidChangeGroup(group)),
+				group.onDidSplice(splice => this.onDidSpliceGroup(group, splice))
+			]);
+
+			itemsToInsert.push({ group, visible, disposable });
+		}
+
+		const itemsToDispose = this.items.splice(start, deleteCount, ...itemsToInsert);
+
+		for (const item of itemsToDispose) {
+			item.disposable.dispose();
+		}
+
+		this.spliceable.splice(absoluteStart, absoluteDeleteCount, absoluteToInsert);
+	}
+
+	private onDidChangeGroup(group: ISCMResourceGroup): void {
+		const itemIndex = firstIndex(this.items, item => item.group === group);
+
+		if (itemIndex < 0) {
+			return;
+		}
+
+		const item = this.items[itemIndex];
+		const visible = isGroupVisible(group);
+
+		if (item.visible === visible) {
+			return;
+		}
+
+		let absoluteStart = 0;
+
+		for (let i = 0; i < itemIndex; i++) {
+			const item = this.items[i];
+			absoluteStart += (item.visible ? 1 : 0) + item.group.elements.length;
+		}
+
+		if (visible) {
+			this.spliceable.splice(absoluteStart, 0, [group, ...group.elements]);
+		} else {
+			this.spliceable.splice(absoluteStart, 1 + group.elements.length, []);
+		}
+
+		item.visible = visible;
+	}
+
+	private onDidSpliceGroup(group: ISCMResourceGroup, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
+		const itemIndex = firstIndex(this.items, item => item.group === group);
+
+		if (itemIndex < 0) {
+			return;
+		}
+
+		const item = this.items[itemIndex];
+		const visible = isGroupVisible(group);
+
+		if (!item.visible && !visible) {
+			return;
+		}
+
+		let absoluteStart = start;
+
+		for (let i = 0; i < itemIndex; i++) {
+			const item = this.items[i];
+			absoluteStart += (item.visible ? 1 : 0) + item.group.elements.length;
+		}
+
+		if (item.visible && !visible) {
+			this.spliceable.splice(absoluteStart, 1 + deleteCount, toInsert);
+		} else if (!item.visible && visible) {
+			this.spliceable.splice(absoluteStart, deleteCount, [group, ...toInsert]);
+		} else {
+			this.spliceable.splice(absoluteStart + 1, deleteCount, toInsert);
+		}
+
+		item.visible = visible;
+	}
+
+	dispose(): void {
+		this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: [] });
+		this.disposables = dispose(this.disposables);
+	}
+}
+
 export class RepositoryPanel extends ViewletPanel {
 
 	private cachedHeight: number | undefined = undefined;
@@ -497,6 +681,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
+	private visibilityDisposables: IDisposable[] = [];
 
 	constructor(
 		readonly repository: ISCMRepository,
@@ -510,7 +695,9 @@ export class RepositoryPanel extends ViewletPanel {
 		@IMessageService protected messageService: IMessageService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
-		@IInstantiationService protected instantiationService: IInstantiationService
+		@IContextKeyService protected contextKeyService: IContextKeyService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IConfigurationService protected configurationService: IConfigurationService
 	) {
 		super(repository.provider.label, {}, keybindingService, contextMenuService);
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
@@ -557,22 +744,81 @@ export class RepositoryPanel extends ViewletPanel {
 
 	protected renderBody(container: HTMLElement): void {
 		const focusTracker = trackFocus(container);
-		this.disposables.push(focusTracker.addFocusListener(() => this.repository.focus()));
+		this.disposables.push(focusTracker.onDidFocus(() => this.repository.focus()));
 		this.disposables.push(focusTracker);
 
 		// Input
 		this.inputBoxContainer = append(container, $('.scm-editor'));
 
+		const updatePlaceholder = () => {
+			const placeholder = format(this.repository.input.placeholder, platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
+			this.inputBox.setPlaceHolder(placeholder);
+		};
+
+		const validation = (text: string): IMessage => {
+			const setting = this.configurationService.getValue<'always' | 'warn' | 'off'>('scm.inputCounter');
+
+			if (setting === 'off') {
+				return null;
+			}
+
+			let position = this.inputBox.inputElement.selectionStart;
+			let start = 0, end;
+			let match: RegExpExecArray;
+			const regex = /\r?\n/g;
+
+			while ((match = regex.exec(text)) && position > match.index) {
+				start = match.index + match[0].length;
+			}
+
+			end = match ? match.index : text.length;
+
+			const line = text.substring(start, end);
+
+			const lineWarningLength = this.repository.input.lineWarningLength;
+
+			if (lineWarningLength === undefined) {
+				return {
+					content: localize('commitMessageInfo', "{0} characters in current line", text.length),
+					type: MessageType.INFO
+				};
+			}
+
+			if (line.length <= lineWarningLength) {
+				if (setting !== 'always') {
+					return null;
+				}
+
+				return {
+					content: localize('commitMessageCountdown', "{0} characters left in current line", lineWarningLength - line.length),
+					type: MessageType.INFO
+				};
+			} else {
+				return {
+					content: localize('commitMessageWarning', "{0} characters over {1} in current line", line.length - lineWarningLength, lineWarningLength),
+					type: MessageType.WARNING
+				};
+			}
+		};
+
 		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
-			placeholder: localize('commitMessage', "Message (press {0} to commit)", platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'),
-			flexibleHeight: true
+			flexibleHeight: true,
+			validationOptions: { validation: validation }
 		});
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
+		const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
+		const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
+		anyEvent<any>(onKeyUp, onMouseUp)(() => this.inputBox.validate(), null, this.disposables);
+
 		this.inputBox.value = this.repository.input.value;
 		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
 		this.repository.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
+
+		updatePlaceholder();
+		this.repository.input.onDidChangePlaceholder(updatePlaceholder, null, this.disposables);
+
 		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layoutBody()));
 
 		chain(domEvent(this.inputBox.inputElement, 'keydown'))
@@ -598,13 +844,10 @@ export class RepositoryPanel extends ViewletPanel {
 			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider, () => this.getSelectedResources()),
 		];
 
-		this.list = new List(this.listContainer, delegate, renderers, {
+		this.list = new WorkbenchList(this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
 			keyboardSupport: false
-		});
-
-		this.disposables.push(attachListStyler(this.list, this.themeService));
-		this.disposables.push(this.listService.register(this.list));
+		}, this.contextKeyService, this.listService, this.themeService);
 
 		chain(this.list.onOpen)
 			.map(e => e.elements[0])
@@ -619,8 +862,17 @@ export class RepositoryPanel extends ViewletPanel {
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
 
-		this.repository.provider.onDidChangeResources(this.updateList, this, this.disposables);
-		this.updateList();
+		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
+		this.onDidChangeVisibility(this.viewModel.isVisible());
+	}
+
+	private onDidChangeVisibility(visible: boolean): void {
+		if (visible) {
+			const listSplicer = new ResourceGroupSplicer(this.repository.provider.groups, this.list);
+			this.visibilityDisposables.push(listSplicer);
+		} else {
+			this.visibilityDisposables = dispose(this.visibilityDisposables);
+		}
 	}
 
 	layoutBody(height: number = this.cachedHeight): void {
@@ -628,7 +880,6 @@ export class RepositoryPanel extends ViewletPanel {
 			return;
 		}
 
-		this.list.layout(height);
 		this.cachedHeight = height;
 		this.inputBox.layout();
 
@@ -666,19 +917,6 @@ export class RepositoryPanel extends ViewletPanel {
 
 	getActionsContext(): any {
 		return this.repository.provider;
-	}
-
-	private updateList(): void {
-		const elements = this.repository.provider.resources
-			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => {
-				if (g.resourceCollection.resources.length === 0 && g.hideWhenEmpty) {
-					return r;
-				}
-
-				return [...r, g, ...g.resourceCollection.resources];
-			}, []);
-
-		this.list.splice(0, this.list.length, elements);
 	}
 
 	private open(e: ISCMResource): void {
@@ -740,7 +978,7 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.visibilityDisposables = dispose(this.visibilityDisposables);
 		super.dispose();
 	}
 }
@@ -773,6 +1011,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
 
+	private _onDidChangeVisibility = new Emitter<boolean>();
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+
 	private _height: number | undefined = undefined;
 	get height(): number | undefined { return this._height; }
 
@@ -787,7 +1028,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IMessageService protected messageService: IMessageService,
-		@IListService protected listService: IListService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IThemeService protected themeService: IThemeService,
 		@ICommandService protected commandService: ICommandService,
@@ -795,7 +1035,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true }, telemetryService, themeService);
 
@@ -814,6 +1055,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
+
+		const onDidUpdateConfiguration = filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowProviders'));
+		onDidUpdateConfiguration(this.onDidChangeRepositories, this, this.disposables);
+
 		this.onDidChangeRepositories();
 	}
 
@@ -847,7 +1092,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	private onDidChangeRepositories(): void {
 		toggleClass(this.el, 'empty', this.scmService.repositories.length === 0);
 
-		const shouldMainPanelBeVisible = this.scmService.repositories.length > 1;
+		const shouldMainPanelAlwaysBeVisible = this.configurationService.getValue('scm.alwaysShowProviders');
+		const shouldMainPanelBeVisible = shouldMainPanelAlwaysBeVisible || this.scmService.repositories.length > 1;
 
 		if (!!this.mainPanel === shouldMainPanelBeVisible) {
 			return;
@@ -870,6 +1116,12 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			this.mainPanelDisposable = EmptyDisposable;
 			this.mainPanel = null;
 		}
+	}
+
+	setVisible(visible: boolean): TPromise<void> {
+		const result = super.setVisible(visible);
+		this._onDidChangeVisibility.fire(visible);
+		return result;
 	}
 
 	getOptimalWidth(): number {
@@ -933,10 +1185,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	}
 
 	private onSelectionChange(repositories: ISCMRepository[]): void {
-		// Remove unselected panels
-		this.repositoryPanels
-			.filter(p => repositories.every(r => p.repository !== r))
-			.forEach(panel => this.removePanel(panel));
+		// Collect unselected panels
+		const panelsToRemove = this.repositoryPanels
+			.filter(p => repositories.every(r => p.repository !== r));
 
 		// Collect panels still selected
 		const repositoryPanels = this.repositoryPanels
@@ -954,9 +1205,12 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			panel.repository.focus();
 		});
 
+		// Remove unselected panels
+		panelsToRemove.forEach(panel => this.removePanel(panel));
+
 		// Resize all panels equally
 		const height = typeof this.height === 'number' ? this.height : 1000;
-		const mainPanelHeight = this.mainPanel ? this.mainPanel.minimumSize : 0;
+		const mainPanelHeight = this.getPanelSize(this.mainPanel);
 		const size = (height - mainPanelHeight) / repositories.length;
 
 		for (const panel of this.repositoryPanels) {

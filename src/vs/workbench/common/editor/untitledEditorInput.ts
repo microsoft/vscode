@@ -22,6 +22,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Verbosity } from 'vs/platform/editor/common/editor';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -48,7 +49,8 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IHashService private hashService: IHashService
 	) {
 		super();
 
@@ -178,7 +180,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return this.hasAssociatedFilePath;
 	}
 
-	public confirmSave(): ConfirmResult {
+	public confirmSave(): TPromise<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 
@@ -252,7 +254,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	public getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
-		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource(), path => this.hashService.createSHA1(path));
 
 		/* __GDPR__FRAGMENT__
 			"EditorTelemetryDescriptor" : {

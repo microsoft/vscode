@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
@@ -66,7 +66,6 @@ export class BoundModelReferenceCollection {
 export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private _modelService: IModelService;
-	private _modeService: IModeService;
 	private _textModelResolverService: ITextModelService;
 	private _textFileService: ITextFileService;
 	private _fileService: IFileService;
@@ -89,13 +88,12 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 	) {
 		this._modelService = modelService;
-		this._modeService = modeService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
 		this._fileService = fileService;
 		this._untitledEditorService = untitledEditorService;
 
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocuments);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
 		this._modelIsSynced = {};
 
 		this._toDispose = [];
@@ -170,12 +168,12 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	// --- from extension host process
 
-	$trySaveDocument(uri: URI): TPromise<boolean> {
-		return this._textFileService.save(uri);
+	$trySaveDocument(uri: UriComponents): TPromise<boolean> {
+		return this._textFileService.save(URI.revive(uri));
 	}
 
-	$tryOpenDocument(uri: URI): TPromise<any> {
-
+	$tryOpenDocument(_uri: UriComponents): TPromise<any> {
+		const uri = URI.revive(_uri);
 		if (!uri.scheme || !(uri.fsPath || uri.authority)) {
 			return TPromise.wrapError(new Error(`Invalid uri. Scheme and authority or path must be set.`));
 		}

@@ -136,17 +136,22 @@ export class WorkbenchMessageService implements IMessageService {
 		}
 	}
 
-	public confirmSync(confirmation: IConfirmation): boolean {
+	public confirm(confirmation: IConfirmation): TPromise<boolean> {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
 		}
 
-		return window.confirm(messageText);
+		return TPromise.wrap(window.confirm(messageText));
 	}
 
-	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		return TPromise.as({ confirmed: this.confirmSync(confirmation) } as IConfirmationResult);
+	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		return this.confirm(confirmation).then(confirmed => {
+			return {
+				confirmed,
+				checkboxChecked: false // unsupported
+			} as IConfirmationResult;
+		});
 	}
 
 	public dispose(): void {

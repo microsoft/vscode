@@ -34,7 +34,10 @@ export class TelemetryAppenderClient implements ITelemetryAppender {
 	constructor(private channel: ITelemetryAppenderChannel) { }
 
 	log(eventName: string, data?: any): any {
-		return this.channel.call('log', { eventName, data });
+		this.channel.call('log', { eventName, data })
+			.done(null, err => `Failed to log telemetry: ${console.warn(err)}`);
+
+		return TPromise.as(null);
 	}
 
 	dispose(): any {

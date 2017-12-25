@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, ProviderResult, Range } from 'vscode';
+import { Position, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, Range } from 'vscode';
 
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -36,10 +36,14 @@ const directives: Directive[] = [
 
 export default class DirectiveCommentCompletionProvider implements CompletionItemProvider {
 	constructor(
-		private client: ITypescriptServiceClient,
+		private client: ITypeScriptServiceClient,
 	) { }
 
-	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<CompletionItem[]> {
+	public provideCompletionItems(
+		document: TextDocument,
+		position: Position,
+		_token: CancellationToken
+	): CompletionItem[] {
 		if (!this.client.apiVersion.has230Features()) {
 			return [];
 		}
@@ -63,7 +67,10 @@ export default class DirectiveCommentCompletionProvider implements CompletionIte
 		return [];
 	}
 
-	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken) {
+	public resolveCompletionItem(
+		item: CompletionItem,
+		_token: CancellationToken
+	) {
 		return item;
 	}
 }

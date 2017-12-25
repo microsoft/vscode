@@ -6,7 +6,7 @@
 {
 	"termEntryAriaLabel": "{0}，终端选取器",
 	"termCreateEntryAriaLabel": "{0}，新建终端",
-	"'workbench.action.terminal.newplus": "$(plus) 新建集成终端",
+	"workbench.action.terminal.newplus": "$(plus) 新建集成终端",
 	"noTerminalsMatching": "没有匹配的终端",
 	"noTerminalsFound": "没有打开终端"
 }

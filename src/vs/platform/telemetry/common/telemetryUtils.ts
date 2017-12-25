@@ -11,17 +11,16 @@ import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
-import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
-export const NullTelemetryService = {
-	_serviceBrand: undefined,
+export const NullTelemetryService = new class implements ITelemetryService {
+	_serviceBrand: undefined;
 	publicLog(eventName: string, data?: ITelemetryData) {
-		return TPromise.as<void>(null);
-	},
-	isOptedIn: true,
+		return TPromise.wrap<void>(null);
+	}
+	isOptedIn: true;
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.as({
+		return TPromise.wrap({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
@@ -39,33 +38,6 @@ export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetry
 
 export const NullAppender: ITelemetryAppender = { log: () => null };
 
-// --- util
-
-export function anonymize(input: string): string {
-	if (!input) {
-		return input;
-	}
-
-	let r = '';
-	for (let i = 0; i < input.length; i++) {
-		let ch = input[i];
-		if (ch >= '0' && ch <= '9') {
-			r += '0';
-			continue;
-		}
-		if (ch >= 'a' && ch <= 'z') {
-			r += 'a';
-			continue;
-		}
-		if (ch >= 'A' && ch <= 'Z') {
-			r += 'A';
-			continue;
-		}
-		r += ch;
-	}
-	return r;
-}
-
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {
 		"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -79,9 +51,9 @@ export interface URIDescriptor {
 	path?: string;
 }
 
-export function telemetryURIDescriptor(uri: URI): URIDescriptor {
+export function telemetryURIDescriptor(uri: URI, hashPath: (path: string) => string): URIDescriptor {
 	const fsPath = uri && uri.fsPath;
-	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath), path: anonymize(fsPath) } : {};
+	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath), path: hashPath(fsPath) } : {};
 }
 
 /**
@@ -162,7 +134,6 @@ const configurationValueWhitelist = [
 	'workbench.sideBar.location',
 	'window.openFilesInNewWindow',
 	'javascript.validate.enable',
-	'window.reopenFolders',
 	'window.restoreWindows',
 	'extensions.autoUpdate',
 	'files.eol',
@@ -185,7 +156,7 @@ const configurationValueWhitelist = [
 ];
 
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
-	return configurationService.onDidUpdateConfiguration(event => {
+	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
 			/* __GDPR__
 				"updateConfiguration" : {
@@ -208,17 +179,6 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
 			});
 		}
-	});
-}
-
-export function lifecycleTelemetry(telemetryService: ITelemetryService, lifecycleService: ILifecycleService): IDisposable {
-	return lifecycleService.onShutdown(event => {
-		/* __GDPR__
-			"shutdown" : {
-				"reason" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		telemetryService.publicLog('shutdown', { reason: ShutdownReason[event] });
 	});
 }
 

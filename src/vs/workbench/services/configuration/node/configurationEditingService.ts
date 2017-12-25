@@ -24,7 +24,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationOverrides, keyFromOverrideIdentifier, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -48,6 +48,11 @@ export enum ConfigurationEditingErrorCode {
 	 * Error when trying to write to user target but not supported for provided key.
 	 */
 	ERROR_INVALID_USER_TARGET,
+
+	/**
+	 * Error when trying to write to user target but not supported for provided key.
+	 */
+	ERROR_INVALID_WORKSPACE_TARGET,
 
 	/**
 	 * Error when trying to write a configuration key to folder target
@@ -104,11 +109,6 @@ interface IConfigurationEditOperation extends IConfigurationValue {
 
 }
 
-interface IValidationResult {
-	error?: ConfigurationEditingErrorCode;
-	exists?: boolean;
-}
-
 interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
 	force?: boolean;
 }
@@ -156,7 +156,7 @@ export class ConfigurationEditingService {
 
 	private writeToBuffer(model: editorCommon.IModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
 		const edit = this.getEdits(model, operation)[0];
-		if (this.applyEditsToBuffer(edit, model) && save) {
+		if (edit && this.applyEditsToBuffer(edit, model) && save) {
 			return this.textFileService.save(operation.resource, { skipSaveParticipants: true /* programmatic change */ });
 		}
 		return TPromise.as(null);
@@ -281,6 +281,7 @@ export class ConfigurationEditingService {
 			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to {0} because {1} is not a registered configuration.", this.stringifyTarget(target), operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION: return nls.localize('errorInvalidFolderConfiguration', "Unable to write to Folder Settings because {0} does not support the folder resource scope.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET: return nls.localize('errorInvalidUserTarget', "Unable to write to User Settings because {0} does not support for global scope.", operation.key);
+			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET: return nls.localize('errorInvalidWorkspaceTarget', "Unable to write to Workspace Settings because {0} does not support for workspace scope in a multi folder workspace.", operation.key);
 			case ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_TARGET: return nls.localize('errorInvalidFolderTarget', "Unable to write to Folder Settings because no resource is provided.");
 			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorNoWorkspaceOpened', "Unable to write to {0} because no workspace is opened. Please open a workspace first and try again.", this.stringifyTarget(target));
 
@@ -302,7 +303,7 @@ export class ConfigurationEditingService {
 						return nls.localize('errorInvalidConfigurationFolder', "Unable to write into folder settings. Please open **Folder Settings** file under **{0}** folder to correct errors/warnings in it and try again.", workspaceFolderName);
 				}
 				return '';
-			};
+			}
 			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY: {
 				if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
 					return nls.localize('errorTasksConfigurationFileDirty', "Unable to write into tasks file because the file is dirty. Please save the **Tasks Configuration** file and try again.");
@@ -320,7 +321,7 @@ export class ConfigurationEditingService {
 						return nls.localize('errorConfigurationFileDirtyFolder', "Unable to write into folder settings because the file is dirty. Please save the **Folder Settings** file under **{0}** folder and try again.", workspaceFolderName);
 				}
 				return '';
-			};
+			}
 		}
 	}
 
@@ -346,7 +347,7 @@ export class ConfigurationEditingService {
 			const content = JSON.stringify(value, null, insertSpaces ? strings.repeat(' ', tabSize) : '\t');
 			return [{
 				content,
-				length: content.length,
+				length: model.getValue().length,
 				offset: 0
 			}];
 		}
@@ -383,9 +384,16 @@ export class ConfigurationEditingService {
 			}
 		}
 
-		// Target cannot be user if is standalone
-		if (operation.workspaceStandAloneConfigurationKey && target === ConfigurationTarget.USER) {
-			return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET, target, operation);
+		if (operation.workspaceStandAloneConfigurationKey) {
+			// Global tasks and launches are not supported
+			if (target === ConfigurationTarget.USER) {
+				return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET, target, operation);
+			}
+
+			// Workspace tasks and launches are not supported
+			if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && operation.target === ConfigurationTarget.WORKSPACE) {
+				return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET, target, operation);
+			}
 		}
 
 		// Target cannot be workspace or folder if no workspace opened
@@ -454,7 +462,7 @@ export class ConfigurationEditingService {
 			return { key, jsonPath, value: config.value, resource: URI.file(this.environmentService.appSettingsPath), target };
 		}
 
-		const resource = this.getConfigurationFileResource(target, WORKSPACE_CONFIG_DEFAULT_PATH, overrides.resource);
+		const resource = this.getConfigurationFileResource(target, FOLDER_SETTINGS_PATH, overrides.resource);
 		if (workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath) {
 			jsonPath = ['settings', ...jsonPath];
 		}

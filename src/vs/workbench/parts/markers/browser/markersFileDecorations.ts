@@ -17,6 +17,7 @@ import Severity from 'vs/base/common/severity';
 import { editorErrorForeground, editorWarningForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 class MarkersDecorationsProvider implements IDecorationsProvider {
 
@@ -44,8 +45,9 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 
 		return {
 			weight: 100 * first.severity,
-			title: markers.length === 1 ? localize('tooltip.1', "1 problem in this file") : localize('tooltip.N', "{0} problems in this file", markers.length),
-			letter: markers.length.toString(),
+			bubble: true,
+			tooltip: markers.length === 1 ? localize('tooltip.1', "1 problem in this file") : localize('tooltip.N', "{0} problems in this file", markers.length),
+			letter: markers.length < 10 ? markers.length.toString() : '+9',
 			color: first.severity === Severity.Error ? editorErrorForeground : editorWarningForeground,
 		};
 	}
@@ -64,7 +66,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	) {
 		//
 		this._disposables = [
-			this._configurationService.onDidUpdateConfiguration(this._updateEnablement, this),
+			this._configurationService.onDidChangeConfiguration(this._updateEnablement, this),
 		];
 		this._updateEnablement();
 	}
@@ -74,12 +76,8 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 		dispose(this._disposables);
 	}
 
-	getId(): string {
-		return 'markers.MarkersFileDecorations';
-	}
-
 	private _updateEnablement(): void {
-		let value = this._configurationService.getConfiguration<{ decorations: { enabled: boolean } }>('problems');
+		let value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
 		if (value.decorations.enabled === this._enabled) {
 			return;
 		}
@@ -94,7 +92,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MarkersFileDecorations);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MarkersFileDecorations, LifecyclePhase.Running);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'id': 'problems',

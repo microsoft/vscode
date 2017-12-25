@@ -6,6 +6,8 @@
 {
 	"entryAriaLabel": "{0}, Debugging",
 	"debugAriaLabel": "Geben Sie den Namen einer auszuführenden Startkonfiguration ein.",
+	"addConfigTo": "Konfiguration hinzufügen ({0})...",
+	"addConfiguration": "Konfiguration hinzufügen...",
 	"noConfigurationsMatching": "Keine übereinstimmenden Debugkonfigurationen",
 	"noConfigurationsFound": "Keine Debugkonfiguration gefunden. Erstellen Sie die Datei \"launch.json\"."
 }

@@ -11,8 +11,8 @@
   ],
   "main": "./out/javascriptMain",
   "dependencies": {
-    "jsonc-parser": "^0.3.1",
-    "request-light": "^0.2.0",
+    "jsonc-parser": "^1.0.0",
+    "request-light": "^0.2.2",
     "vscode-nls": "^2.0.2"
   },
   "scripts": {
@@ -95,7 +95,7 @@
       },
       {
         "language": "javascriptreact",
-        "path": "./snippets/javascriptreact.json"
+        "path": "./snippets/javascript.json"
       }
     ],
     "jsonValidation": [
@@ -113,6 +113,10 @@
       },
       {
         "fileMatch": ".babelrc",
+        "url": "http://json.schemastore.org/babelrc"
+      },
+      {
+        "fileMatch": ".babelrc.json",
         "url": "http://json.schemastore.org/babelrc"
       },
       {

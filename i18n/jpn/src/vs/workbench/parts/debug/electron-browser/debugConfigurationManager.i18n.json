@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.debuggers.initialConfigurations": "初期 'launch.json' を生成するための構成。",
 	"vscode.extension.contributes.debuggers.languages": "デバッグ拡張機能が \"既定のデバッガー\" とされる言語の一覧。",
 	"vscode.extension.contributes.debuggers.adapterExecutableCommand": "指定されている場合、VS Code はこのコマンドを呼び出し、デバッグ アダプターの実行可能パスと、渡す引数を決定します。",
-	"vscode.extension.contributes.debuggers.startSessionCommand": "VS Code が指定されている場合、この拡張機能を対象とする \"デバッグ\" または \"実行\" アクションにこのコマンドが呼び出されます。",
 	"vscode.extension.contributes.debuggers.configurationSnippets": "'launch.json' に新しい構成を追加するためのスニペット。",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "'launch.json' を検証するための JSON スキーマ構成。",
 	"vscode.extension.contributes.debuggers.windows": "Windows 固有の設定。",

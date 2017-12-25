@@ -14,11 +14,10 @@ export class ExtHostLanguages {
 	constructor(
 		mainContext: IMainContext
 	) {
-		this._proxy = mainContext.get(MainContext.MainThreadLanguages);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguages);
 	}
 
 	getLanguages(): TPromise<string[]> {
 		return this._proxy.$getLanguages();
 	}
 }
-

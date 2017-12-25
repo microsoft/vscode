@@ -3,10 +3,6 @@
 . ./scripts/env.sh
 . ./build/tfs/common/common.sh
 
-(cd $BUILD_SOURCESDIRECTORY/build/tfs/common && \
-	step "Install build dependencies" \
-	npm i)
-
 REPO=`pwd`
 ZIP=$REPO/../VSCode-darwin-selfsigned.zip
 UNSIGNEDZIP=$REPO/../VSCode-darwin-unsigned.zip

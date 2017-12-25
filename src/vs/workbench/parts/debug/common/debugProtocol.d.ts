@@ -251,8 +251,8 @@ declare module DebugProtocol {
 		cwd: string;
 		/** List of arguments. The first argument is the command to run. */
 		args: string[];
-		/** Environment key-value pairs that are added to the default environment. */
-		env?: { [key: string]: string; };
+		/** Environment key-value pairs that are added to or removed from the default environment. */
+		env?: { [key: string]: string | null; };
 	}
 
 	/** Response to Initialize request. */
@@ -1275,7 +1275,18 @@ declare module DebugProtocol {
 	/** Optional properties of a variable that can be used to determine how to render the variable in the UI. */
 	export interface VariablePresentationHint {
 		/** The kind of variable. Before introducing additional values, try to use the listed values.
-			Values: 'property', 'method', 'class', 'data', 'event', 'baseClass', 'innerClass', 'interface', 'mostDerivedClass', etc.
+			Values:
+			'property': Indicates that the object is a property.
+			'method': Indicates that the object is a method.
+			'class': Indicates that the object is a class.
+			'data': Indicates that the object is data.
+			'event': Indicates that the object is an event.
+			'baseClass': Indicates that the object is a base class.
+			'innerClass': Indicates that the object is an inner class.
+			'interface': Indicates that the object is an interface.
+			'mostDerivedClass': Indicates that the object is the most derived class.
+			'virtual': Indicates that the object is virtual, that means it is a synthetic object introduced by the adapter for rendering purposes, e.g. an index range for large arrays.
+			etc.
 		*/
 		kind?: string;
 		/** Set of attributes represented as an array of strings. Before introducing additional values, try to use the listed values.

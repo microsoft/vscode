@@ -135,11 +135,11 @@
 		"c": "getInitialState",
 		"t": "source.js.jsx meta.var.expr.js.jsx meta.objectliteral.js.jsx meta.object.member.js.jsx meta.object-literal.key.js.jsx entity.name.function.js.jsx",
 		"r": {
-			"dark_plus": "meta.object-literal.key entity.name.function: #9CDCFE",
-			"light_plus": "meta.object-literal.key entity.name.function: #001080",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.object-literal.key entity.name.function: #9CDCFE"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
@@ -399,11 +399,11 @@
 		"c": "toggle",
 		"t": "source.js.jsx meta.var.expr.js.jsx meta.objectliteral.js.jsx meta.object.member.js.jsx meta.object-literal.key.js.jsx entity.name.function.js.jsx",
 		"r": {
-			"dark_plus": "meta.object-literal.key entity.name.function: #9CDCFE",
-			"light_plus": "meta.object-literal.key entity.name.function: #001080",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.object-literal.key entity.name.function: #9CDCFE"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
@@ -927,11 +927,11 @@
 		"c": "render",
 		"t": "source.js.jsx meta.var.expr.js.jsx meta.objectliteral.js.jsx meta.object.member.js.jsx meta.object-literal.key.js.jsx entity.name.function.js.jsx",
 		"r": {
-			"dark_plus": "meta.object-literal.key entity.name.function: #9CDCFE",
-			"light_plus": "meta.object-literal.key entity.name.function: #001080",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.object-literal.key entity.name.function: #9CDCFE"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{

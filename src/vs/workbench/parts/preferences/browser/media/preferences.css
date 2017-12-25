@@ -22,42 +22,83 @@
 	position: relative;
 }
 
-.settings-targets-widget {
-	flex-wrap: wrap;
-	margin: 4px 0 4px 18px;
-	display: flex;
-	border-radius: 4px;
-	padding: 0 8px;
-	cursor: pointer;
+.preferences-editor > .preferences-editors-container.side-by-side-preferences-editor .preferences-header-container {
+	line-height: 28px;
 }
 
-.settings-targets-widget > .settings-target {
-	font-size: 11px;
-	padding: 2px 4px 0 0;
-	white-space: nowrap;
+.settings-tabs-widget > .monaco-action-bar .action-item.disabled {
+	display: none;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item {
+	max-width: 300px;
 	overflow: hidden;
-	flex: 1;
-	display: flex;
+	text-overflow: ellipsis;
 }
 
-.settings-targets-widget > .settings-target > .settings-target-label {
+.default-preferences-editor-container > .preferences-header-container > .default-preferences-header,
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: uppercase;
+	font-size: 11px;
+	margin-left: 33px;
+	margin-right: 5px;
+	cursor: pointer;
+	display: flex;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
-.settings-targets-widget > .settings-target > .settings-target-details {
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not([aria-haspopup]) {
+	display: block;
+}
+
+.settings-tabs-widget > .monaco-action-bar .actions-container {
+	justify-content: flex-start;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item {
+	padding: 3px 0px;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-title {
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-details {
+	text-transform: none;
 	margin-left: 0.5em;
 	font-size: 10px;
 	opacity: 0.7;
 }
 
-.settings-targets-widget > .settings-target > .settings-target-details.empty {
-	margin-left: 0;
+.settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
+	padding-left: 0.3em;
+	padding-top: 8px;
+	font-size: 12px;
 }
 
-.settings-targets-widget > .settings-target-dropdown-icon {
-	padding-left: 0.5em;
-	padding-top: 4px;
-	font-size: 12px;
+.settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon.hide {
+	display: none;
+}
+
+.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	color: #424242;
+	opacity: 0.75;
+}
+
+.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	color: #e7e7e7;
+	opacity: 0.5;
+}
+
+.hc-black .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	color: #fff;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item:hover .action-label,
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+	opacity: 1;
 }
 
 .preferences-header > .settings-header-widget {
@@ -73,16 +114,35 @@
 	padding-right: 32px;
 }
 
-.settings-header-widget > .settings-count-widget {
+.settings-header-widget > .settings-search-controls > .settings-count-widget {
 	margin: 6px 0px;
 	padding: 0px 8px;
-	position: absolute;
-	right: 10px;
 	border-radius: 2px;
+	float: left;
 }
 
-.settings-header-widget > .settings-count-widget.hide {
+.settings-header-widget > .settings-search-controls {
+	position: absolute;
+	right: 10px;
+}
+
+.settings-header-widget > .settings-search-controls > .settings-count-widget.hide {
 	display: none;
+}
+
+.settings-header-widget > .settings-search-controls > .prefs-natural-language-search-toggle {
+	margin: 5px 3px 5px 0px;
+}
+
+.settings-header-widget > .settings-search-controls > .prefs-natural-language-search-toggle.hidden {
+	display: none;
+}
+
+.settings-header-widget > .settings-search-controls > .prefs-natural-language-search-toggle > .octicon {
+	text-align: center;
+	vertical-align: top;
+	font-size: 16px;
+	width: 100%;
 }
 
 .settings-header-widget > .settings-search-container {
@@ -106,8 +166,13 @@
 	padding-left:10px;
 }
 
+.monaco-editor .view-zones > .settings-header-widget {
+	z-index: 1;
+}
+
 .monaco-editor .settings-header-widget .title-container {
 	display: flex;
+	user-select: none;
 }
 
 .vs .monaco-editor .settings-header-widget .title-container {
@@ -128,6 +193,16 @@
 
 .monaco-editor .settings-header-widget .title-container .message {
 	white-space: nowrap;
+}
+
+.monaco-editor .settings-header-widget .title-container .settings-header-natural-language-link {
+	margin-left: 4px;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.monaco-editor .settings-header-widget .title-container .settings-header-natural-language-link.hidden {
+	display: none;
 }
 
 .monaco-editor .settings-group-title-widget {

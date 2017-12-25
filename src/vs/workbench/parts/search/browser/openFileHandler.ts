@@ -12,6 +12,7 @@ import labels = require('vs/base/common/labels');
 import * as objects from 'vs/base/common/objects';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import URI from 'vs/base/common/uri';
+import * as resources from 'vs/base/common/resources';
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
@@ -27,7 +28,7 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
@@ -87,15 +88,15 @@ export class FileEntry extends EditorQuickOpenEntry {
 		this.range = range;
 	}
 
-	public isFile(): boolean {
-		return true; // TODO@Ben debt with editor history merging
+	public mergeWithEditorHistory(): boolean {
+		return true;
 	}
 
 	public getInput(): IResourceInput | EditorInput {
 		const input: IResourceInput = {
 			resource: this.resource,
 			options: {
-				pinned: !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+				pinned: !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
 			}
 		};
 
@@ -122,7 +123,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
@@ -142,6 +142,9 @@ export class OpenFileHandler extends QuickOpenHandler {
 			return TPromise.as(new FileQuickOpenModel([]));
 		}
 
+		// Untildify file pattern
+		searchValue = labels.untildify(searchValue, this.environmentService.userHome);
+
 		// Do find results
 		return this.doFindResults(searchValue, this.cacheState.cacheKey, maxSortedResults);
 	}
@@ -150,8 +153,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		const query: IQueryOptions = {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: searchValue,
-			cacheKey: cacheKey,
-			disregardIgnoreFiles: !this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault,
+			cacheKey: cacheKey
 		};
 
 		if (typeof maxSortedResults === 'number') {
@@ -171,7 +173,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				const fileMatch = complete.results[i];
 
 				const label = paths.basename(fileMatch.resource.fsPath);
-				const description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService, this.environmentService);
+				const description = labels.getPathLabel(resources.dirname(fileMatch.resource), this.contextService, this.environmentService);
 
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}
@@ -194,7 +196,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: '',
 			cacheKey: cacheKey,
-			disregardIgnoreFiles: !this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault,
 			maxResults: 0,
 			sortByScore: true,
 		};

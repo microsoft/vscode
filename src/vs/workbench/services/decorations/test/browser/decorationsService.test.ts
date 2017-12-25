@@ -36,7 +36,7 @@ suite('DecorationsService', function () {
 				return new Promise<IDecorationData>(resolve => {
 					setTimeout(() => resolve({
 						color: 'someBlue',
-						title: 'T'
+						tooltip: 'T'
 					}));
 				});
 			}
@@ -51,7 +51,7 @@ suite('DecorationsService', function () {
 			assert.equal(e.affectsResource(uri), true);
 
 			// sync result
-			assert.deepEqual(service.getDecoration(uri, false).title, 'T');
+			assert.deepEqual(service.getDecoration(uri, false).tooltip, 'T');
 			assert.equal(callCounter, 1);
 		});
 	});
@@ -66,12 +66,12 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { color: 'someBlue', title: 'Z' };
+				return { color: 'someBlue', tooltip: 'Z' };
 			}
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getDecoration(uri, false).title, 'Z');
+		assert.deepEqual(service.getDecoration(uri, false).tooltip, 'Z');
 		assert.equal(callCounter, 1);
 	});
 
@@ -84,12 +84,12 @@ suite('DecorationsService', function () {
 			readonly onDidChange: Event<URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { color: 'someBlue', title: 'J' };
+				return { color: 'someBlue', tooltip: 'J' };
 			}
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getDecoration(uri, false).title, 'J');
+		assert.deepEqual(service.getDecoration(uri, false).tooltip, 'J');
 		assert.equal(callCounter, 1);
 
 		// un-register -> ensure good event
@@ -102,5 +102,70 @@ suite('DecorationsService', function () {
 		});
 		reg.dispose();
 		assert.equal(didSeeEvent, true);
+	});
+
+	test('No default bubbling', function () {
+
+		let reg = service.registerDecorationsProvider({
+			label: 'Test',
+			onDidChange: Event.None,
+			provideDecorations(uri: URI) {
+				return uri.path.match(/\.txt/)
+					? { tooltip: '.txt', weight: 17 }
+					: undefined;
+			}
+		});
+
+		let childUri = URI.parse('file:///some/path/some/file.txt');
+
+		let deco = service.getDecoration(childUri, false);
+		assert.equal(deco.tooltip, '.txt');
+
+		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
+		assert.equal(deco, undefined);
+		reg.dispose();
+
+		// bubble
+		reg = service.registerDecorationsProvider({
+			label: 'Test',
+			onDidChange: Event.None,
+			provideDecorations(uri: URI) {
+				return uri.path.match(/\.txt/)
+					? { tooltip: '.txt.bubble', weight: 71, bubble: true }
+					: undefined;
+			}
+		});
+
+		deco = service.getDecoration(childUri, false);
+		assert.equal(deco.tooltip, '.txt.bubble');
+
+		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
+		assert.equal(typeof deco.tooltip, 'string');
+	});
+
+	test('Overwrite data', function () {
+
+		let someUri = URI.parse('file:///some/path/some/file.txt');
+		let deco = service.getDecoration(someUri, false);
+		assert.equal(deco, undefined);
+
+		deco = service.getDecoration(someUri, false, { tooltip: 'Overwrite' });
+		assert.equal(deco.tooltip, 'Overwrite');
+
+		let reg = service.registerDecorationsProvider({
+			label: 'Test',
+			onDidChange: Event.None,
+			provideDecorations(uri: URI) {
+				return { tooltip: 'FromMe', source: 'foo' };
+			}
+		});
+
+		deco = service.getDecoration(someUri, false);
+		assert.equal(deco.tooltip, 'FromMe');
+
+		deco = service.getDecoration(someUri, false, { source: 'foo', tooltip: 'O' });
+		assert.equal(deco.tooltip, 'O');
+
+		reg.dispose();
 	});
 });

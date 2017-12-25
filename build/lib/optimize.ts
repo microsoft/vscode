@@ -285,8 +285,7 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 			return stream.pipe(minify({
 				output: {
 					comments: preserveComments(<FileWithCopyright>f),
-					// linux tfs build agent is crashing, does this help?§
-					max_line_len: 3200000
+					max_line_len: 1024
 				}
 			}));
 		}));

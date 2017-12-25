@@ -20,9 +20,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IResourceDecorationChangeEvent, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
-import { FileKind } from 'vs/platform/files/common/files';
+import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -34,7 +34,7 @@ export interface IResourceLabel {
 
 export interface IResourceLabelOptions extends IIconLabelOptions {
 	fileKind?: FileKind;
-	fileDecorations?: { colors: boolean, badges: boolean };
+	fileDecorations?: { colors: boolean, badges: boolean, data?: IDecorationData };
 }
 
 export class ResourceLabel extends IconLabel {
@@ -64,11 +64,25 @@ export class ResourceLabel extends IconLabel {
 	}
 
 	private registerListeners(): void {
-		this.extensionService.onReady().then(() => this.render(true /* clear cache */)); // update when extensions are loaded with potentially new languages
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render(true /* clear cache */))); // update when file.associations change
-		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e))); // react to model mode changes
-		this.toDispose.push(this.decorationsService.onDidChangeDecorations(this.onFileDecorationsChanges, this)); // react to file decoration changes
+
+		// update when extensions are registered with potentially new languages
+		this.toDispose.push(this.extensionService.onDidRegisterExtensions(() => this.render(true /* clear cache */)));
+
+		// react to model mode changes
+		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e)));
+
+		// react to file decoration changes
+		this.toDispose.push(this.decorationsService.onDidChangeDecorations(this.onFileDecorationsChanges, this));
+
+		// react to theme changes
 		this.toDispose.push(this.themeService.onThemeChange(() => this.render(false)));
+
+		// react to files.associations changes
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
+				this.render(true /* clear cache */);
+			}
+		}));
 	}
 
 	private onModelModeChanged(e: { model: IModel; oldModeId: string; }): void {
@@ -95,6 +109,7 @@ export class ResourceLabel extends IconLabel {
 		if (!this.options || !this.label || !this.label.resource) {
 			return;
 		}
+
 		if (this.options.fileDecorations && e.affectsResource(this.label.resource)) {
 			this.render(false);
 		}
@@ -164,12 +179,11 @@ export class ResourceLabel extends IconLabel {
 		};
 
 		const resource = this.label.resource;
-		let label = this.label.name;
-
+		const label = this.label.name;
 
 		if (this.options && typeof this.options.title === 'string') {
 			iconLabelOptions.title = this.options.title;
-		} else if (resource) {
+		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			iconLabelOptions.title = getPathLabel(resource, void 0, this.environmentService);
 		}
 
@@ -182,19 +196,23 @@ export class ResourceLabel extends IconLabel {
 			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
 		}
 
-		if (this.options && this.options.fileDecorations) {
+		if (this.options && this.options.fileDecorations && resource) {
 			let deco = this.decorationsService.getDecoration(
 				resource,
-				this.options.fileKind !== FileKind.FILE
+				this.options.fileKind !== FileKind.FILE,
+				this.options.fileDecorations.data
 			);
-			if (deco && this.options.fileDecorations.colors) {
-				iconLabelOptions.extraClasses.push(deco.labelClassName);
-			}
-			if (deco && deco.badgeClassName && this.options.fileDecorations.badges) {
-				iconLabelOptions.badge = {
-					title: deco.title,
-					className: deco.badgeClassName,
-				};
+
+			if (deco) {
+				if (deco.tooltip) {
+					iconLabelOptions.title = `${iconLabelOptions.title} • ${deco.tooltip}`;
+				}
+				if (this.options.fileDecorations.colors) {
+					iconLabelOptions.extraClasses.push(deco.labelClassName);
+				}
+				if (this.options.fileDecorations.badges) {
+					iconLabelOptions.extraClasses.push(deco.badgeClassName);
+				}
 			}
 		}
 
@@ -288,7 +306,6 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 	// we always set these base classes even if we do not have a path
 	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
 
-
 	if (resource) {
 		const name = cssEscape(resources.basenameOrAuthority(resource).toLowerCase());
 
@@ -318,6 +335,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			}
 		}
 	}
+
 	return classes;
 }
 

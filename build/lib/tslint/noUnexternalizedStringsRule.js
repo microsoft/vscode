@@ -88,10 +88,11 @@ var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
         var info = this.findDescribingParent(node);
         // Ignore strings in import and export nodes.
         if (info && info.isImport && doubleQuoted) {
-            this.addFailureAtNode(node, NoUnexternalizedStringsRuleWalker.ImportFailureMessage, new Lint.Fix(NoUnexternalizedStringsRuleWalker.ImportFailureMessage, [
-                this.createReplacement(node.getStart(), 1, '\''),
-                this.createReplacement(node.getStart() + text.length - 1, 1, '\''),
-            ]));
+            var fix = [
+                Lint.Replacement.replaceFromTo(node.getStart(), 1, '\''),
+                Lint.Replacement.replaceFromTo(node.getStart() + text.length - 1, 1, '\''),
+            ];
+            this.addFailureAtNode(node, NoUnexternalizedStringsRuleWalker.ImportFailureMessage, fix);
             return;
         }
         var callInfo = info ? info.callInfo : null;
@@ -101,8 +102,9 @@ var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
         }
         if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
             var s = node.getText();
-            var replacement = new Lint.Replacement(node.getStart(), node.getWidth(), "nls.localize('KEY-" + s.substring(1, s.length - 1) + "', " + s + ")");
-            var fix = new Lint.Fix('Unexternalitzed string', [replacement]);
+            var fix = [
+                Lint.Replacement.replaceFromTo(node.getStart(), node.getWidth(), "nls.localize('KEY-" + s.substring(1, s.length - 1) + "', " + s + ")"),
+            ];
             this.addFailure(this.createFailure(node.getStart(), node.getWidth(), "Unexternalized string found: " + node.getText(), fix));
             return;
         }
@@ -134,16 +136,24 @@ var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
                 }
             }
         }
-        var messageArg = callInfo.argIndex === this.messageIndex
-            ? callInfo.callExpression.arguments[this.messageIndex]
-            : null;
-        if (messageArg && messageArg !== node) {
+        var messageArg = callInfo.callExpression.arguments[this.messageIndex];
+        if (messageArg && messageArg.kind !== ts.SyntaxKind.StringLiteral) {
             this.addFailure(this.createFailure(messageArg.getStart(), messageArg.getWidth(), "Message argument to '" + callInfo.callExpression.expression.getText() + "' must be a string literal."));
             return;
         }
     };
     NoUnexternalizedStringsRuleWalker.prototype.recordKey = function (keyNode, messageNode) {
         var text = keyNode.getText();
+        // We have an empty key
+        if (text.match(/(['"]) *\1/)) {
+            if (messageNode) {
+                this.addFailureAtNode(keyNode, "Key is empty for message: " + messageNode.getText());
+            }
+            else {
+                this.addFailureAtNode(keyNode, "Key is empty.");
+            }
+            return;
+        }
         var occurrences = this.usedKeys[text];
         if (!occurrences) {
             occurrences = [];
@@ -176,7 +186,7 @@ var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
             node = parent;
         }
     };
-    NoUnexternalizedStringsRuleWalker.ImportFailureMessage = 'Do not use double qoutes for imports.';
+    NoUnexternalizedStringsRuleWalker.ImportFailureMessage = 'Do not use double quotes for imports.';
     NoUnexternalizedStringsRuleWalker.DOUBLE_QUOTE = '"';
     return NoUnexternalizedStringsRuleWalker;
 }(Lint.RuleWalker));

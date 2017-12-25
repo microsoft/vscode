@@ -17,7 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class FileWatcher {
-	private static MAX_RESTARTS = 5;
+	private static readonly MAX_RESTARTS = 5;
 
 	private service: WatcherChannelClient;
 	private isDisposed: boolean;
@@ -83,7 +83,11 @@ export class FileWatcher {
 		// Start watching
 		this.updateFolders();
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateFolders()));
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.updateFolders()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('files.watcherExclude')) {
+				this.updateFolders();
+			}
+		}));
 
 		return () => this.dispose();
 	}
@@ -95,7 +99,7 @@ export class FileWatcher {
 
 		this.service.setRoots(this.contextService.getWorkspace().folders.map(folder => {
 			// Fetch the root's watcherExclude setting and return it
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>({
+			const configuration = this.configurationService.getValue<IFilesConfiguration>({
 				resource: folder.uri
 			});
 			let ignored: string[] = [];

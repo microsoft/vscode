@@ -11,11 +11,10 @@ import { Action } from 'vs/base/common/actions';
 import { firstIndex } from 'vs/base/common/arrays';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
-import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IColorTheme, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -25,17 +24,17 @@ import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platfo
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 
 export class SelectColorThemeAction extends Action {
 
-	static ID = 'workbench.action.selectTheme';
+	static readonly ID = 'workbench.action.selectTheme';
 	static LABEL = localize('selectTheme.label', "Color Theme");
 
 	constructor(
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IMessageService private messageService: IMessageService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IViewletService private viewletService: IViewletService,
@@ -48,14 +47,15 @@ export class SelectColorThemeAction extends Action {
 		return this.themeService.getColorThemes().then(themes => {
 			const currentTheme = this.themeService.getColorTheme();
 
-			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'category:themes', localize('installColorThemes', "Install Additional Color Themes..."));
-
-			const picks: IPickOpenEntry[] = themes
-				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
-				.sort((t1, t2) => t1.label.localeCompare(t2.label));
+			const picks: IPickOpenEntry[] = [].concat(
+				toEntries(themes.filter(t => t.type === LIGHT), localize('themes.category.light', "light themes")),
+				toEntries(themes.filter(t => t.type === DARK), localize('themes.category.dark', "dark themes"), true),
+				toEntries(themes.filter(t => t.type === HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes"), true),
+				configurationEntries(this.extensionGalleryService, this.viewletService, 'category:themes', localize('installColorThemes', "Install Additional Color Themes..."))
+			);
 
 			const selectTheme = (theme, applyTheme: boolean) => {
-				if (theme === pickInMarketPlace) {
+				if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
 					theme = currentTheme;
 				}
 				let target = null;
@@ -75,10 +75,6 @@ export class SelectColorThemeAction extends Action {
 			const autoFocusIndex = firstIndex(picks, p => p.id === currentTheme.id);
 			const delayer = new Delayer<void>(100);
 
-			if (this.extensionGalleryService.isEnabled()) {
-				picks.push(pickInMarketPlace);
-			}
-
 			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex } })
 				.then(
 				theme => delayer.trigger(() => selectTheme(theme || currentTheme, true), 0),
@@ -91,14 +87,13 @@ export class SelectColorThemeAction extends Action {
 
 class SelectIconThemeAction extends Action {
 
-	static ID = 'workbench.action.selectIconTheme';
+	static readonly ID = 'workbench.action.selectIconTheme';
 	static LABEL = localize('selectIconTheme.label', "File Icon Theme");
 
 	constructor(
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IMessageService private messageService: IMessageService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IViewletService private viewletService: IViewletService,
@@ -112,16 +107,14 @@ class SelectIconThemeAction extends Action {
 		return this.themeService.getFileIconThemes().then(themes => {
 			const currentTheme = this.themeService.getFileIconTheme();
 
-			const pickInMarketPlace = findInMarketplacePick(this.viewletService, 'tag:icon-theme', localize('installIconThemes', "Install Additional File Icon Themes..."));
-
-			const picks: IPickOpenEntry[] = themes
-				.map(theme => ({ id: theme.id, label: theme.label, description: theme.description }))
-				.sort((t1, t2) => t1.label.localeCompare(t2.label));
-
-			picks.splice(0, 0, { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') });
+			let picks: IPickOpenEntry[] = [{ id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') }];
+			picks = picks.concat(
+				toEntries(themes),
+				configurationEntries(this.extensionGalleryService, this.viewletService, 'tag:icon-theme', localize('installIconThemes', "Install Additional File Icon Themes..."))
+			);
 
 			const selectTheme = (theme, applyTheme: boolean) => {
-				if (theme === pickInMarketPlace) {
+				if (typeof theme.id === 'undefined') { // 'pick in marketplace' entry
 					theme = currentTheme;
 				}
 				let target = null;
@@ -131,7 +124,6 @@ class SelectIconThemeAction extends Action {
 				}
 				this.themeService.setFileIconTheme(theme && theme.id, target).done(null,
 					err => {
-						this.messageService.show(Severity.Info, localize('problemChangingIconTheme', "Problem setting icon theme: {0}", err.message));
 						this.themeService.setFileIconTheme(currentTheme.id, null);
 					}
 				);
@@ -140,11 +132,6 @@ class SelectIconThemeAction extends Action {
 			const placeHolder = localize('themes.selectIconTheme', "Select File Icon Theme");
 			const autoFocusIndex = firstIndex(picks, p => p.id === currentTheme.id);
 			const delayer = new Delayer<void>(100);
-
-
-			if (this.extensionGalleryService.isEnabled()) {
-				picks.push(pickInMarketPlace);
-			}
 
 			return this.quickOpenService.pick(picks, { placeHolder, autoFocus: { autoFocusIndex } })
 				.then(
@@ -156,22 +143,35 @@ class SelectIconThemeAction extends Action {
 	}
 }
 
-function findInMarketplacePick(viewletService: IViewletService, query: string, label: string) {
-	return {
-		id: 'themes.findmore',
-		label: label,
-		separator: { border: true },
-		alwaysShow: true,
-		run: () => viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
-			(<IExtensionsViewlet>viewlet).search(query);
-			viewlet.focus();
-		})
-	};
+function configurationEntries(extensionGalleryService: IExtensionGalleryService, viewletService: IViewletService, query: string, label: string): IPickOpenEntry[] {
+	if (extensionGalleryService.isEnabled()) {
+		return [{
+			id: void 0,
+			label: label,
+			separator: { border: true },
+			alwaysShow: true,
+			run: () => viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
+				(<IExtensionsViewlet>viewlet).search(query);
+				viewlet.focus();
+			})
+		}];
+	}
+	return [];
+}
+
+function toEntries(themes: (IColorTheme | IFileIconTheme)[], label?: string, border = false) {
+	const toEntry = theme => <IPickOpenEntry>{ id: theme.id, label: theme.label, description: theme.description };
+	const sorter = (t1: IColorTheme, t2: IColorTheme) => t1.label.localeCompare(t2.label);
+	let entries = themes.map(toEntry).sort(sorter);
+	if (entries.length > 0 && (label || border)) {
+		entries[0].separator = { label, border };
+	}
+	return entries;
 }
 
 class GenerateColorThemeAction extends Action {
 
-	static ID = 'workbench.action.generateColorTheme';
+	static readonly ID = 'workbench.action.generateColorTheme';
 	static LABEL = localize('generateColorTheme.label', "Generate Color Theme From Current Settings");
 
 	constructor(
@@ -198,7 +198,7 @@ class GenerateColorThemeAction extends Action {
 			colors: resultingColors,
 			tokenColors: theme.tokenColors
 		}, null, '\t');
-		return this.editorService.openEditor({ contents, language: 'json' });
+		return this.editorService.openEditor({ contents, language: 'jsonc' });
 	}
 }
 

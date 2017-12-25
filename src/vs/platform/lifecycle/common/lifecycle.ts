@@ -47,8 +47,9 @@ export enum StartupKind {
 
 export enum LifecyclePhase {
 	Starting = 1,
-	Running = 2,
-	ShuttingDown = 3
+	Restoring = 2,
+	Running = 3,
+	Eventually = 4
 }
 
 /**
@@ -70,9 +71,10 @@ export interface ILifecycleService {
 	readonly phase: LifecyclePhase;
 
 	/**
-	 * An event that fire when the lifecycle phase has changed
+	 * Returns a promise that resolves when a certain lifecycle phase
+	 * has started.
 	 */
-	readonly onDidChangePhase: Event<LifecyclePhase>;
+	when(phase: LifecyclePhase): Thenable<void>;
 
 	/**
 	 * Fired before shutdown happens. Allows listeners to veto against the
@@ -92,8 +94,8 @@ export interface ILifecycleService {
 export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
 	phase: LifecyclePhase.Running,
+	when() { return Promise.resolve(); },
 	startupKind: StartupKind.NewWindow,
-	onDidChangePhase: Event.None,
 	onWillShutdown: Event.None,
 	onShutdown: Event.None
 };

@@ -12,12 +12,9 @@ import { readdir, rimraf, stat } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/node/product';
 
-declare type OnNodeCachedDataArgs = [{ errorCode: string, path: string, detail?: string }, { path: string, length: number }];
-declare const MonacoEnvironment: { onNodeCachedData: OnNodeCachedDataArgs[] };
-
 export class NodeCachedDataCleaner {
 
-	private static _DataMaxAge = product.nameLong.indexOf('Insiders') >= 0
+	private static readonly _DataMaxAge = product.nameLong.indexOf('Insiders') >= 0
 		? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
 		: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 

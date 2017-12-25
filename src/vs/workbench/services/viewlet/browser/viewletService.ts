@@ -25,8 +25,8 @@ export class ViewletService implements IViewletService {
 	private extensionViewletsLoaded: TPromise<void>;
 	private extensionViewletsLoadedPromiseComplete: ValueCallback;
 
-	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; };
-	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; };
+	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; }
+	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; }
 
 	constructor(
 		sidebarPart: SidebarPart,
@@ -45,7 +45,7 @@ export class ViewletService implements IViewletService {
 			this.extensionViewletsLoadedPromiseComplete = c;
 		});
 
-		this.extensionService.onReady().then(() => {
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			const viewlets = this.viewletRegistry.getViewlets();
 			viewlets.forEach(v => {
 				if (!!v.extensionId) {

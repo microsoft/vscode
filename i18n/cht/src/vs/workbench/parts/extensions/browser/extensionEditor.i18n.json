@@ -6,9 +6,11 @@
 {
 	"name": "延伸模組名稱",
 	"extension id": "延伸模組識別碼",
+	"preview": "預覽",
 	"publisher": "發行者名稱",
 	"install count": "安裝計數",
 	"rating": "評等",
+	"repository": "儲存庫",
 	"license": "授權",
 	"details": "詳細資料",
 	"contributions": "貢獻",

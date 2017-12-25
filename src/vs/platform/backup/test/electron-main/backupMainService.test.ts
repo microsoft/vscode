@@ -19,23 +19,22 @@ import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainSe
 import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { LogMainService } from 'vs/platform/log/common/log';
+import { ConsoleLogMainService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createHash } from 'crypto';
-import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 
 suite('BackupMainService', () => {
-	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
+	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupservice');
 	const backupHome = path.join(parentDir, 'Backups');
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
 
 	const environmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
-	const logService = new LogMainService(environmentService);
 
 	class TestBackupMainService extends BackupMainService {
 
 		constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
-			super(environmentService, configService, new LogMainService(environmentService), new WorkspacesMainService(environmentService, logService));
+			super(environmentService, configService, new ConsoleLogMainService(environmentService));
 
 			this.backupHome = backupHome;
 			this.workspacesJsonPath = backupWorkspacesPath;
@@ -364,7 +363,8 @@ suite('BackupMainService', () => {
 			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 		});
 
-		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array', () => {
+		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array', function () {
+			this.timeout(5000);
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{}}');
 			service.loadSync();
 			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);

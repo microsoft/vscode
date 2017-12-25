@@ -8,17 +8,15 @@ import nls = require('vs/nls');
 import { IMessageService, IChoiceService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
-import { TPromise as Promise } from 'vs/base/common/winjs.base';
 import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IMessageService private readonly _messageService: IMessageService,
 		@IChoiceService private readonly _choiceService: IChoiceService
 	) {

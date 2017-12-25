@@ -13,7 +13,6 @@ export class ViewLocation {
 	static readonly Explorer = new ViewLocation('explorer');
 	static readonly Debug = new ViewLocation('debug');
 	static readonly Extensions = new ViewLocation('extensions');
-	static readonly SCM = new ViewLocation('scm');
 
 	constructor(private _id: string) {
 	}
@@ -46,7 +45,9 @@ export interface IViewDescriptor {
 
 	readonly order?: number;
 
-	readonly size?: number;
+	readonly weight?: number;
+
+	readonly collapsed?: boolean;
 
 	readonly canToggleVisibility?: boolean;
 }
@@ -73,7 +74,7 @@ export interface IViewsRegistry {
 
 }
 
-export const ViewsRegistry: IViewsRegistry = new class {
+export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry {
 
 	private _onViewsRegistered: Emitter<IViewDescriptor[]> = new Emitter<IViewDescriptor[]>();
 	readonly onViewsRegistered: Event<IViewDescriptor[]> = this._onViewsRegistered.event;
@@ -120,7 +121,7 @@ export const ViewsRegistry: IViewsRegistry = new class {
 		this._onViewsDeregistered.fire(viewsToDeregister);
 	}
 
-	registerTreeViewDataProvider<T>(id: string, factory: ITreeViewDataProvider) {
+	registerTreeViewDataProvider(id: string, factory: ITreeViewDataProvider) {
 		if (!this.isDataProviderRegistered(id)) {
 			// TODO: throw error
 		}

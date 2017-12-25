@@ -12,6 +12,8 @@ import * as flow from 'vs/base/node/flow';
 
 import * as fs from 'fs';
 import * as paths from 'path';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { nfcall } from 'vs/base/common/async';
 
 const loop = flow.loop;
 
@@ -41,80 +43,72 @@ export function readdir(path: string, callback: (error: Error, files: string[]) 
 	return fs.readdir(path, callback);
 }
 
-export function mkdirp(path: string, mode: number, callback: (error: Error) => void): void {
-	fs.exists(path, exists => {
-		if (exists) {
-			return isDirectory(path, (err: Error, itIs?: boolean) => {
-				if (err) {
-					return callback(err);
-				}
-
-				if (!itIs) {
-					return callback(new Error('"' + path + '" is not a directory.'));
-				}
-
-				callback(null);
-			});
-		}
-
-		mkdirp(paths.dirname(path), mode, (err: Error) => {
-			if (err) { callback(err); return; }
-
-			if (mode) {
-				fs.mkdir(path, mode, error => {
-					if (error) {
-						return callback(error);
-					}
-
-					fs.chmod(path, mode, callback); // we need to explicitly chmod because of https://github.com/nodejs/node/issues/1104
-				});
-			} else {
-				fs.mkdir(path, null, callback);
-			}
-		});
-	});
-}
-
-function isDirectory(path: string, callback: (error: Error, isDirectory?: boolean) => void): void {
-	fs.stat(path, (error, stat) => {
-		if (error) { return callback(error); }
-
-		callback(null, stat.isDirectory());
-	});
-}
-
 export function copy(source: string, target: string, callback: (error: Error) => void, copiedSources?: { [path: string]: boolean }): void {
 	if (!copiedSources) {
 		copiedSources = Object.create(null);
 	}
 
 	fs.stat(source, (error, stat) => {
-		if (error) { return callback(error); }
-		if (!stat.isDirectory()) { return pipeFs(source, target, stat.mode & 511, callback); }
+		if (error) {
+			return callback(error);
+		}
+
+		if (!stat.isDirectory()) {
+			return pipeFs(source, target, stat.mode & 511, callback);
+		}
 
 		if (copiedSources[source]) {
 			return callback(null); // escape when there are cycles (can happen with symlinks)
-		} else {
-			copiedSources[source] = true; // remember as copied
 		}
 
-		mkdirp(target, stat.mode & 511, err => {
+		copiedSources[source] = true; // remember as copied
+
+		const proceed = function () {
 			readdir(source, (err, files) => {
 				loop(files, (file: string, clb: (error: Error, result: string[]) => void) => {
 					copy(paths.join(source, file), paths.join(target, file), (error: Error) => clb(error, void 0), copiedSources);
 				}, callback);
 			});
+		};
+
+		mkdirp(target, stat.mode & 511).done(proceed, proceed);
+	});
+}
+
+export function mkdirp(path: string, mode?: number): TPromise<boolean> {
+	const mkdir = () => nfcall(fs.mkdir, path, mode)
+		.then(null, (err: NodeJS.ErrnoException) => {
+			if (err.code === 'EEXIST') {
+				return nfcall(fs.stat, path)
+					.then((stat: fs.Stats) => stat.isDirectory
+						? null
+						: TPromise.wrapError(new Error(`'${path}' exists and is not a directory.`)));
+			}
+
+			return TPromise.wrapError<boolean>(err);
 		});
+
+	// is root?
+	if (path === paths.dirname(path)) {
+		return TPromise.as(true);
+	}
+
+	return mkdir().then(null, (err: NodeJS.ErrnoException) => {
+		if (err.code === 'ENOENT') {
+			return mkdirp(paths.dirname(path), mode).then(mkdir);
+		}
+
+		return TPromise.wrapError<boolean>(err);
 	});
 }
 
 function pipeFs(source: string, target: string, mode: number, callback: (error: Error) => void): void {
 	let callbackHandled = false;
 
-	let readStream = fs.createReadStream(source);
-	let writeStream = fs.createWriteStream(target, { mode: mode });
+	const readStream = fs.createReadStream(source);
+	const writeStream = fs.createWriteStream(target, { mode: mode });
 
-	let onError = (error: Error) => {
+	const onError = (error: Error) => {
 		if (!callbackHandled) {
 			callbackHandled = true;
 			callback(error);
@@ -163,7 +157,7 @@ export function del(path: string, tmpFolder: string, callback: (error: Error) =>
 				return rmRecursive(path, callback);
 			}
 
-			let pathInTemp = paths.join(tmpFolder, uuid.generateUuid());
+			const pathInTemp = paths.join(tmpFolder, uuid.generateUuid());
 			fs.rename(path, pathInTemp, (error: Error) => {
 				if (error) {
 					return rmRecursive(path, callback); // if rename fails, delete without tmp dir
@@ -200,7 +194,7 @@ function rmRecursive(path: string, callback: (error: Error) => void): void {
 				if (err || !stat) {
 					callback(err);
 				} else if (!stat.isDirectory() || stat.isSymbolicLink() /* !!! never recurse into links when deleting !!! */) {
-					let mode = stat.mode;
+					const mode = stat.mode;
 					if (!(mode & 128)) { // 128 === 0200
 						fs.chmod(path, mode | 128, (err: Error) => { // 128 === 0200
 							if (err) {
@@ -333,12 +327,10 @@ export function mv(source: string, target: string, callback: (error: Error) => v
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
 let canFlush = true;
 export function writeFileAndFlush(path: string, data: string | NodeBuffer, options: { mode?: number; flag?: string; }, callback: (error: Error) => void): void {
+	options = ensureOptions(options);
+
 	if (!canFlush) {
 		return fs.writeFile(path, data, options, callback);
-	}
-
-	if (!options) {
-		options = { mode: 0o666, flag: 'w' };
 	}
 
 	// Open the file with same flags and mode as fs.writeFile()
@@ -369,6 +361,51 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer, optio
 	});
 }
 
+export function writeFileAndFlushSync(path: string, data: string | NodeBuffer, options?: { mode?: number; flag?: string; }): void {
+	options = ensureOptions(options);
+
+	if (!canFlush) {
+		return fs.writeFileSync(path, data, options);
+	}
+
+	// Open the file with same flags and mode as fs.writeFile()
+	const fd = fs.openSync(path, options.flag, options.mode);
+
+	try {
+
+		// It is valid to pass a fd handle to fs.writeFile() and this will keep the handle open!
+		fs.writeFileSync(fd, data);
+
+		// Flush contents (not metadata) of the file to disk
+		try {
+			fs.fdatasyncSync(fd);
+		} catch (syncError) {
+			console.warn('[node.js fs] fdatasyncSync is now disabled for this session because it failed: ', syncError);
+			canFlush = false;
+		}
+	} finally {
+		fs.closeSync(fd);
+	}
+}
+
+function ensureOptions(options?: { mode?: number; flag?: string; }): { mode: number, flag: string } {
+	if (!options) {
+		return { mode: 0o666, flag: 'w' };
+	}
+
+	const ensuredOptions = { mode: options.mode, flag: options.flag };
+
+	if (typeof ensuredOptions.mode !== 'number') {
+		ensuredOptions.mode = 0o666;
+	}
+
+	if (typeof ensuredOptions.flag !== 'string') {
+		ensuredOptions.flag = 'w';
+	}
+
+	return ensuredOptions;
+}
+
 /**
  * Copied from: https://github.com/Microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
  *
@@ -384,7 +421,7 @@ export function realcaseSync(path: string): string {
 		return path;
 	}
 
-	const name = paths.basename(path).toLowerCase();
+	const name = (paths.basename(path) /* can be '' for windows drive letters */ || path).toLowerCase();
 	try {
 		const entries = readdirSync(dir);
 		const found = entries.filter(e => e.toLowerCase() === name);	// use a case insensitive search
@@ -454,11 +491,14 @@ function normalizePath(path: string): string {
 export function watch(path: string, onChange: (type: string, path: string) => void): fs.FSWatcher {
 	const watcher = fs.watch(path);
 	watcher.on('change', (type, raw) => {
-		let file = raw.toString();
-		if (platform.isMacintosh) {
-			// Mac: uses NFD unicode form on disk, but we want NFC
-			// See also https://github.com/nodejs/node/issues/2165
-			file = strings.normalizeNFC(file);
+		let file: string = null;
+		if (raw) { // https://github.com/Microsoft/vscode/issues/38191
+			file = raw.toString();
+			if (platform.isMacintosh) {
+				// Mac: uses NFD unicode form on disk, but we want NFC
+				// See also https://github.com/nodejs/node/issues/2165
+				file = strings.normalizeNFC(file);
+			}
 		}
 
 		onChange(type, file);

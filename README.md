@@ -30,6 +30,7 @@ please see the document [How to Contribute](https://github.com/Microsoft/vscode/
 * [The development workflow, including debugging and running tests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#development-workflow)
 * [Coding Guidelines](https://github.com/Microsoft/vscode/wiki/Coding-Guidelines)
 * [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
+* [Contributing to translations](https://aka.ms/vscodeloc)
 
 Please see also our [Code of Conduct](CODE_OF_CONDUCT.md).
 

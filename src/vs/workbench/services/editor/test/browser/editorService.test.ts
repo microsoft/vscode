@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import { Position, Direction, IEditor } from 'vs/platform/editor/common/editor';
+import { Position, Direction, IEditor, IEditorInput } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
@@ -19,26 +19,25 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
-let activeEditor: BaseEditor = <any>{
+let activeEditor: BaseEditor = {
 	getSelection: function () {
 		return 'test.selection';
 	}
-};
+} as any;
 
-let openedEditorInput;
-let openedEditorOptions;
-let openedEditorPosition;
+let openedEditorInput: EditorInput;
+let openedEditorOptions: EditorOptions;
 
-function toResource(path) {
+function toResource(path: string) {
 	return URI.from({ scheme: 'custom', path });
 }
 
-function toFileResource(path) {
-	return URI.file(paths.join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
+function toFileResource(self: any, path: string) {
+	return URI.file(paths.join('C:\\', new Buffer(self.test.fullTitle()).toString('base64'), path));
 }
 
 class TestEditorPart implements IEditorPart {
-	private activeInput;
+	private activeInput: EditorInput;
 
 	public getId(): string {
 		return null;
@@ -69,7 +68,6 @@ class TestEditorPart implements IEditorPart {
 	public openEditor(input?: EditorInput, options?: EditorOptions, arg?: any): TPromise<BaseEditor> {
 		openedEditorInput = input;
 		openedEditorOptions = options;
-		openedEditorPosition = arg;
 
 		return TPromise.as(activeEditor);
 	}
@@ -96,7 +94,7 @@ suite('WorkbenchEditorService', () => {
 	test('basics', function () {
 		let instantiationService = workbenchInstantiationService();
 
-		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toFileResource.call(this, '/something.js'), void 0);
+		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toFileResource(this, '/something.js'), void 0);
 
 		let testEditorPart = new TestEditorPart();
 		testEditorPart.setActiveEditorInput(activeInput);
@@ -123,12 +121,12 @@ suite('WorkbenchEditorService', () => {
 		});
 
 		// Open Untyped Input (file)
-		service.openEditor({ resource: toFileResource.call(this, '/index.html'), options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
+		service.openEditor({ resource: toFileResource(this, '/index.html'), options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
 			assert.strictEqual(editor, activeEditor);
 
 			assert(openedEditorInput instanceof FileEditorInput);
 			let contentInput = <FileEditorInput>openedEditorInput;
-			assert.strictEqual(contentInput.getResource().fsPath, toFileResource.call(this, '/index.html').fsPath);
+			assert.strictEqual(contentInput.getResource().fsPath, toFileResource(this, '/index.html').fsPath);
 
 			assert(openedEditorOptions instanceof TextEditorOptions);
 			let textEditorOptions = <TextEditorOptions>openedEditorOptions;
@@ -136,7 +134,7 @@ suite('WorkbenchEditorService', () => {
 		});
 
 		// Open Untyped Input (file, encoding)
-		service.openEditor({ resource: toFileResource.call(this, '/index.html'), encoding: 'utf16le', options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
+		service.openEditor({ resource: toFileResource(this, '/index.html'), encoding: 'utf16le', options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
 			assert.strictEqual(editor, activeEditor);
 
 			assert(openedEditorInput instanceof FileEditorInput);
@@ -181,18 +179,18 @@ suite('WorkbenchEditorService', () => {
 	test('caching', function () {
 		let instantiationService = workbenchInstantiationService();
 
-		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toFileResource.call(this, '/something.js'), void 0);
+		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toFileResource(this, '/something.js'), void 0);
 
 		let testEditorPart = new TestEditorPart();
 		testEditorPart.setActiveEditorInput(activeInput);
 		let service: WorkbenchEditorService = <any>instantiationService.createInstance(<any>WorkbenchEditorService, testEditorPart);
 
 		// Cached Input (Files)
-		const fileResource1 = toFileResource.call(this, '/foo/bar/cache1.js');
+		const fileResource1 = toFileResource(this, '/foo/bar/cache1.js');
 		const fileInput1 = service.createInput({ resource: fileResource1 });
 		assert.ok(fileInput1);
 
-		const fileResource2 = toFileResource.call(this, '/foo/bar/cache2.js');
+		const fileResource2 = toFileResource(this, '/foo/bar/cache2.js');
 		const fileInput2 = service.createInput({ resource: fileResource2 });
 		assert.ok(fileInput2);
 
@@ -234,7 +232,7 @@ suite('WorkbenchEditorService', () => {
 
 	test('delegate', function (done) {
 		let instantiationService = workbenchInstantiationService();
-		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toFileResource.call(this, '/something.js'), void 0);
+		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toFileResource(this, '/something.js'), void 0);
 
 		let testEditorPart = new TestEditorPart();
 		testEditorPart.setActiveEditorInput(activeInput);
@@ -262,7 +260,7 @@ suite('WorkbenchEditorService', () => {
 
 		let inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource'));
 		let delegate = instantiationService.createInstance(DelegatingWorkbenchEditorService);
-		delegate.setEditorOpenHandler((input, options?) => {
+		delegate.setEditorOpenHandler((input: IEditorInput, options?: EditorOptions) => {
 			assert.strictEqual(input, inp);
 
 			return TPromise.as(ed);

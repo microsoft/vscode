@@ -6,13 +6,13 @@
 'use strict';
 
 import 'vs/css!./button';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import DOM = require('vs/base/browser/dom');
 import { Builder, $ } from 'vs/base/browser/builder';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export interface IButtonOptions extends IButtonStyles {
 }
@@ -30,7 +30,7 @@ const defaultOptions: IButtonStyles = {
 	buttonForeground: Color.white
 };
 
-export class Button extends EventEmitter {
+export class Button {
 
 	private $el: Builder;
 	private options: IButtonOptions;
@@ -40,11 +40,12 @@ export class Button extends EventEmitter {
 	private buttonForeground: Color;
 	private buttonBorder: Color;
 
+	private _onDidClick = new Emitter<any>();
+	readonly onDidClick: Event<any> = this._onDidClick.event;
+
 	constructor(container: Builder, options?: IButtonOptions);
 	constructor(container: HTMLElement, options?: IButtonOptions);
 	constructor(container: any, options?: IButtonOptions) {
-		super();
-
 		this.options = options || Object.create(null);
 		mixin(this.options, defaultOptions, false);
 
@@ -64,14 +65,14 @@ export class Button extends EventEmitter {
 				return;
 			}
 
-			this.emit(DOM.EventType.CLICK, e);
+			this._onDidClick.fire(e);
 		});
 
-		this.$el.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+		this.$el.on(DOM.EventType.KEY_DOWN, (e) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = false;
 			if (this.enabled && event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				this.emit(DOM.EventType.CLICK, e);
+				this._onDidClick.fire(e);
 				eventHandled = true;
 			} else if (event.equals(KeyCode.Escape)) {
 				this.$el.domBlur();
@@ -83,7 +84,7 @@ export class Button extends EventEmitter {
 			}
 		});
 
-		this.$el.on(DOM.EventType.MOUSE_OVER, (e: MouseEvent) => {
+		this.$el.on(DOM.EventType.MOUSE_OVER, (e) => {
 			if (!this.$el.hasClass('disabled')) {
 				const hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
 				if (hoverBackground) {
@@ -92,7 +93,7 @@ export class Button extends EventEmitter {
 			}
 		});
 
-		this.$el.on(DOM.EventType.MOUSE_OUT, (e: MouseEvent) => {
+		this.$el.on(DOM.EventType.MOUSE_OUT, (e) => {
 			this.applyStyles(); // restore standard styles
 		});
 
@@ -166,6 +167,6 @@ export class Button extends EventEmitter {
 			this.$el = null;
 		}
 
-		super.dispose();
+		this._onDidClick.dispose();
 	}
 }

@@ -21,12 +21,11 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
-import { KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -38,20 +37,22 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as os from 'os';
 import { webFrame } from 'electron';
-import { getPathLabel } from 'vs/base/common/labels';
+import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { FileKind } from 'vs/platform/files/common/files';
+import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
+import { getEntries } from 'vs/base/common/performance';
+import { IEditor } from 'vs/platform/editor/common/editor';
 
 // --- actions
 
 export class CloseEditorAction extends Action {
 
-	public static ID = 'workbench.action.closeActiveEditor';
-	public static LABEL = nls.localize('closeActiveEditor', "Close Editor");
+	public static readonly ID = 'workbench.action.closeActiveEditor';
+	public static readonly LABEL = nls.localize('closeActiveEditor', "Close Editor");
 
 	constructor(
 		id: string,
@@ -73,8 +74,8 @@ export class CloseEditorAction extends Action {
 
 export class CloseCurrentWindowAction extends Action {
 
-	public static ID = 'workbench.action.closeWindow';
-	public static LABEL = nls.localize('closeWindow', "Close Window");
+	public static readonly ID = 'workbench.action.closeWindow';
+	public static readonly LABEL = nls.localize('closeWindow', "Close Window");
 
 	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
 		super(id, label);
@@ -89,7 +90,7 @@ export class CloseCurrentWindowAction extends Action {
 
 export class CloseWorkspaceAction extends Action {
 
-	static ID = 'workbench.action.closeFolder';
+	static readonly ID = 'workbench.action.closeFolder';
 	static LABEL = nls.localize('closeWorkspace', "Close Workspace");
 
 	constructor(
@@ -115,7 +116,7 @@ export class CloseWorkspaceAction extends Action {
 
 export class NewWindowAction extends Action {
 
-	static ID = 'workbench.action.newWindow';
+	static readonly ID = 'workbench.action.newWindow';
 	static LABEL = nls.localize('newWindow', "New Window");
 
 	constructor(
@@ -133,7 +134,7 @@ export class NewWindowAction extends Action {
 
 export class ToggleFullScreenAction extends Action {
 
-	static ID = 'workbench.action.toggleFullScreen';
+	static readonly ID = 'workbench.action.toggleFullScreen';
 	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
 
 	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
@@ -147,15 +148,14 @@ export class ToggleFullScreenAction extends Action {
 
 export class ToggleMenuBarAction extends Action {
 
-	static ID = 'workbench.action.toggleMenuBar';
+	static readonly ID = 'workbench.action.toggleMenuBar';
 	static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
-	private static menuBarVisibilityKey = 'window.menuBarVisibility';
+	private static readonly menuBarVisibilityKey = 'window.menuBarVisibility';
 
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
@@ -182,7 +182,7 @@ export class ToggleMenuBarAction extends Action {
 
 export class ToggleDevToolsAction extends Action {
 
-	static ID = 'workbench.action.toggleDevTools';
+	static readonly ID = 'workbench.action.toggleDevTools';
 	static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
 
 	constructor(id: string, label: string, @IWindowService private windowsService: IWindowService) {
@@ -195,7 +195,7 @@ export class ToggleDevToolsAction extends Action {
 }
 
 export abstract class BaseZoomAction extends Action {
-	private static SETTING_KEY = 'window.zoomLevel';
+	private static readonly SETTING_KEY = 'window.zoomLevel';
 
 	constructor(
 		id: string,
@@ -223,8 +223,8 @@ export abstract class BaseZoomAction extends Action {
 
 export class ZoomInAction extends BaseZoomAction {
 
-	public static ID = 'workbench.action.zoomIn';
-	public static LABEL = nls.localize('zoomIn', "Zoom In");
+	public static readonly ID = 'workbench.action.zoomIn';
+	public static readonly LABEL = nls.localize('zoomIn', "Zoom In");
 
 	constructor(
 		id: string,
@@ -243,8 +243,8 @@ export class ZoomInAction extends BaseZoomAction {
 
 export class ZoomOutAction extends BaseZoomAction {
 
-	public static ID = 'workbench.action.zoomOut';
-	public static LABEL = nls.localize('zoomOut', "Zoom Out");
+	public static readonly ID = 'workbench.action.zoomOut';
+	public static readonly LABEL = nls.localize('zoomOut', "Zoom Out");
 
 	constructor(
 		id: string,
@@ -263,8 +263,8 @@ export class ZoomOutAction extends BaseZoomAction {
 
 export class ZoomResetAction extends BaseZoomAction {
 
-	public static ID = 'workbench.action.zoomReset';
-	public static LABEL = nls.localize('zoomReset', "Reset Zoom");
+	public static readonly ID = 'workbench.action.zoomReset';
+	public static readonly LABEL = nls.localize('zoomReset', "Reset Zoom");
 
 	constructor(
 		id: string,
@@ -307,8 +307,8 @@ interface ILoaderEvent {
 
 export class ShowStartupPerformance extends Action {
 
-	public static ID = 'workbench.action.appPerf';
-	public static LABEL = nls.localize('appPerf', "Startup Performance");
+	public static readonly ID = 'workbench.action.appPerf';
+	public static readonly LABEL = nls.localize('appPerf', "Startup Performance");
 
 	constructor(
 		id: string,
@@ -340,11 +340,9 @@ export class ShowStartupPerformance extends Action {
 			console.log(`Empty Workspace: ${metrics.emptyWorkbench}`);
 
 			let nodeModuleLoadTime: number;
-			let nodeModuleLoadDetails: any[];
 			if (this.environmentService.performance) {
 				const nodeModuleTimes = this.analyzeNodeModulesLoadTimes();
 				nodeModuleLoadTime = nodeModuleTimes.duration;
-				nodeModuleLoadDetails = nodeModuleTimes.table;
 			}
 
 			(<any>console).table(this.getStartupMetricsTable(nodeModuleLoadTime));
@@ -361,7 +359,25 @@ export class ShowStartupPerformance extends Action {
 			(<any>console).groupEnd();
 
 			(<any>console).group('Extension Activation Stats');
-			(<any>console).table(this.extensionService.getExtensionsActivationTimes());
+			let extensionsActivationTimes: { [id: string]: ActivationTimes; } = {};
+			let extensionsStatus = this.extensionService.getExtensionsStatus();
+			for (let id in extensionsStatus) {
+				const status = extensionsStatus[id];
+				if (status.activationTimes) {
+					extensionsActivationTimes[id] = status.activationTimes;
+				}
+			}
+			(<any>console).table(extensionsActivationTimes);
+			(<any>console).groupEnd();
+
+			(<any>console).group('Raw Startup Timers (CSV)');
+			let value = `Name\tStart\tDuration\n`;
+			const entries = getEntries('measure');
+			let offset = entries[0].startTime;
+			for (const entry of entries) {
+				value += `${entry.name}\t${entry.startTime - offset}\t${entry.duration}\n`;
+			}
+			console.log(value);
 			(<any>console).groupEnd();
 		}, 1000);
 
@@ -431,7 +447,7 @@ export class ShowStartupPerformance extends Action {
 	}
 
 	private analyzeLoaderStats(): { [type: string]: any[] } {
-		const stats = <ILoaderEvent[]>(<any>require).getStats().slice(0).sort((a, b) => {
+		const stats = <ILoaderEvent[]>(<any>require).getStats().slice(0).sort((a: ILoaderEvent, b: ILoaderEvent) => {
 			if (a.detail < b.detail) {
 				return -1;
 			} else if (a.detail > b.detail) {
@@ -541,7 +557,7 @@ export class ShowStartupPerformance extends Action {
 
 export class ReloadWindowAction extends Action {
 
-	static ID = 'workbench.action.reloadWindow';
+	static readonly ID = 'workbench.action.reloadWindow';
 	static LABEL = nls.localize('reloadWindow', "Reload Window");
 
 	constructor(
@@ -615,8 +631,8 @@ export abstract class BaseSwitchWindow extends Action {
 
 class CloseWindowAction extends Action implements IPickOpenAction {
 
-	public static ID = 'workbench.action.closeWindow';
-	public static LABEL = nls.localize('close', "Close Window");
+	public static readonly ID = 'workbench.action.closeWindow';
+	public static readonly LABEL = nls.localize('close', "Close Window");
 
 	constructor(
 		@IWindowsService private windowsService: IWindowsService
@@ -637,7 +653,7 @@ class CloseWindowAction extends Action implements IPickOpenAction {
 
 export class SwitchWindow extends BaseSwitchWindow {
 
-	static ID = 'workbench.action.switchWindow';
+	static readonly ID = 'workbench.action.switchWindow';
 	static LABEL = nls.localize('switchWindow', "Switch Window...");
 
 	constructor(
@@ -659,7 +675,7 @@ export class SwitchWindow extends BaseSwitchWindow {
 
 export class QuickSwitchWindow extends BaseSwitchWindow {
 
-	static ID = 'workbench.action.quickSwitchWindow';
+	static readonly ID = 'workbench.action.quickSwitchWindow';
 	static LABEL = nls.localize('quickSwitchWindow', "Quick Switch Window...");
 
 	constructor(
@@ -715,7 +731,7 @@ export abstract class BaseOpenRecentAction extends Action {
 			let description: string;
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				path = workspace;
-				label = paths.basename(path);
+				label = getBaseLabel(path);
 				description = getPathLabel(paths.dirname(path), null, environmentService);
 			} else {
 				path = workspace.configPath;
@@ -741,7 +757,7 @@ export abstract class BaseOpenRecentAction extends Action {
 		}
 
 		const runPick = (path: string, isFile: boolean, context: IEntryRunContext) => {
-			const forceNewWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+			const forceNewWindow = context.keymods.ctrlCmd;
 			this.windowsService.openWindow([path], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
@@ -769,8 +785,8 @@ export abstract class BaseOpenRecentAction extends Action {
 
 class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
 
-	public static ID = 'workbench.action.removeFromRecentlyOpened';
-	public static LABEL = nls.localize('remove', "Remove from Recently Opened");
+	public static readonly ID = 'workbench.action.removeFromRecentlyOpened';
+	public static readonly LABEL = nls.localize('remove', "Remove from Recently Opened");
 
 	constructor(
 		@IWindowsService private windowsService: IWindowsService
@@ -791,8 +807,8 @@ class RemoveFromRecentlyOpened extends Action implements IPickOpenAction {
 
 export class OpenRecentAction extends BaseOpenRecentAction {
 
-	public static ID = 'workbench.action.openRecent';
-	public static LABEL = nls.localize('openRecent', "Open Recent...");
+	public static readonly ID = 'workbench.action.openRecent';
+	public static readonly LABEL = nls.localize('openRecent', "Open Recent...");
 
 	constructor(
 		id: string,
@@ -815,8 +831,8 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 
 export class QuickOpenRecentAction extends BaseOpenRecentAction {
 
-	public static ID = 'workbench.action.quickOpenRecent';
-	public static LABEL = nls.localize('quickOpenRecent', "Quick Open Recent...");
+	public static readonly ID = 'workbench.action.quickOpenRecent';
+	public static readonly LABEL = nls.localize('quickOpenRecent', "Quick Open Recent...");
 
 	constructor(
 		id: string,
@@ -839,8 +855,8 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 
 export class CloseMessagesAction extends Action {
 
-	public static ID = 'workbench.action.closeMessages';
-	public static LABEL = nls.localize('closeMessages', "Close Notification Messages");
+	public static readonly ID = 'workbench.action.closeMessages';
+	public static readonly LABEL = nls.localize('closeMessages', "Close Notification Messages");
 
 	constructor(
 		id: string,
@@ -868,14 +884,15 @@ export class CloseMessagesAction extends Action {
 
 export class ReportIssueAction extends Action {
 
-	public static ID = 'workbench.action.reportIssues';
-	public static LABEL = nls.localize('reportIssues', "Report Issues");
+	public static readonly ID = 'workbench.action.reportIssues';
+	public static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 
 	constructor(
 		id: string,
 		label: string,
 		@IIntegrityService private integrityService: IIntegrityService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
@@ -895,6 +912,7 @@ export class ReportIssueAction extends Action {
 	public run(): TPromise<boolean> {
 		return this._optimisticIsPure().then(isPure => {
 			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+				extensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
 				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions, this.environmentService.disableExtensions);
 
 				window.open(issueUrl);
@@ -966,8 +984,8 @@ ${themeExclusionStr}
 
 export class ReportPerformanceIssueAction extends Action {
 
-	public static ID = 'workbench.action.reportPerformanceIssue';
-	public static LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
+	public static readonly ID = 'workbench.action.reportPerformanceIssue';
+	public static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
 
 	constructor(
 		id: string,
@@ -980,13 +998,13 @@ export class ReportPerformanceIssueAction extends Action {
 	}
 
 	public run(appendix?: string): TPromise<boolean> {
-		return this.integrityService.isPure().then(res => {
+		this.integrityService.isPure().then(res => {
 			const issueUrl = this.generatePerformanceIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, appendix);
 
 			window.open(issueUrl);
-
-			return TPromise.as(true);
 		});
+
+		return TPromise.wrap(true);
 	}
 
 	private generatePerformanceIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, appendix?: string): string {
@@ -1086,11 +1104,11 @@ ${appendix}`
 
 export class KeybindingsReferenceAction extends Action {
 
-	public static ID = 'workbench.action.keybindingsReference';
-	public static LABEL = nls.localize('keybindingsReference', "Keyboard Shortcuts Reference");
+	public static readonly ID = 'workbench.action.keybindingsReference';
+	public static readonly LABEL = nls.localize('keybindingsReference', "Keyboard Shortcuts Reference");
 
-	private static URL = isLinux ? product.keyboardShortcutsUrlLinux : isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
-	public static AVAILABLE = !!KeybindingsReferenceAction.URL;
+	private static readonly URL = isLinux ? product.keyboardShortcutsUrlLinux : isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
+	public static readonly AVAILABLE = !!KeybindingsReferenceAction.URL;
 
 	constructor(
 		id: string,
@@ -1107,11 +1125,11 @@ export class KeybindingsReferenceAction extends Action {
 
 export class OpenDocumentationUrlAction extends Action {
 
-	public static ID = 'workbench.action.openDocumentationUrl';
-	public static LABEL = nls.localize('openDocumentationUrl', "Documentation");
+	public static readonly ID = 'workbench.action.openDocumentationUrl';
+	public static readonly LABEL = nls.localize('openDocumentationUrl', "Documentation");
 
-	private static URL = product.documentationUrl;
-	public static AVAILABLE = !!OpenDocumentationUrlAction.URL;
+	private static readonly URL = product.documentationUrl;
+	public static readonly AVAILABLE = !!OpenDocumentationUrlAction.URL;
 
 	constructor(
 		id: string,
@@ -1128,11 +1146,11 @@ export class OpenDocumentationUrlAction extends Action {
 
 export class OpenIntroductoryVideosUrlAction extends Action {
 
-	public static ID = 'workbench.action.openIntroductoryVideosUrl';
-	public static LABEL = nls.localize('openIntroductoryVideosUrl', "Introductory Videos");
+	public static readonly ID = 'workbench.action.openIntroductoryVideosUrl';
+	public static readonly LABEL = nls.localize('openIntroductoryVideosUrl', "Introductory Videos");
 
-	private static URL = product.introductoryVideosUrl;
-	public static AVAILABLE = !!OpenIntroductoryVideosUrlAction.URL;
+	private static readonly URL = product.introductoryVideosUrl;
+	public static readonly AVAILABLE = !!OpenIntroductoryVideosUrlAction.URL;
 
 	constructor(
 		id: string,
@@ -1149,11 +1167,11 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 
 export class OpenTipsAndTricksUrlAction extends Action {
 
-	public static ID = 'workbench.action.openTipsAndTricksUrl';
-	public static LABEL = nls.localize('openTipsAndTricksUrl', "Tips and Tricks");
+	public static readonly ID = 'workbench.action.openTipsAndTricksUrl';
+	public static readonly LABEL = nls.localize('openTipsAndTricksUrl', "Tips and Tricks");
 
-	private static URL = product.tipsAndTricksUrl;
-	public static AVAILABLE = !!OpenTipsAndTricksUrlAction.URL;
+	private static readonly URL = product.tipsAndTricksUrl;
+	public static readonly AVAILABLE = !!OpenTipsAndTricksUrlAction.URL;
 
 	constructor(
 		id: string,
@@ -1170,7 +1188,7 @@ export class OpenTipsAndTricksUrlAction extends Action {
 
 export class ToggleSharedProcessAction extends Action {
 
-	static ID = 'workbench.action.toggleSharedProcess';
+	static readonly ID = 'workbench.action.toggleSharedProcess';
 	static LABEL = nls.localize('toggleSharedProcess', "Toggle Shared Process");
 
 	constructor(id: string, label: string, @IWindowsService private windowsService: IWindowsService) {
@@ -1294,8 +1312,8 @@ export abstract class BaseNavigationAction extends Action {
 
 export class NavigateLeftAction extends BaseNavigationAction {
 
-	public static ID = 'workbench.action.navigateLeft';
-	public static LABEL = nls.localize('navigateLeft', "Navigate to the View on the Left");
+	public static readonly ID = 'workbench.action.navigateLeft';
+	public static readonly LABEL = nls.localize('navigateLeft', "Navigate to the View on the Left");
 
 	constructor(
 		id: string,
@@ -1347,8 +1365,8 @@ export class NavigateLeftAction extends BaseNavigationAction {
 
 export class NavigateRightAction extends BaseNavigationAction {
 
-	public static ID = 'workbench.action.navigateRight';
-	public static LABEL = nls.localize('navigateRight', "Navigate to the View on the Right");
+	public static readonly ID = 'workbench.action.navigateRight';
+	public static readonly LABEL = nls.localize('navigateRight', "Navigate to the View on the Right");
 
 	constructor(
 		id: string,
@@ -1401,8 +1419,8 @@ export class NavigateRightAction extends BaseNavigationAction {
 
 export class NavigateUpAction extends BaseNavigationAction {
 
-	public static ID = 'workbench.action.navigateUp';
-	public static LABEL = nls.localize('navigateUp', "Navigate to the View Above");
+	public static readonly ID = 'workbench.action.navigateUp';
+	public static readonly LABEL = nls.localize('navigateUp', "Navigate to the View Above");
 
 	constructor(
 		id: string,
@@ -1432,8 +1450,8 @@ export class NavigateUpAction extends BaseNavigationAction {
 
 export class NavigateDownAction extends BaseNavigationAction {
 
-	public static ID = 'workbench.action.navigateDown';
-	public static LABEL = nls.localize('navigateDown', "Navigate to the View Below");
+	public static readonly ID = 'workbench.action.navigateDown';
+	public static readonly LABEL = nls.localize('navigateDown', "Navigate to the View Below");
 
 	constructor(
 		id: string,
@@ -1497,8 +1515,8 @@ export abstract class BaseResizeViewAction extends Action {
 
 export class IncreaseViewSizeAction extends BaseResizeViewAction {
 
-	public static ID = 'workbench.action.increaseViewSize';
-	public static LABEL = nls.localize('increaseViewSize', "Increase Current View Size");
+	public static readonly ID = 'workbench.action.increaseViewSize';
+	public static readonly LABEL = nls.localize('increaseViewSize', "Increase Current View Size");
 
 	constructor(
 		id: string,
@@ -1516,8 +1534,8 @@ export class IncreaseViewSizeAction extends BaseResizeViewAction {
 
 export class DecreaseViewSizeAction extends BaseResizeViewAction {
 
-	public static ID = 'workbench.action.decreaseViewSize';
-	public static LABEL = nls.localize('decreaseViewSize', "Decrease Current View Size");
+	public static readonly ID = 'workbench.action.decreaseViewSize';
+	public static readonly LABEL = nls.localize('decreaseViewSize', "Decrease Current View Size");
 
 	constructor(
 		id: string,
@@ -1536,8 +1554,8 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 
 export class ShowPreviousWindowTab extends Action {
 
-	public static ID = 'workbench.action.showPreviousWindowTab';
-	public static LABEL = nls.localize('showPreviousTab', "Show Previous Window Tab");
+	public static readonly ID = 'workbench.action.showPreviousWindowTab';
+	public static readonly LABEL = nls.localize('showPreviousTab', "Show Previous Window Tab");
 
 	constructor(
 		id: string,
@@ -1554,8 +1572,8 @@ export class ShowPreviousWindowTab extends Action {
 
 export class ShowNextWindowTab extends Action {
 
-	public static ID = 'workbench.action.showNextWindowTab';
-	public static LABEL = nls.localize('showNextWindowTab', "Show Next Window Tab");
+	public static readonly ID = 'workbench.action.showNextWindowTab';
+	public static readonly LABEL = nls.localize('showNextWindowTab', "Show Next Window Tab");
 
 	constructor(
 		id: string,
@@ -1572,8 +1590,8 @@ export class ShowNextWindowTab extends Action {
 
 export class MoveWindowTabToNewWindow extends Action {
 
-	public static ID = 'workbench.action.moveWindowTabToNewWindow';
-	public static LABEL = nls.localize('moveWindowTabToNewWindow', "Move Window Tab to New Window");
+	public static readonly ID = 'workbench.action.moveWindowTabToNewWindow';
+	public static readonly LABEL = nls.localize('moveWindowTabToNewWindow', "Move Window Tab to New Window");
 
 	constructor(
 		id: string,
@@ -1590,8 +1608,8 @@ export class MoveWindowTabToNewWindow extends Action {
 
 export class MergeAllWindowTabs extends Action {
 
-	public static ID = 'workbench.action.mergeAllWindowTabs';
-	public static LABEL = nls.localize('mergeAllWindowTabs', "Merge All Windows");
+	public static readonly ID = 'workbench.action.mergeAllWindowTabs';
+	public static readonly LABEL = nls.localize('mergeAllWindowTabs', "Merge All Windows");
 
 	constructor(
 		id: string,
@@ -1608,8 +1626,8 @@ export class MergeAllWindowTabs extends Action {
 
 export class ToggleWindowTabsBar extends Action {
 
-	public static ID = 'workbench.action.toggleWindowTabsBar';
-	public static LABEL = nls.localize('toggleWindowTabsBar', "Toggle Window Tabs Bar");
+	public static readonly ID = 'workbench.action.toggleWindowTabsBar';
+	public static readonly LABEL = nls.localize('toggleWindowTabsBar', "Toggle Window Tabs Bar");
 
 	constructor(
 		id: string,
@@ -1621,5 +1639,47 @@ export class ToggleWindowTabsBar extends Action {
 
 	public run(): TPromise<boolean> {
 		return this.windowsService.toggleWindowTabsBar().then(() => true);
+	}
+}
+
+export class ConfigureLocaleAction extends Action {
+	public static readonly ID = 'workbench.action.configureLocale';
+	public static readonly LABEL = nls.localize('configureLocale', "Configure Language");
+
+	private static DEFAULT_CONTENT: string = [
+		'{',
+		`\t// ${nls.localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
+		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
+		`\t// ${nls.localize('restart', 'Changing the value requires restarting VSCode.')}`,
+		`\t"locale":"${language}"`,
+		'}'
+	].join('\n');
+
+	constructor(id: string, label: string,
+		@IFileService private fileService: IFileService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<IEditor> {
+		const file = URI.file(paths.join(this.environmentService.appSettingsHome, 'locale.json'));
+		return this.fileService.resolveFile(file).then(null, (error) => {
+			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
+		}).then((stat) => {
+			if (!stat) {
+				return undefined;
+			}
+			return this.editorService.openEditor({
+				resource: stat.resource,
+				options: {
+					forceOpen: true
+				}
+			});
+		}, (error) => {
+			throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.contextService), error));
+		});
 	}
 }

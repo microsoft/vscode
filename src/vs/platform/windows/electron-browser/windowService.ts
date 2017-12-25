@@ -5,14 +5,13 @@
 
 'use strict';
 
-import Event, { filterEvent, mapEvent, any } from 'vs/base/common/event';
+import Event, { filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
-import { remote } from 'electron';
+import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
-import { isMacintosh } from 'vs/base/common/platform';
-import { normalizeNFC } from 'vs/base/common/strings';
+import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class WindowService implements IWindowService {
 
@@ -22,19 +21,27 @@ export class WindowService implements IWindowService {
 
 	constructor(
 		private windowId: number,
-		@IWindowsService private windowsService: IWindowsService
+		private configuration: IWindowConfiguration,
+		@IWindowsService private windowsService: IWindowsService,
+		@ILogService private logService: ILogService // TODO@Ben remove logging when no longer needed
 	) {
 		const onThisWindowFocus = mapEvent(filterEvent(windowsService.onWindowFocus, id => id === windowId), _ => true);
 		const onThisWindowBlur = mapEvent(filterEvent(windowsService.onWindowBlur, id => id === windowId), _ => false);
-		this.onDidChangeFocus = any(onThisWindowFocus, onThisWindowBlur);
+		this.onDidChangeFocus = anyEvent(onThisWindowFocus, onThisWindowBlur);
 	}
 
 	getCurrentWindowId(): number {
 		return this.windowId;
 	}
 
+	getConfiguration(): IWindowConfiguration {
+		return this.configuration;
+	}
+
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		options.windowId = this.windowId;
+
+		this.logService.info('pickFileFolderAndOpen: begin');
 
 		return this.windowsService.pickFileFolderAndOpen(options);
 	}
@@ -42,13 +49,25 @@ export class WindowService implements IWindowService {
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		options.windowId = this.windowId;
 
+		this.logService.info('pickFileAndOpen: begin');
+
 		return this.windowsService.pickFileAndOpen(options);
 	}
 
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		options.windowId = this.windowId;
 
+		this.logService.info('pickFolderAndOpen: begin');
+
 		return this.windowsService.pickFolderAndOpen(options);
+	}
+
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		options.windowId = this.windowId;
+
+		this.logService.info('pickWorkspaceAndOpen: begin');
+
+		return this.windowsService.pickWorkspaceAndOpen(options);
 	}
 
 	reloadWindow(): TPromise<void> {
@@ -67,12 +86,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.closeWorkspace(this.windowId);
 	}
 
-	openWorkspace(): TPromise<void> {
-		return this.windowsService.openWorkspace(this.windowId);
-	}
-
-	createAndEnterWorkspace(folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
-		return this.windowsService.createAndEnterWorkspace(this.windowId, folderPaths, path);
+	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+		return this.windowsService.createAndEnterWorkspace(this.windowId, folders, path);
 	}
 
 	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
@@ -103,18 +118,6 @@ export class WindowService implements IWindowService {
 		return this.windowsService.isFocused(this.windowId);
 	}
 
-	isMaximized(): TPromise<boolean> {
-		return this.windowsService.isMaximized(this.windowId);
-	}
-
-	maximizeWindow(): TPromise<void> {
-		return this.windowsService.maximizeWindow(this.windowId);
-	}
-
-	unmaximizeWindow(): TPromise<void> {
-		return this.windowsService.unmaximizeWindow(this.windowId);
-	}
-
 	onWindowTitleDoubleClick(): TPromise<void> {
 		return this.windowsService.onWindowTitleDoubleClick(this.windowId);
 	}
@@ -127,44 +130,28 @@ export class WindowService implements IWindowService {
 		return this.windowsService.showWindow(this.windowId);
 	}
 
-	showMessageBoxSync(options: Electron.MessageBoxOptions): number {
-		return remote.dialog.showMessageBox(remote.getCurrentWindow(), options);
-	}
-
 	showMessageBox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
-		return new TPromise((c, e) => {
-			return remote.dialog.showMessageBox(remote.getCurrentWindow(), options, (response: number, checkboxChecked: boolean) => {
-				c({ button: response, checkboxChecked });
-			});
+		this.logService.info('showMessageBox begin: ', options);
+		return this.windowsService.showMessageBox(this.windowId, options).then(result => {
+			this.logService.info('showMessageBox closed, response: ', result);
+			return result;
 		});
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
-		if (callback) {
-			return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options, callback);
-		}
-
-		let path = remote.dialog.showSaveDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
-
-		if (path && isMacintosh) {
-			path = normalizeNFC(path); // normalize paths returned from the OS
-		}
-
-		return path;
+	showSaveDialog(options: Electron.SaveDialogOptions): TPromise<string> {
+		this.logService.info('showSaveDialog begin: ', options);
+		return this.windowsService.showSaveDialog(this.windowId, options).then(result => {
+			this.logService.info('showSaveDialog begin: ', result);
+			return result;
+		});
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
-		if (callback) {
-			return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options, callback);
-		}
-
-		let paths = remote.dialog.showOpenDialog(remote.getCurrentWindow(), options); // https://github.com/electron/electron/issues/4936
-
-		if (paths && paths.length > 0 && isMacintosh) {
-			paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
-		}
-
-		return paths;
+	showOpenDialog(options: Electron.OpenDialogOptions): TPromise<string[]> {
+		this.logService.info('showOpenDialog begin: ', options);
+		return this.windowsService.showOpenDialog(this.windowId, options).then(result => {
+			this.logService.info('showOpenDialog closed: ', result);
+			return result;
+		});
 	}
 
 	updateTouchBar(items: ICommandAction[][]): TPromise<void> {

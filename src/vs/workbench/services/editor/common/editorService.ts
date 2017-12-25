@@ -23,6 +23,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { once } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
+import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 
 export const IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('editorService');
 
@@ -49,14 +50,6 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 * Returns an array of visible editors.
 	 */
 	getVisibleEditors(): IEditor[];
-
-	/**
-	 * Returns if the provided input is currently visible.
-	 *
-	 * @param includeDiff if set to true, will also consider diff editors to find out if the provided
-	 * input is opened either on the left or right hand side of the diff editor.
-	 */
-	isVisible(input: IEditorInput, includeDiff: boolean): boolean;
 
 	/**
 	 * Opens an Editor on the given input with the provided options at the given position. If sideBySide parameter
@@ -121,7 +114,7 @@ export interface IEditorPart {
 	getActiveEditorInput(): IEditorInput;
 }
 
-type ICachedEditorInput = ResourceEditorInput | IFileEditorInput;
+type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
 export class WorkbenchEditorService implements IWorkbenchEditorService {
 
@@ -156,36 +149,13 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.getVisibleEditors();
 	}
 
-	public isVisible(input: IEditorInput, includeSideBySide: boolean): boolean {
-		if (!input) {
-			return false;
-		}
-
-		return this.getVisibleEditors().some(editor => {
-			if (!editor.input) {
-				return false;
-			}
-
-			if (input.matches(editor.input)) {
-				return true;
-			}
-
-			if (includeSideBySide && editor.input instanceof SideBySideEditorInput) {
-				const sideBySideInput = <SideBySideEditorInput>editor.input;
-				return input.matches(sideBySideInput.master) || input.matches(sideBySideInput.details);
-			}
-
-			return false;
-		});
-	}
-
 	public openEditor(input: IEditorInput, options?: IEditorOptions, sideBySide?: boolean): TPromise<IEditor>;
 	public openEditor(input: IEditorInput, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	public openEditor(input: IResourceInputType, position?: Position): TPromise<IEditor>;
 	public openEditor(input: IResourceInputType, sideBySide?: boolean): TPromise<IEditor>;
 	public openEditor(input: any, arg2?: any, arg3?: any): TPromise<IEditor> {
 		if (!input) {
-			return TPromise.as<IEditor>(null);
+			return TPromise.wrap<IEditor>(null);
 		}
 
 		// Workbench Input Support
@@ -200,7 +170,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			if (schema === network.Schemas.http || schema === network.Schemas.https) {
 				window.open(resourceInput.resource.toString(true));
 
-				return TPromise.as<IEditor>(null);
+				return TPromise.wrap<IEditor>(null);
 			}
 		}
 
@@ -211,7 +181,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return this.doOpenEditor(typedInput, TextEditorOptions.from(textInput), arg2);
 		}
 
-		return TPromise.as<IEditor>(null);
+		return TPromise.wrap<IEditor>(null);
 	}
 
 	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {
@@ -310,7 +280,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
 			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource });
 			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource });
-			const label = resourceDiffInput.label || this.toDiffLabel(resourceDiffInput.leftResource, resourceDiffInput.rightResource, this.workspaceContextService, this.environmentService);
+			const label = resourceDiffInput.label || nls.localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput, this.workspaceContextService, this.environmentService), this.toDiffLabel(rightInput, this.workspaceContextService, this.environmentService));
 
 			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
 		}
@@ -323,8 +293,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		const resourceInput = <IResourceInput>input;
 
-		// Files support
-		if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
+		// Files / Data URI support
+		if (resourceInput.resource instanceof URI && (resourceInput.resource.scheme === network.Schemas.file || resourceInput.resource.scheme === network.Schemas.data)) {
 			return this.createOrGet(resourceInput.resource, this.instantiationService, resourceInput.label, resourceInput.description, resourceInput.encoding);
 		}
 
@@ -350,7 +320,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			if (input instanceof ResourceEditorInput) {
 				input.setName(label);
 				input.setDescription(description);
-			} else {
+			} else if (!(input instanceof DataUriEditorInput)) {
 				input.setPreferredEncoding(encoding);
 			}
 
@@ -358,9 +328,19 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		let input: ICachedEditorInput;
-		if (resource.scheme === network.Schemas.file || this.fileService.canHandleResource && this.fileService.canHandleResource(resource)) {
+
+		// File
+		if (resource.scheme === network.Schemas.file || this.fileService.canHandleResource(resource)) {
 			input = this.fileInputFactory.createFileInput(resource, encoding, instantiationService);
-		} else {
+		}
+
+		// Data URI
+		else if (resource.scheme === network.Schemas.data) {
+			input = instantiationService.createInstance(DataUriEditorInput, label, description, resource);
+		}
+
+		// Resource
+		else {
 			input = instantiationService.createInstance(ResourceEditorInput, label, description, resource);
 		}
 
@@ -372,11 +352,16 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return input;
 	}
 
-	private toDiffLabel(res1: URI, res2: URI, context: IWorkspaceContextService, environment: IEnvironmentService): string {
-		const leftName = getPathLabel(res1.fsPath, context, environment);
-		const rightName = getPathLabel(res2.fsPath, context, environment);
+	private toDiffLabel(input: EditorInput, context: IWorkspaceContextService, environment: IEnvironmentService): string {
+		const res = input.getResource();
 
-		return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
+		// Do not try to extract any paths from simple untitled editors
+		if (res.scheme === 'untitled' && !this.untitledEditorService.hasAssociatedFilePath(res)) {
+			return input.getName();
+		}
+
+		// Otherwise: for diff labels prefer to see the path as part of the label
+		return getPathLabel(res.fsPath, context, environment);
 	}
 }
 

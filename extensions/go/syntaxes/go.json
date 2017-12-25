@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-go/commit/c413bc93966c03031cd114c53c54bc7927eea25b",
+	"version": "https://github.com/atom/language-go/commit/b6fd68f74efa109679e31fe6f4a41ac105262d0e",
 	"scopeName": "source.go",
 	"name": "Go",
 	"comment": "Go language",
@@ -233,7 +233,7 @@
 			]
 		},
 		{
-			"match": "(?<!var)\\s*(\\w+(?:\\.\\w+)?(?:,\\s*\\w+(?:\\.\\w+)?)*)(?=\\s*=(?!=))",
+			"match": "(?<!var)\\s*(\\w+(?:\\.\\w+)*(?>,\\s*\\w+(?:\\.\\w+)*)*)(?=\\s*=(?!=))",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -242,7 +242,7 @@
 							"name": "invalid.illegal.identifier.go"
 						},
 						{
-							"match": "\\w+(?:\\.\\w+)?",
+							"match": "\\w+(?:\\.\\w+)*",
 							"name": "variable.other.assignment.go",
 							"captures": {
 								"0": {
@@ -491,7 +491,7 @@
 					"name": "keyword.operator.increment.go"
 				},
 				{
-					"match": "(==|!=|<=|>=|<[^<]|>[^>])",
+					"match": "(==|!=|<=|>=|<(?!<)|>(?!>))",
 					"name": "keyword.operator.comparison.go"
 				},
 				{
@@ -627,7 +627,7 @@
 					}
 				},
 				{
-					"match": "(\\w+(?:,\\s*\\w+)*)(\\s+(\\[(\\d*|\\.\\.\\.)\\])*\\*?\\w+(?:\\.\\w+)?\\s*[^=].*)",
+					"match": "(\\w+(?:,\\s*\\w+)*)(\\s+(\\[(\\d*|\\.\\.\\.)\\])*\\*?(<-)?\\w+(?:\\.\\w+)?\\s*[^=].*)",
 					"captures": {
 						"1": {
 							"patterns": [

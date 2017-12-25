@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { MainThreadDocumentContentProvidersShape, ExtHostContext, ExtHostDocumentContentProvidersShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { ITextSource } from 'vs/editor/common/model/textSource';
@@ -31,7 +31,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentContentProviders);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentContentProviders);
 	}
 
 	public dispose(): void {
@@ -63,8 +63,8 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		}
 	}
 
-	$onVirtualDocumentChange(uri: URI, value: ITextSource): void {
-		const model = this._modelService.getModel(uri);
+	$onVirtualDocumentChange(uri: UriComponents, value: ITextSource): void {
+		const model = this._modelService.getModel(URI.revive(uri));
 		if (!model) {
 			return;
 		}

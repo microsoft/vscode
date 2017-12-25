@@ -110,6 +110,7 @@
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number,
+.debug-viewlet .monaco-list .monaco-list-row.selected .line-number,
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .thread > .state > .label,
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .process > .state > .label {
 	background-color: #ffffff;
@@ -347,6 +348,10 @@
 
 /* Breakpoints */
 
+.debug-viewlet .debug-breakpoints .monaco-list-row {
+	padding-left: 20px;
+}
+
 .debug-viewlet .debug-breakpoints .breakpoint {
 	display: flex;
 	padding-right: 0.8em;
@@ -366,7 +371,6 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
-
 
 .debug-viewlet .debug-action.remove {
 	background: url('remove.svg') center center no-repeat;

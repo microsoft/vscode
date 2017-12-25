@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Throttler } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
@@ -21,13 +20,10 @@ export default class FileResultsNavigation extends Disposable {
 	private _openFile: Emitter<IOpenFileOptions> = new Emitter<IOpenFileOptions>();
 	public readonly openFile: Event<IOpenFileOptions> = this._openFile.event;
 
-	private throttler: Throttler;
-
 	constructor(private tree: ITree) {
 		super();
-		this.throttler = new Throttler();
-		this._register(this.tree.addListener('focus', e => this.onFocus(e)));
-		this._register(this.tree.addListener('selection', e => this.onSelection(e)));
+		this._register(this.tree.onDidChangeFocus(e => this.onFocus(e)));
+		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
 	}
 
 	private onFocus(event: any): void {

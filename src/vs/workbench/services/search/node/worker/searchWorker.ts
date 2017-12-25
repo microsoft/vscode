@@ -12,9 +12,8 @@ gracefulFs.gracefulify(fs);
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISerializedFileMatch } from '../search';
+import { LineMatch, FileMatch } from '../search';
 import * as baseMime from 'vs/base/common/mime';
-import { ILineMatch } from 'vs/platform/search/common/search';
 import { UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode, bomLength } from 'vs/base/node/encoding';
 import { detectMimeAndEncodingFromBuffer } from 'vs/base/node/mime';
 
@@ -297,73 +296,5 @@ export class SearchWorkerEngine {
 				});
 			});
 		});
-	}
-}
-
-export class FileMatch implements ISerializedFileMatch {
-	path: string;
-	lineMatches: LineMatch[];
-
-	constructor(path: string) {
-		this.path = path;
-		this.lineMatches = [];
-	}
-
-	addMatch(lineMatch: LineMatch): void {
-		this.lineMatches.push(lineMatch);
-	}
-
-	isEmpty(): boolean {
-		return this.lineMatches.length === 0;
-	}
-
-	serialize(): ISerializedFileMatch {
-		let lineMatches: ILineMatch[] = [];
-		let numMatches = 0;
-
-		for (let i = 0; i < this.lineMatches.length; i++) {
-			numMatches += this.lineMatches[i].offsetAndLengths.length;
-			lineMatches.push(this.lineMatches[i].serialize());
-		}
-
-		return {
-			path: this.path,
-			lineMatches,
-			numMatches
-		};
-	}
-}
-
-export class LineMatch implements ILineMatch {
-	preview: string;
-	lineNumber: number;
-	offsetAndLengths: number[][];
-
-	constructor(preview: string, lineNumber: number) {
-		this.preview = preview.replace(/(\r|\n)*$/, '');
-		this.lineNumber = lineNumber;
-		this.offsetAndLengths = [];
-	}
-
-	getText(): string {
-		return this.preview;
-	}
-
-	getLineNumber(): number {
-		return this.lineNumber;
-	}
-
-	addMatch(offset: number, length: number): void {
-		this.offsetAndLengths.push([offset, length]);
-	}
-
-	serialize(): ILineMatch {
-		const result = {
-			preview: this.preview,
-			lineNumber: this.lineNumber,
-			offsetAndLengths: this.offsetAndLengths
-		};
-
-		return result;
 	}
 }

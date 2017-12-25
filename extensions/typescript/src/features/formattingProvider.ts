@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, FormattingOptions, TextDocument, Position, Range, CancellationToken, TextEdit, WorkspaceConfiguration, Disposable, languages, workspace } from 'vscode';
+import { DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, FormattingOptions, TextDocument, Position, Range, CancellationToken, TextEdit, WorkspaceConfiguration, Disposable, languages, workspace, DocumentSelector } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange } from '../utils/convert';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 
@@ -14,7 +14,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 	private enabled: boolean = true;
 
 	public constructor(
-		private readonly client: ITypescriptServiceClient,
+		private readonly client: ITypeScriptServiceClient,
 		private readonly formattingOptionsManager: FormattingConfigurationManager
 	) { }
 
@@ -75,7 +75,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 		if (!filepath) {
 			return [];
 		}
-		let args: Proto.FormatOnKeyRequestArgs = {
+		const args: Proto.FormatOnKeyRequestArgs = {
 			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1,
@@ -123,7 +123,7 @@ export class FormattingProviderManager {
 	constructor(
 		private readonly modeId: string,
 		private readonly formattingProvider: TypeScriptFormattingProvider,
-		private readonly selector: string[]
+		private readonly selector: DocumentSelector
 	) { }
 
 	public dispose() {

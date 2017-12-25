@@ -13,7 +13,7 @@ const SCM_RESOURCE = `${VIEWLET} .monaco-list-row > .resource`;
 const SCM_RESOURCE_GROUP = `${VIEWLET} .monaco-list-row > .resource-group`;
 const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Refresh"]`;
 const COMMIT_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Commit"]`;
-const SCM_RESOURCE_CLICK = name => `${SCM_RESOURCE} .monaco-icon-label[title$="${name}"]`;
+const SCM_RESOURCE_CLICK = name => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"]`;
 const SCM_RESOURCE_GROUP_COMMAND_CLICK = name => `${SCM_RESOURCE_GROUP} .actions .action-label[title="${name}"]`;
 
 export interface Change {
@@ -30,7 +30,7 @@ export class SCM extends Viewlet {
 	}
 
 	async openSCMViewlet(): Promise<any> {
-		await this.spectron.command('workbench.view.scm');
+		await this.spectron.runCommand('workbench.view.scm');
 		await this.spectron.client.waitForElement(SCM_INPUT);
 	}
 
@@ -60,7 +60,7 @@ export class SCM extends Viewlet {
 
 				return {
 					name: name.textContent,
-					type: icon.title,
+					type: (icon.title || ''),
 					element,
 					actionElements
 				};
@@ -95,8 +95,9 @@ export class SCM extends Viewlet {
 	}
 
 	async commit(message: string): Promise<void> {
-		await this.spectron.client.click(SCM_INPUT);
-		await this.spectron.client.type(message);
-		await this.spectron.client.click(COMMIT_COMMAND);
+		await this.spectron.client.waitAndClick(SCM_INPUT);
+		await this.spectron.client.waitForActiveElement(SCM_INPUT);
+		await this.spectron.client.setValue(SCM_INPUT, message);
+		await this.spectron.client.waitAndClick(COMMIT_COMMAND);
 	}
 }

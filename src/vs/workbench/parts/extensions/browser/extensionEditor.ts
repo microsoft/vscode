@@ -12,12 +12,12 @@ import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
-import Event, { Emitter, once, fromEventEmitter, chain } from 'vs/base/common/event';
+import Event, { Emitter, once, chain } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
-import { IDisposable, empty, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join } from 'vs/base/browser/dom';
@@ -25,13 +25,11 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionGalleryService, IExtensionManifest, IKeyBinding, IView } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITemplateData } from 'vs/workbench/parts/extensions/browser/extensionsList';
 import { RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -44,17 +42,16 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Position } from 'vs/platform/editor/common/editor';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Command, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
+import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -70,10 +67,13 @@ function renderBody(body: string): string {
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'none'; style-src file:; child-src 'none'; frame-src 'none';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src file:; child-src 'none'; frame-src 'none';">
 				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
 			</head>
-			<body>${body}</body>
+			<body>
+				<a id="scroll-to-top" role="button" aria-label="scroll to top" href="#"><span class="icon"></span></a>
+				${body}
+			</body>
 		</html>`;
 }
 
@@ -155,17 +155,18 @@ export class ExtensionEditor extends BaseEditor {
 	private icon: HTMLImageElement;
 	private name: HTMLElement;
 	private identifier: HTMLElement;
+	private preview: HTMLElement;
 	private license: HTMLElement;
 	private publisher: HTMLElement;
 	private installCount: HTMLElement;
 	private rating: HTMLElement;
+	private repository: HTMLElement;
 	private description: HTMLElement;
 	private extensionActionBar: ActionBar;
 	private navbar: NavBar;
 	private content: HTMLElement;
-
-	private _highlight: ITemplateData;
-	private highlightDisposable: IDisposable;
+	private recommendation: HTMLElement;
+	private header: HTMLElement;
 
 	private extensionReadme: Cache<string>;
 	private extensionChangelog: Cache<string>;
@@ -182,8 +183,6 @@ export class ExtensionEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -195,31 +194,31 @@ export class ExtensionEditor extends BaseEditor {
 		@IPartService private partService: IPartService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
-		this._highlight = null;
-		this.highlightDisposable = empty;
 		this.disposables = [];
 		this.extensionReadme = null;
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
 		this.extensionDependencies = null;
-		this.contextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.bindTo(contextKeyService);
-		this.findInputFocusContextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(contextKeyService);
+		this.contextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.bindTo(this.contextKeyService);
+		this.findInputFocusContextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this.contextKeyService);
 	}
 
 	createEditor(parent: Builder): void {
 		const container = parent.getHTMLElement();
 
 		const root = append(container, $('.extension-editor'));
-		const header = append(root, $('.header'));
+		this.header = append(root, $('.header'));
 
-		this.icon = append(header, $<HTMLImageElement>('img.icon', { draggable: false }));
+		this.icon = append(this.header, $<HTMLImageElement>('img.icon', { draggable: false }));
 
-		const details = append(header, $('.details'));
+		const details = append(this.header, $('.details'));
 		const title = append(details, $('.title'));
 		this.name = append(title, $('span.name.clickable', { title: localize('name', "Extension name") }));
 		this.identifier = append(title, $('span.identifier', { title: localize('extension id', "Extension identifier") }));
+		this.preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
 
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name") }));
@@ -227,6 +226,10 @@ export class ExtensionEditor extends BaseEditor {
 		this.installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count") }));
 
 		this.rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating") }));
+
+		this.repository = append(subtitle, $('span.repository.clickable'));
+		this.repository.textContent = localize('repository', 'Repository');
+		this.repository.style.display = 'none';
 
 		this.license = append(subtitle, $('span.license.clickable'));
 		this.license.textContent = localize('license', 'License');
@@ -249,7 +252,9 @@ export class ExtensionEditor extends BaseEditor {
 		});
 		this.disposables.push(this.extensionActionBar);
 
-		chain(fromEventEmitter<{ error?: any; }>(this.extensionActionBar, 'run'))
+		this.recommendation = append(details, $('.recommendation'));
+
+		chain(this.extensionActionBar.onDidRun)
 			.map(({ error }) => error)
 			.filter(error => !!error)
 			.on(this.onError, this, this.disposables);
@@ -285,9 +290,22 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.name.textContent = extension.displayName;
 		this.identifier.textContent = extension.id;
+		if (extension.preview) {
+			this.preview.textContent = localize('preview', "Preview");
+		} else {
+			this.preview.textContent = null;
+		}
 
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
+
+		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+		this.recommendation.textContent = extRecommendations[extension.id.toLowerCase()];
+		if (extRecommendations[extension.id.toLowerCase()]) {
+			addClass(this.header, 'recommended');
+		} else {
+			removeClass(this.header, 'recommended');
+		}
 
 		if (extension.url) {
 			this.name.onclick = finalHandler(() => window.open(extension.url));
@@ -305,6 +323,15 @@ export class ExtensionEditor extends BaseEditor {
 				this.license.onclick = null;
 				this.license.style.display = 'none';
 			}
+		}
+
+		if (extension.repository) {
+			this.repository.onclick = finalHandler(() => window.open(extension.repository));
+			this.repository.style.display = 'initial';
+		}
+		else {
+			this.repository.onclick = null;
+			this.repository.style.display = 'none';
 		}
 
 		const install = this.instantiationService.createInstance(InstallWidget, this.installCount, { extension });
@@ -351,12 +378,6 @@ export class ExtensionEditor extends BaseEditor {
 	showFind(): void {
 		if (this.activeWebview) {
 			this.activeWebview.showFind();
-		}
-	}
-
-	hideFind(): void {
-		if (this.activeWebview) {
-			this.activeWebview.hideFind();
 		}
 	}
 
@@ -454,6 +475,8 @@ export class ExtensionEditor extends BaseEditor {
 					append(this.content, scrollableContent.getDomNode());
 					this.contentDisposables.push(scrollableContent);
 				}
+			}, () => {
+				append(this.content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
 			}));
 	}
 
@@ -491,7 +514,7 @@ export class ExtensionEditor extends BaseEditor {
 	private renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): Tree {
 		const renderer = this.instantiationService.createInstance(Renderer);
 		const controller = this.instantiationService.createInstance(Controller);
-		const tree = new Tree(container, {
+		const tree = new WorkbenchTree(container, {
 			dataSource: new DataSource(),
 			renderer,
 			controller
@@ -499,19 +522,15 @@ export class ExtensionEditor extends BaseEditor {
 				indentPixels: 40,
 				twistiePixels: 20,
 				keyboardSupport: false
-			});
-
-		this.contentDisposables.push(attachListStyler(tree, this.themeService));
+			}, this.contextKeyService, this.listService, this.themeService);
 
 		tree.setInput(extensionDependencies);
 
-		this.contentDisposables.push(tree.addListener('selection', event => {
+		this.contentDisposables.push(tree.onDidChangeSelection(event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				controller.openExtension(tree, false);
 			}
 		}));
-
-		this.contentDisposables.push(this.listService.register(tree));
 
 		return tree;
 	}
@@ -883,7 +902,6 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	dispose(): void {
-		this._highlight = null;
 		this.transientDisposables = dispose(this.transientDisposables);
 		this.disposables = dispose(this.disposables);
 		super.dispose();
@@ -914,31 +932,6 @@ const showCommand = new ShowExtensionEditorFindCommand({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-class HideExtensionEditorFindCommand extends Command {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.hideFind();
-		}
-	}
-
-	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
-		if (activeEditor instanceof ExtensionEditor) {
-			return activeEditor;
-		}
-		return null;
-	}
-}
-const hideCommand = new ShowExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.hidefind',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
-	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
 class ShowExtensionEditorFindTermCommand extends Command {
 	constructor(opts: ICommandOptions, private _next: boolean) {

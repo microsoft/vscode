@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-sass/commit/229a9c9c2c025dc0514f2550819876fc1bb5df57",
+	"version": "https://github.com/atom/language-sass/commit/a07688bd078f420f56df6221e9263d80e738869b",
 	"scopeName": "source.css.scss",
 	"name": "SCSS",
 	"fileTypes": [

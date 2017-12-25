@@ -15,7 +15,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { HistoryNavigator } from 'vs/base/common/history';
 
 export interface IOptions {
@@ -37,7 +36,6 @@ export class PatternInputWidget extends Widget {
 	private ariaLabel: string;
 
 	private domNode: HTMLElement;
-	private inputNode: HTMLInputElement;
 	protected inputBox: InputBox;
 
 	private history: HistoryNavigator<string>;
@@ -57,7 +55,6 @@ export class PatternInputWidget extends Widget {
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
 
 		this.domNode = null;
-		this.inputNode = null;
 		this.inputBox = null;
 
 		this.render();
@@ -167,8 +164,7 @@ export class PatternInputWidget extends Widget {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
-				validation: null,
-				showMessage: true
+				validation: null
 			}
 		});
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
@@ -202,76 +198,44 @@ export class PatternInputWidget extends Widget {
 
 export class ExcludePatternInputWidget extends PatternInputWidget {
 
-	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, themeService: IThemeService, private telemetryService: ITelemetryService, options: IOptions = Object.create(null)) {
+	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, themeService: IThemeService, options: IOptions = Object.create(null)) {
 		super(parent, contextViewProvider, themeService, options);
 	}
 
-	private useIgnoreFilesBox: Checkbox;
-	private useExcludeSettingsBox: Checkbox;
+	private useExcludesAndIgnoreFilesBox: Checkbox;
 
 	public dispose(): void {
 		super.dispose();
-		this.useIgnoreFilesBox.dispose();
-		this.useExcludeSettingsBox.dispose();
+		this.useExcludesAndIgnoreFilesBox.dispose();
 	}
 
-	public useExcludeSettings(): boolean {
-		return this.useExcludeSettingsBox.checked;
+	public useExcludesAndIgnoreFiles(): boolean {
+		return this.useExcludesAndIgnoreFilesBox.checked;
 	}
 
-	public setUseExcludeSettings(value: boolean) {
-		this.useExcludeSettingsBox.checked = value;
-	}
-
-	public useIgnoreFiles(): boolean {
-		return this.useIgnoreFilesBox.checked;
-	}
-
-	public setUseIgnoreFiles(value: boolean): void {
-		this.useIgnoreFilesBox.checked = value;
+	public setUseExcludesAndIgnoreFiles(value: boolean) {
+		this.useExcludesAndIgnoreFilesBox.checked = value;
 	}
 
 	protected getSubcontrolsWidth(): number {
-		return super.getSubcontrolsWidth() + this.useIgnoreFilesBox.width() + this.useExcludeSettingsBox.width();
+		return super.getSubcontrolsWidth() + this.useExcludesAndIgnoreFilesBox.width();
 	}
 
 	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
-		this.useIgnoreFilesBox = new Checkbox({
-			actionClassName: 'useIgnoreFiles',
-			title: nls.localize('useIgnoreFilesDescription', "Use Ignore Files"),
-			isChecked: false,
+		this.useExcludesAndIgnoreFilesBox = new Checkbox({
+			actionClassName: 'useExcludesAndIgnoreFiles',
+			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
+			isChecked: true,
 			onChange: (viaKeyboard) => {
-				/* __GDPR__
-					"search.useIgnoreFiles.toggled" : {}
-				*/
-				this.telemetryService.publicLog('search.useIgnoreFiles.toggled');
 				this.onOptionChange(null);
 				if (!viaKeyboard) {
 					this.inputBox.focus();
 				}
 			}
 		});
-		this._register(attachCheckboxStyler(this.useIgnoreFilesBox, this.themeService));
+		this._register(attachCheckboxStyler(this.useExcludesAndIgnoreFilesBox, this.themeService));
 
-		this.useExcludeSettingsBox = new Checkbox({
-			actionClassName: 'useExcludeSettings',
-			title: nls.localize('useExcludeSettingsDescription', "Use Exclude Settings"),
-			isChecked: false,
-			onChange: (viaKeyboard) => {
-				/* __GDPR__
-					"search.useExcludeSettings.toggled" : {}
-				*/
-				this.telemetryService.publicLog('search.useExcludeSettings.toggled');
-				this.onOptionChange(null);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
-			}
-		});
-		this._register(attachCheckboxStyler(this.useExcludeSettingsBox, this.themeService));
-
-		controlsDiv.appendChild(this.useIgnoreFilesBox.domNode);
-		controlsDiv.appendChild(this.useExcludeSettingsBox.domNode);
+		controlsDiv.appendChild(this.useExcludesAndIgnoreFilesBox.domNode);
 		super.renderSubcontrols(controlsDiv);
 	}
 }

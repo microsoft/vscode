@@ -13,7 +13,7 @@ export const IPanelService = createDecorator<IPanelService>('panelService');
 export interface IPanelIdentifier {
 	id: string;
 	name: string;
-	commandId: string;
+	cssClass: string;
 }
 
 export interface IPanelService {

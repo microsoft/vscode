@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import paths = require('vs/base/common/paths');
 import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import errors = require('vs/base/common/errors');
@@ -12,7 +11,7 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { values, ResourceMap, TernarySearchTree } from 'vs/base/common/map';
-import Event, { Emitter, fromPromise, stopwatch, any } from 'vs/base/common/event';
+import Event, { Emitter, fromPromise, stopwatch, anyEvent } from 'vs/base/common/event';
 import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -22,10 +21,10 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
-import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 export class Match {
 
@@ -94,7 +93,7 @@ export class Match {
 
 export class FileMatch extends Disposable {
 
-	private static _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
+	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'currentFindMatch',
 		overviewRuler: {
@@ -104,7 +103,7 @@ export class FileMatch extends Disposable {
 		}
 	});
 
-	private static _FIND_MATCH = ModelDecorationOptions.register({
+	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		overviewRuler: {
@@ -303,7 +302,7 @@ export class FileMatch extends Disposable {
 	}
 
 	public name(): string {
-		return paths.basename(this.resource().fsPath);
+		return getBaseLabel(this.resource());
 	}
 
 	public add(match: Match, trigger?: boolean) {
@@ -348,7 +347,7 @@ export class FolderMatch extends Disposable {
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
 	private _replacingAll: boolean = false;
 
-	constructor(private _resource: URI, private _id: string, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
+	constructor(private _resource: URI, private _id: string, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._fileMatches = new ResourceMap<FileMatch>();
@@ -380,7 +379,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	public name(): string {
-		return paths.basename(this.resource().fsPath);
+		return getBaseLabel(this.resource());
 	}
 
 	public parent(): SearchResult {
@@ -420,6 +419,13 @@ export class FolderMatch extends Disposable {
 	public replace(match: FileMatch): TPromise<any> {
 		return this.replaceService.replace([match]).then(() => {
 			this.doRemove(match, false, true);
+		});
+	}
+
+	public replaceAll(): TPromise<any> {
+		const matches = this.matches();
+		return this.replaceService.replace(matches).then(() => {
+			matches.forEach(match => this.doRemove(match, false, true));
 		});
 	}
 
@@ -497,7 +503,6 @@ export class SearchResult extends Disposable {
 
 	private _folderMatches: FolderMatch[] = [];
 	private _folderMatchesMap: TernarySearchTree<FolderMatch> = TernarySearchTree.forPaths<FolderMatch>();
-	private _query: ISearchQuery = null;
 	private _showHighlights: boolean;
 
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
@@ -511,7 +516,6 @@ export class SearchResult extends Disposable {
 	public set query(query: ISearchQuery) {
 		// When updating the query we could change the roots, so ensure we clean up the old roots first.
 		this.clear();
-		this._query = query;
 		const otherFiles = URI.parse('');
 		this._folderMatches = (query.folderQueries || []).map((fq) => fq.folder).concat([otherFiles]).map((resource, index) => {
 			const id = resource.toString() || 'otherFiles';
@@ -535,14 +539,18 @@ export class SearchResult extends Disposable {
 		this._folderMatches.forEach((folderMatch) => rawPerFolder.set(folderMatch.resource(), []));
 		allRaw.forEach(rawFileMatch => {
 			let folderMatch = this.getFolderMatch(rawFileMatch.resource);
-			rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
+			if (folderMatch) {
+				rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
+			}
 		});
 		rawPerFolder.forEach((raw) => {
 			if (!raw.length) {
 				return;
 			}
 			let folderMatch = this.getFolderMatch(raw[0].resource);
-			folderMatch.add(raw, silent);
+			if (folderMatch) {
+				folderMatch.add(raw, silent);
+			}
 		});
 	}
 
@@ -603,10 +611,6 @@ export class SearchResult extends Disposable {
 		return this.folderMatches().reduce<number>((prev, match) => prev + match.fileCount(), 0);
 	}
 
-	public folderCount(): number {
-		return this.folderMatches().reduce<number>((prev, match) => prev + (match.fileCount() > 0 ? 1 : 0), 0);
-	}
-
 	public count(): number {
 		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
 	}
@@ -628,10 +632,10 @@ export class SearchResult extends Disposable {
 			}
 		});
 		if (this._showHighlights && selectedMatch) {
-			this._rangeHighlightDecorations.highlightRange({
-				resource: selectedMatch.parent().resource(),
-				range: selectedMatch.range()
-			});
+			this._rangeHighlightDecorations.highlightRange(
+				selectedMatch.parent().resource(),
+				selectedMatch.range()
+			);
 		} else {
 			this._rangeHighlightDecorations.removeHighlightRange();
 		}
@@ -728,7 +732,7 @@ export class SearchModel extends Disposable {
 
 		const onDone = fromPromise(this.currentRequest);
 		const progressEmitter = new Emitter<void>();
-		const onFirstRender = any(onDone, progressEmitter.event);
+		const onFirstRender = anyEvent<any>(onDone, progressEmitter.event);
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
 		/* __GDPR__
 			"searchResultsFirstRender" : {
@@ -842,4 +846,82 @@ export interface ISearchWorkbenchService {
 	_serviceBrand: any;
 
 	readonly searchModel: SearchModel;
+}
+
+/**
+ * Can add a range highlight decoration to a model.
+ * It will automatically remove it when the model has its decorations changed.
+ */
+export class RangeHighlightDecorations implements IDisposable {
+
+	private _decorationId: string = null;
+	private _model: IModel = null;
+	private _modelDisposables: IDisposable[] = [];
+
+	constructor(
+		@IModelService private readonly _modelService: IModelService
+	) {
+	}
+
+	public removeHighlightRange() {
+		if (this._model && this._decorationId) {
+			this._model.deltaDecorations([this._decorationId], []);
+		}
+		this._decorationId = null;
+	}
+
+	public highlightRange(resource: URI | IModel, range: Range, ownerId: number = 0): void {
+		let model: IModel;
+		if (URI.isUri(resource)) {
+			model = this._modelService.getModel(resource);
+		} else {
+			model = resource;
+		}
+
+		if (model) {
+			this.doHighlightRange(model, range);
+		}
+	}
+
+	private doHighlightRange(model: IModel, range: Range) {
+		this.removeHighlightRange();
+		this._decorationId = model.deltaDecorations([], [{ range: range, options: RangeHighlightDecorations._RANGE_HIGHLIGHT_DECORATION }])[0];
+		this.setModel(model);
+	}
+
+	private setModel(model: IModel) {
+		if (this._model !== model) {
+			this.disposeModelListeners();
+			this._model = model;
+			this._modelDisposables.push(this._model.onDidChangeDecorations((e) => {
+				this.disposeModelListeners();
+				this.removeHighlightRange();
+				this._model = null;
+			}));
+			this._modelDisposables.push(this._model.onWillDispose(() => {
+				this.disposeModelListeners();
+				this.removeHighlightRange();
+				this._model = null;
+			}));
+		}
+	}
+
+	private disposeModelListeners() {
+		this._modelDisposables.forEach(disposable => disposable.dispose());
+		this._modelDisposables = [];
+	}
+
+	public dispose() {
+		if (this._model) {
+			this.removeHighlightRange();
+			this.disposeModelListeners();
+			this._model = null;
+		}
+	}
+
+	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'rangeHighlight',
+		isWholeLine: true
+	});
 }

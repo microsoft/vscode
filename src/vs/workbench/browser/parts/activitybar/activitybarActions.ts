@@ -6,11 +6,10 @@
 'use strict';
 
 import 'vs/css!./media/activityaction';
-import nls = require('vs/nls');
 import DOM = require('vs/base/browser/dom');
+import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import { IActivityBarService } from 'vs/workbench/services/activity/common/activityBarService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IActivity, IGlobalActivity } from 'vs/workbench/common/activity';
@@ -22,11 +21,11 @@ import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colo
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActivityAction, ActivityActionItem } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { ActivityAction, ActivityActionItem, ICompositeBarColors } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 
 export class ViewletActivityAction extends ActivityAction {
 
-	private static preventDoubleClickDelay = 300;
+	private static readonly preventDoubleClickDelay = 300;
 
 	private lastRun: number = 0;
 
@@ -85,30 +84,6 @@ export class ToggleViewletAction extends Action {
 	}
 }
 
-export class ToggleViewletPinnedAction extends Action {
-
-	constructor(
-		private activity: IActivity,
-		@IActivityBarService private activityBarService: IActivityBarService
-	) {
-		super('activitybar.show.toggleViewletPinned', activity ? activity.name : nls.localize('toggle', "Toggle View Pinned"));
-
-		this.checked = this.activity && this.activityBarService.isPinned(this.activity.id);
-	}
-
-	public run(context: string): TPromise<any> {
-		const id = this.activity ? this.activity.id : context;
-
-		if (this.activityBarService.isPinned(id)) {
-			this.activityBarService.unpin(id);
-		} else {
-			this.activityBarService.pin(id);
-		}
-
-		return TPromise.as(true);
-	}
-}
-
 export class GlobalActivityAction extends ActivityAction {
 
 	constructor(activity: IGlobalActivity) {
@@ -120,10 +95,11 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 
 	constructor(
 		action: GlobalActivityAction,
+		colors: ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService
 	) {
-		super(action, { draggable: false }, themeService);
+		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
 
 	public render(container: HTMLElement): void {
@@ -132,30 +108,27 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 		// Context menus are triggered on mouse down so that an item can be picked
 		// and executed with releasing the mouse over it
 		this.$container.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			this.onClick(e);
+			DOM.EventHelper.stop(e, true);
+
+			const event = new StandardMouseEvent(e);
+			this.showContextMenu({ x: event.posx, y: event.posy });
 		});
 
-		// Extra listener for keyboard interaction
 		this.$container.on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				this.onClick(e);
+				DOM.EventHelper.stop(e, true);
+
+				this.showContextMenu(this.$container.getHTMLElement());
 			}
 		});
-	}
 
-	public onClick(event?: MouseEvent | KeyboardEvent): void {
-		DOM.EventHelper.stop(event, true);
+		this.$container.on(TouchEventType.Tap, (e: GestureEvent) => {
+			DOM.EventHelper.stop(e, true);
 
-		let location: HTMLElement | { x: number, y: number };
-		if (event instanceof MouseEvent) {
-			const mouseEvent = new StandardMouseEvent(event);
-			location = { x: mouseEvent.posx, y: mouseEvent.posy };
-		} else {
-			location = this.$container.getHTMLElement();
-		}
-
-		this.showContextMenu(location);
+			const event = new StandardMouseEvent(e);
+			this.showContextMenu({ x: event.posx, y: event.posy });
+		});
 	}
 
 	private showContextMenu(location: HTMLElement | { x: number, y: number }): void {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, MainContext, IExtHostContext, MainThreadFileSystemShape, ExtHostFileSystemShape } from '../node/extHost.protocol';
 import { IFileService, IFileSystemProvider, IStat, IFileChange } from 'vs/platform/files/common/files';
@@ -12,8 +12,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ISearchResultProvider, ISearchQuery, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchService } from 'vs/platform/search/common/search';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -26,9 +27,9 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
 		@ISearchService private readonly _searchService: ISearchService,
-		@IWorkspaceEditingService private readonly _workspaceEditService: IWorkspaceEditingService
+		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostFileSystem);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 	}
 
 	dispose(): void {
@@ -44,22 +45,22 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._provider.delete(handle);
 	}
 
-	$onDidAddFileSystemRoot(uri: URI): void {
-		this._workspaceEditService.addFolders([uri]);
+	$onDidAddFileSystemRoot(data: UriComponents): void {
+		this._workspaceEditingService.addFolders([{ uri: URI.revive(data) }], true).done(null, onUnexpectedError);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChange[]): void {
 		this._provider.get(handle).$onFileSystemChange(changes);
 	}
 
-	$reportFileChunk(handle: number, resource: URI, chunk: number[]): void {
-		this._provider.get(handle).reportFileChunk(resource, chunk);
+	$reportFileChunk(handle: number, data: UriComponents, chunk: number[]): void {
+		this._provider.get(handle).reportFileChunk(URI.revive(data), chunk);
 	}
 
 	// --- search
 
-	$handleSearchProgress(handle: number, session: number, resource: URI): void {
-		this._provider.get(handle).handleSearchProgress(session, resource);
+	$handleSearchProgress(handle: number, session: number, data: UriComponents): void {
+		this._provider.get(handle).handleSearchProgress(session, URI.revive(data));
 	}
 }
 
@@ -122,7 +123,9 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 		return this._proxy.$mkdir(this._handle, resource);
 	}
 	readdir(resource: URI): TPromise<[URI, IStat][], any> {
-		return this._proxy.$readdir(this._handle, resource);
+		return this._proxy.$readdir(this._handle, resource).then(data => {
+			return data.map(tuple => <[URI, IStat]>[URI.revive(tuple[0]), tuple[1]]);
+		});
 	}
 	rmdir(resource: URI): TPromise<void, any> {
 		return this._proxy.$rmdir(this._handle, resource);

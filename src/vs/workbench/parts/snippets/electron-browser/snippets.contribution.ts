@@ -19,6 +19,8 @@ import * as nls from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { LanguageId } from 'vs/editor/common/modes';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/snippetParser';
+import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/snippetVariables';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
@@ -26,20 +28,50 @@ export interface ISnippetsService {
 
 	_serviceBrand: any;
 
-	getSnippets(languageId: LanguageId): TPromise<Snippet[]>;
+	getSnippets(languageId: LanguageId): Promise<Snippet[]>;
 
 	getSnippetsSync(languageId: LanguageId): Snippet[];
 }
 
 
 export class Snippet {
-	readonly name: string;
-	readonly prefix: string;
-	readonly description: string;
-	readonly codeSnippet: string;
-	readonly source: string;
-	readonly isBogous?: boolean;
-	readonly isFromExtension?: boolean;
+
+	private _codeSnippet: string;
+	private _isBogous: boolean;
+
+	constructor(
+		readonly name: string,
+		readonly prefix: string,
+		readonly description: string,
+		readonly body: string,
+		readonly source: string,
+		readonly isFromExtension?: boolean,
+	) {
+		//
+	}
+
+	get codeSnippet(): string {
+		this._ensureCodeSnippet();
+		return this._codeSnippet;
+	}
+
+	get isBogous(): boolean {
+		this._ensureCodeSnippet();
+		return this._isBogous;
+	}
+
+	private _ensureCodeSnippet() {
+		if (!this._codeSnippet) {
+			const rewrite = Snippet._rewriteBogousVariables(this.body);
+			if (typeof rewrite === 'string') {
+				this._codeSnippet = rewrite;
+				this._isBogous = true;
+			} else {
+				this._codeSnippet = this.body;
+				this._isBogous = false;
+			}
+		}
+	}
 
 	static compare(a: Snippet, b: Snippet): number {
 		if (a.isFromExtension !== b.isFromExtension) {
@@ -56,10 +88,53 @@ export class Snippet {
 			return 0;
 		}
 	}
+
+	static _rewriteBogousVariables(template: string): false | string {
+		const textmateSnippet = new SnippetParser().parse(template, false);
+
+		let placeholders = new Map<string, number>();
+		let placeholderMax = 0;
+		for (const placeholder of textmateSnippet.placeholders) {
+			placeholderMax = Math.max(placeholderMax, placeholder.index);
+		}
+
+		let didChange = false;
+		let stack = [...textmateSnippet.children];
+
+		while (stack.length > 0) {
+			let marker = stack.shift();
+
+			if (
+				marker instanceof Variable
+				&& marker.children.length === 0
+				&& !KnownSnippetVariableNames[marker.name]
+			) {
+				// a 'variable' without a default value and not being one of our supported
+				// variables is automatically turned into a placeholder. This is to restore
+				// a bug we had before. So `${foo}` becomes `${N:foo}`
+				const index = placeholders.has(marker.name) ? placeholders.get(marker.name) : ++placeholderMax;
+				placeholders.set(marker.name, index);
+
+				const synthetic = new Placeholder(index).appendChild(new Text(marker.name));
+				textmateSnippet.replace(marker, [synthetic]);
+				didChange = true;
+
+			} else {
+				// recurse
+				stack.push(...marker.children);
+			}
+		}
+
+		if (!didChange) {
+			return false;
+		} else {
+			return textmateSnippet.toTextmateString();
+		}
+	}
 }
 
-namespace OpenSnippetsAction {
 
+{
 	const id = 'workbench.action.openSnippets';
 
 	CommandsRegistry.registerCommand(id, accessor => {
@@ -135,6 +210,7 @@ namespace OpenSnippetsAction {
 const schemaId = 'vscode://schemas/snippets';
 const schema: IJSONSchema = {
 	'id': schemaId,
+	'allowComments': true,
 	'defaultSnippets': [{
 		'label': nls.localize('snippetSchema.json.default', "Empty snippet"),
 		'body': { '${1:snippetName}': { 'prefix': '${2:prefix}', 'body': '${3:snippet}', 'description': '${4:description}' } }

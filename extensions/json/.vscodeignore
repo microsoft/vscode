@@ -4,4 +4,3 @@ client/src/**
 server/tsconfig.json
 server/src/**
 server/node_modules/@types/**
-npm-shrinkwrap.json

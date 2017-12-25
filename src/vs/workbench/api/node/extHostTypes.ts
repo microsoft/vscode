@@ -11,6 +11,7 @@ import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
+import { relative } from 'path';
 
 export class Disposable {
 
@@ -90,10 +91,10 @@ export class Position {
 
 	constructor(line: number, character: number) {
 		if (line < 0) {
-			throw illegalArgument('line must be positive');
+			throw illegalArgument('line must be non-negative');
 		}
 		if (character < 0) {
-			throw illegalArgument('character must be positive');
+			throw illegalArgument('character must be non-negative');
 		}
 		this._line = line;
 		this._character = character;
@@ -808,6 +809,21 @@ export class SymbolInformation {
 	}
 }
 
+export class CodeAction {
+	title: string;
+
+	command?: vscode.Command;
+
+	edits?: TextEdit[] | WorkspaceEdit;
+
+	dianostics?: Diagnostic[];
+
+	constructor(title: string, edits?: TextEdit[] | WorkspaceEdit) {
+		this.title = title;
+		this.edits = edits;
+	}
+}
+
 export class CodeLens {
 
 	range: Range;
@@ -887,6 +903,11 @@ export class SignatureHelp {
 	constructor() {
 		this.signatures = [];
 	}
+}
+
+export enum CodeActionType {
+	QuickFix = 1,
+	Refactoring = 2
 }
 
 export enum CompletionTriggerKind {
@@ -1131,7 +1152,6 @@ export enum TaskPanelKind {
 export class TaskGroup implements vscode.TaskGroup {
 
 	private _id: string;
-	private _label: string;
 
 	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');
 
@@ -1141,15 +1161,14 @@ export class TaskGroup implements vscode.TaskGroup {
 
 	public static Test: TaskGroup = new TaskGroup('test', 'Test');
 
-	constructor(id: string, label: string) {
+	constructor(id: string, _label: string) {
 		if (typeof id !== 'string') {
 			throw illegalArgument('name');
 		}
-		if (typeof label !== 'string') {
+		if (typeof _label !== 'string') {
 			throw illegalArgument('name');
 		}
 		this._id = id;
-		this._label = label;
 	}
 
 	get id(): string {
@@ -1474,4 +1493,51 @@ export class RelativePattern implements IRelativePattern {
 		this.base = typeof base === 'string' ? base : base.uri.fsPath;
 		this.pattern = pattern;
 	}
+
+	public pathToRelative(from: string, to: string): string {
+		return relative(from, to);
+	}
+}
+
+export class Breakpoint {
+
+	readonly enabled: boolean;
+	readonly condition?: string;
+	readonly hitCondition?: string;
+
+	protected constructor(enabled: boolean, condition: string, hitCondition: string) {
+		this.enabled = enabled;
+		this.condition = condition;
+		this.hitCondition = hitCondition;
+		this.condition = condition;
+		this.hitCondition = hitCondition;
+	}
+}
+
+export class SourceBreakpoint extends Breakpoint {
+	readonly location: Location;
+
+	constructor(enabled: boolean, condition: string, hitCondition: string, location: Location) {
+		super(enabled, condition, hitCondition);
+		this.location = location;
+	}
+}
+
+export class FunctionBreakpoint extends Breakpoint {
+	readonly functionName: string;
+
+	constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string) {
+		super(enabled, condition, hitCondition);
+		this.functionName = functionName;
+	}
+}
+
+export enum LogLevel {
+	Trace = 1,
+	Debug = 2,
+	Info = 3,
+	Warning = 4,
+	Error = 5,
+	Critical = 6,
+	Off = 7
 }

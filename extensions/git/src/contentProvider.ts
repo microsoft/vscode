@@ -9,7 +9,7 @@ import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode'
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
-import { filterEvent, eventToPromise } from './util';
+import { filterEvent, eventToPromise, isDescendant } from './util';
 
 interface CacheRow {
 	uri: Uri;
@@ -52,7 +52,7 @@ export class GitContentProvider {
 			return;
 		}
 
-		this._onDidChange.fire(toGitUri(uri, '', true));
+		this._onDidChange.fire(toGitUri(uri, '', { replaceFileExtension: true }));
 	}
 
 	@debounce(1100)
@@ -72,7 +72,7 @@ export class GitContentProvider {
 			const fsPath = uri.fsPath;
 
 			for (const root of this.changedRepositoryRoots) {
-				if (fsPath.startsWith(root)) {
+				if (isDescendant(root, fsPath)) {
 					this._onDidChange.fire(uri);
 					return;
 				}
@@ -83,6 +83,18 @@ export class GitContentProvider {
 	}
 
 	async provideTextDocumentContent(uri: Uri): Promise<string> {
+		let { path, ref, submoduleOf } = fromGitUri(uri);
+
+		if (submoduleOf) {
+			const repository = this.model.getRepository(submoduleOf);
+
+			if (!repository) {
+				return '';
+			}
+
+			return await repository.diff(path, { cached: ref === 'index' });
+		}
+
 		const repository = this.model.getRepository(uri);
 
 		if (!repository) {
@@ -95,12 +107,10 @@ export class GitContentProvider {
 
 		this.cache[cacheKey] = cacheValue;
 
-		let { path, ref } = fromGitUri(uri);
-
 		if (ref === '~') {
 			const fileUri = Uri.file(path);
 			const uriString = fileUri.toString();
-			const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.original.toString() === uriString);
+			const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 			ref = indexStatus ? '' : 'HEAD';
 		}
 

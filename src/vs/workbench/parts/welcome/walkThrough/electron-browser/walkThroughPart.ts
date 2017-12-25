@@ -19,8 +19,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { marked } from 'vs/base/common/marked/marked';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -33,8 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { once } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -42,6 +39,7 @@ import { registerColor, focusBorder, textLinkForeground, textLinkActiveForegroun
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { deepClone } from 'vs/base/common/objects';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -99,15 +97,12 @@ export class WalkThroughPart extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService protected themeService: IThemeService,
 		@IOpenerService private openerService: IOpenerService,
-		@IFileService private fileService: IFileService,
 		@IModelService protected modelService: IModelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IStorageService private storageService: IStorageService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IModeService private modeService: IModeService,
-		@IMessageService private messageService: IMessageService,
-		@IPartService private partService: IPartService
+		@IMessageService private messageService: IMessageService
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
@@ -177,19 +172,7 @@ export class WalkThroughPart extends BaseEditor {
 				if (node instanceof HTMLAnchorElement && node.href) {
 					let baseElement = window.document.getElementsByTagName('base')[0] || window.location;
 					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
-						let scrollTarget = this.content.querySelector(node.hash);
-						/* __GDPR__
-							"revealInDocument" : {
-								"hash" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"broken": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-								"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-							}
-						*/
-						this.telemetryService.publicLog('revealInDocument', {
-							hash: node.hash,
-							broken: !scrollTarget,
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
-						});
+						const scrollTarget = this.content.querySelector(node.hash);
 						const innerContent = this.content.firstElementChild;
 						if (scrollTarget && innerContent) {
 							const targetTop = scrollTarget.getBoundingClientRect().top - 20;
@@ -215,18 +198,6 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private open(uri: URI) {
-		if (uri.scheme === 'http' || uri.scheme === 'https') {
-			/* __GDPR__
-				"openExternal" : {
-					"uri" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('openExternal', {
-				uri: uri.toString(true),
-				from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
-			});
-		}
 		if (uri.scheme === 'command' && uri.path === 'git.clone' && !CommandsRegistry.getCommand('git.clone')) {
 			this.messageService.show(Severity.Info, localize('walkThrough.gitNotFound', "It looks like Git is not installed on your system."));
 			return;
@@ -401,7 +372,7 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
-					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => {
+					this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(() => {
 						if (snippet.textEditorModel) {
 							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()));
 						}
@@ -452,7 +423,11 @@ export class WalkThroughPart extends BaseEditor {
 				});
 				this.updateSizeClasses();
 				this.multiCursorModifier();
-				this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => this.multiCursorModifier()));
+				this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration('editor.multiCursorModifier')) {
+						this.multiCursorModifier();
+					}
+				}));
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
@@ -463,7 +438,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private getEditorOptions(language: string): IEditorOptions {
-		const config = this.configurationService.getConfiguration<IEditorOptions>('editor', { overrideIdentifier: language });
+		const config = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
 		return {
 			...isObject(config) ? config : Object.create(null),
 			scrollBeyondLastLine: false,

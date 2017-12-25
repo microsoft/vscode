@@ -23,17 +23,17 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IEditorAction, ICommonCodeEditor, EndOfLineSequence, IModel } from 'vs/editor/common/editorCommon';
+import { IEditorAction, EndOfLineSequence, IModel } from 'vs/editor/common/editorCommon';
 import { IModelLanguageChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
-import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/common/indentation';
+import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/linesOperations';
+import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/indentation';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { IEditor as IBaseEditor, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { SUPPORTED_ENCODINGS, IFileService, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { SUPPORTED_ENCODINGS, IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -43,7 +43,7 @@ import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { getCodeEditor as getEditorWidget, getCodeOrDiffEditor } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor as getEditorWidget, getCodeOrDiffEditor } from 'vs/editor/browser/services/codeEditorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -56,6 +56,8 @@ import { widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/c
 // tslint:disable-next-line:import-patterns
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { deepClone } from 'vs/base/common/objects';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 	if (input instanceof SideBySideEditorInput) {
@@ -576,7 +578,7 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private onModeChange(editorWidget: ICommonCodeEditor): void {
+	private onModeChange(editorWidget: ICodeEditor): void {
 		let info: StateDelta = { mode: null };
 
 		// We only support text based editors
@@ -592,7 +594,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onIndentationChange(editorWidget: ICommonCodeEditor): void {
+	private onIndentationChange(editorWidget: ICodeEditor): void {
 		const update: StateDelta = { indentation: null };
 
 		if (editorWidget) {
@@ -622,14 +624,14 @@ export class EditorStatus implements IStatusbarItem {
 
 	private _promptedScreenReader: boolean = false;
 
-	private onScreenReaderModeChange(editorWidget: ICommonCodeEditor): void {
+	private onScreenReaderModeChange(editorWidget: ICodeEditor): void {
 		let screenReaderMode = false;
 
 		// We only support text based editors
 		if (editorWidget) {
 			const screenReaderDetected = (browser.getAccessibilitySupport() === AccessibilitySupport.Enabled);
 			if (screenReaderDetected) {
-				const screenReaderConfiguration = this.configurationService.getConfiguration<IEditorOptions>('editor').accessibilitySupport;
+				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 				if (screenReaderConfiguration === 'auto') {
 					// show explanation
 					if (!this._promptedScreenReader) {
@@ -652,7 +654,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState({ screenReaderMode: screenReaderMode });
 	}
 
-	private onSelectionChange(editorWidget: ICommonCodeEditor): void {
+	private onSelectionChange(editorWidget: ICodeEditor): void {
 		const info: IEditorSelectionStatus = {};
 
 		// We only support text based editors
@@ -689,7 +691,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState({ selectionStatus: this.getSelectionLabel(info) });
 	}
 
-	private onEOLChange(editorWidget: ICommonCodeEditor): void {
+	private onEOLChange(editorWidget: ICodeEditor): void {
 		const info: StateDelta = { EOL: null };
 
 		if (editorWidget && !editorWidget.getConfiguration().readOnly) {
@@ -749,7 +751,7 @@ export class EditorStatus implements IStatusbarItem {
 	}
 }
 
-function isWritableCodeEditor(codeEditor: ICommonCodeEditor): boolean {
+function isWritableCodeEditor(codeEditor: ICodeEditor): boolean {
 	if (!codeEditor) {
 		return false;
 	}
@@ -763,7 +765,7 @@ function isWritableBaseEditor(e: IBaseEditor): boolean {
 
 export class ShowLanguageExtensionsAction extends Action {
 
-	static ID = 'workbench.action.showLanguageExtensions';
+	static readonly ID = 'workbench.action.showLanguageExtensions';
 
 	constructor(
 		private fileExtension: string,
@@ -782,10 +784,8 @@ export class ShowLanguageExtensionsAction extends Action {
 
 export class ChangeModeAction extends Action {
 
-	public static ID = 'workbench.action.editor.changeLanguageMode';
-	public static LABEL = nls.localize('changeMode', "Change Language Mode");
-
-	private static FILE_ASSOCIATION_KEY = 'files.associations';
+	public static readonly ID = 'workbench.action.editor.changeLanguageMode';
+	public static readonly LABEL = nls.localize('changeMode', "Change Language Mode");
 
 	constructor(
 		actionId: string,
@@ -797,7 +797,6 @@ export class ChangeModeAction extends Action {
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICommandService private commandService: ICommandService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		super(actionId, actionLabel);
@@ -886,7 +885,7 @@ export class ChangeModeAction extends Action {
 			picks.unshift(autoDetectMode);
 		}
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then(pick => {
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), matchOnDescription: true }).then(pick => {
 			if (!pick) {
 				return;
 			}
@@ -964,7 +963,7 @@ export class ChangeModeAction extends Action {
 		TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).done(() => {
 			this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
 				if (language) {
-					const fileAssociationsConfig = this.configurationService.inspect(ChangeModeAction.FILE_ASSOCIATION_KEY);
+					const fileAssociationsConfig = this.configurationService.inspect(FILES_ASSOCIATIONS_CONFIG);
 
 					let associationKey: string;
 					if (extension && basename[0] !== '.') {
@@ -980,14 +979,14 @@ export class ChangeModeAction extends Action {
 					}
 
 					// Make sure to write into the value of the target and not the merged value from USER and WORKSPACE config
-					let currentAssociations = (target === ConfigurationTarget.WORKSPACE) ? fileAssociationsConfig.workspace : fileAssociationsConfig.user;
+					let currentAssociations = deepClone((target === ConfigurationTarget.WORKSPACE) ? fileAssociationsConfig.workspace : fileAssociationsConfig.user);
 					if (!currentAssociations) {
 						currentAssociations = Object.create(null);
 					}
 
 					currentAssociations[associationKey] = language.id;
 
-					this.configurationService.updateValue(ChangeModeAction.FILE_ASSOCIATION_KEY, currentAssociations, target);
+					this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 				}
 			});
 		});
@@ -1000,8 +999,8 @@ export interface IChangeEOLEntry extends IPickOpenEntry {
 
 class ChangeIndentationAction extends Action {
 
-	public static ID = 'workbench.action.editor.changeIndentation';
-	public static LABEL = nls.localize('changeIndentation', "Change Indentation");
+	public static readonly ID = 'workbench.action.editor.changeIndentation';
+	public static readonly LABEL = nls.localize('changeIndentation', "Change Indentation");
 
 	constructor(
 		actionId: string,
@@ -1050,8 +1049,8 @@ class ChangeIndentationAction extends Action {
 
 export class ChangeEOLAction extends Action {
 
-	public static ID = 'workbench.action.editor.changeEOL';
-	public static LABEL = nls.localize('changeEndOfLine', "Change End of Line Sequence");
+	public static readonly ID = 'workbench.action.editor.changeEOL';
+	public static readonly LABEL = nls.localize('changeEndOfLine', "Change End of Line Sequence");
 
 	constructor(
 		actionId: string,
@@ -1097,8 +1096,8 @@ export class ChangeEOLAction extends Action {
 
 export class ChangeEncodingAction extends Action {
 
-	public static ID = 'workbench.action.editor.changeEncoding';
-	public static LABEL = nls.localize('changeEncoding', "Change File Encoding");
+	public static readonly ID = 'workbench.action.editor.changeEncoding';
+	public static readonly LABEL = nls.localize('changeEncoding', "Change File Encoding");
 
 	constructor(
 		actionId: string,
@@ -1160,8 +1159,7 @@ export class ChangeEncodingAction extends Action {
 				.then((guessedEncoding: string) => {
 					const isReopenWithEncoding = (action === reopenWithEncodingPick);
 
-					const config = this.textResourceConfigurationService.getConfiguration(resource) as IFilesConfiguration;
-					const configuredEncoding = config && config.files && config.files.encoding;
+					const configuredEncoding = this.textResourceConfigurationService.getValue(resource, 'files.encoding');
 
 					let directMatchIndex: number;
 					let aliasMatchIndex: number;
@@ -1303,7 +1301,7 @@ class ScreenReaderDetectedExplanation {
 		const explanation1 = $('p.body1', {}, nls.localize('screenReaderDetectedExplanation.body1', "VS Code is now optimized for usage with a screen reader."));
 		domNode.appendChild(explanation1);
 
-		const explanation2 = $('p.body2', {}, nls.localize('screenReaderDetectedExplanation.body2', "Some editor features will have different behaviour: e.g. word wrapping, folding, auto closing brackets, etc."));
+		const explanation2 = $('p.body2', {}, nls.localize('screenReaderDetectedExplanation.body2', "Some editor features will have different behaviour: e.g. word wrapping, folding, etc."));
 		domNode.appendChild(explanation2);
 
 		container.appendChild(domNode);

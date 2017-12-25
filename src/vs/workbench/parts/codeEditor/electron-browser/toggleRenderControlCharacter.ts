@@ -5,11 +5,10 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
-@editorAction
 export class ToggleRenderControlCharacterAction extends EditorAction {
 
 	constructor() {
@@ -21,7 +20,7 @@ export class ToggleRenderControlCharacterAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const configurationService = accessor.get(IConfigurationService);
 
 		let newRenderControlCharacters = !editor.getConfiguration().viewInfo.renderControlCharacters;
@@ -29,3 +28,5 @@ export class ToggleRenderControlCharacterAction extends EditorAction {
 		configurationService.updateValue('editor.renderControlCharacters', newRenderControlCharacters, ConfigurationTarget.USER);
 	}
 }
+
+registerEditorAction(ToggleRenderControlCharacterAction);

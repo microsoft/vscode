@@ -8,10 +8,8 @@ import 'vs/css!./welcomePage';
 import URI from 'vs/base/common/uri';
 import * as path from 'path';
 import * as arrays from 'vs/base/common/arrays';
-import product from 'vs/platform/node/product';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -23,24 +21,24 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
-import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { tildify } from 'vs/base/common/labels';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { tildify, getBaseLabel } from 'vs/base/common/labels';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
+import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 
 used();
 
@@ -51,7 +49,6 @@ const telemetryFrom = 'welcomePage';
 export class WelcomePageContribution implements IWorkbenchContribution {
 
 	constructor(
-		@IPartService partService: IPartService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
@@ -62,10 +59,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	) {
 		const enabled = isWelcomePageEnabled(configurationService);
 		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-			TPromise.join([
-				backupFileService.hasBackups(),
-				partService.joinCreation()
-			]).then(([hasBackups]) => {
+			backupFileService.hasBackups().then(hasBackups => {
 				const activeInput = editorService.getActiveEditorInput();
 				if (!activeInput && !hasBackups) {
 					return instantiationService.createInstance(WelcomePage)
@@ -74,10 +68,6 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 				return undefined;
 			}).then(null, onUnexpectedError);
 		}
-	}
-
-	public getId() {
-		return 'vs.welcomePage';
 	}
 }
 
@@ -94,8 +84,8 @@ function isWelcomePageEnabled(configurationService: IConfigurationService) {
 
 export class WelcomePageAction extends Action {
 
-	public static ID = 'workbench.action.showWelcomePage';
-	public static LABEL = localize('welcomePage', "Welcome");
+	public static readonly ID = 'workbench.action.showWelcomePage';
+	public static readonly LABEL = localize('welcomePage', "Welcome");
 
 	constructor(
 		id: string,
@@ -123,7 +113,7 @@ interface ExtensionSuggestion {
 const extensionPacks: ExtensionSuggestion[] = [
 	{ name: localize('welcomePage.javaScript', "JavaScript"), id: 'dbaeumer.vscode-eslint' },
 	{ name: localize('welcomePage.typeScript', "TypeScript"), id: 'eg2.tslint' },
-	{ name: localize('welcomePage.python', "Python"), id: 'donjayamanne.python' },
+	{ name: localize('welcomePage.python', "Python"), id: 'ms-python.python' },
 	// { name: localize('welcomePage.go', "Go"), id: 'lukehoban.go' },
 	{ name: localize('welcomePage.php', "PHP"), id: 'felixfbecker.php-pack' },
 	{ name: localize('welcomePage.azure', "Azure"), title: localize('welcomePage.showAzureExtensions', "Show Azure extensions"), id: 'workbench.extensions.action.showAzureExtensions', isCommand: true },
@@ -244,8 +234,6 @@ class WelcomePage {
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IThemeService private themeService: IThemeService,
-		@IExperimentService private experimentService: IExperimentService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.disposables.push(lifecycleService.onShutdown(() => this.dispose()));
@@ -295,7 +283,7 @@ class WelcomePage {
 				let parent: string;
 				let wsPath: string;
 				if (isSingleFolderWorkspaceIdentifier(workspace)) {
-					label = path.basename(workspace);
+					label = getBaseLabel(workspace);
 					parent = path.dirname(workspace);
 					wsPath = workspace;
 				} else {
@@ -354,19 +342,13 @@ class WelcomePage {
 		this.updateInstalledExtensions(container, installedExtensions);
 		this.disposables.push(this.instantiationService.invokeFunction(onExtensionChanged)(ids => {
 			for (const id of ids) {
-				if (container.querySelector(`.installExtension[data-extension="${id}"], .enabledExtension[data-extension="${id}"]`)) {
+				if (container.querySelector(`.installExtension[data-extension="${stripVersion(id.id)}"], .enabledExtension[data-extension="${stripVersion(id.id)}"]`)) {
 					const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
 					this.updateInstalledExtensions(container, installedExtensions);
 					break;
 				}
-			};
+			}
 		}));
-
-		if (product.quality !== 'stable') {
-			container.querySelector('.stable-only').remove();
-		} else {
-			container.querySelector('.insiders-only').remove();
-		}
 	}
 
 	private addExtensionList(container: HTMLElement, listSelector: string, suggestions: ExtensionSuggestion[], strings: Strings) {
@@ -417,7 +399,7 @@ class WelcomePage {
 			extensionId: extensionSuggestion.id,
 		});
 		this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
-			const installedExtension = arrays.first(extensions, extension => extension.identifier === extensionSuggestion.id);
+			const installedExtension = arrays.first(extensions, extension => stripVersion(extension.identifier.id) === extensionSuggestion.id);
 			if (installedExtension && installedExtension.globallyEnabled) {
 				/* __GDPR__FRAGMENT__
 					"WelcomePageInstalled-1" : {
@@ -434,18 +416,18 @@ class WelcomePage {
 				this.messageService.show(Severity.Info, strings.alreadyInstalled.replace('{0}', extensionSuggestion.name));
 				return;
 			}
-			const foundAndInstalled = installedExtension ? TPromise.as(true) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
+			const foundAndInstalled = installedExtension ? TPromise.as(installedExtension.identifier) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
 				.then(result => {
 					const [extension] = result.firstPage;
 					if (!extension) {
-						return false;
+						return null;
 					}
 					return this.extensionManagementService.installFromGallery(extension)
 						.then(() => {
 							// TODO: Do this as part of the install to avoid multiple events.
-							return this.extensionEnablementService.setEnablement(extensionSuggestion.id, false);
+							return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
 						}).then(() => {
-							return true;
+							return extension.identifier;
 						});
 				});
 			this.messageService.show(Severity.Info, {
@@ -461,12 +443,12 @@ class WelcomePage {
 						});
 						TPromise.join(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
 							.map(extension => {
-								return this.extensionEnablementService.setEnablement(extension.identifier, false);
+								return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
 							}) : []).then(() => {
-								return foundAndInstalled.then(found => {
+								return foundAndInstalled.then(foundExtension => {
 									messageDelay.cancel();
-									if (found) {
-										return this.extensionEnablementService.setEnablement(extensionSuggestion.id, true)
+									if (foundExtension) {
+										return this.extensionEnablementService.setEnablement(foundExtension, EnablementState.Enabled)
 											.then(() => {
 												/* __GDPR__FRAGMENT__
 													"WelcomePageInstalled-2" : {
@@ -577,7 +559,7 @@ class WelcomePage {
 				elements[i].classList.remove('installed');
 			}
 			extensions.filter(ext => ext.globallyEnabled)
-				.map(ext => ext.identifier)
+				.map(ext => stripVersion(ext.identifier.id))
 				.forEach(id => {
 					const install = container.querySelectorAll(`.installExtension[data-extension="${id}"]`);
 					for (let i = 0; i < install.length; i++) {
@@ -596,10 +578,14 @@ class WelcomePage {
 	}
 }
 
+function stripVersion(id: string): string {
+	return getIdAndVersionFromLocalExtensionId(id).id;
+}
+
 
 export class WelcomeInputFactory implements IEditorInputFactory {
 
-	static ID = welcomeInputTypeId;
+	static readonly ID = welcomeInputTypeId;
 
 	public serialize(editorInput: EditorInput): string {
 		return '{}';

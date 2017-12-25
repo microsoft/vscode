@@ -8,10 +8,9 @@
 import { TernarySearchTree } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { getConfigurationKeys, IConfigurationOverrides, IConfigurationService, getConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 
-export class TestConfigurationService extends EventEmitter implements IConfigurationService {
+export class TestConfigurationService implements IConfigurationService {
 	public _serviceBrand: any;
 
 	private configuration = Object.create(null);
@@ -19,21 +18,19 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 	private configurationByRoot: TernarySearchTree<any> = TernarySearchTree.forPaths<any>();
 
 	public reloadConfiguration<T>(): TPromise<T> {
-		return TPromise.as(this.getConfiguration());
+		return TPromise.as(this.getValue());
 	}
 
-	public getConfiguration<C>(arg1?: any, arg2?: any): C {
+	public getValue(arg1?: any, arg2?: any): any {
+		if (arg1 && typeof arg1 === 'string') {
+			return this.inspect(<string>arg1).value;
+		}
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
 		if (overrides && overrides.resource) {
 			const configForResource = this.configurationByRoot.findSubstr(overrides.resource.fsPath);
 			return configForResource || this.configuration;
 		}
-
 		return this.configuration;
-	}
-
-	public getValue(key: string, overrides?: IConfigurationOverrides): any {
-		return this.inspect(key).value;
 	}
 
 	public updateValue(key: string, overrides?: IConfigurationOverrides): TPromise<void> {
@@ -52,7 +49,7 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 		return TPromise.as(null);
 	}
 
-	public onDidUpdateConfiguration() {
+	public onDidChangeConfiguration() {
 		return { dispose() { } };
 	}
 
@@ -63,7 +60,7 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 		workspaceFolder: T
 		value: T,
 	} {
-		const config = this.getConfiguration(undefined, overrides);
+		const config = this.getValue(undefined, overrides);
 
 		return {
 			value: getConfigurationValue<T>(config, key),

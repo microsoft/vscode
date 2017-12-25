@@ -16,25 +16,12 @@ import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
-import { TestContextService, TestTextResourceConfigurationService } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
-class TestEnvironmentService extends EnvironmentService {
-
-	constructor(private _backupHome: string, private _backupWorkspacesPath: string) {
-		super(parseArgs(process.argv), process.execPath);
-	}
-
-	get backupHome(): string { return this._backupHome; }
-
-	get backupWorkspacesPath(): string { return this._backupWorkspacesPath; }
-}
-
-const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
+const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');
 const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
@@ -49,13 +36,13 @@ const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.cre
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
-		const fileService = new FileService(new TestContextService(new Workspace(workspace.fsPath, workspace.fsPath, toWorkspaceFolders([{ path: workspace.fsPath }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true });
+		const fileService = new FileService(new TestContextService(new Workspace(workspace.fsPath, workspace.fsPath, toWorkspaceFolders([{ path: workspace.fsPath }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true });
 
 		super(workspaceBackupPath, fileService);
 	}
 
-	public getBackupResource(resource: Uri): Uri {
-		return super.getBackupResource(resource);
+	public toBackupResource(resource: Uri): Uri {
+		return super.toBackupResource(resource);
 	}
 }
 
@@ -86,7 +73,7 @@ suite('BackupFileService', () => {
 			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
-			assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
+			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
 
 		test('should get the correct backup path for untitled files', () => {
@@ -95,7 +82,7 @@ suite('BackupFileService', () => {
 			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
-			assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
+			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
 	});
 

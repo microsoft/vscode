@@ -15,14 +15,13 @@ import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/comm
 import { QuickOpenModel, IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import filters = require('vs/base/common/filters');
-import { KeyMod } from 'vs/base/common/keyCodes';
 import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import { DocumentSymbolProviderRegistry, SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
@@ -32,8 +31,8 @@ export const SCOPE_PREFIX = ':';
 
 export class GotoSymbolAction extends QuickOpenAction {
 
-	public static ID = 'workbench.action.gotoSymbol';
-	public static LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
+	public static readonly ID = 'workbench.action.gotoSymbol';
+	public static readonly LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
 
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_SYMBOL_PREFIX, quickOpenService);
@@ -294,9 +293,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return this.editorService.getActiveEditorInput();
 	}
 
-	public getOptions(): ITextEditorOptions {
+	public getOptions(pinned?: boolean): ITextEditorOptions {
 		return {
-			selection: this.toSelection()
+			selection: this.toSelection(),
+			pinned
 		};
 	}
 
@@ -311,9 +311,9 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private runOpen(context: IEntryRunContext): boolean {
 
 		// Check for sideBySide use
-		const sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+		const sideBySide = context.keymods.ctrlCmd;
 		if (sideBySide) {
-			this.editorService.openEditor(this.getInput(), this.getOptions(), true).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor(this.getInput(), this.getOptions(context.keymods.alt), true).done(null, errors.onUnexpectedError);
 		}
 
 		// Apply selection and focus
@@ -505,7 +505,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 		}
 
-		return TPromise.as<OutlineModel>(null);
+		return TPromise.wrap<OutlineModel>(null);
 	}
 
 	public decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, position: Position): void {

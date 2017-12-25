@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext } from '../node/extHost.protocol';
+import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext, IWorkspaceConfigurationChangeEventData } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 
 @extHostNamedCustomer(MainContext.MainThreadConfiguration)
 export class MainThreadConfiguration implements MainThreadConfigurationShape {
@@ -25,10 +25,10 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
-		const proxy = extHostContext.get(ExtHostContext.ExtHostConfiguration);
+		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostConfiguration);
 
-		this._configurationListener = configurationService.onDidUpdateConfiguration(() => {
-			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData());
+		this._configurationListener = configurationService.onDidChangeConfiguration(e => {
+			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData(), this.toConfigurationChangeEventData(e));
 		});
 	}
 
@@ -36,11 +36,13 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 		this._configurationListener.dispose();
 	}
 
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: URI): TPromise<void> {
+	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resourceUriComponenets: UriComponents): TPromise<void> {
+		const resource = resourceUriComponenets ? URI.revive(resourceUriComponenets) : null;
 		return this.writeConfiguration(target, key, value, resource);
 	}
 
-	$removeConfigurationOption(target: ConfigurationTarget, key: string, resource: URI): TPromise<void> {
+	$removeConfigurationOption(target: ConfigurationTarget, key: string, resourceUriComponenets: UriComponents): TPromise<void> {
+		const resource = resourceUriComponenets ? URI.revive(resourceUriComponenets) : null;
 		return this.writeConfiguration(target, key, undefined, resource);
 	}
 
@@ -57,5 +59,23 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 			}
 		}
 		return ConfigurationTarget.WORKSPACE;
+	}
+
+	private toConfigurationChangeEventData(event: IConfigurationChangeEvent): IWorkspaceConfigurationChangeEventData {
+		return {
+			changedConfiguration: this.toJSONConfiguration(event.changedConfiguration),
+			changedConfigurationByResource: event.changedConfigurationByResource.keys().reduce((result, resource) => {
+				result[resource.toString()] = this.toJSONConfiguration(event.changedConfigurationByResource.get(resource));
+				return result;
+			}, Object.create({}))
+		};
+	}
+
+	private toJSONConfiguration({ contents, keys, overrides }: IConfigurationModel = { contents: {}, keys: [], overrides: [] }): IConfigurationModel {
+		return {
+			contents,
+			keys,
+			overrides
+		};
 	}
 }

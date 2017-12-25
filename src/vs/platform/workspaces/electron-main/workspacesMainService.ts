@@ -5,15 +5,15 @@
 
 'use strict';
 
-import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isStoredWorkspaceFolder, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceSavedEvent, UNTITLED_WORKSPACE_NAME, IResolvedWorkspace, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { extname, join, dirname, isAbsolute, resolve } from 'path';
 import { mkdirp, writeFile, readFile } from 'vs/base/node/pfs';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { delSync, readdirSync } from 'vs/base/node/extfs';
+import { delSync, readdirSync, writeFileAndFlushSync } from 'vs/base/node/extfs';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual } from 'vs/base/common/paths';
@@ -57,14 +57,6 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return this._onUntitledWorkspaceDeleted.event;
 	}
 
-	public resolveWorkspace(path: string): TPromise<IResolvedWorkspace> {
-		if (!this.isWorkspacePath(path)) {
-			return TPromise.as(null); // does not look like a valid workspace config file
-		}
-
-		return readFile(path).then(contents => this.doResolveWorkspace(path, contents.toString()));
-	}
-
 	public resolveWorkspaceSync(path: string): IResolvedWorkspace {
 		if (!this.isWorkspacePath(path)) {
 			return null; // does not look like a valid workspace config file
@@ -94,7 +86,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 				folders: toWorkspaceFolders(workspace.folders, URI.file(dirname(path)))
 			};
 		} catch (error) {
-			this.logService.log(error.toString());
+			this.logService.warn(error.toString());
 		}
 
 		return null;
@@ -127,20 +119,16 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return isParent(path, this.environmentService.workspacesHome, !isLinux /* ignore case */);
 	}
 
-	public createWorkspace(folders: string[]): TPromise<IWorkspaceIdentifier>;
-	public createWorkspace(resources: URI[]): TPromise<IWorkspaceIdentifier>;
-	public createWorkspace(arg1: string[] | URI[]): TPromise<IWorkspaceIdentifier> {
-		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(arg1);
+	public createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier> {
+		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
 
 		return mkdirp(configParent).then(() => {
 			return writeFile(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t')).then(() => workspace);
 		});
 	}
 
-	public createWorkspaceSync(folders: string[]): IWorkspaceIdentifier;
-	public createWorkspaceSync(resources: URI[]): IWorkspaceIdentifier;
-	public createWorkspaceSync(arg1: string[] | URI[]): IWorkspaceIdentifier {
-		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(arg1);
+	public createWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier {
+		const { workspace, configParent, storedWorkspace } = this.createUntitledWorkspace(folders);
 
 		if (!existsSync(this.workspacesHome)) {
 			mkdirSync(this.workspacesHome);
@@ -148,31 +136,36 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 		mkdirSync(configParent);
 
-		writeFileSync(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t'));
+		writeFileAndFlushSync(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t'));
 
 		return workspace;
 	}
 
-	private createUntitledWorkspace(folders: (string | URI)[]): { workspace: IWorkspaceIdentifier, configParent: string, storedWorkspace: IStoredWorkspace } {
+	private createUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = []): { workspace: IWorkspaceIdentifier, configParent: string, storedWorkspace: IStoredWorkspace } {
 		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
 		const untitledWorkspaceConfigFolder = join(this.workspacesHome, randomId);
 		const untitledWorkspaceConfigPath = join(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);
 
 		const storedWorkspace: IStoredWorkspace = {
 			folders: folders.map(folder => {
-
-				// File path
-				if (typeof folder === 'string') {
-					return { path: massageFolderPathForWorkspace(folder, untitledWorkspaceConfigFolder, []) } as IRawFileWorkspaceFolder;
-				}
+				const folderResource = folder.uri;
+				let storedWorkspace: IStoredWorkspaceFolder;
 
 				// File URI
-				else if (folder.scheme === 'file') {
-					return { path: massageFolderPathForWorkspace(folder.fsPath, untitledWorkspaceConfigFolder, []) } as IRawFileWorkspaceFolder;
+				if (folderResource.scheme === 'file') {
+					storedWorkspace = { path: massageFolderPathForWorkspace(folderResource.fsPath, untitledWorkspaceConfigFolder, []) };
 				}
 
 				// Any URI
-				return { uri: folder.toString(true) } as IRawUriWorkspaceFolder;
+				else {
+					storedWorkspace = { uri: folderResource.toString(true) };
+				}
+
+				if (folder.name) {
+					storedWorkspace.name = folder.name;
+				}
+
+				return storedWorkspace;
 			})
 		};
 
@@ -269,7 +262,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		try {
 			delSync(dirname(configPath));
 		} catch (error) {
-			this.logService.log(`Unable to delete untitled workspace ${configPath} (${error}).`);
+			this.logService.warn(`Unable to delete untitled workspace ${configPath} (${error}).`);
 		}
 	}
 
@@ -278,7 +271,9 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		try {
 			untitledWorkspacePaths = readdirSync(this.workspacesHome).map(folder => join(this.workspacesHome, folder, UNTITLED_WORKSPACE_NAME));
 		} catch (error) {
-			this.logService.log(`Unable to read folders in ${this.workspacesHome} (${error}).`);
+			if (error && error.code !== 'ENOENT') {
+				this.logService.warn(`Unable to read folders in ${this.workspacesHome} (${error}).`);
+			}
 		}
 
 		const untitledWorkspaces: IWorkspaceIdentifier[] = coalesce(untitledWorkspacePaths.map(untitledWorkspacePath => {

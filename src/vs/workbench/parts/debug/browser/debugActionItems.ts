@@ -12,7 +12,6 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
@@ -20,12 +19,13 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 
 const $ = dom.$;
 
-export class StartDebugActionItem extends EventEmitter implements IActionItem {
+export class StartDebugActionItem implements IActionItem {
 
-	private static SEPARATOR = '─────────';
+	private static readonly SEPARATOR = '─────────';
 
 	public actionRunner: IActionRunner;
 	private container: HTMLElement;
@@ -41,11 +41,11 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		@IDebugService private debugService: IDebugService,
 		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IContextViewService contextViewService: IContextViewService,
 	) {
-		super();
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1);
+		this.selectBox = new SelectBox([], -1, contextViewService);
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {
 			selectBackground: SIDE_BAR_BACKGROUND
 		}));
@@ -54,7 +54,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => {
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('launch')) {
 				this.updateOptions();
 			}
@@ -186,9 +186,10 @@ export class FocusProcessActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
 		@IDebugService private debugService: IDebugService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, [], -1);
+		super(null, action, [], -1, contextViewService);
 
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 

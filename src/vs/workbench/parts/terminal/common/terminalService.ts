@@ -59,14 +59,19 @@ export abstract class TerminalService implements ITerminalService {
 		this._onInstanceTitleChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
 
-		this._configurationService.onDidUpdateConfiguration(() => this.updateConfig());
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('terminal.integrated')) {
+				this.updateConfig();
+			}
+		});
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
+		lifecycleService.onShutdown(() => this._onShutdown());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
 	}
 
-	protected abstract _showTerminalCloseConfirmation(): boolean;
+	protected abstract _showTerminalCloseConfirmation(): TPromise<boolean>;
 	public abstract createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): TPromise<string>;
@@ -85,12 +90,16 @@ export abstract class TerminalService implements ITerminalService {
 			}
 		}
 
-		// Dispose all terminal instances and don't veto
 		this._isShuttingDown = true;
+
+		return false;
+	}
+
+	private _onShutdown(): void {
 		this.terminalInstances.forEach(instance => {
+			console.log('kill!');
 			instance.dispose();
 		});
-		return false;
 	}
 
 	public getInstanceLabels(): string[] {
@@ -185,13 +194,17 @@ export abstract class TerminalService implements ITerminalService {
 			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
 				return this._panelService.openPanel(TERMINAL_PANEL_ID, focus).then(() => {
 					if (focus) {
-						this.getActiveInstance().focus(true);
+						// Do the focus call asynchronously as going through the
+						// command palette will force editor focus
+						setTimeout(() => this.getActiveInstance().focus(true), 0);
 					}
 					complete(void 0);
 				});
 			} else {
 				if (focus) {
-					this.getActiveInstance().focus(true);
+					// Do the focus call asynchronously as going through the
+					// command palette will force editor focus
+					setTimeout(() => this.getActiveInstance().focus(true), 0);
 				}
 				complete(void 0);
 			}
