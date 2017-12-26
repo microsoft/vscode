@@ -144,6 +144,10 @@
 	margin-right: 0.5em;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-left > .tab-close .action-label {
+	margin-right: 0;
+}
+
 .vs .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty .close-editor-action {
 	background: url('close-dirty.svg') center center no-repeat;
 }
