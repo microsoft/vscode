@@ -11,7 +11,7 @@ declare module 'xterm' {
 	/**
 	 * An object containing start up options for the terminal.
 	 */
-	interface ITerminalOptions {
+	export interface ITerminalOptions {
 		/**
 		 * A data uri of the sound to use for the bell (needs bellStyle = 'sound').
 		 */
@@ -20,7 +20,7 @@ declare module 'xterm' {
 		/**
 		 * The type of the bell notification the terminal will use.
 		 */
-		bellStyle?: 'none' | 'visual' | 'sound' | 'both';
+		bellStyle?: 'none' /*| 'visual'*/ | 'sound' /*| 'both'*/;
 
 		/**
 		 * The number of columns in the terminal.
@@ -58,6 +58,11 @@ declare module 'xterm' {
 		fontFamily?: string;
 
 		/**
+		 * The spacing in whole pixels between characters..
+		 */
+		letterSpacing?: number;
+
+		/**
 		 * The line height used to render text.
 		 */
 		lineHeight?: number;
@@ -87,17 +92,17 @@ declare module 'xterm' {
 	/**
 	 * Contains colors to theme the terminal with.
 	 */
-	interface ITheme {
+	export interface ITheme {
 		/** The default foreground color */
 		foreground?: string,
 		/** The default background color */
 		background?: string,
 		/** The cursor color */
 		cursor?: string,
-		/** The selection color (can be transparent) */
-		selection?: string,
 		/** The accent color of the cursor (used as the foreground color for a block cursor) */
 		cursorAccent?: string,
+		/** The selection color (can be transparent) */
+		selection?: string,
 		/** ANSI black (eg. `\x1b[30m`) */
 		black?: string,
 		/** ANSI red (eg. `\x1b[31m`) */
@@ -135,7 +140,7 @@ declare module 'xterm' {
 	/**
 	 * An object containing options for a link matcher.
 	 */
-	interface ILinkMatcherOptions {
+	export interface ILinkMatcherOptions {
 		/**
 		 * The index of the link from the regex.match(text) call. This defaults to 0
 		 * (for regular expressions without capture groups).
@@ -213,7 +218,7 @@ declare module 'xterm' {
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'blur' | 'focus' | 'lineFeed', listener: () => void): void;
+		on(type: 'blur' | 'focus' | 'linefeed' | 'selection', listener: () => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
@@ -237,13 +242,13 @@ declare module 'xterm' {
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'refresh', listener: (data?: { start: number, end: number }) => void): void;
+		on(type: 'refresh', listener: (data?: {start: number, end: number}) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		on(type: 'resize', listener: (data?: { cols: number, rows: number }) => void): void;
+		on(type: 'resize', listener: (data?: {cols: number, rows: number}) => void): void;
 		/**
 		 * Registers an event listener.
 		 * @param type The type of the event.
@@ -268,7 +273,7 @@ declare module 'xterm' {
 		 * @param type The type of the event.
 		 * @param listener The listener.
 		 */
-		off(type: 'blur' | 'focus' | 'lineFeed' | 'data' | 'key' | 'keypress' | 'keydown' | 'refresh' | 'resize' | 'scroll' | 'title' | string, listener: (...args: any[]) => void): void;
+		off(type: 'blur' | 'focus' | 'linefeed' | 'selection' | 'data' | 'key' | 'keypress' | 'keydown' | 'refresh' | 'resize' | 'scroll' | 'title' | string, listener: (...args: any[]) => void): void;
 
 		/**
 		 * Resizes the terminal.
@@ -285,7 +290,9 @@ declare module 'xterm' {
 
 		/**
 		 * Opens the terminal within an element.
-		 * @param parent The element to create the terminal within.
+		 * @param parent The element to create the terminal within. This element
+		 * must be visible (have dimensions) when `open` is called as several DOM-
+		 * based measurements need to be performed when this function is called.
 		 */
 		open(parent: HTMLElement): void;
 
@@ -412,12 +419,7 @@ declare module 'xterm' {
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
 		 */
-		getOption(key: 'cols' | 'fontSize' | 'lineHeight' | 'rows' | 'tabStopWidth' | 'scrollback'): number;
-		/**
-		 * Retrieves an option's value from the terminal.
-		 * @param key The option key.
-		 */
-		getOption(key: 'geometry'): [number, number];
+		getOption(key: 'cols' | 'fontSize' | 'letterSpacing' | 'lineHeight' | 'rows' | 'tabStopWidth' | 'scrollback'): number;
 		/**
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
@@ -464,13 +466,7 @@ declare module 'xterm' {
 		 * @param key The option key.
 		 * @param value The option value.
 		 */
-		setOption(key: 'cols' | 'fontSize' | 'lineHeight' | 'rows' | 'tabStopWidth' | 'scrollback', value: number): void;
-		/**
-		 * Sets an option on the terminal.
-		 * @param key The option key.
-		 * @param value The option value.
-		 */
-		setOption(key: 'geometry', value: [number, number]): void;
+		setOption(key: 'fontSize' | 'letterSpacing' | 'lineHeight' | 'tabStopWidth' | 'scrollback', value: number): void;
 		/**
 		 * Sets an option on the terminal.
 		 * @param key The option key.
@@ -504,11 +500,11 @@ declare module 'xterm' {
 		reset(): void
 
 		/**
-		 * Loads an addon, attaching it to the Terminal prototype and making it
-		 * available to all newly created Terminals.
-		 * @param addon The addon to load.
+		 * Applies an addon to the Terminal prototype, making it available to all
+		 * newly created Terminals.
+		 * @param addon The addon to apply.
 		 */
-		static loadAddon(addon: 'attach' | 'fit' | 'fullscreen' | 'search' | 'terminado' | 'winptyCompat'): void;
+		static applyAddon(addon: any): void;
 
 
 

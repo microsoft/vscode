@@ -45,7 +45,7 @@
     "vscode-debugprotocol": "1.25.0",
     "vscode-ripgrep": "^0.6.0-patch.0.5",
     "vscode-textmate": "^3.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.19",
+    "xterm": "Tyriar/xterm.js#vscode-release/1.20",
     "yauzl": "2.8.0"
   },
   "devDependencies": {

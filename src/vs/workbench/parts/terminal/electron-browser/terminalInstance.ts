@@ -256,9 +256,9 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!Terminal) {
 			Terminal = (await import('xterm')).Terminal;
 			// Enable search functionality in xterm.js instance
-			Terminal.loadAddon('search');
+			Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/search/search'));
 			// Enable the winpty compatibility addon which will simulate wraparound mode
-			Terminal.loadAddon('winptyCompat');
+			Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/winptyCompat/winptyCompat'));
 		}
 		const font = this._configHelper.getFont(true);
 		this._xterm = new Terminal({
@@ -273,7 +273,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
 		this._xterm.winptyCompatInit();
-		this._xterm.on('lineFeed', () => this._onLineFeed());
+		this._xterm.on('linefeed', () => this._onLineFeed());
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
 			if (this._processId) {
