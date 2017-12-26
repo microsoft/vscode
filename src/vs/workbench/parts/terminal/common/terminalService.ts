@@ -97,7 +97,6 @@ export abstract class TerminalService implements ITerminalService {
 
 	private _onShutdown(): void {
 		this.terminalInstances.forEach(instance => {
-			console.log('kill!');
 			instance.dispose();
 		});
 	}
