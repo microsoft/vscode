@@ -267,7 +267,8 @@ export class TerminalInstance implements ITerminalInstance {
 			fontFamily: font.fontFamily,
 			fontSize: font.fontSize,
 			lineHeight: font.lineHeight,
-			enableBold: this._configHelper.config.enableBold
+			enableBold: this._configHelper.config.enableBold,
+			bellStyle: this._configHelper.config.enableBell ? 'sound' : 'none'
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -943,6 +944,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._setCursorStyle(this._configHelper.config.cursorStyle);
 		this._setCommandsToSkipShell(this._configHelper.config.commandsToSkipShell);
 		this._setScrollback(this._configHelper.config.scrollback);
+		this._setEnableBell(this._configHelper.config.enableBell);
 	}
 
 	private _setCursorBlink(blink: boolean): void {
@@ -967,6 +969,20 @@ export class TerminalInstance implements ITerminalInstance {
 	private _setScrollback(lineCount: number): void {
 		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
 			this._xterm.setOption('scrollback', lineCount);
+		}
+	}
+
+	private _setEnableBell(isEnabled: boolean): void {
+		if (this._xterm) {
+			if (this._xterm.getOption('bellStyle') === 'sound') {
+				if (!this._configHelper.config.enableBell) {
+					this._xterm.setOption('bellStyle', 'none');
+				}
+			} else {
+				if (this._configHelper.config.enableBell) {
+					this._xterm.setOption('bellStyle', 'sound');
+				}
+			}
 		}
 	}
 
