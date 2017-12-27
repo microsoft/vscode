@@ -331,10 +331,15 @@ export class TerminalInstance implements ITerminalInstance {
 
 				return undefined;
 			});
-			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
-				// Wait until mouseup has propagated through the DOM before
-				// evaluating the new selection state.
-				setTimeout(() => this._refreshSelectionContextKey(), 0);
+			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mousedown', (event: KeyboardEvent) => {
+				// We need to listen to the mouseup event on the document since the user may release
+				// the mouse button anywhere outside of _xterm.element.
+				const listener = dom.addDisposableListener(document, 'mouseup', (event: KeyboardEvent) => {
+					// Delay with a setTimeout to allow the mouseup to propagate through the DOM
+					// before evaluating the new selection state.
+					setTimeout(() => this._refreshSelectionContextKey(), 0);
+					listener.dispose();
+				});
 			}));
 
 			// xterm.js currently drops selection on keyup as we need to handle this case.
@@ -562,6 +567,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _refreshSelectionContextKey() {
 		const activePanel = this._panelService.getActivePanel();
 		const isActive = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
+
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
 
