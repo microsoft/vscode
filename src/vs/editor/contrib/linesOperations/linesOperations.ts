@@ -472,15 +472,12 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 				if (selection.startColumn > 1) {
 					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
 				} else {
-					let position = selection.getStartPosition();
-					let config = editor._getCursorConfiguration();
-					let model = editor.getModel();
-					let leftOfPosition = MoveOperations.left(config, model, position.lineNumber, position.column);
+					let leftOfPosition = MoveOperations.left(editor._getCursorConfiguration(), editor.getModel(), selection.startLineNumber, selection.startColumn);
 					return new Range(
 						leftOfPosition.lineNumber,
 						leftOfPosition.column,
-						position.lineNumber,
-						position.column
+						selection.startLineNumber,
+						selection.startColumn
 					);
 				}
 			} else {
