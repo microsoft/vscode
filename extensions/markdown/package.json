@@ -154,7 +154,7 @@
 				{
 					"command": "markdown.showPreview",
 					"when": "resourceLangId == markdown",
-					"group": "2_navigation"
+					"group": "navigation"
 				}
 			],
 			"commandPalette": [

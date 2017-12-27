@@ -60,6 +60,7 @@ import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/pos
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -236,6 +237,7 @@ export class TestTextFileService extends TextFileService {
 
 export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
+	instantiationService.stub(IContextKeyService, <IContextKeyService>instantiationService.createInstance(MockContextKeyService));
 	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
 	const configService = new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configService);

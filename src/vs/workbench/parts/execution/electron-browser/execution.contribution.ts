@@ -163,14 +163,14 @@ const openConsoleCommand = {
 };
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '2_navigation',
+	group: 'navigation',
 	order: 30,
 	command: openConsoleCommand,
 	when: ResourceContextKey.Scheme.isEqualTo('file')
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '2_navigation',
+	group: 'navigation',
 	order: 30,
 	command: openConsoleCommand,
 	when: ResourceContextKey.Scheme.isEqualTo('file')

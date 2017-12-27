@@ -220,7 +220,7 @@ CommandsRegistry.registerCommand({
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '2_navigation',
+	group: 'navigation',
 	order: 50,
 	command: {
 		id: FIND_IN_FOLDER_ID,
@@ -230,7 +230,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '2_navigation',
+	group: 'navigation',
 	order: 20,
 	command: {
 		id: FIND_IN_WORKSPACE_ID,

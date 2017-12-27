@@ -130,7 +130,7 @@ function appendSaveConflictEditorTitleAction(id: string, title: string, iconClas
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		command: { id, title, iconClass },
 		when: ContextKeyExpr.equals(CONFLICT_RESOLUTION_CONTEXT, true),
-		group: '2_navigation',
+		group: 'navigation',
 		order
 	});
 }
@@ -142,7 +142,7 @@ const openToSideCommand = {
 	title: nls.localize('openToSide', "Open to the Side")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '2_navigation',
+	group: 'navigation',
 	order: 10,
 	command: openToSideCommand,
 	when: ResourceContextKey.HasResource
@@ -153,7 +153,7 @@ const revealInOsCommand = {
 	title: isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '2_navigation',
+	group: 'navigation',
 	order: 20,
 	command: revealInOsCommand,
 	when: ResourceContextKey.Scheme.isEqualTo('file')
@@ -164,7 +164,7 @@ const copyPathCommand = {
 	title: nls.localize('copyPath', "Copy Path")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '2_navigation',
+	group: 'navigation',
 	order: 40,
 	command: copyPathCommand,
 	when: ResourceContextKey.HasResource
@@ -281,7 +281,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 // Menu registration - explorer
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '1_new',
+	group: 'navigation',
 	order: 4,
 	command: {
 		id: NEW_FILE_COMMAND_ID,
@@ -291,7 +291,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '1_new',
+	group: 'navigation',
 	order: 6,
 	command: {
 		id: NEW_FOLDER_COMMAND_ID,
@@ -301,14 +301,14 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '2_navigation',
+	group: 'navigation',
 	order: 10,
 	command: openToSideCommand,
 	when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo('file'), ExplorerFolderContext.toNegated())
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '2_navigation',
+	group: 'navigation',
 	order: 20,
 	command: revealInOsCommand,
 	when: ResourceContextKey.HasResource
