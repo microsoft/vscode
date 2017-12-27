@@ -403,6 +403,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
 		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
+		this.disposables.push(controller);
 		const sorter = this.instantiationService.createInstance(FileSorter);
 		this.disposables.push(sorter);
 		this.filter = this.instantiationService.createInstance(FileFilter);

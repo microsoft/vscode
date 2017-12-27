@@ -326,10 +326,11 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 }
 
 // Explorer Controller
-export class FileController extends DefaultController {
+export class FileController extends DefaultController implements IDisposable {
 	private state: FileViewletState;
 
 	private contributedContextMenu: IMenu;
+	private toDispose: IDisposable[];
 
 	constructor(state: FileViewletState,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -340,8 +341,9 @@ export class FileController extends DefaultController {
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ });
 
-		// TODO@isidor dispsoe this
+		this.toDispose = [];
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
+		this.toDispose.push(this.contributedContextMenu);
 
 		this.state = state;
 	}
@@ -457,6 +459,10 @@ export class FileController extends DefaultController {
 
 			this.editorService.openEditor({ resource: stat.resource, options }, options.sideBySide).done(null, errors.onUnexpectedError);
 		}
+	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
 	}
 }
 
