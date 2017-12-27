@@ -351,6 +351,11 @@ export class ElectronWindow extends Themable {
 			return; // macOS only
 		}
 
+		const touchbarEnabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled');
+		if (!touchbarEnabled) {
+			return; // disabled via setting
+		}
+
 		// Dispose old
 		this.touchBarDisposables = dispose(this.touchBarDisposables);
 

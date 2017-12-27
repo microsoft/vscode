@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as paths from 'vs/base/common/paths';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -22,7 +20,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { LOG_SCHEME } from 'vs/workbench/parts/output/common/output';
 
-export const LOG_VIEWER_EDITOR_ID = 'workbench.editors.logViewer';
 
 export class LogViewerInput extends ResourceEditorInput {
 
@@ -46,6 +43,8 @@ export class LogViewerInput extends ResourceEditorInput {
 
 export class LogViewer extends AbstractTextResourceEditor {
 
+	static readonly LOG_VIEWER_EDITOR_ID = 'workbench.editors.logViewer';
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -56,11 +55,7 @@ export class LogViewer extends AbstractTextResourceEditor {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
-	}
-
-	public getId(): string {
-		return LOG_VIEWER_EDITOR_ID;
+		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {
@@ -69,23 +64,5 @@ export class LogViewer extends AbstractTextResourceEditor {
 		options.folding = false;
 		options.scrollBeyondLastLine = false;
 		return options;
-	}
-
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-		if (input.matches(this.input)) {
-			return TPromise.as(null);
-		}
-
-		if (this.input) {
-			this.input.dispose();
-		}
-		return super.setInput(input, options).then(() => this.revealLastLine());
-	}
-
-	public clearInput(): void {
-		if (this.input) {
-			this.input.dispose();
-		}
-		super.clearInput();
 	}
 }

@@ -5946,9 +5946,9 @@ xtend@~3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/xtend/-/xtend-3.0.0.tgz#5cce7407baf642cba7becda568111c493f59665a"
 
-xterm@Tyriar/xterm.js#vscode-release/1.19:
+xterm@Tyriar/xterm.js#vscode-release/1.20:
   version "2.9.1"
-  resolved "https://codeload.github.com/Tyriar/xterm.js/tar.gz/d242c552cb5c88125ac257ccaebed7fe336d9266"
+  resolved "https://codeload.github.com/Tyriar/xterm.js/tar.gz/7892768df9a90731ad066ff4be4286ab55ca803d"
 
 y18n@^3.2.0:
   version "3.2.1"

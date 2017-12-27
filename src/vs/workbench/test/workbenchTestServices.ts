@@ -586,12 +586,14 @@ export class TestEditorService implements IWorkbenchEditorService {
 	public activeEditorOptions: IEditorOptions;
 	public activeEditorPosition: Position;
 	public mockLineNumber: number;
+	public mockSelectedText: string;
 
 	private callback: (method: string) => void;
 
 	constructor(callback?: (method: string) => void) {
 		this.callback = callback || ((s: string) => { });
 		this.mockLineNumber = 15;
+		this.mockSelectedText = 'selected text';
 	}
 
 	public openEditors(inputs: any[]): Promise {
@@ -620,7 +622,8 @@ export class TestEditorService implements IWorkbenchEditorService {
 			getId: () => { return null; },
 			getControl: () => {
 				return {
-					getSelection: () => { return { positionLineNumber: this.mockLineNumber }; }
+					getSelection: () => { return { positionLineNumber: this.mockLineNumber }; },
+					getModel: () => { return { getValueInRange: () => this.mockSelectedText }; }
 				};
 			},
 			focus: () => { },

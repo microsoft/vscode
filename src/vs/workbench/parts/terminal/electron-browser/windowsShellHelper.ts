@@ -42,12 +42,12 @@ export class WindowsShellHelper {
 			}, 50);
 		});
 
-		// We want to fire a new check for the shell on a lineFeed, but only
+		// We want to fire a new check for the shell on a linefeed, but only
 		// when parsing has finished which is indicated by the cursormove event.
-		// If this is done on every lineFeed, parsing ends up taking
+		// If this is done on every linefeed, parsing ends up taking
 		// significantly longer due to resetting timers. Note that this is
 		// private API.
-		this._xterm.on('lineFeed', () => this._newLineFeed = true);
+		this._xterm.on('linefeed', () => this._newLineFeed = true);
 		this._xterm.on('cursormove', () => {
 			if (this._newLineFeed) {
 				this._onCheckShell.fire();

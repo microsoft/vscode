@@ -153,16 +153,16 @@ export class TerminalInstance implements ITerminalInstance {
 		this._initDimensions();
 		this._createProcess();
 
-		if (platform.isWindows) {
-			this._processReady.then(() => {
-				if (!this._isDisposed) {
-					this._windowsShellHelper = new WindowsShellHelper(this._processId, this, this._xterm);
-				}
-			});
-		}
-
 		this._xtermReadyPromise = this._createXterm();
 		this._xtermReadyPromise.then(() => {
+			if (platform.isWindows) {
+				this._processReady.then(() => {
+					if (!this._isDisposed) {
+						this._windowsShellHelper = new WindowsShellHelper(this._processId, this, this._xterm);
+					}
+				});
+			}
+
 			// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 			if (_container) {
 				this.attachToElement(_container);
@@ -256,9 +256,9 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!Terminal) {
 			Terminal = (await import('xterm')).Terminal;
 			// Enable search functionality in xterm.js instance
-			Terminal.loadAddon('search');
+			Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/search/search'));
 			// Enable the winpty compatibility addon which will simulate wraparound mode
-			Terminal.loadAddon('winptyCompat');
+			Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/winptyCompat/winptyCompat'));
 		}
 		const font = this._configHelper.getFont(true);
 		this._xterm = new Terminal({
@@ -273,7 +273,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
 		this._xterm.winptyCompatInit();
-		this._xterm.on('lineFeed', () => this._onLineFeed());
+		this._xterm.on('linefeed', () => this._onLineFeed());
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
 			if (this._processId) {
@@ -331,10 +331,15 @@ export class TerminalInstance implements ITerminalInstance {
 
 				return undefined;
 			});
-			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
-				// Wait until mouseup has propagated through the DOM before
-				// evaluating the new selection state.
-				setTimeout(() => this._refreshSelectionContextKey(), 0);
+			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mousedown', (event: KeyboardEvent) => {
+				// We need to listen to the mouseup event on the document since the user may release
+				// the mouse button anywhere outside of _xterm.element.
+				const listener = dom.addDisposableListener(document, 'mouseup', (event: KeyboardEvent) => {
+					// Delay with a setTimeout to allow the mouseup to propagate through the DOM
+					// before evaluating the new selection state.
+					setTimeout(() => this._refreshSelectionContextKey(), 0);
+					listener.dispose();
+				});
 			}));
 
 			// xterm.js currently drops selection on keyup as we need to handle this case.
@@ -562,6 +567,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _refreshSelectionContextKey() {
 		const activePanel = this._panelService.getActivePanel();
 		const isActive = activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
+
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
 
@@ -745,7 +751,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _attachPressAnyKeyToCloseListener() {
-		this._processDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
+		this._processDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'keydown', (event: KeyboardEvent) => {
 			this.dispose();
 			event.preventDefault();
 		}));

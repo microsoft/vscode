@@ -106,6 +106,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		}
 
 		if (this.input) {
+			// Dispose previous input (Output panel is not a workbench editor)
 			this.input.dispose();
 		}
 		return super.setInput(input, options).then(() => this.revealLastLine());
@@ -113,6 +114,7 @@ export class OutputPanel extends AbstractTextResourceEditor {
 
 	public clearInput(): void {
 		if (this.input) {
+			// Dispose current input (Output panel is not a workbench editor)
 			this.input.dispose();
 		}
 		super.clearInput();

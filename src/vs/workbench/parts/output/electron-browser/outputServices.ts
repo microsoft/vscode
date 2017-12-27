@@ -39,6 +39,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { binarySearch } from 'vs/base/common/arrays';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Schemas } from 'vs/base/common/network';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -399,7 +400,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	public _serviceBrand: any;
 
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
-	private activeChannelId: string;
+	private activeChannelIdInStorage: string;
+	private activeChannel: IOutputChannel;
 	private readonly outputDir: string;
 
 	private _onActiveOutputChannel: Emitter<string> = new Emitter<string>();
@@ -416,23 +418,36 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowService windowService: IWindowService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
 	) {
 		super();
-		const channels = this.getChannels();
-		this.activeChannelId = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0].id : null);
-
-		instantiationService.createInstance(OutputLinkProvider);
+		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
+		this.outputDir = paths.join(environmentService.logsPath, `output_${windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 
 		// Register as text model content provider for output
 		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this);
+		instantiationService.createInstance(OutputLinkProvider);
 
-		this.onDidPanelOpen(this.panelService.getActivePanel());
+		// Create output channels for already registered channels
+		const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+		for (const channelIdentifier of registry.getChannels()) {
+			this.onDidRegisterChannel(channelIdentifier.id);
+		}
+		this._register(registry.onDidRegisterChannel(this.onDidRegisterChannel, this));
+
 		panelService.onDidPanelOpen(this.onDidPanelOpen, this);
 		panelService.onDidPanelClose(this.onDidPanelClose, this);
-		this.outputDir = paths.join(environmentService.logsPath, `output_${windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 
 		this._register(toDisposable(() => unWatchAllFiles()));
+
+		// Set active channel to first channel if not set
+		if (!this.activeChannel) {
+			const channels = this.getChannels();
+			this.activeChannel = channels && channels.length > 0 ? this.getChannel(channels[0].id) : null;
+		}
+
+		this.lifecycleService.onShutdown(() => this.onShutdown());
 	}
 
 	provideTextContent(resource: URI): TPromise<IModel> {
@@ -444,14 +459,15 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	showChannel(id: string, preserveFocus?: boolean): TPromise<void> {
-		if (this.isChannelShown(id)) {
+		const channel = this.getChannel(id);
+		if (!channel || this.isChannelShown(channel)) {
 			return TPromise.as(null);
 		}
 
-		this.activeChannelId = id;
+		this.activeChannel = channel;
 		let promise = TPromise.as(null);
-		if (this._outputPanel) {
-			this.doShowChannel(id, preserveFocus);
+		if (this.isPanelShown()) {
+			this.doShowChannel(channel, preserveFocus);
 		} else {
 			promise = this.panelService.openPanel(OUTPUT_PANEL_ID) as TPromise;
 		}
@@ -459,9 +475,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	getChannel(id: string): IOutputChannel {
-		if (!this.channels.has(id)) {
-			this.channels.set(id, this.createChannel(id));
-		}
 		return this.channels.get(id);
 	}
 
@@ -470,7 +483,31 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	getActiveChannel(): IOutputChannel {
-		return this.getChannel(this.activeChannelId);
+		return this.activeChannel;
+	}
+
+	private onDidRegisterChannel(channelId: string): void {
+		const channel = this.createChannel(channelId);
+		this.channels.set(channelId, channel);
+		if (this.activeChannelIdInStorage === channelId) {
+			this.activeChannel = channel;
+			this.onDidPanelOpen(this.panelService.getActivePanel());
+		}
+	}
+
+	private onDidPanelOpen(panel: IPanel): void {
+		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
+			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
+			if (this.activeChannel) {
+				this.doShowChannel(this.activeChannel, true);
+			}
+		}
+	}
+
+	private onDidPanelClose(panel: IPanel): void {
+		if (this._outputPanel && panel.getId() === OUTPUT_PANEL_ID) {
+			this._outputPanel.clearInput();
+		}
 	}
 
 	private createChannel(id: string): OutputChannel {
@@ -479,14 +516,14 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		channel.onDidAppendedContent(() => {
 			if (!channel.scrollLock) {
 				const panel = this.panelService.getActivePanel();
-				if (panel && panel.getId() === OUTPUT_PANEL_ID && this.isChannelShown(id)) {
+				if (panel && panel.getId() === OUTPUT_PANEL_ID && this.isChannelShown(channel)) {
 					(<OutputPanel>panel).revealLastLine();
 				}
 			}
 		}, channelDisposables);
 		channel.onDispose(() => {
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
-			if (this.activeChannelId === id) {
+			if (this.activeChannel === channel) {
 				const channels = this.getChannels();
 				if (this._outputPanel && channels.length) {
 					this.showChannel(channels[0].id);
@@ -502,6 +539,11 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private instantiateChannel(id: string): OutputChannel {
 		const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(id);
+		if (!channelData) {
+			this.logService.error(`Channel '${id}' is not registered yet`);
+			throw new Error(`Channel '${id}' is not registered yet`);
+		}
+
 		const uri = URI.from({ scheme: OUTPUT_SCHEME, path: id });
 		if (channelData && channelData.file) {
 			return this.instantiationService.createInstance(FileOutputChannel, channelData, uri);
@@ -516,41 +558,34 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
-	private isChannelShown(channelId: string): boolean {
-		const panel = this.panelService.getActivePanel();
-		return panel && panel.getId() === OUTPUT_PANEL_ID && this.activeChannelId === channelId;
-	}
-
-	private onDidPanelClose(panel: IPanel): void {
-		if (this._outputPanel && panel.getId() === OUTPUT_PANEL_ID) {
-			this._outputPanel.clearInput();
-		}
-	}
-
-	private onDidPanelOpen(panel: IPanel): void {
-		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
-			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
-			if (this.activeChannelId) {
-				this.doShowChannel(this.activeChannelId, true);
-			}
-		}
-	}
-
-	private doShowChannel(channelId: string, preserveFocus: boolean): void {
+	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): void {
 		if (this._outputPanel) {
-			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, channelId, StorageScope.WORKSPACE);
-			this._outputPanel.setInput(this.createInput(channelId), EditorOptions.create({ preserveFocus: preserveFocus }));
+			this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: preserveFocus }));
 			if (!preserveFocus) {
 				this._outputPanel.focus();
 			}
 		}
 	}
 
-	private createInput(channelId: string): ResourceEditorInput {
-		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channelId });
-		const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(channelId);
-		const label = channelData ? channelData.label : channelId;
-		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", label), nls.localize('channel', "Output channel for '{0}'", label), resource);
+	private isChannelShown(channel: IOutputChannel): boolean {
+		return this.isPanelShown() && this.activeChannel === channel;
+	}
+
+	private isPanelShown(): boolean {
+		const panel = this.panelService.getActivePanel();
+		return panel && panel.getId() === OUTPUT_PANEL_ID;
+	}
+
+	private createInput(channel: IOutputChannel): ResourceEditorInput {
+		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channel.id });
+		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), resource);
+	}
+
+	onShutdown(): void {
+		if (this.activeChannel) {
+			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE);
+		}
+		this.dispose();
 	}
 }
 
