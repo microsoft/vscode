@@ -263,7 +263,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
 
-CommandsRegistry.registerCommand(OPEN_FOLDER_SETTINGS_COMMAND, function (accessor: ServicesAccessor, args?: IWorkspaceFolder) {
+CommandsRegistry.registerCommand(OPEN_FOLDER_SETTINGS_COMMAND, function (accessor: ServicesAccessor, resource: URI) {
 	const preferencesService = accessor.get(IPreferencesService);
-	return preferencesService.openFolderSettings(args.uri);
+	return preferencesService.openFolderSettings(resource);
 });

@@ -144,13 +144,13 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: ADD_ROOT_FOLDER_COMMAND_ID,
 	handler: (accessor) => {
+		const viewletService = accessor.get(IViewletService);
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		return pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
 			accessor.get(IWindowService), accessor.get(IWorkspaceContextService), accessor.get(IHistoryService)).then(folders => {
 				if (!folders || !folders.length) {
 					return null;
 				}
-				const viewletService = accessor.get(IViewletService);
-				const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 
 				// Add and show Files Explorer viewlet
 				return workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) }))).then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true));

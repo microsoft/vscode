@@ -150,7 +150,7 @@ export class OpenFolderSettingsAction extends Action {
 		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
-					return this.commandService.executeCommand(OPEN_FOLDER_SETTINGS_COMMAND, workspaceFolder);
+					return this.commandService.executeCommand(OPEN_FOLDER_SETTINGS_COMMAND, workspaceFolder.uri);
 				}
 				return null;
 			});
