@@ -21,6 +21,7 @@ import { DeleteLinesCommand } from './deleteLinesCommand';
 import { MoveLinesCommand } from './moveLinesCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 // copy lines
@@ -468,7 +469,20 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		rangesToDelete.sort(Range.compareRangesUsingStarts);
 		rangesToDelete = rangesToDelete.map(selection => {
 			if (selection.isEmpty()) {
-				return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
+				if (selection.startColumn > 1) {
+					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
+				} else {
+					let position = selection.getStartPosition();
+					let config = editor._getCursorConfiguration();
+					let model = editor.getModel();
+					let leftOfPosition = MoveOperations.left(config, model, position.lineNumber, position.column);
+					return new Range(
+						leftOfPosition.lineNumber,
+						leftOfPosition.column,
+						position.lineNumber,
+						position.column
+					);
+				}
 			} else {
 				return selection;
 			}
