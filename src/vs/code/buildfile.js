@@ -20,6 +20,7 @@ exports.collectModules= function() {
 		createModuleDescription('vs/code/electron-main/main', []),
 		createModuleDescription('vs/code/node/cli', []),
 		createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
-		createModuleDescription('vs/code/electron-browser/sharedProcessMain', [])
+		createModuleDescription('vs/code/electron-browser/sharedProcessMain', []),
+		createModuleDescription('vs/code/electron-browser/taskManagerMain', [])
 	];
 };
