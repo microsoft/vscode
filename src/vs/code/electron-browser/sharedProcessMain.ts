@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
