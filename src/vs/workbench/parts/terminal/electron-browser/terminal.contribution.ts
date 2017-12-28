@@ -252,7 +252,8 @@ configurationRegistry.registerConfiguration({
 				DeleteWordLeftTerminalAction.ID,
 				DeleteWordRightTerminalAction.ID,
 				TogglePanelAction.ID,
-				'workbench.action.quickOpenView'
+				'workbench.action.quickOpenView',
+				'workbench.action.exit'
 			].sort()
 		},
 		'terminal.integrated.env.osx': {
