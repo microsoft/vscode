@@ -37,7 +37,6 @@ import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_CO
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -126,8 +125,7 @@ export class TerminalInstance implements ITerminalInstance {
 		@IHistoryService private _historyService: IHistoryService,
 		@IThemeService private _themeService: IThemeService,
 		@IConfigurationResolverService private _configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private _workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceContextService private _workspaceContextService: IWorkspaceContextService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -690,7 +688,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._process = null;
 		let exitCodeMessage: string;
 
-		if (exitCode && this.configurationService.getValue('terminal.integrated.showExitAlert')) {
+		if (exitCode && this._configHelper.config.showExitAlert) {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 		}
 
