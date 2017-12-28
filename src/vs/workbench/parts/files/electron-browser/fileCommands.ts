@@ -402,7 +402,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 CommandsRegistry.registerCommand({
 	id: REVEAL_IN_EXPLORER_COMMAND_ID,
-	handler: (accessor, resource: URI) => {
+	handler: (accessor, resource: URI, focus?: boolean) => {
 		const viewletService = accessor.get(IViewletService);
 		const contextService = accessor.get(IWorkspaceContextService);
 
@@ -413,6 +413,9 @@ CommandsRegistry.registerCommand({
 				if (explorerView) {
 					explorerView.setExpanded(true);
 					explorerView.select(resource, true);
+					if (focus) {
+						explorerView.focus();
+					}
 				}
 			} else {
 				const openEditorsView = viewlet.getOpenEditorsView();
