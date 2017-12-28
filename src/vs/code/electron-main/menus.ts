@@ -65,6 +65,8 @@ export class CodeMenu {
 
 	private nativeTabMenuItems: Electron.MenuItem[];
 
+	private taskManagerWindow: BrowserWindow;
+
 	constructor(
 		@IUpdateService private updateService: IUpdateService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -1055,25 +1057,33 @@ export class CodeMenu {
 	}
 
 	private openTaskManager(): void {
-		const win = new BrowserWindow({
-			alwaysOnTop: true,
-			skipTaskbar: true,
-			resizable: true,
-			width: 800,
-			height: 600,
-			show: true,
-			title: nls.localize('taskManager', "Task Manager")
-		});
 
-		win.setMenuBarVisibility(false);
+		// Create as singleton
+		if (!this.taskManagerWindow) {
+			this.taskManagerWindow = new BrowserWindow({
+				alwaysOnTop: true,
+				skipTaskbar: true,
+				resizable: true,
+				width: 800,
+				height: 600,
+				show: true,
+				title: nls.localize('taskManager', "Task Manager")
+			});
 
-		const config = assign({
-			appRoot: this.environmentService.appRoot,
-			nodeCachedDataDir: this.environmentService.nodeCachedDataDir
-		});
+			this.taskManagerWindow.setMenuBarVisibility(false);
 
-		win.loadURL(`${require.toUrl('vs/code/electron-browser/taskManager/taskManager.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
-		win.webContents.toggleDevTools();
+			const config = assign({
+				appRoot: this.environmentService.appRoot,
+				nodeCachedDataDir: this.environmentService.nodeCachedDataDir
+			});
+
+			this.taskManagerWindow.loadURL(`${require.toUrl('vs/code/electron-browser/taskManager/taskManager.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
+
+			this.taskManagerWindow.on('close', () => this.taskManagerWindow = void 0);
+		}
+
+		// Focus
+		this.taskManagerWindow.focus();
 	}
 
 	private getUpdateMenuItems(): Electron.MenuItem[] {
