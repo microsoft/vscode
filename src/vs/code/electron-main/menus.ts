@@ -1072,7 +1072,7 @@ export class CodeMenu {
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir
 		});
 
-		win.loadURL(`${require.toUrl('vs/code/electron-browser/taskManager.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
+		win.loadURL(`${require.toUrl('vs/code/electron-browser/taskManager/taskManager.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
 		win.webContents.toggleDevTools();
 	}
 

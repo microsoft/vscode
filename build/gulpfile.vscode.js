@@ -87,7 +87,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/services/files/**/*.md',
 	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
 	'out-build/vs/code/electron-browser/issue/issueReporter.js',
-	'out-build/vs/code/electron-browser/taskManager.js',
+	'out-build/vs/code/electron-browser/taskManager/taskManager.js',
 	'!**/test/**'
 ];
 
