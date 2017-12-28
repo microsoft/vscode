@@ -456,6 +456,7 @@ export class CodeMenu {
 		const snippetsSettings = this.createMenuItem(nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"), 'workbench.action.openSnippets');
 		const colorThemeSelection = this.createMenuItem(nls.localize({ key: 'miSelectColorTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme"), 'workbench.action.selectTheme');
 		const iconThemeSelection = this.createMenuItem(nls.localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme"), 'workbench.action.selectIconTheme');
+		const userStylesheet = this.createMenuItem(nls.localize({ key: 'miOpenUserStylesheet', comment: ['&& denotes a mnemonic'] }, "&&User Stylesheet"), 'workbench.action.openUserStylesheet');
 
 		const preferencesMenu = new Menu();
 		preferencesMenu.append(settings);
@@ -467,6 +468,7 @@ export class CodeMenu {
 		preferencesMenu.append(__separator__());
 		preferencesMenu.append(colorThemeSelection);
 		preferencesMenu.append(iconThemeSelection);
+		preferencesMenu.append(userStylesheet);
 
 		return new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
 	}

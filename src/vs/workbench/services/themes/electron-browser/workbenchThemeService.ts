@@ -32,6 +32,9 @@ import { ColorThemeStore } from 'vs/workbench/services/themes/electron-browser/c
 import { FileIconThemeStore } from 'vs/workbench/services/themes/electron-browser/fileIconThemeStore';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
 
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ConfigWatcher } from 'vs/base/node/config';
+
 // implementation
 
 const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
@@ -48,6 +51,8 @@ const fileIconsEnabledClass = 'file-icons-enabled';
 
 const colorThemeRulesClassName = 'contributedColorTheme';
 const iconThemeRulesClassName = 'contributedIconTheme';
+
+const userStylesheetClassName = 'userStylesheet';
 
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 
@@ -82,6 +87,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private themingParticipantChangeListener: IDisposable;
 	private _configurationWriter: ConfigurationWriter;
 
+	private userStylesheetWatcher: ConfigWatcher<{}>;
+
 	private get colorCustomizations(): IColorCustomizations {
 		return this.configurationService.getValue<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING) || {};
 	}
@@ -97,7 +104,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IBroadcastService private broadcastService: IBroadcastService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEnvironmentService private environmentService: IEnvironmentService) {
 
 		this.container = container;
 		this.colorThemeStore = new ColorThemeStore(extensionService);
@@ -132,6 +140,20 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		themeData.setCustomTokenColors(this.tokenColorCustomizations);
 		this.updateDynamicCSSRules(themeData);
 		this.applyTheme(themeData, null, true);
+
+		if (!this.userStylesheetWatcher) {
+			this.userStylesheetWatcher = new ConfigWatcher(
+				this.environmentService.appUserStylesheetPath, {
+					changeBufferDelay: 300,
+					onError: error => console.error,
+					parse: (content: string, parseErrors: any[]) => {
+						_applyRules(content, userStylesheetClassName);
+						// We don't actually need to parse anything.
+						return {};
+					}
+				}
+			);
+		}
 
 		let iconData: FileIconThemeData = null;
 		let persistedIconThemeData = this.storageService.get(PERSISTED_ICON_THEME_STORAGE_KEY);

@@ -195,6 +195,19 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.doOpenSettings(ConfigurationTarget.WORKSPACE_FOLDER, this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, folder), options, position);
 	}
 
+	openUserStylesheet(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
+		const resource = URI.file(this.environmentService.appUserStylesheetPath);
+		const defaultContent = '/* Place your CSS rules here. */\n';
+
+		return this.createIfNotExists(resource, defaultContent)
+			.then(() => <EditorInput>this.editorService.createInput({ resource }))
+			.then(editableSettingsEditorInput => {
+				return this.editorService.openEditor(editableSettingsEditorInput,
+					options,
+					position);
+			});
+	}
+
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void> {
 		const activeEditor = this.editorService.getActiveEditor();
 		const activeEditorInput = activeEditor.input;
