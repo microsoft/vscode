@@ -22,7 +22,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITree, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID, FileOnDiskContentProvider } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
@@ -41,7 +41,7 @@ import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAct
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { REVERT_FILE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, COMPARE_WITH_SAVED_SCHEMA } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
@@ -1137,62 +1137,6 @@ export class RefreshViewExplorerAction extends Action {
 	}
 }
 
-export class SaveFileAction extends BaseErrorReportingAction {
-
-	public static readonly ID = 'workbench.action.files.save';
-	public static readonly LABEL = SAVE_FILE_LABEL;
-
-	private resource: URI;
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService,
-		@IMessageService messageService: IMessageService
-	) {
-		super(id, label, messageService);
-	}
-
-	public setResource(resource: URI): void {
-		this.resource = resource;
-	}
-
-	public run(context?: any): TPromise<boolean> {
-		return this.commandService.executeCommand(SAVE_FILE_COMMAND_ID, this.resource).then(() => true, error => {
-			this.onError(error);
-			return null;
-		});
-	}
-}
-
-export class SaveFileAsAction extends BaseErrorReportingAction {
-
-	public static readonly ID = 'workbench.action.files.saveAs';
-	public static readonly LABEL = SAVE_FILE_AS_LABEL;
-
-	private resource: URI;
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService,
-		@IMessageService messageService: IMessageService
-	) {
-		super(id, label, messageService);
-	}
-
-	public setResource(resource: URI): void {
-		this.resource = resource;
-	}
-
-	public run(context?: any): TPromise<boolean> {
-		return this.commandService.executeCommand(SAVE_FILE_AS_COMMAND_ID, this.resource).then(() => true, error => {
-			this.onError(error);
-			return null;
-		});
-	}
-}
-
 export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 	private toDispose: IDisposable[];
 	private lastIsDirty: boolean;
@@ -1298,32 +1242,6 @@ export class SaveFilesAction extends BaseSaveAllAction {
 
 	protected includeUntitled(): boolean {
 		return false;
-	}
-}
-
-export class RevertFileAction extends Action {
-
-	public static readonly ID = 'workbench.action.files.revert';
-	public static readonly LABEL = nls.localize('revert', "Revert File");
-
-	private resource: URI;
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-
-		this.enabled = true;
-	}
-
-	public setResource(resource: URI): void {
-		this.resource = resource;
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(REVERT_FILE_COMMAND_ID, this.resource);
 	}
 }
 
@@ -1480,24 +1398,6 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 }
 
-export class RevealInOSAction extends Action {
-
-	public static readonly LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
-
-	constructor(
-		private resource: URI,
-		@ICommandService private commandService: ICommandService
-	) {
-		super('revealFileInOS', RevealInOSAction.LABEL);
-
-		this.order = 45;
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(REVEAL_IN_OS_COMMAND_ID, this.resource);
-	}
-}
-
 export class GlobalRevealInOSAction extends Action {
 
 	public static readonly ID = 'workbench.action.files.revealActiveFileInWindows';
@@ -1531,24 +1431,6 @@ export class CopyPathAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.commandService.executeCommand(COPY_PATH_COMMAND_ID, this.resource);
-	}
-}
-
-export class GlobalCopyPathAction extends Action {
-
-	public static readonly ID = 'workbench.action.files.copyPathOfActiveFile';
-	public static readonly LABEL = nls.localize('copyPathOfActive', "Copy Path of Active File");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(COPY_PATH_COMMAND_ID);
 	}
 }
 
@@ -1611,48 +1493,6 @@ export function getWellFormedFileName(filename: string): string {
 	filename = strings.rtrim(filename, '.');
 
 	return filename;
-}
-
-export class CompareWithSavedAction extends Action {
-
-	public static readonly ID = 'workbench.files.action.compareWithSaved';
-	public static readonly LABEL = nls.localize('compareWithSaved', "Compare Active File with Saved");
-
-	private resource: URI;
-	private toDispose: IDisposable[];
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ITextModelService textModelService: ITextModelService
-	) {
-		super(id, label);
-
-		this.enabled = true;
-		this.toDispose = [];
-
-		const provider = instantiationService.createInstance(FileOnDiskContentProvider);
-		this.toDispose.push(provider);
-
-		const registrationDisposal = textModelService.registerTextModelContentProvider(COMPARE_WITH_SAVED_SCHEMA, provider);
-		this.toDispose.push(registrationDisposal);
-	}
-
-	public setResource(resource: URI) {
-		this.resource = resource;
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(COMPARE_WITH_SAVED_COMMAND_ID, this.resource);
-	}
-
-	public dispose(): void {
-		super.dispose();
-
-		this.toDispose = dispose(this.toDispose);
-	}
 }
 
 export class CompareWithClipboardAction extends Action {

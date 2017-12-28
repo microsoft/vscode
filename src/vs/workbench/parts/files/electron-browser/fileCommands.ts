@@ -36,20 +36,21 @@ import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
+import { isWindows, isMacintosh } from 'vs/base/common/platform';
 
 // Commands
 
 export const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
+export const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
 export const REVEAL_IN_EXPLORER_COMMAND_ID = 'workbench.command.files.revealInExplorer';
-export const REVERT_FILE_COMMAND_ID = 'workbench.command.files.revert';
+export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
 export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
 export const SELECT_FOR_COMPARE_COMMAND_ID = 'workbench.files.command.selectForCompare';
 export const COMPARE_RESOURCE_COMMAND_ID = 'workbench.files.command.compareFiles';
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
-export const COMPARE_WITH_SAVED_SCHEMA = 'showModifications';
 export const COPY_PATH_COMMAND_ID = 'copyFilePath';
 
-export const SAVE_FILE_AS_COMMAND_ID = 'workbench.command.files.saveAs';
+export const SAVE_FILE_AS_COMMAND_ID = 'workbench.action.files.saveAs';
 export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
 export const SAVE_FILE_COMMAND_ID = 'workbench.action.files.save';
 export const SAVE_FILE_LABEL = nls.localize('save', "Save");
@@ -57,7 +58,7 @@ export const SAVE_FILE_LABEL = nls.localize('save', "Save");
 export const SAVE_ALL_COMMAND_ID = 'workbench.command.files.saveAll';
 export const SAVE_ALL_LABEL = nls.localize('saveAll', "Save All");
 
-export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.action.files.saveAllInGroup';
+export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.files.action.saveAllInGroup';
 
 export const SAVE_FILES_COMMAND_ID = 'workbench.command.files.saveFiles';
 export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
@@ -74,7 +75,7 @@ function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorS
 	textFileService: ITextFileService, editorGroupService: IEditorGroupService): TPromise<any> {
 
 	let source: URI;
-	if (resource) {
+	if (resource instanceof URI) {
 		source = resource;
 	} else {
 		source = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true });
@@ -297,7 +298,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = paths.basename(resource.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
-			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: resource.fsPath }), rightResource: resource, label: editorLabel });
+			return editorService.openEditor({ leftResource: URI.from({ scheme: 'showModifications', path: resource.fsPath }), rightResource: resource, label: editorLabel });
 		}
 
 		return TPromise.as(true);
@@ -423,8 +424,11 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-CommandsRegistry.registerCommand({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: SAVE_FILE_AS_COMMAND_ID,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: undefined,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
 	handler: (accessor, resource: URI) => {
 		return save(resource, true, accessor.get(IWorkbenchEditorService), accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 	}
