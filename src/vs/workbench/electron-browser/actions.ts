@@ -49,30 +49,6 @@ import { IEditor } from 'vs/platform/editor/common/editor';
 
 // --- actions
 
-// TODO@Isidor this action needs to be removed
-export class CloseEditorAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeActiveEditor';
-	public static readonly LABEL = nls.localize('closeActiveEditor', "Close Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<void> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
-		}
-
-		return TPromise.as(null);
-	}
-}
-
 export class CloseCurrentWindowAction extends Action {
 
 	public static readonly ID = 'workbench.action.closeWindow';

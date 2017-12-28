@@ -538,7 +538,7 @@ export class CloseEditorAction extends Action {
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		return this.commandService.executeCommand(CLOSE_EDITOR_COMMAND_ID, context);
+		return this.commandService.executeCommand(CLOSE_EDITOR_COMMAND_ID, undefined, context);
 	}
 }
 
@@ -682,7 +682,7 @@ export class CloseUnmodifiedEditorsInGroupAction extends Action {
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		return this.commandService.executeCommand(CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, context);
+		return this.commandService.executeCommand(CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, undefined, context);
 	}
 }
 
@@ -731,7 +731,7 @@ export class CloseOtherEditorsInGroupAction extends Action {
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		return this.commandService.executeCommand(CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID);
+		return this.commandService.executeCommand(CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, undefined, context);
 	}
 }
 
@@ -749,7 +749,7 @@ export class CloseEditorsInGroupAction extends Action {
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		return this.commandService.executeCommand(CLOSE_EDITORS_IN_GROUP_COMMAND_ID, context);
+		return this.commandService.executeCommand(CLOSE_EDITORS_IN_GROUP_COMMAND_ID, undefined, context);
 	}
 }
 

@@ -136,7 +136,7 @@ function appendSaveConflictEditorTitleAction(id: string, title: string, iconClas
 
 // Menu registration - command palette
 
-function appendToCommandPalette(id: string, title: string): void {
+function appendToCommandPalette(id: string, title: string, category: string): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id,
@@ -145,13 +145,15 @@ function appendToCommandPalette(id: string, title: string): void {
 		}
 	});
 }
-appendToCommandPalette(COPY_PATH_COMMAND_ID, nls.localize('copyPathOfActive', "Copy Path of Active File"));
-appendToCommandPalette(SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL);
-appendToCommandPalette(SAVE_ALL_IN_GROUP_COMMAND_ID, nls.localize('saveAllInGroup', "Save All in Group"));
-appendToCommandPalette(REVERT_FILE_COMMAND_ID, nls.localize('revert', "Revert File"));
-appendToCommandPalette(COMPARE_WITH_SAVED_COMMAND_ID, nls.localize('compareActiveWithSaved', "Compare Active File with Saved"));
-appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL);
-appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL);
+appendToCommandPalette(COPY_PATH_COMMAND_ID, nls.localize('copyPathOfActive', "Copy Path of Active File"), category);
+appendToCommandPalette(SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, category);
+appendToCommandPalette(SAVE_ALL_IN_GROUP_COMMAND_ID, nls.localize('saveAllInGroup', "Save All in Group"), category);
+appendToCommandPalette(REVERT_FILE_COMMAND_ID, nls.localize('revert', "Revert File"), category);
+appendToCommandPalette(COMPARE_WITH_SAVED_COMMAND_ID, nls.localize('compareActiveWithSaved', "Compare Active File with Saved"), category);
+appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, category);
+appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, category);
+appendToCommandPalette(CLOSE_EDITOR_COMMAND_ID, nls.localize('closeEditor', "Close Editor"), nls.localize('view', "View"));
+
 
 // Menu registration - open editors
 
