@@ -41,7 +41,7 @@ import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAct
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, COMPARE_WITH_SAVED_SCHEMA, IExplorerContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { REVERT_FILE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, COMPARE_WITH_SAVED_SCHEMA } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
@@ -49,12 +49,19 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IListService } from 'vs/platform/list/browser/listService';
+import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEvent } from 'vs/platform/contextview/browser/contextView';
 
 export interface IEditableData {
 	action: IAction;
 	validator: IInputValidator;
+}
+
+export interface IExplorerContext {
+	viewletState: IFileViewletState;
+	event?: IEvent;
+	stat: FileStat;
 }
 
 export interface IFileViewletState {
@@ -69,16 +76,12 @@ export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
 export const NEW_FOLDER_COMMAND_ID = 'workbench.command.files.newFolder';
 export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder");
 
-export const TRIGGER_RENAME_COMMAND_ID = 'workbench.command.files.rename';
 export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename");
 
-export const MOVE_FILE_TO_TRASH_ID = 'workbench.command.files.moveToTrash';
 export const MOVE_FILE_TO_TRASH_LABEL = nls.localize('delete', "Delete");
 
-export const COPY_FILE_ID = 'workbench.command.files.copyFile';
 export const COPY_FILE_LABEL = nls.localize('copyFile', "Copy");
 
-export const PASTE_FILE_ID = 'workbench.command.files.pasteFile';
 export const PASTE_FILE_LABEL = nls.localize('pasteFile', "Paste");
 
 export const FileCopiedContext = new RawContextKey<boolean>('fileCopied', false);
@@ -626,7 +629,7 @@ class CreateFolderAction extends BaseCreateAction {
 	}
 }
 
-export class BaseDeleteFileAction extends BaseFileAction {
+class BaseDeleteFileAction extends BaseFileAction {
 
 	private static readonly CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 
@@ -635,8 +638,6 @@ export class BaseDeleteFileAction extends BaseFileAction {
 	private skipConfirm: boolean;
 
 	constructor(
-		id: string,
-		label: string,
 		tree: ITree,
 		element: FileStat,
 		useTrash: boolean,
@@ -645,7 +646,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(id, label, fileService, messageService, textFileService);
+		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, fileService, messageService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
@@ -784,21 +785,6 @@ export class BaseDeleteFileAction extends BaseFileAction {
 				});
 			});
 		});
-	}
-}
-
-/* Move File/Folder to trash */
-export class MoveFileToTrashAction extends BaseDeleteFileAction {
-
-	constructor(
-		tree: ITree,
-		element: FileStat,
-		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
-		@ITextFileService textFileService: ITextFileService,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, tree, element, true, fileService, messageService, textFileService, configurationService);
 	}
 }
 
@@ -1015,19 +1001,6 @@ class PasteFileAction extends BaseFileAction {
 		});
 	}
 }
-
-export const pasteIntoFocusedFilesExplorerViewItem = (accessor: ServicesAccessor) => {
-	const instantiationService = accessor.get(IInstantiationService);
-
-	withFocusedFilesExplorer(accessor).then(res => {
-		if (res) {
-			const pasteAction = instantiationService.createInstance(PasteFileAction, res.tree, res.tree.getFocus());
-			if (pasteAction._isEnabled()) {
-				pasteAction.run().done(null, errors.onUnexpectedError);
-			}
-		}
-	});
-};
 
 // Duplicate File/Folder
 export class DuplicateFileAction extends BaseFileAction {
@@ -1778,46 +1751,61 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: TRIGGER_RENAME_COMMAND_ID,
-	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
-		const instantationService = accessor.get(IInstantiationService);
-		const listService = accessor.get(IListService);
-		const renameAction = instantationService.createInstance(TriggerRenameFileAction, listService.lastFocusedList, explorerContext.stat);
+function getContext(tree: ListWidget, viewletService: IViewletService): IExplorerContext {
+	return { stat: tree.getFocus(), viewletState: (<ExplorerViewlet>viewletService.getActiveViewlet()).getViewletState() };
+}
 
-		return renameAction.run(explorerContext);
+export const renameHandler = (accessor: ServicesAccessor, resource: URI, explorerContext: IExplorerContext) => {
+	const instantationService = accessor.get(IInstantiationService);
+	const listService = accessor.get(IListService);
+	if (!explorerContext) {
+		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 	}
-});
 
-CommandsRegistry.registerCommand({
-	id: MOVE_FILE_TO_TRASH_ID,
-	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
-		const instantationService = accessor.get(IInstantiationService);
-		const listService = accessor.get(IListService);
-		const moveFileToTrashAction = instantationService.createInstance(MoveFileToTrashAction, listService.lastFocusedList, explorerContext.stat);
+	const renameAction = instantationService.createInstance(TriggerRenameFileAction, listService.lastFocusedList, explorerContext.stat);
+	return renameAction.run(explorerContext);
+};
 
-		return moveFileToTrashAction.run(explorerContext);
+export const moveFileToTrashHandler = (accessor, resource: URI, explorerContext: IExplorerContext) => {
+	const instantationService = accessor.get(IInstantiationService);
+	const listService = accessor.get(IListService);
+	if (!explorerContext) {
+		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 	}
-});
 
-CommandsRegistry.registerCommand({
-	id: COPY_FILE_ID,
-	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
-		const instantationService = accessor.get(IInstantiationService);
-		const listService = accessor.get(IListService);
-		const copyFileAction = instantationService.createInstance(CopyFileAction, listService.lastFocusedList, explorerContext.stat);
+	const moveFileToTrashAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, explorerContext.stat, true);
+	return moveFileToTrashAction.run(explorerContext);
+};
 
-		return copyFileAction.run();
+export const deleteFileHandler = (accessor, resource: URI, explorerContext: IExplorerContext) => {
+	const instantationService = accessor.get(IInstantiationService);
+	const listService = accessor.get(IListService);
+	if (!explorerContext) {
+		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 	}
-});
 
-CommandsRegistry.registerCommand({
-	id: PASTE_FILE_ID,
-	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
-		const instantationService = accessor.get(IInstantiationService);
-		const listService = accessor.get(IListService);
-		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
+	const deleteFileAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, explorerContext.stat, false);
+	return deleteFileAction.run(explorerContext);
+};
 
-		return pasteFileAction.run();
+export const copyFileHandler = (accessor, resource: URI, explorerContext: IExplorerContext) => {
+	const instantationService = accessor.get(IInstantiationService);
+	const listService = accessor.get(IListService);
+	if (!explorerContext) {
+		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 	}
-});
+
+	const copyFileAction = instantationService.createInstance(CopyFileAction, listService.lastFocusedList, explorerContext.stat);
+	return copyFileAction.run();
+};
+
+export const pasteFileHandler = (accessor, resource: URI, explorerContext: IExplorerContext) => {
+	const instantationService = accessor.get(IInstantiationService);
+	const listService = accessor.get(IListService);
+	if (!explorerContext) {
+		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
+	}
+
+	const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
+	return pasteFileAction.run();
+};

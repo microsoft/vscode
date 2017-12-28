@@ -19,8 +19,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { VIEWLET_ID, ExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
-import { FileStat } from 'vs/workbench/parts/files/common/explorerModel';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -38,7 +36,6 @@ import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { IEvent } from 'vs/platform/contextview/browser/contextView';
 
 // Commands
 
@@ -71,80 +68,6 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
 	const windowsService = accessor.get(IWindowsService);
 	windowsService.openWindow(paths, { forceNewWindow });
-};
-
-export interface IExplorerContext {
-	viewletState: any;
-	event: IEvent;
-	stat: FileStat;
-}
-
-function runActionOnFocusedFilesExplorerViewItem(accessor: ServicesAccessor, id: string, context?: any): void {
-	withFocusedFilesExplorerViewItem(accessor).then(res => {
-		if (res) {
-			// TODO@Isidor
-			// res.explorer.getViewletState().actionProvider.runAction(res.tree, res.item, id, context).done(null, errors.onUnexpectedError);
-		}
-	});
-}
-
-function withVisibleExplorer(accessor: ServicesAccessor): TPromise<ExplorerViewlet> {
-	const viewletService = accessor.get(IViewletService);
-
-	const activeViewlet = viewletService.getActiveViewlet();
-	if (!activeViewlet || activeViewlet.getId() !== VIEWLET_ID) {
-		return TPromise.as(void 0); // Return early if the active viewlet is not the explorer
-	}
-
-	return viewletService.openViewlet(VIEWLET_ID, false) as TPromise<ExplorerViewlet>;
-}
-
-export function withFocusedFilesExplorerViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: FileStat }> {
-	return withFocusedFilesExplorer(accessor).then(res => {
-		if (!res) {
-			return void 0;
-		}
-
-		const { tree, explorer } = res;
-		if (!tree || !tree.getFocus()) {
-			return void 0;
-		}
-
-		return { explorer, tree, item: tree.getFocus() };
-	});
-}
-
-export function withFocusedFilesExplorer(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree }> {
-	return withVisibleExplorer(accessor).then(explorer => {
-		if (!explorer || !explorer.getExplorerView()) {
-			return void 0; // empty folder or hidden explorer
-		}
-
-		const tree = explorer.getExplorerView().getViewer();
-
-		// Ignore if in highlight mode or not focused
-		if (tree.getHighlight() || !tree.isDOMFocused()) {
-			return void 0;
-		}
-
-		return { explorer, tree };
-	});
-}
-
-export const renameFocusedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocusedFilesExplorerViewItem(accessor, 'renameFile');
-};
-
-export const deleteFocusedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocusedFilesExplorerViewItem(accessor, 'moveFileToTrash', { useTrash: false });
-};
-
-export const moveFocusedFilesExplorerViewItemToTrashCommand = (accessor: ServicesAccessor) => {
-	runActionOnFocusedFilesExplorerViewItem(accessor, 'moveFileToTrash', { useTrash: true });
-};
-
-export const copyFocusedFilesExplorerViewItem = (accessor: ServicesAccessor) => {
-	runActionOnFocusedFilesExplorerViewItem(accessor, 'filesExplorer.copy');
 };
 
 function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
