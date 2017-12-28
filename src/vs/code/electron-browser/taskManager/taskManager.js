@@ -82,8 +82,9 @@ function main() {
 		}
 
 		require([
-			'vs/code/electron-browser/taskManagerMain',
-			'vs/css!vs/workbench/workbench.main'
+			'vs/code/electron-browser/taskManager/taskManagerMain',
+			'vs/nls!vs/code/electron-browser/taskManager/taskManager.main',
+			'vs/css!vs/code/electron-browser/taskManager/taskManager.main'
 		], function (taskManager) {
 			taskManager.startup();
 		});
