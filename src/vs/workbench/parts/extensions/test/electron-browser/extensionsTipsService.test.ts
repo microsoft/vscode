@@ -12,8 +12,10 @@ import * as os from 'os';
 import { TPromise } from 'vs/base/common/winjs.base';
 import uuid = require('vs/base/common/uuid');
 import { mkdirp } from 'vs/base/node/pfs';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, IGalleryExtensionAssets, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import {
+	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService, LocalExtensionType,
+	IExtensionEnablementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier
+} from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -23,9 +25,6 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IModel } from 'vs/editor/common/editorCommon';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { Model as EditorModel } from 'vs/editor/common/model/model';
 import URI from 'vs/base/common/uri';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -36,6 +35,14 @@ import { IPager } from 'vs/base/common/paging';
 import { assign } from 'vs/base/common/objects';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { IExtensionsWorkbenchService, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
+import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
+import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
+import { IURLService } from 'vs/platform/url/common/url';
+import { IChoiceService } from 'vs/platform/message/common/message';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -82,7 +89,36 @@ const mockExtensionGallery: IGalleryExtension[] = [
 		})
 ];
 
-const mockTestFull = {
+const mockExtensionLocal = [
+	{
+		type: LocalExtensionType.User,
+		identifier: mockExtensionGallery[0].identifier,
+		manifest: {
+			name: mockExtensionGallery[0].name,
+			publisher: mockExtensionGallery[0].publisher,
+			version: mockExtensionGallery[0].version
+		},
+		metadata: null,
+		path: 'somepath',
+		readmeUrl: 'some readmeUrl',
+		changelogUrl: 'some changelogUrl'
+	},
+	{
+		type: LocalExtensionType.User,
+		identifier: mockExtensionGallery[1].identifier,
+		manifest: {
+			name: mockExtensionGallery[1].name,
+			publisher: mockExtensionGallery[1].publisher,
+			version: mockExtensionGallery[1].version
+		},
+		metadata: null,
+		path: 'somepath',
+		readmeUrl: 'some readmeUrl',
+		changelogUrl: 'some changelogUrl'
+	}
+];
+
+const mockTestData = {
 	recommendedExtensions: [
 		'mockPublisher1.mockExtension1',
 		'MOCKPUBLISHER2.mockextension2',
@@ -94,11 +130,6 @@ const mockTestFull = {
 		'mockPublisher1.mockExtension1',
 		'MOCKPUBLISHER2.mockextension2'
 	]
-};
-
-const mockTestEmpty = {
-	recommendedExtensions: [],
-	validRecommendedExtensions: []
 };
 
 function aPage<T>(...objects: T[]): IPager<T> {
@@ -124,102 +155,148 @@ function aGalleryExtension(name: string, properties: any = {}, galleryExtensionP
 	return <IGalleryExtension>galleryExtension;
 }
 
-function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[]): TPromise<{ parentDir: string, folderDir: string }> {
-	const id = uuid.generateUuid();
-	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-	return setUpFolder(folderName, parentDir, recommendedExtensions).then(folderDir => ({ parentDir, folderDir }));
-}
-
-function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[]): TPromise<string> {
-	const folderDir = path.join(parentDir, folderName);
-	const workspaceSettingsDir = path.join(folderDir, '.vscode');
-	return mkdirp(workspaceSettingsDir, 493).then(() => {
-		const configPath = path.join(workspaceSettingsDir, 'extensions.json');
-		fs.writeFileSync(configPath, JSON.stringify({
-			'recommendations': recommendedExtensions
-		}, null, '\t'));
-		return folderDir;
-	});
-}
-
 suite('ExtensionsTipsService Test', () => {
 	let workspaceService: IWorkspaceContextService;
 	let instantiationService: TestInstantiationService;
-	let testObject: IExtensionTipsService;
+	let extensionsWorkbenchService: IExtensionsWorkbenchService;
+	let testConfigurationService: TestConfigurationService;
+	let testObject: ExtensionTipsService;
 	let parentResource: string;
-	let onModelAddedEvent: Emitter<IModel>;
-	const model: IModel = EditorModel.createFromString(
-		[
-			'This is the first line',
-			'This is the second line',
-			'This is the third line',
-		].join('\n'),
-		undefined,
-		undefined,
-		URI.parse('far://testing/file.b'));
+	let installEvent: Emitter<InstallExtensionEvent>,
+		didInstallEvent: Emitter<DidInstallExtensionEvent>,
+		uninstallEvent: Emitter<IExtensionIdentifier>,
+		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
+	let prompted: boolean;
 
 	suiteSetup(() => {
-
-		onModelAddedEvent = new Emitter<IModel>();
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IModelService, <IModelService>{
-			_serviceBrand: IModelService,
-			getModel(): any { return model; },
-			createModel(): any { throw new Error(); },
-			updateModel(): any { throw new Error(); },
-			setMode(): any { throw new Error(); },
-			destroyModel(): any { throw new Error(); },
-			getModels(): any { throw new Error(); },
-			onModelAdded: onModelAddedEvent.event,
-			onModelModeChanged: undefined,
-			onModelRemoved: undefined,
-			getCreationOptions(): any { throw new Error(); }
-		});
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		installEvent = new Emitter<InstallExtensionEvent>();
+		didInstallEvent = new Emitter<DidInstallExtensionEvent>();
+		uninstallEvent = new Emitter<IExtensionIdentifier>();
+		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
-		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, onDidChangeConfiguration: () => { }, getConfiguration: () => ({}) });
-		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 
+		instantiationService.stub(IStorageService, NullStorageService);
+		testConfigurationService = new TestConfigurationService();
+		instantiationService.stub(IConfigurationService, testConfigurationService);
+		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
+		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
+		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
+		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
+		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
+		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 	});
 
 	setup(() => {
+		instantiationService.stub(IEnvironmentService, { extensionDevelopmentPath: false });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
+		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage<IGalleryExtension>(...mockExtensionGallery));
+		extensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IExtensionsWorkbenchService, extensionsWorkbenchService);
+
+		prompted = false;
+		instantiationService.stub(IChoiceService, {
+			choose: () => {
+				prompted = true;
+				return TPromise.as(3);
+			}
+		});
+
+		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false });
 	});
 
 	teardown((done) => {
 		(<ExtensionTipsService>testObject).dispose();
-
+		(<ExtensionsWorkbenchService>extensionsWorkbenchService).dispose();
 		if (parentResource) {
 			extfs.del(parentResource, os.tmpdir(), () => { }, done);
 		}
 	});
 
-	function runTestCase(testCase): TPromise<void> {
-		return setUpFolderWorkspace('myFolder', testCase.recommendedExtensions).then(({ parentDir, folderDir }) => {
-			parentResource = parentDir;
+	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[]): TPromise<void> {
+		const id = uuid.generateUuid();
+		parentResource = path.join(os.tmpdir(), 'vsctests', id);
+		return setUpFolder(folderName, parentResource, recommendedExtensions);
+	}
+
+	function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[]): TPromise<void> {
+		const folderDir = path.join(parentDir, folderName);
+		const workspaceSettingsDir = path.join(folderDir, '.vscode');
+		return mkdirp(workspaceSettingsDir, 493).then(() => {
+			const configPath = path.join(workspaceSettingsDir, 'extensions.json');
+			fs.writeFileSync(configPath, JSON.stringify({
+				'recommendations': recommendedExtensions
+			}, null, '\t'));
+
 			const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
 			workspaceService = new TestContextService(myWorkspace);
 			instantiationService.stub(IWorkspaceContextService, workspaceService);
 			instantiationService.stub(IFileService, new FileService(workspaceService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true }));
-			testObject = instantiationService.createInstance(ExtensionTipsService);
-		}).then(() => {
-			return testObject.getWorkspaceRecommendations();
-		}).then(recommendations => {
-			assert.equal(recommendations.length, testCase.validRecommendedExtensions.length);
-			let lowerRecommendations = recommendations.map(x => x.toLowerCase());
-			let lowerValidRecommendations = testCase.validRecommendedExtensions.map(x => x.toLowerCase());
+		});
+	}
 
-			lowerRecommendations.forEach(x => {
-				assert.equal(lowerValidRecommendations.indexOf(x) > -1, true);
+	function testNoPromptForValidRecommendations(recommendations: string[]) {
+		return setUpFolderWorkspace('myFolder', recommendations).then(() => {
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+			const promise = testObject.promptWorkspaceRecommendationsPromise || testObject.getWorkspaceRecommendations();
+			return promise.then(() => {
+				assert.equal(Object.keys(testObject.getAllRecommendationsWithReason()).length, recommendations.length);
+				assert.ok(!prompted);
 			});
 		});
 	}
 
-	test('test workspace folder recommendations', () => {
-		return runTestCase(mockTestFull);
+	test('ExtensionTipsService: No Prompt for valid workspace recommendations when galleryService is absent', () => {
+		instantiationService.stub(IExtensionGalleryService, 'isEnabled', false);
+		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 
-	test('test workspace folder recommendations with empty array', () => {
-		return runTestCase(mockTestEmpty);
+	test('ExtensionTipsService: No Prompt for valid workspace recommendations during extension development', () => {
+		instantiationService.stub(IEnvironmentService, { extensionDevelopmentPath: true });
+		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
+
+	test('ExtensionTipsService: No workspace recommendations or prompts when extensions.json has empty array', () => {
+		return testNoPromptForValidRecommendations([]);
+	});
+
+	test('ExtensionTipsService: Prompt for valid workspace recommendations', () => {
+		return setUpFolderWorkspace('myFolder', mockTestData.recommendedExtensions).then(() => {
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+			return testObject.promptWorkspaceRecommendationsPromise.then(() => {
+				const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
+
+				assert.equal(recommendations.length, mockTestData.validRecommendedExtensions.length);
+				mockTestData.validRecommendedExtensions.forEach(x => {
+					assert.equal(recommendations.indexOf(x.toLowerCase()) > -1, true);
+				});
+
+				assert.ok(prompted);
+			});
+		});
+	});
+
+	test('ExtensionTipsService: No Prompt for valid workspace recommendations if they are already installed', () => {
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', mockExtensionLocal);
+		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
+	});
+
+	test('ExtensionTipsService: No Prompt for valid workspace recommendations with casing mismatch if they are already installed', () => {
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', mockExtensionLocal);
+		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions.map(x => x.toUpperCase()));
+	});
+
+	test('ExtensionTipsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set', () => {
+		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: true });
+		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
+	});
+
+	test('ExtensionTipsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set for current workspace', () => {
+		instantiationService.stub(IStorageService, { getBoolean: (a, b, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c });
+		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
+	});
+
 });
