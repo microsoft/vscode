@@ -136,61 +136,22 @@ function appendSaveConflictEditorTitleAction(id: string, title: string, iconClas
 
 // Menu registration - command palette
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: COPY_PATH_COMMAND_ID,
-		title: nls.localize('copyPathOfActive', "Copy Path of Active File"),
-		category
-	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: SAVE_FILE_COMMAND_ID,
-		title: SAVE_FILE_LABEL,
-		category
-	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-		title: nls.localize('saveAllInGroup', "Save All in Group"),
-		category
-	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: REVERT_FILE_COMMAND_ID,
-		title: nls.localize('revert', "Revert File"),
-		category
-	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: COMPARE_WITH_SAVED_COMMAND_ID,
-		title: nls.localize('compareActiveWithSaved', "Compare Active File with Saved"),
-		category
-	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: REVEAL_IN_OS_COMMAND_ID,
-		title: REVEAL_IN_OS_LABEL,
-		category,
-	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: SAVE_FILE_AS_COMMAND_ID,
-		title: SAVE_FILE_AS_LABEL,
-		category,
-	}
-});
+function appendToCommandPalette(id: string, title: string): void {
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: {
+			id,
+			title,
+			category
+		}
+	});
+}
+appendToCommandPalette(COPY_PATH_COMMAND_ID, nls.localize('copyPathOfActive', "Copy Path of Active File"));
+appendToCommandPalette(SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL);
+appendToCommandPalette(SAVE_ALL_IN_GROUP_COMMAND_ID, nls.localize('saveAllInGroup', "Save All in Group"));
+appendToCommandPalette(REVERT_FILE_COMMAND_ID, nls.localize('revert', "Revert File"));
+appendToCommandPalette(COMPARE_WITH_SAVED_COMMAND_ID, nls.localize('compareActiveWithSaved', "Compare Active File with Saved"));
+appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL);
+appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL);
 
 // Menu registration - open editors
 
