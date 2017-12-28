@@ -23,6 +23,7 @@ import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { assign } from 'vs/base/common/objects';
 
 interface IExtensionViewlet {
 	id: string;
@@ -942,6 +943,14 @@ export class CodeMenu {
 			}
 		}, false));
 
+		const openTaskManager = new MenuItem(this.likeAction('openTaskManager', {
+			label: this.mnemonicLabel(nls.localize({ key: 'miOpenTaskManager', comment: ['&& denotes a mnemonic'] }, "Open &&Task Manager")),
+			accelerator: null,
+			click: () => {
+				this.openTaskManager();
+			}
+		}, false));
+
 		let reportIssuesItem: Electron.MenuItem = null;
 		if (product.reportIssueUrl) {
 			const label = nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue");
@@ -990,7 +999,8 @@ export class CodeMenu {
 			}) : null,
 			(product.licenseUrl || product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,
-			isWindows && product.quality !== 'stable' ? showAccessibilityOptions : null
+			openTaskManager,
+			isWindows && product.quality !== 'stable' ? showAccessibilityOptions : null,
 		]).forEach(item => helpMenu.append(item));
 
 		if (!isMacintosh) {
@@ -1029,7 +1039,7 @@ export class CodeMenu {
 	}
 
 	private openAccessibilityOptions(): void {
-		let win = new BrowserWindow({
+		const win = new BrowserWindow({
 			alwaysOnTop: true,
 			skipTaskbar: true,
 			resizable: false,
@@ -1042,6 +1052,28 @@ export class CodeMenu {
 		win.setMenuBarVisibility(false);
 
 		win.loadURL('chrome://accessibility');
+	}
+
+	private openTaskManager(): void {
+		const win = new BrowserWindow({
+			alwaysOnTop: true,
+			skipTaskbar: true,
+			resizable: true,
+			width: 800,
+			height: 600,
+			show: true,
+			title: nls.localize('taskManager', "Task Manager")
+		});
+
+		win.setMenuBarVisibility(false);
+
+		const config = assign({
+			appRoot: this.environmentService.appRoot,
+			nodeCachedDataDir: this.environmentService.nodeCachedDataDir
+		});
+
+		win.loadURL(`${require.toUrl('vs/code/electron-browser/taskManager.html')}?config=${encodeURIComponent(JSON.stringify(config))}`);
+		win.webContents.toggleDevTools();
 	}
 
 	private getUpdateMenuItems(): Electron.MenuItem[] {
