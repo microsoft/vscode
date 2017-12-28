@@ -371,7 +371,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		});
 	}
 
-	protected _suggestWorkspaceRecommendations(): TPromise<any> {
+	private _suggestWorkspaceRecommendations(): TPromise<any> {
 		const storageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
 

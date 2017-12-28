@@ -36,13 +36,16 @@ import { assign } from 'vs/base/common/objects';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionsWorkbenchService, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IChoiceService } from 'vs/platform/message/common/message';
+import product from 'vs/platform/node/product';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -167,6 +170,7 @@ suite('ExtensionsTipsService Test', () => {
 		uninstallEvent: Emitter<IExtensionIdentifier>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 	let prompted: boolean;
+	let onModelAddedEvent: Emitter<IModel>;
 
 	suiteSetup(() => {
 		instantiationService = new TestInstantiationService();
@@ -176,7 +180,6 @@ suite('ExtensionsTipsService Test', () => {
 		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 
-		instantiationService.stub(IStorageService, NullStorageService);
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
@@ -187,6 +190,24 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+
+		onModelAddedEvent = new Emitter<IModel>();
+
+		product.extensionTips = {
+			'ms-vscode.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
+			'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx**/*.js,**/*.jsx,**/*.es6,**/.babelrc}',
+			'lukehoban.Go': '**/*.go'
+		};
+		product.extensionImportantTips = {
+			'ms-python.python': {
+				'name': 'Python',
+				'pattern': '{**/*.py}'
+			},
+			'ms-vscode.PowerShell': {
+				'name': 'PowerShell',
+				'pattern': '{**/*.ps,**/*.ps1}'
+			}
+		};
 	});
 
 	setup(() => {
@@ -206,6 +227,11 @@ suite('ExtensionsTipsService Test', () => {
 		});
 
 		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false });
+		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
+		instantiationService.stub(IModelService, <IModelService>{
+			getModels(): any { return []; },
+			onModelAdded: onModelAddedEvent.event
+		});
 	});
 
 	teardown((done) => {
@@ -295,8 +321,39 @@ suite('ExtensionsTipsService Test', () => {
 	});
 
 	test('ExtensionTipsService: No Prompt for valid workspace recommendations if ignoreRecommendations is set for current workspace', () => {
-		instantiationService.stub(IStorageService, { getBoolean: (a, b, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c });
+		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c });
 		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 
+	test('ExtensionTipsService: Get file based recommendations from storage (old format)', () => {
+		const storedRecommendations = '["ms-vscode.csharp", "ms-python.python", "eg2.tslint"]';
+		instantiationService.stub(IStorageService, { get: (a, b, c) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c });
+
+		return setUpFolderWorkspace('myFolder', []).then(() => {
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+			const recommendations = testObject.getFileBasedRecommendations();
+			assert.equal(recommendations.length, 2);
+			assert.ok(recommendations.indexOf('ms-vscode.csharp') > -1); // stored recommendation that exists in product.extensionTips
+			assert.ok(recommendations.indexOf('ms-python.python') > -1); // stored recommendation that exists in product.extensionImportantTips
+			assert.ok(recommendations.indexOf('eg2.tslint') === -1); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
+		});
+	});
+
+	test('ExtensionTipsService: Get file based recommendations from storage (new format)', () => {
+		const milliSecondsInADay = 1000 * 60 * 60 * 24;
+		const now = Date.now();
+		const tenDaysOld = 10 * milliSecondsInADay;
+		const storedRecommendations = `{"ms-vscode.csharp": ${now}, "ms-python.python": ${now}, "eg2.tslint": ${now}, "lukehoban.Go": ${tenDaysOld}}`;
+		instantiationService.stub(IStorageService, { get: (a, b, c) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c });
+
+		return setUpFolderWorkspace('myFolder', []).then(() => {
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+			const recommendations = testObject.getFileBasedRecommendations();
+			assert.equal(recommendations.length, 2);
+			assert.ok(recommendations.indexOf('ms-vscode.csharp') > -1); // stored recommendation that exists in product.extensionTips
+			assert.ok(recommendations.indexOf('ms-python.python') > -1); // stored recommendation that exists in product.extensionImportantTips
+			assert.ok(recommendations.indexOf('eg2.tslint') === -1); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
+			assert.ok(recommendations.indexOf('lukehoban.Go') === -1); //stored recommendation that is older than a week
+		});
+	});
 });
