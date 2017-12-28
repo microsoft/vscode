@@ -1553,3 +1553,70 @@ export class MoveEditorToNextGroupAction extends Action {
 		return TPromise.as(true);
 	}
 }
+
+export abstract class MoveEditorToSpecificGroup extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private position: Position,
+		private editorGroupService: IEditorGroupService,
+		private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor && activeEditor.position !== this.position) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, this.position);
+		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class MoveEditorToFirstGroupAction extends MoveEditorToSpecificGroup {
+
+	public static readonly ID = 'workbench.action.moveEditorToFirstGroup';
+	public static readonly LABEL = nls.localize('moveEditorToFirstGroup', "Move Editor into First Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, Position.ONE, editorGroupService, editorService);
+	}
+}
+
+export class MoveEditorToSecondGroupAction extends MoveEditorToSpecificGroup {
+
+	public static readonly ID = 'workbench.action.moveEditorToSecondGroup';
+	public static readonly LABEL = nls.localize('moveEditorToSecondGroup', "Move Editor into Second Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, Position.TWO, editorGroupService, editorService);
+	}
+}
+
+export class MoveEditorToThirdGroupAction extends MoveEditorToSpecificGroup {
+
+	public static readonly ID = 'workbench.action.moveEditorToThirdGroup';
+	public static readonly LABEL = nls.localize('moveEditorToThirdGroup', "Move Editor into Third Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, Position.THREE, editorGroupService, editorService);
+	}
+}
