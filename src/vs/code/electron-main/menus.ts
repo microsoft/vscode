@@ -1062,6 +1062,7 @@ export class CodeMenu {
 				width: 800,
 				height: 600,
 				show: true,
+				backgroundColor: isMacintosh ? '#171717' : '#1E1E1E',
 				title: nls.localize('taskManager', "Task Manager")
 			});
 
