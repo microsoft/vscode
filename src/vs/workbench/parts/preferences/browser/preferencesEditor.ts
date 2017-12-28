@@ -112,7 +112,7 @@ export class PreferencesEditor extends BaseEditor {
 	private preferencesRenderers: PreferencesRenderers;
 
 	private delayedFilterLogging: Delayer<void>;
-	private searchThrottle: ThrottledDelayer<void>;
+	private nlpSearchThrottle: ThrottledDelayer<void>;
 
 	private latestEmptyFilters: string[] = [];
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
@@ -132,7 +132,7 @@ export class PreferencesEditor extends BaseEditor {
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
 		this.focusSettingsContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
-		this.searchThrottle = new ThrottledDelayer(200);
+		this.nlpSearchThrottle = new ThrottledDelayer(200);
 		this.memento = this.getMemento(storageService, Scope.WORKSPACE);
 	}
 
@@ -247,7 +247,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private triggerThrottledFilter(): void {
-		this.searchThrottle.trigger(() => this.searchPreferences());
+		this.nlpSearchThrottle.trigger(() => this.nlpSearchPreferences());
 	}
 
 	private switchSettings(target: SettingsTarget): void {
@@ -267,22 +267,28 @@ export class PreferencesEditor extends BaseEditor {
 		});
 	}
 
-	private searchPreferences(): TPromise<void> {
+	private nlpSearchPreferences(): TPromise<void> {
 		const filter = this.searchWidget.getValue().trim();
-		return this.preferencesRenderers.searchPreferences(filter);
+		return this.preferencesRenderers.nlpSearchPreferences(filter).then(result => {
+			this.onSearchResult(filter, result);
+		}, onUnexpectedError);
 	}
 
 	private filterPreferences(): TPromise<void> {
 		const filter = this.searchWidget.getValue().trim();
-		return this.preferencesRenderers.filterPreferences(filter).then(() => { });
-		// return this.preferencesRenderers.filterPreferences(filter).then(result => {
-		// 	this.showSearchResultsMessage(result.count);
-		// 	if (result.count === 0) {
-		// 		this.latestEmptyFilters.push(filter);
-		// 	}
-		// 	this.preferencesRenderers.focusFirst();
-		// 	this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
-		// }, onUnexpectedError);
+		return this.preferencesRenderers.filterPreferences(filter).then(result => {
+			this.onSearchResult(filter, result);
+		}, onUnexpectedError);
+	}
+
+	private onSearchResult(filter: string, result: { count: number, metadata: IFilterMetadata }): void {
+		this.showSearchResultsMessage(result.count);
+		if (result.count === 0) {
+			this.latestEmptyFilters.push(filter);
+		}
+
+		this.preferencesRenderers.focusFirst();
+		this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
 	}
 
 	private showSearchResultsMessage(count: number): void {
@@ -381,12 +387,12 @@ class PreferencesRenderers extends Disposable {
 
 	private _settingsNavigator: SettingsNavigator;
 	private _filtersInProgress: TPromise<any>[];
-	private _searchCriteria: ISearchCriteria;
 
 	private _currentLocalSearchProvider: LocalSearchProvider;
 	private _currentRemoteSearchProvider: RemoteSearchProvider;
 	private _lastDefaultFilterResult: IFilterResult;
 	private _lastEditableFilterResult: IFilterResult;
+	private _lastFilter: string;
 
 	private _currentNlpResult: ISearchResult;
 	private _currentMultiSearchResult: IMultiSearchResult;
@@ -433,7 +439,7 @@ class PreferencesRenderers extends Disposable {
 				(<ISettingsEditorModel>this._editablePreferencesRenderer.preferencesModel).onDidChangeGroups(() => {
 					if (this._currentLocalSearchProvider) {
 						console.log(`how does this happen`);
-						// this._filterEditablePreferences()
+						// this._filterPreferences()
 						// 	.then(() => {
 						// 		const count = this.consolidateAndUpdate();
 						// 		this._onDidFilterResultsCountChange.fire(count);
@@ -444,22 +450,27 @@ class PreferencesRenderers extends Disposable {
 		}
 	}
 
-	searchPreferences(filter: string): TPromise<void> {
+	nlpSearchPreferences(filter: string): TPromise<{ count: number, metadata: IFilterMetadata }> {
+		this._lastFilter = filter;
 		if (this._currentRemoteSearchProvider) {
-			// actually, cancel promise
+			// actually, cancel promise TODO
 			this._currentRemoteSearchProvider.dispose();
 		}
 
 		this._currentRemoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(filter);
-		this._nlpSearchPreferences(filter, this.defaultPreferencesRenderer, this._currentRemoteSearchProvider, this._lastDefaultFilterResult);
-		this._nlpSearchPreferences(filter, this.editablePreferencesRenderer, this._currentRemoteSearchProvider, this._lastEditableFilterResult);
-		return TPromise.wrap(null);
+		return TPromise.join([
+			this._nlpSearchPreferences(filter, this.defaultPreferencesRenderer, this._currentRemoteSearchProvider, this._lastDefaultFilterResult),
+			this._nlpSearchPreferences(filter, this.editablePreferencesRenderer, this._currentRemoteSearchProvider, this._lastEditableFilterResult)]).then(results => {
+				this._lastDefaultFilterResult = results[0];
+				this._lastEditableFilterResult = results[1];
 
-		// call twice with two prefs models
-		// this._currentRemoteSearchProvider
+				const count = this.consolidateAndUpdate();
+				return { count, metadata: this._lastDefaultFilterResult && this._lastDefaultFilterResult.metadata };
+			});
 	}
 
 	filterPreferences(filter: string): TPromise<{ count: number, metadata: IFilterMetadata }> {
+		this._lastFilter = filter;
 		if (this._filtersInProgress) {
 			// Resolved/rejected promises have no .cancel()
 			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
@@ -471,12 +482,8 @@ class PreferencesRenderers extends Disposable {
 
 		// this._filtersInProgress = [this._filterDefaultPreferences(), this._filterEditablePreferences()];
 
-		// return TPromise.join<IFilterResult>(this._filtersInProgress).then(() => {
-		// 	const count = this.consolidateAndUpdate();
-		// 	return { count, metadata: this._defaultPreferencesFilterResult && this._defaultPreferencesFilterResult.metadata };
-		// });
-
-		return TPromise.wrap(null);
+		const count = this.consolidateAndUpdate();
+		return TPromise.wrap({ count, metadata: this._lastDefaultFilterResult && this._lastDefaultFilterResult.metadata });
 	}
 
 	focusFirst(): void {
@@ -541,20 +548,12 @@ class PreferencesRenderers extends Disposable {
 	private _nlpSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: RemoteSearchProvider, mergeResult: IFilterResult): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
-			provider.filterPreferences(model).then(filterResult => {
+			return provider.filterPreferences(model).then(filterResult => {
 				if (filterResult) {
 					return preferencesRenderer.renderSearchResultGroup(filter, 'nlpResult', {
 						id: 'nlpResult',
 						label: nls.localize('nlpResult', "Natural Language Results"),
 						result: filterResult
-					});
-				} else if (filter) {
-					return preferencesRenderer.renderSearchResultGroup(filter, 'nlpResult', {
-						id: 'nlpResult',
-						label: nls.localize('nlpResult', "Natural Language Results"),
-						result: {
-							filterMatches: [{ matches: [], setting: preferencesRenderer.preferencesModel.getPreference('debug.inlineValues') }]
-						}
 					});
 				} else {
 					return null;
@@ -566,12 +565,16 @@ class PreferencesRenderers extends Disposable {
 	}
 
 	private consolidateAndUpdate(): number {
-		// const defaultPreferencesFilteredGroups = this._defaultPreferencesFilterResult ? this._defaultPreferencesFilterResult.filteredGroups : this._getAllPreferences(this._defaultPreferencesRenderer);
-		// const editablePreferencesFilteredGroups = this._editablePreferencesFilterResult ? this._editablePreferencesFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
+		const defaultPreferencesFilteredGroups = this._lastDefaultFilterResult ? this._lastDefaultFilterResult.filteredGroups : this._getAllPreferences(this._defaultPreferencesRenderer);
+		const editablePreferencesFilteredGroups = this._lastEditableFilterResult ? this._lastEditableFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
 		const consolidatedSettings = this._consolidateSettings(editablePreferencesFilteredGroups, defaultPreferencesFilteredGroups);
 
-		this._settingsNavigator = new SettingsNavigator(this._searchCriteria.filter ? consolidatedSettings : []);
+		this._settingsNavigator = new SettingsNavigator(this._lastFilter ? consolidatedSettings : []);
 		return consolidatedSettings.length;
+	}
+
+	private _getAllPreferences(preferencesRenderer: IPreferencesRenderer<ISetting>): ISettingsGroup[] {
+		return preferencesRenderer ? (<ISettingsEditorModel>preferencesRenderer.preferencesModel).settingsGroups : [];
 	}
 
 	private _focusPreference(preference: ISetting, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
@@ -594,7 +597,7 @@ class PreferencesRenderers extends Disposable {
 
 	private _consolidateSettings(editableSettingsGroups: ISettingsGroup[], defaultSettingsGroups: ISettingsGroup[]): ISetting[] {
 		const editableSettings = this._flatten(editableSettingsGroups);
-		const defaultSettings = this._flatten(defaultSettingsGroups).filter(secondarySetting => !editableSettings.some(primarySetting => primarySetting.key === secondarySetting.key));
+		const defaultSettings = this._flatten(defaultSettingsGroups).filter(secondarySetting => editableSettings.every(primarySetting => primarySetting.key === secondarySetting.key));
 		return [...defaultSettings, ...editableSettings];
 	}
 
@@ -605,6 +608,7 @@ class PreferencesRenderers extends Disposable {
 				settings.push(...section.settings);
 			}
 		}
+
 		return settings;
 	}
 

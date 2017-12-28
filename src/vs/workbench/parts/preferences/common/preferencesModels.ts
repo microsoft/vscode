@@ -163,28 +163,6 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 		return this.settingsModel.getValue();
 	}
 
-	// public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISetting[] {
-	// 	return this.doFilterSettings(filter, groupFilter, settingMatcher);
-	// }
-
-	renderFilteredMatches(filteredMatches: ISettingMatch[], filter: string): IFilterResult {
-		return {
-			allGroups: this.settingsGroups,
-			filteredGroups: this.settingsGroups,
-			matches: flatten(filteredMatches.map(m => m.matches)),
-			query: filter
-		};
-	}
-
-	renderSearchMatches(searchMatches: ISettingMatch[], filter: string): IFilterResult {
-		return {
-			allGroups: this.settingsGroups,
-			filteredGroups: this.settingsGroups,
-			matches: flatten(searchMatches.map(m => m.matches)),
-			query: filter
-		};
-	}
-
 	public findValueMatches(filter: string, setting: ISetting): IRange[] {
 		return this.settingsModel.findMatches(filter, setting.valueRange, false, false, null, false).map(match => match.range);
 	}
@@ -649,11 +627,11 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	private renderResultGroup(resultGroup: ISearchResultGroup, startLine: number): any[] {
 		const settingsGroup = this.getGroup(resultGroup);
-		const fixedMatches = this.renderGroup(settingsGroup, startLine, resultGroup.result.filterMatches);
+		const fixedMatches = this.renderSettingsGroup(settingsGroup, startLine, resultGroup.result.filterMatches);
 		return [settingsGroup, fixedMatches];
 	}
 
-	private renderGroup(group: ISettingsGroup, startLine: number, filteredMatches: ISettingMatch[]): IRange[] {
+	private renderSettingsGroup(group: ISettingsGroup, startLine: number, filteredMatches: ISettingMatch[]): IRange[] {
 		const builder = new SettingsContentBuilder(startLine - 1);
 		builder.pushLine(',');
 		builder.pushGroups([group]);
@@ -707,35 +685,17 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return null;
 	}
 
-	private getSettings(rankedSettingNames: (string|ISetting)[]): ISetting[] {
-		return rankedSettingNames.map(thing => {
-			const setting = typeof thing === 'string' ? this.defaultSettings.getSettingByName(thing) : thing;
-			if (setting) {
-				return <ISetting>{
-					description: setting.description,
-					key: setting.key,
-					value: setting.value,
-					range: null,
-					valueRange: null,
-					overrides: []
-				};
-			}
-			return null;
-		}).filter(setting => !!setting);
-	}
-
-	private getLiteralResultsGroup(rankedSettings: ISetting[]): ISettingsGroup {
-		return <ISettingsGroup>{
-			id: 'literalResults',
-			range: null,
-			title: nls.localize('literalResults', "Literal Results"),
-			titleRange: null,
-			sections: [
-				{
-					settings: this.getSettings(rankedSettings)
-				}
-			]
-		};
+	private getSettings(settings: ISetting[]): ISetting[] {
+		return settings.map(setting => {
+			return <ISetting>{
+				description: setting.description,
+				key: setting.key,
+				value: setting.value,
+				range: null,
+				valueRange: null,
+				overrides: []
+			};
+		});
 	}
 
 	private getGroup(resultGroup: ISearchResultGroup): ISettingsGroup {
@@ -746,21 +706,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			titleRange: null,
 			sections: [
 				{
-					settings: this.getSettings(resultGroup.result.filterMatches.map(m => m.setting));
-				}
-			]
-		};
-	}
-
-	private getSearchResultsGroup(rankedSettings: ISetting[]): ISettingsGroup {
-		return <ISettingsGroup>{
-			id: 'searchResults',
-			range: null,
-			title: nls.localize('searchResults', "Search Results"),
-			titleRange: null,
-			sections: [
-				{
-					settings: this.getSettings(rankedSettings)
+					settings: this.getSettings(resultGroup.result.filterMatches.map(m => m.setting))
 				}
 			]
 		};

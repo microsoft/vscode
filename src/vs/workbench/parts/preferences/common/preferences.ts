@@ -115,8 +115,6 @@ export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> 
 	groupsTerms: string[];
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher, mostRelevantSettings?: string[]): ISettingMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
-	renderFilteredMatches(filteredMatches: ISettingMatch[], filter: string): IFilterResult;
-	renderSearchMatches(searchMatches: ISettingMatch[], filter: string): IFilterResult;
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
