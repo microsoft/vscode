@@ -29,7 +29,9 @@ export abstract class AbstractSettingsModel extends EditorModel {
 
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[] {
 		// TODO@Rob - exclude the Commonly Used settings group
-		const allGroups = this.settingsGroups.slice(1);
+		const allGroups = this.settingsGroups.length > 1 ?
+			this.settingsGroups.slice(1) :
+			this.settingsGroups;
 
 		if (!filter) {
 			throw new Error(`don't`);
@@ -62,16 +64,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 					const settingMatches = settingMatcher(setting);
 
 					if (groupMatched || settingMatches) {
-						const matches = settingMatches && settingMatches.map(range => {
-							return new Range(
-								range.startLineNumber - setting.range.startLineNumber,
-								range.startColumn,
-								range.endLineNumber - setting.range.startLineNumber,
-								range.endColumn
-							);
-						});
-
-						filterMatches.push({ setting, matches });
+						filterMatches.push({ setting, matches: settingMatches });
 					}
 
 					// if (settingMatches) {
@@ -632,6 +625,20 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private renderSettingsGroup(group: ISettingsGroup, startLine: number, filteredMatches: ISettingMatch[]): IRange[] {
+		// Fix match ranges to offset from setting start line
+		filteredMatches = filteredMatches.map(filteredMatch => {
+			return <ISettingMatch>{
+				setting: filteredMatch.setting,
+				matches: filteredMatch.matches && filteredMatch.matches.map(match => {
+					return new Range(
+						match.startLineNumber - filteredMatch.setting.range.startLineNumber,
+						match.startColumn,
+						match.endLineNumber - filteredMatch.setting.range.startLineNumber,
+						match.endColumn);
+				})
+			};
+		});
+
 		const builder = new SettingsContentBuilder(startLine - 1);
 		builder.pushLine(',');
 		builder.pushGroups([group]);

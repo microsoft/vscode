@@ -200,26 +200,40 @@ export class UserSettingsRenderer extends AbstractSettingsRenderer implements IP
 			}
 			return null;
 		}
+
 		return this.preferencesModel.getPreference(key);
 	}
 
 	protected onResultGroupsUpdated(query: string): IFilterResult {
-		const multiResult = <IMultiSearchResult>{
-			query,
-			resultGroups: map.values(this._currentResultGroups)
-		};
-
-		// const filterResult = this.preferencesModel.renderFullSearchResults(multiResult);
-		// this.filterPreferences(filterResult);
-		// return filterResult;
+		const resultGroups = map.values(this._currentResultGroups)
 
 		// Transform multiResult into IFilterResult - ISetting ranges are already correct here
+		const filteredSettings: ISetting[] = [];
+		const matches: IRange[] = [];
+		for (const resultGroup of resultGroups) {
+			for (const filterMatch of resultGroup.result.filterMatches) {
+				filteredSettings.push(filterMatch.setting);
+				matches.push(...filterMatch.matches);
+			}
+		}
+
+		let filteredGroup: ISettingsGroup;
+		const modelGroup = this.preferencesModel.settingsGroups[0]; // Editable model has one or zero groups
+		if (modelGroup) {
+			filteredGroup = {
+				id: modelGroup.id,
+				range: modelGroup.range,
+				sections: [],
+				title: modelGroup.title,
+				titleRange: modelGroup.titleRange
+			};
+		}
+
 		return <IFilterResult>{
 			allGroups: this.preferencesModel.settingsGroups,
-			// filteredGroups: multiResult.resultGroups,
-			filteredGroups: [],
-			// matches: multiResult.resultGroups[0].result.filterMatches[0].matches,
-			query: multiResult.query
+			filteredGroups: [filteredGroup],
+			matches,
+			query
 		};
 	}
 
