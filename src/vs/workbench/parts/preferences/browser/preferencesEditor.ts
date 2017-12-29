@@ -14,7 +14,6 @@ import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SideBySideEditorInput, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { Scope } from 'vs/workbench/common/memento';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
@@ -115,7 +114,6 @@ export class PreferencesEditor extends BaseEditor {
 
 	private latestEmptyFilters: string[] = [];
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
-	private memento: any;
 
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,
@@ -132,7 +130,6 @@ export class PreferencesEditor extends BaseEditor {
 		this.focusSettingsContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.nlpSearchThrottle = new ThrottledDelayer(200);
-		this.memento = this.getMemento(storageService, Scope.WORKSPACE);
 	}
 
 	public createEditor(parent: Builder): void {
