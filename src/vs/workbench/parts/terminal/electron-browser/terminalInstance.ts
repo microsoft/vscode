@@ -13,7 +13,7 @@ import * as dom from 'vs/base/browser/dom';
 import Event, { Emitter } from 'vs/base/common/event';
 import Uri from 'vs/base/common/uri';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/electron-browser/windowsShellHelper';
-import { Terminal as XTermTerminal } from 'xterm';
+import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { Dimension } from 'vs/base/browser/builder';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -254,11 +254,11 @@ export class TerminalInstance implements ITerminalInstance {
 	 */
 	protected async _createXterm(): TPromise<void> {
 		if (!Terminal) {
-			Terminal = (await import('xterm')).Terminal;
+			Terminal = (await import('vscode-xterm')).Terminal;
 			// Enable search functionality in xterm.js instance
-			Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/search/search'));
+			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/search/search'));
 			// Enable the winpty compatibility addon which will simulate wraparound mode
-			Terminal.applyAddon(require.__$__nodeRequire('xterm/lib/addons/winptyCompat/winptyCompat'));
+			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/winptyCompat/winptyCompat'));
 		}
 		const font = this._configHelper.getFont(true);
 		this._xterm = new Terminal({

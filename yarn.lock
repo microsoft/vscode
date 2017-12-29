@@ -5808,6 +5808,10 @@ vscode-textmate@^3.2.0:
     fast-plist "^0.1.2"
     oniguruma "^6.0.1"
 
+vscode-xterm@3.0.0-beta1:
+  version "3.0.0-beta1"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.0.0-beta1.tgz#5510cccd489ee14d7a48c3dc2a8c615ab47fcb5b"
+
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"
   resolved "https://registry.yarnpkg.com/vso-node-api/-/vso-node-api-6.1.2-preview.tgz#aab3546df2451ecd894e071bb99b5df19c5fa78f"
@@ -5945,10 +5949,6 @@ xtend@~2.1.1:
 xtend@~3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/xtend/-/xtend-3.0.0.tgz#5cce7407baf642cba7becda568111c493f59665a"
-
-xterm@Tyriar/xterm.js#vscode-release/1.20:
-  version "2.9.1"
-  resolved "https://codeload.github.com/Tyriar/xterm.js/tar.gz/aeb2a98443b9278b05d76a84878156bf7f258d35"
 
 y18n@^3.2.0:
   version "3.2.1"

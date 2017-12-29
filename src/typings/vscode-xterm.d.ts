@@ -7,7 +7,7 @@
  * to be stable and consumed by external programs.
  */
 
-declare module 'xterm' {
+declare module 'vscode-xterm' {
 	/**
 	 * An object containing start up options for the terminal.
 	 */
