@@ -67,12 +67,27 @@ export abstract class AbstractSettingsRenderer extends Disposable implements IPr
 	abstract clearFocus(setting: ISetting): void;
 
 	renderSearchResultGroup(query: string, id: string, resultGroup: ISearchResultGroup): IFilterResult {
-		this._currentResultGroups.set(id, resultGroup);
-		this._removeDuplicateResults();
-		return this.onResultGroupsUpdated(query);
+		if (resultGroup) {
+			this._currentResultGroups.set(id, resultGroup);
+		} else {
+			this._currentResultGroups.delete(id);
+		}
+
+		let filterResult: IFilterResult;
+		if (this._currentResultGroups.size > 0) {
+			this._removeDuplicateResults();
+			filterResult = this.getFilterResult(query);
+		} else {
+			filterResult = null;
+		}
+
+		this.filterPreferences(filterResult);
+		return filterResult;
 	}
 
-	protected abstract onResultGroupsUpdated(query: string): IFilterResult;
+	protected abstract filterPreferences(filterResult: IFilterResult): void;
+
+	protected abstract getFilterResult(query: string): IFilterResult;
 
 	// Remove duplicates between local and remote results
 	// TODO simplify, maybe move to upstream renderer
@@ -82,6 +97,7 @@ export abstract class AbstractSettingsRenderer extends Disposable implements IPr
 			const keySet = new Set<string>();
 			const firstGroup = this._currentResultGroups.get(keys[0]);
 			const secondGroup = this._currentResultGroups.get(keys[1]);
+
 			firstGroup.result.filterMatches.forEach(s => keySet.add(s.setting.key));
 			secondGroup.result.filterMatches = secondGroup.result.filterMatches.filter(s => !keySet.has(s.setting.key));
 		}
@@ -203,18 +219,19 @@ export class UserSettingsRenderer extends AbstractSettingsRenderer implements IP
 		return this.preferencesModel.getPreference(key);
 	}
 
-	protected onResultGroupsUpdated(query: string): IFilterResult {
+	protected getFilterResult(query: string): IFilterResult {
 		const resultGroups = map.values(this._currentResultGroups);
 
 		// Transform multiResult into IFilterResult - ISetting ranges are already correct here
 		const filteredSettings: ISetting[] = [];
 		const matches: IRange[] = [];
-		for (const resultGroup of resultGroups) {
-			for (const filterMatch of resultGroup.result.filterMatches) {
-				filteredSettings.push(filterMatch.setting);
-				matches.push(...filterMatch.matches);
-			}
-		}
+		resultGroups
+			.forEach(group => {
+				group.result.filterMatches.forEach(filterMatch => {
+					filteredSettings.push(filterMatch.setting);
+					matches.push(...filterMatch.matches);
+				});
+			});
 
 		let filteredGroup: ISettingsGroup;
 		const modelGroup = this.preferencesModel.settingsGroups[0]; // Editable model has one or zero groups
@@ -228,17 +245,15 @@ export class UserSettingsRenderer extends AbstractSettingsRenderer implements IP
 			};
 		}
 
-		const filterResult = <IFilterResult>{
+		return <IFilterResult>{
 			allGroups: this.preferencesModel.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
 			matches,
 			query
 		};
-		this.filterPreferences(filterResult);
-		return filterResult;
 	}
 
-	private filterPreferences(filterResult: IFilterResult): void {
+	protected filterPreferences(filterResult: IFilterResult): void {
 		this.filterResult = filterResult;
 		this.settingHighlighter.clear(true);
 		this.highlightMatchesRenderer.render(filterResult ? filterResult.matches : []);
@@ -360,15 +375,14 @@ export class DefaultSettingsRenderer extends AbstractSettingsRenderer implements
 		this.editSettingActionRenderer.associatedPreferencesModel = associatedPreferencesModel;
 	}
 
-	protected onResultGroupsUpdated(query: string): IFilterResult {
+	protected getFilterResult(query: string): IFilterResult {
+		const resultGroups = map.values(this._currentResultGroups);
 		const multiResult = <IMultiSearchResult>{
 			query,
-			resultGroups: map.values(this._currentResultGroups)
+			resultGroups
 		};
 
-		const filterResult = this.preferencesModel.renderFullSearchResults(multiResult);
-		this.filterPreferences(filterResult);
-		return filterResult;
+		return this.preferencesModel.renderFullSearchResults(multiResult);
 	}
 
 	public render() {
@@ -381,7 +395,7 @@ export class DefaultSettingsRenderer extends AbstractSettingsRenderer implements
 		this.hiddenAreasRenderer.render();
 	}
 
-	private filterPreferences(filterResult: IFilterResult): void {
+	protected filterPreferences(filterResult: IFilterResult): void {
 		this.filterResult = filterResult;
 		if (filterResult) {
 			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);

@@ -519,6 +519,7 @@ class PreferencesRenderers extends Disposable {
 						*/
 						const message = getErrorMessage(err);
 						this.telemetryService.publicLog('defaultSettings.searchError', { message });
+						return null;
 					}
 				})
 				.then(filterResult => {
@@ -529,7 +530,7 @@ class PreferencesRenderers extends Disposable {
 							result: filterResult
 						});
 					} else {
-						return null;
+						return preferencesRenderer.renderSearchResultGroup(filter, groupId, null);
 					}
 				});
 		}
