@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { assign } from 'vs/base/common/objects';
 import { tail, flatten, fill } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
 import { IReference, Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -15,7 +14,7 @@ import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection, IGroupFilter, ISettingMatcher, ISettingMatch, IMultiSearchResult, ISearchResultGroup } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, IGroupFilter, ISettingMatcher, ISettingMatch, IMultiSearchResult, ISearchResultGroup } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -562,15 +561,11 @@ export class DefaultSettings extends Disposable {
 }
 
 export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
-	private static readonly GROUP_SIZE = 1000;
-
 	private _model: IModel;
 
 	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
 
-	// private _filterGroupRange: Range;
-	// private _searchGroupRange: Range;
 	private _resultsGroupsStartLine = 0;
 
 	constructor(
@@ -599,34 +594,47 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			this._resultsGroupsStartLine = tail(this.settingsGroups).range.endLineNumber + 2;
 		}
 
-		let startLine = this._resultsGroupsStartLine;
-		const settingsGroups: ISettingsGroup[] = [];
-		const matches: IRange[] = [];
-		result.resultGroups.forEach(resultGroup => {
-			const renderResult = this.renderResultGroup(resultGroup, startLine);
-			settingsGroups.push(renderResult[0]);
-			matches.push(...renderResult[1]);
-			startLine = renderResult[0].range.endLineNumber + 2; // ??
-		});
+		const renderResult = this.renderResultGroups(result.resultGroups, this._resultsGroupsStartLine);
 
 		return <IFilterResult>{
 			allGroups: this.settingsGroups,
-			filteredGroups: settingsGroups,
-			matches,
+			filteredGroups: renderResult.settingsGroups,
+			matches: renderResult.matches,
 			metadata: null, // todo
 			query: result.query
 		};
 	}
 
-	private renderResultGroup(resultGroup: ISearchResultGroup, startLine: number): any[] {
-		const settingsGroup = this.getGroup(resultGroup);
-		const fixedMatches = this.renderSettingsGroup(settingsGroup, startLine, resultGroup.result.filterMatches);
-		return [settingsGroup, fixedMatches];
+	private renderResultGroups(groups: ISearchResultGroup[], startLine: number): { matches: IRange[], settingsGroups: ISettingsGroup[] } {
+		const contentBuilderOffset = startLine - 1;
+		const builder = new SettingsContentBuilder(contentBuilderOffset);
+
+		const settingsGroups: ISettingsGroup[] = [];
+		const matches: IRange[] = [];
+		groups.forEach(resultGroup => {
+			const settingsGroup = this.getGroup(resultGroup);
+			settingsGroups.push(settingsGroup);
+			matches.push(...this.renderSettingsGroupToBuilder(builder, settingsGroup, resultGroup.result.filterMatches));
+		});
+
+		// note: 1-indexed line numbers here
+		const groupContent = builder.getContent() + '\n';
+		const groupEndLine = this._model.getLineCount();
+		this._model.applyEdits([
+			{
+				text: groupContent,
+				forceMoveMarkers: false,
+				range: new Range(startLine, 1, groupEndLine, 1),
+				identifier: { major: 1, minor: 0 }
+			}
+		]);
+
+		return { matches, settingsGroups };
 	}
 
-	private renderSettingsGroup(group: ISettingsGroup, startLine: number, filteredMatches: ISettingMatch[]): IRange[] {
+	private renderSettingsGroupToBuilder(builder: SettingsContentBuilder, settingsGroup: ISettingsGroup, filterMatches: ISettingMatch[]): IRange[] {
 		// Fix match ranges to offset from setting start line
-		filteredMatches = filteredMatches.map(filteredMatch => {
+		filterMatches = filterMatches.map(filteredMatch => {
 			return <ISettingMatch>{
 				setting: filteredMatch.setting,
 				matches: filteredMatch.matches && filteredMatch.matches.map(match => {
@@ -639,18 +647,15 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			};
 		});
 
-		const builder = new SettingsContentBuilder(startLine - 1);
 		builder.pushLine(',');
-		builder.pushGroups([group]);
-		builder.pushLine('');
+		builder.pushGroups([settingsGroup]);
 
-		// builder has rewritten settings ranges
-		// fix match ranges
+		// builder has rewritten settings ranges, fix match ranges
 		const fixedMatches = flatten(
-			filteredMatches
+			filterMatches
 				.map(m => m.matches || [])
 				.map((settingMatches, i) => {
-					const setting = group.sections[0].settings[i];
+					const setting = settingsGroup.sections[0].settings[i];
 					return settingMatches.map(range => {
 						return new Range(
 							range.startLineNumber + setting.range.startLineNumber,
@@ -659,18 +664,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 							range.endColumn);
 					});
 				}));
-
-		// note: 1-indexed line numbers here
-		const groupContent = builder.getContent(DefaultSettingsEditorModel.GROUP_SIZE + 1); // + 1 for trailing newline
-		const groupEndLine = Math.min(startLine + DefaultSettingsEditorModel.GROUP_SIZE, this._model.getLineCount());
-		this._model.applyEdits([
-			{
-				text: groupContent,
-				forceMoveMarkers: false,
-				range: new Range(startLine, 1, groupEndLine, 1),
-				identifier: { major: 1, minor: 0 }
-			}
-		]);
 
 		return fixedMatches;
 	}
@@ -723,8 +716,8 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 class SettingsContentBuilder {
 	private _contentByLines: string[];
 
-	get lines(): string[] {
-		return this._contentByLines;
+	get lineCount(): number {
+		return this._contentByLines.length;
 	}
 
 	private get lineCountWithOffset(): number {
@@ -793,13 +786,7 @@ class SettingsContentBuilder {
 		return lastSetting;
 	}
 
-	getContent(padTo = 0): string {
-		if (padTo) {
-			if (this._contentByLines.length < padTo - 1) {
-				this._contentByLines.push(...fill(padTo - this._contentByLines.length, () => ''));
-			}
-		}
-
+	getContent(): string {
 		return this._contentByLines.join('\n');
 	}
 
