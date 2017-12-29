@@ -5,7 +5,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -18,8 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface IEndpointDetails {
 	urlBase: string;

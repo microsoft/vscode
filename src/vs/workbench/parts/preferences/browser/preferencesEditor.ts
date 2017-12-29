@@ -25,7 +25,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, IPreferencesSearchService,
-	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, ISearchResult, IMultiSearchResult, ISearchProvider
+	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, ISearchProvider
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -373,9 +373,9 @@ class SettingsNavigator implements INavigator<ISetting> {
 	}
 }
 
-interface ISearchCriteria {
-	filter: string;
-	fuzzy: boolean;
+interface IFilterOrNlpResult {
+	count: number;
+	metadata: IFilterMetadata;
 }
 
 class PreferencesRenderers extends Disposable {
@@ -431,53 +431,40 @@ class PreferencesRenderers extends Disposable {
 			this._editablePreferencesRenderer = editableSettingsRenderer;
 			this._editablePreferencesRendererDisposables = dispose(this._editablePreferencesRendererDisposables);
 			if (this._editablePreferencesRenderer) {
-				(<ISettingsEditorModel>this._editablePreferencesRenderer.preferencesModel).onDidChangeGroups(() => {
-					this._onEditableContentDidChange();
-				}, this, this._editablePreferencesRendererDisposables);
+				(<ISettingsEditorModel>this._editablePreferencesRenderer.preferencesModel)
+					.onDidChangeGroups(this._onEditableContentDidChange, this, this._editablePreferencesRendererDisposables);
 			}
 		}
 	}
 
-	_onEditableContentDidChange(): TPromise<void> {
-		return this.filterPreferences(this._lastFilter) .then(() => {
-			const count = this.consolidateAndUpdate();
-			this._onDidFilterResultsCountChange.fire(count);
-		});
+	async _onEditableContentDidChange(): TPromise<void> {
+		await this.filterPreferences(this._lastFilter, true);
+		await this.nlpSearchPreferences(this._lastFilter, true);
+
+		const count = this.consolidateAndUpdate();
+		this._onDidFilterResultsCountChange.fire(count);
 	}
 
-	nlpSearchPreferences(filter: string): TPromise<{ count: number, metadata: IFilterMetadata }> {
+	nlpSearchPreferences(filter: string, updateCurrentResults?: boolean): TPromise<IFilterOrNlpResult> {
+		this._currentRemoteSearchProvider = (updateCurrentResults && this._currentRemoteSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(filter);
+		return this.filterOrNlpPreferences(filter, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"));
+	}
+
+	filterPreferences(filter: string, updateCurrentResults?: boolean): TPromise<IFilterOrNlpResult> {
+		this._currentLocalSearchProvider = (updateCurrentResults && this._currentLocalSearchProvider) || this.preferencesSearchService.getLocalSearchProvider(filter);
+		return this.filterOrNlpPreferences(filter, this._currentLocalSearchProvider, 'filterResult', nls.localize('filterResult', "Filtered Results"));
+	}
+
+	filterOrNlpPreferences(filter: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterOrNlpResult> {
 		this._lastFilter = filter;
 		if (this._filtersInProgress) {
 			// Resolved/rejected promises have no .cancel()
 			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
 		}
 
-		this._currentRemoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(filter);
 		this._filtersInProgress = [
-			this._nlpSearchPreferences(filter, this.defaultPreferencesRenderer, this._currentRemoteSearchProvider),
-			this._nlpSearchPreferences(filter, this.editablePreferencesRenderer, this._currentRemoteSearchProvider)];
-
-		return TPromise.join(this._filtersInProgress).then(results => {
-			this._filtersInProgress = null;
-			this._lastDefaultFilterResult = results[0];
-			this._lastEditableFilterResult = results[1];
-
-			const count = this.consolidateAndUpdate();
-			return { count, metadata: this._lastDefaultFilterResult && this._lastDefaultFilterResult.metadata };
-		});
-	}
-
-	filterPreferences(filter: string): TPromise<{ count: number, metadata: IFilterMetadata }> {
-		this._lastFilter = filter;
-		if (this._filtersInProgress) {
-			// Resolved/rejected promises have no .cancel()
-			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
-		}
-
-		this._currentLocalSearchProvider = this.preferencesSearchService.getLocalSearchProvider(filter);
-		this._filtersInProgress = [
-			this._filterPreferences(filter, this.defaultPreferencesRenderer, this._currentLocalSearchProvider),
-			this._filterPreferences(filter, this.editablePreferencesRenderer, this._currentLocalSearchProvider)];
+			this._filterOrNlpPreferences(filter, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel),
+			this._filterOrNlpPreferences(filter, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel)];
 
 		return TPromise.join(this._filtersInProgress).then(results => {
 			this._filtersInProgress = null;
@@ -516,33 +503,14 @@ class PreferencesRenderers extends Disposable {
 		return null;
 	}
 
-	private _filterPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider): TPromise<IFilterResult> {
+	private _filterOrNlpPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
 			return provider.searchModel(model).then(filterResult => {
 				if (filterResult) {
-					return preferencesRenderer.renderSearchResultGroup(filter, 'filterResult', {
-						id: 'filterResult',
-						label: nls.localize('filterResult', "Filtered Results"),
-						result: filterResult
-					});
-				} else {
-					return null;
-				}
-			});
-		}
-
-		return TPromise.wrap(null);
-	}
-
-	private _nlpSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider): TPromise<IFilterResult> {
-		if (preferencesRenderer) {
-			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
-			return provider.searchModel(model).then(filterResult => {
-				if (filterResult) {
-					return preferencesRenderer.renderSearchResultGroup(filter, 'nlpResult', {
-						id: 'nlpResult',
-						label: nls.localize('nlpResult', "Natural Language Results"),
+					return preferencesRenderer.renderSearchResultGroup(filter, groupId, {
+						id: groupId,
+						label: groupLabel,
 						result: filterResult
 					});
 				} else {
