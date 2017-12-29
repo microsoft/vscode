@@ -63,7 +63,6 @@ export abstract class AbstractSettingsRenderer extends Disposable implements IPr
 
 	abstract render(): void;
 	abstract updatePreference(key: string, value: any, source: ISetting, index: number): void;
-	// abstract filterPreferences(filterResult: IFilterResult): void;
 	abstract focusPreference(setting: ISetting): void;
 	abstract clearFocus(setting: ISetting): void;
 
@@ -229,12 +228,14 @@ export class UserSettingsRenderer extends AbstractSettingsRenderer implements IP
 			};
 		}
 
-		return <IFilterResult>{
+		const filterResult = <IFilterResult>{
 			allGroups: this.preferencesModel.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
 			matches,
 			query
 		};
+		this.filterPreferences(filterResult);
+		return filterResult;
 	}
 
 	private filterPreferences(filterResult: IFilterResult): void {
@@ -468,9 +469,6 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 	}
 
 	get hiddenAreas(): IRange[] {
-		// Hide extra chars for "search results" and "commonly used" groups
-		// const filteredGroup = this._result && this._result.filteredGroups && arrays.first(this._result.filteredGroups, g => g.id === 'literalResults');
-		// const searchGroup = this._result && this._result.filteredGroups && arrays.first(this._result.filteredGroups, g => g.id === 'searchResults');
 		const lastGroup = arrays.tail(this._settingsGroups);
 		const hiddenAreas = [
 			{
@@ -509,7 +507,7 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 				const hasNextGroup = !!this._result.filteredGroups[i + 1];
 				const isEmpty = !filteredGroup.sections[0].settings.length;
 				if (hasNextGroup) {
-					// Empty groups have fewer blank interior lines, account for this
+					// Empty groups have fewer blank interior lines
 					const startLineNumber = isEmpty ? (filteredGroup.range.startLineNumber - 2) : (filteredGroup.range.endLineNumber + 1);
 					const endLineNumber = filteredGroup.range.endLineNumber + (isEmpty ? 1 : 4);
 					hiddenAreas.push({
@@ -519,10 +517,11 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 						endColumn: 1
 					});
 				} else {
+					// Hide the closing ]
 					hiddenAreas.push({
 						startLineNumber: filteredGroup.range.endLineNumber + 1,
 						startColumn: 1,
-						endLineNumber: this.editor.getModel().getLineCount(), // TODO should not leave so much space
+						endLineNumber: this.editor.getModel().getLineCount(),
 						endColumn: 1
 					});
 				}
