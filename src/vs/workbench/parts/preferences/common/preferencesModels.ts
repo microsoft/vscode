@@ -326,11 +326,6 @@ export class DefaultSettings extends Disposable {
 		return this._content;
 	}
 
-	protected get filterGroups(): ISettingsGroup[] {
-		// Don't look at "commonly used" for filter
-		return this.settingsGroups.slice(1);
-	}
-
 	get settingsGroups(): ISettingsGroup[] {
 		if (!this._allSettingsGroups) {
 			this.parse();
@@ -539,6 +534,11 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	public get settingsGroups(): ISettingsGroup[] {
 		return this.defaultSettings.settingsGroups;
+	}
+
+	protected get filterGroups(): ISettingsGroup[] {
+		// Don't look at "commonly used" for filter
+		return this.settingsGroups.slice(1);
 	}
 
 	renderFullSearchResults(result: IMultiSearchResult): IFilterResult {

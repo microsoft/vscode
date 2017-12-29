@@ -287,7 +287,6 @@ export class PreferencesEditor extends BaseEditor {
 				this.latestEmptyFilters.push(filter);
 			}
 
-			this.preferencesRenderers.focusFirst();
 			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
 		}
 	}
@@ -477,14 +476,6 @@ class PreferencesRenderers extends Disposable {
 		});
 	}
 
-	focusFirst(): void {
-		// Focus first match in both renderers
-		// this._focusPreference(this._getFirstSettingFromTheGroups(this._defaultPreferencesFilterResult ? this._defaultPreferencesFilterResult.filteredGroups : []), this._defaultPreferencesRenderer);
-		// this._focusPreference(this._getFirstSettingFromTheGroups(this._editablePreferencesFilterResult ? this._editablePreferencesFilterResult.filteredGroups : []), this._editablePreferencesRenderer);
-
-		this._settingsNavigator.first(); // Move to first
-	}
-
 	focusNextPreference(forward: boolean = true) {
 		if (!this._settingsNavigator) {
 			return;
@@ -493,15 +484,6 @@ class PreferencesRenderers extends Disposable {
 		const setting = forward ? this._settingsNavigator.next() : this._settingsNavigator.previous();
 		this._focusPreference(setting, this._defaultPreferencesRenderer);
 		this._focusPreference(setting, this._editablePreferencesRenderer);
-	}
-
-	private _getFirstSettingFromTheGroups(allGroups: ISettingsGroup[]): ISetting {
-		if (allGroups.length) {
-			if (allGroups[0].sections.length) {
-				return allGroups[0].sections[0].settings[0];
-			}
-		}
-		return null;
 	}
 
 	private _filterOrNlpPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterResult> {
