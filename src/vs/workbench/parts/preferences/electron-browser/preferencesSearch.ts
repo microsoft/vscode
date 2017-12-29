@@ -5,7 +5,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider, IGroupFilter } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -88,21 +88,29 @@ export class LocalSearchProvider implements ISearchProvider {
 			return TPromise.wrap(null);
 		}
 
-		const regex = strings.createRegExp(this._filter, false, { global: true });
-
-		const groupFilter = (group: ISettingsGroup) => {
-			return regex.test(group.title);
-		};
-
 		const settingMatcher = (setting: ISetting) => {
 			const matches = new SettingMatches(this._filter, setting, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 			return matches && matches.length ? matches : null;
 		};
 
-		const filterMatches = preferencesModel.filterSettings(this._filter, groupFilter, settingMatcher);
+		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
 		return TPromise.wrap({
 			filterMatches
 		});
+	}
+
+	private getGroupFilter(filter: string): IGroupFilter {
+		if (strings.startsWith(filter, '@')) {
+			const groupId = filter.replace(/^@/, '');
+			return (group: ISettingsGroup) => {
+				return group.id.toLowerCase() === groupId.toLowerCase();
+			};
+		} else {
+			const regex = strings.createRegExp(this._filter, false, { global: true });
+			return (group: ISettingsGroup) => {
+				return regex.test(group.title);
+			};
+		}
 	}
 }
 
@@ -115,7 +123,9 @@ export class RemoteSearchProvider implements ISearchProvider {
 		@IRequestService private requestService: IRequestService
 	) {
 		this._filter = filter;
-		this._remoteSearchP = filter ?
+
+		// @queries are always handled by local filter
+		this._remoteSearchP = filter && !strings.startsWith(filter, '@') ?
 			this.getSettingsFromBing(filter, endpoint) :
 			TPromise.wrap(null);
 	}

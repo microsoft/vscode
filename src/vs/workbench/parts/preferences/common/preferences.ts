@@ -111,7 +111,6 @@ export type ISettingMatcher = (setting: ISetting) => IRange[];
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
-	groupsTerms: string[];
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher, mostRelevantSettings?: string[]): ISettingMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
 }

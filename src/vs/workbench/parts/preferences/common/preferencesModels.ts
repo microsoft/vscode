@@ -22,40 +22,10 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 
 export abstract class AbstractSettingsModel extends EditorModel {
 
-	public get groupsTerms(): string[] {
-		return this.settingsGroups.map(group => '@' + group.id);
-	}
-
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[] {
-		// TODO@Rob - exclude the Commonly Used settings group
-		const allGroups = this.settingsGroups.length > 1 ?
-			this.settingsGroups.slice(1) :
-			this.settingsGroups;
-
-		if (!filter) {
-			throw new Error(`don't`);
-			// return {
-			// 	filteredGroups: allGroups,
-			// 	allGroups,
-			// 	matches: [],
-			// 	query: filter
-			// };
-		}
-
-		// Hm
-		// const group = this.filterByGroupTerm(filter);
-		// if (group) {
-		// 	return {
-		// 		filteredGroups: [group],
-		// 		allGroups,
-		// 		matches: [],
-		// 		query: filter
-		// 	};
-		// }
+		const allGroups = this.filterGroups;
 
 		const filterMatches: ISettingMatch[] = [];
-		const matches: IRange[] = [];
-		// const filteredGroups: ISettingsGroup[] = [];
 		for (const group of allGroups) {
 			const groupMatched = groupFilter(group);
 			for (const section of group.sections) {
@@ -65,39 +35,11 @@ export abstract class AbstractSettingsModel extends EditorModel {
 					if (groupMatched || settingMatches) {
 						filterMatches.push({ setting, matches: settingMatches });
 					}
-
-					// if (settingMatches) {
-					// 	matches.push(...settingMatches);
-					// }
 				}
-				// if (settings.length) {
-				// 	sections.push({
-				// 		title: section.title,
-				// 		settings,
-				// 		titleRange: section.titleRange
-				// 	});
-				// }
 			}
-			// if (sections.length) {
-			// 	filteredGroups.push({
-			// 		id: group.id,
-			// 		title: group.title,
-			// 		titleRange: group.titleRange,
-			// 		sections,
-			// 		range: group.range
-			// 	});
-			// }
 		}
 
 		return filterMatches;
-	}
-
-	private filterByGroupTerm(filter: string): ISettingsGroup {
-		if (this.groupsTerms.indexOf(filter) !== -1) {
-			const id = filter.substring(1);
-			return this.settingsGroups.filter(group => group.id === id)[0];
-		}
-		return null;
 	}
 
 	public getPreference(key: string): ISetting {
@@ -111,6 +53,10 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			}
 		}
 		return null;
+	}
+
+	protected get filterGroups(): ISettingsGroup[] {
+		return this.settingsGroups;
 	}
 
 	public abstract settingsGroups: ISettingsGroup[];
@@ -380,10 +326,16 @@ export class DefaultSettings extends Disposable {
 		return this._content;
 	}
 
+	protected get filterGroups(): ISettingsGroup[] {
+		// Don't look at "commonly used" for filter
+		return this.settingsGroups.slice(1);
+	}
+
 	get settingsGroups(): ISettingsGroup[] {
 		if (!this._allSettingsGroups) {
 			this.parse();
 		}
+
 		return this._allSettingsGroups;
 	}
 
