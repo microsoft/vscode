@@ -83,6 +83,7 @@ export interface IFilterResult {
 export interface ISettingMatch {
 	setting: ISetting;
 	matches: IRange[];
+	score: number;
 }
 
 export interface IScoredResults {
@@ -106,12 +107,12 @@ export interface IPreferencesEditorModel<T> {
 }
 
 export type IGroupFilter = (group: ISettingsGroup) => boolean;
-export type ISettingMatcher = (setting: ISetting) => IRange[];
+export type ISettingMatcher = (setting: ISetting) => { matches: IRange[], score: number };
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
-	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher, mostRelevantSettings?: string[]): ISettingMatch[];
+	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
 }
 

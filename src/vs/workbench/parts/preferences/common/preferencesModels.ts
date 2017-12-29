@@ -30,16 +30,20 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			const groupMatched = groupFilter(group);
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
-					const settingMatches = settingMatcher(setting);
+					const settingMatchResult = settingMatcher(setting);
 
-					if (groupMatched || settingMatches) {
-						filterMatches.push({ setting, matches: settingMatches });
+					if (groupMatched || settingMatchResult) {
+						filterMatches.push({
+							setting,
+							matches: settingMatchResult && settingMatchResult.matches,
+							score: settingMatchResult ? settingMatchResult.score : 0
+						});
 					}
 				}
 			}
 		}
 
-		return filterMatches;
+		return filterMatches.sort((a, b) => b.score - a.score);
 	}
 
 	public getPreference(key: string): ISetting {
@@ -590,6 +594,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		filterMatches = filterMatches.map(filteredMatch => {
 			return <ISettingMatch>{
 				setting: filteredMatch.setting,
+				score: filteredMatch.score,
 				matches: filteredMatch.matches && filteredMatch.matches.map(match => {
 					return new Range(
 						match.startLineNumber - filteredMatch.setting.range.startLineNumber,
