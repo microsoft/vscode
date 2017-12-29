@@ -16,7 +16,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { join } from 'vs/base/common/paths';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import Event from 'vs/base/common/event';
-import { LocalSearchProvider, RemoteSearchProvider } from 'vs/workbench/parts/preferences/electron-browser/preferencesSearch';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -183,8 +182,12 @@ export interface IPreferencesSearchService {
 	endpoint: IEndpointDetails;
 	onRemoteSearchEnablementChanged: Event<boolean>;
 
-	getLocalSearchProvider(filter: string): LocalSearchProvider;
-	getRemoteSearchProvider(filter: string): RemoteSearchProvider;
+	getLocalSearchProvider(filter: string): ISearchProvider;
+	getRemoteSearchProvider(filter: string): ISearchProvider;
+}
+
+export interface ISearchProvider {
+	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult>;
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);

@@ -205,7 +205,7 @@ export class UserSettingsRenderer extends AbstractSettingsRenderer implements IP
 	}
 
 	protected onResultGroupsUpdated(query: string): IFilterResult {
-		const resultGroups = map.values(this._currentResultGroups)
+		const resultGroups = map.values(this._currentResultGroups);
 
 		// Transform multiResult into IFilterResult - ISetting ranges are already correct here
 		const filteredSettings: ISetting[] = [];
@@ -231,7 +231,7 @@ export class UserSettingsRenderer extends AbstractSettingsRenderer implements IP
 
 		return <IFilterResult>{
 			allGroups: this.preferencesModel.settingsGroups,
-			filteredGroups: [filteredGroup],
+			filteredGroups: filteredGroup ? [filteredGroup] : [],
 			matches,
 			query
 		};
@@ -496,10 +496,7 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 		];
 
 		if (this._result) {
-			const model = this.editor.getModel();
 			this._result.filteredGroups.forEach((filteredGroup, i) => {
-				const nextGroup = this._result.filteredGroups[i + 1];
-
 				// Beginning of the filtered group
 				hiddenAreas.push({
 					startLineNumber: filteredGroup.range.startLineNumber - 4,
@@ -508,13 +505,27 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 					endColumn: 1
 				});
 
-				// Hide the extra padding lines after the filtered group
-				hiddenAreas.push({
-					startLineNumber: filteredGroup.range.endLineNumber + 1,
-					startColumn: 1,
-					endLineNumber: nextGroup ? nextGroup.range.startLineNumber - 4 : model.getLineCount(),
-					endColumn: 1
-				});
+				// Hide the braces at the end of the group
+				const hasNextGroup = !!this._result.filteredGroups[i + 1];
+				const isEmpty = !filteredGroup.sections[0].settings.length;
+				if (hasNextGroup) {
+					// Empty groups have fewer blank interior lines, account for this
+					const startLineNumber = isEmpty ? (filteredGroup.range.startLineNumber - 2) : (filteredGroup.range.endLineNumber + 1);
+					const endLineNumber = filteredGroup.range.endLineNumber + (isEmpty ? 1 : 4);
+					hiddenAreas.push({
+						startLineNumber,
+						startColumn: 1,
+						endLineNumber,
+						endColumn: 1
+					});
+				} else {
+					hiddenAreas.push({
+						startLineNumber: filteredGroup.range.endLineNumber + 1,
+						startColumn: 1,
+						endLineNumber: this.editor.getModel().getLineCount(), // TODO should not leave so much space
+						endColumn: 1
+					});
+				}
 			});
 		}
 
@@ -847,30 +858,21 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: 'findMatch'
 			}
-
 		};
 	}
 
 	private computeHiddenRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], model: editorCommon.IModel): IRange[] {
 		const notMatchesRanges: IRange[] = [];
 		if (filteredGroups) {
-			notMatchesRanges.push({
-				startLineNumber: 1,
-				startColumn: 1,
-				endLineNumber: allSettingsGroups[allSettingsGroups.length - 1].range.endLineNumber + 2,
-				endColumn: 1
-			});
-
-			// Hide empty groups entirely
-			filteredGroups.forEach(group => {
-				if (!group.sections[0].settings.length) {
-					notMatchesRanges.push({
-						startLineNumber: group.range.startLineNumber - 2,
-						startColumn: 1,
-						endLineNumber: group.range.endLineNumber + 2,
-						endColumn: 1
-					});
-				}
+			allSettingsGroups.forEach((group, i) => {
+				// Only the first two groups are wrapped in braces, and they have extra lines that need to be hidden
+				const startLineNumber = i < 2 ? group.range.startLineNumber - 2 : group.range.startLineNumber;
+				notMatchesRanges.push({
+					startLineNumber,
+					startColumn: group.range.startColumn,
+					endLineNumber: group.range.endLineNumber + 2,
+					endColumn: group.range.endColumn
+				});
 			});
 		} else {
 			notMatchesRanges.push({

@@ -25,7 +25,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, IPreferencesSearchService,
-	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, ISearchResult, IMultiSearchResult
+	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, ISearchResult, IMultiSearchResult, ISearchProvider
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -58,7 +58,6 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { LocalSearchProvider, RemoteSearchProvider } from 'vs/workbench/parts/preferences/electron-browser/preferencesSearch';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -282,13 +281,15 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private onSearchResult(filter: string, result: { count: number, metadata: IFilterMetadata }): void {
-		this.showSearchResultsMessage(result.count);
-		if (result.count === 0) {
-			this.latestEmptyFilters.push(filter);
-		}
+		if (result) {
+			this.showSearchResultsMessage(result.count);
+			if (result.count === 0) {
+				this.latestEmptyFilters.push(filter);
+			}
 
-		this.preferencesRenderers.focusFirst();
-		this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
+			this.preferencesRenderers.focusFirst();
+			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
+		}
 	}
 
 	private showSearchResultsMessage(count: number): void {
@@ -388,17 +389,11 @@ class PreferencesRenderers extends Disposable {
 	private _settingsNavigator: SettingsNavigator;
 	private _filtersInProgress: TPromise<any>[];
 
-	private _currentLocalSearchProvider: LocalSearchProvider;
-	private _currentRemoteSearchProvider: RemoteSearchProvider;
+	private _currentLocalSearchProvider: ISearchProvider;
+	private _currentRemoteSearchProvider: ISearchProvider;
 	private _lastDefaultFilterResult: IFilterResult;
 	private _lastEditableFilterResult: IFilterResult;
 	private _lastFilter: string;
-
-	private _currentNlpResult: ISearchResult;
-	private _currentMultiSearchResult: IMultiSearchResult;
-
-	private _onTriggeredFuzzy: Emitter<void> = this._register(new Emitter<void>());
-	public onTriggeredFuzzy: Event<void> = this._onTriggeredFuzzy.event;
 
 	private _onDidFilterResultsCountChange: Emitter<number> = this._register(new Emitter<number>());
 	public onDidFilterResultsCountChange: Event<number> = this._onDidFilterResultsCountChange.event;
@@ -437,36 +432,39 @@ class PreferencesRenderers extends Disposable {
 			this._editablePreferencesRendererDisposables = dispose(this._editablePreferencesRendererDisposables);
 			if (this._editablePreferencesRenderer) {
 				(<ISettingsEditorModel>this._editablePreferencesRenderer.preferencesModel).onDidChangeGroups(() => {
-					if (this._currentLocalSearchProvider) {
-						console.log(`how does this happen`);
-						// this._filterPreferences()
-						// 	.then(() => {
-						// 		const count = this.consolidateAndUpdate();
-						// 		this._onDidFilterResultsCountChange.fire(count);
-						// 	});
-					}
+					this._onEditableContentDidChange();
 				}, this, this._editablePreferencesRendererDisposables);
 			}
 		}
 	}
 
+	_onEditableContentDidChange(): TPromise<void> {
+		return this.filterPreferences(this._lastFilter) .then(() => {
+			const count = this.consolidateAndUpdate();
+			this._onDidFilterResultsCountChange.fire(count);
+		});
+	}
+
 	nlpSearchPreferences(filter: string): TPromise<{ count: number, metadata: IFilterMetadata }> {
 		this._lastFilter = filter;
-		if (this._currentRemoteSearchProvider) {
-			// actually, cancel promise TODO
-			this._currentRemoteSearchProvider.dispose();
+		if (this._filtersInProgress) {
+			// Resolved/rejected promises have no .cancel()
+			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
 		}
 
 		this._currentRemoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(filter);
-		return TPromise.join([
-			this._nlpSearchPreferences(filter, this.defaultPreferencesRenderer, this._currentRemoteSearchProvider, this._lastDefaultFilterResult),
-			this._nlpSearchPreferences(filter, this.editablePreferencesRenderer, this._currentRemoteSearchProvider, this._lastEditableFilterResult)]).then(results => {
-				this._lastDefaultFilterResult = results[0];
-				this._lastEditableFilterResult = results[1];
+		this._filtersInProgress = [
+			this._nlpSearchPreferences(filter, this.defaultPreferencesRenderer, this._currentRemoteSearchProvider),
+			this._nlpSearchPreferences(filter, this.editablePreferencesRenderer, this._currentRemoteSearchProvider)];
 
-				const count = this.consolidateAndUpdate();
-				return { count, metadata: this._lastDefaultFilterResult && this._lastDefaultFilterResult.metadata };
-			});
+		return TPromise.join(this._filtersInProgress).then(results => {
+			this._filtersInProgress = null;
+			this._lastDefaultFilterResult = results[0];
+			this._lastEditableFilterResult = results[1];
+
+			const count = this.consolidateAndUpdate();
+			return { count, metadata: this._lastDefaultFilterResult && this._lastDefaultFilterResult.metadata };
+		});
 	}
 
 	filterPreferences(filter: string): TPromise<{ count: number, metadata: IFilterMetadata }> {
@@ -477,13 +475,18 @@ class PreferencesRenderers extends Disposable {
 		}
 
 		this._currentLocalSearchProvider = this.preferencesSearchService.getLocalSearchProvider(filter);
-		this._lastDefaultFilterResult = this._filterPreferences(filter, this.defaultPreferencesRenderer, this._currentLocalSearchProvider);
-		this._lastEditableFilterResult = this._filterPreferences(filter, this.editablePreferencesRenderer, this._currentLocalSearchProvider);
+		this._filtersInProgress = [
+			this._filterPreferences(filter, this.defaultPreferencesRenderer, this._currentLocalSearchProvider),
+			this._filterPreferences(filter, this.editablePreferencesRenderer, this._currentLocalSearchProvider)];
 
-		// this._filtersInProgress = [this._filterDefaultPreferences(), this._filterEditablePreferences()];
+		return TPromise.join(this._filtersInProgress).then(results => {
+			this._filtersInProgress = null;
+			this._lastDefaultFilterResult = results[0];
+			this._lastEditableFilterResult = results[1];
 
-		const count = this.consolidateAndUpdate();
-		return TPromise.wrap({ count, metadata: this._lastDefaultFilterResult && this._lastDefaultFilterResult.metadata });
+			const count = this.consolidateAndUpdate();
+			return { count, metadata: this._lastDefaultFilterResult && this._lastDefaultFilterResult.metadata };
+		});
 	}
 
 	focusFirst(): void {
@@ -504,22 +507,6 @@ class PreferencesRenderers extends Disposable {
 		this._focusPreference(setting, this._editablePreferencesRenderer);
 	}
 
-	// private _filterDefaultPreferences(): TPromise<void> {
-	// 	if (this._searchCriteria && this._defaultPreferencesRenderer) {
-	// 		return this._filterPreferences(this._searchCriteria, this._defaultPreferencesRenderer, this._currentSearchModel, this._currentFilterModel, this._remoteSearchThrottle)
-	// 			.then(filterResult => { this._defaultPreferencesFilterResult = filterResult; });
-	// 	}
-	// 	return TPromise.wrap(null);
-	// }
-
-	// private _filterEditablePreferences(): TPromise<void> {
-	// 	if (this._searchCriteria && this._editablePreferencesRenderer) {
-	// 		return this._filterPreferences(this._searchCriteria, this._editablePreferencesRenderer, this._currentSearchModel, this._currentFilterModel, this._editablePrefsThrottle)
-	// 			.then(filterResult => { this._editablePreferencesFilterResult = filterResult; });
-	// 	}
-	// 	return TPromise.wrap(null);
-	// }
-
 	private _getFirstSettingFromTheGroups(allGroups: ISettingsGroup[]): ISetting {
 		if (allGroups.length) {
 			if (allGroups[0].sections.length) {
@@ -529,26 +516,29 @@ class PreferencesRenderers extends Disposable {
 		return null;
 	}
 
-	private _filterPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: LocalSearchProvider): IFilterResult {
+	private _filterPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
-			const filterResult = provider.filterPreferences(model);
-			if (filterResult) {
-				return preferencesRenderer.renderSearchResultGroup(filter, 'filterResult', {
-					id: 'filterResult',
-					label: nls.localize('filterResult', "Filtered Results"),
-					result: filterResult
-				});
-			}
+			return provider.searchModel(model).then(filterResult => {
+				if (filterResult) {
+					return preferencesRenderer.renderSearchResultGroup(filter, 'filterResult', {
+						id: 'filterResult',
+						label: nls.localize('filterResult', "Filtered Results"),
+						result: filterResult
+					});
+				} else {
+					return null;
+				}
+			});
 		}
 
-		return null;
+		return TPromise.wrap(null);
 	}
 
-	private _nlpSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: RemoteSearchProvider, mergeResult: IFilterResult): TPromise<IFilterResult> {
+	private _nlpSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
-			return provider.filterPreferences(model).then(filterResult => {
+			return provider.searchModel(model).then(filterResult => {
 				if (filterResult) {
 					return preferencesRenderer.renderSearchResultGroup(filter, 'nlpResult', {
 						id: 'nlpResult',
@@ -561,7 +551,7 @@ class PreferencesRenderers extends Disposable {
 			});
 		}
 
-		return TPromise.as(null);
+		return TPromise.wrap(null);
 	}
 
 	private consolidateAndUpdate(): number {

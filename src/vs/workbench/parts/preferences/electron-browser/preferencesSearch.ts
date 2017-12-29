@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -78,16 +77,16 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	}
 }
 
-export class LocalSearchProvider {
+export class LocalSearchProvider implements ISearchProvider {
 	private _filter: string;
 
 	constructor(filter: string) {
 		this._filter = filter;
 	}
 
-	filterPreferences(preferencesModel: ISettingsEditorModel): ISearchResult {
+	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
 		if (!this._filter) {
-			return null;
+			return TPromise.wrap(null);
 		}
 
 		const regex = strings.createRegExp(this._filter, false, { global: true });
@@ -102,16 +101,15 @@ export class LocalSearchProvider {
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, groupFilter, settingMatcher);
-		return {
+		return TPromise.wrap({
 			filterMatches
-		};
+		});
 	}
 }
 
-export class RemoteSearchProvider implements IDisposable {
+export class RemoteSearchProvider implements ISearchProvider {
 	private _filter: string;
 	private _remoteSearchP: TPromise<IFilterMetadata>;
-	private _isDisposed = false;
 
 	constructor(filter: string, endpoint: IEndpointDetails,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -119,13 +117,13 @@ export class RemoteSearchProvider implements IDisposable {
 	) {
 		this._filter = filter;
 		this._remoteSearchP = filter ?
-			this.getSettingsFromBing(filter, endpoint).then(null, e => null) :
+			this.getSettingsFromBing(filter, endpoint) :
 			TPromise.wrap(null);
 	}
 
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
+	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
 		return this._remoteSearchP.then(remoteResult => {
-			if (!this._isDisposed && remoteResult) {
+			if (remoteResult) {
 				let sortedNames = Object.keys(remoteResult.scoredResults).sort((a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a]);
 				if (sortedNames.length) {
 					const highScore = remoteResult.scoredResults[sortedNames[0]];
@@ -143,10 +141,6 @@ export class RemoteSearchProvider implements IDisposable {
 				return null;
 			}
 		});
-	}
-
-	dispose(): void {
-		this._isDisposed = true;
 	}
 
 	private getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromise<IFilterMetadata> {
