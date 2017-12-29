@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { assign } from 'vs/base/common/objects';
-import { tail, flatten, fill } from 'vs/base/common/arrays';
+import { tail, flatten, fill, first } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference, Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -546,13 +546,14 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			this._resultsGroupsStartLine = tail(this.settingsGroups).range.endLineNumber + 2;
 		}
 
+		const groupWithMetadata = first(result.resultGroups, group => !!group.result.metadata);
 		const renderResult = this.renderResultGroups(result.resultGroups, this._resultsGroupsStartLine);
 
 		return <IFilterResult>{
 			allGroups: this.settingsGroups,
 			filteredGroups: renderResult.settingsGroups,
 			matches: renderResult.matches,
-			metadata: null, // todo
+			metadata: groupWithMetadata && groupWithMetadata.result.metadata,
 			query: result.query
 		};
 	}

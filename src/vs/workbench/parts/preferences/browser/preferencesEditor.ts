@@ -6,7 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
@@ -156,7 +156,7 @@ export class PreferencesEditor extends BaseEditor {
 		this._register(this.sideBySidePreferencesWidget.onFocus(() => this.lastFocusedWidget = this.sideBySidePreferencesWidget));
 		this._register(this.sideBySidePreferencesWidget.onDidSettingsTargetChange(target => this.switchSettings(target)));
 
-		this.preferencesRenderers = this._register(new PreferencesRenderers(this.preferencesSearchService));
+		this.preferencesRenderers = this._register(new PreferencesRenderers(this.preferencesSearchService, this.telemetryService));
 
 		this._register(this.preferencesRenderers.onDidFilterResultsCountChange(count => this.showSearchResultsMessage(count)));
 	}
@@ -399,7 +399,8 @@ class PreferencesRenderers extends Disposable {
 	public onDidFilterResultsCountChange: Event<number> = this._onDidFilterResultsCountChange.event;
 
 	constructor(
-		private preferencesSearchService: IPreferencesSearchService
+		private preferencesSearchService: IPreferencesSearchService,
+		private telemetryService: ITelemetryService
 	) {
 		super();
 	}
@@ -506,17 +507,31 @@ class PreferencesRenderers extends Disposable {
 	private _filterOrNlpPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
-			return provider.searchModel(model).then(filterResult => {
-				if (filterResult) {
-					return preferencesRenderer.renderSearchResultGroup(filter, groupId, {
-						id: groupId,
-						label: groupLabel,
-						result: filterResult
-					});
-				} else {
-					return null;
-				}
-			});
+			return provider.searchModel(model)
+				.then(null, err => {
+					if (isPromiseCanceledError(err)) {
+						return null;
+					} else {
+						/* __GDPR__
+							"defaultSettings.searchError" : {
+								"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							}
+						*/
+						const message = getErrorMessage(err);
+						this.telemetryService.publicLog('defaultSettings.searchError', { message });
+					}
+				})
+				.then(filterResult => {
+					if (filterResult) {
+						return preferencesRenderer.renderSearchResultGroup(filter, groupId, {
+							id: groupId,
+							label: groupLabel,
+							result: filterResult
+						});
+					} else {
+						return null;
+					}
+				});
 		}
 
 		return TPromise.wrap(null);
