@@ -239,7 +239,11 @@ export class UserSettingsRenderer extends AbstractSettingsRenderer implements IP
 			filteredGroup = {
 				id: modelGroup.id,
 				range: modelGroup.range,
-				sections: [],
+				sections: [{
+					title: modelGroup.sections[0].title,
+					titleRange: modelGroup.sections[0].titleRange,
+					settings: filteredSettings
+				}],
 				title: modelGroup.title,
 				titleRange: modelGroup.titleRange
 			};

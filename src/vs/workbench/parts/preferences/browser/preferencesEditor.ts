@@ -243,7 +243,12 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private triggerThrottledFilter(): void {
-		this.nlpSearchThrottle.trigger(() => this.nlpSearchPreferences());
+		if (this.searchWidget.getValue()) {
+			this.nlpSearchThrottle.trigger(() => this.nlpSearchPreferences());
+		} else {
+			// When clearing the input, update nlp immediately to clear it
+			this.nlpSearchPreferences();
+		}
 	}
 
 	private switchSettings(target: SettingsTarget): void {
@@ -387,8 +392,6 @@ class PreferencesRenderers extends Disposable {
 
 	private _currentLocalSearchProvider: ISearchProvider;
 	private _currentRemoteSearchProvider: ISearchProvider;
-	private _lastDefaultFilterResult: IFilterResult;
-	private _lastEditableFilterResult: IFilterResult;
 	private _lastFilter: string;
 
 	private _onDidFilterResultsCountChange: Emitter<number> = this._register(new Emitter<number>());
@@ -437,9 +440,6 @@ class PreferencesRenderers extends Disposable {
 	async _onEditableContentDidChange(): TPromise<void> {
 		await this.filterPreferences(this._lastFilter, true);
 		await this.nlpSearchPreferences(this._lastFilter, true);
-
-		const count = this.consolidateAndUpdate();
-		this._onDidFilterResultsCountChange.fire(count);
 	}
 
 	nlpSearchPreferences(filter: string, updateCurrentResults?: boolean): TPromise<IFilterOrNlpResult> {
@@ -465,11 +465,10 @@ class PreferencesRenderers extends Disposable {
 
 		return TPromise.join(this._filtersInProgress).then(results => {
 			this._filtersInProgress = null;
-			this._lastDefaultFilterResult = results[0];
-			this._lastEditableFilterResult = results[1];
+			const [defaultFilterResult, editableFilterResult] = results;
 
-			const count = this.consolidateAndUpdate();
-			return { count, metadata: this._lastDefaultFilterResult && this._lastDefaultFilterResult.metadata };
+			const count = this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
+			return { count, metadata: defaultFilterResult && defaultFilterResult.metadata };
 		});
 	}
 
@@ -517,13 +516,15 @@ class PreferencesRenderers extends Disposable {
 		return TPromise.wrap(null);
 	}
 
-	private consolidateAndUpdate(): number {
-		const defaultPreferencesFilteredGroups = this._lastDefaultFilterResult ? this._lastDefaultFilterResult.filteredGroups : this._getAllPreferences(this._defaultPreferencesRenderer);
-		const editablePreferencesFilteredGroups = this._lastEditableFilterResult ? this._lastEditableFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
+	private consolidateAndUpdate(defaultFilterResult: IFilterResult, editableFilterResult: IFilterResult): number {
+		const defaultPreferencesFilteredGroups = defaultFilterResult ? defaultFilterResult.filteredGroups : this._getAllPreferences(this._defaultPreferencesRenderer);
+		const editablePreferencesFilteredGroups = editableFilterResult ? editableFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
 		const consolidatedSettings = this._consolidateSettings(editablePreferencesFilteredGroups, defaultPreferencesFilteredGroups);
 
 		this._settingsNavigator = new SettingsNavigator(this._lastFilter ? consolidatedSettings : []);
-		return consolidatedSettings.length;
+		const count = consolidatedSettings.length;
+		this._onDidFilterResultsCountChange.fire(count);
+		return count;
 	}
 
 	private _getAllPreferences(preferencesRenderer: IPreferencesRenderer<ISetting>): ISettingsGroup[] {
@@ -550,7 +551,7 @@ class PreferencesRenderers extends Disposable {
 
 	private _consolidateSettings(editableSettingsGroups: ISettingsGroup[], defaultSettingsGroups: ISettingsGroup[]): ISetting[] {
 		const editableSettings = this._flatten(editableSettingsGroups);
-		const defaultSettings = this._flatten(defaultSettingsGroups).filter(secondarySetting => editableSettings.every(primarySetting => primarySetting.key === secondarySetting.key));
+		const defaultSettings = this._flatten(defaultSettingsGroups).filter(secondarySetting => editableSettings.every(primarySetting => primarySetting.key !== secondarySetting.key));
 		return [...defaultSettings, ...editableSettings];
 	}
 
