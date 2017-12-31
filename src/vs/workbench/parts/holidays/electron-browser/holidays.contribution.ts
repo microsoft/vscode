@@ -36,7 +36,7 @@ export class HappyHolidaysAction extends Action {
 		const text = append(el, $('.happy-holidays-text'));
 		disposables.push(toDisposable(() => document.body.removeChild(el)));
 
-		text.innerText = `The VS Code team wishes you a great Holiday season!`;
+		text.innerText = `The VS Code team wishes you a great holiday season!`;
 		setTimeout(() => addClass(text, 'animate'), 50);
 
 		const onKeyDown = domEvent(document.body, 'keydown', true);
