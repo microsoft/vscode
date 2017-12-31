@@ -329,7 +329,7 @@ export class TerminalInstance implements ITerminalInstance {
 					return false;
 				}
 				// Skip alt+F4
-				if (platform.isWindows && event.altKey && event.keyCode === 115 && !event.ctrlKey) {
+				if (platform.isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
 					return false;
 				}
 
