@@ -694,7 +694,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._process = null;
 		let exitCodeMessage: string;
 
-		if (exitCode && this._configHelper.config.showExitAlert) {
+		if (exitCode) {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 		}
 
@@ -745,7 +745,9 @@ export class TerminalInstance implements ITerminalInstance {
 					}
 					this._messageService.show(Severity.Error, nls.localize('terminal.integrated.launchFailed', 'The terminal process command `{0}{1}` failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
 				} else {
-					this._messageService.show(Severity.Error, exitCodeMessage);
+					if (this._configHelper.config.showExitAlert) {
+						this._messageService.show(Severity.Error, exitCodeMessage);
+					}
 				}
 			}
 		}
