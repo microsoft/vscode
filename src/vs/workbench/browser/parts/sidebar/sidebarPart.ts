@@ -16,7 +16,6 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { Scope } from 'vs/workbench/browser/actions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -64,7 +63,6 @@ export class SidebarPart extends CompositePart<Viewlet> {
 			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId(),
 			'sideBar',
 			'viewlet',
-			Scope.VIEWLET,
 			SIDE_BAR_TITLE_FOREGROUND,
 			id,
 			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 }

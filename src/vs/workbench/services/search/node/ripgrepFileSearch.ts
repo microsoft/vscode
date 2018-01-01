@@ -39,6 +39,8 @@ function getRgArgs(config: IRawSearch, folderQuery: IFolderSearch, includePatter
 	if (folderQuery.disregardIgnoreFiles !== false) {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
+	} else {
+		args.push('--no-ignore-parent');
 	}
 
 	// Follow symlinks

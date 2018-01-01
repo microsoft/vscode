@@ -14,7 +14,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -31,6 +31,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IRevertOptions } from 'vs/platform/editor/common/editor';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -56,6 +57,8 @@ export abstract class TextFileService implements ITextFileService {
 	private configuredAutoSaveOnFocusChange: boolean;
 	private configuredAutoSaveOnWindowChange: boolean;
 
+	private autoSaveContext: IContextKey<string>;
+
 	private configuredHotExit: string;
 
 	constructor(
@@ -69,7 +72,8 @@ export abstract class TextFileService implements ITextFileService {
 		protected environmentService: IEnvironmentService,
 		private backupFileService: IBackupFileService,
 		private windowsService: IWindowsService,
-		private historyService: IHistoryService
+		private historyService: IHistoryService,
+		contextKeyService: IContextKeyService
 	) {
 		this.toUnbind = [];
 
@@ -80,6 +84,7 @@ export abstract class TextFileService implements ITextFileService {
 		this.toUnbind.push(this._onFilesAssociationChange);
 
 		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
+		this.autoSaveContext = AutoSaveContext.bindTo(contextKeyService);
 
 		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 		this.currentFilesAssociationConfig = configuration && configuration.files && configuration.files.associations;
@@ -306,6 +311,7 @@ export abstract class TextFileService implements ITextFileService {
 		const wasAutoSaveEnabled = (this.getAutoSaveMode() !== AutoSaveMode.OFF);
 
 		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveConfiguration.OFF;
+		this.autoSaveContext.set(autoSaveMode);
 		switch (autoSaveMode) {
 			case AutoSaveConfiguration.AFTER_DELAY:
 				this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;

@@ -5,7 +5,7 @@
 'use strict';
 
 
-import { NodeCachedDataCleaner } from 'vs/code/electron-browser/contrib/nodeCachedDataCleaner';
+import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export function createSharedProcessContributions(service: IInstantiationService): void {
