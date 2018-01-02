@@ -180,6 +180,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false
 		},
+		'terminal.integrated.enableBell': {
+			'description': nls.localize('terminal.integrated.enableBell', "Whether the terminal bell is enabled on not."),
+			'type': 'boolean',
+			'default': false
+		},
 		'terminal.integrated.commandsToSkipShell': {
 			'description': nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open."),
 			'type': 'array',
