@@ -747,6 +747,8 @@ export class TerminalInstance implements ITerminalInstance {
 				} else {
 					if (this._configHelper.config.showExitAlert) {
 						this._messageService.show(Severity.Error, exitCodeMessage);
+					} else {
+						console.warn(exitCodeMessage);
 					}
 				}
 			}
