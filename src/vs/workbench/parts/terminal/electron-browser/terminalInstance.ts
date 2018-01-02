@@ -328,7 +328,8 @@ export class TerminalInstance implements ITerminalInstance {
 				if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
 					return false;
 				}
-				// Skip alt+F4
+				// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
+				// system
 				if (platform.isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
 					return false;
 				}
