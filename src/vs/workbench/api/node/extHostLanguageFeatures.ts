@@ -289,9 +289,8 @@ class CodeActionAdapter {
 			}
 		});
 
-		return asWinJsPromise(token => this._provider.provideCodeActions2
-			? this._provider.provideCodeActions2(doc, ran, { diagnostics: allDiagnostics }, token)
-			: this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)
+		return asWinJsPromise(token =>
+			this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)
 		).then(commandsOrActions => {
 			if (isFalsyOrEmpty(commandsOrActions)) {
 				return undefined;
