@@ -446,6 +446,8 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	if (config.disregardIgnoreFiles) {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
+	} else {
+		args.push('--no-ignore-parent');
 	}
 
 	// Follow symlinks

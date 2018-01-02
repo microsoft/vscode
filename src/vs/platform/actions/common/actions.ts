@@ -43,6 +43,7 @@ export class MenuId {
 	static readonly EditorTitleContext = new MenuId();
 	static readonly EditorContext = new MenuId();
 	static readonly ExplorerContext = new MenuId();
+	static readonly OpenEditorsContext = new MenuId();
 	static readonly ProblemsPanelContext = new MenuId();
 	static readonly DebugVariablesContext = new MenuId();
 	static readonly DebugWatchContext = new MenuId();

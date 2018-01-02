@@ -82,7 +82,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/parts/welcome/walkThrough/**/*.md',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
-	'out-build/vs/code/electron-browser/sharedProcess.js',
+	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
 	'!**/test/**'
 ];
 

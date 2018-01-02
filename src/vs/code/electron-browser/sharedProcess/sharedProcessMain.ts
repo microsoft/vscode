@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
@@ -34,7 +36,7 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ipcRenderer } from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { createSharedProcessContributions } from 'vs/code/electron-browser/contrib/contributions';
+import { createSharedProcessContributions } from 'vs/code/electron-browser/sharedProcess/contrib/contributions';
 import { createLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService } from 'vs/platform/log/common/log';
 

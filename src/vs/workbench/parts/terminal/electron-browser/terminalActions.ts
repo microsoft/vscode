@@ -23,8 +23,8 @@ import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuick
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -224,7 +224,7 @@ export class CreateNewTerminalAction extends Action {
 			const options: IPickOptions = {
 				placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 			};
-			instancePromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND, [options]).then(workspace => {
+			instancePromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
 				if (!workspace) {
 					// Don't create the instance if the workspace picker was canceled
 					return null;

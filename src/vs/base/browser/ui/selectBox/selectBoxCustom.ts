@@ -8,7 +8,7 @@ import 'vs/css!./selectBoxCustom';
 import * as nls from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter, chain } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
@@ -161,19 +161,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 			}
 		}));
 
-		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.MOUSE_UP, (e) => {
-			dom.EventHelper.stop(e);
-		}));
-
 		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.MOUSE_DOWN, (e) => {
 			dom.EventHelper.stop(e);
 		}));
 
 		// Intercept keyboard handling
-
-		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			dom.EventHelper.stop(e);
-		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
@@ -194,10 +186,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 				this.showSelectDropDown();
 				dom.EventHelper.stop(e);
 			}
-		}));
-
-		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.KEY_PRESS, (e: KeyboardEvent) => {
-			dom.EventHelper.stop(e);
 		}));
 	}
 
@@ -490,6 +478,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this, this.toDispose);
 		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.toDispose);
 		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDown, this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUp, this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Home).on(this.onHome, this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.End).on(this.onEnd, this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => (e.keyCode >= KeyCode.KEY_0 && e.keyCode <= KeyCode.KEY_Z) || (e.keyCode >= KeyCode.US_SEMICOLON && e.keyCode <= KeyCode.NUMPAD_DIVIDE)).on(this.onCharacter, this, this.toDispose);
 
 		// SetUp list mouse controller - control navigation, disabled items, focus
 
@@ -596,7 +589,93 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		}
 	}
 
+	private onPageUp(e: StandardKeyboardEvent): void {
+		dom.EventHelper.stop(e);
+
+		this.selectList.focusPreviousPage();
+
+		// Allow scrolling to settle
+		setTimeout(() => {
+			this.selected = this.selectList.getFocus()[0];
+
+			// Shift selection down if we land on a disabled option
+			if (this.selected === this.disabledOptionIndex && this.selected < this.options.length - 1) {
+				this.selected++;
+				this.selectList.setFocus([this.selected]);
+			}
+			this.selectList.reveal(this.selected);
+			this.select(this.selected);
+		}, 1);
+	}
+
+	private onPageDown(e: StandardKeyboardEvent): void {
+		dom.EventHelper.stop(e);
+
+		this.selectList.focusNextPage();
+
+		// Allow scrolling to settle
+		setTimeout(() => {
+			this.selected = this.selectList.getFocus()[0];
+
+			// Shift selection up if we land on a disabled option
+			if (this.selected === this.disabledOptionIndex && this.selected > 0) {
+				this.selected--;
+				this.selectList.setFocus([this.selected]);
+			}
+			this.selectList.reveal(this.selected);
+			this.select(this.selected);
+		}, 1);
+	}
+
+	private onHome(e: StandardKeyboardEvent): void {
+		dom.EventHelper.stop(e);
+
+		if (this.options.length < 2) {
+			return;
+		}
+		this.selected = 0;
+		if (this.selected === this.disabledOptionIndex && this.selected > 1) {
+			this.selected++;
+		}
+		this.selectList.setFocus([this.selected]);
+		this.selectList.reveal(this.selected);
+		this.select(this.selected);
+	}
+
+	private onEnd(e: StandardKeyboardEvent): void {
+		dom.EventHelper.stop(e);
+
+		if (this.options.length < 2) {
+			return;
+		}
+		this.selected = this.options.length - 1;
+		if (this.selected === this.disabledOptionIndex && this.selected > 1) {
+			this.selected--;
+		}
+		this.selectList.setFocus([this.selected]);
+		this.selectList.reveal(this.selected);
+		this.select(this.selected);
+	}
+
+	// Mimic option first character navigation of native select
+	private onCharacter(e: StandardKeyboardEvent): void {
+		const ch = KeyCodeUtils.toString(e.keyCode);
+		let optionIndex = -1;
+
+		for (let i = 0; i < this.options.length - 1; i++) {
+			optionIndex = (i + this.selected + 1) % this.options.length;
+			if (this.options[optionIndex].charAt(0).toUpperCase() === ch) {
+				this.select(optionIndex);
+				this.selectList.setFocus([optionIndex]);
+				this.selectList.reveal(this.selectList.getFocus()[0]);
+				dom.EventHelper.stop(e);
+				break;
+			}
+		}
+	}
+
 	public dispose(): void {
+		this.hideSelectDropDown(false);
 		this.toDispose = dispose(this.toDispose);
 	}
 }
