@@ -269,7 +269,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows"),
 			'type': 'object',
 			'default': {}
-		}
+		},
+		'terminal.integrated.showExitAlert': {
+			'description': nls.localize('terminal.integrated.showExitAlert', "Show alert `The terminal process terminated with exit code` when exit code is non-zero."),
+			'type': 'boolean',
+			'default': true
+		},
 	}
 });
 
