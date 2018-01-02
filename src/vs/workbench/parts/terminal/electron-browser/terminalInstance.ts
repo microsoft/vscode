@@ -328,6 +328,10 @@ export class TerminalInstance implements ITerminalInstance {
 				if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
 					return false;
 				}
+				// Skip alt+F4
+				if (platform.isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
+					return false;
+				}
 
 				return undefined;
 			});
