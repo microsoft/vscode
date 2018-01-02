@@ -252,10 +252,13 @@
 
 		const baseElement = document.getElementsByTagName('base')[0];
 
-		/** @type {any} */
+		/** @type {*} */
 		let node = event.target;
 		while (node) {
 			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+				if (node.getAttribute('href').startsWith('#')) {
+					break;
+				}
 				if (node.href.startsWith('file://')) {
 					const [path, fragment] = node.href.replace(/^file:\/\//i, '').split('#');
 					postMessage('_markdown.openDocumentLink', { path, fragment });
