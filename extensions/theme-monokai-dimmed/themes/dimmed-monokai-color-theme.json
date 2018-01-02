@@ -211,14 +211,6 @@
 			}
 		},
 		{
-			"name": "Language Constant",
-			"scope": "constant.language",
-			"settings": {
-				"fontStyle": "",
-				"foreground": "#FF0080"
-			}
-		},
-		{
 			"name": "Meta Brace",
 			"scope": "punctuation.section.embedded -(source string source punctuation.section.embedded), meta.brace.erb.html",
 			"settings": {
