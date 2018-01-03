@@ -81,6 +81,7 @@ class InsertSnippetAction extends EditorAction {
 					undefined,
 					undefined,
 					undefined,
+					undefined,
 					snippet,
 					undefined
 				));

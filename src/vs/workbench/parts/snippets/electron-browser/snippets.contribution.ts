@@ -40,6 +40,7 @@ export class Snippet {
 	private _isBogous: boolean;
 
 	constructor(
+		readonly scopes: string[],
 		readonly name: string,
 		readonly prefix: string,
 		readonly description: string,

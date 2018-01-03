@@ -9,9 +9,13 @@ import { readFile } from 'vs/base/node/pfs';
 import { parse as jsonParse } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
 import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { endsWith } from 'vs/base/common/strings';
+import { basename } from 'path';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 interface JsonSerializedSnippet {
 	body: string;
+	scope: string;
 	prefix: string | string[];
 	description: string;
 }
@@ -26,11 +30,33 @@ interface JsonSerializedSnippets {
 
 export class SnippetFile {
 
-	private constructor(
+	constructor(
 		readonly filepath: string,
 		readonly data: Snippet[]
 	) {
 		//
+	}
+
+	select(selector: string, bucket: Snippet[]): void {
+		for (const snippet of this.data) {
+			if (isFalsyOrEmpty(snippet.scopes)) {
+				// always accept
+				bucket.push(snippet);
+			} else {
+				// match
+				for (const scope of snippet.scopes) {
+					if (scope === selector) {
+						bucket.push(snippet);
+						break; // match only once!
+					}
+				}
+			}
+		}
+
+		let idx = selector.lastIndexOf('.');
+		if (idx >= 0) {
+			this.select(selector.substring(0, idx), bucket);
+		}
 	}
 
 	static fromFile(filepath: string, source: string, isFromExtension?: boolean): Promise<SnippetFile> {
@@ -41,11 +67,11 @@ export class SnippetFile {
 				forEach(data, entry => {
 					const { key: name, value: scopeOrTemplate } = entry;
 					if (isJsonSerilziedSnippet(scopeOrTemplate)) {
-						SnippetFile._parseSnippet(name, scopeOrTemplate, source, isFromExtension, snippets);
+						SnippetFile._parseSnippet(filepath, name, scopeOrTemplate, source, isFromExtension, snippets);
 					} else {
 						forEach(scopeOrTemplate, entry => {
 							const { key: name, value: template } = entry;
-							SnippetFile._parseSnippet(name, template, source, isFromExtension, snippets);
+							SnippetFile._parseSnippet(filepath, name, template, source, isFromExtension, snippets);
 						});
 					}
 				});
@@ -54,7 +80,7 @@ export class SnippetFile {
 		});
 	}
 
-	private static _parseSnippet(name: string, snippet: JsonSerializedSnippet, source: string, isFromExtension: boolean, bucket: Snippet[]): void {
+	private static _parseSnippet(filepath: string, name: string, snippet: JsonSerializedSnippet, source: string, isFromExtension: boolean, bucket: Snippet[]): void {
 
 		let { prefix, body, description } = snippet;
 
@@ -66,7 +92,17 @@ export class SnippetFile {
 			return;
 		}
 
+		let scopes: string[];
+		if (endsWith(filepath, '.json')) {
+			scopes = [basename(filepath, '.json')];
+		} else if (typeof snippet.scope === 'string') {
+			scopes = snippet.scope.split(',');
+		} else {
+			scopes = [];
+		}
+
 		bucket.push(new Snippet(
+			scopes,
 			name,
 			prefix,
 			description,
