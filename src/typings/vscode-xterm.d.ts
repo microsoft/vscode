@@ -73,6 +73,13 @@ declare module 'vscode-xterm' {
 		rows?: number;
 
 		/**
+		 * Whether screen reader support is enabled. When on this will expose
+		 * supporting elements in the DOM to support NVDA on Windows and VoiceOver
+		 * on macOS.
+		 */
+		screenReaderMode?: boolean;
+
+		/**
 		 * The amount of scrollback in the terminal. Scrollback is the amount of rows
 		 * that are retained when lines are scrolled beyond the initial viewport.
 		 */

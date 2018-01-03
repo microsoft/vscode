@@ -338,6 +338,12 @@ export interface ITerminalInstance {
 	updateConfig(): void;
 
 	/**
+	 * Updates the accessibility support state of the terminal instance.
+	 * @param isEnabled Whether it's enabled.
+	 */
+	updateAccessibilitySupport(isEnabled: boolean): void;
+
+	/**
 	 * Configure the dimensions of the terminal instance.
 	 *
 	 * @param dimension The dimensions of the container.

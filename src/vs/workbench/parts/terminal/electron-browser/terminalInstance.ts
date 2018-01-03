@@ -37,6 +37,8 @@ import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_CO
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -125,7 +127,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IHistoryService private _historyService: IHistoryService,
 		@IThemeService private _themeService: IThemeService,
 		@IConfigurationResolverService private _configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private _workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private _workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -260,6 +263,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// Enable the winpty compatibility addon which will simulate wraparound mode
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/winptyCompat/winptyCompat'));
 		}
+		const accessibilitySupport = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		const font = this._configHelper.getFont(true);
 		this._xterm = new Terminal({
 			scrollback: this._configHelper.config.scrollback,
@@ -268,7 +272,8 @@ export class TerminalInstance implements ITerminalInstance {
 			fontSize: font.fontSize,
 			lineHeight: font.lineHeight,
 			enableBold: this._configHelper.config.enableBold,
-			bellStyle: this._configHelper.config.enableBell ? 'sound' : 'none'
+			bellStyle: this._configHelper.config.enableBell ? 'sound' : 'none',
+			screenReaderMode: accessibilitySupport === 'on'
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -961,6 +966,10 @@ export class TerminalInstance implements ITerminalInstance {
 		this._setCommandsToSkipShell(this._configHelper.config.commandsToSkipShell);
 		this._setScrollback(this._configHelper.config.scrollback);
 		this._setEnableBell(this._configHelper.config.enableBell);
+	}
+
+	public updateAccessibilitySupport(isEnabled: boolean): void {
+		this._xterm.setOption('screenReaderMode', isEnabled);
 	}
 
 	private _setCursorBlink(blink: boolean): void {
