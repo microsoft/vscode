@@ -131,7 +131,7 @@ suite('Editor Model - Model', () => {
 			[
 				new ModelRawLineChanged(1, 'My new line First Line'),
 				new ModelRawLineChanged(1, 'My new line'),
-				new ModelRawLinesInserted(2, 2, 'No longer First Line'),
+				new ModelRawLinesInserted(2, 2, ['No longer First Line']),
 			],
 			2,
 			false,

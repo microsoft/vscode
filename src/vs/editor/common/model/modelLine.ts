@@ -16,12 +16,6 @@ import { TextBuffer } from 'vs/editor/common/model/textBuffer';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 
-export interface ILineEdit {
-	startColumn: number;
-	endColumn: number;
-	text: string;
-}
-
 /**
  * Returns:
  *  - -1 => the line consists of whitespace
