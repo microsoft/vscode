@@ -2420,6 +2420,10 @@ declare module monaco.editor {
 		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
 		 */
 		autoFindInSelection: boolean;
+		/**
+		 * Controls scrolling beyond the first line when the Find widget is visible.
+		 */
+		enableScrollWhenVisible: boolean;
 	}
 
 	/**
@@ -3001,6 +3005,7 @@ declare module monaco.editor {
 	export interface InternalEditorFindOptions {
 		readonly seedSearchStringFromSelection: boolean;
 		readonly autoFindInSelection: boolean;
+		readonly enableScrollWhenVisible: boolean;
 	}
 
 	export interface EditorWrappingInfo {

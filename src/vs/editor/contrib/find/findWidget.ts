@@ -206,18 +206,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			});
 		}));
 
+		if (this._codeEditor.getConfiguration().contribInfo.find.enableScrollWhenVisible) {
+			this._register(this._codeEditor.onDidScrollChange((e) => {
+				if (e.scrollTopChanged) {
+					this._layoutViewZone();
+					return;
+				}
 
-		this._register(this._codeEditor.onDidScrollChange((e) => {
-			if (e.scrollTopChanged) {
-				this._layoutViewZone();
-				return;
-			}
-
-			// for other scroll changes, layout the viewzone in next tick to avoid ruining current rendering.
-			setTimeout(() => {
-				this._layoutViewZone();
-			}, 0);
-		}));
+				// for other scroll changes, layout the viewzone in next tick to avoid ruining current rendering.
+				setTimeout(() => {
+					this._layoutViewZone();
+				}, 0);
+			}));
+		}
 	}
 
 	// ----- IOverlayWidget API
@@ -293,7 +294,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			this._updateMatchesCount();
 		}
-		if (e.searchString || e.currentMatch) {
+		if (this._codeEditor.getConfiguration().contribInfo.find.enableScrollWhenVisible && (e.searchString || e.currentMatch)) {
 			this._layoutViewZone();
 		}
 	}
@@ -414,7 +415,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					}
 				}
 			}
-			this._showViewZone(adjustEditorScrollTop);
+
+			if (this._codeEditor.getConfiguration().contribInfo.find.enableScrollWhenVisible) {
+				this._showViewZone(adjustEditorScrollTop);
+			}
 		}
 	}
 
@@ -857,7 +861,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				if (this._isReplaceVisible) {
 					this._replaceInputBox.width = this._findInput.inputBox.width;
 				}
-				this._showViewZone();
+				if (this._codeEditor.getConfiguration().contribInfo.find.enableScrollWhenVisible) {
+					this._showViewZone();
+				}
 			},
 			onKeyDown: (e) => { }
 		}));

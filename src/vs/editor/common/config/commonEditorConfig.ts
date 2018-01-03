@@ -296,6 +296,11 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('find.globalFindClipboard', "Controls if the Find Widget should read or modify the shared find clipboard on macOS"),
 			'included': platform.isMacintosh
 		},
+		'editor.find.enableScrollWhenVisible': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.find.enableScrollWhenVisible,
+			'description': nls.localize('find.enableScrollWhenVisible', "Controls scrolling beyond the first line when the Find widget is visible"),
+		},
 		'editor.wordWrap': {
 			'type': 'string',
 			'enum': ['off', 'on', 'wordWrapColumn', 'bounded'],
