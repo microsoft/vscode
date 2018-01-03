@@ -294,7 +294,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			this._updateMatchesCount();
 		}
-		if (this._codeEditor.getConfiguration().contribInfo.find.enableScrollWhenVisible && (e.searchString || e.currentMatch) {
+		if (this._codeEditor.getConfiguration().contribInfo.find.enableScrollWhenVisible && (e.searchString || e.currentMatch)) {
 			this._layoutViewZone();
 		}
 	}
