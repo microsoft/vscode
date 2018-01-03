@@ -91,6 +91,10 @@ export interface IEditorFindOptions {
 	 * Controls if the Find Widget should read or modify the shared find clipboard on macOS
 	 */
 	globalFindClipboard: boolean;
+	/**
+	 * Controls scrolling beyond the first line when the Find widget is visible.
+	 */
+	enableScrollWhenVisible: boolean;
 }
 
 /**
@@ -748,6 +752,7 @@ export interface InternalEditorFindOptions {
 	 * @internal
 	 */
 	readonly globalFindClipboard: boolean;
+	readonly enableScrollWhenVisible: boolean;
 }
 
 export interface EditorWrappingInfo {
@@ -1122,6 +1127,7 @@ export class InternalEditorOptions {
 			a.seedSearchStringFromSelection === b.seedSearchStringFromSelection
 			&& a.autoFindInSelection === b.autoFindInSelection
 			&& a.globalFindClipboard === b.globalFindClipboard
+			&& a.enableScrollWhenVisible === b.enableScrollWhenVisible
 		);
 	}
 
@@ -1561,7 +1567,8 @@ export class EditorOptionsValidator {
 		return {
 			seedSearchStringFromSelection: _boolean(opts.seedSearchStringFromSelection, defaults.seedSearchStringFromSelection),
 			autoFindInSelection: _boolean(opts.autoFindInSelection, defaults.autoFindInSelection),
-			globalFindClipboard: _boolean(opts.globalFindClipboard, defaults.globalFindClipboard)
+			globalFindClipboard: _boolean(opts.globalFindClipboard, defaults.globalFindClipboard),
+			enableScrollWhenVisible: _boolean(opts.enableScrollWhenVisible, defaults.enableScrollWhenVisible)
 		};
 	}
 
@@ -2231,7 +2238,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		find: {
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: false,
-			globalFindClipboard: true
+			globalFindClipboard: true,
+			enableScrollWhenVisible: true
 		},
 		colorDecorators: true,
 		lightbulbEnabled: true
