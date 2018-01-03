@@ -240,13 +240,13 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 
 const compareResourceCommand = {
 	id: COMPARE_RESOURCE_COMMAND_ID,
-	title: nls.localize('compareWithChosen', "Compare with Chosen")
+	title: nls.localize('compareWithSelected', "Compare with Selected")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 20,
 	command: compareResourceCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.IsFile, ResourceSelectedForCompareContext)
+	when: ContextKeyExpr.and(ResourceContextKey.HasResource, ResourceSelectedForCompareContext)
 });
 
 const selectForCompareCommand = {
@@ -257,7 +257,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 30,
 	command: selectForCompareCommand,
-	when: ResourceContextKey.IsFile
+	when: ResourceContextKey.HasResource
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -307,7 +307,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: NEW_FILE_COMMAND_ID,
 		title: NEW_FILE_LABEL
 	},
-	when: ContextKeyExpr.and(ExplorerFolderContext)
+	when: ExplorerFolderContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -317,7 +317,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: NEW_FOLDER_COMMAND_ID,
 		title: NEW_FOLDER_LABEL
 	},
-	when: ContextKeyExpr.and(ExplorerFolderContext)
+	when: ExplorerFolderContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
