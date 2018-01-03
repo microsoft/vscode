@@ -520,9 +520,9 @@ export interface IDebugService {
 	addBreakpoints(uri: uri, rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
 
 	/**
-	 * Updates the breakpoints and notifies the debug adapter of breakpoint changes.
+	 * Updates the breakpoints.
 	 */
-	updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): TPromise<void>;
+	updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): void;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
