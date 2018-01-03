@@ -5,6 +5,42 @@
 'use strict';
 
 import { CharCode } from 'vs/base/common/charCode';
+import { ITextBuffer } from 'vs/editor/common/model/textBuffer';
+
+export interface IIndentationGuesserTarget {
+	getLineCount(): number;
+	getLineContent(lineNumber: number): string;
+}
+
+export class IndentationGuesserTextBufferTarget implements IIndentationGuesserTarget {
+
+	constructor(
+		private readonly _buffer: ITextBuffer
+	) { }
+
+	public getLineCount(): number {
+		return this._buffer.getLineCount();
+	}
+
+	public getLineContent(lineNumber: number): string {
+		return this._buffer.getLineContent(lineNumber);
+	}
+}
+
+export class IndentationGuesserStringArrayTarget implements IIndentationGuesserTarget {
+
+	constructor(
+		private readonly _lines: string[]
+	) { }
+
+	public getLineCount(): number {
+		return this._lines.length;
+	}
+
+	public getLineContent(lineNumber: number): string {
+		return this._lines[lineNumber - 1];
+	}
+}
 
 /**
  * Compute the diff in spaces between two line's indentation.
@@ -80,9 +116,9 @@ export interface IGuessedIndentation {
 	insertSpaces: boolean;
 }
 
-export function guessIndentation(lines: string[], defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
+export function guessIndentation(target: IIndentationGuesserTarget, defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
 	// Look at most at the first 10k lines
-	const linesLen = Math.min(lines.length, 10000);
+	const linesCount = Math.min(target.getLineCount(), 10000);
 
 	let linesIndentedWithTabsCount = 0;				// number of lines that contain at least one tab in indentation
 	let linesIndentedWithSpacesCount = 0;			// number of lines that contain only spaces in indentation
@@ -95,8 +131,8 @@ export function guessIndentation(lines: string[], defaultTabSize: number, defaul
 
 	let spacesDiffCount = [0, 0, 0, 0, 0, 0, 0, 0, 0];		// `tabSize` scores
 
-	for (let i = 0; i < linesLen; i++) {
-		let currentLineText = lines[i];
+	for (let lineNumber = 1; lineNumber <= linesCount; lineNumber++) {
+		let currentLineText = target.getLineContent(lineNumber);
 
 		let currentLineHasContent = false;			// does `currentLineText` contain non-whitespace chars
 		let currentLineIndentation = 0;				// index at which `currentLineText` contains the first non-whitespace char
@@ -149,7 +185,7 @@ export function guessIndentation(lines: string[], defaultTabSize: number, defaul
 	}
 
 	let tabSize = defaultTabSize;
-	let tabSizeScore = (insertSpaces ? 0 : 0.1 * linesLen);
+	let tabSizeScore = (insertSpaces ? 0 : 0.1 * linesCount);
 
 	// console.log("score threshold: " + tabSizeScore);
 

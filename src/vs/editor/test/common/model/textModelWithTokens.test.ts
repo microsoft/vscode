@@ -7,14 +7,13 @@
 import * as assert from 'assert';
 import { Model } from 'vs/editor/common/model/model';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
 import { ITokenizationSupport, TokenizationRegistry, LanguageId, LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
 import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IFoundBracket } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { TextModelWithTokens } from 'vs/editor/common/model/textModelWithTokens';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
@@ -76,7 +75,7 @@ suite('TextModelWithTokens', () => {
 			brackets: brackets
 		});
 
-		let model = new TextModelWithTokens(
+		let model = new Model(
 			RawTextSource.fromString(contents.join('\n')),
 			TextModel.DEFAULT_CREATION_OPTIONS,
 			languageIdentifier
@@ -268,14 +267,25 @@ suite('TextModelWithTokens regression tests', () => {
 			if (forceTokenization) {
 				model.forceTokenization(lineNumber);
 			}
-			let actual = model.getLineTokens(lineNumber).inflate();
+			let _actual = model.getLineTokens(lineNumber).inflate();
+			interface ISimpleViewToken {
+				endIndex: number;
+				foreground: number;
+			}
+			let actual: ISimpleViewToken[] = [];
+			for (let i = 0, len = _actual.getCount(); i < len; i++) {
+				actual[i] = {
+					endIndex: _actual.getEndOffset(i),
+					foreground: _actual.getForeground(i)
+				};
+			}
 			let decode = (token: ViewLineToken) => {
 				return {
 					endIndex: token.endIndex,
 					foreground: token.getForeground()
 				};
 			};
-			assert.deepEqual(actual.map(decode), expected.map(decode));
+			assert.deepEqual(actual, expected.map(decode));
 		}
 
 		let _tokenId = 10;

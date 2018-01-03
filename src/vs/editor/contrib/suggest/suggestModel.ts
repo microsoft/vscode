@@ -295,9 +295,8 @@ export class SuggestModel implements IDisposable {
 						} else {
 							// Check the type of the token that triggered this
 							model.tokenizeIfCheap(pos.lineNumber);
-							const { tokenType } = model
-								.getLineTokens(pos.lineNumber)
-								.findTokenAtOffset(Math.max(pos.column - 1 - 1, 0));
+							const lineTokens = model.getLineTokens(pos.lineNumber);
+							const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
 							const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
 								|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
 								|| quickSuggestions.strings && tokenType === StandardTokenType.String;

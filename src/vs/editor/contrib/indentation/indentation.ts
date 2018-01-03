@@ -554,9 +554,9 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			return true;
 		}
 		let tokens = model.getLineTokens(lineNumber);
-		if (tokens.getTokenCount() > 0) {
-			let firstNonWhiteSpaceToken = tokens.findTokenAtOffset(nonWhiteSpaceColumn);
-			if (firstNonWhiteSpaceToken && firstNonWhiteSpaceToken.tokenType === StandardTokenType.Comment) {
+		if (tokens.getCount() > 0) {
+			let firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhiteSpaceColumn);
+			if (firstNonWhitespaceTokenIndex >= 0 && tokens.getStandardTokenType(firstNonWhitespaceTokenIndex) === StandardTokenType.Comment) {
 				return true;
 			}
 		}

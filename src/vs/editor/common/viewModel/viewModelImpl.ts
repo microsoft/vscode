@@ -183,7 +183,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 						break;
 					}
 					case textModelEvents.RawContentChangedType.LinesInserted: {
-						const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, change.detail.split('\n'));
+						const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, change.detail);
 						if (linesInsertedEvent !== null) {
 							eventsCollector.emit(linesInsertedEvent);
 							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);

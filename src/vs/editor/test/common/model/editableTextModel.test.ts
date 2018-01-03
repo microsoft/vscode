@@ -7,13 +7,14 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, IIdentifiedSingleEditOperation, DefaultEndOfLine } from 'vs/editor/common/editorCommon';
 import { EditableTextModel, IValidatedEditOperation } from 'vs/editor/common/model/editableTextModel';
 import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { RawTextSource } from 'vs/editor/common/model/textSource';
+import { RawTextSource, TextSource } from 'vs/editor/common/model/textSource';
+import { TextBuffer } from 'vs/editor/common/model/textBuffer';
 
 function createEditableTextModelFromString(text: string): EditableTextModel {
 	return new EditableTextModel(RawTextSource.fromString(text), TextModel.DEFAULT_CREATION_OPTIONS, null);
@@ -39,7 +40,7 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 	}
 
 	function assertInverseEdits(ops: IValidatedEditOperation[], expected: Range[]): void {
-		var actual = EditableTextModel._getInverseEditRanges(ops);
+		var actual = TextBuffer._getInverseEditRanges(ops);
 		assert.deepEqual(actual, expected);
 	}
 
@@ -286,13 +287,11 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 	}
 
 	function testSimpleApplyEdits(original: string[], edits: IValidatedEditOperation[], expected: IValidatedEditOperation): void {
-		let model = createEditableTextModelFromString(original.join('\n'));
-		model.setEOL(EndOfLineSequence.LF);
+		const textSource = TextSource.fromString(original.join('\n'), DefaultEndOfLine.LF);
+		const textBuffer = new TextBuffer(textSource);
 
-		let actual = model._toSingleEditOperation(edits);
+		const actual = textBuffer._toSingleEditOperation(edits);
 		assert.deepEqual(actual, expected);
-
-		model.dispose();
 	}
 
 	test('one edit op is unchanged', () => {
