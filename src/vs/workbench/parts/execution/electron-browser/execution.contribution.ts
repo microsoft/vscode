@@ -23,8 +23,8 @@ import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINA
 import { WinTerminalService, MacTerminalService, LinuxTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IExplorerContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IFileService } from 'vs/platform/files/common/files';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);
@@ -81,41 +81,38 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
 	when: KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	handler: (accessor, resource: uri, context: IExplorerContext) => {
+	handler: (accessor, resource: uri) => {
 		const configurationService = accessor.get(IConfigurationService);
 		const historyService = accessor.get(IHistoryService);
 		const editorService = accessor.get(IWorkbenchEditorService);
-		let pathToOpen: string;
+		const fileService = accessor.get(IFileService);
+		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
+		const terminalService = accessor.get(ITerminalService);
 
 		// Try workspace path first
 		const root = historyService.getLastActiveWorkspaceRoot('file');
-		pathToOpen = resource ? resource.fsPath : (root && root.fsPath);
-		if (context && context.stat && !context.stat.isDirectory) {
-			pathToOpen = context.stat.parent.resource.fsPath;
-		}
+		return !resource ? TPromise.as(root && root.fsPath) : fileService.resolveFile(resource).then(stat => {
+			return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
+		}).then(directoryToOpen => {
 
-		// Otherwise check if we have an active file open
-		if (!pathToOpen) {
-			const file = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-			if (file) {
-				pathToOpen = paths.dirname(file.fsPath); // take parent folder of file
+			// Otherwise check if we have an active file open
+			if (!directoryToOpen) {
+				const file = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+				if (file) {
+					directoryToOpen = paths.dirname(file.fsPath); // take parent folder of file
+				}
 			}
-		}
 
-		if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
-			const integratedTerminalService = accessor.get(IIntegratedTerminalService);
-
-			const instance = integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
-			if (instance) {
-				integratedTerminalService.setActiveInstance(instance);
-				integratedTerminalService.showPanel(true);
+			if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
+				const instance = integratedTerminalService.createInstance({ cwd: directoryToOpen }, true);
+				if (instance) {
+					integratedTerminalService.setActiveInstance(instance);
+					integratedTerminalService.showPanel(true);
+				}
+			} else {
+				terminalService.openTerminal(directoryToOpen);
 			}
-		} else {
-			const terminalService = accessor.get(ITerminalService);
-			terminalService.openTerminal(pathToOpen);
-		}
-
-		return TPromise.as(null);
+		});
 	}
 });
 
