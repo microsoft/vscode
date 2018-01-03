@@ -16,7 +16,7 @@ import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/model';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';

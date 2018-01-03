@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { registerEditorContribution, IActionOptions, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/model';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;

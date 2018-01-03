@@ -12,7 +12,7 @@ import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSum
 import { ViewLineData, ICoordinatesConverter, IOverviewRulerDecorations } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/model';
 import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 

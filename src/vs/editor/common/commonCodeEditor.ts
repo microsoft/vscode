@@ -25,7 +25,7 @@ import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/model';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import * as modes from 'vs/editor/common/modes';
 import { Schemas } from 'vs/base/common/network';

@@ -22,7 +22,7 @@ import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITheme } from 'vs/platform/theme/common/themeService';
-import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/model';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 

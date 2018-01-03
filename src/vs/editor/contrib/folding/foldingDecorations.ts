@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/model';
 import { IDecorationProvider } from 'vs/editor/contrib/folding/foldingModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 

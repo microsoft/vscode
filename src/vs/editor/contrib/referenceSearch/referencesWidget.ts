@@ -29,7 +29,7 @@ import { IInstantiationService, optional } from 'vs/platform/instantiation/commo
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { Model, ModelDecorationOptions } from 'vs/editor/common/model/model';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { PeekViewWidget } from './peekViewWidget';
@@ -40,7 +40,6 @@ import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/t
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import URI from 'vs/base/common/uri';
 
 class DecorationsManager implements IDisposable {
