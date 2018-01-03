@@ -93,16 +93,15 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 			.filter(code => supportedActions[code]));
 	}
 
-	private getCommandForAction(action: Proto.CodeAction): vscode.CodeAction {
-		return {
-			title: action.description,
-			edit: getEditForCodeAction(this.client, action),
-			command: action.commands ? {
+	private getCommandForAction(tsAction: Proto.CodeAction): vscode.CodeAction {
+		const codeAction = new vscode.CodeAction(tsAction.description, getEditForCodeAction(this.client, tsAction));
+		if (tsAction.commands) {
+			codeAction.command = {
 				command: ApplyCodeActionCommand.ID,
-				arguments: [action],
-				title: action.description
-			} : undefined,
-			diagnostics: []
-		};
+				arguments: [tsAction],
+				title: tsAction.description
+			};
+		}
+		return codeAction;
 	}
 }
