@@ -106,12 +106,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 		commandManager.register(new SelectRefactorCommand(doRefactoringCommand));
 	}
 
-	public async provideCodeActions() {
-		// Uses provideCodeActions2 instead
-		return [];
-	}
-
-	public async provideCodeActions2(
+	public async provideCodeActions(
 		document: vscode.TextDocument,
 		_range: vscode.Range,
 		_context: vscode.CodeActionContext,
