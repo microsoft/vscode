@@ -170,7 +170,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		for (let i = 0, len = rawOperations.length; i < len; i++) {
 			rawOperations[i].range = this.validateRange(rawOperations[i].range);
 		}
-		const result = this._buffer._applyEdits(rawOperations, this._options.trimAutoWhitespace);
+		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace);
 		const rawContentChanges = result.rawChanges;
 		const contentChanges = result.changes;
 		this._trimAutoWhitespaceLines = result.trimAutoWhitespaceLineNumbers;

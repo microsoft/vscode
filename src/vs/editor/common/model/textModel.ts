@@ -16,7 +16,7 @@ import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelS
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { IModelContentChangedEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawEOLChanged, IModelOptionsChangedEvent, InternalModelContentChangeEvent } from 'vs/editor/common/model/textModelEvents';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { TextBuffer } from 'vs/editor/common/model/textBuffer';
+import { TextBuffer, ITextBuffer } from 'vs/editor/common/model/textBuffer';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
@@ -95,7 +95,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 	private readonly _shouldSimplifyMode: boolean;
 	protected readonly _isTooLargeForTokenization: boolean;
 
-	protected _buffer: TextBuffer;
+	protected _buffer: ITextBuffer;
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
 		super();
@@ -467,7 +467,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
-		return this._buffer.getLineMaxColumn(lineNumber);
+		return this._buffer.getLineLength(lineNumber) + 1;
 	}
 
 	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
