@@ -8,16 +8,16 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, DefaultEndOfLine } from 'vs/editor/common/editorCommon';
-import { EditableTextModel, IValidatedEditOperation } from 'vs/editor/common/model/editableTextModel';
+import { Model } from 'vs/editor/common/model/model';
 import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { RawTextSource, TextSource } from 'vs/editor/common/model/textSource';
-import { TextBuffer } from 'vs/editor/common/model/textBuffer';
+import { TextBuffer, IValidatedEditOperation } from 'vs/editor/common/model/textBuffer';
 
-function createEditableTextModelFromString(text: string): EditableTextModel {
-	return new EditableTextModel(RawTextSource.fromString(text), TextModel.DEFAULT_CREATION_OPTIONS, null);
+function createEditableTextModelFromString(text: string): Model {
+	return new Model(RawTextSource.fromString(text), TextModel.DEFAULT_CREATION_OPTIONS, null);
 }
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {

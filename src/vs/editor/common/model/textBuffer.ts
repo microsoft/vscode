@@ -11,8 +11,18 @@ import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { IValidatedEditOperation } from 'vs/editor/common/model/editableTextModel';
 import { ModelRawChange, IModelContentChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+
+export interface IValidatedEditOperation {
+	sortIndex: number;
+	identifier: editorCommon.ISingleEditOperationIdentifier;
+	range: Range;
+	rangeOffset: number;
+	rangeLength: number;
+	lines: string[];
+	forceMoveMarkers: boolean;
+	isAutoWhitespaceEdit: boolean;
+}
 
 export interface ITextBuffer {
 	equals(other: ITextSource): boolean;
