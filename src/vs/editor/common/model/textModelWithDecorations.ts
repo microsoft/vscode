@@ -101,8 +101,8 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 
 			const delta = node.cachedAbsoluteStart - node.start;
 
-			const startOffset = this._buffer.getOffsetAt2(node.range.startLineNumber, node.range.startColumn);
-			const endOffset = this._buffer.getOffsetAt2(node.range.endLineNumber, node.range.endColumn);
+			const startOffset = this._buffer.getOffsetAt(node.range.startLineNumber, node.range.startColumn);
+			const endOffset = this._buffer.getOffsetAt(node.range.endLineNumber, node.range.endColumn);
 
 			node.cachedAbsoluteStart = startOffset;
 			node.cachedAbsoluteEnd = endOffset;
@@ -211,8 +211,8 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 
 		// node exists, the request is to set => change the tracked range and its options
 		const range = this._validateRangeRelaxedNoAllocations(newRange);
-		const startOffset = this._buffer.getOffsetAt2(range.startLineNumber, range.startColumn);
-		const endOffset = this._buffer.getOffsetAt2(range.endLineNumber, range.endColumn);
+		const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
+		const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
 		this._decorationsTree.delete(node);
 		node.reset(this.getVersionId(), startOffset, endOffset, range);
 		node.setOptions(TRACKED_RANGE_OPTIONS[newStickiness]);
@@ -290,8 +290,8 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 	}
 
 	private _getDecorationsInRange(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): IntervalNode[] {
-		const startOffset = this._buffer.getOffsetAt2(filterRange.startLineNumber, filterRange.startColumn);
-		const endOffset = this._buffer.getOffsetAt2(filterRange.endLineNumber, filterRange.endColumn);
+		const startOffset = this._buffer.getOffsetAt(filterRange.startLineNumber, filterRange.startColumn);
+		const endOffset = this._buffer.getOffsetAt(filterRange.endLineNumber, filterRange.endColumn);
 
 		const versionId = this.getVersionId();
 		const result = this._decorationsTree.intervalSearch(startOffset, endOffset, filterOwnerId, filterOutValidation, versionId);
@@ -309,9 +309,8 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 		return nodes;
 	}
 
-	// TODO@TextModel
 	private _getRangeAt(start: number, end: number): Range {
-		return this._buffer.getRangeAt(start, end);
+		return this._buffer.getRangeAt(start, end - start);
 	}
 
 	private _changeDecorationImpl(decorationId: string, _range: IRange): void {
@@ -320,8 +319,8 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 			return;
 		}
 		const range = this._validateRangeRelaxedNoAllocations(_range);
-		const startOffset = this._buffer.getOffsetAt2(range.startLineNumber, range.startColumn);
-		const endOffset = this._buffer.getOffsetAt2(range.endLineNumber, range.endColumn);
+		const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
+		const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
 
 		this._decorationsTree.delete(node);
 		node.reset(this.getVersionId(), startOffset, endOffset, range);
@@ -386,8 +385,8 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 				const newDecoration = newDecorations[newDecorationIndex];
 				const range = this._validateRangeRelaxedNoAllocations(newDecoration.range);
 				const options = _normalizeOptions(newDecoration.options);
-				const startOffset = this._buffer.getOffsetAt2(range.startLineNumber, range.startColumn);
-				const endOffset = this._buffer.getOffsetAt2(range.endLineNumber, range.endColumn);
+				const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
+				const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
 
 				node.ownerId = ownerId;
 				node.reset(versionId, startOffset, endOffset, range);

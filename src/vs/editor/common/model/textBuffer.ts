@@ -18,8 +18,6 @@ import { ILineEdit } from 'vs/editor/common/model/modelLine';
 export interface ITextBuffer {
 	mightContainRTL(): boolean;
 	mightContainNonBasicASCII(): boolean;
-	getOffsetAt(position: Position): number;
-	getPositionAt(offset: number): Position;
 	getBOM(): string;
 }
 
@@ -107,13 +105,7 @@ export class TextBuffer {
 		return this._EOL;
 	}
 
-	// TODO@TextModel
-	public getOffsetAt(position: Position): number {
-		return this.getOffsetAt2(position.lineNumber, position.column);
-	}
-
-	// TODO@TextModel
-	public getOffsetAt2(lineNumber: number, column: number): number {
+	public getOffsetAt(lineNumber: number, column: number): number {
 		return this._lineStarts.getAccumulatedValue(lineNumber - 2) + column - 1;
 	}
 
@@ -129,22 +121,16 @@ export class TextBuffer {
 		return new Position(out.index + 1, Math.min(out.remainder + 1, lineLength + 1));
 	}
 
-	// TODO@TextModel
-	public getRangeAt(start: number, end: number): Range {
-		const startResult = this._lineStarts.getIndexOf(start);
+	public getRangeAt(offset: number, length: number): Range {
+		const startResult = this._lineStarts.getIndexOf(offset);
 		const startLineLength = this._lines[startResult.index].length;
 		const startColumn = Math.min(startResult.remainder + 1, startLineLength + 1);
 
-		const endResult = this._lineStarts.getIndexOf(end);
+		const endResult = this._lineStarts.getIndexOf(offset + length);
 		const endLineLength = this._lines[endResult.index].length;
 		const endColumn = Math.min(endResult.remainder + 1, endLineLength + 1);
 
 		return new Range(startResult.index + 1, startColumn, endResult.index + 1, endColumn);
-	}
-
-	// TODO@TextModel
-	public getRangeAt2(offset: number, length: number): Range {
-		return this.getRangeAt(offset, offset + length);
 	}
 
 	private _getEndOfLine(eol: editorCommon.EndOfLinePreference): string {
@@ -191,8 +177,8 @@ export class TextBuffer {
 			return (range.endColumn - range.startColumn);
 		}
 
-		let startOffset = this.getOffsetAt(new Position(range.startLineNumber, range.startColumn));
-		let endOffset = this.getOffsetAt(new Position(range.endLineNumber, range.endColumn));
+		let startOffset = this.getOffsetAt(range.startLineNumber, range.startColumn);
+		let endOffset = this.getOffsetAt(range.endLineNumber, range.endColumn);
 		return endOffset - startOffset;
 	}
 
@@ -290,7 +276,7 @@ export class TextBuffer {
 				sortIndex: i,
 				identifier: op.identifier,
 				range: validatedRange,
-				rangeOffset: this.getOffsetAt(validatedRange.getStartPosition()),
+				rangeOffset: this.getOffsetAt(validatedRange.startLineNumber, validatedRange.startColumn),
 				rangeLength: this.getValueLengthInRange(validatedRange),
 				lines: op.text ? op.text.split(/\r\n|\r|\n/) : null,
 				forceMoveMarkers: op.forceMoveMarkers,
@@ -456,7 +442,7 @@ export class TextBuffer {
 			sortIndex: 0,
 			identifier: operations[0].identifier,
 			range: entireEditRange,
-			rangeOffset: this.getOffsetAt(entireEditRange.getStartPosition()),
+			rangeOffset: this.getOffsetAt(entireEditRange.startLineNumber, entireEditRange.startColumn),
 			rangeLength: this.getValueLengthInRange(entireEditRange),
 			lines: result.join('').split('\n'),
 			forceMoveMarkers: forceMoveMarkers,

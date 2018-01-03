@@ -249,7 +249,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 	public getOffsetAt(rawPosition: IPosition): number {
 		this._assertNotDisposed();
 		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, false);
-		return this._buffer.getOffsetAt(position);
+		return this._buffer.getOffsetAt(position.lineNumber, position.column);
 	}
 
 	public getPositionAt(offset: number): Position {
