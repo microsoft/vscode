@@ -111,11 +111,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		this.disposables.push(this.tree.onDidChangeSelection(event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
-				if (element instanceof ThreadAndProcessIds) {
-					controller.showMoreStackFrames(this.tree, element);
-				} else if (element instanceof StackFrame) {
-					controller.focusStackFrame(element, event, false);
-				}
+				controller.handleSelectionChange(this.tree, element, false, event);
 			}
 		}));
 
@@ -184,16 +180,10 @@ export class CallStackView extends TreeViewsViewletPanel {
 class CallStackController extends BaseDebugController {
 
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
-		if (element instanceof ThreadAndProcessIds) {
-			return this.showMoreStackFrames(tree, element);
-		}
-		if (element instanceof StackFrame) {
-			super.onLeftClick(tree, element, event);
-			this.focusStackFrame(element, event, event.detail !== 2);
-			return true;
-		}
+		super.onLeftClick(tree, element, event);
+		this.handleSelectionChange(tree, element, event.detail !== 2, event);
 
-		return super.onLeftClick(tree, element, event);
+		return true;
 	}
 
 	protected getContext(element: any): any {
@@ -221,10 +211,21 @@ class CallStackController extends BaseDebugController {
 		return true;
 	}
 
-	public focusStackFrame(stackFrame: IStackFrame, event: any, preserveFocus: boolean): void {
-		this.debugService.focusStackFrame(stackFrame, stackFrame.thread, stackFrame.thread.process, true);
-		const sideBySide = (event && (event.ctrlKey || event.metaKey));
-		stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide).done(undefined, errors.onUnexpectedError);
+	public handleSelectionChange(tree: ITree, element: any, preserveFocus: boolean, event: any): void {
+		if (element instanceof StackFrame) {
+			this.debugService.focusStackFrame(element, element.thread, element.thread.process, true);
+			const sideBySide = (event && (event.ctrlKey || event.metaKey));
+			element.openInEditor(this.editorService, preserveFocus, sideBySide).done(undefined, errors.onUnexpectedError);
+		}
+		if (element instanceof Thread) {
+			this.debugService.focusStackFrame(undefined, element, element.process, true);
+		}
+		if (element instanceof Process) {
+			this.debugService.focusStackFrame(undefined, undefined, element, true);
+		}
+		if (element instanceof ThreadAndProcessIds) {
+			this.showMoreStackFrames(tree, element);
+		}
 	}
 }
 
