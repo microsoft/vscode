@@ -14,11 +14,11 @@ import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource, IEditorContext } from 'vs/workbench/common/editor';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
-import { VIEWLET_ID, ExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, ExplorerFocusCondition, FileOnDiskContentProvider } from 'vs/workbench/parts/files/common/files';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -37,6 +37,7 @@ import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 // Commands
 
@@ -283,12 +284,21 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+const COMPARE_WITH_SAVED_SCHEMA = 'showModifications';
+let provider: FileOnDiskContentProvider;
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COMPARE_WITH_SAVED_COMMAND_ID,
 	when: undefined,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_D),
 	handler: (accessor, resource: URI) => {
+		if (!provider) {
+			const instantiationService = accessor.get(IInstantiationService);
+			const textModelService = accessor.get(ITextModelService);
+			provider = instantiationService.createInstance(FileOnDiskContentProvider);
+			textModelService.registerTextModelContentProvider(COMPARE_WITH_SAVED_SCHEMA, provider);
+		}
+
 		const editorService = accessor.get(IWorkbenchEditorService);
 		if (!resource) {
 			resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
@@ -298,7 +308,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = paths.basename(resource.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
-			return editorService.openEditor({ leftResource: URI.from({ scheme: 'showModifications', path: resource.fsPath }), rightResource: resource, label: editorLabel });
+			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: resource.fsPath }), rightResource: resource, label: editorLabel });
 		}
 
 		return TPromise.as(true);
