@@ -25,11 +25,11 @@ import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 
 class ExtensionMemento implements IExtensionMemento {
 
-	private _id: string;
-	private _shared: boolean;
-	private _storage: ExtHostStorage;
+	private readonly _id: string;
+	private readonly _shared: boolean;
+	private readonly _storage: ExtHostStorage;
 
-	private _init: TPromise<ExtensionMemento>;
+	private readonly _init: TPromise<ExtensionMemento>;
 	private _value: { [n: string]: any; };
 
 	constructor(id: string, global: boolean, storage: ExtHostStorage) {
