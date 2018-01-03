@@ -53,23 +53,6 @@ export class ClearOutputAction extends Action {
 	}
 }
 
-export class OpenFileAction extends Action {
-
-	public static readonly ID = 'workbench.output.action.openFile';
-	public static readonly LABEL = nls.localize('openFile', "Open File");
-
-	constructor(
-		id: string, label: string,
-		@IOutputService private outputService: IOutputService
-	) {
-		super(id, label, 'output-action open-file');
-	}
-
-	public run(): TPromise<any> {
-		return this.outputService.showChannelInEditor(this.outputService.getActiveChannel().id);
-	}
-}
-
 export class ToggleOutputScrollLockAction extends Action {
 
 	public static readonly ID = 'workbench.output.action.toggleOutputScrollLock';

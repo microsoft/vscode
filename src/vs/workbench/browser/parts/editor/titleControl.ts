@@ -7,8 +7,7 @@
 
 import 'vs/css!./media/titlecontrol';
 import nls = require('vs/nls');
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Scope, IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
+import { prepareActions } from 'vs/workbench/browser/actions';
 import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
@@ -281,12 +280,6 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			actionItem = editor.getActionItem(action);
 		}
 
-		// Check Registry
-		if (!actionItem) {
-			const actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
-			actionItem = actionBarRegistry.getActionItemForContext(Scope.EDITOR, { input: editor && editor.input, editor, position }, action);
-		}
-
 		// Check extensions
 		if (!actionItem) {
 			actionItem = createActionItem(action, this.keybindingService, this.messageService);
@@ -441,7 +434,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		return keybinding ? keybinding.getLabel() : void 0;
 	}
 
-	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
+	private getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
 		const { editor, group } = identifier;
 
 		// Enablement
@@ -454,8 +447,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			this.closeEditorAction,
 			this.closeOtherEditorsAction
 		];
-		const tabOptions = this.editorGroupService.getTabOptions();
 
+		const tabOptions = this.editorGroupService.getTabOptions();
 		if (tabOptions.showTabs) {
 			actions.push(this.closeRightEditorsAction);
 		}

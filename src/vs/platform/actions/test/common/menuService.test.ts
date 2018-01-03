@@ -151,8 +151,8 @@ suite('MenuService', function () {
 
 		const groups = menuService.createMenu(MenuId.ExplorerContext, contextKeyService).getActions();
 
-		assert.equal(groups.length, 1);
-		const [[, actions]] = groups;
+		assert.equal(groups.length, 2);
+		const [, actions] = groups[1];
 
 		assert.equal(actions.length, 3);
 		const [one, two, three] = actions;
@@ -188,8 +188,8 @@ suite('MenuService', function () {
 
 		const groups = menuService.createMenu(MenuId.ExplorerContext, contextKeyService).getActions();
 
-		assert.equal(groups.length, 1);
-		const [[, actions]] = groups;
+		assert.equal(groups.length, 2);
+		const [, actions] = groups[1];
 
 		assert.equal(actions.length, 4);
 		const [one, two, three, four] = actions;
@@ -225,7 +225,7 @@ suite('MenuService', function () {
 		assert.equal(groups.length, 1);
 		const [[, actions]] = groups;
 
-		assert.equal(actions.length, 3);
+		assert.equal(actions.length, 5);
 		const [one, two, three] = actions;
 		assert.equal(one.id, 'c');
 		assert.equal(two.id, 'b');

@@ -18,6 +18,7 @@ import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { relative } from 'path';
+import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
@@ -25,7 +26,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	private _lastWorkspaceFolder: IWorkspaceFolder;
 
 	constructor(
-		envVariables: { [key: string]: string },
+		envVariables: IProcessEnvironment,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -33,7 +34,8 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	) {
 		this._execPath = environmentService.execPath;
 		Object.keys(envVariables).forEach(key => {
-			this[`env:${key}`] = envVariables[key];
+			const name = isWindows ? key.toLowerCase() : key;
+			this[`env:${name}`] = envVariables[key];
 		});
 	}
 
@@ -103,6 +105,22 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		return '';
 	}
 
+	private get selectedText(): string {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor) {
+			const editorControl = (<ICodeEditor>activeEditor.getControl());
+			if (editorControl) {
+				const editorModel = editorControl.getModel();
+				const editorSelection = editorControl.getSelection();
+				if (editorModel && editorSelection) {
+					return editorModel.getValueInRange(editorSelection);
+				}
+			}
+		}
+
+		return '';
+	}
+
 	private getFilePath(): string {
 		let input = this.editorService.getActiveEditorInput();
 		if (input instanceof DiffEditorInput) {
@@ -159,7 +177,8 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		let regexp = /\$\{(.*?)\}/g;
 		const originalValue = value;
 		const resolvedString = value.replace(regexp, (match: string, name: string) => {
-			let newValue = (<any>this)[name];
+			const key = (isWindows && match.indexOf('env:') > 0) ? name.toLowerCase() : name;
+			let newValue = (<any>this)[key];
 			if (types.isString(newValue)) {
 				return newValue;
 			} else {

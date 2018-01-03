@@ -16,7 +16,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
@@ -61,8 +61,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const bookmark = append(root, $('span.bookmark'));
 		append(bookmark, $('span.octicon.octicon-star'));
 		const applyBookmarkStyle = (theme) => {
-			const borderColor = theme.getColor(extensionButtonProminentBackground);
-			bookmark.style.borderTopColor = borderColor ? borderColor.toString() : 'transparent';
+			const bgColor = theme.getColor(extensionButtonProminentBackground);
+			const fgColor = theme.getColor(extensionButtonProminentForeground);
+			bookmark.style.borderTopColor = bgColor ? bgColor.toString() : 'transparent';
+			bookmark.style.color = fgColor ? fgColor.toString() : 'white';
 		};
 		applyBookmarkStyle(this.themeService.getTheme());
 		const bookmarkStyler = this.themeService.onThemeChange(applyBookmarkStyle.bind(this));

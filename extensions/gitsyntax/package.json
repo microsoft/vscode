@@ -11,7 +11,7 @@
     "Other"
   ],
   "scripts": {
-    "update-grammar": "node ../../build/npm/update-grammar.js textmate/git.tmbundle Syntaxes/Git%20Commit%20Message.tmLanguage ./syntaxes/git-commit.tmLanguage.json Syntaxes/Git%20Rebase%20Message.tmLanguage ./syntaxes/git-rebase.tmLanguage.json"
+    "update-grammar": "node ./build/update-grammars.js"
   },
   "contributes": {
     "languages": [
@@ -66,7 +66,7 @@
       {
         "language": "diff",
         "scopeName": "source.diff",
-        "path": "./syntaxes/diff.tmLanguage"
+        "path": "./syntaxes/diff.tmLanguage.json"
       }
     ],
     "configurationDefaults": {

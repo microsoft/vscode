@@ -28,7 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const selector = 'markdown';
 
 	const contentProvider = new MDDocumentContentProvider(engine, context, cspArbiter, logger);
-	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(selector, contentProvider));
+	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(MDDocumentContentProvider.scheme, contentProvider));
 
 	loadMarkdownExtensions(contentProvider, engine);
 

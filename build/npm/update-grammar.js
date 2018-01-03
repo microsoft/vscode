@@ -14,14 +14,19 @@ var url = require('url');
 
 function getOptions(urlString) {
 	var _url = url.parse(urlString);
+	var headers = {
+		'User-Agent': 'VSCode'
+	};
+	var token = process.env['GITHUB_TOKEN'];
+	if (token) {
+		headers['Authorization'] = 'token ' + token
+	}
 	return {
 		protocol: _url.protocol,
 		host: _url.host,
 		port: _url.port,
 		path: _url.path,
-		headers: {
-			'User-Agent': 'NodeJS'
-		}
+		headers: headers
 	};
 }
 

@@ -140,7 +140,7 @@ export class RefreshPreviewCommand implements Command {
 		} else {
 			// update all generated md documents
 			for (const document of vscode.workspace.textDocuments) {
-				if (document.uri.scheme === 'markdown') {
+				if (document.uri.scheme === MDDocumentContentProvider.scheme) {
 					this.contentProvider.update(document.uri);
 				}
 			}

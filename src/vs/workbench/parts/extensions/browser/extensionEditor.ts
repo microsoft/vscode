@@ -67,10 +67,13 @@ function renderBody(body: string): string {
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'none'; style-src file:; child-src 'none'; frame-src 'none';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src file:; child-src 'none'; frame-src 'none';">
 				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
 			</head>
-			<body>${body}</body>
+			<body>
+				<a id="scroll-to-top" role="button" aria-label="scroll to top" href="#"><span class="icon"></span></a>
+				${body}
+			</body>
 		</html>`;
 }
 

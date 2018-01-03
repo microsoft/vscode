@@ -71,11 +71,13 @@ export interface ITerminalConfiguration {
 	commandsToSkipShell: string[];
 	cwd: string;
 	confirmOnExit: boolean;
+	enableBell: boolean;
 	env: {
 		linux: { [key: string]: string };
 		osx: { [key: string]: string };
 		windows: { [key: string]: string };
 	};
+	showExitAlert: boolean;
 }
 
 export interface ITerminalConfigHelper {
