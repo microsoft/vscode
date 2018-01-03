@@ -19,7 +19,7 @@ class ApplyRefactoringCommand implements Command {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private formattingOptionsManager: FormattingOptionsManager
+		private readonly formattingOptionsManager: FormattingOptionsManager
 	) { }
 
 	public async execute(
@@ -36,7 +36,6 @@ class ApplyRefactoringCommand implements Command {
 			refactor,
 			action
 		};
-
 		const response = await this.client.execute('getEditsForRefactor', args);
 		if (!response || !response.body || !response.body.edits.length) {
 			return false;
