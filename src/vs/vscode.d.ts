@@ -6202,7 +6202,7 @@ declare module 'vscode' {
 		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specifc debug type.
 		 * More than one provider can be registered for the same type.
 		 *
-		 * @param type The debug type for which the provider is registered.
+		 * @param debugType The debug type for which the provider is registered.
 		 * @param provider The [debug configuration provider](#DebugConfigurationProvider) to register.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
