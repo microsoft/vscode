@@ -41,7 +41,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 // Commands
 
-export const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
+export const REVEAL_IN_OS_COMMAND_ID = 'workbench.action.files.revealActiveFileInWindows';
 export const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
 export const REVEAL_IN_EXPLORER_COMMAND_ID = 'workbench.command.files.revealInExplorer';
 export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
@@ -358,7 +358,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ExplorerFocusCondition,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R),
+	secondary: [KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R],
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
 	},
