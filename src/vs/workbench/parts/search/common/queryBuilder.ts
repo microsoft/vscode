@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as collections from 'vs/base/common/collections';
+import * as strings from 'vs/base/common/strings';
 import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
 import uri from 'vs/base/common/uri';
@@ -104,10 +105,10 @@ export class QueryBuilder {
 		if (contentPattern.isSmartCase) {
 			if (contentPattern.isRegExp) {
 				// Consider it case sensitive if it contains an unescaped capital letter
-				if (contentPattern.pattern.match(/([^\\]|^)[A-Z]/)) {
+				if (strings.containsUppercaseCharacter(contentPattern.pattern, true)) {
 					contentPattern.isCaseSensitive = true;
 				}
-			} else if (contentPattern.pattern.match(/[A-Z]/)) {
+			} else if (strings.containsUppercaseCharacter(contentPattern.pattern)) {
 				contentPattern.isCaseSensitive = true;
 			}
 		}
