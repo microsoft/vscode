@@ -81,11 +81,11 @@ export class ContributableActionProvider implements IActionProvider {
 	}
 
 	public hasActions(tree: ITree, element: any): boolean {
-		let context = this.toContext(tree, element);
+		const context = this.toContext(tree, element);
 
-		let contributors = this.registry.getActionBarContributors(Scope.VIEWER);
+		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
 		for (let i = 0; i < contributors.length; i++) {
-			let contributor = contributors[i];
+			const contributor = contributors[i];
 			if (contributor.hasActions(context)) {
 				return true;
 			}
@@ -95,13 +95,13 @@ export class ContributableActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		let actions: IAction[] = [];
-		let context = this.toContext(tree, element);
+		const actions: IAction[] = [];
+		const context = this.toContext(tree, element);
 
 		// Collect Actions
-		let contributors = this.registry.getActionBarContributors(Scope.VIEWER);
+		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
 		for (let i = 0; i < contributors.length; i++) {
-			let contributor = contributors[i];
+			const contributor = contributors[i];
 			if (contributor.hasActions(context)) {
 				actions.push(...contributor.getActions(context));
 			}
@@ -111,11 +111,11 @@ export class ContributableActionProvider implements IActionProvider {
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
-		let context = this.toContext(tree, element);
+		const context = this.toContext(tree, element);
 
-		let contributors = this.registry.getActionBarContributors(Scope.VIEWER);
+		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
 		for (let i = 0; i < contributors.length; i++) {
-			let contributor = contributors[i];
+			const contributor = contributors[i];
 			if (contributor.hasSecondaryActions(context)) {
 				return true;
 			}
@@ -125,13 +125,13 @@ export class ContributableActionProvider implements IActionProvider {
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
-		let actions: IAction[] = [];
-		let context = this.toContext(tree, element);
+		const actions: IAction[] = [];
+		const context = this.toContext(tree, element);
 
 		// Collect Actions
-		let contributors = this.registry.getActionBarContributors(Scope.VIEWER);
+		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
 		for (let i = 0; i < contributors.length; i++) {
-			let contributor = contributors[i];
+			const contributor = contributors[i];
 			if (contributor.hasSecondaryActions(context)) {
 				actions.push(...contributor.getSecondaryActions(context));
 			}
@@ -141,13 +141,13 @@ export class ContributableActionProvider implements IActionProvider {
 	}
 
 	public getActionItem(tree: ITree, element: any, action: Action): BaseActionItem {
-		let contributors = this.registry.getActionBarContributors(Scope.VIEWER);
-		let context = this.toContext(tree, element);
+		const contributors = this.registry.getActionBarContributors(Scope.VIEWER);
+		const context = this.toContext(tree, element);
 
 		for (let i = contributors.length - 1; i >= 0; i--) {
-			let contributor = contributors[i];
+			const contributor = contributors[i];
 
-			let itemProvider = contributor.getActionItem(context, action);
+			const itemProvider = contributor.getActionItem(context, action);
 			if (itemProvider) {
 				return itemProvider;
 			}
@@ -164,24 +164,28 @@ export function prepareActions(actions: IAction[]): IAction[] {
 	}
 
 	// Patch order if not provided
+	let lastOrder = -1;
 	for (let l = 0; l < actions.length; l++) {
-		let a = <any>actions[l];
+		const a = <any>actions[l];
 		if (types.isUndefinedOrNull(a.order)) {
-			a.order = l;
+			a.order = lastOrder++;
 		}
+		lastOrder = a.order;
 	}
 
 	// Sort by order
 	actions = actions.sort((first: Action, second: Action) => {
-		let firstOrder = first.order;
-		let secondOrder = second.order;
+		const firstOrder = first.order;
+		const secondOrder = second.order;
 		if (firstOrder < secondOrder) {
 			return -1;
-		} else if (firstOrder > secondOrder) {
-			return 1;
-		} else {
-			return 0;
 		}
+
+		if (firstOrder > secondOrder) {
+			return 1;
+		}
+
+		return 0;
 	});
 
 	// Clean up leading separators
@@ -203,7 +207,7 @@ export function prepareActions(actions: IAction[]): IAction[] {
 
 	// Clean up trailing separators
 	for (let h = actions.length - 1; h >= 0; h--) {
-		let isSeparator = actions[h].id === Separator.ID;
+		const isSeparator = actions[h].id === Separator.ID;
 		if (isSeparator) {
 			actions.splice(h, 1);
 		} else {
@@ -214,7 +218,7 @@ export function prepareActions(actions: IAction[]): IAction[] {
 	// Clean up separator duplicates
 	let foundAction = false;
 	for (let k = actions.length - 1; k >= 0; k--) {
-		let isSeparator = actions[k].id === Separator.ID;
+		const isSeparator = actions[k].id === Separator.ID;
 		if (isSeparator && !foundAction) {
 			actions.splice(k, 1);
 		} else if (!isSeparator) {
@@ -274,7 +278,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 		this.instantiationService = service;
 
 		while (this.actionBarContributorConstructors.length > 0) {
-			let entry = this.actionBarContributorConstructors.shift();
+			const entry = this.actionBarContributorConstructors.shift();
 			this.createActionBarContributor(entry.scope, entry.ctor);
 		}
 	}
@@ -293,7 +297,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 	}
 
 	public getActionBarActionsForContext(scope: string, context: any): IAction[] {
-		let actions: IAction[] = [];
+		const actions: IAction[] = [];
 
 		// Go through contributors for scope
 		this.getContributors(scope).forEach((contributor: ActionBarContributor) => {
@@ -308,7 +312,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 	}
 
 	public getSecondaryActionBarActionsForContext(scope: string, context: any): IAction[] {
-		let actions: IAction[] = [];
+		const actions: IAction[] = [];
 
 		// Go through contributors
 		this.getContributors(scope).forEach((contributor: ActionBarContributor) => {
@@ -323,10 +327,10 @@ class ActionBarRegistry implements IActionBarRegistry {
 	}
 
 	public getActionItemForContext(scope: string, context: any, action: Action): BaseActionItem {
-		let contributors = this.getContributors(scope);
+		const contributors = this.getContributors(scope);
 		for (let i = 0; i < contributors.length; i++) {
-			let contributor = contributors[i];
-			let item = contributor.getActionItem(context, action);
+			const contributor = contributors[i];
+			const item = contributor.getActionItem(context, action);
 			if (item) {
 				return item;
 			}

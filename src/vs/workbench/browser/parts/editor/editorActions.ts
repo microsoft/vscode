@@ -22,7 +22,7 @@ import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/gro
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, NAVIGATE_IN_GROUP_ONE_PREFIX, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX, NAVIGATE_IN_GROUP_TWO_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export class SplitEditorAction extends Action {
 
@@ -1058,8 +1058,6 @@ export class ClearRecentFilesAction extends Action {
 	}
 }
 
-export const NAVIGATE_IN_GROUP_ONE_PREFIX = 'edt one ';
-
 export class ShowEditorsInGroupOneAction extends QuickOpenAction {
 
 	public static readonly ID = 'workbench.action.showEditorsInFirstGroup';
@@ -1075,8 +1073,6 @@ export class ShowEditorsInGroupOneAction extends QuickOpenAction {
 		this.class = 'show-group-editors-action';
 	}
 }
-
-export const NAVIGATE_IN_GROUP_TWO_PREFIX = 'edt two ';
 
 export class ShowEditorsInGroupTwoAction extends QuickOpenAction {
 
@@ -1094,8 +1090,6 @@ export class ShowEditorsInGroupTwoAction extends QuickOpenAction {
 	}
 }
 
-export const NAVIGATE_IN_GROUP_THREE_PREFIX = 'edt three ';
-
 export class ShowEditorsInGroupThreeAction extends QuickOpenAction {
 
 	public static readonly ID = 'workbench.action.showEditorsInThirdGroup';
@@ -1111,40 +1105,6 @@ export class ShowEditorsInGroupThreeAction extends QuickOpenAction {
 		this.class = 'show-group-editors-action';
 	}
 }
-
-export class ShowEditorsInGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.showEditorsInGroup';
-	public static readonly LABEL = nls.localize('showEditorsInGroup', "Show Editors in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		const stacks = this.editorGroupService.getStacksModel();
-		const groupCount = stacks.groups.length;
-		if (groupCount <= 1 || !context) {
-			return this.quickOpenService.show(NAVIGATE_ALL_EDITORS_GROUP_PREFIX);
-		}
-
-		switch (stacks.positionOfGroup(context.group)) {
-			case Position.TWO:
-				return this.quickOpenService.show(NAVIGATE_IN_GROUP_TWO_PREFIX);
-			case Position.THREE:
-				return this.quickOpenService.show(NAVIGATE_IN_GROUP_THREE_PREFIX);
-		}
-
-		return this.quickOpenService.show(NAVIGATE_IN_GROUP_ONE_PREFIX);
-	}
-}
-
-export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
 
 export class ShowAllEditorsAction extends QuickOpenAction {
 

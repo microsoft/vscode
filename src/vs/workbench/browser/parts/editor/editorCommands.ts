@@ -17,6 +17,7 @@ import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel'
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -24,6 +25,12 @@ export const CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID = 'workbench.action.closeEdit
 export const CLOSE_EDITOR_COMMAND_ID = 'workbench.action.closeActiveEditor';
 export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOtherEditors';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
+export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
+
+export const NAVIGATE_IN_GROUP_ONE_PREFIX = 'edt one ';
+export const NAVIGATE_IN_GROUP_TWO_PREFIX = 'edt two ';
+export const NAVIGATE_IN_GROUP_THREE_PREFIX = 'edt three ';
+export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
 
 export function setup(): void {
 	registerActiveEditorMoveCommand();
@@ -377,6 +384,35 @@ function registerEditorCommands() {
 			}
 
 			return TPromise.as(false);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: SHOW_EDITORS_IN_GROUP,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: void 0,
+		primary: void 0,
+		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+			const editorGroupService = accessor.get(IEditorGroupService);
+			const editorService = accessor.get(IWorkbenchEditorService);
+			const quickOpenService = accessor.get(IQuickOpenService);
+
+			const stacks = editorGroupService.getStacksModel();
+			const groupCount = stacks.groups.length;
+			if (groupCount <= 1 || !context) {
+				return quickOpenService.show(NAVIGATE_ALL_EDITORS_GROUP_PREFIX);
+			}
+
+			const { position } = positionAndInput(editorGroupService, editorService, editorContext);
+
+			switch (position) {
+				case Position.TWO:
+					return quickOpenService.show(NAVIGATE_IN_GROUP_TWO_PREFIX);
+				case Position.THREE:
+					return quickOpenService.show(NAVIGATE_IN_GROUP_THREE_PREFIX);
+			}
+
+			return quickOpenService.show(NAVIGATE_IN_GROUP_ONE_PREFIX);
 		}
 	});
 }
