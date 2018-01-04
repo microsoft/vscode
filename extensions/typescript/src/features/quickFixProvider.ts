@@ -12,10 +12,6 @@ import FormattingConfigurationManager from './formattingConfigurationManager';
 import { getEditForCodeAction, applyCodeActionCommands } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
 
-interface NumberSet {
-	[key: number]: boolean;
-}
-
 class ApplyCodeActionCommand implements Command {
 	public static readonly ID = '_typescript.applyCodeActionCommand';
 	public readonly id = ApplyCodeActionCommand.ID;
@@ -32,7 +28,7 @@ class ApplyCodeActionCommand implements Command {
 }
 
 class SupportedCodeActionProvider {
-	private _supportedCodeActions?: Thenable<NumberSet>;
+	private _supportedCodeActions?: Thenable<Set<number>>;
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -42,19 +38,15 @@ class SupportedCodeActionProvider {
 		const supportedActions = await this.supportedCodeActions;
 		return new Set(context.diagnostics
 			.map(diagnostic => +diagnostic.code)
-			.filter(code => supportedActions[code]));
+			.filter(code => supportedActions.has(code)));
 	}
 
-	private get supportedCodeActions(): Thenable<NumberSet> {
+	private get supportedCodeActions(): Thenable<Set<number>> {
 		if (!this._supportedCodeActions) {
 			this._supportedCodeActions = this.client.execute('getSupportedCodeFixes', null, undefined)
 				.then(response => response.body || [])
 				.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
-				.then(codes =>
-					codes.reduce((obj, code) => {
-						obj[code] = true;
-						return obj;
-					}, Object.create(null)));
+				.then(codes => new Set(codes));
 		}
 		return this._supportedCodeActions;
 	}
