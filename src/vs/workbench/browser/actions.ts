@@ -165,11 +165,16 @@ export function prepareActions(actions: IAction[]): IAction[] {
 
 	// Patch order if not provided
 	let lastOrder = -1;
+	let orderOffset = 0;
 	for (let l = 0; l < actions.length; l++) {
 		const a = <any>actions[l];
 		if (types.isUndefinedOrNull(a.order)) {
 			a.order = lastOrder++;
+			orderOffset++;
+		} else {
+			a.order += orderOffset;
 		}
+
 		lastOrder = a.order;
 	}
 

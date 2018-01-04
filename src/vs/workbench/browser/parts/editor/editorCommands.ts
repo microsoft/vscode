@@ -18,6 +18,7 @@ import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -26,6 +27,7 @@ export const CLOSE_EDITOR_COMMAND_ID = 'workbench.action.closeActiveEditor';
 export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOtherEditors';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
+export const TOGGLE_DIFF_INLINE_MODE = 'toggle.diff.editorMode';
 
 export const NAVIGATE_IN_GROUP_ONE_PREFIX = 'edt one ';
 export const NAVIGATE_IN_GROUP_TWO_PREFIX = 'edt two ';
@@ -181,23 +183,22 @@ function registerDiffEditorCommands(): void {
 	}
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: '_workbench.printStacksModel',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-		handler(accessor: ServicesAccessor) {
-			console.log(`${accessor.get(IEditorGroupService).getStacksModel().toString()}\n\n`);
-		},
+		id: TOGGLE_DIFF_INLINE_MODE,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
-		primary: void 0
-	});
+		primary: void 0,
+		handler: (accessor) => {
+			const editorService = accessor.get(IWorkbenchEditorService);
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: '_workbench.validateStacksModel',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-		handler(accessor: ServicesAccessor) {
-			(<EditorStacksModel>accessor.get(IEditorGroupService).getStacksModel()).validate();
-		},
-		when: void 0,
-		primary: void 0
+			const editor = editorService.getActiveEditor();
+			if (editor instanceof TextDiffEditor) {
+				const control = editor.getControl();
+				const isInlineMode = !control.renderSideBySide;
+				control.updateOptions(<IDiffEditorOptions>{
+					renderSideBySide: isInlineMode
+				});
+			}
+		}
 	});
 }
 
@@ -399,7 +400,7 @@ function registerEditorCommands() {
 
 			const stacks = editorGroupService.getStacksModel();
 			const groupCount = stacks.groups.length;
-			if (groupCount <= 1 || !context) {
+			if (groupCount <= 1) {
 				return quickOpenService.show(NAVIGATE_ALL_EDITORS_GROUP_PREFIX);
 			}
 
@@ -414,6 +415,26 @@ function registerEditorCommands() {
 
 			return quickOpenService.show(NAVIGATE_IN_GROUP_ONE_PREFIX);
 		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: '_workbench.printStacksModel',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+		handler(accessor: ServicesAccessor) {
+			console.log(`${accessor.get(IEditorGroupService).getStacksModel().toString()}\n\n`);
+		},
+		when: void 0,
+		primary: void 0
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: '_workbench.validateStacksModel',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+		handler(accessor: ServicesAccessor) {
+			(<EditorStacksModel>accessor.get(IEditorGroupService).getStacksModel()).validate();
+		},
+		when: void 0,
+		primary: void 0
 	});
 }
 
