@@ -814,11 +814,11 @@ export class CodeAction {
 
 	command?: vscode.Command;
 
-	edits?: TextEdit[] | WorkspaceEdit;
+	edits?: WorkspaceEdit;
 
 	dianostics?: Diagnostic[];
 
-	constructor(title: string, edits?: TextEdit[] | WorkspaceEdit) {
+	constructor(title: string, edits?: WorkspaceEdit) {
 		this.title = title;
 		this.edits = edits;
 	}
@@ -903,11 +903,6 @@ export class SignatureHelp {
 	constructor() {
 		this.signatures = [];
 	}
-}
-
-export enum CodeActionType {
-	QuickFix = 1,
-	Refactoring = 2
 }
 
 export enum CompletionTriggerKind {
