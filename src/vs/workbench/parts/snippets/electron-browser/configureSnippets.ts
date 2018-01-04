@@ -31,9 +31,10 @@ class LanguagePick implements IPickOpenEntry {
 			}
 		}
 		if (result.length > 0) {
+			result.sort(LanguagePick.compare);
 			result[0].separator = { label: nls.localize('group.lang', "Language Snippets") };
 		}
-		return result.sort(LanguagePick.compare);
+		return result;
 	}
 
 	label: string;
@@ -197,7 +198,7 @@ CommandsRegistry.registerCommand(id, async accessor => {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id,
-		title: { value: nls.localize('openSnippet.label', "Open User Snippets"), original: 'Preferences: Open User Snippets' },
+		title: { value: nls.localize('openSnippet.label', "Configure User Snippets"), original: 'Preferences: Configure User Snippets' },
 		category: nls.localize('preferences', "Preferences")
 	}
 });
