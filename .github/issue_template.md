@@ -10,4 +10,4 @@ Steps to Reproduce:
 2.
 
 <!-- Launch with `code --disable-extensions` to check. -->
-Reproduces without extensions: Yes/No
+Does this issue occur when all extensions are disabled?: Yes/No
