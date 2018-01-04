@@ -354,30 +354,36 @@ CommandsRegistry.registerCommand({
 	}
 });
 
+const revealInOSHandler = (accessor: ServicesAccessor, resource: URI) => {
+	// Without resource, try to look at the active editor
+	if (!resource) {
+		const editorService = accessor.get(IWorkbenchEditorService);
+		resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+	}
+
+	if (resource) {
+		const windowsService = accessor.get(IWindowsService);
+		windowsService.showItemInFolder(paths.normalize(resource.fsPath, true));
+	} else {
+		const messageService = accessor.get(IMessageService);
+		messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
+	}
+};
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: ExplorerFocusCondition,
+	when: undefined,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R),
 	secondary: [KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R],
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
 	},
-	handler: (accessor, resource: URI) => {
-		// Without resource, try to look at the active editor
-		if (!resource) {
-			const editorService = accessor.get(IWorkbenchEditorService);
-			resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-		}
-
-		if (resource) {
-			const windowsService = accessor.get(IWindowsService);
-			windowsService.showItemInFolder(paths.normalize(resource.fsPath, true));
-		} else {
-			const messageService = accessor.get(IMessageService);
-			messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
-		}
-	}
+	handler: revealInOSHandler
+});
+// TODO@isidor deprecated remove in february
+CommandsRegistry.registerCommand({
+	id: 'workbench.action.files.revealActiveFileInWindows',
+	handler: revealInOSHandler
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
