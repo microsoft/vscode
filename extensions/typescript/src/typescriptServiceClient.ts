@@ -6,7 +6,6 @@
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
 
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
@@ -28,6 +27,7 @@ import { TypeScriptVersionProvider, TypeScriptVersion } from './utils/versionPro
 import { TypeScriptVersionPicker } from './utils/versionPicker';
 import * as fileSchemes from './utils/fileSchemes';
 import { inferredProjectConfig } from './utils/tsconfig';
+import LogDirectoryProvider from './utils/logDirectoryProvider';
 
 const localize = nls.loadMessageBundle();
 
@@ -155,7 +155,8 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		private readonly host: ITypeScriptServiceClientHost,
 		private readonly workspaceState: Memento,
 		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
-		public readonly plugins: TypeScriptServerPlugin[]
+		public readonly plugins: TypeScriptServerPlugin[],
+		private readonly logDirectoryProvider: LogDirectoryProvider
 	) {
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
@@ -301,10 +302,10 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return Promise.reject<cp.ChildProcess>(new Error('Could not create TS service'));
 	}
 
-	public startService(resendModels: boolean = false): Thenable<cp.ChildProcess> {
+	public startService(resendModels: boolean = false): Promise<cp.ChildProcess> {
 		let currentVersion = this.versionPicker.currentVersion;
 
-		return this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
+		return this.servicePromise = new Promise<cp.ChildProcess>(async (resolve, reject) => {
 			this.info(`Using tsserver from: ${currentVersion.path}`);
 			if (!fs.existsSync(currentVersion.tsServerPath)) {
 				window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', currentVersion.path));
@@ -321,11 +322,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			this.lastError = null;
 
 			try {
-				const options: electron.IForkOptions = {
+				const tsServerForkArgs = await this.getTsServerArgs(currentVersion);
+				const tsServerForkOptions: electron.IForkOptions = {
 					execArgv: [] // [`--debug-brk=5859`]
 				};
-
-				electron.fork(currentVersion.tsServerPath, this.getTsServerArgs(currentVersion), options, this.logger, (err: any, childProcess: cp.ChildProcess | null) => {
+				electron.fork(currentVersion.tsServerPath, tsServerForkArgs, tsServerForkOptions, this.logger, (err: any, childProcess: cp.ChildProcess | null) => {
 					if (err || !childProcess) {
 						this.lastError = err;
 						this.error('Starting TSServer failed with error.', err);
@@ -442,7 +443,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 
 		try {
-			await commands.executeCommand('_workbench.action.files.revealInOS', Uri.parse(this.tsServerLogFile));
+			await commands.executeCommand('revealFileInOS', Uri.parse(this.tsServerLogFile));
 			return true;
 		} catch {
 			window.showWarningMessage(localize(
@@ -826,7 +827,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.logTelemetry(telemetryData.telemetryEventName, properties);
 	}
 
-	private getTsServerArgs(currentVersion: TypeScriptVersion): string[] {
+	private async getTsServerArgs(
+		currentVersion: TypeScriptVersion
+	): Promise<string[]> {
 		const args: string[] = [];
 
 		if (this.apiVersion.has206Features()) {
@@ -852,11 +855,12 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 
 		if (this.apiVersion.has222Features()) {
 			if (this._configuration.tsServerLogLevel !== TsServerLogLevel.Off) {
-				try {
-					const logDir = fs.mkdtempSync(path.join(os.tmpdir(), `vscode-tsserver-log-`));
+				const logDir = await this.logDirectoryProvider.getNewLogDirectory();
+				if (logDir) {
 					this.tsServerLogFile = path.join(logDir, `tsserver.log`);
 					this.info(`TSServer log file: ${this.tsServerLogFile}`);
-				} catch (e) {
+				} else {
+					this.tsServerLogFile = null;
 					this.error('Could not create TSServer log directory');
 				}
 

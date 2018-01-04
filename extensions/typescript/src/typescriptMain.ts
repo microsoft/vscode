@@ -38,6 +38,7 @@ import DiagnosticsManager from './features/diagnostics';
 import { LanguageDescription } from './utils/languageDescription';
 import * as fileSchemes from './utils/fileSchemes';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
+import LogDirectoryProvider from './utils/logDirectoryProvider';
 
 const validateSetting = 'validate.enable';
 
@@ -283,7 +284,8 @@ export class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost
 		descriptions: LanguageDescription[],
 		workspaceState: Memento,
 		plugins: TypeScriptServerPlugin[],
-		private readonly commandManager: CommandManager
+		private readonly commandManager: CommandManager,
+		logDirectoryProvider: LogDirectoryProvider
 	) {
 		const handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
@@ -300,7 +302,7 @@ export class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
-		this.client = new TypeScriptServiceClient(this, workspaceState, version => this.versionStatus.onDidChangeTypeScriptVersion(version), plugins);
+		this.client = new TypeScriptServiceClient(this, workspaceState, version => this.versionStatus.onDidChangeTypeScriptVersion(version), plugins, logDirectoryProvider);
 		this.disposables.push(this.client);
 
 		this.versionStatus = new VersionStatus(resource => this.client.normalizePath(resource));
