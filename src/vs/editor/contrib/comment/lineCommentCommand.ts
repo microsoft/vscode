@@ -62,7 +62,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Do an initial pass over the lines and gather info about the line comment string.
 	 * Returns null if any of the lines doesn't support a line comment string.
 	 */
-	public static _gatherPreflightCommentStrings(model: editorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] {
+	public static _gatherPreflightCommentStrings(model: editorCommon.IModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] {
 
 		model.tokenizeIfCheap(startLineNumber);
 		const languageId = model.getLanguageIdAtPosition(startLineNumber, 1);
@@ -173,7 +173,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Analyze all lines and decide exactly what to do => not supported | insert line comments | remove line comments
 	 */
-	public static _gatherPreflightData(type: Type, model: editorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): IPreflightData {
+	public static _gatherPreflightData(type: Type, model: editorCommon.IModel, startLineNumber: number, endLineNumber: number): IPreflightData {
 		var lines = LineCommentCommand._gatherPreflightCommentStrings(model, startLineNumber, endLineNumber);
 		if (lines === null) {
 			return {
@@ -215,7 +215,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		this._selectionId = builder.trackSelection(s);
 	}
 
-	private _attemptRemoveBlockComment(model: editorCommon.ITokenizedModel, s: Selection, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
+	private _attemptRemoveBlockComment(model: editorCommon.IModel, s: Selection, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
 		let startLineNumber = s.startLineNumber;
 		let endLineNumber = s.endLineNumber;
 
@@ -268,7 +268,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	/**
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
-	private _executeBlockComment(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder, s: Selection): void {
+	private _executeBlockComment(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder, s: Selection): void {
 		model.tokenizeIfCheap(s.startLineNumber);
 		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, 1);
 		let config = LanguageConfigurationRegistry.getComments(languageId);
@@ -309,7 +309,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		}
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder): void {
 
 		var s = this._selection;
 		this._moveEndPositionDown = false;
@@ -327,7 +327,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		return this._executeBlockComment(model, builder, s);
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.IModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		var result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._moveEndPositionDown) {

@@ -181,7 +181,7 @@ export interface HoverProvider {
 	 * position will be merged by the editor. A hover can have a range which defaults
 	 * to the word range at the position when omitted.
 	 */
-	provideHover(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
+	provideHover(model: editorCommon.IModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
 }
 
 /**
@@ -292,7 +292,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+	provideCodeActions(model: editorCommon.IModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 }
 
 /**
@@ -362,7 +362,7 @@ export interface SignatureHelpProvider {
 	/**
 	 * Provide help for the signature at the given position and document.
 	 */
-	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
+	provideSignatureHelp(model: editorCommon.IModel, position: Position, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
 }
 
 /**
@@ -406,7 +406,7 @@ export interface DocumentHighlightProvider {
 	 * Provide a set of document highlights, like all occurrences of a variable or
 	 * all exit-points of a function.
 	 */
-	provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
+	provideDocumentHighlights(model: editorCommon.IModel, position: Position, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
 }
 
 /**
@@ -427,7 +427,7 @@ export interface ReferenceProvider {
 	/**
 	 * Provide a set of project-wide references for the given position and document.
 	 */
-	provideReferences(model: editorCommon.IReadOnlyModel, position: Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
+	provideReferences(model: editorCommon.IModel, position: Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
 }
 
 /**
@@ -460,7 +460,7 @@ export interface DefinitionProvider {
 	/**
 	 * Provide the definition of the symbol at the given position and document.
 	 */
-	provideDefinition(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+	provideDefinition(model: editorCommon.IModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 }
 
 /**
@@ -471,7 +471,7 @@ export interface ImplementationProvider {
 	/**
 	 * Provide the implementation of the symbol at the given position and document.
 	 */
-	provideImplementation(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+	provideImplementation(model: editorCommon.IModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 }
 
 /**
@@ -482,7 +482,7 @@ export interface TypeDefinitionProvider {
 	/**
 	 * Provide the type definition of the symbol at the given position and document.
 	 */
-	provideTypeDefinition(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+	provideTypeDefinition(model: editorCommon.IModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 }
 
 /**
@@ -592,7 +592,7 @@ export interface DocumentSymbolProvider {
 	/**
 	 * Provide symbol information for the given document.
 	 */
-	provideDocumentSymbols(model: editorCommon.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
+	provideDocumentSymbols(model: editorCommon.IModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
 }
 
 export interface TextEdit {
@@ -622,7 +622,7 @@ export interface DocumentFormattingEditProvider {
 	/**
 	 * Provide formatting edits for a whole document.
 	 */
-	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
+	provideDocumentFormattingEdits(model: editorCommon.IModel, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -636,7 +636,7 @@ export interface DocumentRangeFormattingEditProvider {
 	 * or larger range. Often this is done by adjusting the start and end
 	 * of the range to full syntax nodes.
 	 */
-	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
+	provideDocumentRangeFormattingEdits(model: editorCommon.IModel, range: Range, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -651,7 +651,7 @@ export interface OnTypeFormattingEditProvider {
 	 * what range the position to expand to, like find the matching `{`
 	 * when `}` has been entered.
 	 */
-	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
+	provideOnTypeFormattingEdits(model: editorCommon.IModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 }
 
 /**
@@ -673,7 +673,7 @@ export interface ILink {
  * A provider of links.
  */
 export interface LinkProvider {
-	provideLinks(model: editorCommon.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
+	provideLinks(model: editorCommon.IModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
 	resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
 }
 
@@ -748,11 +748,11 @@ export interface DocumentColorProvider {
 	/**
 	 * Provides the color ranges for a specific model.
 	 */
-	provideDocumentColors(model: editorCommon.IReadOnlyModel, token: CancellationToken): IColorInformation[] | Thenable<IColorInformation[]>;
+	provideDocumentColors(model: editorCommon.IModel, token: CancellationToken): IColorInformation[] | Thenable<IColorInformation[]>;
 	/**
 	 * Provide the string representations for a color.
 	 */
-	provideColorPresentations(model: editorCommon.IReadOnlyModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
+	provideColorPresentations(model: editorCommon.IModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 }
 
 export interface IResourceEdit {
@@ -765,7 +765,7 @@ export interface WorkspaceEdit {
 	rejectReason?: string;
 }
 export interface RenameProvider {
-	provideRenameEdits(model: editorCommon.IReadOnlyModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
+	provideRenameEdits(model: editorCommon.IModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
 }
 
 
@@ -782,8 +782,8 @@ export interface ICodeLensSymbol {
 }
 export interface CodeLensProvider {
 	onDidChange?: Event<this>;
-	provideCodeLenses(model: editorCommon.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
-	resolveCodeLens?(model: editorCommon.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
+	provideCodeLenses(model: editorCommon.IModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
+	resolveCodeLens?(model: editorCommon.IModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
 }
 
 // --- feature registries ------

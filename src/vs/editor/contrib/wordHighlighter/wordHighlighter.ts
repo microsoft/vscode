@@ -34,7 +34,7 @@ export const overviewRulerWordHighlightStrongForeground = registerColor('editorO
 
 export const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
-export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
+export function getOccurrencesAtPosition(model: editorCommon.IModel, position: Position): TPromise<DocumentHighlight[]> {
 
 	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
 	let foundResult = false;

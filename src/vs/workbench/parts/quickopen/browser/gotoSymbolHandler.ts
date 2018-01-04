@@ -15,7 +15,7 @@ import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/comm
 import { QuickOpenModel, IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import filters = require('vs/base/common/filters');
-import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IModel, IDiffEditorModel, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -426,7 +426,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
 
-			if (model && types.isFunction((<ITokenizedModel>model).getLanguageIdentifier)) {
+			if (model && types.isFunction((<IModel>model).getLanguageIdentifier)) {
 				canRun = DocumentSymbolProviderRegistry.has(<IModel>model);
 			}
 		}
@@ -485,7 +485,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
 
-			if (model && types.isFunction((<ITokenizedModel>model).getLanguageIdentifier)) {
+			if (model && types.isFunction((<IModel>model).getLanguageIdentifier)) {
 
 				// Ask cache first
 				const modelId = (<IModel>model).id;

@@ -6,14 +6,14 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ColorProviderRegistry, DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 
 export interface IColorData {
 	colorInfo: IColorInformation;
 	provider: DocumentColorProvider;
 }
 
-export function getColors(model: IReadOnlyModel): TPromise<IColorData[]> {
+export function getColors(model: IModel): TPromise<IColorData[]> {
 	const colors: IColorData[] = [];
 	const providers = ColorProviderRegistry.ordered(model).reverse();
 	const promises = providers.map(provider => asWinJsPromise(token => provider.provideDocumentColors(model, token)).then(result => {
@@ -27,6 +27,6 @@ export function getColors(model: IReadOnlyModel): TPromise<IColorData[]> {
 	return TPromise.join(promises).then(() => colors);
 }
 
-export function getColorPresentations(model: IReadOnlyModel, colorInfo: IColorInformation, provider: DocumentColorProvider): TPromise<IColorPresentation[]> {
+export function getColorPresentations(model: IModel, colorInfo: IColorInformation, provider: DocumentColorProvider): TPromise<IColorPresentation[]> {
 	return asWinJsPromise(token => provider.provideColorPresentations(model, colorInfo, token));
 }

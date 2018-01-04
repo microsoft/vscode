@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import {
 	EndOfLinePreference, Handler,
 	DefaultEndOfLine, ITextModelCreationOptions, ICommand,
-	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData, EndOfLineSequence
+	IModel, IEditOperationBuilder, ICursorStateComputerData, EndOfLineSequence
 } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
@@ -2087,12 +2087,12 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 				private _selectionId: string = null;
 
-				public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
+				public getEditOperations(model: IModel, builder: IEditOperationBuilder): void {
 					builder.addEditOperation(new Range(1, 13, 1, 14), '');
 					this._selectionId = builder.trackSelection(cursor.getSelection());
 				}
 
-				public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
+				public computeCursorState(model: IModel, helper: ICursorStateComputerData): Selection {
 					return helper.getTrackedSelection(this._selectionId);
 				}
 

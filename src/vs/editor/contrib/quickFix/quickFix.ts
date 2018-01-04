@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
@@ -15,7 +15,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
-export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<CodeAction[]> {
+export function getCodeActions(model: IModel, range: Range): TPromise<CodeAction[]> {
 
 	const allResults: CodeAction[] = [];
 	const promises = CodeActionProviderRegistry.all(model).map(support => {

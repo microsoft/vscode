@@ -263,7 +263,7 @@ export function registerSignatureHelpProvider(languageId: string, provider: mode
  */
 export function registerHoverProvider(languageId: string, provider: modes.HoverProvider): IDisposable {
 	return modes.HoverProviderRegistry.register(languageId, {
-		provideHover: (model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.Hover> => {
+		provideHover: (model: editorCommon.IModel, position: Position, token: CancellationToken): Thenable<modes.Hover> => {
 			let word = model.getWordAtPosition(position);
 
 			return toThenable<modes.Hover>(provider.provideHover(model, position, token)).then((value) => {
@@ -329,7 +329,7 @@ export function registerCodeLensProvider(languageId: string, provider: modes.Cod
  */
 export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
-		provideCodeActions: (model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]> => {
+		provideCodeActions: (model: editorCommon.IModel, range: Range, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]> => {
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
@@ -373,10 +373,10 @@ export function registerCompletionItemProvider(languageId: string, provider: Com
 	let adapter = new SuggestAdapter(provider);
 	return modes.SuggestRegistry.register(languageId, {
 		triggerCharacters: provider.triggerCharacters,
-		provideCompletionItems: (model: editorCommon.IReadOnlyModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+		provideCompletionItems: (model: editorCommon.IModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 			return adapter.provideCompletionItems(model, position, context, token);
 		},
-		resolveCompletionItem: (model: editorCommon.IReadOnlyModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
+		resolveCompletionItem: (model: editorCommon.IModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
 			return adapter.resolveCompletionItem(model, position, suggestion, token);
 		}
 	});
@@ -411,7 +411,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]>;
+	provideCodeActions(model: editorCommon.IModel, range: Range, context: CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]>;
 }
 
 /**
@@ -576,7 +576,7 @@ export interface CompletionItemProvider {
 	/**
 	 * Provide completion items for the given position and document.
 	 */
-	provideCompletionItems(document: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+	provideCompletionItems(document: editorCommon.IModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 
 	/**
 	 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
@@ -665,7 +665,7 @@ class SuggestAdapter {
 		return suggestion;
 	}
 
-	provideCompletionItems(model: editorCommon.IReadOnlyModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> {
+	provideCompletionItems(model: editorCommon.IModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> {
 		const result = this._provider.provideCompletionItems(model, position, token, context);
 		return toThenable<CompletionItem[] | CompletionList>(result).then(value => {
 			const result: modes.ISuggestResult = {
@@ -708,7 +708,7 @@ class SuggestAdapter {
 		});
 	}
 
-	resolveCompletionItem(model: editorCommon.IReadOnlyModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	resolveCompletionItem(model: editorCommon.IModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
 			return TPromise.as(suggestion);
 		}

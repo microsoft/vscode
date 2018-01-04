@@ -23,7 +23,7 @@ export class CopyLinesCommand implements editorCommon.ICommand {
 		this._isCopyingDown = isCopyingDown;
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder): void {
 		var s = this._selection;
 
 		this._startLineNumberDelta = 0;
@@ -57,7 +57,7 @@ export class CopyLinesCommand implements editorCommon.ICommand {
 		this._selectionDirection = this._selection.getDirection();
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.IModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		var result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._startLineNumberDelta !== 0 || this._endLineNumberDelta !== 0) {

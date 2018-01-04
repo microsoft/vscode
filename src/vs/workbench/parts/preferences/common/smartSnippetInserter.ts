@@ -31,7 +31,7 @@ export class SmartSnippetInserter {
 		return false;
 	}
 
-	private static offsetToPosition(model: editorCommon.ITextModel, offset: number): Position {
+	private static offsetToPosition(model: editorCommon.IModel, offset: number): Position {
 		let offsetBeforeLine = 0;
 		let eolLength = model.getEOL().length;
 		let lineCount = model.getLineCount();
@@ -53,7 +53,7 @@ export class SmartSnippetInserter {
 		);
 	}
 
-	public static insertSnippet(model: editorCommon.ITextModel, _position: Position): InsertSnippetResult {
+	public static insertSnippet(model: editorCommon.IModel, _position: Position): InsertSnippetResult {
 
 		let desiredPosition = model.getValueLengthInRange(new Range(1, 1, _position.lineNumber, _position.column));
 

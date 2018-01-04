@@ -20,11 +20,11 @@ export class ReplaceCommand implements editorCommon.ICommand {
 		this.insertsAutoWhitespace = insertsAutoWhitespace;
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder): void {
 		builder.addTrackedEditOperation(this._range, this._text);
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.IModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		let inverseEditOperations = helper.getInverseEditOperations();
 		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
@@ -48,11 +48,11 @@ export class ReplaceCommandWithoutChangingPosition implements editorCommon.IComm
 		this.insertsAutoWhitespace = insertsAutoWhitespace;
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder): void {
 		builder.addTrackedEditOperation(this._range, this._text);
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.IModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		let inverseEditOperations = helper.getInverseEditOperations();
 		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
@@ -80,11 +80,11 @@ export class ReplaceCommandWithOffsetCursorState implements editorCommon.IComman
 		this.insertsAutoWhitespace = insertsAutoWhitespace;
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder): void {
 		builder.addTrackedEditOperation(this._range, this._text);
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.IModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		let inverseEditOperations = helper.getInverseEditOperations();
 		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
@@ -109,12 +109,12 @@ export class ReplaceCommandThatPreservesSelection implements editorCommon.IComma
 		this._initialSelection = initialSelection;
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder): void {
 		builder.addEditOperation(this._range, this._text);
 		this._selectionId = builder.trackSelection(this._initialSelection);
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.IModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this._selectionId);
 	}
 }

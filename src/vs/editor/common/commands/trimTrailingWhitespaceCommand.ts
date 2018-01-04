@@ -22,7 +22,7 @@ export class TrimTrailingWhitespaceCommand implements editorCommon.ICommand {
 		this.cursors = cursors;
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder): void {
 		let ops = trimTrailingWhitespace(model, this.cursors);
 		for (let i = 0, len = ops.length; i < len; i++) {
 			let op = ops[i];
@@ -33,7 +33,7 @@ export class TrimTrailingWhitespaceCommand implements editorCommon.ICommand {
 		this.selectionId = builder.trackSelection(this.selection);
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.IModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 }
@@ -41,7 +41,7 @@ export class TrimTrailingWhitespaceCommand implements editorCommon.ICommand {
 /**
  * Generate commands for trimming trailing whitespace on a model and ignore lines on which cursors are sitting.
  */
-export function trimTrailingWhitespace(model: editorCommon.ITextModel, cursors: Position[]): editorCommon.IIdentifiedSingleEditOperation[] {
+export function trimTrailingWhitespace(model: editorCommon.IModel, cursors: Position[]): editorCommon.IIdentifiedSingleEditOperation[] {
 	// Sort cursors ascending
 	cursors.sort((a, b) => {
 		if (a.lineNumber === b.lineNumber) {

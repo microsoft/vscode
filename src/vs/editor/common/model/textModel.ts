@@ -59,7 +59,7 @@ export interface ITextModelCreationData {
 	readonly options: editorCommon.TextModelResolvedOptions;
 }
 
-export class TextModel extends Disposable implements editorCommon.IModel, editorCommon.IEditableTextModel, editorCommon.ITextModelWithDecorations, editorCommon.ITokenizedModel, editorCommon.ITextModel {
+export class TextModel extends Disposable implements editorCommon.IModel {
 
 	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
 	private static readonly MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB

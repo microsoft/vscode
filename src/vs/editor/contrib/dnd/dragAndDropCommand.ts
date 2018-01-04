@@ -23,7 +23,7 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 		this.copy = copy;
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder): void {
 		let text = model.getValueInRange(this.selection);
 		if (!this.copy) {
 			builder.addEditOperation(this.selection, null);
@@ -101,7 +101,7 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 		}
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.IModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		return this.targetSelection;
 	}
 }

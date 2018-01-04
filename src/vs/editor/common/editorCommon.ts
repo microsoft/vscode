@@ -336,7 +336,7 @@ export interface ICommand {
 	 * @param model The model the command will execute on.
 	 * @param builder A helper to collect the needed edit operations and to track selections.
 	 */
-	getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void;
+	getEditOperations(model: IModel, builder: IEditOperationBuilder): void;
 
 	/**
 	 * Compute the cursor state after the edit operations were applied.
@@ -344,7 +344,7 @@ export interface ICommand {
 	 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
 	 * @return The cursor state after the command executed.
 	 */
-	computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection;
+	computeCursorState(model: IModel, helper: ICursorStateComputerData): Selection;
 }
 
 /**
@@ -474,10 +474,46 @@ export interface ITextModelUpdateOptions {
 	trimAutoWhitespace?: boolean;
 }
 
+export class FindMatch {
+	_findMatchBrand: void;
+
+	public readonly range: Range;
+	public readonly matches: string[];
+
+	/**
+	 * @internal
+	 */
+	constructor(range: Range, matches: string[]) {
+		this.range = range;
+		this.matches = matches;
+	}
+}
+
 /**
- * A textual read-only model.
+ * @internal
  */
-export interface ITextModel {
+export interface IFoundBracket {
+	range: Range;
+	open: string;
+	close: string;
+	isOpen: boolean;
+}
+
+/**
+ * Describes the behavior of decorations when typing/editing near their edges.
+ * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
+ */
+export enum TrackedRangeStickiness {
+	AlwaysGrowsWhenTypingAtEdges = 0,
+	NeverGrowsWhenTypingAtEdges = 1,
+	GrowsOnlyWhenTypingBefore = 2,
+	GrowsOnlyWhenTypingAfter = 3,
+}
+
+/**
+ * A model.
+ */
+export interface IModel {
 
 	/**
 	 * If true, the text model might contain RTL.
@@ -724,24 +760,7 @@ export interface ITextModel {
 	 * @return The range where the previous match is. It is null if no previous match has been found.
 	 */
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): FindMatch;
-}
 
-export class FindMatch {
-	_findMatchBrand: void;
-
-	public readonly range: Range;
-	public readonly matches: string[];
-
-	/**
-	 * @internal
-	 */
-	constructor(range: Range, matches: string[]) {
-		this.range = range;
-		this.matches = matches;
-	}
-}
-
-export interface IReadOnlyModel extends ITextModel {
 	/**
 	 * Gets the resource associated with this editor model.
 	 */
@@ -773,22 +792,6 @@ export interface IReadOnlyModel extends ITextModel {
 	 * @return The word under or besides `position`. Will never be null.
 	 */
 	getWordUntilPosition(position: IPosition): IWordAtPosition;
-}
-
-/**
- * @internal
- */
-export interface IFoundBracket {
-	range: Range;
-	open: string;
-	close: string;
-	isOpen: boolean;
-}
-
-/**
- * A model that is tokenized.
- */
-export interface ITokenizedModel extends ITextModel {
 
 	/**
 	 * Force tokenization information for `lineNumber` to be accurate.
@@ -894,23 +897,7 @@ export interface ITokenizedModel extends ITextModel {
 	 * @internal
 	 */
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
-}
 
-/**
- * Describes the behavior of decorations when typing/editing near their edges.
- * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
- */
-export enum TrackedRangeStickiness {
-	AlwaysGrowsWhenTypingAtEdges = 0,
-	NeverGrowsWhenTypingAtEdges = 1,
-	GrowsOnlyWhenTypingBefore = 2,
-	GrowsOnlyWhenTypingAfter = 3,
-}
-
-/**
- * A model that can have decorations.
- */
-export interface ITextModelWithDecorations {
 	/**
 	 * Change the decorations. The callback will be called with a change accessor
 	 * that becomes invalid as soon as the callback finishes executing.
@@ -1006,12 +993,6 @@ export interface ITextModelWithDecorations {
 	 * @internal
 	 */
 	_setTrackedRange(id: string, newRange: Range, newStickiness: TrackedRangeStickiness): string;
-}
-
-/**
- * An editable text model.
- */
-export interface IEditableTextModel extends ITextModel {
 
 	/**
 	 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
@@ -1071,12 +1052,7 @@ export interface IEditableTextModel extends ITextModel {
 	 * @internal
 	 */
 	redo(): Selection[];
-}
 
-/**
- * A model.
- */
-export interface IModel extends IReadOnlyModel, IEditableTextModel, ITokenizedModel, ITextModelWithDecorations {
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.

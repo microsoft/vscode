@@ -44,7 +44,7 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 		}
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder): void {
 
 		for (let edit of this._edits) {
 			// We know that this edit.range comes from the mirror model, so it should only contain \n and no \r's
@@ -72,11 +72,11 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 		}
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.IModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this._selectionId);
 	}
 
-	static fixLineTerminators(edit: editorCommon.ISingleEditOperation, model: editorCommon.ITokenizedModel): void {
+	static fixLineTerminators(edit: editorCommon.ISingleEditOperation, model: editorCommon.IModel): void {
 		edit.text = edit.text.replace(/\r\n|\r|\n/g, model.getEOL());
 	}
 
@@ -88,14 +88,14 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 	 * bug #15108. There the cursor was jumping since the tracked selection was in the middle of the range edit
 	 * and was lost.
 	 */
-	static trimEdit(edit: editorCommon.ISingleEditOperation, model: editorCommon.ITokenizedModel): editorCommon.ISingleEditOperation {
+	static trimEdit(edit: editorCommon.ISingleEditOperation, model: editorCommon.IModel): editorCommon.ISingleEditOperation {
 
 		this.fixLineTerminators(edit, model);
 
 		return this._trimEdit(model.validateRange(edit.range), edit.text, edit.forceMoveMarkers, model);
 	}
 
-	static _trimEdit(editRange: Range, editText: string, editForceMoveMarkers: boolean, model: editorCommon.ITokenizedModel): editorCommon.ISingleEditOperation {
+	static _trimEdit(editRange: Range, editText: string, editForceMoveMarkers: boolean, model: editorCommon.IModel): editorCommon.ISingleEditOperation {
 
 		let currentText = model.getValueInRange(editRange);
 

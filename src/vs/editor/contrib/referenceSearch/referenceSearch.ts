@@ -197,7 +197,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 
-export function provideReferences(model: editorCommon.IReadOnlyModel, position: Position): TPromise<Location[]> {
+export function provideReferences(model: editorCommon.IModel, position: Position): TPromise<Location[]> {
 
 	// collect references from all providers
 	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {

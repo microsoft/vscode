@@ -26,7 +26,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 		this._replaceStrings = replaceStrings;
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder): void {
 		if (this._ranges.length > 0) {
 			// Collect all edit operations
 			var ops: IEditOperation[] = [];
@@ -65,7 +65,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 		this._trackedEditorSelectionId = builder.trackSelection(this._editorSelection);
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: editorCommon.IModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this._trackedEditorSelectionId);
 	}
 }
