@@ -11,13 +11,20 @@ import { SnippetFile } from 'vs/workbench/parts/snippets/electron-browser/snippe
 
 suite('Snippets', function () {
 
+	class TestSnippetFile extends SnippetFile {
+		constructor(filepath: string, snippets: Snippet[]) {
+			super(filepath, undefined, undefined);
+			this.data.push(...snippets);
+		}
+	}
+
 	test('SnippetFile#select', function () {
-		let file = new SnippetFile('somepath/foo.json', []);
+		let file = new TestSnippetFile('somepath/foo.json', []);
 		let bucket: Snippet[] = [];
 		file.select('', bucket);
 		assert.equal(bucket.length, 0);
 
-		file = new SnippetFile('somepath/foo.json', [
+		file = new TestSnippetFile('somepath/foo.json', [
 			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test'),
 			new Snippet(['foo'], 'FooSnippet2', 'foo', '', 'snippet', 'test'),
 			new Snippet(['bar'], 'BarSnippet1', 'foo', '', 'snippet', 'test'),
@@ -49,7 +56,7 @@ suite('Snippets', function () {
 
 	test('SnippetFile#select - any scope', function () {
 
-		let file = new SnippetFile('somepath/foo.json', [
+		let file = new TestSnippetFile('somepath/foo.json', [
 			new Snippet([], 'AnySnippet1', 'foo', '', 'snippet', 'test'),
 			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test'),
 		]);
