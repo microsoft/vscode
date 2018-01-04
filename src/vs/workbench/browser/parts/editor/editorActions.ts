@@ -22,7 +22,7 @@ import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/gro
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export class SplitEditorAction extends Action {
 
@@ -538,7 +538,7 @@ export class CloseEditorAction extends Action {
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		return this.commandService.executeCommand(CLOSE_EDITOR_COMMAND_ID, undefined, context);
+		return this.commandService.executeCommand(CLOSE_EDITOR_COMMAND_ID, void 0, context);
 	}
 }
 
@@ -593,30 +593,6 @@ export class CloseLeftEditorsInGroupAction extends Action {
 		const editor = getTarget(this.editorService, this.groupService, context);
 		if (editor) {
 			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: Direction.LEFT });
-		}
-
-		return TPromise.as(false);
-	}
-}
-
-export class CloseRightEditorsInGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeEditorsToTheRight';
-	public static readonly LABEL = nls.localize('closeEditorsToTheRight', "Close Editors to the Right");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private groupService: IEditorGroupService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		const editor = getTarget(this.editorService, this.groupService, context);
-		if (editor) {
-			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: Direction.RIGHT });
 		}
 
 		return TPromise.as(false);
@@ -682,7 +658,7 @@ export class CloseUnmodifiedEditorsInGroupAction extends Action {
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		return this.commandService.executeCommand(CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, undefined, context);
+		return this.commandService.executeCommand(CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, void 0, context);
 	}
 }
 
@@ -717,24 +693,6 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	}
 }
 
-export class CloseOtherEditorsInGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeOtherEditors';
-	public static readonly LABEL = nls.localize('closeOtherEditorsInGroup', "Close Other Editors");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService,
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		return this.commandService.executeCommand(CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, undefined, context);
-	}
-}
-
 export class CloseEditorsInGroupAction extends Action {
 
 	public static readonly ID = 'workbench.action.closeEditorsInGroup';
@@ -749,7 +707,7 @@ export class CloseEditorsInGroupAction extends Action {
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		return this.commandService.executeCommand(CLOSE_EDITORS_IN_GROUP_COMMAND_ID, undefined, context);
+		return this.commandService.executeCommand(CLOSE_EDITORS_IN_GROUP_COMMAND_ID, void 0, context);
 	}
 }
 
@@ -877,30 +835,6 @@ export class MaximizeGroupAction extends Action {
 		}
 
 		return TPromise.as(false);
-	}
-}
-
-export class KeepEditorAction extends Action {
-
-	public static readonly ID = 'workbench.action.keepEditor';
-	public static readonly LABEL = nls.localize('keepEditor', "Keep Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		const target = getTarget(this.editorService, this.editorGroupService, context);
-		if (target) {
-			this.editorGroupService.pinEditor(target.position, target.input);
-		}
-
-		return TPromise.as(true);
 	}
 }
 
