@@ -13,7 +13,6 @@ import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IFoundBracket } from 'vs/editor/common/editorCommon';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
@@ -77,7 +76,7 @@ suite('TextModelWithTokens', () => {
 
 		let model = new Model(
 			RawTextSource.fromString(contents.join('\n')),
-			TextModel.DEFAULT_CREATION_OPTIONS,
+			Model.DEFAULT_CREATION_OPTIONS,
 			languageIdentifier
 		);
 

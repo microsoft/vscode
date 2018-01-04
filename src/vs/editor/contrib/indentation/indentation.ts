@@ -15,7 +15,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { Model } from 'vs/editor/common/model/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { TextEdit, StandardTokenType } from 'vs/editor/common/modes';
@@ -97,7 +97,7 @@ export function getReindentEditOperations(model: ITokenizedModel, startLineNumbe
 
 		}
 		if (currentLineText !== adjustedLineContent) {
-			indentEdits.push(EditOperation.replace(new Selection(startLineNumber, 1, startLineNumber, oldIndentation.length + 1), TextModel.normalizeIndentation(globalIndent, tabSize, insertSpaces)));
+			indentEdits.push(EditOperation.replace(new Selection(startLineNumber, 1, startLineNumber, oldIndentation.length + 1), Model.normalizeIndentation(globalIndent, tabSize, insertSpaces)));
 		}
 	} else {
 		globalIndent = strings.getLeadingWhitespace(currentLineText);
@@ -128,7 +128,7 @@ export function getReindentEditOperations(model: ITokenizedModel, startLineNumbe
 		}
 
 		if (oldIndentation !== idealIndentForNextLine) {
-			indentEdits.push(EditOperation.replace(new Selection(lineNumber, 1, lineNumber, oldIndentation.length + 1), TextModel.normalizeIndentation(idealIndentForNextLine, tabSize, insertSpaces)));
+			indentEdits.push(EditOperation.replace(new Selection(lineNumber, 1, lineNumber, oldIndentation.length + 1), Model.normalizeIndentation(idealIndentForNextLine, tabSize, insertSpaces)));
 		}
 
 		// calculate idealIndentForNextLine

@@ -7,13 +7,13 @@
 
 import * as assert from 'assert';
 import { SmartSnippetInserter } from 'vs/workbench/parts/preferences/common/smartSnippetInserter';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { Model } from 'vs/editor/common/model/model';
 import { Position } from 'vs/editor/common/core/position';
 
 suite('SmartSnippetInserter', () => {
 
 	function testSmartSnippetInserter(text: string[], runner: (assert: (desiredPos: Position, pos: Position, prepend: string, append: string) => void) => void): void {
-		let model = TextModel.createFromString(text.join('\n'));
+		let model = Model.createFromString(text.join('\n'));
 		runner((desiredPos, pos, prepend, append) => {
 			let actual = SmartSnippetInserter.insertSnippet(model, desiredPos);
 			let expected = {

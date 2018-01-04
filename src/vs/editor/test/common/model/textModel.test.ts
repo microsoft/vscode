@@ -7,12 +7,12 @@
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TextModel, ITextModelCreationData } from 'vs/editor/common/model/textModel';
+import { Model, ITextModelCreationData } from 'vs/editor/common/model/model';
 import { DefaultEndOfLine, TextModelResolvedOptions } from 'vs/editor/common/editorCommon';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
-	var m = TextModel.createFromString(
+	var m = Model.createFromString(
 		text.join('\n'),
 		{
 			tabSize: defaultTabSize,
@@ -59,7 +59,7 @@ suite('TextModelData.fromString', () => {
 
 	function testTextModelDataFromString(text: string, expected: ITextModelCreationData): void {
 		const rawTextSource = RawTextSource.fromString(text);
-		const actual = TextModel.resolveCreationData(rawTextSource, TextModel.DEFAULT_CREATION_OPTIONS);
+		const actual = Model.resolveCreationData(rawTextSource, Model.DEFAULT_CREATION_OPTIONS);
 		assert.deepEqual(actual, expected);
 	}
 
@@ -181,7 +181,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('getValueLengthInRange', () => {
 
-		var m = TextModel.createFromString('My First Line\r\nMy Second Line\r\nMy Third Line');
+		var m = Model.createFromString('My First Line\r\nMy Second Line\r\nMy Third Line');
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
@@ -194,7 +194,7 @@ suite('Editor Model - TextModel', () => {
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\r\nMy Second Line\r\nMy Third Line'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
 
-		m = TextModel.createFromString('My First Line\nMy Second Line\nMy Third Line');
+		m = Model.createFromString('My First Line\nMy Second Line\nMy Third Line');
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
@@ -563,7 +563,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validatePosition', () => {
 
-		let m = TextModel.createFromString('line one\nline two');
+		let m = Model.createFromString('line one\nline two');
 
 		assert.deepEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
 		assert.deepEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
@@ -592,7 +592,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validatePosition around high-low surrogate pairs 1', () => {
 
-		let m = TextModel.createFromString('a📚b');
+		let m = Model.createFromString('a📚b');
 
 		assert.deepEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
 		assert.deepEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
@@ -619,7 +619,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validatePosition around high-low surrogate pairs 2', () => {
 
-		let m = TextModel.createFromString('a📚📚b');
+		let m = Model.createFromString('a📚📚b');
 
 		assert.deepEqual(m.validatePosition(new Position(1, 1)), new Position(1, 1));
 		assert.deepEqual(m.validatePosition(new Position(1, 2)), new Position(1, 2));
@@ -633,7 +633,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validateRange around high-low surrogate pairs 1', () => {
 
-		let m = TextModel.createFromString('a📚b');
+		let m = Model.createFromString('a📚b');
 
 		assert.deepEqual(m.validateRange(new Range(0, 0, 0, 1)), new Range(1, 1, 1, 1));
 		assert.deepEqual(m.validateRange(new Range(0, 0, 0, 7)), new Range(1, 1, 1, 1));
@@ -661,7 +661,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validateRange around high-low surrogate pairs 2', () => {
 
-		let m = TextModel.createFromString('a📚📚b');
+		let m = Model.createFromString('a📚📚b');
 
 		assert.deepEqual(m.validateRange(new Range(0, 0, 0, 1)), new Range(1, 1, 1, 1));
 		assert.deepEqual(m.validateRange(new Range(0, 0, 0, 7)), new Range(1, 1, 1, 1));
@@ -704,7 +704,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('modifyPosition', () => {
 
-		var m = TextModel.createFromString('line one\nline two');
+		var m = Model.createFromString('line one\nline two');
 		assert.deepEqual(m.modifyPosition(new Position(1, 1), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(0, 0), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 9));
@@ -733,7 +733,7 @@ suite('Editor Model - TextModel', () => {
 	});
 
 	test('normalizeIndentation 1', () => {
-		let model = TextModel.createFromString('',
+		let model = Model.createFromString('',
 			{
 				detectIndentation: false,
 				tabSize: 4,
@@ -769,7 +769,7 @@ suite('Editor Model - TextModel', () => {
 	});
 
 	test('normalizeIndentation 2', () => {
-		let model = TextModel.createFromString('',
+		let model = Model.createFromString('',
 			{
 				detectIndentation: false,
 				tabSize: 4,
@@ -797,24 +797,24 @@ suite('Editor Model - TextModel', () => {
 suite('TextModel.mightContainRTL', () => {
 
 	test('nope', () => {
-		let model = TextModel.createFromString('hello world!');
+		let model = Model.createFromString('hello world!');
 		assert.equal(model.mightContainRTL(), false);
 	});
 
 	test('yes', () => {
-		let model = TextModel.createFromString('Hello,\nזוהי עובדה מבוססת שדעתו');
+		let model = Model.createFromString('Hello,\nזוהי עובדה מבוססת שדעתו');
 		assert.equal(model.mightContainRTL(), true);
 	});
 
 	test('setValue resets 1', () => {
-		let model = TextModel.createFromString('hello world!');
+		let model = Model.createFromString('hello world!');
 		assert.equal(model.mightContainRTL(), false);
 		model.setValue('Hello,\nזוהי עובדה מבוססת שדעתו');
 		assert.equal(model.mightContainRTL(), true);
 	});
 
 	test('setValue resets 2', () => {
-		let model = TextModel.createFromString('Hello,\nهناك حقيقة مثبتة منذ زمن طويل');
+		let model = Model.createFromString('Hello,\nهناك حقيقة مثبتة منذ زمن طويل');
 		assert.equal(model.mightContainRTL(), true);
 		model.setValue('hello world!');
 		assert.equal(model.mightContainRTL(), false);

@@ -11,7 +11,6 @@ import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
 import { Model } from 'vs/editor/common/model/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
 
 interface ILineEdit {
@@ -109,7 +108,7 @@ suite('ModelLinesTokens', () => {
 
 	function testApplyEdits(initial: IBufferLineState[], edits: IEdit[], expected: IBufferLineState[]): void {
 		const initialText = initial.map(el => el.text).join('\n');
-		const model = new Model(RawTextSource.fromString(initialText), TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		const model = new Model(RawTextSource.fromString(initialText), Model.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
 		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
 			const lineTokens = initial[lineIndex].tokens;
 			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
@@ -443,7 +442,7 @@ suite('ModelLinesTokens', () => {
 	}
 
 	test('insertion on empty line', () => {
-		const model = new Model(RawTextSource.fromString('some text'), TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		const model = new Model(RawTextSource.fromString('some text'), Model.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
 		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, TestToken.toTokens([new TestToken(0, 1)]));
 
 		model.applyEdits([{

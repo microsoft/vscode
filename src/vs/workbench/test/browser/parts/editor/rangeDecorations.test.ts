@@ -16,7 +16,6 @@ import { Model } from 'vs/editor/common/model/model';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -140,7 +139,7 @@ suite('Editor - Range decorations', () => {
 	}
 
 	function aModel(resource: URI, content: string = text): Model {
-		let model = Model.createFromString(content, TextModel.DEFAULT_CREATION_OPTIONS, null, resource);
+		let model = Model.createFromString(content, Model.DEFAULT_CREATION_OPTIONS, null, resource);
 		modelsToDispose.push(model);
 		return model;
 	}

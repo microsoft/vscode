@@ -24,7 +24,6 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 let H = Handler;
 
@@ -3970,7 +3969,7 @@ suite('autoClosingPairs', () => {
 			[
 				'var a = ()'
 			].join('\n'),
-			TextModel.DEFAULT_CREATION_OPTIONS,
+			Model.DEFAULT_CREATION_OPTIONS,
 			mode.getLanguageIdentifier()
 		);
 
