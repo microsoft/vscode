@@ -630,7 +630,7 @@ export interface WorkspaceEditDto {
 
 export interface CodeActionDto {
 	title: string;
-	edits?: WorkspaceEditDto;
+	edit?: WorkspaceEditDto;
 	diagnostics?: IMarkerData[];
 	command?: modes.Command;
 }

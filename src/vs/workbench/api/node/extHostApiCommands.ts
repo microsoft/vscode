@@ -408,7 +408,7 @@ export class ExtHostApiCommands {
 				} else {
 					const ret = new types.CodeAction(
 						codeAction.title,
-						typeConverters.WorkspaceEdit.to(codeAction.edits)
+						typeConverters.WorkspaceEdit.to(codeAction.edit)
 					);
 					return ret;
 				}

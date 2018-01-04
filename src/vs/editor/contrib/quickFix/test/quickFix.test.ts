@@ -56,7 +56,7 @@ suite('QuickFix', () => {
 		spelling: {
 			bcd: {
 				diagnostics: [],
-				edits: new class implements WorkspaceEdit {
+				edit: new class implements WorkspaceEdit {
 					edits: IResourceEdit[];
 				},
 				title: 'abc'

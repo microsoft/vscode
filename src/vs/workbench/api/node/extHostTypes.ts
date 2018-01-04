@@ -814,13 +814,13 @@ export class CodeAction {
 
 	command?: vscode.Command;
 
-	edits?: WorkspaceEdit;
+	edit?: WorkspaceEdit;
 
 	dianostics?: Diagnostic[];
 
-	constructor(title: string, edits?: WorkspaceEdit) {
+	constructor(title: string, edit?: WorkspaceEdit) {
 		this.title = title;
-		this.edits = edits;
+		this.edit = edit;
 	}
 }
 

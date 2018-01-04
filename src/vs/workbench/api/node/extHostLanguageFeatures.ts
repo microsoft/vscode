@@ -313,7 +313,7 @@ class CodeActionAdapter {
 						title: candidate.title,
 						command: candidate.command && this._commands.toInternal(candidate.command),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(DiagnosticCollection.toMarkerData),
-						edits: candidate.edit && TypeConverters.WorkspaceEdit.from(candidate.edit),
+						edit: candidate.edit && TypeConverters.WorkspaceEdit.from(candidate.edit),
 					});
 				}
 			}

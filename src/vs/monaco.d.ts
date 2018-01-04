@@ -4496,7 +4496,7 @@ declare module monaco.languages {
 	export interface CodeAction {
 		title: string;
 		command?: Command;
-		edits?: WorkspaceEdit;
+		edit?: WorkspaceEdit;
 		diagnostics?: editor.IMarkerData[];
 	}
 

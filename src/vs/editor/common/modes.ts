@@ -279,7 +279,7 @@ export interface ISuggestSupport {
 export interface CodeAction {
 	title: string;
 	command?: Command;
-	edits?: WorkspaceEdit;
+	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
 }
 

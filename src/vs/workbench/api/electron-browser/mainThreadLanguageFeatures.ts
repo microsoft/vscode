@@ -100,7 +100,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	private static _reviveCodeActionDto(data: CodeActionDto[]): modes.CodeAction[] {
 		if (data) {
-			data.forEach(code => MainThreadLanguageFeatures._reviveWorkspaceEditDto(code.edits));
+			data.forEach(code => MainThreadLanguageFeatures._reviveWorkspaceEditDto(code.edit));
 		}
 		return <modes.CodeAction[]>data;
 	}
