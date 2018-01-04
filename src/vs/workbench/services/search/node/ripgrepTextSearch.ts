@@ -375,8 +375,13 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, exclude
 			const value = patterns[key];
 			key = trimTrailingSlash(folder ? getAbsoluteGlob(folder, key) : key);
 
-			// glob.ts requires forward slashes
-			key = key.replace(/\\/g, '/');
+			// glob.ts requires forward slashes, but a UNC path still must start with \\
+			// #38165 and #38151
+			if (strings.startsWith(key, '\\\\')) {
+				key = '\\\\' + key.substr(2).replace(/\\/g, '/');
+			} else {
+				key = key.replace(/\\/g, '/');
+			}
 
 			if (typeof value === 'boolean' && value) {
 				globArgs.push(fixDriveC(key));
