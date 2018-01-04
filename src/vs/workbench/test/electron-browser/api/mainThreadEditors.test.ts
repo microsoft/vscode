@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
-import { OneGetThreadService, TestThreadService } from './testThreadService';
+import { SingleProxyRPCProtocol, TestRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/testCodeEditorService';
@@ -52,18 +52,18 @@ suite('MainThreadEditors', () => {
 			onEditorGroupMoved = Event.None;
 		};
 
-		const testThreadService = new TestThreadService(true);
-		testThreadService.setTestInstance(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
+		const rpcProtocol = new TestRPCProtocol();
+		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
 			$acceptModelChanged(): void {
 			}
 		});
-		testThreadService.setTestInstance(ExtHostContext.ExtHostDocumentsAndEditors, new class extends mock<ExtHostDocumentsAndEditorsShape>() {
+		rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 			$acceptDocumentsAndEditorsDelta(): void {
 			}
 		});
 
 		const documentAndEditor = new MainThreadDocumentsAndEditors(
-			testThreadService,
+			rpcProtocol,
 			modelService,
 			textFileService,
 			workbenchEditorService,
@@ -77,7 +77,7 @@ suite('MainThreadEditors', () => {
 
 		editors = new MainThreadEditors(
 			documentAndEditor,
-			OneGetThreadService(null),
+			SingleProxyRPCProtocol(null),
 			codeEditorService,
 			workbenchEditorService,
 			editorGroupService,

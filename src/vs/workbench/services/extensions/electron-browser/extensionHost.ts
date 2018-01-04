@@ -7,7 +7,6 @@
 
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { stringify } from 'vs/base/common/marshalling';
 import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -329,7 +328,7 @@ export class ExtensionHostProcessWorker {
 
 					if (msg === 'ready') {
 						// 1) Extension Host is ready to receive messages, initialize it
-						this._createExtHostInitData().then(data => protocol.send(stringify(data)));
+						this._createExtHostInitData().then(data => protocol.send(JSON.stringify(data)));
 						return;
 					}
 

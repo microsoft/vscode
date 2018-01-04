@@ -181,6 +181,7 @@ const windowsTerminalEncodings = {
 	'865': 'cp865', // Nordic
 	'866': 'cp866', // Russian
 	'869': 'cp869', // Modern Greek
+	'936': 'cp936', // Simplified Chinese
 	'1252': 'cp1252' // West European Latin
 };
 

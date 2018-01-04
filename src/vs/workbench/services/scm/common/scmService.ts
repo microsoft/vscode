@@ -39,6 +39,8 @@ class SCMInput implements ISCMInput {
 
 	private _onDidChangePlaceholder = new Emitter<string>();
 	get onDidChangePlaceholder(): Event<string> { return this._onDidChangePlaceholder.event; }
+
+	public lineWarningLength: number | undefined = undefined;
 }
 
 class SCMRepository implements ISCMRepository {

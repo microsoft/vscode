@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "0.0.8",
-    "vscode-nls": "2.0.1"
+    "vscode-extension-telemetry": "^0.0.8",
+    "vscode-nls": "^2.0.2"
   },
   "devDependencies": {
     "@types/node": "8.0.33",
@@ -548,7 +548,7 @@
     "jsonValidation": [
       {
         "fileMatch": "tsconfig.json",
-        "url": "http://json.schemastore.org/tsconfig"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
       },
       {
         "fileMatch": "tsconfig.json",
@@ -556,7 +556,7 @@
       },
       {
         "fileMatch": "tsconfig.*.json",
-        "url": "http://json.schemastore.org/tsconfig"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
       },
       {
         "fileMatch": "tsconfig.*.json",
@@ -564,7 +564,7 @@
       },
       {
         "fileMatch": "typings.json",
-        "url": "http://json.schemastore.org/typings"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/typings.json"
       }
     ],
     "taskDefinitions": [

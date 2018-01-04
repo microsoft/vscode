@@ -15,11 +15,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
-import { CursorState, RevealTarget } from 'vs/editor/common/controller/cursorCommon';
+import { RevealTarget } from 'vs/editor/common/controller/cursorCommon';
 import { Constants } from 'vs/editor/common/core/uint';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/model';
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find/findState';
@@ -55,10 +55,7 @@ export class InsertCursorAbove extends EditorAction {
 		cursors.setStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorState.ensureInEditableRange(
-				context,
-				CursorMoveCommands.addCursorUp(context, cursors.getAll())
-			)
+			CursorMoveCommands.addCursorUp(context, cursors.getAll())
 		);
 		cursors.reveal(true, RevealTarget.TopMost, ScrollType.Smooth);
 	}
@@ -94,10 +91,7 @@ export class InsertCursorBelow extends EditorAction {
 		cursors.setStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorState.ensureInEditableRange(
-				context,
-				CursorMoveCommands.addCursorDown(context, cursors.getAll())
-			)
+			CursorMoveCommands.addCursorDown(context, cursors.getAll())
 		);
 		cursors.reveal(true, RevealTarget.BottomMost, ScrollType.Smooth);
 	}

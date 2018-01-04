@@ -22,7 +22,7 @@ import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITheme } from 'vs/platform/theme/common/themeService';
-import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/model';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -183,7 +183,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 						break;
 					}
 					case textModelEvents.RawContentChangedType.LinesInserted: {
-						const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, change.detail.split('\n'));
+						const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, change.detail);
 						if (linesInsertedEvent !== null) {
 							eventsCollector.emit(linesInsertedEvent);
 							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
@@ -428,7 +428,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.model.getPositionAt(resultOffset);
 	}
 
-	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string {
+	public getEOL(): string {
+		return this.model.getEOL();
+	}
+
+	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | string[] {
 		const newLineCharacter = this.model.getEOL();
 
 		ranges = ranges.slice(0);
@@ -459,7 +463,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		for (let i = 0; i < nonEmptyRanges.length; i++) {
 			result.push(this.getValueInRange(nonEmptyRanges[i], editorCommon.EndOfLinePreference.TextDefined));
 		}
-		return result.join(newLineCharacter);
+		return result.length === 1 ? result[0] : result;
 	}
 
 	public getHTMLToCopy(viewRanges: Range[], emptySelectionClipboard: boolean): string {

@@ -185,7 +185,7 @@ suite('Editor Model - Model Modes 2', () => {
 	function invalidEqual(model: Model, expected: number[]): void {
 		let actual: number[] = [];
 		for (let i = 0, len = model.getLineCount(); i < len; i++) {
-			if (model._lines[i].isInvalid()) {
+			if (model._tokens._isInvalid(i)) {
 				actual.push(i);
 			}
 		}
@@ -199,9 +199,9 @@ suite('Editor Model - Model Modes 2', () => {
 	function statesEqual(model: Model, states: string[]): void {
 		var i, len = states.length - 1;
 		for (i = 0; i < len; i++) {
-			stateEqual(model._lines[i].getState(), states[i]);
+			stateEqual(model._tokens._getState(i), states[i]);
 		}
-		stateEqual((<any>model)._lastState, states[len]);
+		stateEqual((<any>model)._tokens._lastState, states[len]);
 	}
 
 	let thisModel: Model = null;
@@ -253,8 +253,9 @@ suite('Editor Model - Model Modes 2', () => {
 		thisModel.forceTokenization(5);
 		statesEqual(thisModel, ['', 'Line1', 'Line2', 'Line3', 'Line4', 'Line5']);
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 6), '\nNew line\nAnother new line')]);
+		invalidEqual(thisModel, [0, 1, 2]);
 		thisModel.applyEdits([EditOperation.insert(new Position(5, 6), '-')]);
-		invalidEqual(thisModel, [0, 4]);
+		invalidEqual(thisModel, [0, 1, 2, 4]);
 		thisModel.forceTokenization(7);
 		statesEqual(thisModel, ['', 'Line1', 'New line', 'Another new line', 'Line2', 'Line3-', 'Line4', 'Line5']);
 	});

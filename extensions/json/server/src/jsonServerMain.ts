@@ -105,7 +105,7 @@ let schemaRequestService = (uri: string): Thenable<string> => {
 		return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
 			return responseText;
 		}, error => {
-			return error.message;
+			return Promise.reject(error.message);
 		});
 	}
 	if (uri.indexOf('//schema.management.azure.com/') !== -1) {
@@ -232,7 +232,7 @@ documents.onDidClose(event => {
 });
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer; } = {};
-const validationDelayMs = 200;
+const validationDelayMs = 500;
 
 function cleanPendingValidation(textDocument: TextDocument): void {
 	let request = pendingValidationRequests[textDocument.uri];

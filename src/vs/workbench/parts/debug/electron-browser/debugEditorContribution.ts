@@ -592,11 +592,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 				model.forceTokenization(lineNumber);
 				const lineTokens = model.getLineTokens(lineNumber);
-				for (let token = lineTokens.firstToken(); !!token; token = token.next()) {
-					const tokenStr = lineContent.substring(token.startOffset, token.endOffset);
+				for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
+					const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
+					const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
+					const tokenType = lineTokens.getStandardTokenType(tokenIndex);
+					const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
 
 					// Token is a word and not a comment
-					if (token.tokenType === StandardTokenType.Other) {
+					if (tokenType === StandardTokenType.Other) {
 						DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
 						const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
 
@@ -606,7 +609,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 								this.wordToLineNumbersMap.set(word, []);
 							}
 
-							this.wordToLineNumbersMap.get(word).push(new Position(lineNumber, token.startOffset));
+							this.wordToLineNumbersMap.get(word).push(new Position(lineNumber, tokenStartOffset));
 						}
 					}
 				}

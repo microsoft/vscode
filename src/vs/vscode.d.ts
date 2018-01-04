@@ -839,6 +839,16 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
+		fontStyle?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
+		fontWeight?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
 		textDecoration?: string;
 
 		/**
@@ -902,6 +912,14 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
 		borderColor?: string | ThemeColor;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontStyle?: string;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontWeight?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
@@ -1806,6 +1824,48 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
+	 * to refactor code.
+	 */
+	export class CodeAction {
+
+		/**
+		 * A short, human-readanle, title for this code action.
+		 */
+		title: string;
+
+		/**
+		 * A workspace edit this code action performs.
+		 *
+		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
+		 */
+		edit?: WorkspaceEdit;
+
+		/**
+		 * Diagnostics that this code action resolves.
+		 */
+		diagnostics?: Diagnostic[];
+
+		/**
+		 * A command this code action performs.
+		 *
+		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
+		 */
+		command?: Command;
+
+		/**
+		 * Creates a new code action.
+		 *
+		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edits)
+		 * or a [command](#CodeAction.command).
+		 *
+		 * @param title The title of the code action.
+		 * @param edits The edit of the code action.
+		 */
+		constructor(title: string, edit?: WorkspaceEdit);
+	}
+
+	/**
 	 * The code action interface defines the contract between extensions and
 	 * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
 	 *
@@ -1820,10 +1880,10 @@ declare module 'vscode' {
 		 * @param range The range for which the command was invoked.
 		 * @param context Context carrying additional information.
 		 * @param token A cancellation token.
-		 * @return An array of commands or a thenable of such. The lack of a result can be
+		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<Command[]>;
+		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
 	}
 
 	/**
@@ -4985,6 +5045,12 @@ declare module 'vscode' {
 		 * Args for the custom shell executable, this does not work on Windows (see #8429)
 		 */
 		shellArgs?: string[];
+
+		/**
+		 * A path for the current working directory to be used for the terminal.
+		 */
+		cwd?: string;
+
 		/**
 		 * Object with environment variables that will be added to the VS Code process.
 		 */
@@ -5782,6 +5848,11 @@ declare module 'vscode' {
 		 * A string to show as place holder in the input box to guide the user.
 		 */
 		placeholder: string;
+
+		/**
+		 * The warning threshold for lines in the input box.
+		 */
+		lineWarningLength: number | undefined;
 	}
 
 	interface QuickDiffProvider {

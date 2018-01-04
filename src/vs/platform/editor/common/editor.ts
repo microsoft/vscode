@@ -192,6 +192,19 @@ export enum Verbosity {
 	LONG
 }
 
+export interface IRevertOptions {
+
+	/**
+	 *  Forces to load the contents of the editor again even if the editor is not dirty.
+	 */
+	force?: boolean;
+
+	/**
+	 * A soft revert will clear dirty state of an editor but will not attempt to load it.
+	 */
+	soft?: boolean;
+}
+
 export interface IEditorInput extends IDisposable {
 
 	/**
@@ -232,7 +245,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Reverts this input.
 	 */
-	revert(): TPromise<boolean>;
+	revert(options?: IRevertOptions): TPromise<boolean>;
 
 	/**
 	 * Returns if the other object matches this input.

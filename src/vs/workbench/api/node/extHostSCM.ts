@@ -12,7 +12,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext } from './extHost.protocol';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape } from './extHost.protocol';
 import { sortedDiff } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
@@ -110,7 +110,7 @@ function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.S
 	return result;
 }
 
-export class ExtHostSCMInputBox {
+export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	private _value: string = '';
 
@@ -138,6 +138,17 @@ export class ExtHostSCMInputBox {
 	set placeholder(placeholder: string) {
 		this._proxy.$setInputBoxPlaceholder(this._sourceControlHandle, placeholder);
 		this._placeholder = placeholder;
+	}
+
+	private _lineWarningLength: number | undefined;
+
+	get lineWarningLength(): number | undefined {
+		return this._lineWarningLength;
+	}
+
+	set lineWarningLength(lineWarningLength: number) {
+		this._proxy.$setLineWarningLength(this._sourceControlHandle, lineWarningLength);
+		this._lineWarningLength = lineWarningLength;
 	}
 
 	constructor(private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
@@ -431,7 +442,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 }
 
-export class ExtHostSCM {
+export class ExtHostSCM implements ExtHostSCMShape {
 
 	private static _handlePool: number = 0;
 
@@ -447,7 +458,7 @@ export class ExtHostSCM {
 		private _commands: ExtHostCommands,
 		@ILogService private logService: ILogService
 	) {
-		this._proxy = mainContext.get(MainContext.MainThreadSCM);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadSCM);
 
 		_commands.registerArgumentProcessor({
 			processArgument: arg => {
@@ -513,8 +524,8 @@ export class ExtHostSCM {
 		return inputBox;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> {
-		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uri);
+	$provideOriginalResource(sourceControlHandle: number, uriString: string): TPromise<string> {
+		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uriString);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
@@ -522,10 +533,8 @@ export class ExtHostSCM {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => {
-			const result = sourceControl.quickDiffProvider.provideOriginalResource(uri, token);
-			return result && URI.parse(result.toString());
-		});
+		return asWinJsPromise(token => sourceControl.quickDiffProvider.provideOriginalResource(URI.parse(uriString), token))
+			.then(result => result && result.toString());
 	}
 
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {

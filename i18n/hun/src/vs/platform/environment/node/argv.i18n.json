@@ -16,7 +16,7 @@
 	"inspect-brk-extensions": "Hibakeresés és profilozás engedélyezése a kiegészítőkben, úgy, hogy a kiegészítő gazdafolyamata szüneteltetve lesz az indítás után. Ellenőrizze a fejlesztői eszközöket a csatlakozási URI-hoz. ",
 	"reuseWindow": "Fájl vagy mappa megnyitása a legutoljára aktív ablakban.",
 	"userDataDir": "Meghatározza a könyvtárat, ahol a felhasználói adatok vannak tárolva. Hasznás, ha rootként van futtatva.",
-	"log": "A naplózott események szintje. Lehetséges értékek: 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.",
+	"log": "A naplózott események szintje.Az 'info' az alapértelmezett értéke. Lehetséges értékek: 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.",
 	"verbose": "Részletes kimenet kiírása (magába foglalja a --wait kapcsolót)",
 	"wait": "Várjon a fájlok bezárására a visszatérés előtt.",
 	"extensionHomePath": "A kiegészítők gyökérkönyvtárának beállítása.",

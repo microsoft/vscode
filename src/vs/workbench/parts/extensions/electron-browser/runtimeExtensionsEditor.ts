@@ -26,7 +26,7 @@ import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtension
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
 import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -39,6 +39,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { memoize } from 'vs/base/common/decorators';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import Event from 'vs/base/common/event';
+import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 
@@ -373,7 +374,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._list.onContextMenu((e) => {
 			const actions: IAction[] = [];
 
-			actions.push(this.saveExtensionHostProfileAction, this.extensionHostProfileAction);
+			if (e.element.marketplaceInfo.type === LocalExtensionType.User) {
+				actions.push(this._instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL));
+				actions.push(this._instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL));
+				actions.forEach((a: DisableForWorkspaceAction | DisableGloballyAction) => a.extension = e.element.marketplaceInfo);
+				actions.push(new Separator());
+			}
+			actions.push(this.extensionHostProfileAction, this.saveExtensionHostProfileAction);
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
@@ -406,7 +413,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 export class RuntimeExtensionsInput extends EditorInput {
 
-	static ID = 'workbench.runtimeExtensions.input';
+	static readonly ID = 'workbench.runtimeExtensions.input';
 
 	constructor() {
 		super();
@@ -444,7 +451,7 @@ export class RuntimeExtensionsInput extends EditorInput {
 }
 
 export class ShowRuntimeExtensionsAction extends Action {
-	static ID = 'workbench.action.showRuntimeExtensions';
+	static readonly ID = 'workbench.action.showRuntimeExtensions';
 	static LABEL = nls.localize('showRuntimeExtensions', "Show Running Extensions");
 
 	constructor(
@@ -461,7 +468,7 @@ export class ShowRuntimeExtensionsAction extends Action {
 }
 
 class ReportExtensionIssueAction extends Action {
-	static ID = 'workbench.extensions.action.reportExtensionIssue';
+	static readonly ID = 'workbench.extensions.action.reportExtensionIssue';
 	static LABEL = nls.localize('reportExtensionIssue', "Report Issue");
 
 	constructor(
@@ -499,7 +506,7 @@ class ReportExtensionIssueAction extends Action {
 }
 
 class ExtensionHostProfileAction extends Action {
-	static ID = 'workbench.extensions.action.extensionHostProfile';
+	static readonly ID = 'workbench.extensions.action.extensionHostProfile';
 	static LABEL_START = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
 	static LABEL_STOP = nls.localize('extensionHostProfileStop', "Stop Extension Host Profile");
 	static STOP_CSS_CLASS = 'extension-host-profile-stop';
@@ -542,7 +549,7 @@ class ExtensionHostProfileAction extends Action {
 class SaveExtensionHostProfileAction extends Action {
 
 	static LABEL = nls.localize('saveExtensionHostProfile', "Save Extension Host Profile");
-	static ID = 'workbench.extensions.action.saveExtensionHostProfile';
+	static readonly ID = 'workbench.extensions.action.saveExtensionHostProfile';
 
 	constructor(
 		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
@@ -558,7 +565,7 @@ class SaveExtensionHostProfileAction extends Action {
 	}
 
 	async run(): TPromise<any> {
-		let picked = this._windowService.showSaveDialog({
+		let picked = await this._windowService.showSaveDialog({
 			title: 'Save Extension Host Profile',
 			buttonLabel: 'Save',
 			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,

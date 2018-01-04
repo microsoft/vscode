@@ -10,7 +10,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/model';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export interface IRangeHighlightDecoration {

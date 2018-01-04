@@ -28,7 +28,6 @@ import { PreferencesContribution } from 'vs/workbench/parts/preferences/common/p
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { PreferencesSearchService } from 'vs/workbench/parts/preferences/electron-browser/preferencesSearch';
@@ -263,7 +262,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
 
-CommandsRegistry.registerCommand(OPEN_FOLDER_SETTINGS_COMMAND, function (accessor: ServicesAccessor, args?: IWorkspaceFolder) {
+CommandsRegistry.registerCommand(OPEN_FOLDER_SETTINGS_COMMAND, function (accessor: ServicesAccessor, resource: URI) {
 	const preferencesService = accessor.get(IPreferencesService);
-	return preferencesService.openFolderSettings(args.uri);
+	return preferencesService.openFolderSettings(resource);
 });

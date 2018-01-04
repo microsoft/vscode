@@ -37,8 +37,13 @@
 		"grammars": [
 			{
 				"language": "php",
+				"scopeName": "source.php",
+				"path": "./syntaxes/php.tmLanguage.json"
+			},
+			{
+				"language": "php",
 				"scopeName": "text.html.php",
-				"path": "./syntaxes/php.tmLanguage.json",
+				"path": "./syntaxes/html.tmLanguage.json",
 				"embeddedLanguages": {
 					"text.html": "html",
 					"source.php": "php",

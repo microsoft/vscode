@@ -682,10 +682,14 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			return this.workbenchSize.width - this.sidebarWidth - this.activitybarWidth;
 		}
 
-		return this.workbenchSize.width - (this.partService.isVisible(Parts.PANEL_PART) ? this.panelWidth : 0) - (sidebarPosition === Position.RIGHT ? this.sidebarWidth + this.activitybarWidth : 0);
+		return this.workbenchSize.width - this.panelWidth - (sidebarPosition === Position.RIGHT ? this.sidebarWidth + this.activitybarWidth : 0);
 	}
 
 	public getVerticalSashHeight(sash: Sash): number {
+		if (sash === this.sashXTwo && !this.partService.isVisible(Parts.PANEL_PART)) {
+			return 0;
+		}
+
 		return this.sidebarHeight;
 	}
 

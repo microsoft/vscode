@@ -89,22 +89,83 @@ interface IEditorIdentifier {
 	position: GroupPosition;
 }
 
-export abstract class BaseHistoryService {
+interface IStackEntry {
+	input: IEditorInput | IResourceInput;
+	selection?: ITextEditorSelection;
+	timestamp: number;
+}
 
-	protected toUnbind: IDisposable[];
+interface IRecentlyClosedFile {
+	resource: URI;
+	index: number;
+}
+
+export class HistoryService implements IHistoryService {
+
+	public _serviceBrand: any;
+
+	private static readonly STORAGE_KEY = 'history.entries';
+	private static readonly MAX_HISTORY_ITEMS = 200;
+	private static readonly MAX_STACK_ITEMS = 20;
+	private static readonly MAX_RECENTLY_CLOSED_EDITORS = 20;
+
+	private toUnbind: IDisposable[];
 
 	private activeEditorListeners: IDisposable[];
 	private lastActiveEditor: IEditorIdentifier;
 
+	private stack: IStackEntry[];
+	private index: number;
+	private lastIndex: number;
+	private navigatingInStack: boolean;
+	private currentTextEditorState: TextEditorState;
+
+	private history: (IEditorInput | IResourceInput)[];
+	private recentlyClosedFiles: IRecentlyClosedFile[];
+	private loaded: boolean;
+	private resourceFilter: ResourceGlobMatcher;
+
 	constructor(
-		protected editorGroupService: IEditorGroupService,
-		protected editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IStorageService private storageService: IStorageService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IFileService private fileService: IFileService,
+		@IWindowsService private windowService: IWindowsService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 	) {
 		this.toUnbind = [];
 		this.activeEditorListeners = [];
 
-		// Listeners
+		this.index = -1;
+		this.lastIndex = -1;
+		this.stack = [];
+		this.recentlyClosedFiles = [];
+		this.loaded = false;
+		this.resourceFilter = instantiationService.createInstance(
+			ResourceGlobMatcher,
+			(root: URI) => this.getExcludes(root),
+			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG) || event.affectsConfiguration('search.exclude')
+		);
+
+		this.registerListeners();
+	}
+
+	private getExcludes(root?: URI): IExpression {
+		const scope = root ? { resource: root } : void 0;
+
+		return getExcludes(this.configurationService.getValue<ISearchConfiguration>(scope));
+	}
+
+	private registerListeners(): void {
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.lifecycleService.onShutdown(reason => this.saveHistory()));
+		this.toUnbind.push(this.editorGroupService.onEditorOpenFail(editor => this.remove(editor)));
+		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(event => this.onEditorClosed(event)));
+		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this.toUnbind.push(this.resourceFilter.onExpressionChange(() => this.handleExcludesChange()));
 	}
 
 	private onEditorsChanged(): void {
@@ -146,94 +207,6 @@ export abstract class BaseHistoryService {
 		}
 
 		return identifier.editor.matches(editor.input);
-	}
-
-	protected abstract handleExcludesChange(): void;
-
-	protected abstract handleEditorSelectionChangeEvent(editor?: IBaseEditor, event?: ICursorPositionChangedEvent): void;
-
-	protected abstract handleActiveEditorChange(editor?: IBaseEditor): void;
-
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
-	}
-}
-
-interface IStackEntry {
-	input: IEditorInput | IResourceInput;
-	selection?: ITextEditorSelection;
-	timestamp: number;
-}
-
-interface IRecentlyClosedFile {
-	resource: URI;
-	index: number;
-}
-
-export class HistoryService extends BaseHistoryService implements IHistoryService {
-
-	public _serviceBrand: any;
-
-	private static readonly STORAGE_KEY = 'history.entries';
-	private static readonly MAX_HISTORY_ITEMS = 200;
-	private static readonly MAX_STACK_ITEMS = 20;
-	private static readonly MAX_RECENTLY_CLOSED_EDITORS = 20;
-
-	private stack: IStackEntry[];
-	private index: number;
-	private lastIndex: number;
-	private navigatingInStack: boolean;
-	private currentTextEditorState: TextEditorState;
-
-	private history: (IEditorInput | IResourceInput)[];
-	private recentlyClosedFiles: IRecentlyClosedFile[];
-	private loaded: boolean;
-	private resourceFilter: ResourceGlobMatcher;
-
-	constructor(
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IFileService private fileService: IFileService,
-		@IWindowsService private windowService: IWindowsService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-	) {
-		super(editorGroupService, editorService);
-
-		this.index = -1;
-		this.lastIndex = -1;
-		this.stack = [];
-		this.recentlyClosedFiles = [];
-		this.loaded = false;
-		this.resourceFilter = instantiationService.createInstance(
-			ResourceGlobMatcher,
-			(root: URI) => this.getExcludes(root),
-			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG) || event.affectsConfiguration('search.exclude')
-		);
-
-		this.registerListeners();
-	}
-
-	private setIndex(value: number): void {
-		this.lastIndex = this.index;
-		this.index = value;
-	}
-
-	private getExcludes(root?: URI): IExpression {
-		const scope = root ? { resource: root } : void 0;
-
-		return getExcludes(this.configurationService.getValue<ISearchConfiguration>(scope));
-	}
-
-	private registerListeners(): void {
-		this.toUnbind.push(this.lifecycleService.onShutdown(reason => this.saveHistory()));
-		this.toUnbind.push(this.editorGroupService.onEditorOpenFail(editor => this.remove(editor)));
-		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(event => this.onEditorClosed(event)));
-		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		this.toUnbind.push(this.resourceFilter.onExpressionChange(() => this.handleExcludesChange()));
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {
@@ -290,6 +263,11 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private doForwardInEditors(): void {
 		this.setIndex(this.index + 1);
 		this.navigate();
+	}
+
+	private setIndex(value: number): void {
+		this.lastIndex = this.index;
+		this.index = value;
 	}
 
 	private doForwardAcrossEditors(): void {
@@ -839,5 +817,9 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		return void 0;
+	}
+
+	public dispose(): void {
+		this.toUnbind = dispose(this.toUnbind);
 	}
 }

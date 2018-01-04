@@ -57,22 +57,6 @@ export class ActionBarContributor {
  * Some predefined scopes to contribute actions to
  */
 export const Scope = {
-
-	/**
-	 * Actions inside viewlets.
-	 */
-	VIEWLET: 'viewlet',
-
-	/**
-	 * Actions inside panels.
-	 */
-	PANEL: 'panel',
-
-	/**
-	 * Actions inside editors.
-	 */
-	EDITOR: 'editor',
-
 	/**
 	 * Actions inside tree widgets.
 	 */

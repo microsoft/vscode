@@ -59,6 +59,8 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -175,9 +177,10 @@ export class TestTextFileService extends TextFileService {
 		@IMessageService messageService: IMessageService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWindowsService windowsService: IWindowsService,
-		@IHistoryService historyService: IHistoryService
+		@IHistoryService historyService: IHistoryService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService, historyService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService, historyService, contextKeyService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -214,12 +217,12 @@ export class TestTextFileService extends TextFileService {
 		});
 	}
 
-	public promptForPath(defaultPath: string): string {
-		return this.promptPath;
+	public promptForPath(defaultPath: string): TPromise<string> {
+		return TPromise.wrap(this.promptPath);
 	}
 
-	public confirmSave(resources?: URI[]): ConfirmResult {
-		return this.confirmResult;
+	public confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
+		return TPromise.wrap(this.confirmResult);
 	}
 
 	public onFilesConfigurationChange(configuration: any): void {
@@ -234,6 +237,7 @@ export class TestTextFileService extends TextFileService {
 
 export function workbenchInstantiationService(): IInstantiationService {
 	let instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
+	instantiationService.stub(IContextKeyService, <IContextKeyService>instantiationService.createInstance(MockContextKeyService));
 	instantiationService.stub(IWorkspaceContextService, new TestContextService(TestWorkspace));
 	const configService = new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configService);
@@ -328,8 +332,8 @@ export class TestMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirm(confirmation: IConfirmation): boolean {
-		return false;
+	public confirm(confirmation: IConfirmation): TPromise<boolean> {
+		return TPromise.wrap(false);
 	}
 
 	public confirmWithCheckbox(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -584,12 +588,14 @@ export class TestEditorService implements IWorkbenchEditorService {
 	public activeEditorOptions: IEditorOptions;
 	public activeEditorPosition: Position;
 	public mockLineNumber: number;
+	public mockSelectedText: string;
 
 	private callback: (method: string) => void;
 
 	constructor(callback?: (method: string) => void) {
 		this.callback = callback || ((s: string) => { });
 		this.mockLineNumber = 15;
+		this.mockSelectedText = 'selected text';
 	}
 
 	public openEditors(inputs: any[]): Promise {
@@ -618,7 +624,8 @@ export class TestEditorService implements IWorkbenchEditorService {
 			getId: () => { return null; },
 			getControl: () => {
 				return {
-					getSelection: () => { return { positionLineNumber: this.mockLineNumber }; }
+					getSelection: () => { return { positionLineNumber: this.mockLineNumber }; },
+					getModel: () => { return { getValueInRange: () => this.mockSelectedText }; }
 				};
 			},
 			focus: () => { },
@@ -831,7 +838,7 @@ export class TestBackupFileService implements IBackupFileService {
 	public loadBackupResource(resource: URI): TPromise<URI> {
 		return this.hasBackup(resource).then(hasBackup => {
 			if (hasBackup) {
-				return this.getBackupResource(resource);
+				return this.toBackupResource(resource);
 			}
 
 			return void 0;
@@ -846,7 +853,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as(void 0);
 	}
 
-	public getBackupResource(resource: URI): URI {
+	public toBackupResource(resource: URI): URI {
 		return null;
 	}
 
@@ -961,20 +968,16 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions): number {
-		return 0;
+	showMessageBox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+		return TPromise.wrap({ button: 0 });
 	}
 
-	showMessageBoxWithCheckbox(options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
-		return TPromise.as(void 0);
+	showSaveDialog(options: Electron.SaveDialogOptions): TPromise<string> {
+		return TPromise.wrap(void 0);
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions): string {
-		return void 0;
-	}
-
-	showOpenDialog(options: Electron.OpenDialogOptions): string[] {
-		return void 0;
+	showOpenDialog(options: Electron.OpenDialogOptions): TPromise<string[]> {
+		return TPromise.wrap(void 0);
 	}
 
 	updateTouchBar(items: ICommandAction[][]): Promise<void> {
@@ -1196,6 +1199,18 @@ export class TestWindowsService implements IWindowsService {
 
 	// TODO: this is a bit backwards
 	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+		return TPromise.as(void 0);
+	}
+
+	showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): TPromise<string> {
+		return TPromise.as(void 0);
+	}
+
+	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
 		return TPromise.as(void 0);
 	}
 }

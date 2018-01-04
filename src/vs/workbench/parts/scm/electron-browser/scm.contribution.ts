@@ -19,10 +19,11 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { StatusUpdater, StatusBarController } from './scmActivity';
 import { SCMViewlet } from 'vs/workbench/parts/scm/electron-browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
-	static ID = VIEWLET_ID;
+	static readonly ID = VIEWLET_ID;
 	static LABEL = localize('toggleGitViewlet', "Show Git");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
@@ -61,3 +62,29 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 	'View: Show SCM',
 	localize('view', "View")
 );
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'scm',
+	order: 5,
+	title: localize('scmConfigurationTitle', "SCM"),
+	type: 'object',
+	properties: {
+		'scm.alwaysShowProviders': {
+			type: 'boolean',
+			description: localize('alwaysShowProviders', "Whether to always show the Source Control Provider section."),
+			default: false
+		},
+		'scm.diffDecorations': {
+			type: 'string',
+			enum: ['all', 'gutter', 'overview', 'none'],
+			default: 'all',
+			description: localize('diffDecorations', "Controls diff decorations in the editor.")
+		},
+		'scm.inputCounter': {
+			type: 'string',
+			enum: ['always', 'warn', 'off'],
+			default: 'warn',
+			description: localize('inputCounter', "Controls when to display the input counter.")
+		}
+	}
+});

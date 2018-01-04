@@ -16,9 +16,9 @@ import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { Range } from 'vs/editor/common/core/range';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -363,14 +363,15 @@ suite('SplitLinesCollection', () => {
 		value: number;
 	}
 
-	function assertViewLineTokens(actual: ViewLineToken[], expected: ITestViewLineToken[]): void {
-		let _actual = actual.map((token) => {
-			return {
-				endIndex: token.endIndex,
-				value: token.getForeground()
+	function assertViewLineTokens(_actual: IViewLineTokens, expected: ITestViewLineToken[]): void {
+		let actual: ITestViewLineToken[] = [];
+		for (let i = 0, len = _actual.getCount(); i < len; i++) {
+			actual[i] = {
+				endIndex: _actual.getEndOffset(i),
+				value: _actual.getForeground(i)
 			};
-		});
-		assert.deepEqual(_actual, expected);
+		}
+		assert.deepEqual(actual, expected);
 	}
 
 	interface ITestMinimapLineRenderingData {

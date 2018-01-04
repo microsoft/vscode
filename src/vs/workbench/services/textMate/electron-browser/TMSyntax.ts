@@ -14,7 +14,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { INITIAL, StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
+import { StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
 import { IWorkbenchThemeService, ITokenColorizationRule } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
@@ -94,13 +94,14 @@ export class TMLanguageRegistration {
 interface ICreateGrammarResult {
 	languageId: LanguageId;
 	grammar: IGrammar;
+	initialState: StackElement;
 	containsEmbeddedLanguages: boolean;
 }
 
 export class TextMateService implements ITextMateService {
 	public _serviceBrand: any;
 
-	private _grammarRegistry: Registry;
+	private _grammarRegistry: TPromise<[Registry, StackElement]>;
 	private _modeService: IModeService;
 	private _themeService: IWorkbenchThemeService;
 	private _scopeRegistry: TMScopeRegistry;
@@ -128,16 +129,7 @@ export class TextMateService implements ITextMateService {
 		this._injectedEmbeddedLanguages = {};
 		this._languageToScope = new Map<string, string>();
 
-		this._grammarRegistry = new Registry({
-			getFilePath: (scopeName: string) => {
-				return this._scopeRegistry.getFilePath(scopeName);
-			},
-			getInjections: (scopeName: string) => {
-				return this._injections[scopeName];
-			}
-		});
-		this._updateTheme();
-		this._themeService.onDidColorThemeChange((e) => this._updateTheme());
+		this._grammarRegistry = null;
 
 		grammarsExtPoint.setHandler((extensions) => {
 			for (let i = 0; i < extensions.length; i++) {
@@ -148,12 +140,49 @@ export class TextMateService implements ITextMateService {
 			}
 		});
 
+		// Generate some color map until the grammar registry is loaded
+		let colorTheme = this._themeService.getColorTheme();
+		let defaultForeground: Color = Color.transparent;
+		let defaultBackground: Color = Color.transparent;
+		for (let i = 0, len = colorTheme.tokenColors.length; i < len; i++) {
+			let rule = colorTheme.tokenColors[i];
+			if (!rule.scope) {
+				if (rule.settings.foreground) {
+					defaultForeground = Color.fromHex(rule.settings.foreground);
+				}
+				if (rule.settings.background) {
+					defaultBackground = Color.fromHex(rule.settings.background);
+				}
+			}
+		}
+		TokenizationRegistry.setColorMap([null, defaultForeground, defaultBackground]);
+
 		this._modeService.onDidCreateMode((mode) => {
 			let modeId = mode.getId();
 			if (this._languageToScope.has(modeId)) {
 				this.registerDefinition(modeId);
 			}
 		});
+	}
+
+	private _getOrCreateGrammarRegistry(): TPromise<[Registry, StackElement]> {
+		if (!this._grammarRegistry) {
+			this._grammarRegistry = TPromise.wrap(import('vscode-textmate')).then(({ Registry, INITIAL }) => {
+				const grammarRegistry = new Registry({
+					getFilePath: (scopeName: string) => {
+						return this._scopeRegistry.getFilePath(scopeName);
+					},
+					getInjections: (scopeName: string) => {
+						return this._injections[scopeName];
+					}
+				});
+				this._updateTheme(grammarRegistry);
+				this._themeService.onDidColorThemeChange((e) => this._updateTheme(grammarRegistry));
+				return <[Registry, StackElement]>[grammarRegistry, INITIAL];
+			});
+		}
+
+		return this._grammarRegistry;
 	}
 
 	private static _toColorMap(colorMap: string[]): Color[] {
@@ -164,13 +193,13 @@ export class TextMateService implements ITextMateService {
 		return result;
 	}
 
-	private _updateTheme(): void {
+	private _updateTheme(grammarRegistry: Registry): void {
 		let colorTheme = this._themeService.getColorTheme();
 		if (!this.compareTokenRules(colorTheme.tokenColors)) {
 			return;
 		}
-		this._grammarRegistry.setTheme({ name: colorTheme.label, settings: colorTheme.tokenColors });
-		let colorMap = TextMateService._toColorMap(this._grammarRegistry.getColorMap());
+		grammarRegistry.setTheme({ name: colorTheme.label, settings: colorTheme.tokenColors });
+		let colorMap = TextMateService._toColorMap(grammarRegistry.getColorMap());
 		let cssRules = generateTokensCSSForColorMap(colorMap);
 		this._styleElement.innerHTML = cssRules;
 		TokenizationRegistry.setColorMap(colorMap);
@@ -295,15 +324,19 @@ export class TextMateService implements ITextMateService {
 
 		let languageId = this._modeService.getLanguageIdentifier(modeId).id;
 		let containsEmbeddedLanguages = (Object.keys(embeddedLanguages).length > 0);
-		return new TPromise<ICreateGrammarResult>((c, e, p) => {
-			this._grammarRegistry.loadGrammarWithEmbeddedLanguages(scopeName, languageId, embeddedLanguages, (err, grammar) => {
-				if (err) {
-					return e(err);
-				}
-				c({
-					languageId: languageId,
-					grammar: grammar,
-					containsEmbeddedLanguages: containsEmbeddedLanguages
+		return this._getOrCreateGrammarRegistry().then((_res) => {
+			const [grammarRegistry, initialState] = _res;
+			return new TPromise<ICreateGrammarResult>((c, e, p) => {
+				grammarRegistry.loadGrammarWithEmbeddedLanguages(scopeName, languageId, embeddedLanguages, (err, grammar) => {
+					if (err) {
+						return e(err);
+					}
+					c({
+						languageId: languageId,
+						grammar: grammar,
+						initialState: initialState,
+						containsEmbeddedLanguages: containsEmbeddedLanguages
+					});
 				});
 			});
 		});
@@ -311,7 +344,7 @@ export class TextMateService implements ITextMateService {
 
 	private registerDefinition(modeId: string): void {
 		this._createGrammar(modeId).then((r) => {
-			TokenizationRegistry.register(modeId, new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.containsEmbeddedLanguages));
+			TokenizationRegistry.register(modeId, new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages));
 		}, onUnexpectedError);
 	}
 }
@@ -323,17 +356,19 @@ class TMTokenization implements ITokenizationSupport {
 	private readonly _grammar: IGrammar;
 	private readonly _containsEmbeddedLanguages: boolean;
 	private readonly _seenLanguages: boolean[];
+	private readonly _initialState: StackElement;
 
-	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, containsEmbeddedLanguages: boolean) {
+	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean) {
 		this._scopeRegistry = scopeRegistry;
 		this._languageId = languageId;
 		this._grammar = grammar;
+		this._initialState = initialState;
 		this._containsEmbeddedLanguages = containsEmbeddedLanguages;
 		this._seenLanguages = [];
 	}
 
 	public getInitialState(): IState {
-		return INITIAL;
+		return this._initialState;
 	}
 
 	public tokenize(line: string, state: IState, offsetDelta: number): TokenizationResult {

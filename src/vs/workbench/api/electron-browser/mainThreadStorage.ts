@@ -38,7 +38,7 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		}
 	}
 
-	$setValue(shared: boolean, key: string, value: any): TPromise<any> {
+	$setValue(shared: boolean, key: string, value: any): TPromise<void> {
 		let jsonValue: any;
 		try {
 			jsonValue = JSON.stringify(value);

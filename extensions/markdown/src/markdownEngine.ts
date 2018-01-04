@@ -137,8 +137,9 @@ export class MarkdownEngine {
 		md.normalizeLink = (link: string) => {
 			try {
 				let uri = vscode.Uri.parse(link);
-				if (!uri.scheme && uri.path && !uri.fragment) {
+				if (!uri.scheme && uri.path) {
 					// Assume it must be a file
+					const fragment = uri.fragment;
 					if (uri.path[0] === '/') {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument);
 						if (root) {
@@ -146,6 +147,10 @@ export class MarkdownEngine {
 						}
 					} else {
 						uri = vscode.Uri.file(path.join(path.dirname(this.currentDocument.path), uri.path));
+					}
+
+					if (fragment) {
+						uri = uri.with({ fragment });
 					}
 					return normalizeLink(uri.toString(true));
 				}

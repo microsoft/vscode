@@ -8,19 +8,12 @@ import * as nls from 'vs/nls';
 import * as env from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IAction, Action } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import paths = require('vs/base/common/paths');
-import resources = require('vs/base/common/resources');
-import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
 import uri from 'vs/base/common/uri';
-import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -29,6 +22,9 @@ import { ITerminalService as IIntegratedTerminalService, KEYBINDING_CONTEXT_TERM
 import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX, ITerminalConfiguration } from 'vs/workbench/parts/execution/electron-browser/terminal';
 import { WinTerminalService, MacTerminalService, LinuxTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IFileService } from 'vs/platform/files/common/files';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);
@@ -78,152 +74,68 @@ DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 	});
 });
 
+const OPEN_CONSOLE_COMMAND_ID = 'workbench.command.terminal.openNativeConsole';
 
-export abstract class AbstractOpenInTerminalAction extends Action {
-	private resource: uri;
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IHistoryService protected historyService: IHistoryService
-	) {
-		super(id, label);
-
-		this.order = 49; // Allow other actions to position before or after
-	}
-
-	public setResource(resource: uri): void {
-		this.resource = resource;
-		this.enabled = !paths.isUNC(this.resource.fsPath);
-	}
-
-	public getPathToOpen(): string {
-		let pathToOpen: string;
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: OPEN_CONSOLE_COMMAND_ID,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
+	when: KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	handler: (accessor, resource: uri) => {
+		const configurationService = accessor.get(IConfigurationService);
+		const historyService = accessor.get(IHistoryService);
+		const editorService = accessor.get(IWorkbenchEditorService);
+		const fileService = accessor.get(IFileService);
+		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
+		const terminalService = accessor.get(ITerminalService);
 
 		// Try workspace path first
-		const root = this.historyService.getLastActiveWorkspaceRoot('file');
-		pathToOpen = this.resource ? this.resource.fsPath : (root && root.fsPath);
+		const root = historyService.getLastActiveWorkspaceRoot('file');
+		return !resource ? TPromise.as(root && root.fsPath) : fileService.resolveFile(resource).then(stat => {
+			return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
+		}).then(directoryToOpen => {
 
-		// Otherwise check if we have an active file open
-		if (!pathToOpen) {
-			const file = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-			if (file) {
-				pathToOpen = paths.dirname(file.fsPath); // take parent folder of file
+			// Otherwise check if we have an active file open
+			if (!directoryToOpen) {
+				const file = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+				if (file) {
+					directoryToOpen = paths.dirname(file.fsPath); // take parent folder of file
+				}
 			}
-		}
 
-		return pathToOpen;
+			if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
+				const instance = integratedTerminalService.createInstance({ cwd: directoryToOpen }, true);
+				if (instance) {
+					integratedTerminalService.setActiveInstance(instance);
+					integratedTerminalService.showPanel(true);
+				}
+			} else {
+				terminalService.openTerminal(directoryToOpen);
+			}
+		});
 	}
-}
+});
 
-export class OpenConsoleAction extends AbstractOpenInTerminalAction {
+const openConsoleCommand = {
+	id: OPEN_CONSOLE_COMMAND_ID,
+	title: env.isWindows ? nls.localize('scopedConsoleActionWin', "Open in Command Prompt") :
+		nls.localize('scopedConsoleActionMacLinux', "Open in Terminal")
+};
 
-	public static readonly ID = 'workbench.action.terminal.openNativeConsole';
-	public static readonly Label = env.isWindows ? nls.localize('globalConsoleActionWin', "Open New Command Prompt") :
-		nls.localize('globalConsoleActionMacLinux', "Open New Terminal");
-	public static readonly ScopedLabel = env.isWindows ? nls.localize('scopedConsoleActionWin', "Open in Command Prompt") :
-		nls.localize('scopedConsoleActionMacLinux', "Open in Terminal");
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: openConsoleCommand
+});
 
-	constructor(
-		id: string,
-		label: string,
-		@ITerminalService private terminalService: ITerminalService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IHistoryService historyService: IHistoryService
-	) {
-		super(id, label, editorService, contextService, historyService);
-	}
+MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+	group: 'navigation',
+	order: 30,
+	command: openConsoleCommand,
+	when: ResourceContextKey.Scheme.isEqualTo('file')
+});
 
-	public run(event?: any): TPromise<any> {
-		let pathToOpen = this.getPathToOpen();
-		this.terminalService.openTerminal(pathToOpen);
-
-		return TPromise.as(null);
-	}
-}
-
-export class OpenIntegratedTerminalAction extends AbstractOpenInTerminalAction {
-
-	public static readonly ID = 'workbench.action.terminal.openFolderInIntegratedTerminal';
-	public static readonly Label = nls.localize('openFolderInIntegratedTerminal', "Open in Terminal");
-
-	constructor(
-		id: string,
-		label: string,
-		@IIntegratedTerminalService private integratedTerminalService: IIntegratedTerminalService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IHistoryService historyService: IHistoryService
-	) {
-		super(id, label, editorService, contextService, historyService);
-	}
-
-	public run(event?: any): TPromise<any> {
-		let pathToOpen = this.getPathToOpen();
-
-		const instance = this.integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
-		if (instance) {
-			this.integratedTerminalService.setActiveInstance(instance);
-			this.integratedTerminalService.showPanel(true);
-		}
-		return TPromise.as(null);
-	}
-}
-
-export class ExplorerViewerActionContributor extends ActionBarContributor {
-
-	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService
-	) {
-		super();
-	}
-
-	public hasSecondaryActions(context: any): boolean {
-		const fileResource = explorerItemToFileResource(context.element);
-		return fileResource && fileResource.resource.scheme === 'file';
-	}
-
-	public getSecondaryActions(context: any): IAction[] {
-		let fileResource = explorerItemToFileResource(context.element);
-		let resource = fileResource.resource;
-
-		// We want the parent unless this resource is a directory
-		if (!fileResource.isDirectory) {
-			resource = resources.dirname(resource);
-		}
-
-		const configuration = this.configurationService.getValue<ITerminalConfiguration>();
-		const explorerKind = configuration.terminal.explorerKind;
-
-		if (explorerKind === 'integrated') {
-			let action = this.instantiationService.createInstance(OpenIntegratedTerminalAction, OpenIntegratedTerminalAction.ID, OpenIntegratedTerminalAction.Label);
-			action.setResource(resource);
-
-			return [action];
-		} else {
-			let action = this.instantiationService.createInstance(OpenConsoleAction, OpenConsoleAction.ID, OpenConsoleAction.ScopedLabel);
-			action.setResource(resource);
-
-			return [action];
-		}
-	}
-}
-
-const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
-actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewerActionContributor);
-
-// Register Global Action to Open Console
-Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	new SyncActionDescriptor(
-		OpenConsoleAction,
-		OpenConsoleAction.ID,
-		OpenConsoleAction.Label,
-		{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
-		KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED
-	),
-	env.isWindows ? 'Open New Command Prompt' : 'Open New Terminal'
-);
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: 'navigation',
+	order: 30,
+	command: openConsoleCommand,
+	when: ResourceContextKey.Scheme.isEqualTo('file')
+});

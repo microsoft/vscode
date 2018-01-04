@@ -33,6 +33,7 @@ const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharacte
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
 replacing space with nonBreakningSpace or space ASCII code - 32. */
 const lineAndColumnClause = [
+	'((\\S*)", line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
 	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
 	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
@@ -41,7 +42,7 @@ const lineAndColumnClause = [
 
 // Changing any regex may effect this value, hence changes this as well if required.
 const winLineAndColumnMatchIndex = 12;
-const unixLineAndColumnMatchIndex = 23;
+const unixLineAndColumnMatchIndex = 11;
 
 // Each line and column clause have 6 groups (ie no. of expressions in round brackets)
 const lineAndColumnClauseGroupCount = 6;

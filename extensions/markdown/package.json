@@ -311,8 +311,8 @@
 		"highlight.js": "9.5.0",
 		"markdown-it": "^8.4.0",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "0.0.8",
-		"vscode-nls": "2.0.2"
+		"vscode-extension-telemetry": "^0.0.8",
+		"vscode-nls": "^2.0.2"
 	},
 	"devDependencies": {
 		"@types/highlight.js": "9.1.10",

@@ -6,30 +6,30 @@
 
 import { dispose } from 'vs/base/common/lifecycle';
 import { join } from 'path';
-import { mkdirp, dirExists } from 'vs/base/node/pfs';
+import { mkdirp, dirExists, realpath } from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
-import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
-import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape } from './extHost.protocol';
+import { createApiFactory, initializeExtensionApi, checkProposedApiEnabled } from 'vs/workbench/api/node/extHost.api.impl';
+import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape, IExtHostContext } from './extHost.protocol';
 import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes, ExtensionActivationReason, ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
-import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { realpath } from 'fs';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 
 class ExtensionMemento implements IExtensionMemento {
 
-	private _id: string;
-	private _shared: boolean;
-	private _storage: ExtHostStorage;
+	private readonly _id: string;
+	private readonly _shared: boolean;
+	private readonly _storage: ExtHostStorage;
 
-	private _init: TPromise<ExtensionMemento>;
+	private readonly _init: TPromise<ExtensionMemento>;
 	private _value: { [n: string]: any; };
 
 	constructor(id: string, global: boolean, storage: ExtHostStorage) {
@@ -113,35 +113,36 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	private readonly _barrier: Barrier;
 	private readonly _registry: ExtensionDescriptionRegistry;
-	private readonly _threadService: ExtHostThreadService;
 	private readonly _mainThreadTelemetry: MainThreadTelemetryShape;
 	private readonly _storage: ExtHostStorage;
 	private readonly _storagePath: ExtensionStoragePath;
 	private readonly _proxy: MainThreadExtensionServiceShape;
 	private readonly _logService: ILogService;
+	private readonly _extHostLogService: ExtHostLogService;
 	private _activator: ExtensionsActivator;
 	private _extensionPathIndex: TPromise<TernarySearchTree<IExtensionDescription>>;
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(initData: IInitData,
-		threadService: ExtHostThreadService,
+		extHostContext: IExtHostContext,
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
-		logService: ILogService
+		logService: ILogService,
+		environmentService: IEnvironmentService
 	) {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
-		this._threadService = threadService;
 		this._logService = logService;
-		this._mainThreadTelemetry = threadService.get(MainContext.MainThreadTelemetry);
-		this._storage = new ExtHostStorage(threadService);
+		this._mainThreadTelemetry = extHostContext.getProxy(MainContext.MainThreadTelemetry);
+		this._storage = new ExtHostStorage(extHostContext);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
-		this._proxy = this._threadService.get(MainContext.MainThreadExtensionService);
+		this._proxy = extHostContext.getProxy(MainContext.MainThreadExtensionService);
 		this._activator = null;
+		this._extHostLogService = new ExtHostLogService(environmentService);
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		const apiFactory = createApiFactory(initData, threadService, extHostWorkspace, extHostConfiguration, this, logService);
+		const apiFactory = createApiFactory(initData, extHostContext, extHostWorkspace, extHostConfiguration, this, logService);
 
 		initializeExtensionApi(this, apiFactory).then(() => {
 
@@ -222,16 +223,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				if (!ext.main) {
 					return undefined;
 				}
-				return new TPromise((resolve, reject) => {
-					realpath(ext.extensionFolderPath, (err, path) => {
-						if (err) {
-							reject(err);
-						} else {
-							tree.set(path, ext);
-							resolve(void 0);
-						}
-					});
-				});
+				return realpath(ext.extensionFolderPath).then(value => tree.set(value, ext));
+
 			});
 			this._extensionPathIndex = TPromise.join(extensions).then(() => tree);
 		}
@@ -341,13 +334,18 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			workspaceState.whenReady,
 			this._storagePath.whenReady
 		]).then(() => {
+			const that = this;
 			return Object.freeze(<IExtensionContext>{
 				globalState,
 				workspaceState,
 				subscriptions: [],
 				get extensionPath() { return extensionDescription.extensionFolderPath; },
 				storagePath: this._storagePath.value(extensionDescription),
-				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionFolderPath, relativePath); }
+				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionFolderPath, relativePath); },
+				get logger() {
+					checkProposedApiEnabled(extensionDescription);
+					return that._extHostLogService.getExtLogger(extensionDescription.id);
+				}
 			});
 		});
 	}

@@ -40,12 +40,14 @@ suite('SnippetsService', function () {
 	setup(function () {
 		modeService = new ModeServiceImpl();
 		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
 			'barTest',
 			'bar',
 			'',
 			'barCodeSnippet',
 			''
 		), new Snippet(
+			['fooLang'],
 			'bazzTest',
 			'bazz',
 			'',
@@ -81,6 +83,7 @@ suite('SnippetsService', function () {
 
 	test('Cannot use "<?php" as user snippet prefix anymore, #26275', function () {
 		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
 			'',
 			'<?php',
 			'',
@@ -113,6 +116,7 @@ suite('SnippetsService', function () {
 	test('No user snippets in suggestions, when inside the code, #30508', function () {
 
 		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
 			'',
 			'foo',
 			'',
@@ -133,6 +137,7 @@ suite('SnippetsService', function () {
 
 	test('SnippetSuggest - ensure extension snippets come last ', function () {
 		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
 			'second',
 			'second',
 			'',
@@ -140,6 +145,7 @@ suite('SnippetsService', function () {
 			'',
 			true
 		), new Snippet(
+			['fooLang'],
 			'first',
 			'first',
 			'',

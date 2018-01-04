@@ -11,7 +11,7 @@ import { ExtHostTreeViews } from 'vs/workbench/api/node/extHostTreeViews';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainThreadTreeViewsShape, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { TreeDataProvider, TreeItem } from 'vscode';
-import { TestThreadService } from './testThreadService';
+import { TestRPCProtocol } from './testRPCProtocol';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThreadCommands';
@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TreeItemCollapsibleState, ITreeItem } from 'vs/workbench/common/views';
-import { NoopLogService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostTreeView', function () {
 
@@ -56,7 +56,7 @@ suite('ExtHostTreeView', function () {
 		labels = {};
 		nodes = {};
 
-		let threadService = new TestThreadService();
+		let rpcProtocol = new TestRPCProtocol();
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
 		{
@@ -64,9 +64,9 @@ suite('ExtHostTreeView', function () {
 			inst = instantiationService;
 		}
 
-		threadService.setTestInstance(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
+		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 		target = new RecordingShape();
-		testObject = new ExtHostTreeViews(target, new ExtHostCommands(threadService, new ExtHostHeapService(), new NoopLogService()));
+		testObject = new ExtHostTreeViews(target, new ExtHostCommands(rpcProtocol, new ExtHostHeapService(), new NullLogService()));
 		onDidChangeTreeNode = new Emitter<{ key: string }>();
 		onDidChangeTreeKey = new Emitter<string>();
 		testObject.registerTreeDataProvider('testNodeTreeProvider', aNodeTreeDataProvider());

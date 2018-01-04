@@ -42,17 +42,7 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 		commandManager.register(new ApplyCodeActionCommand(client));
 	}
 
-	public provideCodeActions(
-		_document: vscode.TextDocument,
-		_range: vscode.Range,
-		_context: vscode.CodeActionContext,
-		_token: vscode.CancellationToken
-	) {
-		// Uses provideCodeActions2 instead
-		return [];
-	}
-
-	public async provideCodeActions2(
+	public async provideCodeActions(
 		document: vscode.TextDocument,
 		range: vscode.Range,
 		context: vscode.CodeActionContext,
@@ -103,16 +93,15 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 			.filter(code => supportedActions[code]));
 	}
 
-	private getCommandForAction(action: Proto.CodeAction): vscode.CodeAction {
-		return {
-			title: action.description,
-			edits: getEditForCodeAction(this.client, action),
-			command: action.commands ? {
+	private getCommandForAction(tsAction: Proto.CodeAction): vscode.CodeAction {
+		const codeAction = new vscode.CodeAction(tsAction.description, getEditForCodeAction(this.client, tsAction));
+		if (tsAction.commands) {
+			codeAction.command = {
 				command: ApplyCodeActionCommand.ID,
-				arguments: [action],
-				title: action.description
-			} : undefined,
-			diagnostics: []
-		};
+				arguments: [tsAction],
+				title: tsAction.description
+			};
+		}
+		return codeAction;
 	}
 }

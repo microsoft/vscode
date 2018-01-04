@@ -30,7 +30,7 @@ function isAvailable(): TPromise<boolean> {
 
 class InstallAction extends Action {
 
-	static ID = 'workbench.action.installCommandLine';
+	static readonly ID = 'workbench.action.installCommandLine';
 	static LABEL = nls.localize('install', "Install '{0}' command in PATH", product.applicationName);
 
 	constructor(
@@ -111,7 +111,7 @@ class InstallAction extends Action {
 
 class UninstallAction extends Action {
 
-	static ID = 'workbench.action.uninstallCommandLine';
+	static readonly ID = 'workbench.action.uninstallCommandLine';
 	static LABEL = nls.localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName);
 
 	constructor(

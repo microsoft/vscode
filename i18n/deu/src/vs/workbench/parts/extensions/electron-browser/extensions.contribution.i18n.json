@@ -7,9 +7,11 @@
 	"extensionsCommands": "Erweiterungen verwalten",
 	"galleryExtensionsCommands": "Katalogerweiterungen installieren",
 	"extension": "Erweiterung",
+	"runtimeExtension": "Laufende Erweiterungen",
 	"extensions": "Erweiterungen",
 	"view": "Anzeigen",
 	"developer": "Entwickler",
 	"extensionsConfigurationTitle": "Erweiterungen",
-	"extensionsAutoUpdate": "Erweiterungen automatisch aktualisieren"
+	"extensionsAutoUpdate": "Erweiterungen automatisch aktualisieren",
+	"extensionsIgnoreRecommendations": "Bei TRUE werden Benachrichtigungen für Erweiterungsempfehlungen nicht mehr angezeigt."
 }

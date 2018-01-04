@@ -10,6 +10,7 @@ import { DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import URI from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
 import { getPathLabel } from 'vs/base/common/labels';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export class ElementsDragAndDropData implements _.IDragAndDropData {
 
@@ -116,7 +117,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 		// Apply some datatransfer types to allow for dragging the element outside of the application
 		const resource = this.toResource(source);
 		if (resource) {
-			originalEvent.dataTransfer.setData('text/plain', getPathLabel(resource));
+			originalEvent.dataTransfer.setData(DataTransfers.TEXT, getPathLabel(resource));
 		}
 	}
 }

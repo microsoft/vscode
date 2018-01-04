@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/model';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/editorCommon';
 

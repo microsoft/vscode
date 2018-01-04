@@ -140,7 +140,7 @@ export class RefreshPreviewCommand implements Command {
 		} else {
 			// update all generated md documents
 			for (const document of vscode.workspace.textDocuments) {
-				if (document.uri.scheme === 'markdown') {
+				if (document.uri.scheme === MDDocumentContentProvider.scheme) {
 					this.contentProvider.update(document.uri);
 				}
 			}
@@ -263,6 +263,16 @@ export class OpenDocumentLinkCommand implements Command {
 					return editor.revealRange(
 						new vscode.Range(line, 0, line, 0),
 						vscode.TextEditorRevealType.AtTop);
+				}
+
+				const lineNumberFragment = args.fragment.match(/^L(\d+)$/);
+				if (lineNumberFragment) {
+					const line = +lineNumberFragment[1] - 1;
+					if (!isNaN(line)) {
+						return editor.revealRange(
+							new vscode.Range(line, 0, line, 0),
+							vscode.TextEditorRevealType.AtTop);
+					}
 				}
 			}
 		};

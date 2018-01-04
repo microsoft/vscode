@@ -31,6 +31,7 @@
 	"minimap.maxColumn": "Hazırlanacak mini haritanın azami genişliğini belirli sayıda sütunla sınırla",
 	"find.seedSearchStringFromSelection": "Bulma Araç Çubuğu'ndaki arama metninin, düzenleyicideki seçili alandan beslenmesini denetler",
 	"find.autoFindInSelection": "Seçimde bul işaretçisinin, editördeki metnin birden çok karakteri veya satırı seçildiğinde açılmasını denetler.",
+	"find.globalFindClipboard": "macOS'da Bulma Aracı'nın paylaşılan panoyu okuyup okumamasını veya değiştirip değiştirmemesini denetler",
 	"wordWrap.off": "Satırlar hiçbir zaman bir sonraki satıra kaydırılmayacak.",
 	"wordWrap.on": "Satırlar görüntü alanı genişliğinde bir sonraki satıra kaydırılacak.",
 	"wordWrap.wordWrapColumn": "Satırlar `editor.wordWrapColumn` değerinde bir sonraki satıra kaydırılacak.",

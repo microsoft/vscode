@@ -6,14 +6,15 @@
 'use strict';
 
 import * as path from 'path';
-import { ILogService, LogLevel, NoopLogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, NullLogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RotatingLogger, setAsyncMode } from 'spdlog';
 
-export function createLogService(processName: string, environmentService: IEnvironmentService): ILogService {
+export function createLogService(processName: string, environmentService: IEnvironmentService, logsSubfolder?: string): ILogService {
 	try {
 		setAsyncMode(8192, 2000);
-		const logfilePath = path.join(environmentService.logsPath, `${processName}.log`);
+		const logsDirPath = logsSubfolder ? path.join(environmentService.logsPath, logsSubfolder) : environmentService.logsPath;
+		const logfilePath = path.join(logsDirPath, `${processName}.log`);
 		const logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
 		logger.setLevel(0);
 
@@ -21,7 +22,7 @@ export function createLogService(processName: string, environmentService: IEnvir
 	} catch (e) {
 		console.error(e);
 	}
-	return new NoopLogService();
+	return new NullLogService();
 }
 
 class SpdLogService implements ILogService {

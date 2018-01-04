@@ -15,7 +15,6 @@ import { once } from 'vs/base/common/functional';
 import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
 import errors = require('vs/base/common/errors');
-import { isString } from 'vs/base/common/types';
 import { IAction, ActionRunner as BaseActionRunner, IActionRunner } from 'vs/base/common/actions';
 import comparers = require('vs/base/common/comparers');
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -23,7 +22,6 @@ import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
@@ -56,6 +54,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/workbench/browser/editor';
 import { relative } from 'path';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -139,100 +138,11 @@ export class FileDataSource implements IDataSource {
 	}
 }
 
-export class FileActionProvider extends ContributableActionProvider {
-	private state: FileViewletState;
-
-	constructor(state: any) {
-		super();
-
-		this.state = state;
-	}
-
-	public hasActions(tree: ITree, stat: FileStat): boolean {
-		if (stat instanceof NewStatPlaceholder) {
-			return false;
-		}
-
-		return super.hasActions(tree, stat);
-	}
-
-	public getActions(tree: ITree, stat: FileStat): TPromise<IAction[]> {
-		if (stat instanceof NewStatPlaceholder) {
-			return TPromise.as([]);
-		}
-
-		return super.getActions(tree, stat);
-	}
-
-	public hasSecondaryActions(tree: ITree, stat: FileStat | Model): boolean {
-		if (stat instanceof NewStatPlaceholder) {
-			return false;
-		}
-
-		return super.hasSecondaryActions(tree, stat);
-	}
-
-	public getSecondaryActions(tree: ITree, stat: FileStat | Model): TPromise<IAction[]> {
-		if (stat instanceof NewStatPlaceholder) {
-			return TPromise.as([]);
-		}
-
-		return super.getSecondaryActions(tree, stat);
-	}
-
-	public runAction(tree: ITree, stat: FileStat, action: IAction, context?: any): TPromise<any>;
-	public runAction(tree: ITree, stat: FileStat, actionID: string, context?: any): TPromise<any>;
-	public runAction(tree: ITree, stat: FileStat, arg: any, context: any = {}): TPromise<any> {
-		context = objects.mixin({
-			viewletState: this.state,
-			stat
-		}, context);
-
-		if (!isString(arg)) {
-			const action = <IAction>arg;
-			if (action.enabled) {
-				return action.run(context);
-			}
-
-			return null;
-		}
-
-		const id = <string>arg;
-		let promise = this.hasActions(tree, stat) ? this.getActions(tree, stat) : TPromise.as([]);
-
-		return promise.then((actions: IAction[]) => {
-			for (let i = 0, len = actions.length; i < len; i++) {
-				if (actions[i].id === id && actions[i].enabled) {
-					return actions[i].run(context);
-				}
-			}
-
-			promise = this.hasSecondaryActions(tree, stat) ? this.getSecondaryActions(tree, stat) : TPromise.as([]);
-
-			return promise.then((actions: IAction[]) => {
-				for (let i = 0, len = actions.length; i < len; i++) {
-					if (actions[i].id === id && actions[i].enabled) {
-						return actions[i].run(context);
-					}
-				}
-
-				return null;
-			});
-		});
-	}
-}
-
 export class FileViewletState implements IFileViewletState {
-	private _actionProvider: FileActionProvider;
 	private editableStats: ResourceMap<IEditableData>;
 
 	constructor() {
-		this._actionProvider = new FileActionProvider(this);
 		this.editableStats = new ResourceMap<IEditableData>();
-	}
-
-	public get actionProvider(): FileActionProvider {
-		return this._actionProvider;
 	}
 
 	public getEditableData(stat: FileStat): IEditableData {
@@ -373,7 +283,8 @@ export class FileRenderer implements IRenderer {
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
-				this.state.actionProvider.runAction(tree, stat, editableData.action, { value: inputBox.value });
+				// TODO@Isidor check the context
+				editableData.action.run({ value: inputBox.value });
 			}
 
 			const restoreFocus = document.activeElement === inputBox.inputElement; // https://github.com/Microsoft/vscode/issues/20269
@@ -415,10 +326,11 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 }
 
 // Explorer Controller
-export class FileController extends DefaultController {
+export class FileController extends DefaultController implements IDisposable {
 	private state: FileViewletState;
 
 	private contributedContextMenu: IMenu;
+	private toDispose: IDisposable[];
 
 	constructor(state: FileViewletState,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -429,7 +341,9 @@ export class FileController extends DefaultController {
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ });
 
+		this.toDispose = [];
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
+		this.toDispose.push(this.contributedContextMenu);
 
 		this.state = state;
 	}
@@ -508,20 +422,14 @@ export class FileController extends DefaultController {
 
 		tree.setFocus(stat);
 
-		if (!this.state.actionProvider.hasSecondaryActions(tree, stat)) {
-			return true;
-		}
-
 		const anchor = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => {
-				return this.state.actionProvider.getSecondaryActions(tree, stat).then(actions => {
-					fillInActions(this.contributedContextMenu, stat instanceof FileStat ? { arg: stat.resource } : null, actions);
-					return actions;
-				});
+				const actions = [];
+				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : undefined, shouldForwardArgs: true }, actions);
+				return TPromise.as(actions);
 			},
-			getActionItem: this.state.actionProvider.getActionItem.bind(this.state.actionProvider, tree, stat),
 			getActionsContext: (event) => {
 				return {
 					viewletState: this.state,
@@ -551,6 +459,10 @@ export class FileController extends DefaultController {
 
 			this.editorService.openEditor({ resource: stat.resource, options }, options.sideBySide).done(null, errors.onUnexpectedError);
 		}
+	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
 	}
 }
 
@@ -793,10 +705,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		// Apply some datatransfer types to allow for dragging the element outside of the application
 		if (source) {
 			if (!source.isDirectory) {
-				originalEvent.dataTransfer.setData('DownloadURL', [MIME_BINARY, source.name, source.resource.toString()].join(':'));
+				originalEvent.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, source.name, source.resource.toString()].join(':'));
 			}
 
-			originalEvent.dataTransfer.setData('text/plain', getPathLabel(source.resource));
+			originalEvent.dataTransfer.setData(DataTransfers.TEXT, getPathLabel(source.resource));
 		}
 	}
 
@@ -913,18 +825,22 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			if (folders.length > 0) {
 
 				// If we are in no-workspace context, ask for confirmation to create a workspace
-				let confirmed = true;
+				let confirmedPromise = TPromise.wrap(true);
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-					confirmed = this.messageService.confirm({
+					confirmedPromise = this.messageService.confirm({
 						message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
 						type: 'question',
 						primaryButton: folders.length > 1 ? nls.localize('addFolders', "&&Add Folders") : nls.localize('addFolder', "&&Add Folder")
 					});
 				}
 
-				if (confirmed) {
-					return this.workspaceEditingService.addFolders(folders);
-				}
+				return confirmedPromise.then(confirmed => {
+					if (confirmed) {
+						return this.workspaceEditingService.addFolders(folders);
+					}
+
+					return void 0;
+				});
 			}
 
 			// Handle dropped files (only support FileStat as target)
@@ -1039,18 +955,20 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 							};
 
 							// Move with overwrite if the user confirms
-							if (this.messageService.confirm(confirm)) {
-								const targetDirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, targetResource, !isLinux /* ignorecase */));
+							return this.messageService.confirm(confirm).then(confirmed => {
+								if (confirmed) {
+									const targetDirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, targetResource, !isLinux /* ignorecase */));
 
-								// Make sure to revert all dirty in target first to be able to overwrite properly
-								return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
+									// Make sure to revert all dirty in target first to be able to overwrite properly
+									return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
 
-									// Then continue to do the move operation
-									return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
-								});
-							}
+										// Then continue to do the move operation
+										return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
+									});
+								}
 
-							return onError();
+								return onError();
+							});
 						}
 
 						return onError(error, true);

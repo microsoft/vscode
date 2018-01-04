@@ -9,7 +9,7 @@ import { TokenizationRegistry, IState, LanguageIdentifier, ColorId, FontStyle, M
 import { tokenizeToString, tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 	function toStr(pieces: { className: string; text: string }[]): string {
@@ -67,7 +67,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('tokenizeLineToHTML', () => {
 		const text = 'Ciao hello world!';
-		const lineTokens = [
+		const lineTokens = new ViewLineTokens([
 			new ViewLineToken(
 				4,
 				(
@@ -100,7 +100,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 					| ((FontStyle.Underline) << MetadataConsts.FONT_STYLE_OFFSET)
 				) >>> 0
 			)
-		];
+		]);
 		const colorMap = [null, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
 
 		assert.equal(

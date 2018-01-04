@@ -24,7 +24,7 @@ import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
@@ -38,7 +38,7 @@ import { scrollbarShadow, diffInserted, diffRemoved, defaultInsertColor, default
 import { Color } from 'vs/base/common/color';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/model';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import URI from 'vs/base/common/uri';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -361,14 +361,14 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._overviewDomElement.removeChild(this._originalOverviewRuler.getDomNode());
 			this._originalOverviewRuler.dispose();
 		}
-		this._originalOverviewRuler = this.originalEditor.createOverviewRuler('original diffOverviewRuler', 4, Number.MAX_VALUE);
+		this._originalOverviewRuler = this.originalEditor.createOverviewRuler('original diffOverviewRuler');
 		this._overviewDomElement.appendChild(this._originalOverviewRuler.getDomNode());
 
 		if (this._modifiedOverviewRuler) {
 			this._overviewDomElement.removeChild(this._modifiedOverviewRuler.getDomNode());
 			this._modifiedOverviewRuler.dispose();
 		}
-		this._modifiedOverviewRuler = this.modifiedEditor.createOverviewRuler('modified diffOverviewRuler', 4, Number.MAX_VALUE);
+		this._modifiedOverviewRuler = this.modifiedEditor.createOverviewRuler('modified diffOverviewRuler');
 		this._overviewDomElement.appendChild(this._modifiedOverviewRuler.getDomNode());
 
 		this._layoutOverviewRulers();
@@ -1594,6 +1594,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 	}
 
 	_getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+		const overviewZoneColor = this._removeColor.toString();
 
 		let result: IEditorDiffDecorations = {
 			decorations: [],
@@ -1614,16 +1615,10 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 					result.decorations.push(createDecoration(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE, DECORATIONS.charDeleteWholeLine));
 				}
 
-				let color = this._removeColor.toString();
-
 				result.overviewZones.push(new OverviewRulerZone(
 					lineChange.originalStartLineNumber,
 					lineChange.originalEndLineNumber,
-					editorCommon.OverviewRulerLane.Full,
-					0,
-					color,
-					color,
-					color
+					overviewZoneColor
 				));
 
 				if (lineChange.charChanges) {
@@ -1659,6 +1654,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 	}
 
 	_getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+		const overviewZoneColor = this._insertColor.toString();
 
 		let result: IEditorDiffDecorations = {
 			decorations: [],
@@ -1679,15 +1675,10 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 				if (!isChangeOrDelete(lineChange) || !lineChange.charChanges) {
 					result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, DECORATIONS.charInsertWholeLine));
 				}
-				let color = this._insertColor.toString();
 				result.overviewZones.push(new OverviewRulerZone(
 					lineChange.modifiedStartLineNumber,
 					lineChange.modifiedEndLineNumber,
-					editorCommon.OverviewRulerLane.Full,
-					0,
-					color,
-					color,
-					color
+					overviewZoneColor
 				));
 
 				if (lineChange.charChanges) {
@@ -1783,6 +1774,8 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 	}
 
 	_getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+		const overviewZoneColor = this._removeColor.toString();
+
 		let result: IEditorDiffDecorations = {
 			decorations: [],
 			overviewZones: []
@@ -1798,15 +1791,10 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 					options: DECORATIONS.lineDeleteMargin
 				});
 
-				let color = this._removeColor.toString();
 				result.overviewZones.push(new OverviewRulerZone(
 					lineChange.originalStartLineNumber,
 					lineChange.originalEndLineNumber,
-					editorCommon.OverviewRulerLane.Full,
-					0,
-					color,
-					color,
-					color
+					overviewZoneColor
 				));
 			}
 		}
@@ -1815,6 +1803,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 	}
 
 	_getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorDiffDecorations {
+		const overviewZoneColor = this._insertColor.toString();
 
 		let result: IEditorDiffDecorations = {
 			decorations: [],
@@ -1833,15 +1822,10 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 					options: (renderIndicators ? DECORATIONS.lineInsertWithSign : DECORATIONS.lineInsert)
 				});
 
-				let color = this._insertColor.toString();
 				result.overviewZones.push(new OverviewRulerZone(
 					lineChange.modifiedStartLineNumber,
 					lineChange.modifiedEndLineNumber,
-					editorCommon.OverviewRulerLane.Full,
-					0,
-					color,
-					color,
-					color
+					overviewZoneColor
 				));
 
 				if (lineChange.charChanges) {
@@ -1973,6 +1957,12 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 		) >>> 0;
 
+		const tokens = new Uint32Array(2);
+		tokens[0] = lineContent.length;
+		tokens[1] = defaultMetadata;
+
+		const lineTokens = new LineTokens(tokens, lineContent);
+
 		sb.appendASCIIString('<div class="view-line');
 		if (decorations.length === 0) {
 			// No char changes
@@ -1987,7 +1977,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			lineContent,
 			originalModel.mightContainRTL(),
 			0,
-			[new ViewLineToken(lineContent.length, defaultMetadata)],
+			lineTokens,
 			actualDecorations,
 			tabSize,
 			config.fontInfo.spaceWidth,

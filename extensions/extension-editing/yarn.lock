@@ -20,11 +20,9 @@ entities@~1.1.1:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/entities/-/entities-1.1.1.tgz#6e5c2d0a5621b5dadaecef80b90edfb5cd7772f0"
 
-jsonc-parser@^0.3.1:
-  version "0.3.1"
-  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-0.3.1.tgz#6ebf5c75224368d4b07ef4c26f9434e657472e95"
-  dependencies:
-    vscode-nls "^2.0.2"
+jsonc-parser@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.0.tgz#ddcc864ae708e60a7a6dd36daea00172fa8d9272"
 
 linkify-it@^2.0.0:
   version "2.0.3"
@@ -60,6 +58,6 @@ uc.micro@^1.0.1, uc.micro@^1.0.3:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/uc.micro/-/uc.micro-1.0.3.tgz#7ed50d5e0f9a9fb0a573379259f2a77458d50192"
 
-vscode-nls@^2.0.1, vscode-nls@^2.0.2:
+vscode-nls@^2.0.1:
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-2.0.2.tgz#808522380844b8ad153499af5c3b03921aea02da"

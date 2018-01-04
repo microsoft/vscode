@@ -6,10 +6,35 @@
 import { Diagnostic, DiagnosticCollection, languages, Uri } from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
 
+class DiagnosticSet {
+	private _map: ObjectMap<Diagnostic[]> = Object.create(null);
+
+	public set(
+		file: Uri,
+		diagnostics: Diagnostic[]
+	) {
+		this._map[this.key(file)] = diagnostics;
+	}
+
+	public get(
+		file: Uri
+	): Diagnostic[] {
+		return this._map[this.key(file)] || [];
+	}
+
+	public clear(): void {
+		this._map = Object.create(null);
+	}
+
+	private key(file: Uri): string {
+		return file.toString(true);
+	}
+}
+
 export default class DiagnosticsManager {
 
-	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
-	private semanticDiagnostics: ObjectMap<Diagnostic[]>;
+	private readonly syntaxDiagnostics: DiagnosticSet;
+	private readonly semanticDiagnostics: DiagnosticSet;
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private _validate: boolean = true;
 
@@ -17,8 +42,8 @@ export default class DiagnosticsManager {
 		language: string,
 		private readonly client: ITypeScriptServiceClient
 	) {
-		this.syntaxDiagnostics = Object.create(null);
-		this.semanticDiagnostics = Object.create(null);
+		this.syntaxDiagnostics = new DiagnosticSet();
+		this.semanticDiagnostics = new DiagnosticSet();
 		this.currentDiagnostics = languages.createDiagnosticCollection(language);
 	}
 
@@ -28,8 +53,8 @@ export default class DiagnosticsManager {
 
 	public reInitialize(): void {
 		this.currentDiagnostics.clear();
-		this.syntaxDiagnostics = Object.create(null);
-		this.semanticDiagnostics = Object.create(null);
+		this.syntaxDiagnostics.clear();
+		this.semanticDiagnostics.clear();
 	}
 
 	public set validate(value: boolean) {
@@ -43,12 +68,12 @@ export default class DiagnosticsManager {
 	}
 
 	public syntaxDiagnosticsReceived(file: Uri, syntaxDiagnostics: Diagnostic[]): void {
-		this.syntaxDiagnostics[this.key(file)] = syntaxDiagnostics;
+		this.syntaxDiagnostics.set(file, syntaxDiagnostics);
 		this.updateCurrentDiagnostics(file);
 	}
 
 	public semanticDiagnosticsReceived(file: Uri, semanticDiagnostics: Diagnostic[]): void {
-		this.semanticDiagnostics[this.key(file)] = semanticDiagnostics;
+		this.semanticDiagnostics.set(file, semanticDiagnostics);
 		this.updateCurrentDiagnostics(file);
 	}
 
@@ -60,17 +85,13 @@ export default class DiagnosticsManager {
 		this.currentDiagnostics.delete(this.client.asUrl(file));
 	}
 
-	private key(file: Uri): string {
-		return file.toString(true);
-	}
-
 	private updateCurrentDiagnostics(file: Uri) {
 		if (!this._validate) {
 			return;
 		}
 
-		const semanticDiagnostics = this.semanticDiagnostics[this.key(file)] || [];
-		const syntaxDiagnostics = this.syntaxDiagnostics[this.key(file)] || [];
+		const semanticDiagnostics = this.semanticDiagnostics.get(file);
+		const syntaxDiagnostics = this.syntaxDiagnostics.get(file);
 		this.currentDiagnostics.set(file, semanticDiagnostics.concat(syntaxDiagnostics));
 	}
 }

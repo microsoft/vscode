@@ -24,6 +24,7 @@ import _ = require('vs/base/parts/tree/browser/tree');
 import { KeyCode } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDomNodePagePosition } from 'vs/base/browser/dom';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export interface IRow {
 	element: HTMLElement;
@@ -825,7 +826,7 @@ export class TreeView extends HeightMap {
 
 	public getScrollPosition(): number {
 		const height = this.getTotalHeight() - this.viewHeight;
-		return height <= 0 ? 0 : this.scrollTop / height;
+		return height <= 0 ? 1 : this.scrollTop / height;
 	}
 
 	public setScrollPosition(pos: number): void {
@@ -1291,7 +1292,7 @@ export class TreeView extends HeightMap {
 		}
 
 		e.dataTransfer.effectAllowed = 'copyMove';
-		e.dataTransfer.setData('URL', item.uri);
+		e.dataTransfer.setData(DataTransfers.URL, item.uri);
 		if (e.dataTransfer.setDragImage) {
 			let label: string;
 
