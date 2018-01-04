@@ -31,8 +31,38 @@ class ApplyCodeActionCommand implements Command {
 	}
 }
 
-export default class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
+class SupportedCodeActionProvider {
 	private _supportedCodeActions?: Thenable<NumberSet>;
+
+	public constructor(
+		private readonly client: ITypeScriptServiceClient
+	) { }
+
+	public async getSupportedActionsForContext(context: vscode.CodeActionContext): Promise<Set<number>> {
+		const supportedActions = await this.supportedCodeActions;
+		return new Set(context.diagnostics
+			.map(diagnostic => +diagnostic.code)
+			.filter(code => supportedActions[code]));
+	}
+
+	private get supportedCodeActions(): Thenable<NumberSet> {
+		if (!this._supportedCodeActions) {
+			this._supportedCodeActions = this.client.execute('getSupportedCodeFixes', null, undefined)
+				.then(response => response.body || [])
+				.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
+				.then(codes =>
+					codes.reduce((obj, code) => {
+						obj[code] = true;
+						return obj;
+					}, Object.create(null)));
+		}
+		return this._supportedCodeActions;
+	}
+}
+
+export default class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
+
+	private readonly supportedCodeActionProvider: SupportedCodeActionProvider;
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -40,6 +70,7 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 		commandManager: CommandManager
 	) {
 		commandManager.register(new ApplyCodeActionCommand(client));
+		this.supportedCodeActionProvider = new SupportedCodeActionProvider(client);
 	}
 
 	public async provideCodeActions(
@@ -57,7 +88,7 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 			return [];
 		}
 
-		const supportedActions = await this.getSupportedActionsForContext(context);
+		const supportedActions = await this.supportedCodeActionProvider.getSupportedActionsForContext(context);
 		if (!supportedActions.size) {
 			return [];
 		}
@@ -70,27 +101,6 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 		};
 		const response = await this.client.execute('getCodeFixes', args, token);
 		return (response.body || []).map(action => this.getCommandForAction(action));
-	}
-
-	private get supportedCodeActions(): Thenable<NumberSet> {
-		if (!this._supportedCodeActions) {
-			this._supportedCodeActions = this.client.execute('getSupportedCodeFixes', null, undefined)
-				.then(response => response.body || [])
-				.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
-				.then(codes =>
-					codes.reduce((obj, code) => {
-						obj[code] = true;
-						return obj;
-					}, Object.create(null)));
-		}
-		return this._supportedCodeActions;
-	}
-
-	private async getSupportedActionsForContext(context: vscode.CodeActionContext): Promise<Set<number>> {
-		const supportedActions = await this.supportedCodeActions;
-		return new Set(context.diagnostics
-			.map(diagnostic => +diagnostic.code)
-			.filter(code => supportedActions[code]));
 	}
 
 	private getCommandForAction(tsAction: Proto.CodeAction): vscode.CodeAction {
