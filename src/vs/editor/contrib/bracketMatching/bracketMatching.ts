@@ -18,7 +18,7 @@ import { registerEditorAction, registerEditorContribution, ServicesAccessor, Edi
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
-import { ModelDecorationOptions } from 'vs/editor/common/model/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class SelectBracketAction extends EditorAction {

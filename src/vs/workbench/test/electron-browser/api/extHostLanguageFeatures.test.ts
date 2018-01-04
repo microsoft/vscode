@@ -11,7 +11,7 @@ import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
-import { Model as EditorModel } from 'vs/editor/common/model/model';
+import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
 import { TestRPCProtocol } from './testRPCProtocol';

@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { FindMatch, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
 import { getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
@@ -22,7 +22,7 @@ suite('TextModelSearch', () => {
 		assert.deepEqual(actual, new FindMatch(expectedRange, expectedMatches));
 	}
 
-	function _assertFindMatches(model: Model, searchParams: SearchParams, expectedMatches: FindMatch[]): void {
+	function _assertFindMatches(model: TextModel, searchParams: SearchParams, expectedMatches: FindMatch[]): void {
 		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), false, 1000);
 		assert.deepEqual(actual, expectedMatches, 'findMatches OK');
 
@@ -52,12 +52,12 @@ suite('TextModelSearch', () => {
 		let expectedMatches = expectedRanges.map(entry => new FindMatch(entry, null));
 		let searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
 
-		let model = Model.createFromString(text);
+		let model = TextModel.createFromString(text);
 		_assertFindMatches(model, searchParams, expectedMatches);
 		model.dispose();
 
 
-		let model2 = Model.createFromString(text);
+		let model2 = TextModel.createFromString(text);
 		model2.setEOL(EndOfLineSequence.CRLF);
 		_assertFindMatches(model2, searchParams, expectedMatches);
 		model2.dispose();
@@ -381,7 +381,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch without regex', () => {
-		let model = Model.createFromString('line line one\nline two\nthree');
+		let model = TextModel.createFromString('line line one\nline two\nthree');
 
 		let searchParams = new SearchParams('line', false, false, null);
 
@@ -404,7 +404,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch with beginning boundary regex', () => {
-		let model = Model.createFromString('line one\nline two\nthree');
+		let model = TextModel.createFromString('line one\nline two\nthree');
 
 		let searchParams = new SearchParams('^line', true, false, null);
 
@@ -424,7 +424,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch with beginning boundary regex and line has repetitive beginnings', () => {
-		let model = Model.createFromString('line line one\nline two\nthree');
+		let model = TextModel.createFromString('line line one\nline two\nthree');
 
 		let searchParams = new SearchParams('^line', true, false, null);
 
@@ -444,7 +444,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch with beginning boundary multiline regex and line has repetitive beginnings', () => {
-		let model = Model.createFromString('line line one\nline two\nline three\nline four');
+		let model = TextModel.createFromString('line line one\nline two\nline three\nline four');
 
 		let searchParams = new SearchParams('^line.*\\nline', true, false, null);
 
@@ -461,7 +461,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch with ending boundary regex', () => {
-		let model = Model.createFromString('one line line\ntwo line\nthree');
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('line$', true, false, null);
 
@@ -481,7 +481,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findMatches with capturing matches', () => {
-		let model = Model.createFromString('one line line\ntwo line\nthree');
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('(l(in)e)', true, false, null);
 
@@ -496,7 +496,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findMatches multiline with capturing matches', () => {
-		let model = Model.createFromString('one line line\ntwo line\nthree');
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
 
@@ -510,7 +510,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch with capturing matches', () => {
-		let model = Model.createFromString('one line line\ntwo line\nthree');
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('(l(in)e)', true, false, null);
 
@@ -521,7 +521,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findNextMatch multiline with capturing matches', () => {
-		let model = Model.createFromString('one line line\ntwo line\nthree');
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
 
@@ -532,7 +532,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findPreviousMatch with capturing matches', () => {
-		let model = Model.createFromString('one line line\ntwo line\nthree');
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('(l(in)e)', true, false, null);
 
@@ -543,7 +543,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('findPreviousMatch multiline with capturing matches', () => {
-		let model = Model.createFromString('one line line\ntwo line\nthree');
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
 
 		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
 
@@ -554,7 +554,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('\\n matches \\r\\n', () => {
-		let model = Model.createFromString('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
+		let model = TextModel.createFromString('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
 
 		assert.equal(model.getEOL(), '\r\n');
 
@@ -577,7 +577,7 @@ suite('TextModelSearch', () => {
 	});
 
 	test('\\r can never be found', () => {
-		let model = Model.createFromString('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
+		let model = TextModel.createFromString('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
 
 		assert.equal(model.getEOL(), '\r\n');
 

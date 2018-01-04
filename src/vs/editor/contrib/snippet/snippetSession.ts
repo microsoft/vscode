@@ -16,7 +16,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
 import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver } from './snippetVariables';
-import { ModelDecorationOptions } from 'vs/editor/common/model/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';

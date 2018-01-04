@@ -12,7 +12,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -28,10 +28,10 @@ suite('Editor - Range decorations', () => {
 
 	let instantiationService: TestInstantiationService;
 	let codeEditor: ICodeEditor;
-	let model: Model;
+	let model: TextModel;
 	let text: string;
 	let testObject: RangeHighlightDecorations;
-	let modelsToDispose: Model[] = [];
+	let modelsToDispose: TextModel[] = [];
 
 	setup(() => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
@@ -131,15 +131,15 @@ suite('Editor - Range decorations', () => {
 		assert.deepEqual([range], actuals);
 	});
 
-	function prepareActiveEditor(resource: string): Model {
+	function prepareActiveEditor(resource: string): TextModel {
 		let model = aModel(URI.file(resource));
 		codeEditor.setModel(model);
 		mockEditorService(model.uri);
 		return model;
 	}
 
-	function aModel(resource: URI, content: string = text): Model {
-		let model = Model.createFromString(content, Model.DEFAULT_CREATION_OPTIONS, null, resource);
+	function aModel(resource: URI, content: string = text): TextModel {
+		let model = TextModel.createFromString(content, TextModel.DEFAULT_CREATION_OPTIONS, null, resource);
 		modelsToDispose.push(model);
 		return model;
 	}
@@ -151,7 +151,7 @@ suite('Editor - Range decorations', () => {
 		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditorInput', editorInput);
 	}
 
-	function rangeHighlightDecorations(m: Model): IRange[] {
+	function rangeHighlightDecorations(m: TextModel): IRange[] {
 		let rangeHighlights: IRange[] = [];
 
 		for (let dec of m.getAllDecorations()) {

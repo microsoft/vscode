@@ -10,7 +10,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import URI from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextSource } from 'vs/editor/common/model/textSource';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
@@ -46,7 +46,7 @@ suite('ModelService', () => {
 
 	test('_computeEdits first line changed', function () {
 
-		const model = Model.createFromString(
+		const model = TextModel.createFromString(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -74,7 +74,7 @@ suite('ModelService', () => {
 
 	test('_computeEdits EOL changed', function () {
 
-		const model = Model.createFromString(
+		const model = TextModel.createFromString(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -100,7 +100,7 @@ suite('ModelService', () => {
 
 	test('_computeEdits EOL and other change 1', function () {
 
-		const model = Model.createFromString(
+		const model = TextModel.createFromString(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -129,7 +129,7 @@ suite('ModelService', () => {
 
 	test('_computeEdits EOL and other change 2', function () {
 
-		const model = Model.createFromString(
+		const model = TextModel.createFromString(
 			[
 				'package main',	// 1
 				'func foo() {',	// 2
@@ -271,7 +271,7 @@ suite('ModelService', () => {
 });
 
 function assertComputeEdits(lines1: string[], lines2: string[]): void {
-	const model = Model.createFromString(lines1.join('\n'));
+	const model = TextModel.createFromString(lines1.join('\n'));
 	const textSource = TextSource.fromString(lines2.join('\n'), DefaultEndOfLine.LF);
 
 	// compute required edits

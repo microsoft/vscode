@@ -17,7 +17,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeLensSymbol, Command } from 'vs/editor/common/modes';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeLensData } from './codelens';
-import { ModelDecorationOptions } from 'vs/editor/common/model/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';

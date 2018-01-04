@@ -29,7 +29,7 @@ import { IInstantiationService, optional } from 'vs/platform/instantiation/commo
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Model, ModelDecorationOptions } from 'vs/editor/common/model/model';
+import { TextModel, ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { PeekViewWidget } from './peekViewWidget';
@@ -577,7 +577,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _sash: VSash;
 	private _preview: ICodeEditor;
 	private _previewModelReference: IReference<ITextEditorModel>;
-	private _previewNotAvailableMessage: Model;
+	private _previewNotAvailableMessage: TextModel;
 	private _previewContainer: Builder;
 	private _messageContainer: Builder;
 
@@ -669,7 +669,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 			this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);
 			this._previewContainer = div.hide();
-			this._previewNotAvailableMessage = Model.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
+			this._previewNotAvailableMessage = TextModel.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
 		});
 
 		// sash

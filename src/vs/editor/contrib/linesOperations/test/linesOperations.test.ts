@@ -11,7 +11,7 @@ import { Handler, IModel, DefaultEndOfLine } from 'vs/editor/common/editorCommon
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction, SortLinesAscendingAction, SortLinesDescendingAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 
 suite('Editor Contrib - Line Operations', () => {
@@ -745,7 +745,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 	test('Bug 18276:[editor] Indentation broken when selection is empty', () => {
 
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'function baz() {'
 			].join('\n'),

@@ -8,7 +8,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { ICommand, TextModelResolvedOptions, IConfiguration, IModel, ScrollType } from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -155,7 +155,7 @@ export class CursorConfiguration {
 	}
 
 	public normalizeIndentation(str: string): string {
-		return Model.normalizeIndentation(str, this.tabSize, this.insertSpaces);
+		return TextModel.normalizeIndentation(str, this.tabSize, this.insertSpaces);
 	}
 
 	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] {

@@ -16,7 +16,7 @@ import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
@@ -359,7 +359,7 @@ export class ModelServiceImpl implements IModelService {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language, resource);
 		const rawTextSource = (typeof value === 'string' ? RawTextSource.fromString(value) : value);
-		let model: Model = new Model(rawTextSource, options, languageIdentifier, resource);
+		let model: TextModel = new TextModel(rawTextSource, options, languageIdentifier, resource);
 		let modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {

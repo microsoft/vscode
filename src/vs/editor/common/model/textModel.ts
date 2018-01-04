@@ -59,7 +59,7 @@ export interface ITextModelCreationData {
 	readonly options: editorCommon.TextModelResolvedOptions;
 }
 
-export class Model extends Disposable implements editorCommon.IModel, editorCommon.IEditableTextModel, editorCommon.ITextModelWithDecorations, editorCommon.ITokenizedModel, editorCommon.ITextModel {
+export class TextModel extends Disposable implements editorCommon.IModel, editorCommon.IEditableTextModel, editorCommon.ITextModelWithDecorations, editorCommon.ITokenizedModel, editorCommon.ITextModel {
 
 	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
 	private static readonly MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
@@ -73,8 +73,8 @@ export class Model extends Disposable implements editorCommon.IModel, editorComm
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 	};
 
-	public static createFromString(text: string, options: editorCommon.ITextModelCreationOptions = Model.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): Model {
-		return new Model(RawTextSource.fromString(text), options, languageIdentifier, uri);
+	public static createFromString(text: string, options: editorCommon.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): TextModel {
+		return new TextModel(RawTextSource.fromString(text), options, languageIdentifier, uri);
 	}
 
 	public static resolveCreationData(rawTextSource: IRawTextSource, options: editorCommon.ITextModelCreationOptions): ITextModelCreationData {
@@ -187,19 +187,19 @@ export class Model extends Disposable implements editorCommon.IModel, editorComm
 		}
 		this._attachedEditorCount = 0;
 
-		const textModelData = Model.resolveCreationData(rawTextSource, creationOptions);
+		const textModelData = TextModel.resolveCreationData(rawTextSource, creationOptions);
 
 		// !!! Make a decision in the ctor and permanently respect this decision !!!
 		// If a model is too large at construction time, it will never get tokenized,
 		// under no circumstances.
 		this._isTooLargeForTokenization = (
-			(textModelData.text.length > Model.MODEL_TOKENIZATION_LIMIT)
-			|| (textModelData.text.lines.length > Model.MANY_MANY_LINES)
+			(textModelData.text.length > TextModel.MODEL_TOKENIZATION_LIMIT)
+			|| (textModelData.text.lines.length > TextModel.MANY_MANY_LINES)
 		);
 
 		this._shouldSimplifyMode = (
 			this._isTooLargeForTokenization
-			|| (textModelData.text.length > Model.MODEL_SYNC_LIMIT)
+			|| (textModelData.text.length > TextModel.MODEL_SYNC_LIMIT)
 		);
 
 		this._options = new editorCommon.TextModelResolvedOptions(textModelData.options);
@@ -553,12 +553,12 @@ export class Model extends Disposable implements editorCommon.IModel, editorComm
 		if (firstNonWhitespaceIndex === -1) {
 			firstNonWhitespaceIndex = str.length;
 		}
-		return Model._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex), tabSize, insertSpaces) + str.substring(firstNonWhitespaceIndex);
+		return TextModel._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex), tabSize, insertSpaces) + str.substring(firstNonWhitespaceIndex);
 	}
 
 	public normalizeIndentation(str: string): string {
 		this._assertNotDisposed();
-		return Model.normalizeIndentation(str, this._options.tabSize, this._options.insertSpaces);
+		return TextModel.normalizeIndentation(str, this._options.tabSize, this._options.insertSpaces);
 	}
 
 	public getOneIndent(): string {

@@ -7,11 +7,11 @@
 import * as assert from 'assert';
 import { ModelBuilder, computeHash } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
 import { ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import * as strings from 'vs/base/common/strings';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 
-export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptions = Model.DEFAULT_CREATION_OPTIONS): string {
+export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): string {
 	let expectedTextSource = RawTextSource.fromString(chunks.join(''));
 	let expectedHash = computeHash(expectedTextSource);
 

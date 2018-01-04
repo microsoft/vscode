@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
 import { ITokenizationSupport, TokenizationRegistry, LanguageId, LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
@@ -74,9 +74,9 @@ suite('TextModelWithTokens', () => {
 			brackets: brackets
 		});
 
-		let model = new Model(
+		let model = new TextModel(
 			RawTextSource.fromString(contents.join('\n')),
-			Model.DEFAULT_CREATION_OPTIONS,
+			TextModel.DEFAULT_CREATION_OPTIONS,
 			languageIdentifier
 		);
 
@@ -149,12 +149,12 @@ suite('TextModelWithTokens', () => {
 
 suite('TextModelWithTokens - bracket matching', () => {
 
-	function isNotABracket(model: Model, lineNumber: number, column: number) {
+	function isNotABracket(model: TextModel, lineNumber: number, column: number) {
 		let match = model.matchBracket(new Position(lineNumber, column));
 		assert.equal(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
 	}
 
-	function isBracket2(model: Model, testPosition: Position, expected: [Range, Range]): void {
+	function isBracket2(model: TextModel, testPosition: Position, expected: [Range, Range]): void {
 		let actual = model.matchBracket(testPosition);
 		assert.deepEqual(actual, expected, 'matches brackets at ' + testPosition);
 	}
@@ -181,7 +181,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 		let text =
 			')]}{[(' + '\n' +
 			')]}{[(';
-		let model = Model.createFromString(text, undefined, languageIdentifier);
+		let model = TextModel.createFromString(text, undefined, languageIdentifier);
 
 		isNotABracket(model, 1, 1);
 		isNotABracket(model, 1, 2);
@@ -209,7 +209,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 			'}, bar: {hallo: [{' + '\n' +
 			'}, {' + '\n' +
 			'}]}}';
-		let model = Model.createFromString(text, undefined, languageIdentifier);
+		let model = TextModel.createFromString(text, undefined, languageIdentifier);
 
 		let brackets: [Position, Range, Range][] = [
 			[new Position(1, 11), new Range(1, 11, 1, 12), new Range(5, 4, 5, 5)],
@@ -262,7 +262,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 suite('TextModelWithTokens regression tests', () => {
 
 	test('Microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
-		function assertViewLineTokens(model: Model, lineNumber: number, forceTokenization: boolean, expected: ViewLineToken[]): void {
+		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: ViewLineToken[]): void {
 			if (forceTokenization) {
 				model.forceTokenization(lineNumber);
 			}
@@ -310,7 +310,7 @@ suite('TextModelWithTokens regression tests', () => {
 		let registration1 = TokenizationRegistry.register(LANG_ID1, tokenizationSupport);
 		let registration2 = TokenizationRegistry.register(LANG_ID2, tokenizationSupport);
 
-		let model = Model.createFromString('A model with\ntwo lines');
+		let model = TextModel.createFromString('A model with\ntwo lines');
 
 		assertViewLineTokens(model, 1, true, [createViewLineToken(12, 1)]);
 		assertViewLineTokens(model, 2, true, [createViewLineToken(9, 1)]);
@@ -349,7 +349,7 @@ suite('TextModelWithTokens regression tests', () => {
 			]
 		});
 
-		let model = Model.createFromString([
+		let model = TextModel.createFromString([
 			'Imports System',
 			'Imports System.Collections.Generic',
 			'',
@@ -372,7 +372,7 @@ suite('TextModelWithTokens regression tests', () => {
 suite('TextModel.getLineIndentGuide', () => {
 	function assertIndentGuides(lines: [number, string][]): void {
 		let text = lines.map(l => l[1]).join('\n');
-		let model = Model.createFromString(text);
+		let model = TextModel.createFromString(text);
 
 		let actualIndents = model.getLinesIndentGuides(1, model.getLineCount());
 

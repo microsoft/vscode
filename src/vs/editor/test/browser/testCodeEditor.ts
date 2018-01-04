@@ -13,7 +13,7 @@ import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorC
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -145,9 +145,9 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 
 export function withTestCodeEditor(text: string[], options: TestCodeEditorCreationOptions, callback: (editor: TestCodeEditor, cursor: Cursor) => void): void {
 	// create a model if necessary and remember it in order to dispose it.
-	let modelToDispose: Model = null;
+	let modelToDispose: TextModel = null;
 	if (!options.model) {
-		modelToDispose = Model.createFromString(text.join('\n'));
+		modelToDispose = TextModel.createFromString(text.join('\n'));
 		options.model = modelToDispose;
 	}
 

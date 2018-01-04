@@ -38,7 +38,7 @@ import { scrollbarShadow, diffInserted, diffRemoved, defaultInsertColor, default
 import { Color } from 'vs/base/common/color';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
-import { ModelDecorationOptions } from 'vs/editor/common/model/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import URI from 'vs/base/common/uri';
 import { IMessageService } from 'vs/platform/message/common/message';

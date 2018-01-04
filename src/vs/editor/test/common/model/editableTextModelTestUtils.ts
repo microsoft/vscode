@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
 import { Position } from 'vs/editor/common/core/position';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
@@ -45,7 +45,7 @@ const enum AssertDocumentLineMappingDirection {
 	PositionToOffset
 }
 
-function assertOneDirectionLineMapping(model: Model, direction: AssertDocumentLineMappingDirection, msg: string): void {
+function assertOneDirectionLineMapping(model: TextModel, direction: AssertDocumentLineMappingDirection, msg: string): void {
 	let allText = model.getValue();
 
 	let line = 1, column = 1, previousIsCarriageReturn = false;
@@ -74,14 +74,14 @@ function assertOneDirectionLineMapping(model: Model, direction: AssertDocumentLi
 	}
 }
 
-function assertLineMapping(model: Model, msg: string): void {
+function assertLineMapping(model: TextModel, msg: string): void {
 	assertOneDirectionLineMapping(model, AssertDocumentLineMappingDirection.PositionToOffset, msg);
 	assertOneDirectionLineMapping(model, AssertDocumentLineMappingDirection.OffsetToPosition, msg);
 }
 
 
-export function assertSyncedModels(text: string, callback: (model: Model, assertMirrorModels: () => void) => void, setup: (model: Model) => void = null): void {
-	var model = new Model(RawTextSource.fromString(text), Model.DEFAULT_CREATION_OPTIONS, null);
+export function assertSyncedModels(text: string, callback: (model: TextModel, assertMirrorModels: () => void) => void, setup: (model: TextModel) => void = null): void {
+	var model = new TextModel(RawTextSource.fromString(text), TextModel.DEFAULT_CREATION_OPTIONS, null);
 	model.setEOL(editorCommon.EndOfLineSequence.LF);
 	assertLineMapping(model, 'model');
 

@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionProviderRegistry, LanguageIdentifier, CodeActionProvider, Command, WorkspaceEdit, IResourceEdit } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
@@ -17,7 +17,7 @@ suite('QuickFix', () => {
 
 	let langId = new LanguageIdentifier('fooLang', 17);
 	let uri = URI.parse('untitled:path');
-	let model: Model;
+	let model: TextModel;
 	let disposables: IDisposable[] = [];
 	let testData = {
 		diagnostics: {
@@ -79,7 +79,7 @@ suite('QuickFix', () => {
 	};
 
 	setup(function () {
-		model = Model.createFromString('test1\ntest2\ntest3', undefined, langId, uri);
+		model = TextModel.createFromString('test1\ntest2\ntest3', undefined, langId, uri);
 		disposables = [model];
 	});
 
