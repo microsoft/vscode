@@ -74,11 +74,9 @@ class LanguageProvider {
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
 
-		client.onReady().then(async () => {
+		client.onReady(async () => {
 			await this.registerProviders(client, commandManager, typingsStatus);
 			this.bufferSyncSupport.listen();
-		}, () => {
-			// Nothing to do here. The client did show a message;
 		});
 	}
 
@@ -319,7 +317,7 @@ export class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost
 		}
 
 		this.client.ensureServiceStarted();
-		this.client.onReady().then(() => {
+		this.client.onReady(() => {
 			if (!this.client.apiVersion.has230Features()) {
 				return;
 			}

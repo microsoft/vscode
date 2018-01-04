@@ -70,11 +70,13 @@ function createLazyClientHost(
 			commandManager,
 			logDirectoryProvider);
 		context.subscriptions.push(clientHost);
-		const host = clientHost;
-		clientHost.serviceClient.onReady().then(() => {
-			context.subscriptions.push(ProjectStatus.create(host.serviceClient, host.serviceClient.telemetryReporter, path => new Promise<boolean>(resolve => setTimeout(() => resolve(host.handles(path)), 750)), context.workspaceState));
-		}, () => {
-			// Nothing to do here. The client did show a message;
+		clientHost.serviceClient.onReady(() => {
+			context.subscriptions.push(
+				ProjectStatus.create(
+					clientHost.serviceClient,
+					clientHost.serviceClient.telemetryReporter,
+					path => new Promise<boolean>(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
+					context.workspaceState));
 		});
 		return clientHost;
 	});
