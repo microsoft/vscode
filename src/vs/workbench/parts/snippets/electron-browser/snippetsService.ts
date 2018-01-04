@@ -241,7 +241,7 @@ export class SnippetSuggestion implements ISuggestion {
 		overwriteBefore: number
 	) {
 		this.label = snippet.prefix;
-		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description, snippet.source);
+		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.body;
 		this.overwriteBefore = overwriteBefore;
 		this.sortText = `${snippet.isFromExtension ? 'z' : 'a'}-${snippet.prefix}`;
