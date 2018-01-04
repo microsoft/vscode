@@ -22,28 +22,33 @@
 			</div>
 
 			<div class="input-group">
-					<label for="issue-title">Issue Title</label>
-					<small id="similar-issues">
-						<!-- To be dynamically filled -->
-					</small>
-					<input id="issue-title" type="text">
+				<label for="issue-title">Issue Title <span class="required-input">*</span></label>
+				<div class="validation-error hidden">A title is required.</div>
+				<input id="issue-title" type="text" required>
+				<small id="similar-issues">
+					<!-- To be dynamically filled -->
+				</small>
 			</div>
 
 			<div class="input-group">
 				<div class="two-col">
-					<label for="vscode-version">Filing against VS Code version</label>
+					<label for="vscode-version">Filing against VS Code version <span class="required-input">*</span></label>
 					<input id="vscode-version" type="text" readonly/>
 				</div>
 				<div class="two-col">
-						<label for="os">OS Version</label>
-						<input id="os" type="text" readonly/>
+					<label for="os">OS Version <span class="required-input">*</span></label>
+					<input id="os" type="text" readonly/>
 				</div>
 			</div>
 
 			<div id="block-container">
 				<div class="block block-system">
 					<details>
-						<summary>System Info</summary>
+						<summary>System Info
+							<input type="checkbox" id="includeSystemInfo" checked>
+								<label class="caption" for="includeSystemInfo">Send data</label>
+							</input>
+						</summary>
 						<div class="block-info">
 							<!-- To be dynamically filled -->
 						</div>
@@ -51,7 +56,11 @@
 				</div>
 				<div class="block block-process">
 					<details>
-						<summary>Processes</summary>
+						<summary>Processes
+							<input type="checkbox" id="includeProcessInfo" checked>
+								<label class="caption" for="includeProcessInfo">Send data</label>
+							</input>
+						</summary>
 						<div class="block-info">
 							<!-- To be dynamically filled -->
 						</div>
@@ -59,7 +68,11 @@
 				</div>
 				<div class="block block-workspace">
 					<details>
-						<summary>Workspace Stats</summary>
+						<summary>Workspace Stats
+							<input type="checkbox" id="includeWorkspaceInfo" checked>
+								<label class="caption" for="includeWorkspaceInfo">Send data</label>
+							</input>
+						</summary>
 						<pre class="block-info">
 							<code>
 								<!-- To be dynamically filled -->
@@ -79,17 +92,15 @@
 								GitHub-flavored Markdown is supported.
 								After submitting, you will still be able to edit your issue.
 							</small>
-						<textarea name="description" id="" cols="100" rows="15"></textarea>
+						<div class="validation-error hidden">A description is required.</div>
+						<textarea name="description" id="description" cols="100" rows="15" required></textarea>
 					</div>
 				</div>
 			</div>
 
-			<button id="github-submit-btn" onclick="window.submit()">Preview GitHub Issue</button>
+			<button id="github-submit-btn" disabled>Loading data...</button>
 		</div>
 	</body>
 
 	<script src="index.js"></script>
-
-	<script>
-	</script>
 </html>

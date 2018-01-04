@@ -8,10 +8,12 @@
 }
 html {
 	font-family: 'Helvetica Neue', 'Helvetica', sans-serif;
+	color: #CCCCCC;
 }
 
 body {
 	margin: 0;
+	background-color: #1E1E1E;
 }
 
 .hidden {
@@ -46,17 +48,22 @@ pre code {
 #issue-type button {
 	margin-right: 16px;
 }
-button:hover,
-button.active {
+#github-submit-btn:hover:enabled,
+#github-submit-btn.active {
 	border: 1px solid #5cb85c;
-	background: #5cb85c;
+	background-color: #5cb85c;
 	color: #fff;
 }
-button:hover {
+button:hover:enabled {
 	opacity: .5;
+	cursor: pointer;
 }
 button.active {
 	opacity: 1;
+}
+
+button:disabled {
+	cursor: auto;
 }
 
 header {
@@ -75,6 +82,7 @@ header {
 #github-submit-btn {
 	float: right;
 	margin-top: 14px;
+	background-color: #fff
 }
 
 .two-col {
@@ -90,10 +98,31 @@ header {
 	margin-bottom: 1em;
 }
 
-label {
-	display: block;
-}
-
 select, input, textarea {
 	margin-top: 10px;
+}
+
+.required-input {
+	color: red;
+}
+
+.invalid-input {
+	border: 1px solid red;
+}
+
+.validation-error {
+	font-size: 12px;
+	font-weight: bold;
+	margin-top: 1em;
+}
+
+.caption {
+	display: inline-block;
+	font-size: 12px;
+}
+
+input[type="checkbox"] {
+	margin-left: 1em;
+	width: auto;
+	display: inline-block;
 }

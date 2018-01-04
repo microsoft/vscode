@@ -7,37 +7,31 @@
 
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { IIssueService } from 'vs/platform/issue/common/issue';
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow } from 'electron';
 import { ILaunchService } from 'vs/code/electron-main/launch';
 import { buildDiagnostics, DiagnosticInfo } from 'vs/code/electron-main/diagnostics';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class IssueService implements IIssueService {
 	_serviceBrand: any;
 	_issueWindow: BrowserWindow;
 
 	constructor(
-		@ILaunchService private launchService: ILaunchService
+		@ILaunchService private launchService: ILaunchService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) { }
 
 	openReporter(): TPromise<void> {
-		ipcMain.on('issueInfoRequest', event => {
-			this.getStatusInfo().then(msg => {
-				event.sender.send('issueInfoResponse', msg);
-			});
+		this._issueWindow = new BrowserWindow({
+			width: 800,
+			height: 900
 		});
-		ipcMain.on('extensionInfoRequest', event => {
-			// this.getExtensions().then(extensions => {
-			// 	event.sender.send('extensionInfoResponse', extensions);
-			// });
-		});
-		this._issueWindow = new BrowserWindow({});
 		this._issueWindow.loadURL(this.getIssueReporterPath());
-		this._issueWindow.webContents.openDevTools();
 
 		return TPromise.as(null);
 	}
 
-	getStatusInfo(): Promise<DiagnosticInfo> {
+	getStatusInfo(): TPromise<DiagnosticInfo> {
 		return new Promise((resolve, reject) => {
 			this.launchService.getMainProcessInfo().then(info => {
 				buildDiagnostics(info)
@@ -51,12 +45,12 @@ export class IssueService implements IIssueService {
 		});
 	}
 
-	getRunningExtensions(): TPromise<any> {
-		return Promise.as(null);
-		// return this.extManagementService.getInstalled();
-	}
-
 	private getIssueReporterPath() {
-		return `${require.toUrl('vs/issue/electron-browser/index.html')}`;
+		const config = {
+			appRoot: this.environmentService.appRoot,
+			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
+			windowId: this._issueWindow.id
+		};
+		return `${require.toUrl('vs/issue/electron-browser/index.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}
 }
