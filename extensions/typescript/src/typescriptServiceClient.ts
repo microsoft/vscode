@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import * as electron from './utils/electron';
-import { Reader } from './utils/wireProtocol';
+import { Reader, ICallback } from './utils/wireProtocol';
 
 import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, Event, commands, env } from 'vscode';
 import * as Proto from './protocol';
@@ -109,6 +109,36 @@ class RequestQueue {
 	}
 }
 
+export class ForkedTsServerProcess {
+	constructor(
+		private childProcess: cp.ChildProcess
+	) { }
+
+	public onError(cb: (err: Error) => void): void {
+		this.childProcess.on('error', cb);
+	}
+
+	public onExit(cb: (err: any) => void): void {
+		this.childProcess.on('exit', cb);
+	}
+
+	public write(serverRequest: Proto.Request) {
+		this.childProcess.stdin.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
+	}
+
+	public createReader(
+		callback: ICallback<Proto.Response>,
+		onError: (error: any) => void = () => ({})
+	) {
+		// tslint:disable-next-line:no-unused-expression
+		new Reader<Proto.Response>(this.childProcess.stdout, callback, onError);
+	}
+
+	public kill() {
+		this.childProcess.kill();
+	}
+}
+
 export default class TypeScriptServiceClient implements ITypeScriptServiceClient {
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${fileSchemes.walkThroughSnippet}:`;
 
@@ -122,7 +152,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private tracer: Tracer;
 	public readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
-	private servicePromise: Thenable<cp.ChildProcess> | null;
+	private servicePromise: Thenable<ForkedTsServerProcess> | null;
 	private lastError: Error | null;
 	private lastStart: number;
 	private numberRestarts: number;
@@ -209,10 +239,8 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 
 	public dispose() {
 		if (this.servicePromise) {
-			this.servicePromise.then(cp => {
-				if (cp) {
-					cp.kill();
-				}
+			this.servicePromise.then(childProcess => {
+				childProcess.kill();
 			}).then(undefined, () => void 0);
 		}
 
@@ -231,13 +259,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		};
 
 		if (this.servicePromise) {
-			this.servicePromise = this.servicePromise.then(cp => {
-				if (cp) {
-					this.info('Killing TS Server');
-					this.isRestarting = true;
-					cp.kill();
-					this.resetClientVersion();
-				}
+			this.servicePromise = this.servicePromise.then(childProcess => {
+				this.info('Killing TS Server');
+				this.isRestarting = true;
+				childProcess.kill();
+				this.resetClientVersion();
 			}).then(start);
 		} else {
 			start();
@@ -288,24 +314,24 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
-	private service(): Thenable<cp.ChildProcess> {
+	private service(): Thenable<ForkedTsServerProcess> {
 		if (this.servicePromise) {
 			return this.servicePromise;
 		}
 		if (this.lastError) {
-			return Promise.reject<cp.ChildProcess>(this.lastError);
+			return Promise.reject<ForkedTsServerProcess>(this.lastError);
 		}
 		this.startService();
 		if (this.servicePromise) {
 			return this.servicePromise;
 		}
-		return Promise.reject<cp.ChildProcess>(new Error('Could not create TS service'));
+		return Promise.reject<ForkedTsServerProcess>(new Error('Could not create TS service'));
 	}
 
-	public startService(resendModels: boolean = false): Promise<cp.ChildProcess> {
+	public startService(resendModels: boolean = false): Promise<ForkedTsServerProcess> {
 		let currentVersion = this.versionPicker.currentVersion;
 
-		return this.servicePromise = new Promise<cp.ChildProcess>(async (resolve, reject) => {
+		return this.servicePromise = new Promise<ForkedTsServerProcess>(async (resolve, reject) => {
 			this.info(`Using tsserver from: ${currentVersion.path}`);
 			if (!fs.existsSync(currentVersion.tsServerPath)) {
 				window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', currentVersion.path));
@@ -340,9 +366,10 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 					}
 
 					this.info('Started TSServer');
+					const handle = new ForkedTsServerProcess(childProcess);
 					this.lastStart = Date.now();
 
-					childProcess.on('error', (err: Error) => {
+					handle.onError((err: Error) => {
 						this.lastError = err;
 						this.error('TSServer errored with error.', err);
 						if (this.tsServerLogFile) {
@@ -354,7 +381,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 						this.logTelemetry('tsserver.error');
 						this.serviceExited(false);
 					});
-					childProcess.on('exit', (code: any) => {
+					handle.onExit((code: any) => {
 						if (code === null || typeof code === 'undefined') {
 							this.info('TSServer exited');
 						} else {
@@ -374,14 +401,12 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 						this.isRestarting = false;
 					});
 
-					// tslint:disable-next-line:no-unused-expression
-					new Reader<Proto.Response>(
-						childProcess.stdout,
-						(msg) => { this.dispatchMessage(msg); },
+					handle.createReader(
+						msg => { this.dispatchMessage(msg); },
 						error => { this.error('ReaderError', error); });
 
 					this._onReady!.resolve();
-					resolve(childProcess);
+					resolve(handle);
 					this._onTsServerStarted.fire();
 
 					this.serviceStarted(resendModels);
@@ -675,7 +700,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 		this.service()
 			.then((childProcess) => {
-				childProcess.stdin.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
+				childProcess.write(serverRequest);
 			})
 			.then(undefined, err => {
 				const callback = this.callbacks.fetch(serverRequest.seq);
