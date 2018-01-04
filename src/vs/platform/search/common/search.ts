@@ -95,6 +95,7 @@ export interface IPatternInfo {
 	wordSeparators?: string;
 	isMultiline?: boolean;
 	isCaseSensitive?: boolean;
+	isSmartCase?: boolean;
 }
 
 export interface IFileMatch {
@@ -179,6 +180,7 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 		 */
 		useIgnoreFiles: boolean;
 		followSymlinks: boolean;
+		smartCase: boolean;
 	};
 	editor: {
 		wordSeparators: string;

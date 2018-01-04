@@ -423,7 +423,11 @@ export function fixDriveC(path: string): string {
 
 function getRgArgs(config: IRawSearch): IRgGlobResult {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
-	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
+	if (config.contentPattern.isSmartCase) {
+		args.push('--smart-case');
+	} else {
+		args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
+	}
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {

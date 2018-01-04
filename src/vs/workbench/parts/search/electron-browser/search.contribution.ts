@@ -421,6 +421,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('search.followSymlinks', "Controls whether to follow symlinks while searching."),
 			'default': true
+		},
+		'search.smartCase': {
+			'type': 'boolean',
+			'description': nls.localize('search.smartCase', "Searches case-insensitively if the pattern is all lowercase, otherwise, searches case-sensitively"),
+			'default': false
 		}
 	}
 });
