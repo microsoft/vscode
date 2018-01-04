@@ -98,6 +98,7 @@ import 'vs/workbench/parts/execution/electron-browser/execution.contribution';
 import 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import 'vs/workbench/parts/snippets/electron-browser/insertSnippet';
+import 'vs/workbench/parts/snippets/electron-browser/configureSnippets';
 import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 
 import 'vs/workbench/parts/themes/electron-browser/themes.contribution';

@@ -315,6 +315,13 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 }
 
 /**
+ * Replacement for `WinJS.Promise.timeout`.
+ */
+export function timeout(n: number): Promise<void> {
+	return new Promise(resolve => setTimeout(resolve, n));
+}
+
+/**
  * Returns a new promise that joins the provided promise. Upon completion of
  * the provided promise the provided function will always be called. This
  * method is comparable to a try-finally code block.
