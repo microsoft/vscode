@@ -69,7 +69,6 @@ class CallbackMap {
 
 interface RequestItem {
 	request: Proto.Request;
-	promise: Promise<any> | null;
 	callbacks: CallbackItem | null;
 }
 
@@ -635,10 +634,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		const request = this.requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request: request,
-			promise: null,
 			callbacks: null
 		};
-		let result: Promise<any> = Promise.resolve(null);
+		let result: Promise<any>;
 		if (expectsResult) {
 			let wasCancelled = false;
 			result = new Promise<any>((resolve, reject) => {
@@ -657,8 +655,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				}
 				throw err;
 			});
+		} else {
+			result = Promise.resolve(null);
 		}
-		requestInfo.promise = result;
 		this.requestQueue.push(requestInfo);
 		this.sendNextRequests();
 
