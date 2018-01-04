@@ -13,7 +13,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IModel, IModelDecorationsChangeAccessor, TrackedRangeStickiness, OverviewRulerLane, IIdentifiedSingleEditOperation } from 'vs/editor/common/model/model';
+import { ITextModel, IModelDecorationsChangeAccessor, TrackedRangeStickiness, OverviewRulerLane, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 /**
  * A builder and helper for edit operations for a command.
@@ -78,7 +78,7 @@ export interface ICommand {
 	 * @param model The model the command will execute on.
 	 * @param builder A helper to collect the needed edit operations and to track selections.
 	 */
-	getEditOperations(model: IModel, builder: IEditOperationBuilder): void;
+	getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void;
 
 	/**
 	 * Compute the cursor state after the edit operations were applied.
@@ -86,7 +86,7 @@ export interface ICommand {
 	 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
 	 * @return The cursor state after the command executed.
 	 */
-	computeCursorState(model: IModel, helper: ICursorStateComputerData): Selection;
+	computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection;
 }
 
 /**
@@ -96,11 +96,11 @@ export interface IDiffEditorModel {
 	/**
 	 * Original model.
 	 */
-	original: IModel;
+	original: ITextModel;
 	/**
 	 * Modified model.
 	 */
-	modified: IModel;
+	modified: ITextModel;
 }
 
 /**
@@ -185,7 +185,7 @@ export interface IEditorAction {
 	run(): TPromise<void>;
 }
 
-export type IEditorModel = IModel | IDiffEditorModel;
+export type IEditorModel = ITextModel | IDiffEditorModel;
 
 /**
  * A (serializable) state of the cursors.
@@ -447,7 +447,7 @@ export interface IEditor {
 	 * Change the decorations. All decorations added through this changeAccessor
 	 * will get the ownerId of the editor (meaning they will not show up in other
 	 * editors).
-	 * @see IModel.changeDecorations
+	 * @see `ITextModel.changeDecorations`
 	 * @internal
 	 */
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;

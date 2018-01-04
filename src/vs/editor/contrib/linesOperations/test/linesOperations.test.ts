@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
-import { IModel, DefaultEndOfLine } from 'vs/editor/common/model/model';
+import { ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction, SortLinesAscendingAction, SortLinesDescendingAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { Cursor } from 'vs/editor/common/controller/cursor';
@@ -663,7 +663,7 @@ suite('Editor Contrib - Line Operations', () => {
 	});
 
 	test('InsertLineBeforeAction', function () {
-		function testInsertLineBefore(lineNumber: number, column: number, callback: (model: IModel, cursor: Cursor) => void): void {
+		function testInsertLineBefore(lineNumber: number, column: number, callback: (model: ITextModel, cursor: Cursor) => void): void {
 			const TEXT = [
 				'First line',
 				'Second line',
@@ -704,7 +704,7 @@ suite('Editor Contrib - Line Operations', () => {
 	});
 
 	test('InsertLineAfterAction', () => {
-		function testInsertLineAfter(lineNumber: number, column: number, callback: (model: IModel, cursor: Cursor) => void): void {
+		function testInsertLineAfter(lineNumber: number, column: number, callback: (model: ITextModel, cursor: Cursor) => void): void {
 			const TEXT = [
 				'First line',
 				'Second line',

@@ -20,7 +20,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, IModel } from 'vs/editor/common/model/model';
+import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
 
@@ -285,7 +285,7 @@ export class CodeLens {
 		});
 	}
 
-	computeIfNecessary(model: IModel): ICodeLensData[] {
+	computeIfNecessary(model: ITextModel): ICodeLensData[] {
 		this._contentWidget.updateVisibility(); // trigger the fade in
 		if (!this._contentWidget.isVisible()) {
 			return null;

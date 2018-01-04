@@ -12,7 +12,7 @@ import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/node/product';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
@@ -254,7 +254,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._modelService.getModels().forEach(model => this._suggest(model));
 	}
 
-	private _suggest(model: IModel): void {
+	private _suggest(model: ITextModel): void {
 		const uri = model.uri;
 
 		if (!uri || uri.scheme !== Schemas.file) {

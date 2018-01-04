@@ -11,7 +11,7 @@ import Event from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModel as EditorIModel } from 'vs/editor/common/model/model';
+import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { Position } from 'vs/editor/common/core/position';
 import { ISuggestion } from 'vs/editor/common/modes';

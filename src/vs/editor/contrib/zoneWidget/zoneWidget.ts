@@ -18,7 +18,7 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { TrackedRangeStickiness } from 'vs/editor/common/model/model';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
 
 export interface IOptions {
 	showFrame?: boolean;

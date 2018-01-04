@@ -10,7 +10,7 @@ import { TimeoutTimer } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel, IWordAtPosition } from 'vs/editor/common/model/model';
+import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { ISuggestSupport, SuggestRegistry, StandardTokenType, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
@@ -65,7 +65,7 @@ export class LineContext {
 	readonly leadingWord: IWordAtPosition;
 	readonly auto: boolean;
 
-	constructor(model: IModel, position: Position, auto: boolean) {
+	constructor(model: ITextModel, position: Position, auto: boolean) {
 		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 		this.leadingWord = model.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;

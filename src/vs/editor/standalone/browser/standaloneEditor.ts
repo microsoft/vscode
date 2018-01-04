@@ -37,7 +37,7 @@ import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IModel, OverviewRulerLane, EndOfLinePreference, DefaultEndOfLine, EndOfLineSequence, TrackedRangeStickiness, TextModelResolvedOptions, FindMatch } from 'vs/editor/common/model/model';
+import { ITextModel, OverviewRulerLane, EndOfLinePreference, DefaultEndOfLine, EndOfLineSequence, TrackedRangeStickiness, TextModelResolvedOptions, FindMatch } from 'vs/editor/common/model';
 
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
@@ -145,7 +145,7 @@ export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: ID
 	return new DiffNavigator(diffEditor, opts);
 }
 
-function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): IModel {
+function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): ITextModel {
 	return StaticServices.modelService.get().createModel(value, mode, uri);
 }
 
@@ -153,7 +153,7 @@ function doCreateModel(value: string, mode: TPromise<modes.IMode>, uri?: URI): I
  * Create a new editor model.
  * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
  */
-export function createModel(value: string, language?: string, uri?: URI): IModel {
+export function createModel(value: string, language?: string, uri?: URI): ITextModel {
 	value = value || '';
 
 	if (!language) {
@@ -173,14 +173,14 @@ export function createModel(value: string, language?: string, uri?: URI): IModel
 /**
  * Change the language for a model.
  */
-export function setModelLanguage(model: IModel, language: string): void {
+export function setModelLanguage(model: ITextModel, language: string): void {
 	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().getOrCreateMode(language));
 }
 
 /**
  * Set the markers for a model.
  */
-export function setModelMarkers(model: IModel, owner: string, markers: IMarkerData[]): void {
+export function setModelMarkers(model: ITextModel, owner: string, markers: IMarkerData[]): void {
 	if (model) {
 		StaticServices.markerService.get().changeOne(owner, model.uri, markers);
 	}
@@ -198,14 +198,14 @@ export function getModelMarkers(filter: { owner?: string, resource?: URI, take?:
 /**
  * Get the model that has `uri` if it exists.
  */
-export function getModel(uri: URI): IModel {
+export function getModel(uri: URI): ITextModel {
 	return StaticServices.modelService.get().getModel(uri);
 }
 
 /**
  * Get all the created models.
  */
-export function getModels(): IModel[] {
+export function getModels(): ITextModel[] {
 	return StaticServices.modelService.get().getModels();
 }
 
@@ -213,7 +213,7 @@ export function getModels(): IModel[] {
  * Emitted when a model is created.
  * @event
  */
-export function onDidCreateModel(listener: (model: IModel) => void): IDisposable {
+export function onDidCreateModel(listener: (model: ITextModel) => void): IDisposable {
 	return StaticServices.modelService.get().onModelAdded(listener);
 }
 
@@ -221,7 +221,7 @@ export function onDidCreateModel(listener: (model: IModel) => void): IDisposable
  * Emitted right before a model is disposed.
  * @event
  */
-export function onWillDisposeModel(listener: (model: IModel) => void): IDisposable {
+export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisposable {
 	return StaticServices.modelService.get().onModelRemoved(listener);
 }
 
@@ -229,7 +229,7 @@ export function onWillDisposeModel(listener: (model: IModel) => void): IDisposab
  * Emitted when a different language is set to a model.
  * @event
  */
-export function onDidChangeModelLanguage(listener: (e: { readonly model: IModel; readonly oldLanguage: string; }) => void): IDisposable {
+export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string; }) => void): IDisposable {
 	return StaticServices.modelService.get().onModelModeChanged((e) => {
 		listener({
 			model: e.model,
@@ -263,7 +263,7 @@ export function colorize(text: string, languageId: string, options: IColorizerOp
 /**
  * Colorize a line in a model.
  */
-export function colorizeModelLine(model: IModel, lineNumber: number, tabSize: number = 4): string {
+export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }
 

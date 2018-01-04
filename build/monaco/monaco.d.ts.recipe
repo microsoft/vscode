@@ -62,7 +62,7 @@ export interface ICommandHandler {
 #include(vs/editor/standalone/browser/colorizer): IColorizerOptions, IColorizerElementOptions
 #include(vs/base/common/scrollable): ScrollbarVisibility
 #include(vs/platform/theme/common/themeService): ThemeColor
-#includeAll(vs/editor/common/model/model;LanguageIdentifier=>languages.LanguageIdentifier): IScrollEvent
+#includeAll(vs/editor/common/model;LanguageIdentifier=>languages.LanguageIdentifier): IScrollEvent
 #includeAll(vs/editor/common/editorCommon;editorOptions.=>): IScrollEvent
 #includeAll(vs/editor/common/model/textModelEvents):
 #includeAll(vs/editor/common/controller/cursorEvents):
@@ -71,7 +71,8 @@ export interface ICommandHandler {
 #include(vs/editor/common/config/fontInfo): FontInfo, BareFontInfo
 
 //compatibility:
-export type IReadOnlyModel = IModel;
+export type IReadOnlyModel = ITextModel;
+export type IModel = ITextModel;
 }
 
 declare module monaco.languages {

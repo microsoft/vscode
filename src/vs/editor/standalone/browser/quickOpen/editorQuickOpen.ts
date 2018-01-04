@@ -14,7 +14,7 @@ import { registerEditorContribution, IActionOptions, EditorAction } from 'vs/edi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration } from 'vs/editor/common/model/model';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;

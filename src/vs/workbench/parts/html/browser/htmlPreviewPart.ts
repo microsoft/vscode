@@ -7,7 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
@@ -38,7 +38,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 	private _webviewDisposables: IDisposable[];
 
 	private _modelRef: IReference<ITextEditorModel>;
-	public get model(): IModel { return this._modelRef && this._modelRef.object.textEditorModel; }
+	public get model(): ITextModel { return this._modelRef && this._modelRef.object.textEditorModel; }
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
 

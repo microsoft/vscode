@@ -26,7 +26,7 @@ import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { EndOfLinePreference } from 'vs/editor/common/model/model';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;

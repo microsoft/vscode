@@ -57,7 +57,7 @@ import { toGlobPattern, toLanguageSelector } from 'vs/workbench/api/node/extHost
 import { ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
-import { OverviewRulerLane } from 'vs/editor/common/model/model';
+import { OverviewRulerLane } from 'vs/editor/common/model';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;

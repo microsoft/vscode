@@ -25,7 +25,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -198,7 +198,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 
-export function provideReferences(model: IModel, position: Position): TPromise<Location[]> {
+export function provideReferences(model: ITextModel, position: Position): TPromise<Location[]> {
 
 	// collect references from all providers
 	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {

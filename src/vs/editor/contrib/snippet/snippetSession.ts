@@ -7,7 +7,7 @@
 
 import 'vs/css!./snippetSession';
 import { getLeadingWhitespace } from 'vs/base/common/strings';
-import { IModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/model/model';
+import { ITextModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TextmateSnippet, Placeholder, Choice, SnippetParser } from './snippetParser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -228,7 +228,7 @@ export class OneSnippet {
 
 export class SnippetSession {
 
-	static adjustWhitespace(model: IModel, position: IPosition, template: string): string {
+	static adjustWhitespace(model: ITextModel, position: IPosition, template: string): string {
 
 		const line = model.getLineContent(position.lineNumber);
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
@@ -241,7 +241,7 @@ export class SnippetSession {
 		return templateLines.join(model.getEOL());
 	}
 
-	static adjustSelection(model: IModel, selection: Selection, overwriteBefore: number, overwriteAfter: number): Selection {
+	static adjustSelection(model: ITextModel, selection: Selection, overwriteBefore: number, overwriteAfter: number): Selection {
 		if (overwriteBefore !== 0 || overwriteAfter !== 0) {
 			// overwrite[Before|After] is compute using the position, not the whole
 			// selection. therefore we adjust the selection around that position

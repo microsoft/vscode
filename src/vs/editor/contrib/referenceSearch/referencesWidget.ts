@@ -41,7 +41,7 @@ import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/st
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import URI from 'vs/base/common/uri';
-import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model/model';
+import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 class DecorationsManager implements IDisposable {
 

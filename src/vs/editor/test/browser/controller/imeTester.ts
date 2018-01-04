@@ -10,7 +10,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as browser from 'vs/base/browser/browser';
-import { EndOfLinePreference } from 'vs/editor/common/model/model';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 // To run this test, open imeTester.html
 

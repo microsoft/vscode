@@ -32,10 +32,10 @@ import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import 'vs/workbench/parts/search/electron-browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 
 const defaultSelector = { scheme: 'far' };
-const model: IModel = EditorModel.createFromString(
+const model: ITextModel = EditorModel.createFromString(
 	[
 		'This is the first line',
 		'This is the second line',

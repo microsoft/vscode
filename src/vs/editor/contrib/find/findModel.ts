@@ -22,7 +22,7 @@ import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry'
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModel, FindMatch, EndOfLinePreference } from 'vs/editor/common/model/model';
+import { ITextModel, FindMatch, EndOfLinePreference } from 'vs/editor/common/model';
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
@@ -148,7 +148,7 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private static _getSearchRange(model: IModel, findScope: Range): Range {
+	private static _getSearchRange(model: ITextModel, findScope: Range): Range {
 		let searchRange = model.getFullModelRange();
 
 		// If we have set now or before a find scope, use it for computing the search range

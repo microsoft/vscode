@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand, registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, FormattingOptions, TextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -28,7 +28,7 @@ export class NoProviderError extends Error {
 	}
 }
 
-export function getDocumentRangeFormattingEdits(model: IModel, range: Range, options: FormattingOptions): TPromise<TextEdit[], NoProviderError> {
+export function getDocumentRangeFormattingEdits(model: ITextModel, range: Range, options: FormattingOptions): TPromise<TextEdit[], NoProviderError> {
 
 	const providers = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 
@@ -49,7 +49,7 @@ export function getDocumentRangeFormattingEdits(model: IModel, range: Range, opt
 	})).then(() => result);
 }
 
-export function getDocumentFormattingEdits(model: IModel, options: FormattingOptions): TPromise<TextEdit[]> {
+export function getDocumentFormattingEdits(model: ITextModel, options: FormattingOptions): TPromise<TextEdit[]> {
 	const providers = DocumentFormattingEditProviderRegistry.ordered(model);
 
 	// try range formatters when no document formatter is registered
@@ -70,7 +70,7 @@ export function getDocumentFormattingEdits(model: IModel, options: FormattingOpt
 	})).then(() => result);
 }
 
-export function getOnTypeFormattingEdits(model: IModel, position: Position, ch: string, options: FormattingOptions): TPromise<TextEdit[]> {
+export function getOnTypeFormattingEdits(model: ITextModel, position: Position, ch: string, options: FormattingOptions): TPromise<TextEdit[]> {
 	const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
 	if (!support) {
 		return TPromise.as(undefined);

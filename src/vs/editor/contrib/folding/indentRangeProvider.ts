@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 import { computeIndentLevel } from 'vs/editor/common/model/modelLine';
 import { FoldingRanges, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';
@@ -41,7 +41,7 @@ export class RangesCollector {
 		}
 	}
 
-	public toIndentRanges(model: IModel) {
+	public toIndentRanges(model: ITextModel) {
 		if (this._length <= this._FoldingRangesLimit) {
 			// reverse and create arrays of the exact length
 			let startIndexes = new Uint32Array(this._length);
@@ -87,7 +87,7 @@ export class RangesCollector {
 
 interface PreviousRegion { indent: number; line: number; marker: boolean; }
 
-export function computeRanges(model: IModel, offSide: boolean, markers?: FoldingMarkers, FoldingRangesLimit = MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT): FoldingRanges {
+export function computeRanges(model: ITextModel, offSide: boolean, markers?: FoldingMarkers, FoldingRangesLimit = MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT): FoldingRanges {
 	const tabSize = model.getOptions().tabSize;
 	let result = new RangesCollector(FoldingRangesLimit);
 

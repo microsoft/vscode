@@ -435,7 +435,17 @@ export enum TrackedRangeStickiness {
 /**
  * A model.
  */
-export interface IModel {
+export interface ITextModel {
+
+	/**
+	 * Gets the resource associated with this editor model.
+	 */
+	readonly uri: URI;
+
+	/**
+	 * A unique identifier associated with this model.
+	 */
+	readonly id: string;
 
 	/**
 	 * If true, the text model might contain RTL.
@@ -682,11 +692,6 @@ export interface IModel {
 	 * @return The range where the previous match is. It is null if no previous match has been found.
 	 */
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): FindMatch;
-
-	/**
-	 * Gets the resource associated with this editor model.
-	 */
-	readonly uri: URI;
 
 	/**
 	 * Get the language associated with this model.
@@ -1018,11 +1023,6 @@ export interface IModel {
 	 * @event
 	 */
 	onWillDispose(listener: () => void): IDisposable;
-
-	/**
-	 * A unique identifier associated with this model.
-	 */
-	readonly id: string;
 
 	/**
 	 * Destroy this model. This will unbind the model from the mode

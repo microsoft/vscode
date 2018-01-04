@@ -18,7 +18,7 @@ import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/ed
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
-import { IModel, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model/model';
+import { ITextModel, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -481,7 +481,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Type the getModel() of IEditor.
 	 */
-	getModel(): IModel;
+	getModel(): ITextModel;
 
 	/**
 	 * Returns the current editor's configuration
@@ -496,13 +496,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * Get value of the current model attached to this editor.
-	 * @see IModel.getValue
+	 * @see `ITextModel.getValue`
 	 */
 	getValue(options?: { preserveBOM: boolean; lineEnding: string; }): string;
 
 	/**
 	 * Set the value of the current model attached to this editor.
-	 * @see IModel.setValue
+	 * @see `ITextModel.setValue`
 	 */
 	setValue(newValue: string): void;
 
@@ -590,7 +590,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
-	 * @see IModel.deltaDecorations
+	 * @see `ITextModel.deltaDecorations`
 	 */
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 

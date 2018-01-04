@@ -43,7 +43,7 @@ import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import URI from 'vs/base/common/uri';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, IModel } from 'vs/editor/common/model/model';
+import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -1872,7 +1872,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 
 class InlineViewZonesComputer extends ViewZonesComputer {
 
-	private originalModel: IModel;
+	private originalModel: ITextModel;
 	private modifiedEditorConfiguration: editorOptions.InternalEditorOptions;
 	private modifiedEditorTabSize: number;
 	private renderIndicators: boolean;
@@ -1947,7 +1947,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 	}
 
-	private renderOriginalLine(count: number, originalModel: IModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): void {
+	private renderOriginalLine(count: number, originalModel: ITextModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): void {
 		let lineContent = originalModel.getLineContent(lineNumber);
 
 		let actualDecorations = LineDecoration.filter(decorations, lineNumber, 1, lineContent.length + 1);

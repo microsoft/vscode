@@ -38,7 +38,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult } from 'vs/platform/message/common/message';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
@@ -1534,7 +1534,7 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 		@IModelService private modelService: IModelService
 	) { }
 
-	provideTextContent(resource: URI): TPromise<IModel> {
+	provideTextContent(resource: URI): TPromise<ITextModel> {
 		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.getOrCreateMode('text/plain'), resource);
 
 		return TPromise.as(model);

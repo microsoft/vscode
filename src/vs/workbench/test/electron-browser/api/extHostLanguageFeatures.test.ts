@@ -44,10 +44,10 @@ import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { IModel, EndOfLineSequence } from 'vs/editor/common/model/model';
+import { ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
 
 const defaultSelector = { scheme: 'far' };
-const model: IModel = EditorModel.createFromString(
+const model: ITextModel = EditorModel.createFromString(
 	[
 		'This is the first line',
 		'This is the second line',

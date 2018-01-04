@@ -12,7 +12,7 @@ import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/comm
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IEditor, IEditorViewState, IDiffEditorModel, ScrollType } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IModel } from 'vs/editor/common/model/model';
+import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -116,7 +116,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 			model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 		}
 
-		return model && types.isFunction((<IModel>model).getLineCount) ? (<IModel>model).getLineCount() : -1;
+		return model && types.isFunction((<ITextModel>model).getLineCount) ? (<ITextModel>model).getLineCount() : -1;
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {

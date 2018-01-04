@@ -25,7 +25,7 @@ import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorS
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ISingleEditOperation } from 'vs/editor/common/model/model';
+import { ISingleEditOperation } from 'vs/editor/common/model';
 
 
 function alertFormattingEdits(edits: ISingleEditOperation[]): void {

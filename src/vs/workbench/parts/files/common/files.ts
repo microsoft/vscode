@@ -14,7 +14,7 @@ import { ITextModelContentProvider } from 'vs/editor/common/services/resolverSer
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -143,7 +143,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	) {
 	}
 
-	public provideTextContent(resource: URI): TPromise<IModel> {
+	public provideTextContent(resource: URI): TPromise<ITextModel> {
 		const fileOnDiskResource = URI.file(resource.fsPath);
 
 		// Make sure our file from disk is resolved up to date
@@ -167,7 +167,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 		});
 	}
 
-	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<IModel> {
+	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<ITextModel> {
 		const fileOnDiskResource = URI.file(resource.fsPath);
 
 		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {

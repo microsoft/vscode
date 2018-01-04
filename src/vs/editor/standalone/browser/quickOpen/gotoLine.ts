@@ -17,7 +17,7 @@ import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editor
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 
 interface ParseResult {
 	position: Position;
@@ -53,7 +53,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 			position = new Position(numbers[0], numbers[1]);
 		}
 
-		let model: IModel;
+		let model: ITextModel;
 		if (isCodeEditor(this.editor)) {
 			model = this.editor.getModel();
 		} else {

@@ -30,7 +30,7 @@ import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as Config
 import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 
 export enum ConfigurationEditingErrorCode {
 
@@ -154,7 +154,7 @@ export class ConfigurationEditingService {
 				.then(() => reference.dispose()));
 	}
 
-	private writeToBuffer(model: IModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
+	private writeToBuffer(model: ITextModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
 		const edit = this.getEdits(model, operation)[0];
 		if (edit && this.applyEditsToBuffer(edit, model) && save) {
 			return this.textFileService.save(operation.resource, { skipSaveParticipants: true /* programmatic change */ });
@@ -162,7 +162,7 @@ export class ConfigurationEditingService {
 		return TPromise.as(null);
 	}
 
-	private applyEditsToBuffer(edit: Edit, model: IModel): boolean {
+	private applyEditsToBuffer(edit: Edit, model: ITextModel): boolean {
 		const startPosition = model.getPositionAt(edit.offset);
 		const endPosition = model.getPositionAt(edit.offset + edit.length);
 		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
@@ -337,7 +337,7 @@ export class ConfigurationEditingService {
 		return '';
 	}
 
-	private getEdits(model: IModel, edit: IConfigurationEditOperation): Edit[] {
+	private getEdits(model: ITextModel, edit: IConfigurationEditOperation): Edit[] {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const { value, jsonPath } = edit;
@@ -363,7 +363,7 @@ export class ConfigurationEditingService {
 			});
 	}
 
-	private hasParseErrors(model: IModel, operation: IConfigurationEditOperation): boolean {
+	private hasParseErrors(model: ITextModel, operation: IConfigurationEditOperation): boolean {
 		// If we write to a workspace standalone file and replace the entire contents (no key provided)
 		// we can return here because any parse errors can safely be ignored since all contents are replaced
 		if (operation.workspaceStandAloneConfigurationKey && !operation.key) {

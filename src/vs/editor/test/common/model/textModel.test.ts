@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel, ITextModelCreationData } from 'vs/editor/common/model/textModel';
-import { DefaultEndOfLine, TextModelResolvedOptions } from 'vs/editor/common/model/model';
+import { DefaultEndOfLine, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {

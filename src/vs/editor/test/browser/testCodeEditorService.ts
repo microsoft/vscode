@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IModelDecorationOptions } from 'vs/editor/common/model/model';
+import { IModelDecorationOptions } from 'vs/editor/common/model';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 

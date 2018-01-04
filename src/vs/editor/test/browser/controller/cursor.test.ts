@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler, ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, DefaultEndOfLine, ITextModelCreationOptions, IModel, EndOfLineSequence } from 'vs/editor/common/model/model';
+import { EndOfLinePreference, DefaultEndOfLine, ITextModelCreationOptions, ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -2084,12 +2084,12 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 				private _selectionId: string = null;
 
-				public getEditOperations(model: IModel, builder: IEditOperationBuilder): void {
+				public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 					builder.addEditOperation(new Range(1, 13, 1, 14), '');
 					this._selectionId = builder.trackSelection(cursor.getSelection());
 				}
 
-				public computeCursorState(model: IModel, helper: ICursorStateComputerData): Selection {
+				public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 					return helper.getTrackedSelection(this._selectionId);
 				}
 

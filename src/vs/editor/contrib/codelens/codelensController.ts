@@ -18,7 +18,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeLensData, getCodeLensData } from './codelens';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
-import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model/model';
+import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 

@@ -20,7 +20,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model/model';
+import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 class SelectBracketAction extends EditorAction {
 	constructor() {

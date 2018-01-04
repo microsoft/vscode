@@ -33,7 +33,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { overrideIdentifierFromKey, IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model/model';
+import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;
@@ -732,7 +732,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		}
 	}
 
-	private createDecoration(range: IRange, model: IModel): IModelDeltaDecoration {
+	private createDecoration(range: IRange, model: ITextModel): IModelDeltaDecoration {
 		return {
 			range,
 			options: {
@@ -743,7 +743,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		};
 	}
 
-	private computeHiddenRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], model: IModel): IRange[] {
+	private computeHiddenRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], model: ITextModel): IRange[] {
 		const notMatchesRanges: IRange[] = [];
 		for (const group of allSettingsGroups) {
 			const filteredGroup = filteredGroups.filter(g => g.title === group.title)[0];
@@ -791,7 +791,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		return false;
 	}
 
-	private createCompleteRange(range: IRange, model: IModel): IRange {
+	private createCompleteRange(range: IRange, model: ITextModel): IRange {
 		return {
 			startLineNumber: range.startLineNumber,
 			startColumn: model.getLineMinColumn(range.startLineNumber),
@@ -836,7 +836,7 @@ export class HighlightMatchesRenderer extends Disposable {
 		className: 'findMatch'
 	});
 
-	private createDecoration(range: IRange, model: IModel): IModelDeltaDecoration {
+	private createDecoration(range: IRange, model: ITextModel): IModelDeltaDecoration {
 		return {
 			range,
 			options: HighlightMatchesRenderer._FIND_MATCH
@@ -1195,7 +1195,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 		this.editor.changeDecorations(changeAccessor => this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range, this.editor.getModel()))));
 	}
 
-	private createDecoration(range: IRange, model: IModel): IModelDeltaDecoration {
+	private createDecoration(range: IRange, model: ITextModel): IModelDeltaDecoration {
 		return {
 			range,
 			options: !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment ? UnsupportedSettingsRenderer._DIM_CONFIGUARATION_DEV_MODE : UnsupportedSettingsRenderer._DIM_CONFIGUARATION_
@@ -1276,7 +1276,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 		inlineClassName: 'dim-configuration'
 	});
 
-	private createDecoration(range: IRange, model: IModel): IModelDeltaDecoration {
+	private createDecoration(range: IRange, model: ITextModel): IModelDeltaDecoration {
 		return {
 			range,
 			options: WorkspaceConfigurationRenderer._DIM_CONFIGURATION_

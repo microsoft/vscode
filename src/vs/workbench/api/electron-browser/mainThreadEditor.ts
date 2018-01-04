@@ -17,7 +17,7 @@ import { TextEditorCursorStyle, cursorStyleToString, RenderLineNumbersType } fro
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IResolvedTextEditorConfiguration, ISelectionChangeEvent, ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions } from 'vs/workbench/api/node/extHost.protocol';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModel, ISingleEditOperation, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModelUpdateOptions } from 'vs/editor/common/model/model';
+import { ITextModel, ISingleEditOperation, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModelUpdateOptions } from 'vs/editor/common/model';
 
 function configurationsEqual(a: IResolvedTextEditorConfiguration, b: IResolvedTextEditorConfiguration) {
 	if (a && !b || !a && b) {
@@ -44,7 +44,7 @@ export interface IFocusTracker {
 export class MainThreadTextEditor {
 
 	private _id: string;
-	private _model: IModel;
+	private _model: ITextModel;
 	private _modelService: IModelService;
 	private _modelListeners: IDisposable[];
 	private _codeEditor: ICodeEditor;
@@ -59,7 +59,7 @@ export class MainThreadTextEditor {
 
 	constructor(
 		id: string,
-		model: IModel,
+		model: ITextModel,
 		codeEditor: ICodeEditor,
 		focusTracker: IFocusTracker,
 		modelService: IModelService
@@ -95,7 +95,7 @@ export class MainThreadTextEditor {
 		return this._id;
 	}
 
-	public getModel(): IModel {
+	public getModel(): ITextModel {
 		return this._model;
 	}
 
@@ -280,7 +280,7 @@ export class MainThreadTextEditor {
 		}
 	}
 
-	private _readConfiguration(model: IModel, codeEditor: ICodeEditor): IResolvedTextEditorConfiguration {
+	private _readConfiguration(model: ITextModel, codeEditor: ICodeEditor): IResolvedTextEditorConfiguration {
 		if (model.isDisposed()) {
 			// shutdown time
 			return this._configuration;

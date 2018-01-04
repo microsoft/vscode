@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { escape } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -169,7 +169,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	private _editor: ICodeEditor;
 	private _modeService: IModeService;
 	private _tokenizationSupport: ITokenizationSupport;
-	private _model: IModel;
+	private _model: ITextModel;
 	private _domNode: HTMLElement;
 
 	constructor(

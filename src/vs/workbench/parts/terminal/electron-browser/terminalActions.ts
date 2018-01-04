@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
-import { EndOfLinePreference } from 'vs/editor/common/model/model';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';

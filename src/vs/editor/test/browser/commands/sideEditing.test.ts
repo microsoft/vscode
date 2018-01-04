@@ -9,7 +9,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model/model';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';

@@ -7,7 +7,7 @@
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class DeleteLinesCommand implements ICommand {
 
@@ -21,7 +21,7 @@ export class DeleteLinesCommand implements ICommand {
 		this.restoreCursorToColumn = restoreCursorToColumn;
 	}
 
-	public getEditOperations(model: IModel, builder: IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 			// Model is empty
 			return;
@@ -43,7 +43,7 @@ export class DeleteLinesCommand implements ICommand {
 		builder.addTrackedEditOperation(new Range(startLineNumber, startColumn, endLineNumber, endColumn), null);
 	}
 
-	public computeCursorState(model: IModel, helper: ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[0].range;
 		return new Selection(

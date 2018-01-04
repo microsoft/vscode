@@ -10,7 +10,7 @@ import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCom
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { ICommand } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model/model';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { Range } from 'vs/editor/common/core/range';

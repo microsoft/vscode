@@ -19,7 +19,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOption
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { TextModelResolvedOptions, IModel } from 'vs/editor/common/model/model';
+import { TextModelResolvedOptions, ITextModel } from 'vs/editor/common/model';
 
 export interface IColumnSelectData {
 	toViewLineNumber: number;
@@ -290,11 +290,11 @@ export class SingleCursorState {
 export class CursorContext {
 	_cursorContextBrand: void;
 
-	public readonly model: IModel;
+	public readonly model: ITextModel;
 	public readonly viewModel: IViewModel;
 	public readonly config: CursorConfiguration;
 
-	constructor(configuration: IConfiguration, model: IModel, viewModel: IViewModel) {
+	constructor(configuration: IConfiguration, model: ITextModel, viewModel: IViewModel) {
 		this.model = model;
 		this.viewModel = viewModel;
 		this.config = new CursorConfiguration(

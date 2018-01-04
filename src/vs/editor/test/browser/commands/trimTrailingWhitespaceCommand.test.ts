@@ -9,7 +9,7 @@ import { TrimTrailingWhitespaceCommand, trimTrailingWhitespace } from 'vs/editor
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model/model';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { getEditOperation } from 'vs/editor/test/browser/testCommand';
 import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
 

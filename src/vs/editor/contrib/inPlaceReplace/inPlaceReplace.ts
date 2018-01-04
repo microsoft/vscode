@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model/model';
+import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';

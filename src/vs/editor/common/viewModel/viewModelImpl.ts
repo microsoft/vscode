@@ -23,7 +23,7 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
-import { IModel, EndOfLinePreference } from 'vs/editor/common/model/model';
+import { ITextModel, EndOfLinePreference } from 'vs/editor/common/model';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -31,7 +31,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	private readonly editorId: number;
 	private readonly configuration: editorCommon.IConfiguration;
-	private readonly model: IModel;
+	private readonly model: ITextModel;
 	private readonly lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
@@ -40,7 +40,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	private _centeredViewLine: number;
 
-	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: IModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
+	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: ITextModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
 
 		this.editorId = editorId;

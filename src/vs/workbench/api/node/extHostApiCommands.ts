@@ -10,7 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import { ISingleEditOperation } from 'vs/editor/common/model/model';
+import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';

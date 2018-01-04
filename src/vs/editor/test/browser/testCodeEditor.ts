@@ -23,7 +23,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IModelDecorationOptions, IModel } from 'vs/editor/common/model/model';
+import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 
 export class TestCodeEditor extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -140,7 +140,7 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	/**
 	 * The initial model associated with this code editor.
 	 */
-	model?: IModel;
+	model?: ITextModel;
 	serviceCollection?: ServiceCollection;
 }
 
@@ -161,7 +161,7 @@ export function withTestCodeEditor(text: string[], options: TestCodeEditorCreati
 	editor.dispose();
 }
 
-export function createTestCodeEditor(model: IModel): TestCodeEditor {
+export function createTestCodeEditor(model: ITextModel): TestCodeEditor {
 	return _createTestCodeEditor({ model: model });
 }
 

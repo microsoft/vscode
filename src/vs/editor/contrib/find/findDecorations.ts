@@ -11,7 +11,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { editorFindMatchHighlight, editorFindMatch } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModelDecorationsChangeAccessor, FindMatch, IModelDeltaDecoration, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model/model';
+import { IModelDecorationsChangeAccessor, FindMatch, IModelDeltaDecoration, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
 
 export class FindDecorations implements IDisposable {
 

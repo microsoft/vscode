@@ -25,7 +25,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/clickLinkGesture';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model/model';
+import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 
 const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh

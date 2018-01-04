@@ -32,7 +32,7 @@ import { editorErrorForeground, editorErrorBorder, editorWarningForeground, edit
 import { Color } from 'vs/base/common/color';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
-import { IModel, IModelDecorationOptions } from 'vs/editor/common/model/model';
+import { ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -327,7 +327,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		Configuration.applyFontInfoSlow(target, this._configuration.editor.fontInfo);
 	}
 
-	_attachModel(model: IModel): void {
+	_attachModel(model: ITextModel): void {
 		this._view = null;
 
 		super._attachModel(model);
@@ -403,7 +403,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 	}
 
-	protected _detachModel(): IModel {
+	protected _detachModel(): ITextModel {
 		let removeDomNode: HTMLElement = null;
 
 		if (this._view) {

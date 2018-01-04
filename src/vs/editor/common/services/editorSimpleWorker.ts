@@ -20,7 +20,7 @@ import { computeLinks } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
-import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model/model';
+import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
 
 export interface IMirrorModel {
 	readonly uri: URI;

@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry, IIndentConverter } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import * as IndentUtil from 'vs/editor/contrib/indentation/indentUtils';
@@ -32,7 +32,7 @@ export class MoveLinesCommand implements ICommand {
 		this._moveEndLineSelectionShrink = false;
 	}
 
-	public getEditOperations(model: IModel, builder: IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 
 		var modelLineCount = model.getLineCount();
 
@@ -239,7 +239,7 @@ export class MoveLinesCommand implements ICommand {
 		};
 	}
 
-	private matchEnterRule(model: IModel, indentConverter: IIndentConverter, tabSize: number, line: number, oneLineAbove: number, oneLineAboveText?: string) {
+	private matchEnterRule(model: ITextModel, indentConverter: IIndentConverter, tabSize: number, line: number, oneLineAbove: number, oneLineAboveText?: string) {
 		let validPrecedingLine = oneLineAbove;
 		while (validPrecedingLine >= 1) {
 			// ship empty lines as empty lines just inherit indentation
@@ -298,7 +298,7 @@ export class MoveLinesCommand implements ICommand {
 		return str.replace(/^\s+/, '');
 	}
 
-	private shouldAutoIndent(model: IModel, selection: Selection) {
+	private shouldAutoIndent(model: ITextModel, selection: Selection) {
 		if (!this._autoIndent) {
 			return false;
 		}
@@ -320,7 +320,7 @@ export class MoveLinesCommand implements ICommand {
 		return true;
 	}
 
-	private getIndentEditsOfMovingBlock(model: IModel, builder: IEditOperationBuilder, s: Selection, tabSize: number, insertSpaces: boolean, offset: number) {
+	private getIndentEditsOfMovingBlock(model: ITextModel, builder: IEditOperationBuilder, s: Selection, tabSize: number, insertSpaces: boolean, offset: number) {
 		for (let i = s.startLineNumber; i <= s.endLineNumber; i++) {
 			let lineContent = model.getLineContent(i);
 			let originalIndent = strings.getLeadingWhitespace(lineContent);
@@ -341,7 +341,7 @@ export class MoveLinesCommand implements ICommand {
 		}
 	}
 
-	public computeCursorState(model: IModel, helper: ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		var result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._moveEndPositionDown) {

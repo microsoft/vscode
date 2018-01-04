@@ -18,7 +18,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITree, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
@@ -83,7 +83,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	private actions: IAction[];
 	private dimension: Dimension;
 	private replInputHeight: number;
-	private model: IModel;
+	private model: ITextModel;
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
@@ -181,7 +181,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
 			triggerCharacters: ['.'],
-			provideCompletionItems: (model: IModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
 				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);

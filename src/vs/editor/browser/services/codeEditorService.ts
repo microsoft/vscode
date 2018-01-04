@@ -7,7 +7,7 @@
 import Event from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModel } from 'vs/editor/common/model/model';
+import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { ICodeEditor, IDiffEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 
@@ -39,8 +39,8 @@ export interface ICodeEditorService {
 	removeDecorationType(key: string): void;
 	resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions;
 
-	setTransientModelProperty(model: IModel, key: string, value: any): void;
-	getTransientModelProperty(model: IModel, key: string): any;
+	setTransientModelProperty(model: ITextModel, key: string, value: any): void;
+	getTransientModelProperty(model: ITextModel, key: string): any;
 }
 
 /**

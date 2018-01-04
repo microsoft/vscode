@@ -14,7 +14,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { TextSource } from 'vs/editor/common/model/textSource';
 import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { DefaultEndOfLine } from 'vs/editor/common/model/model';
+import { DefaultEndOfLine } from 'vs/editor/common/model';
 
 export class ExtHostDocumentContentProvider implements ExtHostDocumentContentProvidersShape {
 

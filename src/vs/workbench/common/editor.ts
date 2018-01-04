@@ -15,7 +15,7 @@ import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseRe
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -460,7 +460,7 @@ export class SideBySideEditorInput extends EditorInput {
 }
 
 export interface ITextEditorModel extends IEditorModel {
-	textEditorModel: IModel;
+	textEditorModel: ITextModel;
 }
 
 /**

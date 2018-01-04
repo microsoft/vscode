@@ -15,7 +15,7 @@ import { IFileService, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModel, EndOfLineSequence } from 'vs/editor/common/model/model';
+import { IIdentifiedSingleEditOperation, ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
@@ -73,7 +73,7 @@ class EditTask implements IDisposable {
 
 	private _initialSelections: Selection[];
 	private _endCursorSelection: Selection;
-	private get _model(): IModel { return this._modelReference.object.textEditorModel; }
+	private get _model(): ITextModel { return this._modelReference.object.textEditorModel; }
 	private _modelReference: IReference<ITextEditorModel>;
 	private _edits: IIdentifiedSingleEditOperation[];
 	private _newEol: EndOfLineSequence;

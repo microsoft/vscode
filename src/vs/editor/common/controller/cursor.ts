@@ -20,7 +20,7 @@ import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IModel, IIdentifiedSingleEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model/model';
+import { ITextModel, IIdentifiedSingleEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -61,7 +61,7 @@ export class CursorModelState {
 	public readonly modelVersionId: number;
 	public readonly cursorState: CursorState[];
 
-	constructor(model: IModel, cursor: Cursor) {
+	constructor(model: ITextModel, cursor: Cursor) {
 		this.modelVersionId = model.getVersionId();
 		this.cursorState = cursor.getAll();
 	}
@@ -91,7 +91,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	public readonly onDidChange: Event<CursorStateChangedEvent> = this._onDidChange.event;
 
 	private readonly _configuration: editorCommon.IConfiguration;
-	private readonly _model: IModel;
+	private readonly _model: ITextModel;
 	private readonly _viewModel: IViewModel;
 	public context: CursorContext;
 	private _cursors: CursorCollection;
@@ -101,7 +101,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private _columnSelectData: IColumnSelectData;
 	private _prevEditOperationType: EditOperationType;
 
-	constructor(configuration: editorCommon.IConfiguration, model: IModel, viewModel: IViewModel) {
+	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: IViewModel) {
 		super();
 		this._configuration = configuration;
 		this._model = model;
@@ -544,7 +544,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 }
 
 interface IExecContext {
-	readonly model: IModel;
+	readonly model: ITextModel;
 	readonly selectionsBefore: Selection[];
 	readonly trackedRanges: string[];
 	readonly trackedRangesDirection: SelectionDirection[];
@@ -562,7 +562,7 @@ interface ICommandsData {
 
 class CommandExecutor {
 
-	public static executeCommands(model: IModel, selectionsBefore: Selection[], commands: editorCommon.ICommand[]): Selection[] {
+	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: editorCommon.ICommand[]): Selection[] {
 
 		const ctx: IExecContext = {
 			model: model,

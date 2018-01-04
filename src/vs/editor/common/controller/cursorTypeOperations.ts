@@ -9,7 +9,7 @@ import { ReplaceCommand, ReplaceCommandWithoutChangingPosition, ReplaceCommandWi
 import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult, EditOperationType } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommand } from 'vs/editor/common/editorCommon';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import * as strings from 'vs/base/common/strings';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -137,7 +137,7 @@ export class TypeOperations {
 		}
 	}
 
-	private static _goodIndentForLine(config: CursorConfiguration, model: IModel, lineNumber: number): string {
+	private static _goodIndentForLine(config: CursorConfiguration, model: ITextModel, lineNumber: number): string {
 		let action: IndentAction | EnterAction;
 		let indentation: string;
 
@@ -208,7 +208,7 @@ export class TypeOperations {
 		return new ReplaceCommand(selection, typeText, insertsAutoWhitespace);
 	}
 
-	public static tab(config: CursorConfiguration, model: IModel, selections: Selection[]): ICommand[] {
+	public static tab(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -249,7 +249,7 @@ export class TypeOperations {
 		return commands;
 	}
 
-	public static replacePreviousChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: IModel, selections: Selection[], txt: string, replaceCharCnt: number): EditOperationResult {
+	public static replacePreviousChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], txt: string, replaceCharCnt: number): EditOperationResult {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -279,7 +279,7 @@ export class TypeOperations {
 		}
 	}
 
-	private static _enter(config: CursorConfiguration, model: IModel, keepPosition: boolean, range: Range): ICommand {
+	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
 		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber)) {
 			let lineText = model.getLineContent(range.startLineNumber);
 			let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
@@ -376,7 +376,7 @@ export class TypeOperations {
 		}
 	}
 
-	private static _isAutoIndentType(config: CursorConfiguration, model: IModel, selections: Selection[]): boolean {
+	private static _isAutoIndentType(config: CursorConfiguration, model: ITextModel, selections: Selection[]): boolean {
 		if (!config.autoIndent) {
 			return false;
 		}
@@ -390,7 +390,7 @@ export class TypeOperations {
 		return true;
 	}
 
-	private static _runAutoIndentType(config: CursorConfiguration, model: IModel, range: Range, ch: string): ICommand {
+	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string): ICommand {
 		let currentIndentation = LanguageConfigurationRegistry.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
 		let actualIndentation = LanguageConfigurationRegistry.getIndentActionForType(model, range, ch, {
 			shiftIndent: (indentation) => {
@@ -426,7 +426,7 @@ export class TypeOperations {
 		return null;
 	}
 
-	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: IModel, selections: Selection[], ch: string): boolean {
+	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
 		if (!config.autoClosingBrackets || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
 			return false;
 		}
@@ -469,7 +469,7 @@ export class TypeOperations {
 		return cnt;
 	}
 
-	private static _runAutoClosingCloseCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: IModel, selections: Selection[], ch: string): EditOperationResult {
+	private static _runAutoClosingCloseCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -483,7 +483,7 @@ export class TypeOperations {
 		});
 	}
 
-	private static _isAutoClosingOpenCharType(config: CursorConfiguration, model: IModel, selections: Selection[], ch: string): boolean {
+	private static _isAutoClosingOpenCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
 		if (!config.autoClosingBrackets || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
 			return false;
 		}
@@ -551,7 +551,7 @@ export class TypeOperations {
 		return true;
 	}
 
-	private static _runAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: IModel, selections: Selection[], ch: string): EditOperationResult {
+	private static _runAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -564,7 +564,7 @@ export class TypeOperations {
 		});
 	}
 
-	private static _isSurroundSelectionType(config: CursorConfiguration, model: IModel, selections: Selection[], ch: string): boolean {
+	private static _isSurroundSelectionType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
 		if (!config.autoClosingBrackets || !config.surroundingPairs.hasOwnProperty(ch)) {
 			return false;
 		}
@@ -598,7 +598,7 @@ export class TypeOperations {
 		return true;
 	}
 
-	private static _runSurroundSelectionType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: IModel, selections: Selection[], ch: string): EditOperationResult {
+	private static _runSurroundSelectionType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -611,14 +611,14 @@ export class TypeOperations {
 		});
 	}
 
-	private static _isTypeInterceptorElectricChar(config: CursorConfiguration, model: IModel, selections: Selection[]) {
+	private static _isTypeInterceptorElectricChar(config: CursorConfiguration, model: ITextModel, selections: Selection[]) {
 		if (selections.length === 1 && model.isCheapToTokenize(selections[0].getEndPosition().lineNumber)) {
 			return true;
 		}
 		return false;
 	}
 
-	private static _typeInterceptorElectricChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: IModel, selection: Selection, ch: string): EditOperationResult {
+	private static _typeInterceptorElectricChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selection: Selection, ch: string): EditOperationResult {
 		if (!config.electricChars.hasOwnProperty(ch) || !selection.isEmpty()) {
 			return null;
 		}
@@ -681,7 +681,7 @@ export class TypeOperations {
 		return null;
 	}
 
-	public static typeWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: IModel, selections: Selection[], ch: string): EditOperationResult {
+	public static typeWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
 
 		if (ch === '\n') {
 			let commands: ICommand[] = [];
@@ -748,7 +748,7 @@ export class TypeOperations {
 		});
 	}
 
-	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: IModel, selections: Selection[], str: string): EditOperationResult {
+	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], str: string): EditOperationResult {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			commands[i] = new ReplaceCommand(selections[i], str);
@@ -759,7 +759,7 @@ export class TypeOperations {
 		});
 	}
 
-	public static lineInsertBefore(config: CursorConfiguration, model: IModel, selections: Selection[]): ICommand[] {
+	public static lineInsertBefore(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			let lineNumber = selections[i].positionLineNumber;
@@ -776,7 +776,7 @@ export class TypeOperations {
 		return commands;
 	}
 
-	public static lineInsertAfter(config: CursorConfiguration, model: IModel, selections: Selection[]): ICommand[] {
+	public static lineInsertAfter(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const lineNumber = selections[i].positionLineNumber;
@@ -786,7 +786,7 @@ export class TypeOperations {
 		return commands;
 	}
 
-	public static lineBreakInsert(config: CursorConfiguration, model: IModel, selections: Selection[]): ICommand[] {
+	public static lineBreakInsert(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			commands[i] = this._enter(config, model, true, selections[i]);

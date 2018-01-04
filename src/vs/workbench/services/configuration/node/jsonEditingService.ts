@@ -20,7 +20,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IJSONEditingService, IJSONValue, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class JSONEditingService implements IJSONEditingService {
 
@@ -46,7 +46,7 @@ export class JSONEditingService implements IJSONEditingService {
 				.then(() => reference.dispose()));
 	}
 
-	private writeToBuffer(model: IModel, value: IJSONValue): TPromise<any> {
+	private writeToBuffer(model: ITextModel, value: IJSONValue): TPromise<any> {
 		const edit = this.getEdits(model, value)[0];
 		if (this.applyEditsToBuffer(edit, model)) {
 			return this.textFileService.save(model.uri);
@@ -54,7 +54,7 @@ export class JSONEditingService implements IJSONEditingService {
 		return TPromise.as(null);
 	}
 
-	private applyEditsToBuffer(edit: Edit, model: IModel): boolean {
+	private applyEditsToBuffer(edit: Edit, model: ITextModel): boolean {
 		const startPosition = model.getPositionAt(edit.offset);
 		const endPosition = model.getPositionAt(edit.offset + edit.length);
 		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
@@ -67,7 +67,7 @@ export class JSONEditingService implements IJSONEditingService {
 		return false;
 	}
 
-	private getEdits(model: IModel, configurationValue: IJSONValue): Edit[] {
+	private getEdits(model: ITextModel, configurationValue: IJSONValue): Edit[] {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const { key, value } = configurationValue;
@@ -93,7 +93,7 @@ export class JSONEditingService implements IJSONEditingService {
 			});
 	}
 
-	private hasParseErrors(model: IModel): boolean {
+	private hasParseErrors(model: ITextModel): boolean {
 		const parseErrors: json.ParseError[] = [];
 		json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
 		return parseErrors.length > 0;

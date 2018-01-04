@@ -28,7 +28,7 @@ import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModel, TextModelResolvedOptions } from 'vs/editor/common/model/model';
+import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -608,8 +608,8 @@ export class DiffReview extends Disposable {
 
 	private static _renderSection(
 		dest: HTMLElement, diffEntry: DiffEntry, modLine: number, width: number,
-		originalOpts: editorOptions.InternalEditorOptions, originalModel: IModel, originalModelOpts: TextModelResolvedOptions,
-		modifiedOpts: editorOptions.InternalEditorOptions, modifiedModel: IModel, modifiedModelOpts: TextModelResolvedOptions
+		originalOpts: editorOptions.InternalEditorOptions, originalModel: ITextModel, originalModelOpts: TextModelResolvedOptions,
+		modifiedOpts: editorOptions.InternalEditorOptions, modifiedModel: ITextModel, modifiedModelOpts: TextModelResolvedOptions
 	): void {
 
 		const type = diffEntry.getType();
@@ -723,7 +723,7 @@ export class DiffReview extends Disposable {
 		}
 	}
 
-	private static _renderLine(model: IModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number): string {
+	private static _renderLine(model: ITextModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number): string {
 		const lineContent = model.getLineContent(lineNumber);
 
 		const defaultMetadata = (

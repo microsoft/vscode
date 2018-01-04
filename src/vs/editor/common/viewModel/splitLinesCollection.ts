@@ -14,7 +14,7 @@ import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { IModelDecoration, IModel, IModelDeltaDecoration } from 'vs/editor/common/model/model';
+import { IModelDecoration, ITextModel, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export class OutputPosition {
 	_outputPositionBrand: void;
@@ -139,7 +139,7 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 
 export class SplitLinesCollection implements IViewModelLinesCollection {
 
-	private model: IModel;
+	private model: ITextModel;
 	private _validModelVersionId: number;
 
 	private wrappingColumn: number;
@@ -154,7 +154,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 	private hiddenAreasIds: string[];
 
-	constructor(model: IModel, linePositionMapperFactory: ILineMapperFactory, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent) {
+	constructor(model: ITextModel, linePositionMapperFactory: ILineMapperFactory, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent) {
 		this.model = model;
 		this._validModelVersionId = -1;
 		this.tabSize = tabSize;
@@ -1125,9 +1125,9 @@ export class IdentityCoordinatesConverter implements ICoordinatesConverter {
 
 export class IdentityLinesCollection implements IViewModelLinesCollection {
 
-	public readonly model: IModel;
+	public readonly model: ITextModel;
 
-	constructor(model: IModel) {
+	constructor(model: ITextModel) {
 		this.model = model;
 	}
 

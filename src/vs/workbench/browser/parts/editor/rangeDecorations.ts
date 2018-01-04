@@ -11,7 +11,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model/model';
+import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;

@@ -15,7 +15,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
 import { TextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
-import { DefaultEndOfLine } from 'vs/editor/common/model/model';
+import { DefaultEndOfLine } from 'vs/editor/common/model';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;

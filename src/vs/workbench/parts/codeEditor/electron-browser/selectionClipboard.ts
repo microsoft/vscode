@@ -10,7 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference } from 'vs/editor/common/model/model';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { RunOnceScheduler } from 'vs/base/common/async';

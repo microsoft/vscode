@@ -11,7 +11,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ModelRawChange, IModelContentChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference } from 'vs/editor/common/model/model';
+import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference } from 'vs/editor/common/model';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;

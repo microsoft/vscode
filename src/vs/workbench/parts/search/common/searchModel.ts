@@ -16,7 +16,7 @@ import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPa
 import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, FindMatch } from 'vs/editor/common/model/model';
+import { ITextModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, FindMatch } from 'vs/editor/common/model';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
@@ -124,7 +124,7 @@ export class FileMatch extends Disposable {
 	public onDispose: Event<void> = this._onDispose.event;
 
 	private _resource: URI;
-	private _model: IModel;
+	private _model: ITextModel;
 	private _modelListener: IDisposable;
 	private _matches: Map<string, Match>;
 	private _removedMatches: Set<string>;
@@ -161,14 +161,14 @@ export class FileMatch extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.modelService.onModelAdded((model: IModel) => {
+		this._register(this.modelService.onModelAdded((model: ITextModel) => {
 			if (model.uri.toString() === this._resource.toString()) {
 				this.bindModel(model);
 			}
 		}));
 	}
 
-	private bindModel(model: IModel): void {
+	private bindModel(model: ITextModel): void {
 		this._model = model;
 		this._modelListener = this._model.onDidChangeContent(() => {
 			this._updateScheduler.schedule();
@@ -855,7 +855,7 @@ export interface ISearchWorkbenchService {
 export class RangeHighlightDecorations implements IDisposable {
 
 	private _decorationId: string = null;
-	private _model: IModel = null;
+	private _model: ITextModel = null;
 	private _modelDisposables: IDisposable[] = [];
 
 	constructor(
@@ -870,8 +870,8 @@ export class RangeHighlightDecorations implements IDisposable {
 		this._decorationId = null;
 	}
 
-	public highlightRange(resource: URI | IModel, range: Range, ownerId: number = 0): void {
-		let model: IModel;
+	public highlightRange(resource: URI | ITextModel, range: Range, ownerId: number = 0): void {
+		let model: ITextModel;
 		if (URI.isUri(resource)) {
 			model = this._modelService.getModel(resource);
 		} else {
@@ -883,13 +883,13 @@ export class RangeHighlightDecorations implements IDisposable {
 		}
 	}
 
-	private doHighlightRange(model: IModel, range: Range) {
+	private doHighlightRange(model: ITextModel, range: Range) {
 		this.removeHighlightRange();
 		this._decorationId = model.deltaDecorations([], [{ range: range, options: RangeHighlightDecorations._RANGE_HIGHLIGHT_DECORATION }])[0];
 		this.setModel(model);
 	}
 
-	private setModel(model: IModel) {
+	private setModel(model: ITextModel) {
 		if (this._model !== model) {
 			this.disposeModelListeners();
 			this._model = model;

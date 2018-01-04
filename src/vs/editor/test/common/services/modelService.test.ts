@@ -9,7 +9,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import URI from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
-import { DefaultEndOfLine } from 'vs/editor/common/model/model';
+import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextSource } from 'vs/editor/common/model/textSource';
 import { EditOperation } from 'vs/editor/common/core/editOperation';

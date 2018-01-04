@@ -14,7 +14,7 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines } from 'vs/editor/contrib/folding/foldingModel';
@@ -166,7 +166,7 @@ export class FoldingController implements IEditorContribution {
 		this.onModelContentChanged();
 	}
 
-	private computeRanges(editorModel: IModel) {
+	private computeRanges(editorModel: ITextModel) {
 		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
 		let offSide = foldingRules && foldingRules.offSide;
 		let markers = foldingRules && foldingRules.markers;

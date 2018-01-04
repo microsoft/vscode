@@ -28,7 +28,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
-import { IModelDeltaDecoration, IModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model/model';
+import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
@@ -208,7 +208,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		this._dec = this._editor.deltaDecorations(this._dec, newDecorations);
 	}
 
-	private _getDecorationForEntry(model: IModel, entry: Node): IModelDeltaDecoration {
+	private _getDecorationForEntry(model: ITextModel, entry: Node): IModelDeltaDecoration {
 		if (!Array.isArray(entry.children)) {
 			return null;
 		}
@@ -289,7 +289,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		return false;
 	}
 
-	private _createDecoration(isError: boolean, uiLabel: string, usLabel: string, model: IModel, keyNode: Node): IModelDeltaDecoration {
+	private _createDecoration(isError: boolean, uiLabel: string, usLabel: string, model: ITextModel, keyNode: Node): IModelDeltaDecoration {
 		let msg: MarkdownString;
 		let className: string;
 		let beforeContentClassName: string;

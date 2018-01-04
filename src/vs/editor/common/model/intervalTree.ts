@@ -6,7 +6,7 @@
 
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model/model';
+import { IModelDecoration } from 'vs/editor/common/model';
 
 //
 // The red-black tree is based on the "Introduction to Algorithms" by Cormen, Leiserson and Rivest.

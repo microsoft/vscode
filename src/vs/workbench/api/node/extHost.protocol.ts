@@ -53,7 +53,7 @@ import { IStat, IFileChange } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
-import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model/model';
+import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;

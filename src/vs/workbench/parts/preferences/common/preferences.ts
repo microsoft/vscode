@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditor, Position, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IRange } from 'vs/editor/common/core/range';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -108,7 +108,7 @@ export interface IPreferencesService {
 	workspaceSettingsResource: URI;
 	getFolderSettingsResource(resource: URI): URI;
 
-	resolveModel(uri: URI): TPromise<IModel>;
+	resolveModel(uri: URI): TPromise<ITextModel>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
 	openRawDefaultSettings(): TPromise<void>;

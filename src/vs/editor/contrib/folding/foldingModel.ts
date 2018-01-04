@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IModel, IModelDecorationOptions, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model/model';
+import { ITextModel, IModelDecorationOptions, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import Event, { Emitter } from 'vs/base/common/event';
 import { FoldingRanges, ILineRange, FoldingRegion } from './foldingRanges';
 
@@ -21,7 +21,7 @@ export interface FoldingModelChangeEvent {
 export type CollapseMemento = ILineRange[];
 
 export class FoldingModel {
-	private _textModel: IModel;
+	private _textModel: ITextModel;
 	private _decorationProvider: IDecorationProvider;
 
 	private _ranges: FoldingRanges;
@@ -33,7 +33,7 @@ export class FoldingModel {
 	public get onDidChange(): Event<FoldingModelChangeEvent> { return this._updateEventEmitter.event; }
 	public get textModel() { return this._textModel; }
 
-	constructor(textModel: IModel, decorationProvider: IDecorationProvider) {
+	constructor(textModel: ITextModel, decorationProvider: IDecorationProvider) {
 		this._textModel = textModel;
 		this._decorationProvider = decorationProvider;
 		this._ranges = new FoldingRanges(new Uint32Array(0), new Uint32Array(0));

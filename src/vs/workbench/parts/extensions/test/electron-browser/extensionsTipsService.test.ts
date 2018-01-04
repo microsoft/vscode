@@ -44,7 +44,7 @@ import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/
 import { IURLService } from 'vs/platform/url/common/url';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import product from 'vs/platform/node/product';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 const mockExtensionGallery: IGalleryExtension[] = [
@@ -170,7 +170,7 @@ suite('ExtensionsTipsService Test', () => {
 		uninstallEvent: Emitter<IExtensionIdentifier>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 	let prompted: boolean;
-	let onModelAddedEvent: Emitter<IModel>;
+	let onModelAddedEvent: Emitter<ITextModel>;
 
 	suiteSetup(() => {
 		instantiationService = new TestInstantiationService();
@@ -191,7 +191,7 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 
-		onModelAddedEvent = new Emitter<IModel>();
+		onModelAddedEvent = new Emitter<ITextModel>();
 
 		product.extensionTips = {
 			'ms-vscode.csharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',

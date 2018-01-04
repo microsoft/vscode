@@ -29,7 +29,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import * as modes from 'vs/editor/common/modes';
 import { Schemas } from 'vs/base/common/network';
-import { IModel, EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecorationsChangeAccessor, IModelDecoration, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/model/model';
+import { ITextModel, EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecorationsChangeAccessor, IModelDecoration, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/model';
 
 let EDITOR_ID = 0;
 
@@ -98,7 +98,7 @@ export abstract class CommonCodeEditor extends Disposable {
 	protected _actions: { [key: string]: editorCommon.IEditorAction; };
 
 	// --- Members logically associated to a model
-	protected model: IModel;
+	protected model: ITextModel;
 	protected listenersToRemove: IDisposable[];
 	protected hasView: boolean;
 
@@ -213,11 +213,11 @@ export abstract class CommonCodeEditor extends Disposable {
 		}
 	}
 
-	public getModel(): IModel {
+	public getModel(): ITextModel {
 		return this.model;
 	}
 
-	public setModel(model: IModel = null): void {
+	public setModel(model: ITextModel = null): void {
 		if (this.model === model) {
 			// Current model is the new model
 			return;
@@ -923,7 +923,7 @@ export abstract class CommonCodeEditor extends Disposable {
 		return this._configuration.editor.layoutInfo;
 	}
 
-	protected _attachModel(model: IModel): void {
+	protected _attachModel(model: ITextModel): void {
 		this.model = model ? model : null;
 		this.listenersToRemove = [];
 		this.viewModel = null;
@@ -989,13 +989,13 @@ export abstract class CommonCodeEditor extends Disposable {
 	protected abstract _scheduleAtNextAnimationFrame(callback: () => void): IDisposable;
 	protected abstract _createView(): void;
 
-	protected _postDetachModelCleanup(detachedModel: IModel): void {
+	protected _postDetachModelCleanup(detachedModel: ITextModel): void {
 		if (detachedModel) {
 			detachedModel.removeAllDecorationsWithOwnerId(this.id);
 		}
 	}
 
-	protected _detachModel(): IModel {
+	protected _detachModel(): ITextModel {
 		if (this.model) {
 			this.model.onBeforeDetached();
 		}

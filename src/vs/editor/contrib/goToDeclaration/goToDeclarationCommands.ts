@@ -26,7 +26,7 @@ import * as corePosition from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModel, IWordAtPosition } from 'vs/editor/common/model/model';
+import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 
 export class DefinitionActionConfig {
 
@@ -112,7 +112,7 @@ export class DefinitionAction extends EditorAction {
 		return definitionPromise;
 	}
 
-	protected _getDeclarationsAtPosition(model: IModel, position: corePosition.Position): TPromise<Location[]> {
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
 		return getDefinitionsAtPosition(model, position);
 	}
 
@@ -249,7 +249,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 }
 
 export class ImplementationAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: IModel, position: corePosition.Position): TPromise<Location[]> {
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
 		return getImplementationsAtPosition(model, position);
 	}
 
@@ -305,7 +305,7 @@ export class PeekImplementationAction extends ImplementationAction {
 }
 
 export class TypeDefinitionAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: IModel, position: corePosition.Position): TPromise<Location[]> {
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
 		return getTypeDefinitionsAtPosition(model, position);
 	}
 

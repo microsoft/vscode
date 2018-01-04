@@ -34,7 +34,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
-import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model/model';
+import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 

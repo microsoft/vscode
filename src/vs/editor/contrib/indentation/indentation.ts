@@ -8,7 +8,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import { IEditorContribution, ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, IModel } from 'vs/editor/common/model/model';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -46,7 +46,7 @@ export function unshiftIndent(tabSize: number, indentation: string, count?: numb
 	return newIndentation;
 }
 
-export function getReindentEditOperations(model: IModel, startLineNumber: number, endLineNumber: number, inheritedIndent?: string): IIdentifiedSingleEditOperation[] {
+export function getReindentEditOperations(model: ITextModel, startLineNumber: number, endLineNumber: number, inheritedIndent?: string): IIdentifiedSingleEditOperation[] {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 		// Model is empty
 		return undefined;
@@ -345,7 +345,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 		}
 	}
 
-	public getEditOperations(model: IModel, builder: IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		for (let edit of this._edits) {
 			builder.addEditOperation(Range.lift(edit.range), edit.text);
 		}
@@ -368,7 +368,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 		}
 	}
 
-	public computeCursorState(model: IModel, helper: ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this._selectionId);
 	}
 }
@@ -548,7 +548,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		this.editor.pushUndoStop();
 	}
 
-	private shouldIgnoreLine(model: IModel, lineNumber: number): boolean {
+	private shouldIgnoreLine(model: ITextModel, lineNumber: number): boolean {
 		model.forceTokenization(lineNumber);
 		let nonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
 		if (nonWhiteSpaceColumn === 0) {
@@ -575,7 +575,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 	}
 }
 
-function getIndentationEditOperations(model: IModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {
+function getIndentationEditOperations(model: ITextModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 		// Model is empty
 		return;
@@ -607,12 +607,12 @@ export class IndentationToSpacesCommand implements ICommand {
 
 	constructor(private selection: Selection, private tabSize: number) { }
 
-	public getEditOperations(model: IModel, builder: IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		this.selectionId = builder.trackSelection(this.selection);
 		getIndentationEditOperations(model, builder, this.tabSize, true);
 	}
 
-	public computeCursorState(model: IModel, helper: ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 }
@@ -623,12 +623,12 @@ export class IndentationToTabsCommand implements ICommand {
 
 	constructor(private selection: Selection, private tabSize: number) { }
 
-	public getEditOperations(model: IModel, builder: IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		this.selectionId = builder.trackSelection(this.selection);
 		getIndentationEditOperations(model, builder, this.tabSize, false);
 	}
 
-	public computeCursorState(model: IModel, helper: ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 }

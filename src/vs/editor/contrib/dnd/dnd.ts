@@ -18,7 +18,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { DragAndDropCommand } from 'vs/editor/contrib/dnd/dragAndDropCommand';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IModelDeltaDecoration } from 'vs/editor/common/model/model';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export class DragAndDropController implements editorCommon.IEditorContribution {
 

@@ -10,7 +10,7 @@ import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
 import { Position } from 'vs/editor/common/core/position';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { EndOfLinePreference, IIdentifiedSingleEditOperation, EndOfLineSequence } from 'vs/editor/common/model/model';
+import { EndOfLinePreference, IIdentifiedSingleEditOperation, EndOfLineSequence } from 'vs/editor/common/model';
 
 export function testApplyEditsWithSyncedModels(original: string[], edits: IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
 	var originalStr = original.join('\n');

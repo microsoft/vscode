@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model/model';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
 suite('Editor Model - Model Edit Operation', () => {

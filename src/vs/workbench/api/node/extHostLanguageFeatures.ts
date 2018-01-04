@@ -10,7 +10,7 @@ import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Range, Disposable, CompletionList, SnippetString, Color } from 'vs/workbench/api/node/extHostTypes';
-import { ISingleEditOperation } from 'vs/editor/common/model/model';
+import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';

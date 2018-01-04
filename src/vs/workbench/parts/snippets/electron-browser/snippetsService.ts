@@ -5,7 +5,7 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { ISuggestSupport, ISuggestResult, ISuggestion, LanguageId, SuggestionType, SnippetType } from 'vs/editor/common/modes';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
@@ -271,7 +271,7 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 		//
 	}
 
-	provideCompletionItems(model: IModel, position: Position): Promise<ISuggestResult> {
+	provideCompletionItems(model: ITextModel, position: Position): Promise<ISuggestResult> {
 
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		return this._snippets.getSnippets(languageId).then(snippets => {
@@ -318,11 +318,11 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 		});
 	}
 
-	resolveCompletionItem?(model: IModel, position: Position, item: ISuggestion): ISuggestion {
+	resolveCompletionItem?(model: ITextModel, position: Position, item: ISuggestion): ISuggestion {
 		return (item instanceof SnippetSuggestion) ? item.resolve() : item;
 	}
 
-	private _getLanguageIdAtPosition(model: IModel, position: Position): LanguageId {
+	private _getLanguageIdAtPosition(model: ITextModel, position: Position): LanguageId {
 		// validate the `languageId` to ensure this is a user
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language

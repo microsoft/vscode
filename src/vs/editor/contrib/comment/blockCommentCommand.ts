@@ -11,7 +11,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICommentsConfiguration, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CharCode } from 'vs/base/common/charCode';
-import { IModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model/model';
+import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 export class BlockCommentCommand implements editorCommon.ICommand {
 
@@ -40,7 +40,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return true;
 	}
 
-	private _createOperationsForBlockComment(selection: Range, config: ICommentsConfiguration, model: IModel, builder: editorCommon.IEditOperationBuilder): void {
+	private _createOperationsForBlockComment(selection: Range, config: ICommentsConfiguration, model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
 		const startLineNumber = selection.startLineNumber;
 		const startColumn = selection.startColumn;
 		const endLineNumber = selection.endLineNumber;
@@ -154,7 +154,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return res;
 	}
 
-	public getEditOperations(model: IModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
 		const startLineNumber = this._selection.startLineNumber;
 		const startColumn = this._selection.startColumn;
 
@@ -171,7 +171,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		);
 	}
 
-	public computeCursorState(model: IModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		const inverseEditOperations = helper.getInverseEditOperations();
 		if (inverseEditOperations.length === 2) {
 			const startTokenEditOperation = inverseEditOperations[0];

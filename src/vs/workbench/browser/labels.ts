@@ -23,7 +23,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IResourceLabel {
@@ -85,7 +85,7 @@ export class ResourceLabel extends IconLabel {
 		}));
 	}
 
-	private onModelModeChanged(e: { model: IModel; oldModeId: string; }): void {
+	private onModelModeChanged(e: { model: ITextModel; oldModeId: string; }): void {
 		if (!this.label || !this.label.resource) {
 			return; // only update if label exists
 		}

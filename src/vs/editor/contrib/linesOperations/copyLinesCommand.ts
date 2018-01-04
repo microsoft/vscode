@@ -7,7 +7,7 @@
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class CopyLinesCommand implements editorCommon.ICommand {
 
@@ -24,7 +24,7 @@ export class CopyLinesCommand implements editorCommon.ICommand {
 		this._isCopyingDown = isCopyingDown;
 	}
 
-	public getEditOperations(model: IModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
 		var s = this._selection;
 
 		this._startLineNumberDelta = 0;
@@ -58,7 +58,7 @@ export class CopyLinesCommand implements editorCommon.ICommand {
 		this._selectionDirection = this._selection.getDirection();
 	}
 
-	public computeCursorState(model: IModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		var result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._startLineNumberDelta !== 0 || this._endLineNumberDelta !== 0) {

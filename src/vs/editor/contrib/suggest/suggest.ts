@@ -11,7 +11,7 @@ import { assign } from 'vs/base/common/objects';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry, SuggestContext, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -44,7 +44,7 @@ export function setSnippetSuggestSupport(support: ISuggestSupport): ISuggestSupp
 	return old;
 }
 
-export function provideSuggestionItems(model: IModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[], context?: SuggestContext): TPromise<ISuggestionItem[]> {
+export function provideSuggestionItems(model: ITextModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[], context?: SuggestContext): TPromise<ISuggestionItem[]> {
 
 	const allSuggestions: ISuggestionItem[] = [];
 	const acceptSuggestion = createSuggesionFilter(snippetConfig);
@@ -128,7 +128,7 @@ function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestRes
 	}
 }
 
-function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISuggestion, model: IModel, position: Position): () => TPromise<void> {
+function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISuggestion, model: ITextModel, position: Position): () => TPromise<void> {
 	return () => {
 		if (typeof provider.resolveCompletionItem === 'function') {
 			return asWinJsPromise(token => provider.resolveCompletionItem(model, position, suggestion, token))

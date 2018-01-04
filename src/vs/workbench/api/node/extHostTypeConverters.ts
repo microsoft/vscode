@@ -9,7 +9,7 @@ import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence } from 'vs/editor/common/model/model';
+import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';

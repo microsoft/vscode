@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
-import * as model from 'vs/editor/common/model/model';
+import * as model from 'vs/editor/common/model';
 import { LanguageIdentifier, TokenizationRegistry, LanguageId } from 'vs/editor/common/modes';
 import { IRawTextSource, RawTextSource, ITextSource, TextSource } from 'vs/editor/common/model/textSource';
 import { EditStack } from 'vs/editor/common/model/editStack';
@@ -59,7 +59,7 @@ export interface ITextModelCreationData {
 	readonly options: model.TextModelResolvedOptions;
 }
 
-export class TextModel extends Disposable implements model.IModel {
+export class TextModel extends Disposable implements model.ITextModel {
 
 	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
 	private static readonly MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB

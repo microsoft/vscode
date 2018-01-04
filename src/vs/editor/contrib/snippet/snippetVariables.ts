@@ -6,7 +6,7 @@
 'use strict';
 
 import { basename, dirname } from 'vs/base/common/paths';
-import { IModel } from 'vs/editor/common/model/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -46,7 +46,7 @@ export class CompositeSnippetVariableResolver implements VariableResolver {
 export class SelectionBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _model: IModel,
+		private readonly _model: ITextModel,
 		private readonly _selection: Selection
 	) {
 		//
@@ -109,7 +109,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 export class ModelBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _model: IModel
+		private readonly _model: ITextModel
 	) {
 		//
 	}
