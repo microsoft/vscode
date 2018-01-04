@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/model/model';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';

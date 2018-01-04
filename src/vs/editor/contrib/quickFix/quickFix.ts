@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/model/model';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';

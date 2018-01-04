@@ -28,6 +28,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
+import { IModelDeltaDecoration, IModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model/model';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
@@ -191,7 +192,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	private _updateDecorationsNow(): void {
 		const model = this._editor.getModel();
 
-		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+		let newDecorations: IModelDeltaDecoration[] = [];
 
 		const root = parseTree(model.getValue());
 		if (root && Array.isArray(root.children)) {
@@ -207,7 +208,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		this._dec = this._editor.deltaDecorations(this._dec, newDecorations);
 	}
 
-	private _getDecorationForEntry(model: editorCommon.IModel, entry: Node): editorCommon.IModelDeltaDecoration {
+	private _getDecorationForEntry(model: IModel, entry: Node): IModelDeltaDecoration {
 		if (!Array.isArray(entry.children)) {
 			return null;
 		}
@@ -288,7 +289,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		return false;
 	}
 
-	private _createDecoration(isError: boolean, uiLabel: string, usLabel: string, model: editorCommon.IModel, keyNode: Node): editorCommon.IModelDeltaDecoration {
+	private _createDecoration(isError: boolean, uiLabel: string, usLabel: string, model: IModel, keyNode: Node): IModelDeltaDecoration {
 		let msg: MarkdownString;
 		let className: string;
 		let beforeContentClassName: string;
@@ -339,14 +340,14 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		return {
 			range: range,
 			options: {
-				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: className,
 				beforeContentClassName: beforeContentClassName,
 				hoverMessage: msg,
 				overviewRuler: {
 					color: overviewRulerColor,
 					darkColor: overviewRulerColor,
-					position: editorCommon.OverviewRulerLane.Right
+					position: OverviewRulerLane.Right
 				}
 			}
 		};

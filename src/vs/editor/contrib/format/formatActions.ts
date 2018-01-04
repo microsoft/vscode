@@ -25,9 +25,10 @@ import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorS
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ISingleEditOperation } from 'vs/editor/common/model/model';
 
 
-function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void {
+function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
 	edits = edits.filter(edit => edit.range);
 	if (!edits.length) {
@@ -294,7 +295,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 		});
 	}
 
-	protected abstract _getFormattingEdits(editor: ICodeEditor): TPromise<editorCommon.ISingleEditOperation[]>;
+	protected abstract _getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]>;
 }
 
 export class FormatDocumentAction extends AbstractFormatAction {
@@ -319,7 +320,7 @@ export class FormatDocumentAction extends AbstractFormatAction {
 		});
 	}
 
-	protected _getFormattingEdits(editor: ICodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+	protected _getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]> {
 		const model = editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentFormattingEdits(model, { tabSize, insertSpaces });
@@ -346,7 +347,7 @@ export class FormatSelectionAction extends AbstractFormatAction {
 		});
 	}
 
-	protected _getFormattingEdits(editor: ICodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+	protected _getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]> {
 		const model = editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentRangeFormattingEdits(model, editor.getSelection(), { tabSize, insertSpaces });
@@ -367,7 +368,7 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 			constructor() {
 				super({} as IActionOptions);
 			}
-			_getFormattingEdits(editor: ICodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+			_getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]> {
 				const model = editor.getModel();
 				const editorSelection = editor.getSelection();
 				const { tabSize, insertSpaces } = model.getOptions();

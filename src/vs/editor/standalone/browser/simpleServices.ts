@@ -38,6 +38,7 @@ import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } fr
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
+import { IModel } from 'vs/editor/common/model/model';
 
 export class SimpleEditor implements IEditor {
 
@@ -69,10 +70,10 @@ export class SimpleEditor implements IEditor {
 
 export class SimpleModel implements ITextEditorModel {
 
-	private model: editorCommon.IModel;
+	private model: IModel;
 	private _onDispose: Emitter<void>;
 
-	constructor(model: editorCommon.IModel) {
+	constructor(model: IModel) {
 		this.model = model;
 		this._onDispose = new Emitter<void>();
 	}
@@ -85,7 +86,7 @@ export class SimpleModel implements ITextEditorModel {
 		return TPromise.as(this);
 	}
 
-	public get textEditorModel(): editorCommon.IModel {
+	public get textEditorModel(): IModel {
 		return this.model;
 	}
 
@@ -163,7 +164,7 @@ export class SimpleEditorService implements IEditorService {
 		return this.editor;
 	}
 
-	private findModel(editor: ICodeEditor, data: IResourceInput): editorCommon.IModel {
+	private findModel(editor: ICodeEditor, data: IResourceInput): IModel {
 		let model = editor.getModel();
 		if (model.uri.toString() !== data.resource.toString()) {
 			return null;
@@ -183,7 +184,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	}
 
 	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
-		let model: editorCommon.IModel;
+		let model: IModel;
 
 		model = this.editor.withTypedEditor(
 			(editor) => this.findModel(editor, resource),
@@ -203,7 +204,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		};
 	}
 
-	private findModel(editor: ICodeEditor, resource: URI): editorCommon.IModel {
+	private findModel(editor: ICodeEditor, resource: URI): IModel {
 		let model = editor.getModel();
 		if (model.uri.toString() !== resource.toString()) {
 			return null;

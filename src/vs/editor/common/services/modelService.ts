@@ -8,7 +8,7 @@ import Event from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IModel, ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
+import { IModel, ITextModelCreationOptions } from 'vs/editor/common/model/model';
 import { IMode } from 'vs/editor/common/modes';
 import { IRawTextSource } from 'vs/editor/common/model/textSource';
 
@@ -37,4 +37,3 @@ export interface IModelService {
 
 	onModelModeChanged: Event<{ model: IModel; oldModeId: string; }>;
 }
-

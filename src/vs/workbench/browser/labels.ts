@@ -23,7 +23,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/model/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IResourceLabel {

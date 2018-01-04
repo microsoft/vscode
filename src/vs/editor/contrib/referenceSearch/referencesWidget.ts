@@ -41,11 +41,12 @@ import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/st
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import URI from 'vs/base/common/uri';
+import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model/model';
 
 class DecorationsManager implements IDisposable {
 
 	private static readonly DecorationOptions = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'reference-decoration'
 	});
 
@@ -83,7 +84,7 @@ class DecorationsManager implements IDisposable {
 
 		this._editor.changeDecorations(accessor => {
 
-			const newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+			const newDecorations: IModelDeltaDecoration[] = [];
 			const newDecorationsActualIndex: number[] = [];
 
 			for (let i = 0, len = reference.children.length; i < len; i++) {

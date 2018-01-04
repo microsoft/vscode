@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IWordAtPosition } from 'vs/editor/common/editorCommon';
+import { IWordAtPosition } from 'vs/editor/common/model/model';
 
 export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
 

@@ -44,7 +44,7 @@ import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/
 import { IURLService } from 'vs/platform/url/common/url';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import product from 'vs/platform/node/product';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/model/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 const mockExtensionGallery: IGalleryExtension[] = [

@@ -8,6 +8,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model/model';
 
 export class SortLinesCommand implements editorCommon.ICommand {
 
@@ -20,7 +21,7 @@ export class SortLinesCommand implements editorCommon.ICommand {
 		this.descending = descending;
 	}
 
-	public getEditOperations(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: IModel, builder: editorCommon.IEditOperationBuilder): void {
 		let op = sortLines(model, this.selection, this.descending);
 		if (op) {
 			builder.addEditOperation(op.range, op.text);
@@ -29,11 +30,11 @@ export class SortLinesCommand implements editorCommon.ICommand {
 		this.selectionId = builder.trackSelection(this.selection);
 	}
 
-	public computeCursorState(model: editorCommon.IModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: IModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 
-	public static canRun(model: editorCommon.IModel, selection: Selection, descending: boolean): boolean {
+	public static canRun(model: IModel, selection: Selection, descending: boolean): boolean {
 		let data = getSortData(model, selection, descending);
 
 		if (!data) {
@@ -50,7 +51,7 @@ export class SortLinesCommand implements editorCommon.ICommand {
 	}
 }
 
-function getSortData(model: editorCommon.IModel, selection: Selection, descending: boolean) {
+function getSortData(model: IModel, selection: Selection, descending: boolean) {
 	let startLineNumber = selection.startLineNumber;
 	let endLineNumber = selection.endLineNumber;
 
@@ -91,7 +92,7 @@ function getSortData(model: editorCommon.IModel, selection: Selection, descendin
 /**
  * Generate commands for sorting lines on a model.
  */
-function sortLines(model: editorCommon.IModel, selection: Selection, descending: boolean): editorCommon.IIdentifiedSingleEditOperation {
+function sortLines(model: IModel, selection: Selection, descending: boolean): IIdentifiedSingleEditOperation {
 	let data = getSortData(model, selection, descending);
 
 	if (!data) {

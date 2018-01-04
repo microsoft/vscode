@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/model/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { SignatureHelp, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise, sequence } from 'vs/base/common/async';

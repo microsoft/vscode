@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import * as model from 'vs/editor/common/model/model';
 import { LanguageIdentifier, TokenizationRegistry, LanguageId } from 'vs/editor/common/modes';
 import { IRawTextSource, RawTextSource, ITextSource, TextSource } from 'vs/editor/common/model/textSource';
 import { EditStack } from 'vs/editor/common/model/editStack';
@@ -56,41 +56,41 @@ export const LONG_LINE_BOUNDARY = 10000;
 
 export interface ITextModelCreationData {
 	readonly text: ITextSource;
-	readonly options: editorCommon.TextModelResolvedOptions;
+	readonly options: model.TextModelResolvedOptions;
 }
 
-export class TextModel extends Disposable implements editorCommon.IModel {
+export class TextModel extends Disposable implements model.IModel {
 
 	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
 	private static readonly MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
 	private static readonly MANY_MANY_LINES = 300 * 1000; // 300K lines
 
-	public static DEFAULT_CREATION_OPTIONS: editorCommon.ITextModelCreationOptions = {
+	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
 		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
 		insertSpaces: EDITOR_MODEL_DEFAULTS.insertSpaces,
 		detectIndentation: false,
-		defaultEOL: editorCommon.DefaultEndOfLine.LF,
+		defaultEOL: model.DefaultEndOfLine.LF,
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 	};
 
-	public static createFromString(text: string, options: editorCommon.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): TextModel {
+	public static createFromString(text: string, options: model.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): TextModel {
 		return new TextModel(RawTextSource.fromString(text), options, languageIdentifier, uri);
 	}
 
-	public static resolveCreationData(rawTextSource: IRawTextSource, options: editorCommon.ITextModelCreationOptions): ITextModelCreationData {
+	public static resolveCreationData(rawTextSource: IRawTextSource, options: model.ITextModelCreationOptions): ITextModelCreationData {
 		const textSource = TextSource.fromRawTextSource(rawTextSource, options.defaultEOL);
 
-		let resolvedOpts: editorCommon.TextModelResolvedOptions;
+		let resolvedOpts: model.TextModelResolvedOptions;
 		if (options.detectIndentation) {
 			const guessedIndentation = guessIndentation(new IndentationGuesserStringArrayTarget(textSource.lines), options.tabSize, options.insertSpaces);
-			resolvedOpts = new editorCommon.TextModelResolvedOptions({
+			resolvedOpts = new model.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL
 			});
 		} else {
-			resolvedOpts = new editorCommon.TextModelResolvedOptions({
+			resolvedOpts = new model.TextModelResolvedOptions({
 				tabSize: options.tabSize,
 				insertSpaces: options.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
@@ -138,7 +138,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 
 	private _isDisposed: boolean;
 	private _isDisposing: boolean;
-	private _options: editorCommon.TextModelResolvedOptions;
+	private _options: model.TextModelResolvedOptions;
 	private _versionId: number;
 	/**
 	 * Unlike, versionId, this can go down (via undo) or go to previous values (via redo)
@@ -174,7 +174,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 	/*private*/_tokens: ModelLinesTokens;
 	//#endregion
 
-	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier, associatedResource: URI = null) {
+	constructor(rawTextSource: IRawTextSource, creationOptions: model.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier, associatedResource: URI = null) {
 		super();
 
 		// Generate a new unique model id
@@ -202,7 +202,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 			|| (textModelData.text.length > TextModel.MODEL_SYNC_LIMIT)
 		);
 
-		this._options = new editorCommon.TextModelResolvedOptions(textModelData.options);
+		this._options = new model.TextModelResolvedOptions(textModelData.options);
 		this._constructLines(textModelData.text);
 		this._setVersionId(1);
 		this._isDisposed = false;
@@ -336,9 +336,9 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		);
 	}
 
-	public setEOL(eol: editorCommon.EndOfLineSequence): void {
+	public setEOL(eol: model.EndOfLineSequence): void {
 		this._assertNotDisposed();
-		const newEOL = (eol === editorCommon.EndOfLineSequence.CRLF ? '\r\n' : '\n');
+		const newEOL = (eol === model.EndOfLineSequence.CRLF ? '\r\n' : '\n');
 		if (this._buffer.getEOL() === newEOL) {
 			// Nothing to do
 			return;
@@ -485,18 +485,18 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 
 	//#region Options
 
-	public getOptions(): editorCommon.TextModelResolvedOptions {
+	public getOptions(): model.TextModelResolvedOptions {
 		this._assertNotDisposed();
 		return this._options;
 	}
 
-	public updateOptions(_newOpts: editorCommon.ITextModelUpdateOptions): void {
+	public updateOptions(_newOpts: model.ITextModelUpdateOptions): void {
 		this._assertNotDisposed();
 		let tabSize = (typeof _newOpts.tabSize !== 'undefined') ? _newOpts.tabSize : this._options.tabSize;
 		let insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		let trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
 
-		let newOpts = new editorCommon.TextModelResolvedOptions({
+		let newOpts = new model.TextModelResolvedOptions({
 			tabSize: tabSize,
 			insertSpaces: insertSpaces,
 			defaultEOL: this._options.defaultEOL,
@@ -623,7 +623,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		this._alternativeVersionId = newAlternativeVersionId;
 	}
 
-	public getValue(eol?: editorCommon.EndOfLinePreference, preserveBOM: boolean = false): string {
+	public getValue(eol?: model.EndOfLinePreference, preserveBOM: boolean = false): string {
 		this._assertNotDisposed();
 		var fullModelRange = this.getFullModelRange();
 		var fullModelValue = this.getValueInRange(fullModelRange, eol);
@@ -635,7 +635,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return fullModelValue;
 	}
 
-	public getValueLength(eol?: editorCommon.EndOfLinePreference, preserveBOM: boolean = false): number {
+	public getValueLength(eol?: model.EndOfLinePreference, preserveBOM: boolean = false): number {
 		this._assertNotDisposed();
 		const fullModelRange = this.getFullModelRange();
 		const fullModelValue = this.getValueLengthInRange(fullModelRange, eol);
@@ -647,12 +647,12 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return fullModelValue;
 	}
 
-	public getValueInRange(rawRange: IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
+	public getValueInRange(rawRange: IRange, eol: model.EndOfLinePreference = model.EndOfLinePreference.TextDefined): string {
 		this._assertNotDisposed();
 		return this._buffer.getValueInRange(this.validateRange(rawRange), eol);
 	}
 
-	public getValueLengthInRange(rawRange: IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): number {
+	public getValueLengthInRange(rawRange: IRange, eol: model.EndOfLinePreference = model.EndOfLinePreference.TextDefined): number {
 		this._assertNotDisposed();
 		var range = this.validateRange(rawRange);
 		return this._buffer.getValueLengthInRange(range, eol);
@@ -875,7 +875,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
 
-	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): editorCommon.FindMatch[] {
+	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
 		this._assertNotDisposed();
 
 		let searchRange: Range;
@@ -888,13 +888,13 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchRange, captureMatches, limitResultCount);
 	}
 
-	public findNextMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): editorCommon.FindMatch {
+	public findNextMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): model.FindMatch {
 		this._assertNotDisposed();
 		const searchStart = this.validatePosition(rawSearchStart);
 		return TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
 	}
 
-	public findPreviousMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): editorCommon.FindMatch {
+	public findPreviousMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): model.FindMatch {
 		this._assertNotDisposed();
 		const searchStart = this.validatePosition(rawSearchStart);
 		return TextModelSearch.findPreviousMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
@@ -908,7 +908,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		this._commandManager.pushStackElement();
 	}
 
-	public pushEditOperations(beforeCursorState: Selection[], editOperations: editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer: editorCommon.ICursorStateComputer): Selection[] {
+	public pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer): Selection[] {
 		try {
 			this._eventEmitter.beginDeferredEmit();
 			this._onDidChangeDecorations.beginDeferredEmit();
@@ -919,7 +919,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		}
 	}
 
-	private _pushEditOperations(beforeCursorState: Selection[], editOperations: editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer: editorCommon.ICursorStateComputer): Selection[] {
+	private _pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer): Selection[] {
 		if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 			// Go through each saved line number and insert a trim whitespace edit
 			// if it is safe to do so (no conflicts with other edits).
@@ -1001,7 +1001,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
 	}
 
-	public applyEdits(rawOperations: editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
+	public applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[]): model.IIdentifiedSingleEditOperation[] {
 		try {
 			this._eventEmitter.beginDeferredEmit();
 			this._onDidChangeDecorations.beginDeferredEmit();
@@ -1012,7 +1012,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		}
 	}
 
-	private _applyEdits(rawOperations: editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
+	private _applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[]): model.IIdentifiedSingleEditOperation[] {
 		for (let i = 0, len = rawOperations.length; i < len; i++) {
 			rawOperations[i].range = this.validateRange(rawOperations[i].range);
 		}
@@ -1110,7 +1110,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 
 	//#region Decorations
 
-	public changeDecorations<T>(callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => T, ownerId: number = 0): T {
+	public changeDecorations<T>(callback: (changeAccessor: model.IModelDecorationsChangeAccessor) => T, ownerId: number = 0): T {
 		this._assertNotDisposed();
 
 		try {
@@ -1121,9 +1121,9 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		}
 	}
 
-	private _changeDecorations<T>(ownerId: number, callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => T): T {
-		let changeAccessor: editorCommon.IModelDecorationsChangeAccessor = {
-			addDecoration: (range: IRange, options: editorCommon.IModelDecorationOptions): string => {
+	private _changeDecorations<T>(ownerId: number, callback: (changeAccessor: model.IModelDecorationsChangeAccessor) => T): T {
+		let changeAccessor: model.IModelDecorationsChangeAccessor = {
+			addDecoration: (range: IRange, options: model.IModelDecorationOptions): string => {
 				this._onDidChangeDecorations.fire();
 				return this._deltaDecorationsImpl(ownerId, [], [{ range: range, options: options }])[0];
 			},
@@ -1131,7 +1131,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 				this._onDidChangeDecorations.fire();
 				this._changeDecorationImpl(id, newRange);
 			},
-			changeDecorationOptions: (id: string, options: editorCommon.IModelDecorationOptions) => {
+			changeDecorationOptions: (id: string, options: model.IModelDecorationOptions) => {
 				this._onDidChangeDecorations.fire();
 				this._changeDecorationOptionsImpl(id, _normalizeOptions(options));
 			},
@@ -1139,7 +1139,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 				this._onDidChangeDecorations.fire();
 				this._deltaDecorationsImpl(ownerId, [id], []);
 			},
-			deltaDecorations: (oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] => {
+			deltaDecorations: (oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] => {
 				if (oldDecorations.length === 0 && newDecorations.length === 0) {
 					// nothing to do
 					return [];
@@ -1162,7 +1162,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return result;
 	}
 
-	public deltaDecorations(oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[], ownerId: number = 0): string[] {
+	public deltaDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[], ownerId: number = 0): string[] {
 		this._assertNotDisposed();
 		if (!oldDecorations) {
 			oldDecorations = [];
@@ -1185,7 +1185,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return this.getDecorationRange(id);
 	}
 
-	_setTrackedRange(id: string, newRange: Range, newStickiness: editorCommon.TrackedRangeStickiness): string {
+	_setTrackedRange(id: string, newRange: Range, newStickiness: model.TrackedRangeStickiness): string {
 		const node = (id ? this._decorations[id] : null);
 
 		if (!node) {
@@ -1228,7 +1228,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		}
 	}
 
-	public getDecorationOptions(decorationId: string): editorCommon.IModelDecorationOptions {
+	public getDecorationOptions(decorationId: string): model.IModelDecorationOptions {
 		const node = this._decorations[decorationId];
 		if (!node) {
 			return null;
@@ -1251,7 +1251,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return node.range;
 	}
 
-	public getLineDecorations(lineNumber: number, ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
+	public getLineDecorations(lineNumber: number, ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			return [];
 		}
@@ -1259,7 +1259,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return this.getLinesDecorations(lineNumber, lineNumber, ownerId, filterOutValidation);
 	}
 
-	public getLinesDecorations(_startLineNumber: number, _endLineNumber: number, ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
+	public getLinesDecorations(_startLineNumber: number, _endLineNumber: number, ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
 		let lineCount = this.getLineCount();
 		let startLineNumber = Math.min(lineCount, Math.max(1, _startLineNumber));
 		let endLineNumber = Math.min(lineCount, Math.max(1, _endLineNumber));
@@ -1267,18 +1267,18 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return this._getDecorationsInRange(new Range(startLineNumber, 1, endLineNumber, endColumn), ownerId, filterOutValidation);
 	}
 
-	public getDecorationsInRange(range: IRange, ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
+	public getDecorationsInRange(range: IRange, ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
 		let validatedRange = this.validateRange(range);
 		return this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation);
 	}
 
-	public getOverviewRulerDecorations(ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
+	public getOverviewRulerDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
 		const versionId = this.getVersionId();
 		const result = this._decorationsTree.search(ownerId, filterOutValidation, true, versionId);
 		return this._ensureNodesHaveRanges(result);
 	}
 
-	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): editorCommon.IModelDecoration[] {
+	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
 		const versionId = this.getVersionId();
 		const result = this._decorationsTree.search(ownerId, filterOutValidation, false, versionId);
 		return this._ensureNodesHaveRanges(result);
@@ -1341,7 +1341,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		}
 	}
 
-	private _deltaDecorationsImpl(ownerId: number, oldDecorationsIds: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] {
+	private _deltaDecorationsImpl(ownerId: number, oldDecorationsIds: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
 		const versionId = this.getVersionId();
 
 		const oldDecorationsLen = oldDecorationsIds.length;
@@ -1543,7 +1543,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 
 	// Having tokens allows implementing additional helper methods
 
-	public getWordAtPosition(_position: IPosition): editorCommon.IWordAtPosition {
+	public getWordAtPosition(_position: IPosition): model.IWordAtPosition {
 		this._assertNotDisposed();
 		const position = this.validatePosition(_position);
 		const lineContent = this.getLineContent(position.lineNumber);
@@ -1572,7 +1572,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		);
 	}
 
-	public getWordUntilPosition(position: IPosition): editorCommon.IWordAtPosition {
+	public getWordUntilPosition(position: IPosition): model.IWordAtPosition {
 		var wordAtPosition = this.getWordAtPosition(position);
 		if (!wordAtPosition) {
 			return {
@@ -1837,7 +1837,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return null;
 	}
 
-	public findPrevBracket(_position: IPosition): editorCommon.IFoundBracket {
+	public findPrevBracket(_position: IPosition): model.IFoundBracket {
 		const position = this.validatePosition(_position);
 
 		let languageId: LanguageId = -1;
@@ -1881,7 +1881,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return null;
 	}
 
-	public findNextBracket(_position: IPosition): editorCommon.IFoundBracket {
+	public findNextBracket(_position: IPosition): model.IFoundBracket {
 		const position = this.validatePosition(_position);
 
 		let languageId: LanguageId = -1;
@@ -1926,7 +1926,7 @@ export class TextModel extends Disposable implements editorCommon.IModel {
 		return null;
 	}
 
-	private _toFoundBracket(modeBrackets: RichEditBrackets, r: Range): editorCommon.IFoundBracket {
+	private _toFoundBracket(modeBrackets: RichEditBrackets, r: Range): model.IFoundBracket {
 		if (!r) {
 			return null;
 		}
@@ -2126,18 +2126,18 @@ function cleanClassName(className: string): string {
 	return className.replace(/[^a-z0-9\-]/gi, ' ');
 }
 
-export class ModelDecorationOverviewRulerOptions implements editorCommon.IModelDecorationOverviewRulerOptions {
+export class ModelDecorationOverviewRulerOptions implements model.IModelDecorationOverviewRulerOptions {
 	readonly color: string | ThemeColor;
 	readonly darkColor: string | ThemeColor;
 	readonly hcColor: string | ThemeColor;
-	readonly position: editorCommon.OverviewRulerLane;
+	readonly position: model.OverviewRulerLane;
 	_resolvedColor: string;
 
-	constructor(options: editorCommon.IModelDecorationOverviewRulerOptions) {
+	constructor(options: model.IModelDecorationOverviewRulerOptions) {
 		this.color = strings.empty;
 		this.darkColor = strings.empty;
 		this.hcColor = strings.empty;
-		this.position = editorCommon.OverviewRulerLane.Center;
+		this.position = model.OverviewRulerLane.Center;
 		this._resolvedColor = null;
 
 		if (options && options.color) {
@@ -2158,20 +2158,20 @@ export class ModelDecorationOverviewRulerOptions implements editorCommon.IModelD
 
 let lastStaticId = 0;
 
-export class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
+export class ModelDecorationOptions implements model.IModelDecorationOptions {
 
 	public static EMPTY: ModelDecorationOptions;
 
-	public static register(options: editorCommon.IModelDecorationOptions): ModelDecorationOptions {
+	public static register(options: model.IModelDecorationOptions): ModelDecorationOptions {
 		return new ModelDecorationOptions(++lastStaticId, options);
 	}
 
-	public static createDynamic(options: editorCommon.IModelDecorationOptions): ModelDecorationOptions {
+	public static createDynamic(options: model.IModelDecorationOptions): ModelDecorationOptions {
 		return new ModelDecorationOptions(0, options);
 	}
 
 	readonly staticId: number;
-	readonly stickiness: editorCommon.TrackedRangeStickiness;
+	readonly stickiness: model.TrackedRangeStickiness;
 	readonly className: string;
 	readonly hoverMessage: IMarkdownString | IMarkdownString[];
 	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[];
@@ -2185,9 +2185,9 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 	readonly beforeContentClassName: string;
 	readonly afterContentClassName: string;
 
-	private constructor(staticId: number, options: editorCommon.IModelDecorationOptions) {
+	private constructor(staticId: number, options: model.IModelDecorationOptions) {
 		this.staticId = staticId;
-		this.stickiness = options.stickiness || editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.className = options.className ? cleanClassName(options.className) : strings.empty;
 		this.hoverMessage = options.hoverMessage || [];
 		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || [];
@@ -2208,13 +2208,13 @@ ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({});
  * The order carefully matches the values of the enum.
  */
 const TRACKED_RANGE_OPTIONS = [
-	ModelDecorationOptions.register({ stickiness: editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }),
-	ModelDecorationOptions.register({ stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }),
-	ModelDecorationOptions.register({ stickiness: editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
-	ModelDecorationOptions.register({ stickiness: editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
+	ModelDecorationOptions.register({ stickiness: model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ stickiness: model.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ stickiness: model.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
+	ModelDecorationOptions.register({ stickiness: model.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
 ];
 
-function _normalizeOptions(options: editorCommon.IModelDecorationOptions): ModelDecorationOptions {
+function _normalizeOptions(options: model.IModelDecorationOptions): ModelDecorationOptions {
 	if (options instanceof ModelDecorationOptions) {
 		return options;
 	}

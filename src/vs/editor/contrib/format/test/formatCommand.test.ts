@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation } from 'vs/editor/common/model/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';

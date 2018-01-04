@@ -7,7 +7,7 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/model/model';
 import { LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
 
 interface Entry<T> {

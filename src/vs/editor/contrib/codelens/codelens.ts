@@ -9,7 +9,7 @@ import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/error
 import { mergeSort } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/model/model';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';

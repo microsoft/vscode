@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { CharacterHardWrappingLineMapping, CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ILineMapping, IModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { ILineMapping, SplitLine, SplitLinesCollection, ISimpleModel } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { toUint32Array } from 'vs/editor/common/core/uint';
@@ -771,7 +771,7 @@ function createLineMapping(breakingLengths: number[], wrappedLinesPrefix: string
 	);
 }
 
-function createModel(text: string): IModel {
+function createModel(text: string): ISimpleModel {
 	return {
 		getLineTokens: (lineNumber: number) => {
 			return null;

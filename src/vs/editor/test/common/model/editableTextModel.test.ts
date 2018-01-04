@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, IIdentifiedSingleEditOperation, DefaultEndOfLine } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, IIdentifiedSingleEditOperation, DefaultEndOfLine } from 'vs/editor/common/model/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';

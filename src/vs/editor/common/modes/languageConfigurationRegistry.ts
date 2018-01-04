@@ -10,7 +10,7 @@ import { IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/s
 import { IndentRulesSupport, IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/model/model';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';

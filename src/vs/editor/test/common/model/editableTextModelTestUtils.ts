@@ -5,14 +5,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
 import { Position } from 'vs/editor/common/core/position';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { EndOfLinePreference, IIdentifiedSingleEditOperation, EndOfLineSequence } from 'vs/editor/common/model/model';
 
-export function testApplyEditsWithSyncedModels(original: string[], edits: editorCommon.IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
+export function testApplyEditsWithSyncedModels(original: string[], edits: IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
 	var originalStr = original.join('\n');
 	var expectedStr = expected.join('\n');
 
@@ -21,7 +21,7 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: editor
 		var inverseEdits = model.applyEdits(edits);
 
 		// Assert edits produced expected result
-		assert.deepEqual(model.getValue(editorCommon.EndOfLinePreference.LF), expectedStr);
+		assert.deepEqual(model.getValue(EndOfLinePreference.LF), expectedStr);
 
 		assertMirrorModels();
 
@@ -29,7 +29,7 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: editor
 		var inverseInverseEdits = model.applyEdits(inverseEdits);
 
 		// Assert the inverse edits brought back model to original state
-		assert.deepEqual(model.getValue(editorCommon.EndOfLinePreference.LF), originalStr);
+		assert.deepEqual(model.getValue(EndOfLinePreference.LF), originalStr);
 
 		if (!inputEditsAreInvalid) {
 			// Assert the inverse of the inverse edits are the original edits
@@ -82,7 +82,7 @@ function assertLineMapping(model: TextModel, msg: string): void {
 
 export function assertSyncedModels(text: string, callback: (model: TextModel, assertMirrorModels: () => void) => void, setup: (model: TextModel) => void = null): void {
 	var model = new TextModel(RawTextSource.fromString(text), TextModel.DEFAULT_CREATION_OPTIONS, null);
-	model.setEOL(editorCommon.EndOfLineSequence.LF);
+	model.setEOL(EndOfLineSequence.LF);
 	assertLineMapping(model, 'model');
 
 	if (setup) {

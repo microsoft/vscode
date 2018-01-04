@@ -11,6 +11,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { IModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model/model';
 
 export function testCommand(
 	lines: string[],
@@ -39,8 +40,8 @@ export function testCommand(
 /**
  * Extract edit operations if command `command` were to execute on model `model`
  */
-export function getEditOperation(model: editorCommon.IModel, command: editorCommon.ICommand): editorCommon.IIdentifiedSingleEditOperation[] {
-	var operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+export function getEditOperation(model: IModel, command: editorCommon.ICommand): IIdentifiedSingleEditOperation[] {
+	var operations: IIdentifiedSingleEditOperation[] = [];
 	var editOperationBuilder: editorCommon.IEditOperationBuilder = {
 		addEditOperation: (range: Range, text: string) => {
 			operations.push({

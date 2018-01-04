@@ -7,6 +7,7 @@
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/model/model';
 
 interface IEditOperation {
 	range: Range;
@@ -26,7 +27,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 		this._replaceStrings = replaceStrings;
 	}
 
-	public getEditOperations(model: editorCommon.IModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: IModel, builder: editorCommon.IEditOperationBuilder): void {
 		if (this._ranges.length > 0) {
 			// Collect all edit operations
 			var ops: IEditOperation[] = [];
@@ -65,7 +66,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 		this._trackedEditorSelectionId = builder.trackSelection(this._editorSelection);
 	}
 
-	public computeCursorState(model: editorCommon.IModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: IModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this._trackedEditorSelectionId);
 	}
 }

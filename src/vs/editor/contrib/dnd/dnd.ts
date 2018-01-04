@@ -18,6 +18,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { DragAndDropCommand } from 'vs/editor/contrib/dnd/dragAndDropCommand';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IModelDeltaDecoration } from 'vs/editor/common/model/model';
 
 export class DragAndDropController implements editorCommon.IEditorContribution {
 
@@ -173,7 +174,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 	public showAt(position: Position): void {
 		this._editor.changeDecorations(changeAccessor => {
-			let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+			let newDecorations: IModelDeltaDecoration[] = [];
 			newDecorations.push({
 				range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 				options: DragAndDropController._DECORATION_OPTIONS

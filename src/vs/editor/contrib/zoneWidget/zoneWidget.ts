@@ -17,7 +17,8 @@ import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { ScrollType, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { TrackedRangeStickiness } from 'vs/editor/common/model/model';
 
 export interface IOptions {
 	showFrame?: boolean;

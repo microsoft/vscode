@@ -23,6 +23,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IModelDecorationOptions, IModel } from 'vs/editor/common/model/model';
 
 export class TestCodeEditor extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -77,7 +78,7 @@ export class TestCodeEditor extends CommonCodeEditor implements editorBrowser.IC
 
 	protected _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void { throw new Error('NotImplemented'); }
 	protected _removeDecorationType(key: string): void { throw new Error('NotImplemented'); }
-	protected _resolveDecorationOptions(typeKey: string, writable: boolean): editorCommon.IModelDecorationOptions { throw new Error('NotImplemented'); }
+	protected _resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions { throw new Error('NotImplemented'); }
 
 	// --- test utils
 	getCursor(): Cursor {
@@ -139,7 +140,7 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	/**
 	 * The initial model associated with this code editor.
 	 */
-	model?: editorCommon.IModel;
+	model?: IModel;
 	serviceCollection?: ServiceCollection;
 }
 
@@ -160,7 +161,7 @@ export function withTestCodeEditor(text: string[], options: TestCodeEditorCreati
 	editor.dispose();
 }
 
-export function createTestCodeEditor(model: editorCommon.IModel): TestCodeEditor {
+export function createTestCodeEditor(model: IModel): TestCodeEditor {
 	return _createTestCodeEditor({ model: model });
 }
 

@@ -6,16 +6,16 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ModelRawChange, IModelContentChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference } from 'vs/editor/common/model/model';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
-	identifier: editorCommon.ISingleEditOperationIdentifier;
+	identifier: ISingleEditOperationIdentifier;
 	range: Range;
 	rangeOffset: number;
 	rangeLength: number;
@@ -35,8 +35,8 @@ export interface ITextBuffer {
 	getPositionAt(offset: number): Position;
 	getRangeAt(offset: number, length: number): Range;
 
-	getValueInRange(range: Range, eol: editorCommon.EndOfLinePreference): string;
-	getValueLengthInRange(range: Range, eol: editorCommon.EndOfLinePreference): number;
+	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
 	getLineCount(): number;
 	getLinesContent(): string[];
 	getLineContent(lineNumber: number): string;
@@ -46,13 +46,13 @@ export interface ITextBuffer {
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 
 	setEOL(newEOL: string): void;
-	applyEdits(rawOperations: editorCommon.IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
+	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
 }
 
 export class ApplyEditsResult {
 
 	constructor(
-		public readonly reverseEdits: editorCommon.IIdentifiedSingleEditOperation[],
+		public readonly reverseEdits: IIdentifiedSingleEditOperation[],
 		public readonly rawChanges: ModelRawChange[],
 		public readonly changes: IInternalModelContentChange[],
 		public readonly trimAutoWhitespaceLineNumbers: number[]
@@ -157,19 +157,19 @@ export class TextBuffer implements ITextBuffer {
 		return new Range(startResult.index + 1, startColumn, endResult.index + 1, endColumn);
 	}
 
-	private _getEndOfLine(eol: editorCommon.EndOfLinePreference): string {
+	private _getEndOfLine(eol: EndOfLinePreference): string {
 		switch (eol) {
-			case editorCommon.EndOfLinePreference.LF:
+			case EndOfLinePreference.LF:
 				return '\n';
-			case editorCommon.EndOfLinePreference.CRLF:
+			case EndOfLinePreference.CRLF:
 				return '\r\n';
-			case editorCommon.EndOfLinePreference.TextDefined:
+			case EndOfLinePreference.TextDefined:
 				return this.getEOL();
 		}
 		throw new Error('Unknown EOL preference');
 	}
 
-	public getValueInRange(range: Range, eol: editorCommon.EndOfLinePreference): string {
+	public getValueInRange(range: Range, eol: EndOfLinePreference): string {
 		if (range.isEmpty()) {
 			return '';
 		}
@@ -192,7 +192,7 @@ export class TextBuffer implements ITextBuffer {
 		return resultLines.join(lineEnding);
 	}
 
-	public getValueLengthInRange(range: Range, eol: editorCommon.EndOfLinePreference): number {
+	public getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
 		if (range.isEmpty()) {
 			return 0;
 		}
@@ -265,7 +265,7 @@ export class TextBuffer implements ITextBuffer {
 		return -r;
 	}
 
-	public applyEdits(rawOperations: editorCommon.IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult {
+	public applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult {
 		if (rawOperations.length === 0) {
 			return new ApplyEditsResult([], [], [], []);
 		}
@@ -293,7 +293,7 @@ export class TextBuffer implements ITextBuffer {
 				identifier: op.identifier,
 				range: validatedRange,
 				rangeOffset: this.getOffsetAt(validatedRange.startLineNumber, validatedRange.startColumn),
-				rangeLength: this.getValueLengthInRange(validatedRange, editorCommon.EndOfLinePreference.TextDefined),
+				rangeLength: this.getValueLengthInRange(validatedRange, EndOfLinePreference.TextDefined),
 				lines: op.text ? op.text.split(/\r\n|\r|\n/) : null,
 				forceMoveMarkers: op.forceMoveMarkers,
 				isAutoWhitespaceEdit: op.isAutoWhitespaceEdit || false
@@ -340,7 +340,7 @@ export class TextBuffer implements ITextBuffer {
 			}
 		}
 
-		let reverseOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let reverseOperations: IIdentifiedSingleEditOperation[] = [];
 		for (let i = 0; i < operations.length; i++) {
 			let op = operations[i];
 			let reverseRange = reverseRanges[i];
@@ -348,7 +348,7 @@ export class TextBuffer implements ITextBuffer {
 			reverseOperations[i] = {
 				identifier: op.identifier,
 				range: reverseRange,
-				text: this.getValueInRange(op.range, editorCommon.EndOfLinePreference.TextDefined),
+				text: this.getValueInRange(op.range, EndOfLinePreference.TextDefined),
 				forceMoveMarkers: op.forceMoveMarkers
 			};
 		}
@@ -459,7 +459,7 @@ export class TextBuffer implements ITextBuffer {
 			identifier: operations[0].identifier,
 			range: entireEditRange,
 			rangeOffset: this.getOffsetAt(entireEditRange.startLineNumber, entireEditRange.startColumn),
-			rangeLength: this.getValueLengthInRange(entireEditRange, editorCommon.EndOfLinePreference.TextDefined),
+			rangeLength: this.getValueLengthInRange(entireEditRange, EndOfLinePreference.TextDefined),
 			lines: result.join('').split('\n'),
 			forceMoveMarkers: forceMoveMarkers,
 			isAutoWhitespaceEdit: false

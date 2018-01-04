@@ -15,7 +15,7 @@ import { IFileService, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModel, EndOfLineSequence } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, IModel, EndOfLineSequence } from 'vs/editor/common/model/model';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 

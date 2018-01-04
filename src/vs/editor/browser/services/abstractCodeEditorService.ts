@@ -5,7 +5,8 @@
 'use strict';
 
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDecorationRenderOptions, IModelDecorationOptions, IModel } from 'vs/editor/common/editorCommon';
+import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, IModel } from 'vs/editor/common/model/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 

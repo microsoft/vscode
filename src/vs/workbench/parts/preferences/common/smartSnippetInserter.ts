@@ -6,9 +6,9 @@
 'use strict';
 
 import { JSONScanner, createScanner as createJSONScanner, SyntaxKind as JSONSyntaxKind } from 'vs/base/common/json';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { IModel } from 'vs/editor/common/model/model';
 
 export interface InsertSnippetResult {
 	position: Position;
@@ -31,7 +31,7 @@ export class SmartSnippetInserter {
 		return false;
 	}
 
-	private static offsetToPosition(model: editorCommon.IModel, offset: number): Position {
+	private static offsetToPosition(model: IModel, offset: number): Position {
 		let offsetBeforeLine = 0;
 		let eolLength = model.getEOL().length;
 		let lineCount = model.getLineCount();
@@ -53,7 +53,7 @@ export class SmartSnippetInserter {
 		);
 	}
 
-	public static insertSnippet(model: editorCommon.IModel, _position: Position): InsertSnippetResult {
+	public static insertSnippet(model: IModel, _position: Position): InsertSnippetResult {
 
 		let desiredPosition = model.getValueLengthInRange(new Range(1, 1, _position.lineNumber, _position.column));
 

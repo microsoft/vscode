@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/model/model';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';

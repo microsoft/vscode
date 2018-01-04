@@ -10,11 +10,8 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import {
-	EndOfLinePreference, Handler,
-	DefaultEndOfLine, ITextModelCreationOptions, ICommand,
-	IModel, IEditOperationBuilder, ICursorStateComputerData, EndOfLineSequence
-} from 'vs/editor/common/editorCommon';
+import { Handler, ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, DefaultEndOfLine, ITextModelCreationOptions, IModel, EndOfLineSequence } from 'vs/editor/common/model/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';

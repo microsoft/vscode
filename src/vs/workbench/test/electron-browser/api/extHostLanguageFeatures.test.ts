@@ -10,7 +10,6 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
 import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
@@ -45,9 +44,10 @@ import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { IModel, EndOfLineSequence } from 'vs/editor/common/model/model';
 
 const defaultSelector = { scheme: 'far' };
-const model: EditorCommon.IModel = EditorModel.createFromString(
+const model: IModel = EditorModel.createFromString(
 	[
 		'This is the first line',
 		'This is the second line',
@@ -984,7 +984,7 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.equal(first.text, 'testing');
 				assert.deepEqual(first.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 
-				assert.equal(second.eol, EditorCommon.EndOfLineSequence.LF);
+				assert.equal(second.eol, EndOfLineSequence.LF);
 				assert.equal(second.text, '');
 				assert.equal(second.range, undefined);
 			});

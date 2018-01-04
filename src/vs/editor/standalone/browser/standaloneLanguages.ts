@@ -13,7 +13,6 @@ import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
 import { LanguageConfiguration, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -24,6 +23,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import * as model from 'vs/editor/common/model/model';
 
 /**
  * Register information about a new language.
@@ -263,7 +263,7 @@ export function registerSignatureHelpProvider(languageId: string, provider: mode
  */
 export function registerHoverProvider(languageId: string, provider: modes.HoverProvider): IDisposable {
 	return modes.HoverProviderRegistry.register(languageId, {
-		provideHover: (model: editorCommon.IModel, position: Position, token: CancellationToken): Thenable<modes.Hover> => {
+		provideHover: (model: model.IModel, position: Position, token: CancellationToken): Thenable<modes.Hover> => {
 			let word = model.getWordAtPosition(position);
 
 			return toThenable<modes.Hover>(provider.provideHover(model, position, token)).then((value) => {
@@ -329,7 +329,7 @@ export function registerCodeLensProvider(languageId: string, provider: modes.Cod
  */
 export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
-		provideCodeActions: (model: editorCommon.IModel, range: Range, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]> => {
+		provideCodeActions: (model: model.IModel, range: Range, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]> => {
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
@@ -373,10 +373,10 @@ export function registerCompletionItemProvider(languageId: string, provider: Com
 	let adapter = new SuggestAdapter(provider);
 	return modes.SuggestRegistry.register(languageId, {
 		triggerCharacters: provider.triggerCharacters,
-		provideCompletionItems: (model: editorCommon.IModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+		provideCompletionItems: (model: model.IModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 			return adapter.provideCompletionItems(model, position, context, token);
 		},
-		resolveCompletionItem: (model: editorCommon.IModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
+		resolveCompletionItem: (model: model.IModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
 			return adapter.resolveCompletionItem(model, position, suggestion, token);
 		}
 	});
@@ -411,7 +411,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: editorCommon.IModel, range: Range, context: CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]>;
+	provideCodeActions(model: model.IModel, range: Range, context: CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]>;
 }
 
 /**
@@ -524,7 +524,7 @@ export interface CompletionItem {
 	 * ~~The [range](#Range) of the edit must be single-line and on the same
 	 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
 	 */
-	textEdit?: editorCommon.ISingleEditOperation;
+	textEdit?: model.ISingleEditOperation;
 }
 /**
  * Represents a collection of [completion items](#CompletionItem) to be presented
@@ -576,7 +576,7 @@ export interface CompletionItemProvider {
 	/**
 	 * Provide completion items for the given position and document.
 	 */
-	provideCompletionItems(document: editorCommon.IModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+	provideCompletionItems(document: model.IModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 
 	/**
 	 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
@@ -665,7 +665,7 @@ class SuggestAdapter {
 		return suggestion;
 	}
 
-	provideCompletionItems(model: editorCommon.IModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> {
+	provideCompletionItems(model: model.IModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> {
 		const result = this._provider.provideCompletionItems(model, position, token, context);
 		return toThenable<CompletionItem[] | CompletionList>(result).then(value => {
 			const result: modes.ISuggestResult = {
@@ -708,7 +708,7 @@ class SuggestAdapter {
 		});
 	}
 
-	resolveCompletionItem(model: editorCommon.IModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	resolveCompletionItem(model: model.IModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
 			return TPromise.as(suggestion);
 		}

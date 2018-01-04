@@ -5,7 +5,7 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ICursorStateComputer, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ICursorStateComputer, IIdentifiedSingleEditOperation } from 'vs/editor/common/model/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
 

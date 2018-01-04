@@ -14,7 +14,6 @@ import { Edit } from 'vs/base/common/jsonFormatter';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -25,6 +24,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { IModel } from 'vs/editor/common/model/model';
 
 
 export const IKeybindingEditingService = createDecorator<IKeybindingEditingService>('keybindingEditingService');
@@ -112,7 +112,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		return this.textFileService.save(this.resource);
 	}
 
-	private updateUserKeybinding(newKey: string, keybindingItem: ResolvedKeybindingItem, model: editorCommon.IModel): void {
+	private updateUserKeybinding(newKey: string, keybindingItem: ResolvedKeybindingItem, model: IModel): void {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
@@ -122,7 +122,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		}
 	}
 
-	private updateDefaultKeybinding(newKey: string, keybindingItem: ResolvedKeybindingItem, model: editorCommon.IModel): void {
+	private updateDefaultKeybinding(newKey: string, keybindingItem: ResolvedKeybindingItem, model: IModel): void {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
@@ -140,7 +140,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		}
 	}
 
-	private removeUserKeybinding(keybindingItem: ResolvedKeybindingItem, model: editorCommon.IModel): void {
+	private removeUserKeybinding(keybindingItem: ResolvedKeybindingItem, model: IModel): void {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
@@ -150,13 +150,13 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		}
 	}
 
-	private removeDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: editorCommon.IModel): void {
+	private removeDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: IModel): void {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(keybindingItem.resolvedKeybinding.getUserSettingsLabel(), keybindingItem.command, keybindingItem.when, true), { tabSize, insertSpaces, eol })[0], model);
 	}
 
-	private removeUnassignedDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: editorCommon.IModel): void {
+	private removeUnassignedDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: IModel): void {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
@@ -202,7 +202,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 
-	private applyEditsToBuffer(edit: Edit, model: editorCommon.IModel): void {
+	private applyEditsToBuffer(edit: Edit, model: IModel): void {
 		const startPosition = model.getPositionAt(edit.offset);
 		const endPosition = model.getPositionAt(edit.offset + edit.length);
 		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
@@ -253,7 +253,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			});
 	}
 
-	private parse(model: editorCommon.IModel): { result: IUserFriendlyKeybinding[], parseErrors: json.ParseError[] } {
+	private parse(model: IModel): { result: IUserFriendlyKeybinding[], parseErrors: json.ParseError[] } {
 		const parseErrors: json.ParseError[] = [];
 		const result = json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
 		return { result, parseErrors };

@@ -6,7 +6,8 @@
 
 import Event from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDecorationRenderOptions, IModelDecorationOptions, IModel } from 'vs/editor/common/editorCommon';
+import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, IModel } from 'vs/editor/common/model/model';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { ICodeEditor, IDiffEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 

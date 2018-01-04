@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/model/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Node, build, find } from './tokenTree';
 import { Position } from 'vs/editor/common/core/position';
