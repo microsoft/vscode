@@ -14,7 +14,6 @@ import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
 import glob = require('vs/base/common/glob');
 import { Action, IAction } from 'vs/base/common/actions';
-import { prepareActions } from 'vs/workbench/browser/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
@@ -162,7 +161,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		this.tree = this.createViewer($(this.treeContainer));
 
 		if (this.toolbar) {
-			this.toolbar.setActions(prepareActions(this.getActions()), this.getSecondaryActions())();
+			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
 		}
 
 		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
@@ -183,12 +182,6 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		actions.push(this.instantiationService.createInstance(NewFolderAction, this.getViewer(), null));
 		actions.push(this.instantiationService.createInstance(RefreshViewExplorerAction, this, 'explorer-action refresh-explorer'));
 		actions.push(this.instantiationService.createInstance(CollapseAction, this.getViewer(), true, 'explorer-action collapse-explorer'));
-
-		// Set Order
-		for (let i = 0; i < actions.length; i++) {
-			const action = actions[i];
-			action.order = 10 * (i + 1);
-		}
 
 		return actions;
 	}
