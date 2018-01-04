@@ -318,7 +318,7 @@ export class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost
 			this.languagePerId.set(description.id, manager);
 		}
 
-		this.client.startService();
+		this.client.ensureServiceStarted();
 		this.client.onReady().then(() => {
 			if (!this.client.apiVersion.has230Features()) {
 				return;

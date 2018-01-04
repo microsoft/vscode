@@ -109,7 +109,7 @@ class RequestQueue {
 	}
 }
 
-export class ForkedTsServerProcess {
+class ForkedTsServerProcess {
 	constructor(
 		private childProcess: cp.ChildProcess
 	) { }
@@ -328,7 +328,13 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return Promise.reject<ForkedTsServerProcess>(new Error('Could not create TS service'));
 	}
 
-	public startService(resendModels: boolean = false): Promise<ForkedTsServerProcess> {
+	public ensureServiceStarted() {
+		if (!this.servicePromise) {
+			this.startService();
+		}
+	}
+
+	private startService(resendModels: boolean = false): Promise<ForkedTsServerProcess> {
 		let currentVersion = this.versionPicker.currentVersion;
 
 		return this.servicePromise = new Promise<ForkedTsServerProcess>(async (resolve, reject) => {
