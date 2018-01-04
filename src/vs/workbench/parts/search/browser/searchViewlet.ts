@@ -514,7 +514,7 @@ export class SearchViewlet extends Viewlet {
 			this.tree.setInput(this.viewModel.searchResult);
 			this.toUnbind.push(renderer);
 
-			const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree));
+			const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree, { openOnFocus: true }));
 			this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {
 				if (options.element instanceof Match) {
 					let selectedMatch: Match = options.element;

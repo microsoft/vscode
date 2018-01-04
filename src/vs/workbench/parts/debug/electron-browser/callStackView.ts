@@ -18,7 +18,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
 import { ITree, IActionProvider, IDataSource, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyStackTraceAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
@@ -28,6 +27,8 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
 
 const $ = dom.$;
 
@@ -48,7 +49,8 @@ export class CallStackView extends TreeViewsViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService);
 		this.settings = options.viewletSettings;
@@ -108,10 +110,28 @@ export class CallStackView extends TreeViewsViewletPanel {
 				keyboardSupport: false
 			}, this.contextKeyService, this.listService, this.themeService);
 
-		this.disposables.push(this.tree.onDidChangeSelection(event => {
-			if (event && event.payload && event.payload.origin === 'keyboard') {
-				const element = this.tree.getFocus();
-				controller.handleSelectionChange(this.tree, element, false, event);
+		const fileResultsNavigation = new FileResultsNavigation(this.tree);
+		this.disposables.push(fileResultsNavigation);
+		this.disposables.push(fileResultsNavigation.openFile(e => {
+			const element = e.element;
+
+			if (element instanceof StackFrame) {
+				this.debugService.focusStackFrame(element, element.thread, element.thread.process, true);
+				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide).done(undefined, errors.onUnexpectedError);
+			}
+			if (element instanceof Thread) {
+				this.debugService.focusStackFrame(undefined, element, element.process, true);
+			}
+			if (element instanceof Process) {
+				this.debugService.focusStackFrame(undefined, undefined, element, true);
+			}
+			if (element instanceof ThreadAndProcessIds) {
+				const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === element.processId).pop();
+				const thread = process && process.getThread(element.threadId);
+				if (thread) {
+					(<Thread>thread).fetchCallStack()
+						.done(() => this.tree.refresh(), errors.onUnexpectedError);
+				}
 			}
 		}));
 
@@ -178,14 +198,6 @@ export class CallStackView extends TreeViewsViewletPanel {
 }
 
 class CallStackController extends BaseDebugController {
-
-	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
-		super.onLeftClick(tree, element, event);
-		this.handleSelectionChange(tree, element, event.detail !== 2, event);
-
-		return true;
-	}
-
 	protected getContext(element: any): any {
 		if (element instanceof StackFrame) {
 			if (element.source.inMemory) {
@@ -196,35 +208,6 @@ class CallStackController extends BaseDebugController {
 		}
 		if (element instanceof Thread) {
 			return element.threadId;
-		}
-	}
-
-	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
-	public showMoreStackFrames(tree: ITree, threadAndProcessIds: ThreadAndProcessIds): boolean {
-		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === threadAndProcessIds.processId).pop();
-		const thread = process && process.getThread(threadAndProcessIds.threadId);
-		if (thread) {
-			(<Thread>thread).fetchCallStack()
-				.done(() => tree.refresh(), errors.onUnexpectedError);
-		}
-
-		return true;
-	}
-
-	public handleSelectionChange(tree: ITree, element: any, preserveFocus: boolean, event: any): void {
-		if (element instanceof StackFrame) {
-			this.debugService.focusStackFrame(element, element.thread, element.thread.process, true);
-			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			element.openInEditor(this.editorService, preserveFocus, sideBySide).done(undefined, errors.onUnexpectedError);
-		}
-		if (element instanceof Thread) {
-			this.debugService.focusStackFrame(undefined, element, element.process, true);
-		}
-		if (element instanceof Process) {
-			this.debugService.focusStackFrame(undefined, undefined, element, true);
-		}
-		if (element instanceof ThreadAndProcessIds) {
-			this.showMoreStackFrames(tree, element);
 		}
 	}
 }
