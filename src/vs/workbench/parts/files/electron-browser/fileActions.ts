@@ -1311,7 +1311,7 @@ export class ShowActiveFileInExplorer extends Action {
 	public run(): TPromise<any> {
 		const resource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true });
 		if (resource) {
-			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, { resource });
+			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
