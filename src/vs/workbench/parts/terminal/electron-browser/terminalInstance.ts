@@ -848,8 +848,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	// TODO: This should be private/protected
-	// TODO: locale should not be optional
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string, cols?: number, rows?: number): IStringDictionary<string> {
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale: string, cols?: number, rows?: number): IStringDictionary<string> {
 		const env = { ...parentEnv };
 		if (shell.env) {
 			TerminalInstance.mergeEnvironments(env, shell.env);
