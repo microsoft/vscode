@@ -337,22 +337,22 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private startService(resendModels: boolean = false): Promise<ForkedTsServerProcess> {
 		let currentVersion = this.versionPicker.currentVersion;
 
+		this.info(`Using tsserver from: ${currentVersion.path}`);
+		if (!fs.existsSync(currentVersion.tsServerPath)) {
+			window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', currentVersion.path));
+
+			this.versionPicker.useBundledVersion();
+			currentVersion = this.versionPicker.currentVersion;
+		}
+
+		this._apiVersion = this.versionPicker.currentVersion.version || API.defaultVersion;
+		this.onDidChangeTypeScriptVersion(currentVersion);
+
+		this.requestQueue = new RequestQueue();
+		this.callbacks = new CallbackMap();
+		this.lastError = null;
+
 		return this.servicePromise = new Promise<ForkedTsServerProcess>(async (resolve, reject) => {
-			this.info(`Using tsserver from: ${currentVersion.path}`);
-			if (!fs.existsSync(currentVersion.tsServerPath)) {
-				window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', currentVersion.path));
-
-				this.versionPicker.useBundledVersion();
-				currentVersion = this.versionPicker.currentVersion;
-			}
-
-			this._apiVersion = this.versionPicker.currentVersion.version || API.defaultVersion;
-			this.onDidChangeTypeScriptVersion(currentVersion);
-
-			this.requestQueue = new RequestQueue();
-			this.callbacks = new CallbackMap();
-			this.lastError = null;
-
 			try {
 				const tsServerForkArgs = await this.getTsServerArgs(currentVersion);
 				const tsServerForkOptions: electron.IForkOptions = {
