@@ -5,7 +5,6 @@
 
 'use strict';
 
-// tslint:disable-next-line:import-patterns
 import 'vs/css!./media/taskManager';
 
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
