@@ -19,14 +19,15 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { join, basename, extname } from 'path';
 import { mkdirp, readdir } from 'vs/base/node/pfs';
 import { watch } from 'fs';
-import { SnippetFile } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
-import { Snippet, ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { SnippetFile, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/platform/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { values } from 'vs/base/common/map';
 
 namespace schema {
 
@@ -121,6 +122,10 @@ class SnippetsService implements ISnippetsService {
 		dispose(this._disposables);
 	}
 
+	getSnippetFiles(): Promise<SnippetFile[]> {
+		return this._initPromise.then(() => values(this._files));
+	}
+
 	getSnippets(languageId: LanguageId): Promise<Snippet[]> {
 		return this._initPromise.then(() => {
 			const langName = this._modeService.getLanguageIdentifier(languageId).language;
@@ -213,10 +218,18 @@ class SnippetsService implements ISnippetsService {
 					return;
 				}
 				const filepath = join(userSnippetsFolder, filename);
-				if (this._files.has(filepath)) {
-					this._files.get(filepath).reset();
-				} else {
-					addUserSnippet(filepath);
+				if (type === 'change') {
+					// `changed` file
+					if (this._files.has(filepath)) {
+						this._files.get(filepath).reset();
+					}
+				} else if (type === 'rename') {
+					// `created` or `deleted` file
+					if (!this._files.has(filepath)) {
+						addUserSnippet(filepath);
+					} else {
+						this._files.delete(filepath);
+					}
 				}
 			});
 		}).then(undefined, err => {

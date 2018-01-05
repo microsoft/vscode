@@ -11,7 +11,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ISnippetsService, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 
 class SimpleSnippetService implements ISnippetsService {
 	_serviceBrand: any;
@@ -22,6 +23,9 @@ class SimpleSnippetService implements ISnippetsService {
 	}
 	getSnippetsSync(): Snippet[] {
 		return this.snippets;
+	}
+	getSnippetFiles(): any {
+		throw new Error();
 	}
 }
 

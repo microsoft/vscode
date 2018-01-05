@@ -7,12 +7,114 @@
 
 import { parse as jsonParse } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
-import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { readFile } from 'vs/base/node/pfs';
-import { endsWith } from 'vs/base/common/strings';
-import { basename } from 'path';
+import { basename, extname } from 'path';
+import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/snippetParser';
+import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/snippetVariables';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+
+export class Snippet {
+
+	private _codeSnippet: string;
+	private _isBogous: boolean;
+
+	constructor(
+		readonly scopes: string[],
+		readonly name: string,
+		readonly prefix: string,
+		readonly description: string,
+		readonly body: string,
+		readonly source: string,
+		readonly isFromExtension?: boolean,
+	) {
+		//
+	}
+
+	get codeSnippet(): string {
+		this._ensureCodeSnippet();
+		return this._codeSnippet;
+	}
+
+	get isBogous(): boolean {
+		this._ensureCodeSnippet();
+		return this._isBogous;
+	}
+
+	private _ensureCodeSnippet() {
+		if (!this._codeSnippet) {
+			const rewrite = Snippet._rewriteBogousVariables(this.body);
+			if (typeof rewrite === 'string') {
+				this._codeSnippet = rewrite;
+				this._isBogous = true;
+			} else {
+				this._codeSnippet = this.body;
+				this._isBogous = false;
+			}
+		}
+	}
+
+	static compare(a: Snippet, b: Snippet): number {
+		if (a.isFromExtension !== b.isFromExtension) {
+			if (a.isFromExtension) {
+				return 1;
+			} else {
+				return -1;
+			}
+		} else if (a.name > b.name) {
+			return 1;
+		} else if (a.name < b.name) {
+			return -1;
+		} else {
+			return 0;
+		}
+	}
+
+	static _rewriteBogousVariables(template: string): false | string {
+		const textmateSnippet = new SnippetParser().parse(template, false);
+
+		let placeholders = new Map<string, number>();
+		let placeholderMax = 0;
+		for (const placeholder of textmateSnippet.placeholders) {
+			placeholderMax = Math.max(placeholderMax, placeholder.index);
+		}
+
+		let didChange = false;
+		let stack = [...textmateSnippet.children];
+
+		while (stack.length > 0) {
+			let marker = stack.shift();
+
+			if (
+				marker instanceof Variable
+				&& marker.children.length === 0
+				&& !KnownSnippetVariableNames[marker.name]
+			) {
+				// a 'variable' without a default value and not being one of our supported
+				// variables is automatically turned into a placeholder. This is to restore
+				// a bug we had before. So `${foo}` becomes `${N:foo}`
+				const index = placeholders.has(marker.name) ? placeholders.get(marker.name) : ++placeholderMax;
+				placeholders.set(marker.name, index);
+
+				const synthetic = new Placeholder(index).appendChild(new Text(marker.name));
+				textmateSnippet.replace(marker, [synthetic]);
+				didChange = true;
+
+			} else {
+				// recurse
+				stack.push(...marker.children);
+			}
+		}
+
+		if (!didChange) {
+			return false;
+		} else {
+			return textmateSnippet.toTextmateString();
+		}
+	}
+}
+
 
 interface JsonSerializedSnippet {
 	body: string;
@@ -32,6 +134,9 @@ interface JsonSerializedSnippets {
 export class SnippetFile {
 
 	readonly data: Snippet[] = [];
+	readonly isGlobalSnippets: boolean;
+	readonly isUserSnippets: boolean;
+
 	private _loadPromise: Promise<this>;
 
 	constructor(
@@ -39,14 +144,15 @@ export class SnippetFile {
 		private readonly _defaultScope: string,
 		private readonly _extension: IExtensionDescription
 	) {
-		//
+		this.isGlobalSnippets = extname(filepath) === '.code-snippets';
+		this.isUserSnippets = !this._extension;
 	}
 
 	select(selector: string, bucket: Snippet[]): void {
-		if (endsWith(this.filepath, '.json')) {
-			this._filepathSelect(selector, bucket);
-		} else {
+		if (this.isGlobalSnippets) {
 			this._scopeSelect(selector, bucket);
+		} else {
+			this._filepathSelect(selector, bucket);
 		}
 	}
 
@@ -126,7 +232,7 @@ export class SnippetFile {
 		if (this._defaultScope) {
 			scopes = [this._defaultScope];
 		} else if (typeof snippet.scope === 'string') {
-			scopes = snippet.scope.split(',');
+			scopes = snippet.scope.split(',').filter(s => !isFalsyOrWhitespace(s));
 		} else {
 			scopes = [];
 		}

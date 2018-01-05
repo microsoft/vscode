@@ -6,190 +6,206 @@
 
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { fileExists, writeFile, readdir } from 'vs/base/node/pfs';
+import { writeFile, exists } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IQuickOpenService, IPickOpenEntry, ISeparator } from 'vs/platform/quickOpen/common/quickOpen';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
-import { join, basename, dirname } from 'path';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { join, basename, dirname, extname } from 'path';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { endsWith } from 'vs/base/common/strings';
 import { timeout } from 'vs/base/common/async';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import URI from 'vs/base/common/uri';
+import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { values } from 'vs/base/common/map';
 
 const id = 'workbench.action.openSnippets';
 
-class LanguagePick implements IPickOpenEntry {
-
-	static list(modeService: IModeService, envService: IEnvironmentService): LanguagePick[] {
-		const modes = modeService.getRegisteredModes();
-		const result: LanguagePick[] = [];
-		for (const mode of modes) {
-			const langLabel = modeService.getLanguageName(mode);
-			if (langLabel) {
-				result.push(new LanguagePick(langLabel, mode, join(envService.appSettingsHome, 'snippets', `${mode}.json`)));
-			}
-		}
-		return result.sort(LanguagePick.compare);
-	}
-
-	label: string;
-	filepath: string;
-	langName: string;
-
-	separator?: ISeparator;
-
-	constructor(langLabel: string, langName: string, filepath: string) {
-		this.label = langLabel;
-		this.langName = langName;
-		this.filepath = filepath;
-	}
-
-	async create(): Promise<this> {
-		const contents = [
-			'{',
-			'/*',
-			'\t// Place your snippets for ' + this.langName + ' here. Each snippet is defined under a snippet name and has a prefix, body and ',
-			'\t// description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:',
-			'\t// $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. Placeholders with the ',
-			'\t// same ids are connected.',
-			'\t// Example:',
-			'\t"Print to console": {',
-			'\t\t"prefix": "log",',
-			'\t\t"body": [',
-			'\t\t\t"console.log(\'$1\');",',
-			'\t\t\t"$2"',
-			'\t\t],',
-			'\t\t"description": "Log output to console"',
-			'\t}',
-			'*/',
-			'}'
-		].join('\n');
-		await writeFile(this.filepath, contents);
-		return this;
-	}
-
-	static compare(a: LanguagePick, b: LanguagePick): number {
-		return a.label.localeCompare(b.label);
+namespace ISnippetPick {
+	export function is(thing: object): thing is ISnippetPick {
+		return thing && typeof (<ISnippetPick>thing).filepath === 'string';
 	}
 }
 
-class SnippetFilePick implements IPickOpenEntry {
+interface ISnippetPick extends IPickOpenEntry {
+	filepath: string;
+	hint?: true;
+}
 
-	static list(envService: IEnvironmentService): Thenable<SnippetFilePick[]> {
-		const dir = join(envService.appSettingsHome, 'snippets');
-		return readdir(dir).then(entries => {
-			const result: SnippetFilePick[] = [];
-			for (const filename of entries) {
-				if (endsWith(filename, '.code-snippets')) {
-					result.push(new SnippetFilePick(join(dir, filename)));
+async function computePicks(snippetService: ISnippetsService, envService: IEnvironmentService, modeService: IModeService) {
+
+	const existing: ISnippetPick[] = [];
+	const future: ISnippetPick[] = [];
+
+	const seen = new Set<string>();
+
+	for (const file of await snippetService.getSnippetFiles()) {
+
+		if (!file.isUserSnippets) {
+			// skip extension snippets
+			continue;
+		}
+
+		if (file.isGlobalSnippets) {
+
+			await file.load();
+
+			// list scopes for global snippets
+			const names = new Set<string>();
+			outer: for (const snippet of file.data) {
+				for (const scope of snippet.scopes) {
+					const name = modeService.getLanguageName(scope);
+					if (names.size >= 4) {
+						names.add(`${name}...`);
+						break outer;
+					} else {
+						names.add(name);
+					}
 				}
 			}
-			return result;
-		});
-	}
 
-	label: string;
-	filepath: string;
-	separator?: ISeparator;
+			existing.push({
+				label: basename(file.filepath),
+				filepath: file.filepath,
+				description: names.size === 0
+					? nls.localize('global.scope', "(global)")
+					: nls.localize('global.1', "({0})", values(names).join(', '))
+			});
 
-	constructor(filepath: string) {
-		this.label = basename(filepath);
-		this.filepath = filepath;
-	}
-}
-
-class NewSnippetFilePick implements IPickOpenEntry {
-
-	label: string = nls.localize('create', "Create Global Snippets File...");
-	separator?: ISeparator;
-
-	constructor(
-		private _envService: IEnvironmentService,
-		private _windowService: IWindowService
-	) {
-		//
-	}
-
-	async create(): Promise<string> {
-		const defaultPath = join(this._envService.appSettingsHome, 'snippets');
-		const path = await this._windowService.showSaveDialog({
-			defaultPath,
-			filters: [{ name: 'Code Snippets', extensions: ['code-snippets'] }]
-		});
-		if (!path || dirname(path) !== defaultPath) {
-			return undefined;
+		} else {
+			// language snippet
+			const mode = basename(file.filepath, '.json');
+			existing.push({
+				label: basename(file.filepath),
+				description: `(${modeService.getLanguageName(mode)})`,
+				filepath: file.filepath
+			});
+			seen.add(mode);
 		}
-		await writeFile(path, [
-			'{',
-			'/*',
-			'\t// Each snippet is defined under a snippet name and has a scope, prefix, body and ',
-			'\t// description. The scope defines in watch languages the snippet is applicable. The prefix is what is ',
-			'\t// used to trigger the snippet and the body will be expanded and inserted.Possible variables are: ',
-			'\t// $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. ',
-			'\t// Placeholders with the same ids are connected.',
-			'\t// Example:',
-			'\t"Print to console": {',
-			'\t\t"scope": "javascript,typescript",',
-			'\t\t"prefix": "log",',
-			'\t\t"body": [',
-			'\t\t\t"console.log(\'$1\');",',
-			'\t\t\t"$2"',
-			'\t\t],',
-			'\t\t"description": "Log output to console"',
-			'\t}',
-			'*/',
-			'}'
-		].join('\n'));
-
-		return path;
 	}
+
+	const dir = join(envService.appSettingsHome, 'snippets');
+	for (const mode of modeService.getRegisteredModes()) {
+		const label = modeService.getLanguageName(mode);
+		if (label && !seen.has(mode)) {
+			future.push({
+				label: mode,
+				description: `(${label})`,
+				filepath: join(dir, `${mode}.json`),
+				hint: true
+			});
+		}
+	}
+
+	existing.sort((a, b) => {
+		let a_ext = extname(a.filepath);
+		let b_ext = extname(b.filepath);
+		if (a_ext === b_ext) {
+			return a.label.localeCompare(b.label);
+		} else if (a_ext === '.code-snippets') {
+			return -1;
+		} else {
+			return 1;
+		}
+	});
+
+	future.sort((a, b) => {
+		return a.label.localeCompare(b.label);
+	});
+
+	return { existing, future };
 }
 
+async function createGlobalSnippetFile(envService: IEnvironmentService, windowService: IWindowService, opener: IOpenerService) {
+
+	await timeout(100); // ensure quick pick closes...
+
+	const defaultPath = join(envService.appSettingsHome, 'snippets');
+	const path = await windowService.showSaveDialog({
+		defaultPath,
+		filters: [{ name: 'Code Snippets', extensions: ['code-snippets'] }]
+	});
+	if (!path || dirname(path) !== defaultPath) {
+		return undefined;
+	}
+	await writeFile(path, [
+		'{',
+		'\t// Each snippet is defined under a snippet name and has a scope, prefix, body and ',
+		'\t// description. The scope defines in watch languages the snippet is applicable. The prefix is what is ',
+		'\t// used to trigger the snippet and the body will be expanded and inserted.Possible variables are: ',
+		'\t// $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. ',
+		'\t// Placeholders with the same ids are connected.',
+		'\t// Example:',
+		'\t// "Print to console": {',
+		'\t// \t"scope": "javascript,typescript",',
+		'\t// \t"prefix": "log",',
+		'\t// \t"body": [',
+		'\t// \t\t"console.log(\'$1\');",',
+		'\t// \t\t"$2"',
+		'\t// \t],',
+		'\t// \t"description": "Log output to console"',
+		'\t// }',
+		'}'
+	].join('\n'));
+
+	await opener.open(URI.file(path));
+}
+
+async function createLanguageSnippetFile(pick: ISnippetPick) {
+	if (await exists(pick.filepath)) {
+		return;
+	}
+	const contents = [
+		'{',
+		'\t// Place your snippets for ' + pick.label + ' here. Each snippet is defined under a snippet name and has a prefix, body and ',
+		'\t// description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:',
+		'\t// $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. Placeholders with the ',
+		'\t// same ids are connected.',
+		'\t// Example:',
+		'\t// "Print to console": {',
+		'\t// \t"prefix": "log",',
+		'\t// \t"body": [',
+		'\t// \t\t"console.log(\'$1\');",',
+		'\t// \t\t"$2"',
+		'\t// \t],',
+		'\t// \t"description": "Log output to console"',
+		'\t// }',
+		'}'
+	].join('\n');
+	await writeFile(pick.filepath, contents);
+}
 
 CommandsRegistry.registerCommand(id, async accessor => {
 
+	const snippetService = accessor.get(ISnippetsService);
 	const quickOpenService = accessor.get(IQuickOpenService);
-	const windowsService = accessor.get(IWindowsService);
+	const opener = accessor.get(IOpenerService);
 	const windowService = accessor.get(IWindowService);
 	const modeService = accessor.get(IModeService);
 	const envService = accessor.get(IEnvironmentService);
 
-	function openFile(filePath: string): TPromise<void> {
-		return windowsService.openWindow([filePath], { forceReuseWindow: true });
+	const { existing, future } = await computePicks(snippetService, envService, modeService);
+	const newGlobalPick = <IPickOpenEntry>{ label: nls.localize('new.global', "New Global Snippets file...") };
+	if (existing.length > 0) {
+		existing[0].separator = { label: nls.localize('group.global', "Existing Snippets") };
+		newGlobalPick.separator = { border: true, label: nls.localize('new.global.sep', "New Snippets") };
+	} else {
+		newGlobalPick.separator = { label: nls.localize('new.global.sep', "New Snippets") };
 	}
 
-	const globalPicks = [...await SnippetFilePick.list(envService), new NewSnippetFilePick(envService, windowService)];
-	const languagePicks = LanguagePick.list(modeService, envService);
-
-	if (globalPicks.length > 0) {
-		globalPicks[0].separator = { label: nls.localize('group.global', "Global Snippets") };
-	}
-
-	if (languagePicks.length > 0) {
-		languagePicks[0].separator = { border: true, label: nls.localize('group.lang', "Language Snippets") };
-	}
-
-	const pick = await quickOpenService.pick([].concat(globalPicks, languagePicks), {
-		placeHolder: nls.localize('openSnippet.pickLanguage', "Select Language or Global snippet")
+	const pick = await quickOpenService.pick(<(IPickOpenEntry | ISnippetPick)[]>[].concat(existing, newGlobalPick, future), {
+		placeHolder: nls.localize('openSnippet.pickLanguage', "Select Snippets File or Create Snippets"),
+		matchOnDescription: true
 	});
 
-	if (pick instanceof LanguagePick) {
-		if (!await fileExists(pick.filepath)) {
-			await pick.create();
-		}
-		return openFile(pick.filepath);
+	if (pick === newGlobalPick) {
+		return createGlobalSnippetFile(envService, windowService, opener);
 
-	} else if (pick instanceof SnippetFilePick) {
-		// simply open the file
-		return openFile(pick.filepath);
-
-	} else if (pick instanceof NewSnippetFilePick) {
-		await timeout(500); // quick pick will stay open otherwise
-		const path = await pick.create();
-		if (path) {
-			return openFile(path);
+	} else if (ISnippetPick.is(pick)) {
+		if (pick.hint) {
+			await createLanguageSnippetFile(pick);
 		}
+		return opener.open(URI.file(pick.filepath));
 	}
 });
 
