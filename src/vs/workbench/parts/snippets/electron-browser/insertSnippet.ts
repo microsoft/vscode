@@ -11,10 +11,11 @@ import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageId } from 'vs/editor/common/modes';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ISnippetsService, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 
 interface ISnippetPick extends IPickOpenEntry {
 	snippet: Snippet;
@@ -39,7 +40,7 @@ class Args {
 		return new Args(snippet, name, langId);
 	}
 
-	private static _empty = new Args(undefined, undefined, undefined);
+	private static readonly _empty = new Args(undefined, undefined, undefined);
 
 	private constructor(
 		public readonly snippet: string,
@@ -78,6 +79,7 @@ class InsertSnippetAction extends EditorAction {
 
 			if (snippet) {
 				return resolve(new Snippet(
+					undefined,
 					undefined,
 					undefined,
 					undefined,

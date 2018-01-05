@@ -9,7 +9,8 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { ICommand, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ICommand } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { Range } from 'vs/editor/common/core/range';
@@ -140,7 +141,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 	}
 }
 
-abstract class AbstractSortLinesAction extends EditorAction {
+export abstract class AbstractSortLinesAction extends EditorAction {
 	private descending: boolean;
 
 	constructor(descending: boolean, opts: IActionOptions) {
@@ -149,20 +150,27 @@ abstract class AbstractSortLinesAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const selections = editor.getSelections();
 
-		if (!SortLinesCommand.canRun(editor.getModel(), editor.getSelection(), this.descending)) {
-			return;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
+			if (!SortLinesCommand.canRun(editor.getModel(), selection, this.descending)) {
+				return;
+			}
 		}
 
-		var command = new SortLinesCommand(editor.getSelection(), this.descending);
+		let commands: ICommand[] = [];
+		for (let i = 0, len = selections.length; i < len; i++) {
+			commands[i] = new SortLinesCommand(selections[i], this.descending);
+		}
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, [command]);
+		editor.executeCommands(this.id, commands);
 		editor.pushUndoStop();
 	}
 }
 
-class SortLinesAscendingAction extends AbstractSortLinesAction {
+export class SortLinesAscendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.sortLinesAscending',
@@ -173,7 +181,7 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 	}
 }
 
-class SortLinesDescendingAction extends AbstractSortLinesAction {
+export class SortLinesDescendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.sortLinesDescending',
@@ -186,7 +194,7 @@ class SortLinesDescendingAction extends AbstractSortLinesAction {
 
 export class TrimTrailingWhitespaceAction extends EditorAction {
 
-	public static ID = 'editor.action.trimTrailingWhitespace';
+	public static readonly ID = 'editor.action.trimTrailingWhitespace';
 
 	constructor() {
 		super({

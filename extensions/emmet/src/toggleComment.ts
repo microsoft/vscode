@@ -34,7 +34,7 @@ export function toggleComment(): Thenable<boolean> | undefined {
 
 	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
-			let edits = toggleCommentInternal(editor.document, selection, rootNode);
+			let edits = toggleCommentInternal(editor.document, selection, rootNode!);
 			edits.forEach(x => {
 				editBuilder.replace(x.range, x.newText);
 			});
@@ -107,9 +107,13 @@ function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscod
 	let startNode = getNode(rootNode, selectionStart, true);
 	let endNode = getNode(rootNode, selectionEnd, true);
 
-	if (!selection.isEmpty || startNode) {
-		selectionStart = selection.isEmpty ? startNode.start : adjustStartNodeCss(startNode, selectionStart, rootNode);
-		selectionEnd = selection.isEmpty ? startNode.end : adjustEndNodeCss(endNode, selectionEnd, rootNode);
+	if (!selection.isEmpty) {
+		selectionStart = adjustStartNodeCss(startNode, selectionStart, rootNode);
+		selectionEnd = adjustEndNodeCss(endNode, selectionEnd, rootNode);
+		selection = new vscode.Selection(selectionStart, selectionEnd);
+	} else if (startNode) {
+		selectionStart = startNode.start;
+		selectionEnd = startNode.end;
 		selection = new vscode.Selection(selectionStart, selectionEnd);
 	}
 
@@ -137,7 +141,7 @@ function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscod
 
 }
 
-function adjustStartNodeCss(node: Node, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
+function adjustStartNodeCss(node: Node | null, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
 	for (let i = 0; i < rootNode.comments.length; i++) {
 		let commentRange = new vscode.Range(rootNode.comments[i].start, rootNode.comments[i].end);
 		if (commentRange.contains(pos)) {
@@ -170,7 +174,7 @@ function adjustStartNodeCss(node: Node, pos: vscode.Position, rootNode: Styleshe
 	return newStartNode.start;
 }
 
-function adjustEndNodeCss(node: Node, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
+function adjustEndNodeCss(node: Node | null, pos: vscode.Position, rootNode: Stylesheet): vscode.Position {
 	for (let i = 0; i < rootNode.comments.length; i++) {
 		let commentRange = new vscode.Range(rootNode.comments[i].start, rootNode.comments[i].end);
 		if (commentRange.contains(pos)) {

@@ -321,7 +321,7 @@ export class ContextKeyNotExpr implements ContextKeyExpr {
 }
 
 export class ContextKeyAndExpr implements ContextKeyExpr {
-	private expr: ContextKeyExpr[];
+	public readonly expr: ContextKeyExpr[];
 
 	constructor(expr: ContextKeyExpr[]) {
 		this.expr = ContextKeyAndExpr._normalizeArr(expr);
@@ -438,6 +438,10 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 
 	public isEqualTo(value: string): ContextKeyExpr {
 		return ContextKeyExpr.equals(this.key, value);
+	}
+
+	public notEqualsTo(value: string): ContextKeyExpr {
+		return ContextKeyExpr.notEquals(this.key, value);
 	}
 }
 

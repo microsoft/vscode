@@ -29,7 +29,7 @@ import { IInstantiationService, optional } from 'vs/platform/instantiation/commo
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel, ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { PeekViewWidget } from './peekViewWidget';
@@ -40,13 +40,13 @@ import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/t
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import URI from 'vs/base/common/uri';
+import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 class DecorationsManager implements IDisposable {
 
-	private static DecorationOptions = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	private static readonly DecorationOptions = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'reference-decoration'
 	});
 
@@ -84,7 +84,7 @@ class DecorationsManager implements IDisposable {
 
 		this._editor.changeDecorations(accessor => {
 
-			const newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+			const newDecorations: IModelDeltaDecoration[] = [];
 			const newDecorationsActualIndex: number[] = [];
 
 			for (let i = 0, len = reference.children.length; i < len; i++) {
@@ -218,11 +218,14 @@ class DataSource implements tree.IDataSource {
 
 class Controller extends DefaultController {
 
-	static Events = {
-		FOCUSED: 'events/custom/focused',
-		SELECTED: 'events/custom/selected',
-		OPEN_TO_SIDE: 'events/custom/opentoside'
-	};
+	private _onDidFocus = new Emitter<any>();
+	readonly onDidFocus: Event<any> = this._onDidFocus.event;
+
+	private _onDidSelect = new Emitter<any>();
+	readonly onDidSelect: Event<any> = this._onDidSelect.event;
+
+	private _onDidOpenToSide = new Emitter<any>();
+	readonly onDidOpenToSide: Event<any> = this._onDidOpenToSide.event;
 
 	public onTap(tree: tree.ITree, element: any, event: GestureEvent): boolean {
 		if (element instanceof FileReferences) {
@@ -232,7 +235,8 @@ class Controller extends DefaultController {
 		}
 
 		var result = super.onTap(tree, element, event);
-		tree.emit(Controller.Events.FOCUSED, element);
+
+		this._onDidFocus.fire(element);
 		return result;
 	}
 
@@ -246,11 +250,11 @@ class Controller extends DefaultController {
 
 			var result = super.onClick(tree, element, event);
 			if (event.ctrlKey || event.metaKey) {
-				tree.emit(Controller.Events.OPEN_TO_SIDE, element);
+				this._onDidOpenToSide.fire(element);
 			} else if (event.detail === 2) {
-				tree.emit(Controller.Events.SELECTED, element);
+				this._onDidSelect.fire(element);
 			} else {
-				tree.emit(Controller.Events.FOCUSED, element);
+				this._onDidFocus.fire(element);
 			}
 			return result;
 		}
@@ -288,9 +292,9 @@ class Controller extends DefaultController {
 
 		var result = super.onEnter(tree, event);
 		if (event.ctrlKey || event.metaKey) {
-			tree.emit(Controller.Events.OPEN_TO_SIDE, element);
+			this._onDidOpenToSide.fire(element);
 		} else {
-			tree.emit(Controller.Events.SELECTED, element);
+			this._onDidSelect.fire(element);
 		}
 		return result;
 	}
@@ -336,7 +340,13 @@ class Controller extends DefaultController {
 		var focus = tree.getFocus();
 		tree.setSelection([focus]);
 		// send out event
-		tree.emit(Controller.Events.FOCUSED, focus);
+		this._onDidFocus.fire(focus);
+	}
+
+	dispose(): void {
+		this._onDidFocus.dispose();
+		this._onDidSelect.dispose();
+		this._onDidOpenToSide.dispose();
 	}
 }
 
@@ -409,7 +419,7 @@ class OneReferenceTemplate {
 
 class Renderer implements tree.IRenderer {
 
-	private static _ids = {
+	private static readonly _ids = {
 		FileReferences: 'FileReferences',
 		OneReference: 'OneReference'
 	};
@@ -423,7 +433,7 @@ class Renderer implements tree.IRenderer {
 	}
 
 	getHeight(tree: tree.ITree, element: FileReferences | OneReference): number {
-		return 22;
+		return 23;
 	}
 
 	getTemplateId(tree: tree.ITree, element: FileReferences | OneReference): string {
@@ -493,11 +503,11 @@ class VSash {
 		// compute the current widget clientX postion since
 		// the sash works with clientX when dragging
 		let clientX: number;
-		this._disposables.push(this._sash.addListener('start', (e: ISashEvent) => {
+		this._disposables.push(this._sash.onDidStart((e: ISashEvent) => {
 			clientX = e.startX - (this._width * this.ratio);
 		}));
 
-		this._disposables.push(this._sash.addListener('change', (e: ISashEvent) => {
+		this._disposables.push(this._sash.onDidChange((e: ISashEvent) => {
 			// compute the new position of the sash and from that
 			// compute the new ratio that we are using
 			let newLeft = e.currentX - clientX;
@@ -568,7 +578,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _sash: VSash;
 	private _preview: ICodeEditor;
 	private _previewModelReference: IReference<ITextEditorModel>;
-	private _previewNotAvailableMessage: Model;
+	private _previewNotAvailableMessage: TextModel;
 	private _previewContainer: Builder;
 	private _messageContainer: Builder;
 
@@ -660,7 +670,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 			this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);
 			this._previewContainer = div.hide();
-			this._previewNotAvailableMessage = Model.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
+			this._previewNotAvailableMessage = TextModel.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
 		});
 
 		// sash
@@ -676,12 +686,32 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// tree
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
+			const controller = new Controller();
 			var config = <tree.ITreeConfiguration>{
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer),
-				controller: new Controller(),
+				controller,
 				accessibilityProvider: new AriaProvider()
 			};
+
+			// listen on selection and focus
+			this._disposables.push(controller.onDidFocus((element) => {
+				if (element instanceof OneReference) {
+					this._revealReference(element);
+					this._onDidSelectReference.fire({ element, kind: 'show', source: 'tree' });
+				}
+			}));
+
+			this._disposables.push(controller.onDidSelect((element: any) => {
+				if (element instanceof OneReference) {
+					this._onDidSelectReference.fire({ element, kind: 'goto', source: 'tree' });
+				}
+			}));
+			this._disposables.push(controller.onDidOpenToSide((element: any) => {
+				if (element instanceof OneReference) {
+					this._onDidSelectReference.fire({ element, kind: 'side', source: 'tree' });
+				}
+			}));
 
 			var options = {
 				allowHorizontalScroll: false,
@@ -751,25 +781,6 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// listen on model changes
 		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.refresh(reference)));
-
-		// listen on selection and focus
-		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.FOCUSED, (element) => {
-			if (element instanceof OneReference) {
-				this._revealReference(element);
-				this._onDidSelectReference.fire({ element, kind: 'show', source: 'tree' });
-			}
-		}));
-
-		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.SELECTED, (element: any) => {
-			if (element instanceof OneReference) {
-				this._onDidSelectReference.fire({ element, kind: 'goto', source: 'tree' });
-			}
-		}));
-		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.OPEN_TO_SIDE, (element: any) => {
-			if (element instanceof OneReference) {
-				this._onDidSelectReference.fire({ element, kind: 'side', source: 'tree' });
-			}
-		}));
 
 		// listen on editor
 		this._disposeOnNewModel.push(this._preview.onMouseDown((e) => {

@@ -78,7 +78,7 @@ export interface IConfigurationService {
 	reloadConfiguration(): TPromise<void>;
 	reloadConfiguration(folder: IWorkspaceFolder): TPromise<void>;
 
-	inspect<T>(key: string): {
+	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,
 		user: T,
 		workspace: T,

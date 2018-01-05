@@ -8,8 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISearchConfiguration } from 'vs/platform/search/common/search';
-import glob = require('vs/base/common/glob');
+import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { SymbolInformation } from 'vs/editor/common/modes';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -64,19 +63,14 @@ export function getWorkspaceSymbols(query: string): TPromise<[IWorkspaceSymbolPr
 	return TPromise.join(promises).then(_ => result);
 }
 
-export interface IWorkbenchSearchConfiguration extends ISearchConfiguration {
-	search: {
-		quickOpen: {
-			includeSymbols: boolean;
-		},
-		exclude: glob.IExpression,
-		useRipgrep: boolean,
-		/**
-		 * Use ignore file for file search.
-		 */
-		useIgnoreFiles: boolean,
-		followSymlinks: boolean;
+export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigurationProperties {
+	quickOpen: {
+		includeSymbols: boolean;
 	};
+}
+
+export interface IWorkbenchSearchConfiguration extends ISearchConfiguration {
+	search: IWorkbenchSearchConfigurationProperties;
 }
 
 /**

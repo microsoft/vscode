@@ -5,7 +5,7 @@
 
 import { SignatureHelpProvider, SignatureHelp, SignatureInformation, ParameterInformation, TextDocument, Position, CancellationToken } from 'vscode';
 
-import * as Previewer from './previewer';
+import * as Previewer from '../utils/previewer';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { vsPositionToTsFileLocation } from '../utils/convert';

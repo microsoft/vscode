@@ -19,7 +19,7 @@ import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainSe
 import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { LogMainService } from 'vs/platform/log/common/log';
+import { ConsoleLogMainService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createHash } from 'crypto';
 import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
@@ -34,7 +34,7 @@ suite('BackupMainService', () => {
 	class TestBackupMainService extends BackupMainService {
 
 		constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
-			super(environmentService, configService, new LogMainService(environmentService));
+			super(environmentService, configService, new ConsoleLogMainService(environmentService));
 
 			this.backupHome = backupHome;
 			this.workspacesJsonPath = backupWorkspacesPath;

@@ -4,23 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/editor/common/core/uint';
 import * as strings from 'vs/base/common/strings';
 
 export class LineDecoration {
 	_lineDecorationBrand: void;
 
-	public readonly startColumn: number;
-	public readonly endColumn: number;
-	public readonly className: string;
-	public readonly insertsBeforeOrAfter: boolean;
-
-	constructor(startColumn: number, endColumn: number, className: string, insertsBeforeOrAfter: boolean) {
-		this.startColumn = startColumn;
-		this.endColumn = endColumn;
-		this.className = className;
-		this.insertsBeforeOrAfter = insertsBeforeOrAfter;
+	constructor(
+		public readonly startColumn: number,
+		public readonly endColumn: number,
+		public readonly className: string,
+		public readonly type: InlineDecorationType
+	) {
 	}
 
 	private static _equals(a: LineDecoration, b: LineDecoration): boolean {
@@ -28,7 +24,7 @@ export class LineDecoration {
 			a.startColumn === b.startColumn
 			&& a.endColumn === b.endColumn
 			&& a.className === b.className
-			&& a.insertsBeforeOrAfter === b.insertsBeforeOrAfter
+			&& a.type === b.type
 		);
 	}
 
@@ -62,7 +58,7 @@ export class LineDecoration {
 				continue;
 			}
 
-			if (range.isEmpty()) {
+			if (range.isEmpty() && d.type === InlineDecorationType.Regular) {
 				// Ignore empty range decorations
 				continue;
 			}
@@ -70,12 +66,7 @@ export class LineDecoration {
 			let startColumn = (range.startLineNumber === lineNumber ? range.startColumn : minLineColumn);
 			let endColumn = (range.endLineNumber === lineNumber ? range.endColumn : maxLineColumn);
 
-			if (endColumn <= 1) {
-				// An empty decoration (endColumn === 1)
-				continue;
-			}
-
-			result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.insertsBeforeOrAfter);
+			result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.type);
 		}
 
 		return result;
@@ -124,7 +115,7 @@ class Stack {
 	public consumeLowerThan(maxStopOffset: number, nextStartOffset: number, result: DecorationSegment[]): number {
 
 		while (this.count > 0 && this.stopOffsets[0] < maxStopOffset) {
-			var i = 0;
+			let i = 0;
 
 			// Take all equal stopping offsets
 			while (i + 1 < this.count && this.stopOffsets[i] === this.stopOffsets[i + 1]) {
@@ -156,7 +147,7 @@ class Stack {
 			this.classNames.push(className);
 		} else {
 			// Find the insertion position for `stopOffset`
-			for (var i = 0; i < this.count; i++) {
+			for (let i = 0; i < this.count; i++) {
 				if (this.stopOffsets[i] >= stopOffset) {
 					this.stopOffsets.splice(i, 0, stopOffset);
 					this.classNames.splice(i, 0, className);

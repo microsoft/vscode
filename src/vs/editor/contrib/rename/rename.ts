@@ -15,7 +15,8 @@ import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -33,7 +34,7 @@ import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorS
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 
-export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
+export function rename(model: ITextModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
 
 	const supports = RenameProviderRegistry.ordered(model);
 	const rejects: string[] = [];
@@ -85,7 +86,7 @@ const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisi
 
 class RenameController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.renameController';
+	private static readonly ID = 'editor.contrib.renameController';
 
 	public static get(editor: ICodeEditor): RenameController {
 		return editor.getContribution<RenameController>(RenameController.ID);

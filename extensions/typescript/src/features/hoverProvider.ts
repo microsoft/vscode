@@ -7,15 +7,20 @@ import { HoverProvider, Hover, TextDocument, Position, CancellationToken } from 
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { tagsMarkdownPreview } from './previewer';
+import { tagsMarkdownPreview } from '../utils/previewer';
 import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptHoverProvider implements HoverProvider {
 
 	public constructor(
-		private client: ITypeScriptServiceClient) { }
+		private client: ITypeScriptServiceClient
+	) { }
 
-	public async provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover | undefined> {
+	public async provideHover(
+		document: TextDocument,
+		position: Position,
+		token: CancellationToken
+	): Promise<Hover | undefined> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return undefined;
@@ -35,7 +40,9 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 		return undefined;
 	}
 
-	private static getContents(data: Proto.QuickInfoResponseBody) {
+	private static getContents(
+		data: Proto.QuickInfoResponseBody
+	) {
 		const parts = [];
 
 		if (data.displayString) {

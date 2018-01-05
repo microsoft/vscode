@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import paths = require('vs/base/common/paths');
 import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import errors = require('vs/base/common/errors');
@@ -17,14 +16,15 @@ import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPa
 import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, FindMatch } from 'vs/editor/common/editorCommon';
+import { ITextModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, FindMatch } from 'vs/editor/common/model';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 export class Match {
 
@@ -93,7 +93,7 @@ export class Match {
 
 export class FileMatch extends Disposable {
 
-	private static _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
+	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'currentFindMatch',
 		overviewRuler: {
@@ -103,7 +103,7 @@ export class FileMatch extends Disposable {
 		}
 	});
 
-	private static _FIND_MATCH = ModelDecorationOptions.register({
+	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		overviewRuler: {
@@ -124,7 +124,7 @@ export class FileMatch extends Disposable {
 	public onDispose: Event<void> = this._onDispose.event;
 
 	private _resource: URI;
-	private _model: IModel;
+	private _model: ITextModel;
 	private _modelListener: IDisposable;
 	private _matches: Map<string, Match>;
 	private _removedMatches: Set<string>;
@@ -161,14 +161,14 @@ export class FileMatch extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.modelService.onModelAdded((model: IModel) => {
+		this._register(this.modelService.onModelAdded((model: ITextModel) => {
 			if (model.uri.toString() === this._resource.toString()) {
 				this.bindModel(model);
 			}
 		}));
 	}
 
-	private bindModel(model: IModel): void {
+	private bindModel(model: ITextModel): void {
 		this._model = model;
 		this._modelListener = this._model.onDidChangeContent(() => {
 			this._updateScheduler.schedule();
@@ -302,7 +302,7 @@ export class FileMatch extends Disposable {
 	}
 
 	public name(): string {
-		return paths.basename(this.resource().fsPath);
+		return getBaseLabel(this.resource());
 	}
 
 	public add(match: Match, trigger?: boolean) {
@@ -379,7 +379,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	public name(): string {
-		return paths.basename(this.resource().fsPath);
+		return getBaseLabel(this.resource());
 	}
 
 	public parent(): SearchResult {
@@ -419,6 +419,13 @@ export class FolderMatch extends Disposable {
 	public replace(match: FileMatch): TPromise<any> {
 		return this.replaceService.replace([match]).then(() => {
 			this.doRemove(match, false, true);
+		});
+	}
+
+	public replaceAll(): TPromise<any> {
+		const matches = this.matches();
+		return this.replaceService.replace(matches).then(() => {
+			matches.forEach(match => this.doRemove(match, false, true));
 		});
 	}
 
@@ -532,14 +539,18 @@ export class SearchResult extends Disposable {
 		this._folderMatches.forEach((folderMatch) => rawPerFolder.set(folderMatch.resource(), []));
 		allRaw.forEach(rawFileMatch => {
 			let folderMatch = this.getFolderMatch(rawFileMatch.resource);
-			rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
+			if (folderMatch) {
+				rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
+			}
 		});
 		rawPerFolder.forEach((raw) => {
 			if (!raw.length) {
 				return;
 			}
 			let folderMatch = this.getFolderMatch(raw[0].resource);
-			folderMatch.add(raw, silent);
+			if (folderMatch) {
+				folderMatch.add(raw, silent);
+			}
 		});
 	}
 
@@ -598,10 +609,6 @@ export class SearchResult extends Disposable {
 
 	public fileCount(): number {
 		return this.folderMatches().reduce<number>((prev, match) => prev + match.fileCount(), 0);
-	}
-
-	public folderCount(): number {
-		return this.folderMatches().reduce<number>((prev, match) => prev + (match.fileCount() > 0 ? 1 : 0), 0);
 	}
 
 	public count(): number {
@@ -725,7 +732,7 @@ export class SearchModel extends Disposable {
 
 		const onDone = fromPromise(this.currentRequest);
 		const progressEmitter = new Emitter<void>();
-		const onFirstRender = anyEvent(onDone, progressEmitter.event);
+		const onFirstRender = anyEvent<any>(onDone, progressEmitter.event);
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
 		/* __GDPR__
 			"searchResultsFirstRender" : {
@@ -848,7 +855,7 @@ export interface ISearchWorkbenchService {
 export class RangeHighlightDecorations implements IDisposable {
 
 	private _decorationId: string = null;
-	private _model: IModel = null;
+	private _model: ITextModel = null;
 	private _modelDisposables: IDisposable[] = [];
 
 	constructor(
@@ -863,8 +870,8 @@ export class RangeHighlightDecorations implements IDisposable {
 		this._decorationId = null;
 	}
 
-	public highlightRange(resource: URI | IModel, range: Range, ownerId: number = 0): void {
-		let model: IModel;
+	public highlightRange(resource: URI | ITextModel, range: Range, ownerId: number = 0): void {
+		let model: ITextModel;
 		if (URI.isUri(resource)) {
 			model = this._modelService.getModel(resource);
 		} else {
@@ -876,13 +883,13 @@ export class RangeHighlightDecorations implements IDisposable {
 		}
 	}
 
-	private doHighlightRange(model: IModel, range: Range) {
+	private doHighlightRange(model: ITextModel, range: Range) {
 		this.removeHighlightRange();
 		this._decorationId = model.deltaDecorations([], [{ range: range, options: RangeHighlightDecorations._RANGE_HIGHLIGHT_DECORATION }])[0];
 		this.setModel(model);
 	}
 
-	private setModel(model: IModel) {
+	private setModel(model: ITextModel) {
 		if (this._model !== model) {
 			this.disposeModelListeners();
 			this._model = model;
@@ -912,7 +919,7 @@ export class RangeHighlightDecorations implements IDisposable {
 		}
 	}
 
-	private static _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight',
 		isWholeLine: true

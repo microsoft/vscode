@@ -77,6 +77,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				return {
 					range: convertRange(currentTextDocument, diag),
 					severity: DiagnosticSeverity.Error,
+					source: 'js',
 					message: ts.flattenDiagnosticMessageText(diag.messageText, '\n')
 				};
 			});
@@ -84,7 +85,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		doComplete(document: TextDocument, position: Position): CompletionList {
 			updateCurrentTextDocument(document);
 			let offset = currentTextDocument.offsetAt(position);
-			let completions = jsLanguageService.getCompletionsAtPosition(FILE_NAME, offset);
+			let completions = jsLanguageService.getCompletionsAtPosition(FILE_NAME, offset, { includeExternalModuleExports: false });
 			if (!completions) {
 				return { isIncomplete: false, items: [] };
 			}
@@ -253,7 +254,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			let start = currentTextDocument.offsetAt(range.start);
 			let end = currentTextDocument.offsetAt(range.end);
 			let lastLineRange = null;
-			if (range.end.character === 0 || isWhitespaceOnly(currentTextDocument.getText().substr(end - range.end.character, range.end.character))) {
+			if (range.end.line > range.start.line && (range.end.character === 0 || isWhitespaceOnly(currentTextDocument.getText().substr(end - range.end.character, range.end.character)))) {
 				end -= range.end.character;
 				lastLineRange = Range.create(Position.create(range.end.line, 0), range.end);
 			}

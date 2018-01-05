@@ -20,5 +20,6 @@ function adaptInjectionScope(grammar) {
 	injections[newInjectionKey] = injection;
 }
 
-updateGrammar.update('atom/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', adaptInjectionScope);
+updateGrammar.update('atom/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', undefined);
+updateGrammar.update('atom/language-php', 'grammars/html.cson', './syntaxes/html.tmLanguage.json', adaptInjectionScope);
 

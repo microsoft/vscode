@@ -7,6 +7,7 @@
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 
 interface IEditOperation {
 	range: Range;
@@ -26,11 +27,11 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 		this._replaceStrings = replaceStrings;
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
 		if (this._ranges.length > 0) {
 			// Collect all edit operations
 			var ops: IEditOperation[] = [];
-			for (var i = 0; i < this._ranges.length; i++) {
+			for (let i = 0; i < this._ranges.length; i++) {
 				ops.push({
 					range: this._ranges[i],
 					text: this._replaceStrings[i]
@@ -45,7 +46,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 			// Merge operations that touch each other
 			var resultOps: IEditOperation[] = [];
 			var previousOp = ops[0];
-			for (var i = 1; i < ops.length; i++) {
+			for (let i = 1; i < ops.length; i++) {
 				if (previousOp.range.endLineNumber === ops[i].range.startLineNumber && previousOp.range.endColumn === ops[i].range.startColumn) {
 					// These operations are one after another and can be merged
 					previousOp.range = previousOp.range.plusRange(ops[i].range);
@@ -65,7 +66,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 		this._trackedEditorSelectionId = builder.trackSelection(this._editorSelection);
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this._trackedEditorSelectionId);
 	}
 }

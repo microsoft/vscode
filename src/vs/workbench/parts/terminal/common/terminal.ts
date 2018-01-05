@@ -71,11 +71,13 @@ export interface ITerminalConfiguration {
 	commandsToSkipShell: string[];
 	cwd: string;
 	confirmOnExit: boolean;
+	enableBell: boolean;
 	env: {
 		linux: { [key: string]: string };
 		osx: { [key: string]: string };
 		windows: { [key: string]: string };
 	};
+	showExitAlert: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -336,6 +338,12 @@ export interface ITerminalInstance {
 	updateConfig(): void;
 
 	/**
+	 * Updates the accessibility support state of the terminal instance.
+	 * @param isEnabled Whether it's enabled.
+	 */
+	updateAccessibilitySupport(isEnabled: boolean): void;
+
+	/**
 	 * Configure the dimensions of the terminal instance.
 	 *
 	 * @param dimension The dimensions of the container.
@@ -348,16 +356,6 @@ export interface ITerminalInstance {
 	 * @param visible Whether the element is visible.
 	 */
 	setVisible(visible: boolean): void;
-
-	/**
-	 * Attach a listener to the data stream from the terminal's pty process.
-	 *
-	 * @param listener The listener function which takes the processes' data stream (including
-	 * ANSI escape sequences).
-	 *
-	 * @deprecated onLineData will replace this.
-	 */
-	onData(listener: (data: string) => void): IDisposable;
 
 	/**
 	 * Attach a listener to listen for new lines added to this terminal instance.

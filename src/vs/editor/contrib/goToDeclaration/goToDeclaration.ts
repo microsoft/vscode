@@ -7,7 +7,7 @@
 
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import { DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, Location } from 'vs/editor/common/modes';
@@ -30,10 +30,10 @@ function outputResults(promises: TPromise<Location | Location[]>[]) {
 }
 
 function getDefinitions<T>(
-	model: IReadOnlyModel,
+	model: ITextModel,
 	position: Position,
 	registry: LanguageFeatureRegistry<T>,
-	provide: (provider: T, model: IReadOnlyModel, position: Position, token: CancellationToken) => Location | Location[] | Thenable<Location | Location[]>
+	provide: (provider: T, model: ITextModel, position: Position, token: CancellationToken) => Location | Location[] | Thenable<Location | Location[]>
 ): TPromise<Location[]> {
 	const provider = registry.ordered(model);
 
@@ -50,19 +50,19 @@ function getDefinitions<T>(
 }
 
 
-export function getDefinitionsAtPosition(model: IReadOnlyModel, position: Position): TPromise<Location[]> {
+export function getDefinitionsAtPosition(model: ITextModel, position: Position): TPromise<Location[]> {
 	return getDefinitions(model, position, DefinitionProviderRegistry, (provider, model, position, token) => {
 		return provider.provideDefinition(model, position, token);
 	});
 }
 
-export function getImplementationsAtPosition(model: IReadOnlyModel, position: Position): TPromise<Location[]> {
+export function getImplementationsAtPosition(model: ITextModel, position: Position): TPromise<Location[]> {
 	return getDefinitions(model, position, ImplementationProviderRegistry, (provider, model, position, token) => {
 		return provider.provideImplementation(model, position, token);
 	});
 }
 
-export function getTypeDefinitionsAtPosition(model: IReadOnlyModel, position: Position): TPromise<Location[]> {
+export function getTypeDefinitionsAtPosition(model: ITextModel, position: Position): TPromise<Location[]> {
 	return getDefinitions(model, position, TypeDefinitionProviderRegistry, (provider, model, position, token) => {
 		return provider.provideTypeDefinition(model, position, token);
 	});

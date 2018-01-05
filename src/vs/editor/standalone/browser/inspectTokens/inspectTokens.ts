@@ -9,12 +9,12 @@ import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escape } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
-import { IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, ITokenizationSupport, IState } from 'vs/editor/common/modes';
+import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, ITokenizationSupport, IState, TokenMetadata } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { NULL_STATE, nullTokenize, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
@@ -26,7 +26,7 @@ import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/comm
 
 class InspectTokensController extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.inspectTokens';
+	private static readonly ID = 'editor.contrib.inspectTokens';
 
 	public static get(editor: ICodeEditor): InspectTokensController {
 		return editor.getContribution<InspectTokensController>(InspectTokensController.ID);
@@ -160,7 +160,7 @@ function getSafeTokenizationSupport(languageIdentifier: LanguageIdentifier): ITo
 
 class InspectTokensWidget extends Disposable implements IContentWidget {
 
-	private static _ID = 'editor.contrib.inspectTokensWidget';
+	private static readonly _ID = 'editor.contrib.inspectTokensWidget';
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
@@ -168,7 +168,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	private _editor: ICodeEditor;
 	private _modeService: IModeService;
 	private _tokenizationSupport: ITokenizationSupport;
-	private _model: IModel;
+	private _model: ITextModel;
 	private _domNode: HTMLElement;
 
 	constructor(

@@ -25,16 +25,17 @@ import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegist
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { DefinitionAction, DefinitionActionConfig } from './goToDeclarationCommands';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/clickLinkGesture';
+import { IWordAtPosition, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.gotodefinitionwithmouse';
+	private static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
 	static MAX_SOURCE_PREVIEW_LINES = 8;
 
 	private editor: ICodeEditor;
 	private toUnhook: IDisposable[];
 	private decorations: string[];
-	private currentWordUnderMouse: editorCommon.IWordAtPosition;
+	private currentWordUnderMouse: IWordAtPosition;
 	private throttler: Throttler;
 
 	constructor(
@@ -168,7 +169,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	private addDecoration(range: Range, hoverMessage: MarkdownString): void {
 
-		const newDecorations: editorCommon.IModelDeltaDecoration = {
+		const newDecorations: IModelDeltaDecoration = {
 			range: range,
 			options: {
 				inlineClassName: 'goto-definition-link',

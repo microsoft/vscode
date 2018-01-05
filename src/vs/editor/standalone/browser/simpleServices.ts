@@ -21,7 +21,6 @@ import { IConfirmation, IMessageService, IConfirmationResult } from 'vs/platform
 import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Selection } from 'vs/editor/common/core/selection';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Configuration, DefaultConfigurationModel, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -39,6 +38,7 @@ import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } fr
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class SimpleEditor implements IEditor {
 
@@ -54,7 +54,6 @@ export class SimpleEditor implements IEditor {
 
 	public getId(): string { return 'editor'; }
 	public getControl(): editorCommon.IEditor { return this._widget; }
-	public getSelection(): Selection { return this._widget.getSelection(); }
 	public focus(): void { this._widget.focus(); }
 	public isVisible(): boolean { return true; }
 
@@ -71,10 +70,10 @@ export class SimpleEditor implements IEditor {
 
 export class SimpleModel implements ITextEditorModel {
 
-	private model: editorCommon.IModel;
+	private model: ITextModel;
 	private _onDispose: Emitter<void>;
 
-	constructor(model: editorCommon.IModel) {
+	constructor(model: ITextModel) {
 		this.model = model;
 		this._onDispose = new Emitter<void>();
 	}
@@ -87,7 +86,7 @@ export class SimpleModel implements ITextEditorModel {
 		return TPromise.as(this);
 	}
 
-	public get textEditorModel(): editorCommon.IModel {
+	public get textEditorModel(): ITextModel {
 		return this.model;
 	}
 
@@ -165,7 +164,7 @@ export class SimpleEditorService implements IEditorService {
 		return this.editor;
 	}
 
-	private findModel(editor: ICodeEditor, data: IResourceInput): editorCommon.IModel {
+	private findModel(editor: ICodeEditor, data: IResourceInput): ITextModel {
 		let model = editor.getModel();
 		if (model.uri.toString() !== data.resource.toString()) {
 			return null;
@@ -185,7 +184,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	}
 
 	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
-		let model: editorCommon.IModel;
+		let model: ITextModel;
 
 		model = this.editor.withTypedEditor(
 			(editor) => this.findModel(editor, resource),
@@ -205,7 +204,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		};
 	}
 
-	private findModel(editor: ICodeEditor, resource: URI): editorCommon.IModel {
+	private findModel(editor: ICodeEditor, resource: URI): ITextModel {
 		let model = editor.getModel();
 		if (model.uri.toString() !== resource.toString()) {
 			return null;
@@ -239,7 +238,7 @@ export class SimpleMessageService implements IMessageService {
 
 	public _serviceBrand: any;
 
-	private static Empty = function () { /* nothing */ };
+	private static readonly Empty = function () { /* nothing */ };
 
 	public show(sev: Severity, message: any): () => void {
 
@@ -262,17 +261,22 @@ export class SimpleMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirmSync(confirmation: IConfirmation): boolean {
+	public confirm(confirmation: IConfirmation): TPromise<boolean> {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
 		}
 
-		return window.confirm(messageText);
+		return TPromise.wrap(window.confirm(messageText));
 	}
 
-	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		return TPromise.as({ confirmed: this.confirmSync(confirmation) } as IConfirmationResult);
+	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		return this.confirm(confirmation).then(confirmed => {
+			return {
+				confirmed,
+				checkboxChecked: false // unsupported
+			} as IConfirmationResult;
+		});
 	}
 }
 
@@ -479,7 +483,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 		workspaceFolder: C
 		value: C,
 	} {
-		return this.configuration().lookup<C>(key, options, null);
+		return this.configuration().inspect<C>(key, options, null);
 	}
 
 	public keys() {
@@ -585,10 +589,6 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
-	}
-
-	public toResource(workspaceRelativePath: string, workspaceFolder: IWorkspaceFolder): URI {
-		return URI.file(workspaceRelativePath);
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {

@@ -40,3 +40,22 @@ export class DelayedDragHandler {
 		this.clearDragTimeout();
 	}
 }
+
+// Common data transfers
+export const DataTransfers = {
+
+	/**
+	 * Application specific resource transfer type.
+	 */
+	URL: 'URL',
+
+	/**
+	 * Browser specific transfer type to download.
+	 */
+	DOWNLOAD_URL: 'DownloadURL',
+
+	/**
+	 * Typicaly transfer type for copy/paste transfers.
+	 */
+	TEXT: 'text/plain'
+};

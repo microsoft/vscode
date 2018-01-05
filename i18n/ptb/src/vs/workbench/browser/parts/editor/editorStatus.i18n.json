@@ -53,5 +53,5 @@
 	"screenReaderDetectedExplanation.answerYes": "Sim",
 	"screenReaderDetectedExplanation.answerNo": "Não",
 	"screenReaderDetectedExplanation.body1": "O VS Code agora está otimizado para uso com um leitor de tela.",
-	"screenReaderDetectedExplanation.body2": "Alguns recursos do editor terão comportamento diferente: por exemplo, a palavra envoltura, dobradura, auto fechamento de colchetes, etc."
+	"screenReaderDetectedExplanation.body2": "Alguns recursos do editor terão comportamento diferente: por exemplo, quebra de linha, cruzamento, etc."
 }

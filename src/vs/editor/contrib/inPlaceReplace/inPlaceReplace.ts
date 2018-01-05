@@ -9,7 +9,8 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
@@ -18,18 +19,18 @@ import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class InPlaceReplaceController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.inPlaceReplaceController';
+	private static readonly ID = 'editor.contrib.inPlaceReplaceController';
 
 	static get(editor: ICodeEditor): InPlaceReplaceController {
 		return editor.getContribution<InPlaceReplaceController>(InPlaceReplaceController.ID);
 	}
 
-	private static DECORATION = ModelDecorationOptions.register({
+	private static readonly DECORATION = ModelDecorationOptions.register({
 		className: 'valueSetReplacement'
 	});
 

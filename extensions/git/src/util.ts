@@ -6,7 +6,7 @@
 'use strict';
 
 import { Event } from 'vscode';
-import { dirname } from 'path';
+import { dirname, sep } from 'path';
 import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as byline from 'byline';
@@ -33,6 +33,10 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 }
 
 export const EmptyDisposable = toDisposable(() => null);
+
+export function fireEvent<T>(event: Event<T>): Event<T> {
+	return (listener, thisArgs = null, disposables?) => event(_ => listener.call(thisArgs), null, disposables);
+}
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 	return (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables);
@@ -66,6 +70,16 @@ export function onceEvent<T>(event: Event<T>): Event<T> {
 		}, null, disposables);
 
 		return result;
+	};
+}
+
+export function debounceEvent<T>(event: Event<T>, delay: number): Event<T> {
+	return (listener, thisArgs = null, disposables?) => {
+		let timer: NodeJS.Timer;
+		return event(e => {
+			clearTimeout(timer);
+			timer = setTimeout(() => listener.call(thisArgs, e), delay);
+		}, null, disposables);
 	};
 }
 
@@ -116,6 +130,10 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 	}, Object.create(null));
 }
 
+export function denodeify<A, B, C, R>(fn: Function): (a: A, b: B, c: C) => Promise<R>;
+export function denodeify<A, B, R>(fn: Function): (a: A, b: B) => Promise<R>;
+export function denodeify<A, R>(fn: Function): (a: A) => Promise<R>;
+export function denodeify<R>(fn: Function): (...args: any[]) => Promise<R>;
 export function denodeify<R>(fn: Function): (...args: any[]) => Promise<R> {
 	return (...args) => new Promise<R>((c, e) => fn(...args, (err: any, r: any) => err ? e(err) : c(r)));
 }
@@ -175,6 +193,16 @@ export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 		seen[key] = true;
 		return true;
 	};
+}
+
+export function firstIndex<T>(array: T[], fn: (t: T) => boolean): number {
+	for (let i = 0; i < array.length; i++) {
+		if (fn(array[i])) {
+			return i;
+		}
+	}
+
+	return -1;
 }
 
 export function find<T>(array: T[], fn: (t: T) => boolean): T | undefined {
@@ -273,4 +301,16 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	}
 
 	return null;
+}
+
+export function isDescendant(parent: string, descendant: string): boolean {
+	if (parent === descendant) {
+		return true;
+	}
+
+	if (parent.charAt(parent.length - 1) !== sep) {
+		parent += sep;
+	}
+
+	return descendant.startsWith(parent);
 }

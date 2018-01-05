@@ -7,12 +7,12 @@
 	"settingsEditorName": "Configurações Padrão",
 	"SearchSettingsWidget.AriaLabel": "Configurações de Pesquisa",
 	"SearchSettingsWidget.Placeholder": "Configurações de Pesquisa",
-	"totalSettingsMessage": "Total {0} Configurações",
 	"noSettingsFound": "Nenhum resultado",
 	"oneSettingFound": "1 Configuração correspondente",
 	"settingsFound": "{0} Configurações correspondentes",
-	"fileEditorWithInputAriaLabel": "{0}. Editor de Arquivo de Texto.",
-	"fileEditorAriaLabel": "Editor de Arquivo de Texto",
+	"totalSettingsMessage": "Total {0} Configurações",
+	"defaultSettings": "Configurações Padrão",
+	"defaultFolderSettings": "Configuração Padrão da Pasta",
 	"defaultEditorReadonly": "Editar no editor do lado direito para substituir os padrões.",
 	"preferencesAriaLabel": "Preferências padrão. Editor de texto somente leitura."
 }

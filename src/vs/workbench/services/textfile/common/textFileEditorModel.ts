@@ -12,13 +12,11 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import URI from 'vs/base/common/uri';
-// import * as assert from 'vs/base/common/assert';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
 import { IMode } from 'vs/editor/common/modes';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, ISaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -32,15 +30,13 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { ITextBufferFactory } from 'vs/editor/common/model';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
  */
 export class TextFileEditorModel extends BaseTextEditorModel implements ITextFileEditorModel {
-
-	public static ID = 'workbench.editors.files.textFileEditorModel';
 
 	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 	public static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
@@ -80,7 +76,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IFileService private fileService: IFileService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextFileService private textFileService: ITextFileService,
@@ -150,8 +145,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					// We have received reports of users seeing delete events even though the file still
 					// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
 					// Since we do not want to mark the model as orphaned, we have to check if the
-					// file is really gone and not just a faulty file event (TODO@Ben revisit when we
-					// have a more stable file watcher in place for this scenario).
+					// file is really gone and not just a faulty file event.
 					checkOrphanedPromise = TPromise.timeout(100).then(() => {
 						if (this.disposed) {
 							return true;
@@ -431,7 +425,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.doCreateTextModel(content.resource, content.value, backup);
 	}
 
-	private doUpdateTextModel(value: string | IRawTextSource): TPromise<TextFileEditorModel> {
+	private doUpdateTextModel(value: string | ITextBufferFactory): TPromise<TextFileEditorModel> {
 		diag('load() - updated text editor model', this.resource, new Date());
 
 		// Ensure we are not tracking a stale state
@@ -451,7 +445,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return TPromise.as<TextFileEditorModel>(this);
 	}
 
-	private doCreateTextModel(resource: URI, value: string | IRawTextSource, backup: URI): TPromise<TextFileEditorModel> {
+	private doCreateTextModel(resource: URI, value: string | ITextBufferFactory, backup: URI): TPromise<TextFileEditorModel> {
 		diag('load() - created text editor model', this.resource, new Date());
 
 		this.createTextEditorModelPromise = this.doLoadBackup(backup).then(backupContent => {
@@ -670,11 +664,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// A save participant can still change the model now and since we are so close to saving
 		// we do not want to trigger another auto save or similar, so we block this
 		// In addition we update our version right after in case it changed because of a model change
-		// We DO NOT run any save participant if we are in the shutdown phase and files are being
-		// saved as a result of that.
 		// Save participants can also be skipped through API.
 		let saveParticipantPromise = TPromise.as(versionId);
-		if (TextFileEditorModel.saveParticipant && this.lifecycleService.phase !== LifecyclePhase.ShuttingDown && !options.skipSaveParticipants) {
+		if (TextFileEditorModel.saveParticipant && !options.skipSaveParticipants) {
 			const onCompleteOrError = () => {
 				this.blockModelContentChange = false;
 
@@ -720,7 +712,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				overwriteEncoding: options.overwriteEncoding,
 				mtime: this.lastResolvedDiskStat.mtime,
 				encoding: this.getEncoding(),
-				etag: this.lastResolvedDiskStat.etag
+				etag: this.lastResolvedDiskStat.etag,
+				writeElevated: options.writeElevated
 			}).then(stat => {
 				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
 

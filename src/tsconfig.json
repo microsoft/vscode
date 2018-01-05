@@ -13,6 +13,7 @@
 		"noUnusedLocals": true,
 		"noImplicitThis": true,
 		"baseUrl": ".",
+		"outDir": "../out",
 		"typeRoots": [
 			"typings"
 		]

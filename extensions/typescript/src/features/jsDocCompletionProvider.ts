@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, Uri, ProviderResult, TextEditor, SnippetString, workspace } from 'vscode';
+import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, Uri, TextEditor, SnippetString, workspace } from 'vscode';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { DocCommandTemplateResponse } from '../protocol';
+import * as Proto from '../protocol';
 
 import * as nls from 'vscode-nls';
-import { vsPositionToTsFileLocation } from '../utils/convert';
+import { vsPositionToTsFileLocation, tsTextSpanToVsRange } from '../utils/convert';
 import { Command, CommandManager } from '../utils/commandManager';
 const localize = nls.loadMessageBundle();
 
@@ -55,13 +55,19 @@ export default class JsDocCompletionProvider implements CompletionItemProvider {
 		commandManager.register(new TryCompleteJsDocCommand(client));
 	}
 
-	public provideCompletionItems(
+	public async provideCompletionItems(
 		document: TextDocument,
 		position: Position,
-		_token: CancellationToken
-	): ProviderResult<CompletionItem[]> {
+		token: CancellationToken
+	): Promise<CompletionItem[]> {
 		const file = this.client.normalizePath(document.uri);
 		if (!file) {
+			return [];
+		}
+
+		// TODO: unregister provider when disabled
+		const enableJsDocCompletions = workspace.getConfiguration(configurationNamespace, document.uri).get<boolean>(Configuration.enabled, true);
+		if (!enableJsDocCompletions) {
 			return [];
 		}
 
@@ -69,11 +75,40 @@ export default class JsDocCompletionProvider implements CompletionItemProvider {
 		// or could be the opening of a comment
 		const line = document.lineAt(position.line).text;
 		const prefix = line.slice(0, position.character);
-		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/)) {
-			const enableJsDocCompletions = workspace.getConfiguration(configurationNamespace).get<boolean>(Configuration.enabled, true);
-			return [new JsDocCompletionItem(document, position, enableJsDocCompletions)];
+		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/) === null) {
+			return [];
 		}
-		return [];
+
+		const args: Proto.FileRequestArgs = {
+			file
+		};
+		const response = await Promise.race([
+			this.client.execute('navtree', args, token),
+			new Promise<Proto.NavTreeResponse>((resolve) => setTimeout(resolve, 250))
+		]);
+		if (!response || !response.body) {
+			return [];
+		}
+
+		const body = response.body;
+
+		function matchesPosition(tree: Proto.NavigationTree): boolean {
+			if (!tree.spans.length) {
+				return false;
+			}
+			const span = tsTextSpanToVsRange(tree.spans[0]);
+			if (position.line === span.start.line - 1 || position.line === span.start.line) {
+				return true;
+			}
+
+			return tree.childItems ? tree.childItems.some(matchesPosition) : false;
+		}
+
+		if (!matchesPosition(body)) {
+			return [];
+		}
+
+		return [new JsDocCompletionItem(document, position, enableJsDocCompletions)];
 	}
 
 	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken) {
@@ -115,30 +150,39 @@ class TryCompleteJsDocCommand implements Command {
 		return this.tryInsertDefaultDoc(editor, start);
 	}
 
-	private tryInsertJsDocFromTemplate(editor: TextEditor, file: string, position: Position): Promise<boolean> {
-		const args = vsPositionToTsFileLocation(file, position);
-		return Promise.race([
-			this.client.execute('docCommentTemplate', args),
-			new Promise<DocCommandTemplateResponse>((_, reject) => setTimeout(reject, 250))
-		]).then((res: DocCommandTemplateResponse) => {
-			if (!res || !res.body) {
-				return false;
-			}
-			return editor.insertSnippet(
-				this.templateToSnippet(res.body.newText),
-				position,
-				{ undoStopBefore: false, undoStopAfter: true });
-		}, () => false);
+	private async tryInsertJsDocFromTemplate(editor: TextEditor, file: string, position: Position): Promise<boolean> {
+		const snippet = await TryCompleteJsDocCommand.getSnippetTemplate(this.client, file, position);
+		if (!snippet) {
+			return false;
+		}
+		return editor.insertSnippet(
+			snippet,
+			position,
+			{ undoStopBefore: false, undoStopAfter: true });
 	}
 
-	private templateToSnippet(template: string): SnippetString {
+	public static getSnippetTemplate(client: ITypeScriptServiceClient, file: string, position: Position): Promise<SnippetString | undefined> {
+		const args = vsPositionToTsFileLocation(file, position);
+		return Promise.race([
+			client.execute('docCommentTemplate', args),
+			new Promise<Proto.DocCommandTemplateResponse>((_, reject) => setTimeout(reject, 250))
+		]).then((res: Proto.DocCommandTemplateResponse) => {
+			if (!res || !res.body) {
+				return undefined;
+			}
+			return TryCompleteJsDocCommand.templateToSnippet(res.body.newText);
+		}, () => undefined);
+	}
+
+	private static templateToSnippet(template: string): SnippetString {
+		// TODO: use append placeholder
 		let snippetIndex = 1;
 		template = template.replace(/^\s*(?=(\/|[ ]\*))/gm, '');
 		template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
 		template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)\s*$/gm, (_param, type, post) => {
 			let out = '* @param ';
 			if (type === ' {any}' || type === ' {*}') {
-				out += `{*\$\{${snippetIndex++}\}} `;
+				out += `{\$\{${snippetIndex++}:*\}} `;
 			} else if (type) {
 				out += type + ' ';
 			}

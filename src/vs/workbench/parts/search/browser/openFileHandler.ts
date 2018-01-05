@@ -88,8 +88,8 @@ export class FileEntry extends EditorQuickOpenEntry {
 		this.range = range;
 	}
 
-	public isFile(): boolean {
-		return true; // TODO@Ben debt with editor history merging
+	public mergeWithEditorHistory(): boolean {
+		return true;
 	}
 
 	public getInput(): IResourceInput | EditorInput {
@@ -141,6 +141,9 @@ export class OpenFileHandler extends QuickOpenHandler {
 		if (!searchValue) {
 			return TPromise.as(new FileQuickOpenModel([]));
 		}
+
+		// Untildify file pattern
+		searchValue = labels.untildify(searchValue, this.environmentService.userHome);
 
 		// Do find results
 		return this.doFindResults(searchValue, this.cacheState.cacheKey, maxSortedResults);

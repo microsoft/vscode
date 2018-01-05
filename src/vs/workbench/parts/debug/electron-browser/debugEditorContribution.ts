@@ -19,7 +19,8 @@ import { StandardTokenType } from 'vs/editor/common/modes';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IDecorationOptions, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,12 +35,13 @@ import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CON
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { first } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -78,10 +80,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IListService listService: IListService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this.breakpointHintDecoration = [];
-		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, listService, this.instantiationService, themeService);
+		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService, themeService, contextKeyService, listService);
 		this.toDispose = [];
 		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
@@ -96,12 +99,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private getContextMenuActions(breakpoints: IBreakpoint[], uri: uri, lineNumber: number): TPromise<(IAction | ContextSubMenu)[]> {
 		const actions: (IAction | ContextSubMenu)[] = [];
 		if (breakpoints.length === 1) {
-			actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
-			actions.push(this.instantiationService.createInstance(EditConditionalBreakpointAction, EditConditionalBreakpointAction.ID, EditConditionalBreakpointAction.LABEL, this.editor));
+			actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL, this.debugService, this.keybindingService));
+			actions.push(new EditConditionalBreakpointAction(EditConditionalBreakpointAction.ID, EditConditionalBreakpointAction.LABEL, this.editor, this.debugService, this.keybindingService));
 			if (breakpoints[0].enabled) {
-				actions.push(this.instantiationService.createInstance(DisableBreakpointAction, DisableBreakpointAction.ID, DisableBreakpointAction.LABEL));
+				actions.push(new DisableBreakpointAction(DisableBreakpointAction.ID, DisableBreakpointAction.LABEL, this.debugService, this.keybindingService));
 			} else {
-				actions.push(this.instantiationService.createInstance(EnableBreakpointAction, EnableBreakpointAction.ID, EnableBreakpointAction.LABEL));
+				actions.push(new EnableBreakpointAction(EnableBreakpointAction.ID, EnableBreakpointAction.LABEL, this.debugService, this.keybindingService));
 			}
 		} else if (breakpoints.length > 1) {
 			const sorted = breakpoints.sort((first, second) => first.column - second.column);
@@ -138,7 +141,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				true,
 				() => this.debugService.addBreakpoints(uri, [{ lineNumber }])
 			));
-			actions.push(this.instantiationService.createInstance(AddConditionalBreakpointAction, AddConditionalBreakpointAction.ID, AddConditionalBreakpointAction.LABEL, this.editor, lineNumber));
+			actions.push(new AddConditionalBreakpointAction(AddConditionalBreakpointAction.ID, AddConditionalBreakpointAction.LABEL, this.editor, lineNumber, this.debugService, this.keybindingService));
 		}
 
 		return TPromise.as(actions);
@@ -199,7 +202,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
 		this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
 		this.toDispose.push(this.editor.onMouseLeave((e: IEditorMouseEvent) => {
-			const rect = this.hoverWidget.getDomNode().getBoundingClientRect();
+			const hoverDomNode = this.hoverWidget.getDomNode();
+			if (!hoverDomNode) {
+				return;
+			}
+
+			const rect = hoverDomNode.getBoundingClientRect();
 			// Only hide the hover widget if the editor mouse leave event is outside the hover widget #3528
 			if (e.event.posx < rect.left || e.event.posx > rect.right || e.event.posy < rect.top || e.event.posy > rect.bottom) {
 				this.hideHoverWidget();
@@ -585,11 +593,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 				model.forceTokenization(lineNumber);
 				const lineTokens = model.getLineTokens(lineNumber);
-				for (let token = lineTokens.firstToken(); !!token; token = token.next()) {
-					const tokenStr = lineContent.substring(token.startOffset, token.endOffset);
+				for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
+					const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
+					const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
+					const tokenType = lineTokens.getStandardTokenType(tokenIndex);
+					const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
 
 					// Token is a word and not a comment
-					if (token.tokenType === StandardTokenType.Other) {
+					if (tokenType === StandardTokenType.Other) {
 						DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
 						const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
 
@@ -599,7 +610,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 								this.wordToLineNumbersMap.set(word, []);
 							}
 
-							this.wordToLineNumbersMap.get(word).push(new Position(lineNumber, token.startOffset));
+							this.wordToLineNumbersMap.get(word).push(new Position(lineNumber, tokenStartOffset));
 						}
 					}
 				}

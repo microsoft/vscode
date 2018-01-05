@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IDecorationProvider } from 'vs/editor/contrib/folding/foldingModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
@@ -18,12 +18,12 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 
 	private EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		linesDecorationsClassName: 'folding autoHide'
+		linesDecorationsClassName: 'folding'
 	});
 
 	private EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		linesDecorationsClassName: 'folding'
+		linesDecorationsClassName: 'folding alwaysShowFoldIcons'
 	});
 
 	public autoHideFoldingControls: boolean = true;

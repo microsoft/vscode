@@ -29,6 +29,9 @@ import { attachInputBoxStyler, attachFindInputBoxStyler, attachButtonStyler } fr
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -70,8 +73,8 @@ class ReplaceAllAction extends Action {
 
 export class SearchWidget extends Widget {
 
-	private static REPLACE_ALL_DISABLED_LABEL = nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
-	private static REPLACE_ALL_ENABLED_LABEL = (keyBindingService2: IKeybindingService): string => {
+	private static readonly REPLACE_ALL_DISABLED_LABEL = nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
+	private static readonly REPLACE_ALL_ENABLED_LABEL = (keyBindingService2: IKeybindingService): string => {
 		let kb = keyBindingService2.lookupKeybinding(ReplaceAllAction.ID);
 		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb, keyBindingService2);
 	}
@@ -92,6 +95,8 @@ export class SearchWidget extends Widget {
 	private replaceActionBar: ActionBar;
 
 	private searchHistory: HistoryNavigator<string>;
+	private ignoreGlobalFindBufferOnNextFocus = false;
+	private previousGlobalFindBufferValue: string;
 
 	private _onSearchSubmit = this._register(new Emitter<boolean>());
 	public onSearchSubmit: Event<boolean> = this._onSearchSubmit.event;
@@ -118,6 +123,8 @@ export class SearchWidget extends Widget {
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private keyBindingService: IContextKeyService,
 		@IKeybindingService private keyBindingService2: IKeybindingService,
+		@IClipboardService private clipboardServce: IClipboardService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 		this.searchHistory = new HistoryNavigator<string>(options.history);
@@ -127,7 +134,9 @@ export class SearchWidget extends Widget {
 		this.render(container, options);
 	}
 
-	public focus(select: boolean = true, focusReplace: boolean = false): void {
+	public focus(select: boolean = true, focusReplace: boolean = false, suppressGlobalSearchBuffer = false): void {
+		this.ignoreGlobalFindBufferOnNextFocus = suppressGlobalSearchBuffer;
+
 		if (focusReplace && this.isReplaceShown()) {
 			this.replaceInput.focus();
 			if (select) {
@@ -213,7 +222,8 @@ export class SearchWidget extends Widget {
 			buttonHoverBackground: SIDE_BAR_BACKGROUND
 		});
 		this.toggleReplaceButton.icon = 'toggle-replace-button collapse';
-		this.toggleReplaceButton.addListener('click', () => this.onToggleReplaceButton());
+		// TODO@joh need to dispose this listener eventually
+		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
 		this.toggleReplaceButton.getElement().title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
 	}
 
@@ -240,12 +250,23 @@ export class SearchWidget extends Widget {
 		}));
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
-		this._register(this.searchInputFocusTracker.addFocusListener(() => {
+		this._register(this.searchInputFocusTracker.onDidFocus(() => {
 			this.searchInputBoxFocused.set(true);
+
+			const useGlobalFindBuffer = this.configurationService.getValue<IEditorOptions>('editor').find.globalFindClipboard;
+			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
+				const globalBufferText = this.clipboardServce.readFindText();
+				if (this.previousGlobalFindBufferValue !== globalBufferText) {
+					this.searchInput.setValue(globalBufferText);
+					this.searchInput.select();
+				}
+
+				this.previousGlobalFindBufferValue = globalBufferText;
+			}
+
+			this.ignoreGlobalFindBufferOnNextFocus = false;
 		}));
-		this._register(this.searchInputFocusTracker.addBlurListener(() => {
-			this.searchInputBoxFocused.set(false);
-		}));
+		this._register(this.searchInputFocusTracker.onDidBlur(() => this.searchInputBoxFocused.set(false)));
 	}
 
 	private renderReplaceInput(parent: HTMLElement): void {
@@ -267,12 +288,8 @@ export class SearchWidget extends Widget {
 		this.replaceActionBar.push([this.replaceAllAction], { icon: true, label: false });
 
 		this.replaceInputFocusTracker = this._register(dom.trackFocus(this.replaceInput.inputElement));
-		this._register(this.replaceInputFocusTracker.addFocusListener(() => {
-			this.replaceInputBoxFocused.set(true);
-		}));
-		this._register(this.replaceInputFocusTracker.addBlurListener(() => {
-			this.replaceInputBoxFocused.set(false);
-		}));
+		this._register(this.replaceInputFocusTracker.onDidFocus(() => this.replaceInputBoxFocused.set(true)));
+		this._register(this.replaceInputFocusTracker.onDidBlur(() => this.replaceInputBoxFocused.set(false)));
 	}
 
 	triggerReplaceAll(): TPromise<any> {
@@ -361,7 +378,9 @@ export class SearchWidget extends Widget {
 	}
 
 	private submitSearch(refresh: boolean = true): void {
-		if (this.searchInput.getValue()) {
+		const value = this.searchInput.getValue();
+		if (value) {
+			this.clipboardServce.writeFindText(value);
 			this._onSearchSubmit.fire(refresh);
 		}
 	}

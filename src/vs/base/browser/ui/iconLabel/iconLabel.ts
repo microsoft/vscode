@@ -11,16 +11,11 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { IMatch } from 'vs/base/common/filters';
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IWorkspaceFolderProvider, getPathLabel, IUserHomeProvider } from 'vs/base/common/labels';
+import { IWorkspaceFolderProvider, getPathLabel, IUserHomeProvider, getBaseLabel } from 'vs/base/common/labels';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
-}
-
-export interface ILabelBadgeOptions {
-	title: string;
-	className: string;
 }
 
 export interface IIconLabelOptions {
@@ -168,6 +163,6 @@ export class FileLabel extends IconLabel {
 	public setFile(file: uri, provider: IWorkspaceFolderProvider, userHome: IUserHomeProvider): void {
 		const parent = paths.dirname(file.fsPath);
 
-		this.setValue(paths.basename(file.fsPath), parent && parent !== '.' ? getPathLabel(parent, provider, userHome) : '', { title: file.fsPath });
+		this.setValue(getBaseLabel(file), parent && parent !== '.' ? getPathLabel(parent, provider, userHome) : '', { title: file.fsPath });
 	}
 }

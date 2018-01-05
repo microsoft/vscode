@@ -20,6 +20,7 @@ import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService, getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextModel } from 'vs/editor/common/model';
 
 export type ServicesAccessor = ServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
@@ -222,7 +223,7 @@ export function registerLanguageCommand(id: string, handler: (accessor: Services
 	CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
 }
 
-export function registerDefaultLanguageCommand(id: string, handler: (model: editorCommon.IModel, position: Position, args: { [n: string]: any }) => any) {
+export function registerDefaultLanguageCommand(id: string, handler: (model: ITextModel, position: Position, args: { [n: string]: any }) => any) {
 	registerLanguageCommand(id, function (accessor, args) {
 
 		const { resource, position } = args;
@@ -283,7 +284,7 @@ const Extensions = {
 
 class EditorContributionRegistry {
 
-	public static INSTANCE = new EditorContributionRegistry();
+	public static readonly INSTANCE = new EditorContributionRegistry();
 
 	private editorContributions: IEditorContributionCtor[];
 	private editorActions: EditorAction[];

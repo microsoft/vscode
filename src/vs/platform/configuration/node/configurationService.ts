@@ -73,7 +73,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		workspaceFolder: T
 		value: T
 	} {
-		return this.configuration.lookup<T>(key, {}, null);
+		return this.configuration.inspect<T>(key, {}, null);
 	}
 
 	keys(): {

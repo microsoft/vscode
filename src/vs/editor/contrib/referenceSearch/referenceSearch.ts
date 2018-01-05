@@ -25,6 +25,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextModel } from 'vs/editor/common/model';
 
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -34,7 +35,7 @@ const defaultReferenceSearchOptions: RequestOptions = {
 
 export class ReferenceController implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.referenceController';
+	private static readonly ID = 'editor.contrib.referenceController';
 
 	constructor(
 		editor: ICodeEditor,
@@ -197,7 +198,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 
-export function provideReferences(model: editorCommon.IReadOnlyModel, position: Position): TPromise<Location[]> {
+export function provideReferences(model: ITextModel, position: Position): TPromise<Location[]> {
 
 	// collect references from all providers
 	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {

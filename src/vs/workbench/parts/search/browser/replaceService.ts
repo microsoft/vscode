@@ -18,10 +18,10 @@ import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/
 import { BulkEdit, IResourceEdit, createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService } from 'vs/platform/files/common/files';
 
@@ -44,11 +44,7 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 		this.textModelResolverService.registerTextModelContentProvider(network.Schemas.internal, this);
 	}
 
-	public getId(): string {
-		return 'replace.preview.contentprovider';
-	}
-
-	public provideTextContent(uri: URI): TPromise<IModel> {
+	public provideTextContent(uri: URI): TPromise<ITextModel> {
 		if (uri.fragment === REPLACE_PREVIEW) {
 			return this.instantiationService.createInstance(ReplacePreviewModel).resolve(uri);
 		}
@@ -67,7 +63,7 @@ class ReplacePreviewModel extends Disposable {
 		super();
 	}
 
-	resolve(replacePreviewUri: URI): TPromise<IModel> {
+	resolve(replacePreviewUri: URI): TPromise<ITextModel> {
 		const fileResource = toFileResource(replacePreviewUri);
 		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource().toString() === fileResource.toString())[0];
 		return this.textModelResolverService.createModelReference(fileResource).then(ref => {
@@ -84,7 +80,7 @@ class ReplacePreviewModel extends Disposable {
 		});
 	}
 
-	private update(sourceModel: IModel, replacePreviewModel: IModel, fileMatch: FileMatch, override: boolean = false): void {
+	private update(sourceModel: ITextModel, replacePreviewModel: ITextModel, fileMatch: FileMatch, override: boolean = false): void {
 		if (!sourceModel.isDisposed() && !replacePreviewModel.isDisposed()) {
 			this.replaceService.updateReplacePreview(fileMatch, override);
 		}
@@ -96,10 +92,9 @@ export class ReplaceService implements IReplaceService {
 	public _serviceBrand: any;
 
 	constructor(
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
 		@IEditorService private editorService: IWorkbenchEditorService,
-		@ITextModelService private textModelResolverService: ITextModelService,
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 	}
 
@@ -135,10 +130,6 @@ export class ReplaceService implements IReplaceService {
 	}
 
 	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
-		/* __GDPR__
-			"replace.open.previewEditor" : {}
-		*/
-		this.telemetryService.publicLog('replace.open.previewEditor');
 		const fileMatch = element instanceof Match ? element.parent() : element;
 
 		return this.editorService.openEditor({

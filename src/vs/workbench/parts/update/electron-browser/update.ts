@@ -165,7 +165,7 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
 export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
-	static ID = 'update.showCurrentReleaseNotes';
+	static readonly ID = 'update.showCurrentReleaseNotes';
 	static LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
 
 	constructor(
@@ -196,19 +196,19 @@ const LinkAction = (id: string, message: string, licenseUrl: string) => new Acti
 
 export class ProductContribution implements IWorkbenchContribution {
 
-	private static KEY = 'releaseNotes/lastVersion';
-	getId() { return 'vs.product'; }
+	private static readonly KEY = 'releaseNotes/lastVersion';
 
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
 
 		// was there an update? if so, open release notes
-		if (product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
+		if (!environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			instantiationService.invokeFunction(loadReleaseNotes, pkg.version).then(
 				text => editorService.openEditor(instantiationService.createInstance(ReleaseNotesInput, pkg.version, text), { pinned: true }),
 				() => {
@@ -256,11 +256,9 @@ class NeverShowAgain {
 
 export class Win3264BitContribution implements IWorkbenchContribution {
 
-	private static KEY = 'update/win32-64bits';
-	private static URL = 'https://code.visualstudio.com/updates/v1_15#_windows-64-bit';
-	private static INSIDER_URL = 'https://github.com/Microsoft/vscode-docs/blob/vnext/release-notes/v1_15.md#windows-64-bit';
-
-	getId() { return 'vs.win32-64bit'; }
+	private static readonly KEY = 'update/win32-64bits';
+	private static readonly URL = 'https://code.visualstudio.com/updates/v1_15#_windows-64-bit';
+	private static readonly INSIDER_URL = 'https://github.com/Microsoft/vscode-docs/blob/vnext/release-notes/v1_15.md#windows-64-bit';
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -310,6 +308,7 @@ export class UpdateContribution implements IGlobalActivity {
 	private static readonly showCommandsId = 'workbench.action.showCommands';
 	private static readonly openSettingsId = 'workbench.action.openGlobalSettings';
 	private static readonly openKeybindingsId = 'workbench.action.openGlobalKeybindings';
+	private static readonly openUserSnippets = 'workbench.action.openSnippets';
 	private static readonly selectColorThemeId = 'workbench.action.selectTheme';
 	private static readonly selectIconThemeId = 'workbench.action.selectIconTheme';
 
@@ -431,6 +430,8 @@ export class UpdateContribution implements IGlobalActivity {
 			new Separator(),
 			new CommandAction(UpdateContribution.openSettingsId, nls.localize('settings', "Settings"), this.commandService),
 			new CommandAction(UpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), this.commandService),
+			new Separator(),
+			new CommandAction(UpdateContribution.openUserSnippets, nls.localize('userSnippets', "User Snippets"), this.commandService),
 			new Separator(),
 			new CommandAction(UpdateContribution.selectColorThemeId, nls.localize('selectTheme.label', "Color Theme"), this.commandService),
 			new CommandAction(UpdateContribution.selectIconThemeId, nls.localize('themes.selectIconTheme.label', "File Icon Theme"), this.commandService),

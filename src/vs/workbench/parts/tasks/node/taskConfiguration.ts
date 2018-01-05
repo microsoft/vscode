@@ -25,17 +25,6 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Tasks from '../common/tasks';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
-/**
- * Defines the problem handling strategy
- */
-export class ProblemHandling {
-	/**
-	 * Cleans all problems for the owner defined in the
-	 * error pattern.
-	 */
-	public static clean: string = 'cleanMatcherMatchers';
-}
-
 export interface ShellConfiguration {
 	executable: string;
 	args?: string[];
@@ -631,7 +620,7 @@ namespace CommandOptions {
 			}
 		}
 		if (options.env !== void 0) {
-			result.env = Objects.clone(options.env);
+			result.env = Objects.deepClone(options.env);
 		}
 		result.shell = ShellConfiguration.from(options.shell, context);
 		return isEmpty(result) ? undefined : result;
@@ -821,14 +810,12 @@ namespace CommandConfiguration {
 		return isEmpty(result) ? undefined : result;
 	}
 
-	export function isEmpty(value: Tasks.CommandConfiguration): boolean {
-		return _isEmpty(value, properties);
+	export function hasCommand(value: Tasks.CommandConfiguration): boolean {
+		return value && !!value.name;
 	}
 
-	export function onlyTerminalBehaviour(value: Tasks.CommandConfiguration): boolean {
-		return value &&
-			value.presentation && (value.presentation.echo !== void 0 || value.presentation.reveal !== void 0) &&
-			value.name === void 0 && value.runtime === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options);
+	export function isEmpty(value: Tasks.CommandConfiguration): boolean {
+		return _isEmpty(value, properties);
 	}
 
 	export function assignProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration {
@@ -983,11 +970,11 @@ namespace ProblemMatcherConverter {
 				variableName = variableName.substring(1);
 				let global = ProblemMatcherRegistry.get(variableName);
 				if (global) {
-					return Objects.clone(global);
+					return Objects.deepClone(global);
 				}
 				let localProblemMatcher = context.namedProblemMatchers[variableName];
 				if (localProblemMatcher) {
-					localProblemMatcher = Objects.clone(localProblemMatcher);
+					localProblemMatcher = Objects.deepClone(localProblemMatcher);
 					// remove the name
 					delete localProblemMatcher.name;
 					return localProblemMatcher;
@@ -1250,7 +1237,7 @@ namespace CustomTask {
 			taskName = external.label;
 		}
 		if (!taskName) {
-			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskName', 'Error: tasks must provide a taskName property. The task will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
+			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskName', 'Error: a task must provide a label property. The task will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
 		}
 
@@ -1295,7 +1282,8 @@ namespace CustomTask {
 
 	export function fillGlobals(task: Tasks.CustomTask, globals: Globals): void {
 		// We only merge a command from a global definition if there is no dependsOn
-		if (task.dependsOn === void 0) {
+		// or there is a dependsOn and a defined command.
+		if (CommandConfiguration.hasCommand(task.command) || task.dependsOn === void 0) {
 			task.command = CommandConfiguration.fillGlobals(task.command, globals.command, task.name);
 		}
 		// promptOnClose is inferred from isBackground if available
@@ -1490,22 +1478,6 @@ namespace TaskParser {
 		}
 		return false;
 	}
-
-	export function quickParse(this: void, externals: (CustomTask | ConfiguringTask)[], context: ParseContext): (Tasks.CustomTask | Tasks.ConfiguringTask)[] {
-		if (!externals) {
-			return undefined;
-		}
-		let result: (Tasks.CustomTask | Tasks.ConfiguringTask)[] = [];
-		for (let index = 0; index < externals.length; index++) {
-			let external = externals[index];
-			if (isCustomTask(external)) {
-				result.push(CustomTask.from(external, context, index));
-			} else {
-				result.push(ConfiguringTask.from(external, context, index));
-			}
-		}
-		return result;
-	}
 }
 
 interface Globals {
@@ -1640,7 +1612,6 @@ export interface ParseResult {
 }
 
 export interface IProblemReporter extends IProblemReporterBase {
-	clearOutput(): void;
 }
 
 class UUIDMap {

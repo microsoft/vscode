@@ -9,7 +9,7 @@ import { IRange } from 'vs/editor/common/core/range';
 
 export class BasicInplaceReplace {
 
-	public static INSTANCE = new BasicInplaceReplace();
+	public static readonly INSTANCE = new BasicInplaceReplace();
 
 	public navigateValueSet(range1: IRange, text1: string, range2: IRange, text2: string, up: boolean): IInplaceReplaceSupportResult {
 
@@ -45,9 +45,9 @@ export class BasicInplaceReplace {
 	}
 
 	private numberReplace(value: string, up: boolean): string {
-		var precision = Math.pow(10, value.length - (value.lastIndexOf('.') + 1)),
-			n1 = Number(value),
-			n2 = parseFloat(value);
+		let precision = Math.pow(10, value.length - (value.lastIndexOf('.') + 1));
+		let n1 = Number(value);
+		let n2 = parseFloat(value);
 
 		if (!isNaN(n1) && !isNaN(n2) && n1 === n2) {
 
@@ -77,7 +77,7 @@ export class BasicInplaceReplace {
 	}
 
 	private valueSetsReplace(valueSets: string[][], value: string, up: boolean): string {
-		var result: string = null;
+		let result: string = null;
 		for (let i = 0, len = valueSets.length; result === null && i < len; i++) {
 			result = this.valueSetReplace(valueSets[i], value, up);
 		}
@@ -85,7 +85,7 @@ export class BasicInplaceReplace {
 	}
 
 	private valueSetReplace(valueSet: string[], value: string, up: boolean): string {
-		var idx = valueSet.indexOf(value);
+		let idx = valueSet.indexOf(value);
 		if (idx >= 0) {
 			idx += up ? +1 : -1;
 			if (idx < 0) {

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+// @ts-check
 'use strict';
 
 (function () {
@@ -30,23 +30,57 @@
 	}
 
 	/**
+	 * @param {string} command
+	 * @param {any[]} args
+	 */
+	function postMessage(command, args) {
+		window.parent.postMessage({
+			command: 'did-click-link',
+			data: `command:${command}?${encodeURIComponent(JSON.stringify(args))}`
+		}, 'file://');
+	}
+
+	/**
+	 * @typedef {{ element: Element, line: number }} CodeLineElement
+	 */
+
+	/**
+	 * @return {CodeLineElement[]}
+	 */
+	const getCodeLineElements = (() => {
+		/** @type {CodeLineElement[]} */
+		let elements;
+		return () => {
+			if (!elements) {
+				elements = Array.prototype.map.call(
+					document.getElementsByClassName('code-line'),
+					element => {
+						const line = +element.getAttribute('data-line');
+						return { element, line }
+					})
+					.filter(x => !isNaN(x.line));
+			}
+			return elements;
+		};
+	})()
+
+	/**
 	 * Find the html elements that map to a specific target line in the editor.
 	 *
 	 * If an exact match, returns a single element. If the line is between elements,
 	 * returns the element prior to and the element after the given line.
+	 *
+	 * @param {number} targetLine
+	 *
+	 * @returns {{ previous: CodeLineElement, next?: CodeLineElement }}
 	 */
 	function getElementsForSourceLine(targetLine) {
-		const lines = document.getElementsByClassName('code-line');
-		let previous = lines[0] && +lines[0].getAttribute('data-line') ? { line: +lines[0].getAttribute('data-line'), element: lines[0] } : null;
-		for (const element of lines) {
-			const lineNumber = +element.getAttribute('data-line');
-			if (isNaN(lineNumber)) {
-				continue;
-			}
-			const entry = { line: lineNumber, element: element };
-			if (lineNumber === targetLine) {
+		const lines = getCodeLineElements();
+		let previous = lines[0] || null;
+		for (const entry of lines) {
+			if (entry.line === targetLine) {
 				return { previous: entry, next: null };
-			} else if (lineNumber > targetLine) {
+			} else if (entry.line > targetLine) {
 				return { previous, next: entry };
 			}
 			previous = entry;
@@ -56,28 +90,37 @@
 
 	/**
 	 * Find the html elements that are at a specific pixel offset on the page.
+	 *
+	 * @returns {{ previous: CodeLineElement, next?: CodeLineElement }}
 	 */
 	function getLineElementsAtPageOffset(offset) {
-		const lines = document.getElementsByClassName('code-line');
+		const lines = getCodeLineElements()
+
 		const position = offset - window.scrollY;
-		let previous = null;
-		for (const element of lines) {
-			const line = +element.getAttribute('data-line');
-			if (isNaN(line)) {
-				continue;
+
+		let lo = -1;
+		let hi = lines.length - 1;
+		while (lo + 1 < hi) {
+			const mid = Math.floor((lo + hi) / 2);
+			const bounds = lines[mid].element.getBoundingClientRect();
+			if (bounds.top + bounds.height >= position) {
+				hi = mid;
+			} else {
+				lo = mid;
 			}
-			const bounds = element.getBoundingClientRect();
-			const entry = { element, line };
-			if (position < bounds.top) {
-				if (previous && previous.fractional < 1) {
-					previous.line += previous.fractional;
-					return { previous };
-				}
-				return { previous, next: entry };
-			}
-			entry.fractional = (position - bounds.top) / (bounds.height);
-			previous = entry;
 		}
+
+		const hiElement = lines[hi];
+		if (hi >= 1 && hiElement.element.getBoundingClientRect().top > position) {
+			const loElement = lines[lo];
+			const bounds = loElement.element.getBoundingClientRect();
+			const previous = { element: loElement.element, line: loElement.line + (position - bounds.top) / (bounds.height) };
+			const next = { element: hiElement.element, line: hiElement.line, fractional: 0 };
+			return { previous, next };
+		}
+
+		const bounds = hiElement.element.getBoundingClientRect();
+		const previous = { element: hiElement.element, line: hiElement.line + (position - bounds.top) / (bounds.height) };
 		return { previous };
 	}
 
@@ -87,6 +130,8 @@
 
 	/**
 	 * Attempt to reveal the element for a source line in the editor.
+	 *
+	 * @param {number} line
 	 */
 	function scrollToRevealSourceLine(line) {
 		const { previous, next } = getElementsForSourceLine(line);
@@ -196,13 +241,36 @@
 		const offset = event.pageY;
 		const line = getEditorLineNumberForPageOffset(offset);
 		if (!isNaN(line)) {
-			const args = [settings.source, line];
-			window.parent.postMessage({
-				command: "did-click-link",
-				data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
-			}, "file://");
+			postMessage('_markdown.didClick', [settings.source, line]);
 		}
 	});
+
+	document.addEventListener('click', event => {
+		if (!event) {
+			return;
+		}
+
+		const baseElement = document.getElementsByTagName('base')[0];
+
+		/** @type {*} */
+		let node = event.target;
+		while (node) {
+			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+				if (node.getAttribute('href').startsWith('#')) {
+					break;
+				}
+				if (node.href.startsWith('file://')) {
+					const [path, fragment] = node.href.replace(/^file:\/\//i, '').split('#');
+					postMessage('_markdown.openDocumentLink', { path, fragment });
+					event.preventDefault();
+					event.stopPropagation();
+					break;
+				}
+				break;
+			}
+			node = node.parentNode;
+		}
+	}, true);
 
 	if (settings.scrollEditorWithPreview) {
 		window.addEventListener('scroll', throttle(() => {
@@ -211,11 +279,7 @@
 			} else {
 				const line = getEditorLineNumberForPageOffset(window.scrollY);
 				if (!isNaN(line)) {
-					const args = [settings.source, line];
-					window.parent.postMessage({
-						command: 'did-click-link',
-						data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`
-					}, 'file://');
+					postMessage('_markdown.revealLine', [settings.source, line]);
 				}
 			}
 		}, 50));

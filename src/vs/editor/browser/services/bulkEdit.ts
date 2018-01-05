@@ -15,7 +15,7 @@ import { IFileService, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModel, EndOfLineSequence } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
@@ -73,7 +73,7 @@ class EditTask implements IDisposable {
 
 	private _initialSelections: Selection[];
 	private _endCursorSelection: Selection;
-	private get _model(): IModel { return this._modelReference.object.textEditorModel; }
+	private get _model(): ITextModel { return this._modelReference.object.textEditorModel; }
 	private _modelReference: IReference<ITextEditorModel>;
 	private _edits: IIdentifiedSingleEditOperation[];
 	private _newEol: EndOfLineSequence;
@@ -190,7 +190,6 @@ class BulkEditModel implements IDisposable {
 
 	private _textModelResolverService: ITextModelService;
 	private _numberOfResourcesToModify: number = 0;
-	private _numberOfChanges: number = 0;
 	private _edits: IStringDictionary<IResourceEdit[]> = Object.create(null);
 	private _tasks: EditTask[];
 	private _sourceModel: URI;
@@ -208,21 +207,12 @@ class BulkEditModel implements IDisposable {
 		}
 	}
 
-	public resourcesCount(): number {
-		return this._numberOfResourcesToModify;
-	}
-
-	public changeCount(): number {
-		return this._numberOfChanges;
-	}
-
 	private _addEdit(edit: IResourceEdit): void {
 		let array = this._edits[edit.resource.toString()];
 		if (!array) {
 			this._edits[edit.resource.toString()] = array = [];
 			this._numberOfResourcesToModify += 1;
 		}
-		this._numberOfChanges += 1;
 		array.push(edit);
 	}
 

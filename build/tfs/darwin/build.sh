@@ -14,10 +14,13 @@ VSO_PAT="$6"
 echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
 step "Install dependencies" \
-	npm install
+	yarn
 
 step "Hygiene" \
 	npm run gulp -- hygiene
+
+step "Monaco Editor Check" \
+	./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
 
 step "Mix in repository from vscode-distro" \
 	npm run gulp -- mixin

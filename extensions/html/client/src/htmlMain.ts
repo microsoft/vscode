@@ -6,13 +6,12 @@
 
 import * as path from 'path';
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorInformation, ColorPresentation } from 'vscode';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorInformation, ColorPresentation, Range, CompletionItem, CompletionItemKind, SnippetString } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
 import { DocumentColorRequest, DocumentColorParams, ColorPresentationRequest, ColorPresentationParams } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import * as nls from 'vscode-nls';
@@ -40,7 +39,7 @@ export function activate(context: ExtensionContext) {
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'htmlServerMain.js'));
 	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--inspect=6004'] };
+	let debugOptions = { execArgv: ['--nolazy', '--inspect=6045'] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
@@ -65,7 +64,7 @@ export function activate(context: ExtensionContext) {
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
-	client.registerFeature(new ConfigurationFeature(client));
+	client.registerProposedFeatures();
 
 	let disposable = client.start();
 	toDispose.push(disposable);
@@ -163,6 +162,31 @@ export function activate(context: ExtensionContext) {
 				action: { indentAction: IndentAction.Indent }
 			}
 		],
+	});
+
+	const regionCompletionRegExpr = /^(\s*)(<(!(-(-\s*(#\w*)?)?)?)?)?/;
+	languages.registerCompletionItemProvider(documentSelector, {
+		provideCompletionItems(doc, pos) {
+			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
+			let match = lineUntilPos.match(regionCompletionRegExpr);
+			if (match) {
+				let range = new Range(new Position(pos.line, match[1].length), pos);
+				let beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
+				beginProposal.range = range;
+				beginProposal.insertText = new SnippetString('<!-- #region $1-->');
+				beginProposal.documentation = localize('folding.start', 'Folding Region Start');
+				beginProposal.filterText = match[2];
+				beginProposal.sortText = 'za';
+				let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
+				endProposal.range = range;
+				endProposal.insertText = new SnippetString('<!-- #endregion -->');
+				endProposal.documentation = localize('folding.end', 'Folding Region End');
+				endProposal.filterText = match[2];
+				endProposal.sortText = 'zb';
+				return [beginProposal, endProposal];
+			}
+			return null;
+		}
 	});
 }
 

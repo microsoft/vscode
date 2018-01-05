@@ -60,22 +60,27 @@ function getImageSizeFromURL(urlStr: string) {
 		const url = parseUrl(urlStr);
 		const getTransport = url.protocol === 'https:' ? https.get : http.get;
 
+		if (!url.pathname) {
+			return reject('Given url doesnt have pathname property');
+		}
+		const urlPath: string = url.pathname;
+
 		getTransport(url as any, resp => {
-			const chunks = [];
+			const chunks: Buffer[] = [];
 			let bufSize = 0;
 
-			const trySize = chunks => {
+			const trySize = (chunks: Buffer[]) => {
 				try {
 					const size = sizeOf(Buffer.concat(chunks, bufSize));
 					resp.removeListener('data', onData);
 					resp.destroy(); // no need to read further
-					resolve(sizeForFileName(path.basename(url.pathname), size));
+					resolve(sizeForFileName(path.basename(urlPath), size));
 				} catch (err) {
 					// might not have enough data, skip error
 				}
 			};
 
-			const onData = chunk => {
+			const onData = (chunk: Buffer) => {
 				bufSize += chunk.length;
 				chunks.push(chunk);
 				trySize(chunks);

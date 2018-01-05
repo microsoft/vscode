@@ -8,7 +8,7 @@ import { SingleCursorState, CursorContext, CursorState } from 'vs/editor/common/
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import { TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
 
 export class OneCursor {
 

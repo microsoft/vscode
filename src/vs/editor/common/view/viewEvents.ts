@@ -70,14 +70,9 @@ export class ViewCursorStateChangedEvent {
 	 * The primary selection is always at index 0.
 	 */
 	public readonly selections: Selection[];
-	/**
-	 * Is the primary cursor in the editable range?
-	 */
-	public readonly isInEditableRange: boolean;
 
-	constructor(selections: Selection[], isInEditableRange: boolean) {
+	constructor(selections: Selection[]) {
 		this.selections = selections;
-		this.isInEditableRange = isInEditableRange;
 	}
 }
 

@@ -10,7 +10,7 @@ import { TimeoutTimer } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel, IWordAtPosition } from 'vs/editor/common/editorCommon';
+import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { ISuggestSupport, SuggestRegistry, StandardTokenType, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
@@ -59,25 +59,13 @@ export class LineContext {
 		return true;
 	}
 
-	static isInEditableRange(editor: ICodeEditor): boolean {
-		const model = editor.getModel();
-		const position = editor.getPosition();
-		if (model.hasEditableRange()) {
-			const editableRange = model.getEditableRange();
-			if (!editableRange.containsPosition(position)) {
-				return false;
-			}
-		}
-		return true;
-	}
-
 	readonly lineNumber: number;
 	readonly column: number;
 	readonly leadingLineContent: string;
 	readonly leadingWord: IWordAtPosition;
 	readonly auto: boolean;
 
-	constructor(model: IModel, position: Position, auto: boolean) {
+	constructor(model: ITextModel, position: Position, auto: boolean) {
 		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 		this.leadingWord = model.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;
@@ -223,6 +211,8 @@ export class SuggestModel implements IDisposable {
 
 	cancel(retrigger: boolean = false): void {
 
+		this._triggerRefilter.cancel();
+
 		if (this._triggerAutoSuggestPromise) {
 			this._triggerAutoSuggestPromise.cancel();
 			this._triggerAutoSuggestPromise = null;
@@ -257,17 +247,14 @@ export class SuggestModel implements IDisposable {
 		this._currentPosition = this._editor.getPosition();
 
 		if (!e.selection.isEmpty()
-			|| e.source !== 'keyboard'
 			|| e.reason !== CursorChangeReason.NotSet
+			|| (e.source !== 'keyboard' && e.source !== 'deleteLeft')
 		) {
-
-			if (this._state === State.Idle) {
-				// Early exit if nothing needs to be done!
-				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
-				return;
+			// Early exit if nothing needs to be done!
+			// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
+			if (this._state !== State.Idle) {
+				this.cancel();
 			}
-
-			this.cancel();
 			return;
 		}
 
@@ -290,9 +277,9 @@ export class SuggestModel implements IDisposable {
 
 				this.cancel();
 
-				if (LineContext.shouldAutoTrigger(this._editor)) {
-					this._triggerAutoSuggestPromise = TPromise.timeout(this._quickSuggestDelay);
-					this._triggerAutoSuggestPromise.then(() => {
+				this._triggerAutoSuggestPromise = TPromise.timeout(this._quickSuggestDelay);
+				this._triggerAutoSuggestPromise.then(() => {
+					if (LineContext.shouldAutoTrigger(this._editor)) {
 						const model = this._editor.getModel();
 						const pos = this._editor.getPosition();
 
@@ -308,9 +295,8 @@ export class SuggestModel implements IDisposable {
 						} else {
 							// Check the type of the token that triggered this
 							model.tokenizeIfCheap(pos.lineNumber);
-							const { tokenType } = model
-								.getLineTokens(pos.lineNumber)
-								.findTokenAtOffset(Math.max(pos.column - 1 - 1, 0));
+							const lineTokens = model.getLineTokens(pos.lineNumber);
+							const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
 							const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
 								|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
 								|| quickSuggestions.strings && tokenType === StandardTokenType.String;
@@ -320,10 +306,10 @@ export class SuggestModel implements IDisposable {
 							}
 						}
 
-						this._triggerAutoSuggestPromise = null;
 						this.trigger({ auto: true });
-					});
-				}
+					}
+					this._triggerAutoSuggestPromise = null;
+				});
 			}
 		}
 	}
@@ -352,10 +338,6 @@ export class SuggestModel implements IDisposable {
 		}
 		const auto = context.auto;
 		const ctx = new LineContext(model, this._editor.getPosition(), auto);
-
-		if (!LineContext.isInEditableRange(this._editor)) {
-			return;
-		}
 
 		// Cancel previous requests, change state & update UI
 		this.cancel(retrigger);

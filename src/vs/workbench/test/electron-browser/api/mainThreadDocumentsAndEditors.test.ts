@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
-import { OneGetThreadService } from './testThreadService';
+import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/testCodeEditorService';
@@ -51,8 +51,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 			onEditorGroupMoved = Event.None;
 		};
 
+		/* tslint:disable */
 		new MainThreadDocumentsAndEditors(
-			OneGetThreadService(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
+			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 				$acceptDocumentsAndEditorsDelta(delta) { deltas.push(delta); }
 			}),
 			modelService,
@@ -64,8 +65,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 			null,
 			null,
 			editorGroupService,
-			null
 		);
+		/* tslint:enable */
 	});
 
 
@@ -157,6 +158,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		modelService.destroyModel(model.uri);
 		assert.equal(deltas.length, 1);
 		const [first] = deltas;
+
 		assert.equal(first.newActiveEditor, null);
 		assert.equal(first.removedEditors.length, 1);
 		assert.equal(first.removedDocuments.length, 1);

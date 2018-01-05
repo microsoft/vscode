@@ -7,15 +7,15 @@
 import 'vs/css!./tree';
 import WinJS = require('vs/base/common/winjs.base');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import Events = require('vs/base/common/eventEmitter');
 import Model = require('vs/base/parts/tree/browser/treeModel');
 import View = require('./treeView');
 import _ = require('vs/base/parts/tree/browser/tree');
 import { INavigator, MappedNavigator } from 'vs/base/common/iterator';
-import Event, { Emitter } from 'vs/base/common/event';
-import Lifecycle = require('vs/base/common/lifecycle');
+import Event, { Emitter, Relay } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
+import { ISelectionEvent, IFocusEvent, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
+import { IItemCollapseEvent, IItemExpandEvent } from 'vs/base/parts/tree/browser/treeModel';
 
 export class TreeContext implements _.ITreeContext {
 
@@ -61,7 +61,7 @@ const defaultStyles: _.ITreeStyles = {
 	listDropBackground: Color.fromHex('#383B3D')
 };
 
-export class Tree extends Events.EventEmitter implements _.ITree {
+export class Tree implements _.ITree {
 
 	private container: HTMLElement;
 
@@ -69,21 +69,20 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 	private model: Model.TreeModel;
 	private view: View.TreeView;
 
-	private _onDispose: Emitter<void>;
-	private _onHighlightChange: Emitter<void>;
-
-	private toDispose: Lifecycle.IDisposable[];
+	private _onDidChangeFocus = new Relay<IFocusEvent>();
+	readonly onDidChangeFocus: Event<IFocusEvent> = this._onDidChangeFocus.event;
+	private _onDidChangeSelection = new Relay<ISelectionEvent>();
+	readonly onDidChangeSelection: Event<ISelectionEvent> = this._onDidChangeSelection.event;
+	private _onHighlightChange = new Relay<IHighlightEvent>();
+	readonly onDidChangeHighlight: Event<IHighlightEvent> = this._onHighlightChange.event;
+	private _onDidExpandItem = new Relay<IItemExpandEvent>();
+	readonly onDidExpandItem: Event<IItemExpandEvent> = this._onDidExpandItem.event;
+	private _onDidCollapseItem = new Relay<IItemCollapseEvent>();
+	readonly onDidCollapseItem: Event<IItemCollapseEvent> = this._onDidCollapseItem.event;
+	private _onDispose = new Emitter<void>();
+	readonly onDidDispose: Event<void> = this._onDispose.event;
 
 	constructor(container: HTMLElement, configuration: _.ITreeConfiguration, options: _.ITreeOptions = {}) {
-		super();
-
-		this.toDispose = [];
-
-		this._onDispose = new Emitter<void>();
-		this._onHighlightChange = new Emitter<void>();
-
-		this.toDispose.push(this._onDispose, this._onHighlightChange);
-
 		this.container = container;
 		mixin(options, defaultStyles, false);
 
@@ -100,30 +99,23 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 		this.view.setModel(this.model);
 
-		this.addEmitter(this.model);
-		this.addEmitter(this.view);
-
-		this.toDispose.push(this.model.addListener('highlight', () => this._onHighlightChange.fire()));
+		this._onDidChangeFocus.input = this.model.onDidFocus;
+		this._onDidChangeSelection.input = this.model.onDidSelect;
+		this._onHighlightChange.input = this.model.onDidHighlight;
+		this._onDidExpandItem.input = this.model.onDidExpandItem;
+		this._onDidCollapseItem.input = this.model.onDidCollapseItem;
 	}
 
 	public style(styles: _.ITreeStyles): void {
 		this.view.applyStyles(styles);
 	}
 
-	get onDOMFocus(): Event<void> {
+	get onDidFocus(): Event<void> {
 		return this.view && this.view.onDOMFocus;
 	}
 
-	get onDOMBlur(): Event<void> {
+	get onDidBlur(): Event<void> {
 		return this.view && this.view.onDOMBlur;
-	}
-
-	get onHighlightChange(): Event<void> {
-		return this._onHighlightChange && this._onHighlightChange.event;
-	}
-
-	get onDispose(): Event<void> {
-		return this._onDispose && this._onDispose.event;
 	}
 
 	public getHTMLElement(): HTMLElement {
@@ -380,8 +372,11 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 			this.view = null;
 		}
 
-		this.toDispose = Lifecycle.dispose(this.toDispose);
-
-		super.dispose();
+		this._onDidChangeFocus.dispose();
+		this._onDidChangeSelection.dispose();
+		this._onHighlightChange.dispose();
+		this._onDidExpandItem.dispose();
+		this._onDidCollapseItem.dispose();
+		this._onDispose.dispose();
 	}
 }

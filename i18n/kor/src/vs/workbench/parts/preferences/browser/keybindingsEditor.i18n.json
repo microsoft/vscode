@@ -26,6 +26,7 @@
 	"editKeybindingLabel": "키 바인딩 변경",
 	"addKeybindingLabelWithKey": "키 바인딩 {0} 추가",
 	"addKeybindingLabel": "키 바인딩 추가",
+	"title": "{0}({1})",
 	"commandAriaLabel": "명령은 {0}입니다.",
 	"keybindingAriaLabel": "키 바인딩은 {0}입니다.",
 	"noKeybinding": "키 바인딩이 할당되지 않았습니다.",

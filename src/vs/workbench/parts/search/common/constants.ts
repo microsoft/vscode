@@ -6,6 +6,7 @@
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const VIEWLET_ID = 'workbench.view.search';
+export const SEARCH_OUTPUT_CHANNEL_ID = 'search';
 
 export const FindInFilesActionId = 'workbench.action.findInFiles';
 export const FocusActiveEditorCommandId = 'search.action.focusActiveEditor';
@@ -16,6 +17,7 @@ export const CancelActionId = 'search.action.cancel';
 export const RemoveActionId = 'search.action.remove';
 export const ReplaceActionId = 'search.action.replace';
 export const ReplaceAllInFileActionId = 'search.action.replaceAllInFile';
+export const ReplaceAllInFolderActionId = 'search.action.replaceAllInFolder';
 export const CloseReplaceWidgetActionId = 'closeReplaceInFilesWidget';
 export const ToggleCaseSensitiveCommandId = 'toggleSearchCaseSensitive';
 export const ToggleWholeWordCommandId = 'toggleSearchWholeWord';
@@ -32,4 +34,5 @@ export const ReplaceActiveKey = new RawContextKey<boolean>('replaceActive', fals
 export const FirstMatchFocusKey = new RawContextKey<boolean>('firstMatchFocus', false);
 export const FileMatchOrMatchFocusKey = new RawContextKey<boolean>('fileMatchOrMatchFocus', false);
 export const FileFocusKey = new RawContextKey<boolean>('fileMatchFocus', false);
+export const FolderFocusKey = new RawContextKey<boolean>('folderMatchFocus', false);
 export const MatchFocusKey = new RawContextKey<boolean>('matchFocus', false);

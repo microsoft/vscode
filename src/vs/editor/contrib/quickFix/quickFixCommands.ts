@@ -11,6 +11,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -27,7 +28,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class QuickFixController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.quickFixController';
+	private static readonly ID = 'editor.contrib.quickFixController';
 
 	public static get(editor: ICodeEditor): QuickFixController {
 		return editor.getContribution<QuickFixController>(QuickFixController.ID);
@@ -46,7 +47,7 @@ export class QuickFixController implements IEditorContribution {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IFileService private _fileService: IFileService
+		@optional(IFileService) private _fileService: IFileService
 	) {
 		this._editor = editor;
 		this._model = new QuickFixModel(this._editor, markerService);
@@ -110,9 +111,9 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private async _onApplyCodeAction(action: CodeAction): TPromise<void> {
-		if (action.edits) {
+		if (action.edit) {
 			const edit = createBulkEdit(this._textModelService, this._editor, this._fileService);
-			edit.add(action.edits.edits);
+			edit.add(action.edit.edits);
 			await edit.finish();
 		}
 
@@ -124,7 +125,7 @@ export class QuickFixController implements IEditorContribution {
 
 export class QuickFixAction extends EditorAction {
 
-	static Id = 'editor.action.quickFix';
+	static readonly Id = 'editor.action.quickFix';
 
 	constructor() {
 		super({

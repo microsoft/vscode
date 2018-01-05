@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { TextAreaState, ITextAreaWrapper, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
 
 export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
@@ -60,11 +60,21 @@ export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper 
 	}
 }
 
+function equalsTextAreaState(a: TextAreaState, b: TextAreaState): boolean {
+	return (
+		a.value === b.value
+		&& a.selectionStart === b.selectionStart
+		&& a.selectionEnd === b.selectionEnd
+		&& Position.equals(a.selectionStartPosition, b.selectionStartPosition)
+		&& Position.equals(a.selectionEndPosition, b.selectionEndPosition)
+	);
+}
+
 suite('TextAreaState', () => {
 
 	function assertTextAreaState(actual: TextAreaState, value: string, selectionStart: number, selectionEnd: number): void {
 		let desired = new TextAreaState(value, selectionStart, selectionEnd, null, null);
-		assert.ok(desired.equals(actual), desired.toString() + ' == ' + actual.toString());
+		assert.ok(equalsTextAreaState(desired, actual), desired.toString() + ' == ' + actual.toString());
 	}
 
 	test('fromTextArea', () => {
@@ -497,9 +507,9 @@ suite('TextAreaState', () => {
 	suite('PagedScreenReaderStrategy', () => {
 
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
-			const model = Model.createFromString(lines.join('\n'));
+			const model = TextModel.createFromString(lines.join('\n'));
 			const actual = PagedScreenReaderStrategy.fromEditorSelection(TextAreaState.EMPTY, model, selection, true);
-			assert.ok(actual.equals(expected));
+			assert.ok(equalsTextAreaState(actual, expected));
 			model.dispose();
 		}
 

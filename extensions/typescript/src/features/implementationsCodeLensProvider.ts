@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeLens, CancellationToken, TextDocument, Range, Location, ProviderResult, workspace } from 'vscode';
+import { CodeLens, CancellationToken, TextDocument, Range, Location, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
-import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens } from './baseCodeLensProvider';
+import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens, CachedNavTreeResponse } from './baseCodeLensProvider';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
@@ -17,9 +17,10 @@ const localize = nls.loadMessageBundle();
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
 		client: ITypeScriptServiceClient,
-		private readonly language: string
+		private readonly language: string,
+		cachedResponse: CachedNavTreeResponse
 	) {
-		super(client);
+		super(client, cachedResponse);
 	}
 
 	public updateConfiguration(): void {
@@ -27,14 +28,14 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		this.setEnabled(config.get('implementationsCodeLens.enabled', false));
 	}
 
-	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
+	public async provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
 		if (!this.client.apiVersion.has220Features()) {
 			return [];
 		}
 		return super.provideCodeLenses(document, token);
 	}
 
-	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
+	public resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
 		const args = vsPositionToTsFileLocation(codeLens.file, codeLens.range.start);
 		return this.client.execute('implementation', args, token).then(response => {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -13,10 +13,11 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
-import { TextEditorCursorStyle, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
+import { TextEditorCursorStyle, cursorStyleToString, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IResolvedTextEditorConfiguration, ISelectionChangeEvent, ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions } from 'vs/workbench/api/node/extHost.protocol';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextModel, ISingleEditOperation, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModelUpdateOptions } from 'vs/editor/common/model';
 
 function configurationsEqual(a: IResolvedTextEditorConfiguration, b: IResolvedTextEditorConfiguration) {
 	if (a && !b || !a && b) {
@@ -43,7 +44,7 @@ export interface IFocusTracker {
 export class MainThreadTextEditor {
 
 	private _id: string;
-	private _model: EditorCommon.IModel;
+	private _model: ITextModel;
 	private _modelService: IModelService;
 	private _modelListeners: IDisposable[];
 	private _codeEditor: ICodeEditor;
@@ -58,7 +59,7 @@ export class MainThreadTextEditor {
 
 	constructor(
 		id: string,
-		model: EditorCommon.IModel,
+		model: ITextModel,
 		codeEditor: ICodeEditor,
 		focusTracker: IFocusTracker,
 		modelService: IModelService
@@ -94,7 +95,7 @@ export class MainThreadTextEditor {
 		return this._id;
 	}
 
-	public getModel(): EditorCommon.IModel {
+	public getModel(): ITextModel {
 		return this._model;
 	}
 
@@ -196,7 +197,7 @@ export class MainThreadTextEditor {
 			return;
 		}
 
-		let newOpts: EditorCommon.ITextModelUpdateOptions = {};
+		let newOpts: ITextModelUpdateOptions = {};
 		if (typeof newConfiguration.insertSpaces !== 'undefined') {
 			newOpts.insertSpaces = newConfiguration.insertSpaces;
 		}
@@ -238,7 +239,7 @@ export class MainThreadTextEditor {
 		}
 	}
 
-	public setDecorations(key: string, ranges: EditorCommon.IDecorationOptions[]): void {
+	public setDecorations(key: string, ranges: editorCommon.IDecorationOptions[]): void {
 		if (!this._codeEditor) {
 			return;
 		}
@@ -262,16 +263,16 @@ export class MainThreadTextEditor {
 		}
 		switch (revealType) {
 			case TextEditorRevealType.Default:
-				this._codeEditor.revealRange(range, EditorCommon.ScrollType.Smooth);
+				this._codeEditor.revealRange(range, editorCommon.ScrollType.Smooth);
 				break;
 			case TextEditorRevealType.InCenter:
-				this._codeEditor.revealRangeInCenter(range, EditorCommon.ScrollType.Smooth);
+				this._codeEditor.revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
 				break;
 			case TextEditorRevealType.InCenterIfOutsideViewport:
-				this._codeEditor.revealRangeInCenterIfOutsideViewport(range, EditorCommon.ScrollType.Smooth);
+				this._codeEditor.revealRangeInCenterIfOutsideViewport(range, editorCommon.ScrollType.Smooth);
 				break;
 			case TextEditorRevealType.AtTop:
-				this._codeEditor.revealRangeAtTop(range, EditorCommon.ScrollType.Smooth);
+				this._codeEditor.revealRangeAtTop(range, editorCommon.ScrollType.Smooth);
 				break;
 			default:
 				console.warn(`Unknown revealType: ${revealType}`);
@@ -279,7 +280,7 @@ export class MainThreadTextEditor {
 		}
 	}
 
-	private _readConfiguration(model: EditorCommon.IModel, codeEditor: ICodeEditor): IResolvedTextEditorConfiguration {
+	private _readConfiguration(model: ITextModel, codeEditor: ICodeEditor): IResolvedTextEditorConfiguration {
 		if (model.isDisposed()) {
 			// shutdown time
 			return this._configuration;
@@ -290,12 +291,16 @@ export class MainThreadTextEditor {
 			let codeEditorOpts = codeEditor.getConfiguration();
 			cursorStyle = codeEditorOpts.viewInfo.cursorStyle;
 
-			if (codeEditorOpts.viewInfo.renderRelativeLineNumbers) {
-				lineNumbers = TextEditorLineNumbersStyle.Relative;
-			} else if (codeEditorOpts.viewInfo.renderLineNumbers) {
-				lineNumbers = TextEditorLineNumbersStyle.On;
-			} else {
-				lineNumbers = TextEditorLineNumbersStyle.Off;
+			switch (codeEditorOpts.viewInfo.renderLineNumbers) {
+				case RenderLineNumbersType.Off:
+					lineNumbers = TextEditorLineNumbersStyle.Off;
+					break;
+				case RenderLineNumbersType.Relative:
+					lineNumbers = TextEditorLineNumbersStyle.Relative;
+					break;
+				default:
+					lineNumbers = TextEditorLineNumbersStyle.On;
+					break;
 			}
 		}
 
@@ -330,7 +335,7 @@ export class MainThreadTextEditor {
 		return editor.getControl() === this._codeEditor;
 	}
 
-	public applyEdits(versionIdCheck: number, edits: EditorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): boolean {
+	public applyEdits(versionIdCheck: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): boolean {
 		if (this._model.getVersionId() !== versionIdCheck) {
 			// throw new Error('Model has changed in the meantime!');
 			// model changed in the meantime
@@ -343,14 +348,13 @@ export class MainThreadTextEditor {
 		}
 
 		if (opts.setEndOfLine === EndOfLine.CRLF) {
-			this._model.setEOL(EditorCommon.EndOfLineSequence.CRLF);
+			this._model.setEOL(EndOfLineSequence.CRLF);
 		} else if (opts.setEndOfLine === EndOfLine.LF) {
-			this._model.setEOL(EditorCommon.EndOfLineSequence.LF);
+			this._model.setEOL(EndOfLineSequence.LF);
 		}
 
-		let transformedEdits = edits.map((edit): EditorCommon.IIdentifiedSingleEditOperation => {
+		let transformedEdits = edits.map((edit): IIdentifiedSingleEditOperation => {
 			return {
-				identifier: null,
 				range: Range.lift(edit.range),
 				text: edit.text,
 				forceMoveMarkers: edit.forceMoveMarkers

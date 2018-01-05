@@ -49,5 +49,8 @@
 	"emmetPreferencesBemModifierSeparator": "BEM フィルターを利用時にクラス使用する Modifier の区切り文字",
 	"emmetPreferencesFilterCommentBefore": "コメント フィルター使用時、一致した要素の前に配置するコメントの定義。 ",
 	"emmetPreferencesFilterCommentAfter": "コメント フィルター使用時、一致した要素の後に配置するコメントの定義。",
-	"emmetPreferencesFilterCommentTrigger": "コメント フィルターに適用される略語に存在する属性名のカンマ区切りのリスト"
+	"emmetPreferencesFilterCommentTrigger": "コメント フィルターに適用される略語に存在する属性名のカンマ区切りのリスト",
+	"emmetPreferencesFormatNoIndentTags": "内部インデントを取得しないタグ名の配列",
+	"emmetPreferencesFormatForceIndentTags": "内部インデントを常に取得するタグ名の配列",
+	"emmetPreferencesAllowCompactBoolean": "true の場合、 Boolean 型属性の短縮表記が生成されます"
 }

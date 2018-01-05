@@ -19,7 +19,7 @@ class ApplyRefactoringCommand implements Command {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private formattingOptionsManager: FormattingOptionsManager
+		private readonly formattingOptionsManager: FormattingOptionsManager
 	) { }
 
 	public async execute(
@@ -36,7 +36,6 @@ class ApplyRefactoringCommand implements Command {
 			refactor,
 			action
 		};
-
 		const response = await this.client.execute('getEditsForRefactor', args);
 		if (!response || !response.body || !response.body.edits.length) {
 			return false;
@@ -49,7 +48,7 @@ class ApplyRefactoringCommand implements Command {
 
 		const renameLocation = response.body.renameLocation;
 		if (renameLocation) {
-			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.fsPath === file) {
+			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.fsPath === document.uri.fsPath) {
 				const pos = tsLocationToVsPosition(renameLocation);
 				vscode.window.activeTextEditor.selection = new vscode.Selection(pos, pos);
 				await vscode.commands.executeCommand('editor.action.rename');
@@ -106,12 +105,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 		commandManager.register(new SelectRefactorCommand(doRefactoringCommand));
 	}
 
-	public async provideCodeActions() {
-		// Uses provideCodeActions2 instead
-		return [];
-	}
-
-	public async provideCodeActions2(
+	public async provideCodeActions(
 		document: vscode.TextDocument,
 		_range: vscode.Range,
 		_context: vscode.CodeActionContext,
@@ -128,6 +122,10 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 		const editor = vscode.window.activeTextEditor;
 		const file = this.client.normalizePath(document.uri);
 		if (!file || editor.document.uri.fsPath !== document.uri.fsPath) {
+			return [];
+		}
+
+		if (editor.selection.isEmpty) {
 			return [];
 		}
 

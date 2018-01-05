@@ -6,7 +6,6 @@
 'use strict';
 
 import nls = require('vs/nls');
-import platform = require('vs/base/common/platform');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
@@ -43,8 +42,12 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
+import { AccessibilitySupport, isRootUser, isWindows, isMacintosh } from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -59,7 +62,7 @@ const TextInputActions: IAction[] = [
 
 export class ElectronWindow extends Themable {
 
-	private static AUTO_SAVE_SETTING = 'files.autoSave';
+	private static readonly AUTO_SAVE_SETTING = 'files.autoSave';
 
 	private touchBarUpdater: RunOnceScheduler;
 	private touchBarMenu: IMenu;
@@ -67,6 +70,9 @@ export class ElectronWindow extends Themable {
 	private lastInstalledTouchedBar: ICommandAction[][];
 
 	private previousConfiguredZoomLevel: number;
+
+	private addFoldersScheduler: RunOnceScheduler;
+	private pendingFoldersToAdd: IAddFoldersRequest[];
 
 	constructor(
 		shellContainer: HTMLElement,
@@ -87,7 +93,8 @@ export class ElectronWindow extends Themable {
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IFileService private fileService: IFileService,
 		@IMenuService private menuService: IMenuService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IIntegrityService private integrityService: IIntegrityService
 	) {
 		super(themeService);
 
@@ -95,6 +102,10 @@ export class ElectronWindow extends Themable {
 
 		this.touchBarUpdater = new RunOnceScheduler(() => this.doSetupTouchbar(), 300);
 		this.toUnbind.push(this.touchBarUpdater);
+
+		this.pendingFoldersToAdd = [];
+		this.addFoldersScheduler = new RunOnceScheduler(() => this.doAddFolders(), 100);
+		this.toUnbind.push(this.addFoldersScheduler);
 
 		this.registerListeners();
 		this.create();
@@ -180,7 +191,7 @@ export class ElectronWindow extends Themable {
 		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => this.onOpenFiles(request));
 
 		// Support addFolders event if we have a workspace opened
-		ipc.on('vscode:addFolders', (_event: any, request: IAddFoldersRequest) => this.onAddFolders(request));
+		ipc.on('vscode:addFolders', (_event: any, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
 
 		// Message support
 		ipc.on('vscode:showInfoMessage', (_event: any, message: string) => {
@@ -231,11 +242,16 @@ export class ElectronWindow extends Themable {
 
 		// keyboard layout changed event
 		ipc.on('vscode:accessibilitySupportChanged', (_event: any, accessibilitySupportEnabled: boolean) => {
-			browser.setAccessibilitySupport(accessibilitySupportEnabled ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
+			browser.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
-		// Configuration changes
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onDidUpdateConfiguration(e)));
+		// Zoom level changes
+		this.updateWindowZoomLevel();
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('window.zoomLevel')) {
+				this.updateWindowZoomLevel();
+			}
+		}));
 
 		// Context menu support in input/textarea
 		window.document.addEventListener('contextmenu', e => this.onContextMenu(e));
@@ -256,11 +272,7 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private onDidUpdateConfiguration(event: IConfigurationChangeEvent): void {
-		if (!event.affectsConfiguration('window.zoomLevel')) {
-			return;
-		}
-
+	private updateWindowZoomLevel(): void {
 		const windowConfig: IWindowsConfiguration = this.configurationService.getValue<IWindowsConfiguration>();
 
 		let newZoomLevel = 0;
@@ -296,7 +308,7 @@ export class ElectronWindow extends Themable {
 		};
 
 		// Send over all extension viewlets when extensions are ready
-		this.extensionService.onReady().then(() => {
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().filter(v => !!v.extensionId).map(v => { return { id: v.id, label: v.name }; })));
 		});
 
@@ -307,11 +319,40 @@ export class ElectronWindow extends Themable {
 
 		// Touchbar Support
 		this.updateTouchbarMenu();
+
+		// Integrity warning
+		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
+
+		// Root warning
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+			let isAdminPromise: Promise<boolean>;
+			if (isWindows) {
+				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated());
+			} else {
+				isAdminPromise = Promise.resolve(isRootUser);
+			}
+
+			return isAdminPromise.then(isAdmin => {
+
+				// Update title
+				this.titleService.updateProperties({ isAdmin });
+
+				// Show warning message (unix only)
+				if (isAdmin && !isWindows) {
+					this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
+				}
+			});
+		});
 	}
 
 	private updateTouchbarMenu(): void {
-		if (!platform.isMacintosh) {
+		if (!isMacintosh) {
 			return; // macOS only
+		}
+
+		const touchbarEnabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled');
+		if (!touchbarEnabled) {
+			return; // disabled via setting
 		}
 
 		// Dispose old
@@ -370,7 +411,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
-		return TPromise.join([this.lifecycleService.when(LifecyclePhase.Running), this.extensionService.onReady()]).then(() => {
+		return TPromise.join([this.lifecycleService.when(LifecyclePhase.Running), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
 			return arrays.coalesce(actionIds.map(id => {
 				const binding = this.keybindingService.lookupKeybinding(id);
 				if (!binding) {
@@ -394,8 +435,25 @@ export class ElectronWindow extends Themable {
 		});
 	}
 
-	private onAddFolders(request: IAddFoldersRequest): void {
-		const foldersToAdd = request.foldersToAdd.map(folderToAdd => ({ uri: URI.file(folderToAdd.filePath) }));
+	private onAddFoldersRequest(request: IAddFoldersRequest): void {
+
+		// Buffer all pending requests
+		this.pendingFoldersToAdd.push(request);
+
+		// Delay the adding of folders a bit to buffer in case more requests are coming
+		if (!this.addFoldersScheduler.isScheduled()) {
+			this.addFoldersScheduler.schedule();
+		}
+	}
+
+	private doAddFolders(): void {
+		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
+
+		this.pendingFoldersToAdd.forEach(request => {
+			foldersToAdd.push(...request.foldersToAdd.map(folderToAdd => ({ uri: URI.file(folderToAdd.filePath) })));
+		});
+
+		this.pendingFoldersToAdd = [];
 
 		this.workspaceEditingService.addFolders(foldersToAdd).done(null, errors.onUnexpectedError);
 	}

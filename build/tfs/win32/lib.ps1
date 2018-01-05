@@ -6,6 +6,7 @@ $env:HOME=$env:USERPROFILE
 if (Test-Path env:AGENT_WORKFOLDER) {
 	$env:HOME="${env:AGENT_WORKFOLDER}\home"
 	$env:npm_config_cache="${env:HOME}\npm-cache"
+	$env:YARN_CACHE_FOLDER="${env:HOME}\yarn-cache"
 	$env:npm_config_devdir="${env:HOME}\npm-devdir"
 	New-Item -Path "$env:HOME" -Type directory -Force | out-null
 	New-Item -Path "$env:npm_config_cache" -Type directory -Force | out-null

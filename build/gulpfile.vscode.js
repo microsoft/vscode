@@ -29,24 +29,24 @@ const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const packageJson = require('../package.json');
 const product = require('../product.json');
-const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
 const glob = require('glob');
+const deps = require('./dependencies');
+const getElectronVersion = require('./lib/electron').getElectronVersion;
 
-const productDependencies = Object.keys(product.dependencies || {});
-const dependencies = Object.keys(shrinkwrap.dependencies)
-	.concat(productDependencies); // additional dependencies from our product configuration
+const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
-	.concat(dependencies)
+	.concat(Object.keys(product.dependencies || {}))
+	.concat(_.uniq(productionDependencies.map(d => d.name)))
 	.concat(baseModules);
 
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.19.1' },
-	{ name: 'ms-vscode.node-debug2', version: '1.19.0' }
+	{ name: 'ms-vscode.node-debug', version: '1.20.2' },
+	{ name: 'ms-vscode.node-debug2', version: '1.20.0' }
 ];
 
 const excludedExtensions = [
@@ -69,7 +69,7 @@ const vscodeResources = [
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur,html}',
 	'out-build/vs/base/common/performance.js',
-	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
+	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,ps-win.ps1}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/electron-browser/bootstrap/**',
@@ -82,7 +82,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/parts/welcome/walkThrough/**/*.md',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
-	'out-build/vs/code/electron-browser/sharedProcess.js',
+	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
 	'!**/test/**'
 ];
 
@@ -124,7 +124,7 @@ gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-index-js'], commo
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
 const config = {
-	version: packageJson.electronVersion,
+	version: getElectronVersion(),
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2017 Microsoft. All rights reserved',
@@ -138,7 +138,6 @@ const config = {
 		role: 'Editor',
 		ostypes: ["TEXT", "utxt", "TUTX", "****"],
 		extensions: ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "code-workspace", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xcodeproj", "xcworkspace", "xml", "yaml", "yml", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"],
-		utis: ['public.source-code'],
 		iconFile: 'resources/darwin/code_file.icns'
 	}],
 	darwinBundleURLTypes: [{
@@ -286,8 +285,10 @@ function packageTask(platform, arch, opts) {
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
-		const depsSrc = _.flatten(dependencies
-			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; }));
+		const depsSrc = [
+			..._.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`])),
+			..._.flatten(Object.keys(product.dependencies || {}).map(d => [`node_modules/${d}/**`, `!node_modules/${d}/**/{test,tests}/**`]))
+		];
 
 		const deps = gulp.src(depsSrc, { base: '.', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json']))
@@ -295,12 +296,13 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/*.js']))
 			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('native-is-elevated', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('native-watchdog', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
+			.pipe(util.cleanNodeModule('spdlog', ['binding.gyp', 'build/**', 'deps/**', 'src/**', 'test/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('jschardet', ['dist/**']))
 			.pipe(util.cleanNodeModule('windows-foreground-love', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('windows-process-tree', ['binding.gyp', 'build/**', 'src/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
-			.pipe(util.cleanNodeModule('v8-profiler', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('keytar', ['binding.gyp', 'build/**', 'src/**', 'script/**', 'node_modules/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'tools/**'], ['build/Release/**']))
 			.pipe(util.cleanNodeModule('nsfw', ['binding.gyp', 'build/**', 'src/**', 'openpa/**', 'includes/**'], ['**/*.node', '**/*.a']))
@@ -452,7 +454,7 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
 gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () => {
 	const branch = process.env.BUILD_SOURCEBRANCH;
-	if (!branch.endsWith('/master') && !branch.startsWith('release/')) {
+	if (!branch.endsWith('/master') && branch.indexOf('/release/') < 0) {
 		console.log(`Only runs on master and release branches, not ${branch}`);
 		return;
 	}

@@ -26,8 +26,8 @@
 	"miOpenFolder": "Ma&&ppa megnyitása",
 	"miOpenFile": "&&Fájl megnyitása",
 	"miOpenRecent": "&&Legutóbbi megnyitása",
-	"miSaveWorkspaceAs": "Munkaterület menté&&se másként...",
-	"miAddFolderToWorkspace": "&&Mappa hozzáadása a munkaterülethez...",
+	"miSaveWorkspaceAs": "Munkaterület mentése másként...",
+	"miAddFolderToWorkspace": "Mappa hozzáa&&dása a munkaterülethez...",
 	"miSave": "Menté&&s",
 	"miSaveAs": "M&&entés másként",
 	"miSaveAll": "Összes men&&tése",
@@ -157,7 +157,7 @@
 	"mMergeAllWindows": "Összes ablak összeolvasztása",
 	"miToggleDevTools": "&&Fejlesztői eszközök be- és kikapcsolása",
 	"miAccessibilityOptions": "&&Kisegítő lehetőségek",
-	"miReportIssues": "&&Problémák jelentése",
+	"miReportIssue": "H&&iba jelentése",
 	"miWelcome": "Üdvözlő&&oldal",
 	"miInteractivePlayground": "&&Interaktív játszótér",
 	"miDocumentation": "&&Dokumentáció",
@@ -184,6 +184,7 @@
 	"miDownloadingUpdate": "Frissítés letöltése...",
 	"miInstallingUpdate": "Frissítés telepítése...",
 	"miCheckForUpdates": "Frissítések keresése...",
-	"aboutDetail": "\nVerzió: {0}\nCommit: {1}\nDátum: {2}\nShell: {3}\nRendelő: {4}\nNode: {5}\nArchitektúra: {6}",
-	"okButton": "OK"
+	"aboutDetail": "Verzió: {0}\nCommit: {1}\nDátum: {2}\nShell: {3}\nRendelő: {4}\nNode: {5}\nArchitektúra: {6}",
+	"okButton": "OK",
+	"copy": "&&Másolás"
 }

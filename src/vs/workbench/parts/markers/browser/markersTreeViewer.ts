@@ -75,9 +75,9 @@ export class DataSource implements IDataSource {
 
 export class Renderer implements IRenderer {
 
-	private static RESOURCE_TEMPLATE_ID = 'resource-template';
-	private static FILE_RESOURCE_TEMPLATE_ID = 'file-resource-template';
-	private static MARKER_TEMPLATE_ID = 'marker-template';
+	private static readonly RESOURCE_TEMPLATE_ID = 'resource-template';
+	private static readonly FILE_RESOURCE_TEMPLATE_ID = 'file-resource-template';
+	private static readonly MARKER_TEMPLATE_ID = 'marker-template';
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,

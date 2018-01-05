@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { disposed } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILineChange } from 'vs/editor/common/editorCommon';
+import { IDecorationRenderOptions, IDecorationOptions, ILineChange } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -16,7 +17,6 @@ import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/edit
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions } from 'vs/workbench/api/node/extHost.protocol';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IExtHostContext, IWorkspaceResourceEdit } from '../node/extHost.protocol';
 import { IRange } from 'vs/editor/common/core/range';
@@ -32,7 +32,6 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	private _proxy: ExtHostEditorsShape;
 	private _documentsAndEditors: MainThreadDocumentsAndEditors;
 	private _workbenchEditorService: IWorkbenchEditorService;
-	private _telemetryService: ITelemetryService;
 	private _toDispose: IDisposable[];
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
 	private _editorPositionData: ITextEditorPositionData;
@@ -44,15 +43,13 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		@ICodeEditorService private _codeEditorService: ICodeEditorService,
 		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@IModelService private readonly _modelService: IModelService,
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostEditors);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
 		this._workbenchEditorService = workbenchEditorService;
-		this._telemetryService = telemetryService;
 		this._toDispose = [];
 		this._textEditorsListenersMap = Object.create(null);
 		this._editorPositionData = null;
@@ -119,7 +116,9 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 
 	// --- from extension host process
 
-	$tryShowTextDocument(resource: URI, options: ITextDocumentShowOptions): TPromise<string> {
+	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): TPromise<string> {
+		const uri = URI.revive(resource);
+
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.pinned,
@@ -127,7 +126,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		};
 
 		const input = {
-			resource,
+			resource: uri,
 			options: editorOptions
 		};
 
@@ -140,14 +139,6 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	}
 
 	$tryShowEditor(id: string, position: EditorPosition): TPromise<void> {
-		// check how often this is used
-		/* __GDPR__
-			"api.deprecated" : {
-				"function" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.show' });
-
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let model = mainThreadEditor.getModel();
@@ -160,14 +151,6 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	}
 
 	$tryHideEditor(id: string): TPromise<void> {
-		// check how often this is used
-		/* __GDPR__
-			"api.deprecated" : {
-				"function" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.hide' });
-
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let editors = this._workbenchEditorService.getVisibleEditors();
@@ -180,7 +163,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		return undefined;
 	}
 
-	$trySetSelections(id: string, selections: ISelection[]): TPromise<any> {
+	$trySetSelections(id: string, selections: ISelection[]): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -188,7 +171,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		return TPromise.as(null);
 	}
 
-	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<any> {
+	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -196,15 +179,15 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		return TPromise.as(null);
 	}
 
-	$trySetDecorationsFast(id: string, key: string, ranges: string): TPromise<any> {
+	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
-		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, /*TODO: marshaller is too slow*/JSON.parse(ranges));
+		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, ranges);
 		return TPromise.as(null);
 	}
 
-	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any> {
+	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -212,7 +195,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		return undefined;
 	}
 
-	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> {
+	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -233,7 +216,8 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		for (let i = 0, len = workspaceResourceEdits.length; i < len; i++) {
 			const workspaceResourceEdit = workspaceResourceEdits[i];
 			if (workspaceResourceEdit.modelVersionId) {
-				let model = this._modelService.getModel(workspaceResourceEdit.resource);
+				const uri = URI.revive(workspaceResourceEdit.resource);
+				let model = this._modelService.getModel(uri);
 				if (model && model.getVersionId() !== workspaceResourceEdit.modelVersionId) {
 					// model changed in the meantime
 					return TPromise.as(false);
@@ -245,7 +229,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		let resourceEdits: IResourceEdit[] = [];
 		for (let i = 0, len = workspaceResourceEdits.length; i < len; i++) {
 			const workspaceResourceEdit = workspaceResourceEdits[i];
-			const uri = workspaceResourceEdit.resource;
+			const uri = URI.revive(workspaceResourceEdit.resource);
 			const edits = workspaceResourceEdit.edits;
 
 			for (let j = 0, lenJ = edits.length; j < lenJ; j++) {

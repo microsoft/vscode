@@ -92,7 +92,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	protected computeConfiguration(configuration: IEditorConfiguration): IEditorOptions {
 
 		// Specific editor options always overwrite user configuration
-		const editorConfiguration: IEditorOptions = types.isObject(configuration.editor) ? objects.clone(configuration.editor) : Object.create(null);
+		const editorConfiguration: IEditorOptions = types.isObject(configuration.editor) ? objects.deepClone(configuration.editor) : Object.create(null);
 		objects.assign(editorConfiguration, this.getConfigurationOverrides());
 
 		// ARIA label
@@ -321,7 +321,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	public dispose(): void {
 		this.lastAppliedEditorOptions = void 0;
-		this.editorControl.destroy();
+		this.editorControl.dispose();
 
 		super.dispose();
 	}

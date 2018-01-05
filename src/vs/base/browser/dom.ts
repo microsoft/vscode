@@ -8,43 +8,18 @@ import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isObject } from 'vs/base/common/types';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CharCode } from 'vs/base/common/charCode';
+import Event, { Emitter } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 
 export function clearNode(node: HTMLElement) {
 	while (node.firstChild) {
 		node.removeChild(node.firstChild);
 	}
-}
-
-/**
- * Calls JSON.Stringify with a replacer to break apart any circular references.
- * This prevents JSON.stringify from throwing the exception
- *  "Uncaught TypeError: Converting circular structure to JSON"
- */
-export function safeStringifyDOMAware(obj: any): string {
-	let seen: any[] = [];
-	return JSON.stringify(obj, (key, value) => {
-
-		// HTML elements are never going to serialize nicely
-		if (value instanceof Element) {
-			return '[Element]';
-		}
-
-		if (isObject(value) || Array.isArray(value)) {
-			if (seen.indexOf(value) !== -1) {
-				return '[Circular]';
-			} else {
-				seen.push(value);
-			}
-		}
-		return value;
-	});
 }
 
 export function isInDOM(node: Node): boolean {
@@ -57,7 +32,14 @@ export function isInDOM(node: Node): boolean {
 	return false;
 }
 
-const _manualClassList = new class {
+interface IDomClassList {
+	hasClass(node: HTMLElement, className: string): boolean;
+	addClass(node: HTMLElement, className: string): void;
+	removeClass(node: HTMLElement, className: string): void;
+	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void;
+}
+
+const _manualClassList = new class implements IDomClassList {
 
 	private _lastStart: number;
 	private _lastEnd: number;
@@ -159,7 +141,7 @@ const _manualClassList = new class {
 	}
 };
 
-const _nativeClassList = new class {
+const _nativeClassList = new class implements IDomClassList {
 	hasClass(node: HTMLElement, className: string): boolean {
 		return className && node.classList && node.classList.contains(className);
 	}
@@ -185,7 +167,7 @@ const _nativeClassList = new class {
 
 // In IE11 there is only partial support for `classList` which makes us keep our
 // custom implementation. Otherwise use the native implementation, see: http://caniuse.com/#search=classlist
-const _classList = browser.isIE ? _manualClassList : _nativeClassList;
+const _classList: IDomClassList = browser.isIE ? _manualClassList : _nativeClassList;
 export const hasClass: (node: HTMLElement, className: string) => boolean = _classList.hasClass.bind(_classList);
 export const addClass: (node: HTMLElement, className: string) => void = _classList.addClass.bind(_classList);
 export const removeClass: (node: HTMLElement, className: string) => void = _classList.removeClass.bind(_classList);
@@ -417,12 +399,17 @@ export interface IEventMerger<R, E> {
 	(lastEvent: R, currentEvent: E): R;
 }
 
+export interface DOMEvent {
+	preventDefault(): void;
+	stopPropagation(): void;
+}
+
 const MINIMUM_TIME_MS = 16;
-const DEFAULT_EVENT_MERGER: IEventMerger<Event, Event> = function (lastEvent: Event, currentEvent: Event) {
+const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent, currentEvent: DOMEvent) {
 	return currentEvent;
 };
 
-class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
+class TimeoutThrottledDomListener<R, E extends DOMEvent> extends Disposable {
 
 	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
@@ -452,7 +439,7 @@ class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
 	}
 }
 
-export function addDisposableThrottledListener<R, E extends Event = Event>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R, E>, minimumTimeMs?: number): IDisposable {
+export function addDisposableThrottledListener<R, E extends DOMEvent = DOMEvent>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R, E>, minimumTimeMs?: number): IDisposable {
 	return new TimeoutThrottledDomListener<R, E>(node, type, handler, eventMerger, minimumTimeMs);
 }
 
@@ -490,21 +477,12 @@ const sizeUtils = {
 	getBorderTopWidth: function (element: HTMLElement): number {
 		return getDimension(element, 'border-top-width', 'borderTopWidth');
 	},
-	getBorderRightWidth: function (element: HTMLElement): number {
-		return getDimension(element, 'border-right-width', 'borderRightWidth');
-	},
 	getBorderBottomWidth: function (element: HTMLElement): number {
 		return getDimension(element, 'border-bottom-width', 'borderBottomWidth');
 	},
 
-	getPaddingLeft: function (element: HTMLElement): number {
-		return getDimension(element, 'padding-left', 'paddingLeft');
-	},
 	getPaddingTop: function (element: HTMLElement): number {
 		return getDimension(element, 'padding-top', 'paddingTop');
-	},
-	getPaddingRight: function (element: HTMLElement): number {
-		return getDimension(element, 'padding-right', 'paddingRight');
 	},
 	getPaddingBottom: function (element: HTMLElement): number {
 		return getDimension(element, 'padding-bottom', 'paddingBottom');
@@ -600,14 +578,6 @@ export const StandardWindow: IStandardWindow = new class {
 		}
 	}
 };
-
-// Adapted from WinJS
-// Gets the width of the content of the specified element. The content width does not include borders or padding.
-export function getContentWidth(element: HTMLElement): number {
-	let border = sizeUtils.getBorderLeftWidth(element) + sizeUtils.getBorderRightWidth(element);
-	let padding = sizeUtils.getPaddingLeft(element) + sizeUtils.getPaddingRight(element);
-	return element.offsetWidth - border - padding;
-}
 
 // Adapted from WinJS
 // Gets the width of the element, including margins.
@@ -714,23 +684,6 @@ export function createCSSRule(selector: string, cssText: string, style: HTMLStyl
 	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
 }
 
-export function getCSSRule(selector: string, style: HTMLStyleElement = sharedStyle): any {
-	if (!style) {
-		return null;
-	}
-
-	let rules = getDynamicStyleSheetRules(style);
-	for (let i = 0; i < rules.length; i++) {
-		let rule = rules[i];
-		let normalizedSelectorText = rule.selectorText.replace(/::/gi, ':');
-		if (normalizedSelectorText === selector) {
-			return rule;
-		}
-	}
-
-	return null;
-}
-
 export function removeCSSRulesContainingSelector(ruleName: string, style = sharedStyle): void {
 	if (!style) {
 		return;
@@ -830,8 +783,8 @@ export const EventHelper = {
 };
 
 export interface IFocusTracker {
-	addBlurListener(fn: () => void): IDisposable;
-	addFocusListener(fn: () => void): IDisposable;
+	onDidFocus: Event<void>;
+	onDidBlur: Event<void>;
 	dispose(): void;
 }
 
@@ -853,49 +806,49 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 	}
 }
 
-class FocusTracker extends Disposable implements IFocusTracker {
+class FocusTracker implements IFocusTracker {
 
-	private _eventEmitter: EventEmitter;
+	private _onDidFocus = new Emitter<void>();
+	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+
+	private _onDidBlur = new Emitter<void>();
+	readonly onDidBlur: Event<void> = this._onDidBlur.event;
+
+	private disposables: IDisposable[] = [];
 
 	constructor(element: HTMLElement | Window) {
-		super();
-
 		let hasFocus = false;
 		let loosingFocus = false;
 
-		this._eventEmitter = this._register(new EventEmitter());
-
-		let onFocus = (event: Event) => {
+		let onFocus = () => {
 			loosingFocus = false;
 			if (!hasFocus) {
 				hasFocus = true;
-				this._eventEmitter.emit('focus', {});
+				this._onDidFocus.fire();
 			}
 		};
 
-		let onBlur = (event: Event) => {
+		let onBlur = () => {
 			if (hasFocus) {
 				loosingFocus = true;
 				window.setTimeout(() => {
 					if (loosingFocus) {
 						loosingFocus = false;
 						hasFocus = false;
-						this._eventEmitter.emit('blur', {});
+						this._onDidBlur.fire();
 					}
 				}, 0);
 			}
 		};
 
-		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
-		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
+		domEvent(element, EventType.FOCUS, true)(onFocus, null, this.disposables);
+		domEvent(element, EventType.BLUR, true)(onBlur, null, this.disposables);
 	}
 
-	public addFocusListener(fn: () => void): IDisposable {
-		return this._eventEmitter.addListener('focus', fn);
-	}
-
-	public addBlurListener(fn: () => void): IDisposable {
-		return this._eventEmitter.addListener('blur', fn);
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		this._onDidFocus.dispose();
+		this._onDidBlur.dispose();
 	}
 }
 
@@ -1024,7 +977,7 @@ export function getElementsByTagName(tag: string): HTMLElement[] {
 	return Array.prototype.slice.call(document.getElementsByTagName(tag), 0);
 }
 
-export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T) => any {
+export function finalHandler<T extends DOMEvent>(fn: (event: T) => any): (event: T) => any {
 	return e => {
 		e.preventDefault();
 		e.stopPropagation();

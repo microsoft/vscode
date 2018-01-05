@@ -208,7 +208,7 @@ export class Adapter {
 			};
 			properties['internalConsoleOptions'] = INTERNAL_CONSOLE_OPTIONS_SCHEMA;
 
-			const osProperties = objects.clone(properties);
+			const osProperties = objects.deepClone(properties);
 			properties['windows'] = {
 				type: 'object',
 				description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),

@@ -6,8 +6,7 @@
 {
 	"viewCategory": "Affichage",
 	"problems.view.toggle.label": "Activer/désactiver les problèmes",
-	"problems.view.show.label": "Afficher les problèmes",
-	"problems.view.hide.label": "Masquer les problèmes",
+	"problems.view.focus.label": "Problèmes de focus",
 	"problems.panel.configuration.title": "Affichage des problèmes",
 	"problems.panel.configuration.autoreveal": "Contrôle si l'affichage des problèmes doit automatiquement montrer les fichiers quand il les ouvre",
 	"markers.panel.title.problems": "Problèmes",

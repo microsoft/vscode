@@ -28,7 +28,7 @@ export interface IPosition {
 
 export class ContextMenuController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.contextmenu';
+	private static readonly ID = 'editor.contrib.contextmenu';
 
 	public static get(editor: ICodeEditor): ContextMenuController {
 		return editor.getContribution<ContextMenuController>(ContextMenuController.ID);

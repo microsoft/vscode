@@ -53,5 +53,5 @@
 	"screenReaderDetectedExplanation.answerYes": "Sí",
 	"screenReaderDetectedExplanation.answerNo": "No",
 	"screenReaderDetectedExplanation.body1": "VS Code se ha optimizado para ser utilizado con un lector de pantalla",
-	"screenReaderDetectedExplanation.body2": "Algunas características del editor tendrán comportamientos diferentes: por ejemplo, los ajustes de línea, plegamiento, cierre automático de llaves, etc."
+	"screenReaderDetectedExplanation.body2": "Algunas características del editor tendrán comportamientos diferentes: p. ej. ajuste de línea, plegado, etc."
 }

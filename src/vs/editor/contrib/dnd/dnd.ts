@@ -17,11 +17,12 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { DragAndDropCommand } from 'vs/editor/contrib/dnd/dragAndDropCommand';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export class DragAndDropController implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.dragAndDrop';
+	private static readonly ID = 'editor.contrib.dragAndDrop';
 
 	private _editor: ICodeEditor;
 	private _toUnhook: IDisposable[];
@@ -129,14 +130,20 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 			let newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
 
 			if (this._dragSelection === null) {
-				let newSelections = this._editor.getSelections().map(selection => {
-					if (selection.containsPosition(newCursorPosition)) {
-						return new Selection(newCursorPosition.lineNumber, newCursorPosition.column, newCursorPosition.lineNumber, newCursorPosition.column);
-					} else {
-						return selection;
-					}
-				});
-				this._editor.setSelections(newSelections);
+				if (mouseEvent.event.shiftKey) {
+					let primarySelection = this._editor.getSelection();
+					let { startLineNumber, startColumn } = primarySelection;
+					this._editor.setSelections([new Selection(startLineNumber, startColumn, newCursorPosition.lineNumber, newCursorPosition.column)]);
+				} else {
+					let newSelections = this._editor.getSelections().map(selection => {
+						if (selection.containsPosition(newCursorPosition)) {
+							return new Selection(newCursorPosition.lineNumber, newCursorPosition.column, newCursorPosition.lineNumber, newCursorPosition.column);
+						} else {
+							return selection;
+						}
+					});
+					this._editor.setSelections(newSelections);
+				}
 			} else if (!this._dragSelection.containsPosition(newCursorPosition) ||
 				(
 					(
@@ -161,13 +168,13 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._mouseDown = false;
 	}
 
-	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
+	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		className: 'dnd-target'
 	});
 
 	public showAt(position: Position): void {
 		this._editor.changeDecorations(changeAccessor => {
-			let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+			let newDecorations: IModelDeltaDecoration[] = [];
 			newDecorations.push({
 				range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
 				options: DragAndDropController._DECORATION_OPTIONS

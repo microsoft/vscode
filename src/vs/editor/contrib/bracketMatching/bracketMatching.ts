@@ -18,8 +18,9 @@ import { registerEditorAction, registerEditorContribution, ServicesAccessor, Edi
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 class SelectBracketAction extends EditorAction {
 	constructor() {
@@ -57,7 +58,7 @@ class BracketsData {
 }
 
 export class BracketMatchingController extends Disposable implements editorCommon.IEditorContribution {
-	private static ID = 'editor.contrib.bracketMatchingController';
+	private static readonly ID = 'editor.contrib.bracketMatchingController';
 
 	public static get(editor: ICodeEditor): BracketMatchingController {
 		return editor.getContribution<BracketMatchingController>(BracketMatchingController.ID);
@@ -148,8 +149,8 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._editor.revealRange(newSelections[0]);
 	}
 
-	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match'
 	});
 
@@ -159,7 +160,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		}
 		this._recomputeBrackets();
 
-		let newDecorations: editorCommon.IModelDeltaDecoration[] = [], newDecorationsLen = 0;
+		let newDecorations: IModelDeltaDecoration[] = [], newDecorationsLen = 0;
 		for (let i = 0, len = this._lastBracketsData.length; i < len; i++) {
 			let brackets = this._lastBracketsData[i].brackets;
 			if (brackets) {
