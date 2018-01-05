@@ -424,7 +424,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	},
 	alt: {
 		id: DELETE_FILE_ID,
-		title: MOVE_FILE_TO_TRASH_LABEL
+		title: nls.localize('deleteFile', "Delete Permanently")
 	},
 	when: ExplorerRootContext.toNegated()
 });
