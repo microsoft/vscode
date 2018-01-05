@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { first } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, toDisposable, IReference, ReferenceCollection, ImmortalReference } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
@@ -81,7 +81,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		});
 	}
 
-	private resolveTextModelContent(key: string): TPromise<IModel> {
+	private resolveTextModelContent(key: string): TPromise<ITextModel> {
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
 		const factories = providers.map(p => () => p.provideTextContent(resource));
@@ -89,7 +89,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		return first(factories).then(model => {
 			if (!model) {
 				console.error(`Unable to open '${resource}' resource is not available.`); // TODO PII
-				return TPromise.wrapError<IModel>(new Error('resource is not available'));
+				return TPromise.wrapError<ITextModel>(new Error('resource is not available'));
 			}
 
 			return model;

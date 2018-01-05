@@ -71,11 +71,13 @@ export interface ITerminalConfiguration {
 	commandsToSkipShell: string[];
 	cwd: string;
 	confirmOnExit: boolean;
+	enableBell: boolean;
 	env: {
 		linux: { [key: string]: string };
 		osx: { [key: string]: string };
 		windows: { [key: string]: string };
 	};
+	showExitAlert: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -334,6 +336,12 @@ export interface ITerminalInstance {
 	 * Updates the configuration of the terminal instance.
 	 */
 	updateConfig(): void;
+
+	/**
+	 * Updates the accessibility support state of the terminal instance.
+	 * @param isEnabled Whether it's enabled.
+	 */
+	updateAccessibilitySupport(isEnabled: boolean): void;
 
 	/**
 	 * Configure the dimensions of the terminal instance.

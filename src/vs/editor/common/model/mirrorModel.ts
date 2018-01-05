@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
-import { IPosition } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 
 export interface IModelChangedEvent {
 	/**
@@ -63,10 +63,7 @@ export class MirrorModel {
 		for (let i = 0, len = changes.length; i < len; i++) {
 			const change = changes[i];
 			this._acceptDeleteRange(change.range);
-			this._acceptInsertText({
-				lineNumber: change.range.startLineNumber,
-				column: change.range.startColumn
-			}, change.text);
+			this._acceptInsertText(new Position(change.range.startLineNumber, change.range.startColumn), change.text);
 		}
 
 		this._versionId = e.versionId;
@@ -124,7 +121,7 @@ export class MirrorModel {
 		}
 	}
 
-	private _acceptInsertText(position: IPosition, insertText: string): void {
+	private _acceptInsertText(position: Position, insertText: string): void {
 		if (insertText.length === 0) {
 			// Nothing to insert
 			return;

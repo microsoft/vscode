@@ -19,7 +19,7 @@ class ApplyRefactoringCommand implements Command {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private formattingOptionsManager: FormattingOptionsManager
+		private readonly formattingOptionsManager: FormattingOptionsManager
 	) { }
 
 	public async execute(
@@ -36,7 +36,6 @@ class ApplyRefactoringCommand implements Command {
 			refactor,
 			action
 		};
-
 		const response = await this.client.execute('getEditsForRefactor', args);
 		if (!response || !response.body || !response.body.edits.length) {
 			return false;
@@ -106,12 +105,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 		commandManager.register(new SelectRefactorCommand(doRefactoringCommand));
 	}
 
-	public async provideCodeActions() {
-		// Uses provideCodeActions2 instead
-		return [];
-	}
-
-	public async provideCodeActions2(
+	public async provideCodeActions(
 		document: vscode.TextDocument,
 		_range: vscode.Range,
 		_context: vscode.CodeActionContext,

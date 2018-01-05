@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { ITextModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 import { computeIndentLevel } from 'vs/editor/common/model/modelLine';
 import { FoldingRanges, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';

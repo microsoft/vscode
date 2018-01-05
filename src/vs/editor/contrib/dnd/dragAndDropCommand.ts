@@ -8,6 +8,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
 
 
 export class DragAndDropCommand implements editorCommon.ICommand {
@@ -23,7 +24,7 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 		this.copy = copy;
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
 		let text = model.getValueInRange(this.selection);
 		if (!this.copy) {
 			builder.addEditOperation(this.selection, null);
@@ -101,7 +102,7 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 		}
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		return this.targetSelection;
 	}
 }

@@ -125,6 +125,7 @@ function cleanEnv() {
 	var i = 0;
 	while (process.env['PTYSHELLARG' + i]) {
 		delete process.env['PTYSHELLARG' + i];
+		i++;
 	}
 }
 

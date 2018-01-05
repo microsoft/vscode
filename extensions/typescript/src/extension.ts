@@ -17,6 +17,7 @@ import { standardLanguageDescriptions } from './utils/languageDescription';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { lazy, Lazy } from './utils/lazy';
 import * as fileSchemes from './utils/fileSchemes';
+import LogDirectoryProvider from './utils/logDirectoryProvider';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -61,7 +62,13 @@ function createLazyClientHost(
 	commandManager: CommandManager
 ): Lazy<TypeScriptServiceClientHost> {
 	return lazy(() => {
-		const clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.workspaceState, plugins, commandManager);
+		const logDirectoryProvider = new LogDirectoryProvider(context);
+		const clientHost = new TypeScriptServiceClientHost(
+			standardLanguageDescriptions,
+			context.workspaceState,
+			plugins,
+			commandManager,
+			logDirectoryProvider);
 		context.subscriptions.push(clientHost);
 		const host = clientHost;
 		clientHost.serviceClient.onReady().then(() => {

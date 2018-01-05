@@ -18,7 +18,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITree, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
@@ -43,6 +43,7 @@ import { clipboard } from 'electron';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { memoize } from 'vs/base/common/decorators';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
 
@@ -82,6 +83,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	private actions: IAction[];
 	private dimension: Dimension;
 	private replInputHeight: number;
+	private model: ITextModel;
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
@@ -118,7 +120,7 @@ export class Repl extends Panel implements IPrivateReplService {
 				this.refreshTimeoutHandle = null;
 				const previousScrollPosition = this.tree.getScrollPosition();
 				this.tree.refresh().then(() => {
-					if (previousScrollPosition === 1 || previousScrollPosition === 0) {
+					if (previousScrollPosition === 1) {
 						// Only scroll if we were scrolled all the way down before tree refreshed #10486
 						this.tree.setScrollPosition(1);
 					}
@@ -151,6 +153,17 @@ export class Repl extends Panel implements IPrivateReplService {
 		return this.tree.setInput(this.debugService.getModel());
 	}
 
+	public setVisible(visible: boolean): TPromise<void> {
+		if (!visible) {
+			dispose(this.model);
+		} else {
+			this.model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
+			this.replInput.setModel(this.model);
+		}
+
+		return super.setVisible(visible);
+	}
+
 	private createReplInput(container: HTMLElement): void {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 
@@ -165,12 +178,10 @@ export class Repl extends Panel implements IPrivateReplService {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		this.replInput = scopedInstantiationService.createInstance(ReplInputEditor, this.replInputContainer, this.getReplInputOptions());
-		const model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
-		this.replInput.setModel(model);
 
 		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
 			triggerCharacters: ['.'],
-			provideCompletionItems: (model: IReadOnlyModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
 				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);

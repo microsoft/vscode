@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import URI from 'vs/base/common/uri';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
@@ -46,7 +46,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/paths';
 import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IChange, IEditorModel, ScrollType, IEditorContribution, OverviewRulerLane, IModel, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { IChange, IEditorModel, ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { OverviewRulerLane, ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
 import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -756,7 +757,7 @@ class DirtyDiffDecorator {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		private editorModel: IModel,
+		private editorModel: ITextModel,
 		private model: DirtyDiffModel,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
@@ -845,9 +846,9 @@ function compareChanges(a: IChange, b: IChange): number {
 
 export class DirtyDiffModel {
 
-	private _originalModel: IModel;
-	get original(): IModel { return this._originalModel; }
-	get modified(): IModel { return this._editorModel; }
+	private _originalModel: ITextModel;
+	get original(): ITextModel { return this._originalModel; }
+	get modified(): ITextModel { return this._editorModel; }
 
 	private diffDelayer: ThrottledDelayer<IChange[]>;
 	private _originalURIPromise: TPromise<URI>;
@@ -863,7 +864,7 @@ export class DirtyDiffModel {
 	}
 
 	constructor(
-		private _editorModel: IModel,
+		private _editorModel: ITextModel,
 		@ISCMService private scmService: ISCMService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
 		@ITextModelService private textModelResolverService: ITextModelService,
@@ -1007,7 +1008,7 @@ class DirtyDiffItem {
 export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution, IModelRegistry {
 
 	private enabled = false;
-	private models: IModel[] = [];
+	private models: ITextModel[] = [];
 	private items: { [modelId: string]: DirtyDiffItem; } = Object.create(null);
 	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
@@ -1087,19 +1088,19 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 		this.models = models;
 	}
 
-	private onModelVisible(editorModel: IModel): void {
+	private onModelVisible(editorModel: ITextModel): void {
 		const model = this.instantiationService.createInstance(DirtyDiffModel, editorModel);
 		const decorator = new DirtyDiffDecorator(editorModel, model, this.configurationService);
 
 		this.items[editorModel.id] = new DirtyDiffItem(model, decorator);
 	}
 
-	private onModelInvisible(editorModel: IModel): void {
+	private onModelInvisible(editorModel: ITextModel): void {
 		this.items[editorModel.id].dispose();
 		delete this.items[editorModel.id];
 	}
 
-	getModel(editorModel: IModel): DirtyDiffModel | null {
+	getModel(editorModel: ITextModel): DirtyDiffModel | null {
 		const item = this.items[editorModel.id];
 
 		if (!item) {

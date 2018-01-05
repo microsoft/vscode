@@ -375,8 +375,13 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, exclude
 			const value = patterns[key];
 			key = trimTrailingSlash(folder ? getAbsoluteGlob(folder, key) : key);
 
-			// glob.ts requires forward slashes
-			key = key.replace(/\\/g, '/');
+			// glob.ts requires forward slashes, but a UNC path still must start with \\
+			// #38165 and #38151
+			if (strings.startsWith(key, '\\\\')) {
+				key = '\\\\' + key.substr(2).replace(/\\/g, '/');
+			} else {
+				key = key.replace(/\\/g, '/');
+			}
 
 			if (typeof value === 'boolean' && value) {
 				globArgs.push(fixDriveC(key));
@@ -418,7 +423,11 @@ export function fixDriveC(path: string): string {
 
 function getRgArgs(config: IRawSearch): IRgGlobResult {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
-	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
+	if (config.contentPattern.isSmartCase) {
+		args.push('--smart-case');
+	} else {
+		args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
+	}
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
@@ -446,6 +455,8 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	if (config.disregardIgnoreFiles) {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
+	} else {
+		args.push('--no-ignore-parent');
 	}
 
 	// Follow symlinks

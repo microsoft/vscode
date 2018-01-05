@@ -801,17 +801,17 @@ declare module monaco.editor {
 	 * Create a new editor model.
 	 * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
 	 */
-	export function createModel(value: string, language?: string, uri?: Uri): IModel;
+	export function createModel(value: string, language?: string, uri?: Uri): ITextModel;
 
 	/**
 	 * Change the language for a model.
 	 */
-	export function setModelLanguage(model: IModel, language: string): void;
+	export function setModelLanguage(model: ITextModel, language: string): void;
 
 	/**
 	 * Set the markers for a model.
 	 */
-	export function setModelMarkers(model: IModel, owner: string, markers: IMarkerData[]): void;
+	export function setModelMarkers(model: ITextModel, owner: string, markers: IMarkerData[]): void;
 
 	/**
 	 * Get markers for owner and/or resource
@@ -827,31 +827,31 @@ declare module monaco.editor {
 	/**
 	 * Get the model that has `uri` if it exists.
 	 */
-	export function getModel(uri: Uri): IModel;
+	export function getModel(uri: Uri): ITextModel;
 
 	/**
 	 * Get all the created models.
 	 */
-	export function getModels(): IModel[];
+	export function getModels(): ITextModel[];
 
 	/**
 	 * Emitted when a model is created.
 	 * @event
 	 */
-	export function onDidCreateModel(listener: (model: IModel) => void): IDisposable;
+	export function onDidCreateModel(listener: (model: ITextModel) => void): IDisposable;
 
 	/**
 	 * Emitted right before a model is disposed.
 	 * @event
 	 */
-	export function onWillDisposeModel(listener: (model: IModel) => void): IDisposable;
+	export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisposable;
 
 	/**
 	 * Emitted when a different language is set to a model.
 	 * @event
 	 */
 	export function onDidChangeModelLanguage(listener: (e: {
-		readonly model: IModel;
+		readonly model: ITextModel;
 		readonly oldLanguage: string;
 	}) => void): IDisposable;
 
@@ -874,7 +874,7 @@ declare module monaco.editor {
 	/**
 	 * Colorize a line in a model.
 	 */
-	export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
+	export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize?: number): string;
 
 	/**
 	 * Tokenize `text` using language `languageId`
@@ -998,7 +998,7 @@ declare module monaco.editor {
 		/**
 		 * The initial model associated with this code editor.
 		 */
-		model?: IModel;
+		model?: ITextModel;
 		/**
 		 * The initial value of the auto created model in the editor.
 		 * To not create automatically a model, use `model: null`.
@@ -1318,70 +1318,6 @@ declare module monaco.editor {
 	}
 
 	/**
-	 * A builder and helper for edit operations for a command.
-	 */
-	export interface IEditOperationBuilder {
-		/**
-		 * Add a new edit operation (a replace operation).
-		 * @param range The range to replace (delete). May be empty to represent a simple insert.
-		 * @param text The text to replace with. May be null to represent a simple delete.
-		 */
-		addEditOperation(range: Range, text: string): void;
-		/**
-		 * Add a new edit operation (a replace operation).
-		 * The inverse edits will be accessible in `ICursorStateComputerData.getInverseEditOperations()`
-		 * @param range The range to replace (delete). May be empty to represent a simple insert.
-		 * @param text The text to replace with. May be null to represent a simple delete.
-		 */
-		addTrackedEditOperation(range: Range, text: string): void;
-		/**
-		 * Track `selection` when applying edit operations.
-		 * A best effort will be made to not grow/expand the selection.
-		 * An empty selection will clamp to a nearby character.
-		 * @param selection The selection to track.
-		 * @param trackPreviousOnEmpty If set, and the selection is empty, indicates whether the selection
-		 *           should clamp to the previous or the next character.
-		 * @return A unique identifer.
-		 */
-		trackSelection(selection: Selection, trackPreviousOnEmpty?: boolean): string;
-	}
-
-	/**
-	 * A helper for computing cursor state after a command.
-	 */
-	export interface ICursorStateComputerData {
-		/**
-		 * Get the inverse edit operations of the added edit operations.
-		 */
-		getInverseEditOperations(): IIdentifiedSingleEditOperation[];
-		/**
-		 * Get a previously tracked selection.
-		 * @param id The unique identifier returned by `trackSelection`.
-		 * @return The selection.
-		 */
-		getTrackedSelection(id: string): Selection;
-	}
-
-	/**
-	 * A command that modifies text / cursor state on a model.
-	 */
-	export interface ICommand {
-		/**
-		 * Get the edit operations needed to execute this command.
-		 * @param model The model the command will execute on.
-		 * @param builder A helper to collect the needed edit operations and to track selections.
-		 */
-		getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void;
-		/**
-		 * Compute the cursor state after the edit operations were applied.
-		 * @param model The model the commad has executed on.
-		 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
-		 * @return The cursor state after the command executed.
-		 */
-		computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection;
-	}
-
-	/**
 	 * A single edit operation, that acts as a simple replace.
 	 * i.e. Replace text at `range` with `text` in model.
 	 */
@@ -1453,10 +1389,35 @@ declare module monaco.editor {
 		trimAutoWhitespace?: boolean;
 	}
 
+	export class FindMatch {
+		_findMatchBrand: void;
+		readonly range: Range;
+		readonly matches: string[];
+	}
+
 	/**
-	 * A textual read-only model.
+	 * Describes the behavior of decorations when typing/editing near their edges.
+	 * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
+	 */
+	export enum TrackedRangeStickiness {
+		AlwaysGrowsWhenTypingAtEdges = 0,
+		NeverGrowsWhenTypingAtEdges = 1,
+		GrowsOnlyWhenTypingBefore = 2,
+		GrowsOnlyWhenTypingAfter = 3,
+	}
+
+	/**
+	 * A model.
 	 */
 	export interface ITextModel {
+		/**
+		 * Gets the resource associated with this editor model.
+		 */
+		readonly uri: Uri;
+		/**
+		 * A unique identifier associated with this model.
+		 */
+		readonly id: string;
 		/**
 		 * Get the resolved options for this model.
 		 */
@@ -1629,19 +1590,6 @@ declare module monaco.editor {
 		 * @return The range where the previous match is. It is null if no previous match has been found.
 		 */
 		findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): FindMatch;
-	}
-
-	export class FindMatch {
-		_findMatchBrand: void;
-		readonly range: Range;
-		readonly matches: string[];
-	}
-
-	export interface IReadOnlyModel extends ITextModel {
-		/**
-		 * Gets the resource associated with this editor model.
-		 */
-		readonly uri: Uri;
 		/**
 		 * Get the language associated with this model.
 		 */
@@ -1660,12 +1608,6 @@ declare module monaco.editor {
 		 * @return The word under or besides `position`. Will never be null.
 		 */
 		getWordUntilPosition(position: IPosition): IWordAtPosition;
-	}
-
-	/**
-	 * A model that is tokenized.
-	 */
-	export interface ITokenizedModel extends ITextModel {
 		/**
 		 * Get the language associated with this model.
 		 */
@@ -1684,23 +1626,6 @@ declare module monaco.editor {
 		 * @return The word under or besides `position`. Will never be null.
 		 */
 		getWordUntilPosition(position: IPosition): IWordAtPosition;
-	}
-
-	/**
-	 * Describes the behavior of decorations when typing/editing near their edges.
-	 * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
-	 */
-	export enum TrackedRangeStickiness {
-		AlwaysGrowsWhenTypingAtEdges = 0,
-		NeverGrowsWhenTypingAtEdges = 1,
-		GrowsOnlyWhenTypingBefore = 2,
-		GrowsOnlyWhenTypingAfter = 3,
-	}
-
-	/**
-	 * A model that can have decorations.
-	 */
-	export interface ITextModelWithDecorations {
 		/**
 		 * Perform a minimum ammount of operations, in order to transform the decorations
 		 * identified by `oldDecorations` to the decorations described by `newDecorations`
@@ -1762,12 +1687,6 @@ declare module monaco.editor {
 		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 		 */
 		getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
-	}
-
-	/**
-	 * An editable text model.
-	 */
-	export interface IEditableTextModel extends ITextModel {
 		/**
 		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 		 */
@@ -1806,12 +1725,6 @@ declare module monaco.editor {
 		 * @return The inverse edit operations, that, when applied, will bring the model back to the previous state.
 		 */
 		applyEdits(operations: IIdentifiedSingleEditOperation[]): IIdentifiedSingleEditOperation[];
-	}
-
-	/**
-	 * A model.
-	 */
-	export interface IModel extends IReadOnlyModel, IEditableTextModel, ITokenizedModel, ITextModelWithDecorations {
 		/**
 		 * An event emitted when the contents of the model have changed.
 		 * @event
@@ -1843,14 +1756,74 @@ declare module monaco.editor {
 		 */
 		onWillDispose(listener: () => void): IDisposable;
 		/**
-		 * A unique identifier associated with this model.
-		 */
-		readonly id: string;
-		/**
 		 * Destroy this model. This will unbind the model from the mode
 		 * and make all necessary clean-up to release this object to the GC.
 		 */
 		dispose(): void;
+	}
+
+	/**
+	 * A builder and helper for edit operations for a command.
+	 */
+	export interface IEditOperationBuilder {
+		/**
+		 * Add a new edit operation (a replace operation).
+		 * @param range The range to replace (delete). May be empty to represent a simple insert.
+		 * @param text The text to replace with. May be null to represent a simple delete.
+		 */
+		addEditOperation(range: Range, text: string): void;
+		/**
+		 * Add a new edit operation (a replace operation).
+		 * The inverse edits will be accessible in `ICursorStateComputerData.getInverseEditOperations()`
+		 * @param range The range to replace (delete). May be empty to represent a simple insert.
+		 * @param text The text to replace with. May be null to represent a simple delete.
+		 */
+		addTrackedEditOperation(range: Range, text: string): void;
+		/**
+		 * Track `selection` when applying edit operations.
+		 * A best effort will be made to not grow/expand the selection.
+		 * An empty selection will clamp to a nearby character.
+		 * @param selection The selection to track.
+		 * @param trackPreviousOnEmpty If set, and the selection is empty, indicates whether the selection
+		 *           should clamp to the previous or the next character.
+		 * @return A unique identifer.
+		 */
+		trackSelection(selection: Selection, trackPreviousOnEmpty?: boolean): string;
+	}
+
+	/**
+	 * A helper for computing cursor state after a command.
+	 */
+	export interface ICursorStateComputerData {
+		/**
+		 * Get the inverse edit operations of the added edit operations.
+		 */
+		getInverseEditOperations(): IIdentifiedSingleEditOperation[];
+		/**
+		 * Get a previously tracked selection.
+		 * @param id The unique identifier returned by `trackSelection`.
+		 * @return The selection.
+		 */
+		getTrackedSelection(id: string): Selection;
+	}
+
+	/**
+	 * A command that modifies text / cursor state on a model.
+	 */
+	export interface ICommand {
+		/**
+		 * Get the edit operations needed to execute this command.
+		 * @param model The model the command will execute on.
+		 * @param builder A helper to collect the needed edit operations and to track selections.
+		 */
+		getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void;
+		/**
+		 * Compute the cursor state after the edit operations were applied.
+		 * @param model The model the commad has executed on.
+		 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
+		 * @return The cursor state after the command executed.
+		 */
+		computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection;
 	}
 
 	/**
@@ -1860,11 +1833,11 @@ declare module monaco.editor {
 		/**
 		 * Original model.
 		 */
-		original: IModel;
+		original: ITextModel;
 		/**
 		 * Modified model.
 		 */
-		modified: IModel;
+		modified: ITextModel;
 	}
 
 	/**
@@ -1926,7 +1899,7 @@ declare module monaco.editor {
 		run(): Promise<void>;
 	}
 
-	export type IEditorModel = IModel | IDiffEditorModel;
+	export type IEditorModel = ITextModel | IDiffEditorModel;
 
 	/**
 	 * A (serializable) state of the cursors.
@@ -3656,14 +3629,14 @@ declare module monaco.editor {
 		/**
 		 * Type the getModel() of IEditor.
 		 */
-		getModel(): IModel;
+		getModel(): ITextModel;
 		/**
 		 * Returns the current editor's configuration
 		 */
 		getConfiguration(): InternalEditorOptions;
 		/**
 		 * Get value of the current model attached to this editor.
-		 * @see IModel.getValue
+		 * @see `ITextModel.getValue`
 		 */
 		getValue(options?: {
 			preserveBOM: boolean;
@@ -3671,7 +3644,7 @@ declare module monaco.editor {
 		}): string;
 		/**
 		 * Set the value of the current model attached to this editor.
-		 * @see IModel.setValue
+		 * @see `ITextModel.setValue`
 		 */
 		setValue(newValue: string): void;
 		/**
@@ -3739,7 +3712,7 @@ declare module monaco.editor {
 		getLineDecorations(lineNumber: number): IModelDecoration[];
 		/**
 		 * All decorations added through this call will get the ownerId of this editor.
-		 * @see IModel.deltaDecorations
+		 * @see `ITextModel.deltaDecorations`
 		 */
 		deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 		/**
@@ -3901,6 +3874,10 @@ declare module monaco.editor {
 		readonly lineHeight: number;
 		readonly letterSpacing: number;
 	}
+
+	//compatibility:
+	export type IReadOnlyModel = ITextModel;
+	export type IModel = ITextModel;
 }
 
 declare module monaco.languages {
@@ -4080,7 +4057,7 @@ declare module monaco.languages {
 		/**
 		 * Provide commands for the given document and range.
 		 */
-		provideCodeActions(model: editor.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): (Command | CodeAction)[] | Thenable<(Command | CodeAction)[]>;
+		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): (Command | CodeAction)[] | Thenable<(Command | CodeAction)[]>;
 	}
 
 	/**
@@ -4244,7 +4221,7 @@ declare module monaco.languages {
 		/**
 		 * Provide completion items for the given position and document.
 		 */
-		provideCompletionItems(document: editor.IReadOnlyModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+		provideCompletionItems(document: editor.ITextModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
 		 * or [details](#CompletionItem.detail).
@@ -4505,7 +4482,7 @@ declare module monaco.languages {
 		 * position will be merged by the editor. A hover can have a range which defaults
 		 * to the word range at the position when omitted.
 		 */
-		provideHover(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
+		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
 	}
 
 	/**
@@ -4519,7 +4496,7 @@ declare module monaco.languages {
 	export interface CodeAction {
 		title: string;
 		command?: Command;
-		edits?: WorkspaceEdit;
+		edit?: WorkspaceEdit;
 		diagnostics?: editor.IMarkerData[];
 	}
 
@@ -4591,7 +4568,7 @@ declare module monaco.languages {
 		/**
 		 * Provide help for the signature at the given position and document.
 		 */
-		provideSignatureHelp(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
+		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
 	}
 
 	/**
@@ -4637,7 +4614,7 @@ declare module monaco.languages {
 		 * Provide a set of document highlights, like all occurrences of a variable or
 		 * all exit-points of a function.
 		 */
-		provideDocumentHighlights(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
+		provideDocumentHighlights(model: editor.ITextModel, position: Position, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
 	}
 
 	/**
@@ -4659,7 +4636,7 @@ declare module monaco.languages {
 		/**
 		 * Provide a set of project-wide references for the given position and document.
 		 */
-		provideReferences(model: editor.IReadOnlyModel, position: Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
+		provideReferences(model: editor.ITextModel, position: Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
 	}
 
 	/**
@@ -4693,7 +4670,7 @@ declare module monaco.languages {
 		/**
 		 * Provide the definition of the symbol at the given position and document.
 		 */
-		provideDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 	}
 
 	/**
@@ -4704,7 +4681,7 @@ declare module monaco.languages {
 		/**
 		 * Provide the implementation of the symbol at the given position and document.
 		 */
-		provideImplementation(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideImplementation(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 	}
 
 	/**
@@ -4715,7 +4692,7 @@ declare module monaco.languages {
 		/**
 		 * Provide the type definition of the symbol at the given position and document.
 		 */
-		provideTypeDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideTypeDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
 	}
 
 	/**
@@ -4781,7 +4758,7 @@ declare module monaco.languages {
 		/**
 		 * Provide symbol information for the given document.
 		 */
-		provideDocumentSymbols(model: editor.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
+		provideDocumentSymbols(model: editor.ITextModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
 	}
 
 	export interface TextEdit {
@@ -4812,7 +4789,7 @@ declare module monaco.languages {
 		/**
 		 * Provide formatting edits for a whole document.
 		 */
-		provideDocumentFormattingEdits(model: editor.IReadOnlyModel, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
+		provideDocumentFormattingEdits(model: editor.ITextModel, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 	}
 
 	/**
@@ -4827,7 +4804,7 @@ declare module monaco.languages {
 		 * or larger range. Often this is done by adjusting the start and end
 		 * of the range to full syntax nodes.
 		 */
-		provideDocumentRangeFormattingEdits(model: editor.IReadOnlyModel, range: Range, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
+		provideDocumentRangeFormattingEdits(model: editor.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 	}
 
 	/**
@@ -4843,7 +4820,7 @@ declare module monaco.languages {
 		 * what range the position to expand to, like find the matching `{`
 		 * when `}` has been entered.
 		 */
-		provideOnTypeFormattingEdits(model: editor.IReadOnlyModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
+		provideOnTypeFormattingEdits(model: editor.ITextModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): TextEdit[] | Thenable<TextEdit[]>;
 	}
 
 	/**
@@ -4858,7 +4835,7 @@ declare module monaco.languages {
 	 * A provider of links.
 	 */
 	export interface LinkProvider {
-		provideLinks(model: editor.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
+		provideLinks(model: editor.ITextModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
 		resolveLink?: (link: ILink, token: CancellationToken) => ILink | Thenable<ILink>;
 	}
 
@@ -4927,11 +4904,11 @@ declare module monaco.languages {
 		/**
 		 * Provides the color ranges for a specific model.
 		 */
-		provideDocumentColors(model: editor.IReadOnlyModel, token: CancellationToken): IColorInformation[] | Thenable<IColorInformation[]>;
+		provideDocumentColors(model: editor.ITextModel, token: CancellationToken): IColorInformation[] | Thenable<IColorInformation[]>;
 		/**
 		 * Provide the string representations for a color.
 		 */
-		provideColorPresentations(model: editor.IReadOnlyModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
+		provideColorPresentations(model: editor.ITextModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 	}
 
 	export interface IResourceEdit {
@@ -4946,7 +4923,7 @@ declare module monaco.languages {
 	}
 
 	export interface RenameProvider {
-		provideRenameEdits(model: editor.IReadOnlyModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
+		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
 	}
 
 	export interface Command {
@@ -4964,8 +4941,8 @@ declare module monaco.languages {
 
 	export interface CodeLensProvider {
 		onDidChange?: IEvent<this>;
-		provideCodeLenses(model: editor.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
-		resolveCodeLens?(model: editor.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
+		provideCodeLenses(model: editor.ITextModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
+		resolveCodeLens?(model: editor.ITextModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
 	}
 
 	export interface ILanguageExtensionPoint {

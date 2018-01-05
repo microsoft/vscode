@@ -5,18 +5,21 @@
 
 'use strict';
 
-import { readFile } from 'vs/base/node/pfs';
 import { parse as jsonParse } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
 import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { localize } from 'vs/nls';
+import { readFile } from 'vs/base/node/pfs';
 
 interface JsonSerializedSnippet {
 	body: string;
+	scope: string;
 	prefix: string | string[];
 	description: string;
 }
 
-function isJsonSerilziedSnippet(thing: any): thing is JsonSerializedSnippet {
+function isJsonSerializedSnippet(thing: any): thing is JsonSerializedSnippet {
 	return Boolean((<JsonSerializedSnippet>thing).body) && Boolean((<JsonSerializedSnippet>thing).prefix);
 }
 
@@ -26,35 +29,70 @@ interface JsonSerializedSnippets {
 
 export class SnippetFile {
 
-	private constructor(
+	readonly data: Snippet[] = [];
+	private _loadPromise: Promise<this>;
+
+	constructor(
 		readonly filepath: string,
-		readonly data: Snippet[]
+		private readonly _defaultScope: string,
+		private readonly _extension: IExtensionDescription
 	) {
 		//
 	}
 
-	static fromFile(filepath: string, source: string, isFromExtension?: boolean): Promise<SnippetFile> {
-		return Promise.resolve(readFile(filepath)).then(value => {
-			const data = <JsonSerializedSnippets>jsonParse(value.toString());
-			const snippets: Snippet[] = [];
-			if (typeof data === 'object') {
-				forEach(data, entry => {
-					const { key: name, value: scopeOrTemplate } = entry;
-					if (isJsonSerilziedSnippet(scopeOrTemplate)) {
-						SnippetFile._parseSnippet(name, scopeOrTemplate, source, isFromExtension, snippets);
-					} else {
-						forEach(scopeOrTemplate, entry => {
-							const { key: name, value: template } = entry;
-							SnippetFile._parseSnippet(name, template, source, isFromExtension, snippets);
-						});
+	select(selector: string, bucket: Snippet[]): void {
+		for (const snippet of this.data) {
+			const len = snippet.scopes.length;
+			if (len === 0) {
+				// always accept
+				bucket.push(snippet);
+
+			} else {
+				for (let i = 0; i < len; i++) {
+					// match
+					if (snippet.scopes[i] === selector) {
+						bucket.push(snippet);
+						break; // match only once!
 					}
-				});
+				}
 			}
-			return new SnippetFile(filepath, snippets);
-		});
+		}
+
+		let idx = selector.lastIndexOf('.');
+		if (idx >= 0) {
+			this.select(selector.substring(0, idx), bucket);
+		}
 	}
 
-	private static _parseSnippet(name: string, snippet: JsonSerializedSnippet, source: string, isFromExtension: boolean, bucket: Snippet[]): void {
+	load(): Promise<this> {
+		if (!this._loadPromise) {
+			this._loadPromise = Promise.resolve(readFile(this.filepath)).then(value => {
+				const data = <JsonSerializedSnippets>jsonParse(value.toString());
+				if (typeof data === 'object') {
+					forEach(data, entry => {
+						const { key: name, value: scopeOrTemplate } = entry;
+						if (isJsonSerializedSnippet(scopeOrTemplate)) {
+							this._parseSnippet(name, scopeOrTemplate, this.data);
+						} else {
+							forEach(scopeOrTemplate, entry => {
+								const { key: name, value: template } = entry;
+								this._parseSnippet(name, template, this.data);
+							});
+						}
+					});
+				}
+				return this;
+			});
+		}
+		return this._loadPromise;
+	}
+
+	reset(): void {
+		this._loadPromise = undefined;
+		this.data.length = 0;
+	}
+
+	private _parseSnippet(name: string, snippet: JsonSerializedSnippet, bucket: Snippet[]): void {
 
 		let { prefix, body, description } = snippet;
 
@@ -66,13 +104,23 @@ export class SnippetFile {
 			return;
 		}
 
+		let scopes: string[];
+		if (this._defaultScope) {
+			scopes = [this._defaultScope];
+		} else if (typeof snippet.scope === 'string') {
+			scopes = snippet.scope.split(',');
+		} else {
+			scopes = [];
+		}
+
 		bucket.push(new Snippet(
+			scopes,
 			name,
 			prefix,
 			description,
 			body,
-			source,
-			isFromExtension
+			this._extension ? (this._extension.displayName || this._extension.name) : localize('source.snippet', "User Snippet"),
+			this._extension !== void 0
 		));
 	}
 }

@@ -101,27 +101,27 @@
     "jsonValidation": [
       {
         "fileMatch": "package.json",
-        "url": "http://json.schemastore.org/package"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/package.json"
       },
       {
         "fileMatch": "bower.json",
-        "url": "http://json.schemastore.org/bower"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/bower.json"
       },
       {
         "fileMatch": ".bowerrc",
-        "url": "http://json.schemastore.org/bowerrc"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/bowerrc.json"
       },
       {
         "fileMatch": ".babelrc",
-        "url": "http://json.schemastore.org/babelrc"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
       },
       {
         "fileMatch": ".babelrc.json",
-        "url": "http://json.schemastore.org/babelrc"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
       },
       {
         "fileMatch": "jsconfig.json",
-        "url": "http://json.schemastore.org/jsconfig"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
       },
       {
         "fileMatch": "jsconfig.json",
@@ -129,7 +129,7 @@
       },
       {
         "fileMatch": "jsconfig.*.json",
-        "url": "http://json.schemastore.org/jsconfig"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
       },
       {
         "fileMatch": "jsconfig.*.json",

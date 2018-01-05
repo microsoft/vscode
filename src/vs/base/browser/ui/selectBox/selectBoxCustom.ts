@@ -675,6 +675,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	}
 
 	public dispose(): void {
+		this.hideSelectDropDown(false);
 		this.toDispose = dispose(this.toDispose);
 	}
 }

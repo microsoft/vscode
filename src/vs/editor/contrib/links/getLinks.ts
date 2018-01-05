@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { ILink, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -65,7 +65,7 @@ export class Link implements ILink {
 	}
 }
 
-export function getLinks(model: IReadOnlyModel): TPromise<Link[]> {
+export function getLinks(model: ITextModel): TPromise<Link[]> {
 
 	let links: Link[] = [];
 

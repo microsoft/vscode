@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as collections from 'vs/base/common/collections';
+import * as strings from 'vs/base/common/strings';
 import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
 import uri from 'vs/base/common/uri';
@@ -43,7 +44,7 @@ export class QueryBuilder {
 		return this.query(QueryType.File, null, folderResources, options);
 	}
 
-	private query(type: QueryType, contentPattern: IPatternInfo, folderResources?: uri[], options: IQueryOptions = {}): ISearchQuery {
+	private query(type: QueryType, contentPattern?: IPatternInfo, folderResources?: uri[], options: IQueryOptions = {}): ISearchQuery {
 		let { searchPaths, pattern: includePattern } = this.parseSearchPaths(options.includePattern);
 		let excludePattern = this.parseExcludePattern(options.excludePattern);
 
@@ -70,6 +71,10 @@ export class QueryBuilder {
 
 		const ignoreSymlinks = !this.configurationService.getValue<ISearchConfiguration>().search.followSymlinks;
 
+		if (contentPattern) {
+			this.resolveSmartCaseToCaseSensitive(contentPattern);
+		}
+
 		const query = <ISearchQuery>{
 			type,
 			folderQueries,
@@ -93,6 +98,22 @@ export class QueryBuilder {
 		query.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
 
 		return query;
+	}
+
+	/**
+	 * Fix the isCaseSensitive flag based on the query and the isSmartCase flag, for search providers that don't support smart case natively.
+	 */
+	private resolveSmartCaseToCaseSensitive(contentPattern: IPatternInfo): void {
+		if (contentPattern.isSmartCase) {
+			if (contentPattern.isRegExp) {
+				// Consider it case sensitive if it contains an unescaped capital letter
+				if (strings.containsUppercaseCharacter(contentPattern.pattern, true)) {
+					contentPattern.isCaseSensitive = true;
+				}
+			} else if (strings.containsUppercaseCharacter(contentPattern.pattern)) {
+				contentPattern.isCaseSensitive = true;
+			}
+		}
 	}
 
 	/**

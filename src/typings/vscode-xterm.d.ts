@@ -7,7 +7,7 @@
  * to be stable and consumed by external programs.
  */
 
-declare module 'xterm' {
+declare module 'vscode-xterm' {
 	/**
 	 * An object containing start up options for the terminal.
 	 */
@@ -71,6 +71,13 @@ declare module 'xterm' {
 		 * The number of rows in the terminal.
 		 */
 		rows?: number;
+
+		/**
+		 * Whether screen reader support is enabled. When on this will expose
+		 * supporting elements in the DOM to support NVDA on Windows and VoiceOver
+		 * on macOS.
+		 */
+		screenReaderMode?: boolean;
 
 		/**
 		 * The amount of scrollback in the terminal. Scrollback is the amount of rows

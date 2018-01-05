@@ -10,12 +10,9 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import {
-	EndOfLinePreference, Handler,
-	DefaultEndOfLine, ITextModelCreationOptions, ICommand,
-	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData, EndOfLineSequence
-} from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { Handler, ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, DefaultEndOfLine, ITextModelCreationOptions, ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
@@ -24,7 +21,6 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 let H = Handler;
 
@@ -34,7 +30,7 @@ function cursorCommand(cursor: Cursor, command: string, extraData?: any, overwri
 	cursor.trigger(overwriteSource || 'tests', command, extraData);
 }
 
-function cursorCommandAndTokenize(model: Model, cursor: Cursor, command: string, extraData?: any, overwriteSource?: string) {
+function cursorCommandAndTokenize(model: TextModel, cursor: Cursor, command: string, extraData?: any, overwriteSource?: string) {
 	cursor.trigger(overwriteSource || 'tests', command, extraData);
 	model.forceTokenization(model.getLineCount());
 }
@@ -137,7 +133,7 @@ suite('Editor Controller - Cursor', () => {
 	const LINE4 = '';
 	const LINE5 = '1';
 
-	let thisModel: Model;
+	let thisModel: TextModel;
 	let thisConfiguration: TestConfiguration;
 	let thisViewModel: ViewModel;
 	let thisCursor: Cursor;
@@ -150,7 +146,7 @@ suite('Editor Controller - Cursor', () => {
 			LINE4 + '\r\n' +
 			LINE5;
 
-		thisModel = Model.createFromString(text);
+		thisModel = TextModel.createFromString(text);
 		thisConfiguration = new TestConfiguration(null);
 		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null);
 
@@ -726,7 +722,7 @@ suite('Editor Controller - Cursor', () => {
 	});
 
 	test('issue #4905 - column select is biased to the right', () => {
-		const model = Model.createFromString([
+		const model = TextModel.createFromString([
 			'var gulp = require("gulp");',
 			'var path = require("path");',
 			'var rimraf = require("rimraf");',
@@ -762,7 +758,7 @@ suite('Editor Controller - Cursor', () => {
 	});
 
 	test('issue #20087: column select with mouse', () => {
-		const model = Model.createFromString([
+		const model = TextModel.createFromString([
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" Key="SomeKey" value="000"/>',
@@ -824,7 +820,7 @@ suite('Editor Controller - Cursor', () => {
 	});
 
 	test('issue #20087: column select with keyboard', () => {
-		const model = Model.createFromString([
+		const model = TextModel.createFromString([
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" Key="SomeKey" value="000"/>',
@@ -876,7 +872,7 @@ suite('Editor Controller - Cursor', () => {
 	});
 
 	test('column select with keyboard', () => {
-		const model = Model.createFromString([
+		const model = TextModel.createFromString([
 			'var gulp = require("gulp");',
 			'var path = require("path");',
 			'var rimraf = require("rimraf");',
@@ -1132,7 +1128,7 @@ class IndentRulesMode extends MockMode {
 suite('Editor Controller - Regression tests', () => {
 
 	test('issue Microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'Hello world!',
 				'another line'
@@ -1158,7 +1154,7 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('Bug 9121: Auto indent + undo + redo is funky', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				''
 			].join('\n'),
@@ -1223,7 +1219,7 @@ suite('Editor Controller - Regression tests', () => {
 
 	test('bug #16815:Shift+Tab doesn\'t go back to tabstop', () => {
 		let mode = new OnEnterMode(IndentAction.IndentOutdent);
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'     function baz() {'
 			].join('\n'),
@@ -1251,7 +1247,7 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('Bug #18293:[regression][editor] Can\'t outdent whitespace line', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'      '
 			].join('\n'),
@@ -1277,7 +1273,7 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('Bug #16657: [editor] Tab on empty line of zero indentation moves cursor to position (1,1)', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'function baz() {',
 				'\tfunction hello() { // something here',
@@ -1370,7 +1366,7 @@ suite('Editor Controller - Regression tests', () => {
 
 	test('issue #1140: Backspace stops prematurely', () => {
 		let mode = new SurroundingMode();
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'function baz() {',
 				'  return 1;',
@@ -1491,7 +1487,7 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('issue #3071: Investigate why undo stack gets corrupted', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'some lines',
 				'and more lines',
@@ -1571,7 +1567,7 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('issue #3463: pressing tab adds spaces, but not as many as for a tab', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'function a() {',
 				'\tvar a = {',
@@ -1598,7 +1594,7 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('issue #4312: trying to type a tab character over a sequence of spaces results in unexpected behaviour', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'var foo = 123;       // this is a comment',
 				'var bar = 4;       // another comment'
@@ -1702,7 +1698,7 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('issue #33788: Wrong cursor position when double click to select a word', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'Just some text'
 			].join('\n')
@@ -1879,7 +1875,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Cursor honors insertSpaces configuration on tab', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'    \tMy First Line\t ',
 				'My Second Line123',
@@ -2088,12 +2084,12 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 				private _selectionId: string = null;
 
-				public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
+				public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 					builder.addEditOperation(new Range(1, 13, 1, 14), '');
 					this._selectionId = builder.trackSelection(cursor.getSelection());
 				}
 
-				public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
+				public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 					return helper.getTrackedSelection(this._selectionId);
 				}
 
@@ -2108,7 +2104,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('removeAutoWhitespace on: removes only whitespace the cursor added 2', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'    if (a) {',
 				'        ',
@@ -2156,7 +2152,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('removeAutoWhitespace on: test 1', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'    some  line abc  '
 			].join('\n'),
@@ -2220,7 +2216,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('UseTabStops is off', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'    x',
 				'        a    ',
@@ -2246,7 +2242,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Backspace removes whitespaces with tab size', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				' \t \t     x',
 				'        a    ',
@@ -2319,7 +2315,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('PR #5423: Auto indent + undo + redo is funky', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				''
 			].join('\n'),
@@ -2485,7 +2481,7 @@ suite('Editor Controller - Indentation Rules', () => {
 	});
 
 	test('Enter honors indentNextLinePattern 2', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'if (true)',
 				'\tif (true)'
@@ -2960,7 +2956,7 @@ suite('Editor Controller - Indentation Rules', () => {
 	});
 
 	test('bug #16543: Tab should indent to correct indentation spot immediately', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'function baz() {',
 				'\tfunction hello() { // something here',
@@ -2992,7 +2988,7 @@ suite('Editor Controller - Indentation Rules', () => {
 
 
 	test('bug #2938 (1): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'\tfunction baz() {',
 				'\t\tfunction hello() { // something here',
@@ -3024,7 +3020,7 @@ suite('Editor Controller - Indentation Rules', () => {
 
 
 	test('bug #2938 (2): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'\tfunction baz() {',
 				'\t\tfunction hello() { // something here',
@@ -3055,7 +3051,7 @@ suite('Editor Controller - Indentation Rules', () => {
 	});
 
 	test('bug #2938 (3): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'\tfunction baz() {',
 				'\t\tfunction hello() { // something here',
@@ -3086,7 +3082,7 @@ suite('Editor Controller - Indentation Rules', () => {
 	});
 
 	test('bug #2938 (4): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'\tfunction baz() {',
 				'\t\tfunction hello() { // something here',
@@ -3118,7 +3114,7 @@ suite('Editor Controller - Indentation Rules', () => {
 
 	test('bug #31015: When pressing Tab on lines and Enter rules are avail, indent straight to the right spotTab', () => {
 		let mode = new OnEnterMode(IndentAction.Indent);
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'    if (a) {',
 				'        ',
@@ -3155,7 +3151,7 @@ suite('Editor Controller - Indentation Rules', () => {
 			increaseIndentPattern: /^\s*((begin|class|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|while)|(.*\sdo\b))\b[^\{;]*$/,
 			decreaseIndentPattern: /^\s*([}\]]([,)]?\s*(#|$)|\.[a-zA-Z_]\w*\b)|(end|rescue|ensure|else|elsif|when)\b)/
 		});
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'class Greeter',
 				'  def initialize(name)',
@@ -3294,7 +3290,7 @@ suite('Editor Controller - Indentation Rules', () => {
 		}
 
 		let mode = new JSMode();
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'class ItemCtrl {',
 				'    getPropertiesByItemId(id) {',
@@ -3354,7 +3350,7 @@ suite('Editor Controller - Indentation Rules', () => {
 		}
 
 		let mode = new CppMode();
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'int main() {',
 				'  return 0;',
@@ -3403,8 +3399,8 @@ interface ICursorOpts {
 	editorOpts?: IEditorOptions;
 }
 
-function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor) => void): void {
-	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
+function usingCursor(opts: ICursorOpts, callback: (model: TextModel, cursor: Cursor) => void): void {
+	let model = TextModel.createFromString(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	model.forceTokenization(model.getLineCount());
 	let config = new TestConfiguration(opts.editorOpts);
 	let viewModel = new ViewModel(0, config, model, null);
@@ -3720,7 +3716,7 @@ suite('autoClosingPairs', () => {
 		return result;
 	}
 
-	function assertType(model: Model, cursor: Cursor, lineNumber: number, column: number, chr: string, expectedInsert: string, message: string): void {
+	function assertType(model: TextModel, cursor: Cursor, lineNumber: number, column: number, chr: string, expectedInsert: string, message: string): void {
 		let lineContent = model.getLineContent(lineNumber);
 		let expected = lineContent.substr(0, column - 1) + expectedInsert + lineContent.substr(column - 1);
 		moveTo(cursor, lineNumber, column);
@@ -3966,7 +3962,7 @@ suite('autoClosingPairs', () => {
 
 	test('All cursors should do the same thing when deleting left', () => {
 		let mode = new AutoClosingMode();
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'var a = ()'
 			].join('\n'),
@@ -3990,7 +3986,7 @@ suite('autoClosingPairs', () => {
 	});
 
 	test('issue #7100: Mouse word selection is strange when non-word character is at the end of line', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'before.a',
 				'before',
@@ -4020,7 +4016,7 @@ suite('autoClosingPairs', () => {
 suite('Undo stops', () => {
 
 	test('there is an undo stop between typing and deleting left', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'A  line',
 				'Another line',
@@ -4049,7 +4045,7 @@ suite('Undo stops', () => {
 	});
 
 	test('there is an undo stop between typing and deleting right', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'A  line',
 				'Another line',
@@ -4078,7 +4074,7 @@ suite('Undo stops', () => {
 	});
 
 	test('there is an undo stop between deleting left and typing', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'A  line',
 				'Another line',
@@ -4112,7 +4108,7 @@ suite('Undo stops', () => {
 	});
 
 	test('there is an undo stop between deleting left and deleting right', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'A  line',
 				'Another line',
@@ -4150,7 +4146,7 @@ suite('Undo stops', () => {
 	});
 
 	test('there is an undo stop between deleting right and typing', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'A  line',
 				'Another line',
@@ -4181,7 +4177,7 @@ suite('Undo stops', () => {
 	});
 
 	test('there is an undo stop between deleting right and deleting left', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'A  line',
 				'Another line',
@@ -4217,7 +4213,7 @@ suite('Undo stops', () => {
 	});
 
 	test('inserts undo stop when typing space', () => {
-		let model = Model.createFromString(
+		let model = TextModel.createFromString(
 			[
 				'A  line',
 				'Another line',

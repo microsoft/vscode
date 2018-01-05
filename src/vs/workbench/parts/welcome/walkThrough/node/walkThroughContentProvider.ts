@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { marked } from 'vs/base/common/marked/marked';
@@ -28,7 +28,7 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThrough, this);
 	}
 
-	public provideTextContent(resource: URI): TPromise<IModel> {
+	public provideTextContent(resource: URI): TPromise<ITextModel> {
 		const query = resource.query ? JSON.parse(resource.query) : {};
 		const content: TPromise<string | IRawTextSource> = (query.moduleId ? new TPromise<string>((resolve, reject) => {
 			require([query.moduleId], content => {
@@ -63,7 +63,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThroughSnippet, this);
 	}
 
-	public provideTextContent(resource: URI): TPromise<IModel> {
+	public provideTextContent(resource: URI): TPromise<ITextModel> {
 		return this.textFileService.resolveTextContent(URI.file(resource.fsPath)).then(content => {
 			let codeEditorModel = this.modelService.getModel(resource);
 			if (!codeEditorModel) {

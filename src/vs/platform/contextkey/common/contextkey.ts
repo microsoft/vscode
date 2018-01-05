@@ -439,6 +439,10 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 	public isEqualTo(value: string): ContextKeyExpr {
 		return ContextKeyExpr.equals(this.key, value);
 	}
+
+	public notEqualsTo(value: string): ContextKeyExpr {
+		return ContextKeyExpr.notEquals(this.key, value);
+	}
 }
 
 export interface IContext {

@@ -7,8 +7,8 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { ISingleEditOperation } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 
@@ -22,7 +22,7 @@ function editOp(startLineNumber: number, startColumn: number, endLineNumber: num
 
 suite('FormatCommand.trimEdit', () => {
 	function testTrimEdit(lines: string[], edit: ISingleEditOperation, expected: ISingleEditOperation): void {
-		let model = Model.createFromString(lines.join('\n'));
+		let model = TextModel.createFromString(lines.join('\n'));
 		let actual = EditOperationsCommand.trimEdit(edit, model);
 		assert.deepEqual(actual, expected);
 		model.dispose();
