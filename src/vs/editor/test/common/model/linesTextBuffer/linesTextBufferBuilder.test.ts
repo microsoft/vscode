@@ -5,11 +5,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ModelBuilder } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
+import { ModelBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 import { ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as strings from 'vs/base/common/strings';
-import { RawTextSource } from 'vs/editor/common/model/textSource';
+import { RawTextSource } from 'vs/editor/common/model/linesTextBuffer/textSource';
 
 export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): void {
 	let expectedTextSource = RawTextSource.fromString(chunks.join(''));

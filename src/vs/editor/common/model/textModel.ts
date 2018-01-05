@@ -8,7 +8,6 @@ import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as model from 'vs/editor/common/model';
 import { LanguageIdentifier, TokenizationRegistry, LanguageId } from 'vs/editor/common/modes';
-import { RawTextSource } from 'vs/editor/common/model/textSource';
 import { EditStack } from 'vs/editor/common/model/editStack';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -32,11 +31,37 @@ import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/comm
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { TextBufferFactory } from 'vs/editor/common/model/textBuffer';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IStringStream } from 'vs/platform/files/common/files';
+import * as linesTextBuffer from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 
-export function createTextBufferFactory(text: string): model.ITextBufferFactory {
-	const rawTextSource = RawTextSource.fromString(text);
-	return new TextBufferFactory(rawTextSource);
+// Here are the two switches for text buffer implementations:
+export const createTextBufferBuilder = linesTextBuffer.createTextBufferBuilder;
+export const createTextBufferFactory = linesTextBuffer.createTextBufferFactory;
+
+export function createTextBufferFactoryFromStream(stream: IStringStream): TPromise<model.ITextBufferFactory> {
+	return new TPromise<model.ITextBufferFactory>((c, e, p) => {
+		let done = false;
+		let builder = createTextBufferBuilder();
+
+		stream.on('data', (chunk) => {
+			builder.acceptChunk(chunk);
+		});
+
+		stream.on('error', (error) => {
+			if (!done) {
+				done = true;
+				e(error);
+			}
+		});
+
+		stream.on('end', () => {
+			if (!done) {
+				done = true;
+				c(builder.finish());
+			}
+		});
+	});
 }
 
 export function createTextBuffer(value: string | model.ITextBufferFactory, defaultEOL: model.DefaultEndOfLine): model.ITextBuffer {

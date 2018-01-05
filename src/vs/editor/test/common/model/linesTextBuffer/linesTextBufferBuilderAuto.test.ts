@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { testModelBuilder } from './modelBuilder.test';
+import { testModelBuilder } from './linesTextBufferBuilder.test';
 import { CharCode } from 'vs/base/common/charCode';
 
 const GENERATE_TESTS = false;

@@ -7,10 +7,8 @@
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { DefaultEndOfLine, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { RawTextSource, ITextSource, TextSource } from 'vs/editor/common/model/textSource';
-import { TextBuffer } from 'vs/editor/common/model/textBuffer';
+import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
+import { DefaultEndOfLine } from 'vs/editor/common/model';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
 	var m = TextModel.createFromString(
@@ -58,45 +56,42 @@ function assertGuess(expectedInsertSpaces: boolean, expectedTabSize: number, tex
 
 suite('TextModelData.fromString', () => {
 
-	function testTextModelDataFromString(text: string, expectedTextSource: ITextSource, expectedOptions: TextModelResolvedOptions): void {
-		const rawTextSource = RawTextSource.fromString(text);
-		const actualTextSource = TextSource.fromRawTextSource(rawTextSource, TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL);
-		assert.deepEqual(actualTextSource, expectedTextSource);
+	interface ITextBufferData {
+		EOL: string;
+		lines: string[];
+		containsRTL: boolean;
+		isBasicASCII: boolean;
+	}
 
-		let buffer = new TextBuffer(actualTextSource);
-
-		const actualOptions = TextModel.resolveOptions(buffer, TextModel.DEFAULT_CREATION_OPTIONS);
-		assert.deepEqual(actualOptions, expectedOptions);
+	function testTextModelDataFromString(text: string, expected: ITextBufferData): void {
+		const textBuffer = createTextBuffer(text, TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL);
+		let actual: ITextBufferData = {
+			EOL: textBuffer.getEOL(),
+			lines: textBuffer.getLinesContent(),
+			containsRTL: textBuffer.mightContainRTL(),
+			isBasicASCII: !textBuffer.mightContainNonBasicASCII()
+		};
+		assert.deepEqual(actual, expected);
 	}
 
 	test('one line text', () => {
 		testTextModelDataFromString('Hello world!',
 			{
-				BOM: '',
 				EOL: '\n',
-				length: 12,
-				'lines': [
+				lines: [
 					'Hello world!'
 				],
 				containsRTL: false,
 				isBasicASCII: true
-			},
-			new TextModelResolvedOptions({
-				defaultEOL: DefaultEndOfLine.LF,
-				insertSpaces: true,
-				tabSize: 4,
-				trimAutoWhitespace: true,
-			})
+			}
 		);
 	});
 
 	test('multiline text', () => {
 		testTextModelDataFromString('Hello,\r\ndear friend\nHow\rare\r\nyou?',
 			{
-				BOM: '',
 				EOL: '\r\n',
-				length: 33,
-				'lines': [
+				lines: [
 					'Hello,',
 					'dear friend',
 					'How',
@@ -105,79 +100,49 @@ suite('TextModelData.fromString', () => {
 				],
 				containsRTL: false,
 				isBasicASCII: true
-			},
-			new TextModelResolvedOptions({
-				defaultEOL: DefaultEndOfLine.LF,
-				insertSpaces: true,
-				tabSize: 4,
-				trimAutoWhitespace: true,
-			})
+			}
 		);
 	});
 
 	test('Non Basic ASCII 1', () => {
 		testTextModelDataFromString('Hello,\nZürich',
 			{
-				BOM: '',
 				EOL: '\n',
-				length: 13,
-				'lines': [
+				lines: [
 					'Hello,',
 					'Zürich'
 				],
 				containsRTL: false,
 				isBasicASCII: false
-			},
-			new TextModelResolvedOptions({
-				defaultEOL: DefaultEndOfLine.LF,
-				insertSpaces: true,
-				tabSize: 4,
-				trimAutoWhitespace: true,
-			})
+			}
 		);
 	});
 
 	test('containsRTL 1', () => {
 		testTextModelDataFromString('Hello,\nזוהי עובדה מבוססת שדעתו',
 			{
-				BOM: '',
 				EOL: '\n',
-				length: 30,
-				'lines': [
+				lines: [
 					'Hello,',
 					'זוהי עובדה מבוססת שדעתו'
 				],
 				containsRTL: true,
 				isBasicASCII: false
-			},
-			new TextModelResolvedOptions({
-				defaultEOL: DefaultEndOfLine.LF,
-				insertSpaces: true,
-				tabSize: 4,
-				trimAutoWhitespace: true,
-			})
+			}
 		);
 	});
 
 	test('containsRTL 2', () => {
 		testTextModelDataFromString('Hello,\nهناك حقيقة مثبتة منذ زمن طويل',
 			{
-				BOM: '',
 				EOL: '\n',
-				length: 36,
-				'lines': [
+				lines: [
 					'Hello,',
 					'هناك حقيقة مثبتة منذ زمن طويل'
 				],
 				containsRTL: true,
 				isBasicASCII: false
-			},
-			new TextModelResolvedOptions({
-				defaultEOL: DefaultEndOfLine.LF,
-				insertSpaces: true,
-				tabSize: 4,
-				trimAutoWhitespace: true,
-			})
+			}
 		);
 	});
 

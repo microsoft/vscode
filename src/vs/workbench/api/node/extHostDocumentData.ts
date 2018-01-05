@@ -12,7 +12,6 @@ import { Range, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { MainThreadDocumentsShape } from './extHost.protocol';
-import { ITextSource } from 'vs/editor/common/model/textSource';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
@@ -50,7 +49,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		this._isDirty = false;
 	}
 
-	equalLines({ lines }: ITextSource): boolean {
+	equalLines(lines: string[]): boolean {
 		const len = lines.length;
 		if (len !== this._lines.length) {
 			return false;

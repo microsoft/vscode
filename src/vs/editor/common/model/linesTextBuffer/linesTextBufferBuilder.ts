@@ -4,12 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IStringStream } from 'vs/platform/files/common/files';
 import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CharCode } from 'vs/base/common/charCode';
-import { ITextBufferFactory, ITextBufferBuilder } from 'vs/editor/common/model';
-import { TextBufferFactory } from 'vs/editor/common/model/textBuffer';
+import { ITextBufferBuilder, ITextBufferFactory, ITextBuffer, DefaultEndOfLine } from 'vs/editor/common/model';
+import { IRawTextSource, TextSource, RawTextSource } from 'vs/editor/common/model/linesTextBuffer/textSource';
+import { TextBuffer } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
+
+export function createTextBufferBuilder(): ITextBufferBuilder {
+	return new ModelBuilder();
+}
+
+export function createTextBufferFactory(text: string): ITextBufferFactory {
+	const rawTextSource = RawTextSource.fromString(text);
+	return new TextBufferFactory(rawTextSource);
+}
+
+export class TextBufferFactory implements ITextBufferFactory {
+
+	constructor(public readonly rawTextSource: IRawTextSource) {
+	}
+
+	public create(defaultEOL: DefaultEndOfLine): ITextBuffer {
+		const textSource = TextSource.fromRawTextSource(this.rawTextSource, defaultEOL);
+		return new TextBuffer(textSource);
+	}
+
+	public getFirstLineText(lengthLimit: number): string {
+		return this.rawTextSource.lines[0].substr(0, lengthLimit);
+	}
+}
 
 const AVOID_SLICED_STRINGS = true;
 const PREALLOC_BUFFER_CHARS = 1000;
@@ -100,30 +123,7 @@ export class ModelBuilder implements ITextBufferBuilder {
 	private containsRTL: boolean;
 	private isBasicASCII: boolean;
 
-	public static fromStringStream(stream: IStringStream): TPromise<ITextBufferFactory> {
-		return new TPromise<ITextBufferFactory>((c, e, p) => {
-			let done = false;
-			let builder = new ModelBuilder();
 
-			stream.on('data', (chunk) => {
-				builder.acceptChunk(chunk);
-			});
-
-			stream.on('error', (error) => {
-				if (!done) {
-					done = true;
-					e(error);
-				}
-			});
-
-			stream.on('end', () => {
-				if (!done) {
-					done = true;
-					c(builder.finish());
-				}
-			});
-		});
-	}
 
 	constructor() {
 		this.leftoverPrevChunk = '';
