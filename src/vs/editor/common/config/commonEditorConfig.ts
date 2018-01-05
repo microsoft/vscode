@@ -511,6 +511,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': editorOptions.cursorStyleToString(EDITOR_DEFAULTS.viewInfo.cursorStyle),
 			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'block-outline', 'line', 'line-thin', 'underline' and 'underline-thin'")
 		},
+		'editor.lineCursorWidth': {
+			'type': 'integer',
+			'default': EDITOR_DEFAULTS.viewInfo.lineCursorWidth,
+			'description': nls.localize('lineCursorWidth', "Controls the width of the cursor when editor.cursorStyle is set to 'line'")
+		},
 		'editor.fontLigatures': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.fontLigatures,
