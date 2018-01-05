@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, DefaultEndOfLine } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
+import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { RawTextSource, TextSource } from 'vs/editor/common/model/textSource';
@@ -1552,7 +1552,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		let model = createEditableTextModelFromString('Hello\nWorld!');
 		assert.equal(model.getEOL(), '\n');
 
-		let mirrorModel2 = new MirrorModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
+		let mirrorModel2 = new MirrorTextModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
 		model.onDidChangeContent((e: IModelContentChangedEvent) => {

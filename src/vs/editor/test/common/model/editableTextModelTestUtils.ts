@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
+import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { Position } from 'vs/editor/common/core/position';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
@@ -90,7 +90,7 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 		assertLineMapping(model, 'model');
 	}
 
-	var mirrorModel2 = new MirrorModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
+	var mirrorModel2 = new MirrorTextModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
 	var mirrorModel2PrevVersionId = model.getVersionId();
 
 	model.onDidChangeContent((e: IModelContentChangedEvent) => {
