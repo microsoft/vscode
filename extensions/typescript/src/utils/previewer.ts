@@ -25,6 +25,21 @@ function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 }
 
 function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
+	switch (tag.name) {
+		case 'param':
+			const body = (tag.text || '').split(/^(\w+)\s*/);
+			if (body && body.length === 3) {
+				const param = body[1];
+				const doc = body[2];
+				const label = `*@${tag.name}* \`${param}\``;
+				if (!doc) {
+					return label;
+				}
+				return label + (doc.match(/\r\n|\n/g) ? '  \n' + doc : ` — ${doc}`);
+			}
+	}
+
+	// Generic tag
 	const label = `*@${tag.name}*`;
 	const text = getTagBodyText(tag);
 	if (!text) {
