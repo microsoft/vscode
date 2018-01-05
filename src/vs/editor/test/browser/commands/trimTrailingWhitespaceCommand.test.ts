@@ -18,10 +18,8 @@ import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
  */
 function createInsertDeleteSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
 	return {
-		identifier: null,
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
-		text: text,
-		forceMoveMarkers: true
+		text: text
 	};
 }
 
@@ -30,10 +28,8 @@ function createInsertDeleteSingleEditOp(text: string, positionLineNumber: number
  */
 export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
 	return {
-		identifier: null,
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
-		text: text,
-		forceMoveMarkers: false
+		text: text
 	};
 }
 

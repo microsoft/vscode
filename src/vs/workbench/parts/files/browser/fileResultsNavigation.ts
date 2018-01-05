@@ -51,16 +51,17 @@ export default class FileResultsNavigation extends Disposable {
 		if (payload && payload.fromFocus) {
 			return;
 		}
-		let keyboard = payload && payload.origin === 'keyboard';
-		let originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
 
-		let pinned = (payload && payload.origin === 'mouse' && originalEvent && originalEvent.detail === 2);
+		const keyboard = payload && payload.origin === 'keyboard';
+		const originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
+
+		const pinned = (payload && payload.origin === 'mouse' && originalEvent && originalEvent.detail === 2);
 		if (pinned && originalEvent) {
 			originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
 		}
 
-		let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-		let preserveFocus = !((keyboard && (!payload || !payload.preserveFocus)) || pinned || (payload && payload.focusEditor));
+		const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
+		const preserveFocus = !((keyboard && (!payload || !payload.preserveFocus)) || pinned || (payload && payload.focusEditor));
 		this._openFile.fire({
 			editorOptions: {
 				preserveFocus,

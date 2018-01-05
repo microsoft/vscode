@@ -11,10 +11,8 @@ import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { TextSource } from 'vs/editor/common/model/textSource';
 import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
 
 export class ExtHostDocumentContentProvider implements ExtHostDocumentContentProvidersShape {
 
@@ -56,11 +54,11 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 						}
 
 						// create lines and compare
-						const textSource = TextSource.fromString(value, DefaultEndOfLine.CRLF);
+						const lines = value.split(/\r\n|\r|\n/);
 
 						// broadcast event when content changed
-						if (!document.equalLines(textSource)) {
-							return this._proxy.$onVirtualDocumentChange(uri, textSource);
+						if (!document.equalLines(lines)) {
+							return this._proxy.$onVirtualDocumentChange(uri, value);
 						}
 
 					}, onUnexpectedError);

@@ -340,7 +340,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
-		var result = strings.firstNonWhitespaceIndex(this.getLineContent(lineNumber));
+		const result = strings.firstNonWhitespaceIndex(this.getLineContent(lineNumber));
 		if (result === -1) {
 			return 0;
 		}
@@ -348,7 +348,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
-		var result = strings.lastNonWhitespaceIndex(this.getLineContent(lineNumber));
+		const result = strings.lastNonWhitespaceIndex(this.getLineContent(lineNumber));
 		if (result === -1) {
 			return 0;
 		}
@@ -401,7 +401,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getValueInRange(range: Range, eol: EndOfLinePreference): string {
-		var modelRange = this.coordinatesConverter.convertViewRangeToModelRange(range);
+		const modelRange = this.coordinatesConverter.convertViewRangeToModelRange(range);
 		return this.model.getValueInRange(modelRange, eol);
 	}
 

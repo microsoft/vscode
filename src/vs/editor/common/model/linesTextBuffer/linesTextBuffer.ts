@@ -8,10 +8,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
-import { ITextSource } from 'vs/editor/common/model/textSource';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ModelRawChange, IModelContentChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference } from 'vs/editor/common/model';
+import { ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -24,50 +23,33 @@ export interface IValidatedEditOperation {
 	isAutoWhitespaceEdit: boolean;
 }
 
-export interface ITextBuffer {
-	equals(other: ITextSource): boolean;
-	mightContainRTL(): boolean;
-	mightContainNonBasicASCII(): boolean;
-	getBOM(): string;
-	getEOL(): string;
-
-	getOffsetAt(lineNumber: number, column: number): number;
-	getPositionAt(offset: number): Position;
-	getRangeAt(offset: number, length: number): Range;
-
-	getValueInRange(range: Range, eol: EndOfLinePreference): string;
-	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
-	getLineCount(): number;
-	getLinesContent(): string[];
-	getLineContent(lineNumber: number): string;
-	getLineCharCode(lineNumber: number, index: number): number;
-	getLineLength(lineNumber: number): number;
-	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
-	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-
-	setEOL(newEOL: string): void;
-	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
+/**
+ * A processed string with its EOL resolved ready to be turned into an editor model.
+ */
+export interface ITextSource {
+	/**
+	 * The text split into lines.
+	 */
+	readonly lines: string[];
+	/**
+	 * The BOM (leading character sequence of the file).
+	 */
+	readonly BOM: string;
+	/**
+	 * The end of line sequence.
+	 */
+	readonly EOL: string;
+	/**
+	 * The text contains Unicode characters classified as "R" or "AL".
+	 */
+	readonly containsRTL: boolean;
+	/**
+	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
+	 */
+	readonly isBasicASCII: boolean;
 }
 
-export class ApplyEditsResult {
-
-	constructor(
-		public readonly reverseEdits: IIdentifiedSingleEditOperation[],
-		public readonly rawChanges: ModelRawChange[],
-		public readonly changes: IInternalModelContentChange[],
-		public readonly trimAutoWhitespaceLineNumbers: number[]
-	) { }
-
-}
-
-export interface IInternalModelContentChange extends IModelContentChange {
-	range: Range;
-	lines: string[];
-	rangeOffset: number;
-	forceMoveMarkers: boolean;
-}
-
-export class TextBuffer implements ITextBuffer {
+export class LinesTextBuffer implements ITextBuffer {
 
 	private _lines: string[];
 	private _BOM: string;
@@ -95,18 +77,21 @@ export class TextBuffer implements ITextBuffer {
 		this._lineStarts = new PrefixSumComputer(lineStartValues);
 	}
 
-	public equals(other: ITextSource): boolean {
-		if (this._BOM !== other.BOM) {
+	public equals(other: ITextBuffer): boolean {
+		if (!(other instanceof LinesTextBuffer)) {
 			return false;
 		}
-		if (this._EOL !== other.EOL) {
+		if (this._BOM !== other._BOM) {
 			return false;
 		}
-		if (this._lines.length !== other.lines.length) {
+		if (this._EOL !== other._EOL) {
+			return false;
+		}
+		if (this._lines.length !== other._lines.length) {
 			return false;
 		}
 		for (let i = 0, len = this._lines.length; i < len; i++) {
-			if (this._lines[i] !== other.lines[i]) {
+			if (this._lines[i] !== other._lines[i]) {
 				return false;
 			}
 		}
@@ -290,18 +275,18 @@ export class TextBuffer implements ITextBuffer {
 			}
 			operations[i] = {
 				sortIndex: i,
-				identifier: op.identifier,
+				identifier: op.identifier || null,
 				range: validatedRange,
 				rangeOffset: this.getOffsetAt(validatedRange.startLineNumber, validatedRange.startColumn),
 				rangeLength: this.getValueLengthInRange(validatedRange, EndOfLinePreference.TextDefined),
 				lines: op.text ? op.text.split(/\r\n|\r|\n/) : null,
-				forceMoveMarkers: op.forceMoveMarkers,
+				forceMoveMarkers: op.forceMoveMarkers || false,
 				isAutoWhitespaceEdit: op.isAutoWhitespaceEdit || false
 			};
 		}
 
 		// Sort operations ascending
-		operations.sort(TextBuffer._sortOpsAscending);
+		operations.sort(LinesTextBuffer._sortOpsAscending);
 
 		for (let i = 0, count = operations.length - 1; i < count; i++) {
 			let rangeEnd = operations[i].range.getEndPosition();
@@ -318,7 +303,7 @@ export class TextBuffer implements ITextBuffer {
 		}
 
 		// Delta encode operations
-		let reverseRanges = TextBuffer._getInverseEditRanges(operations);
+		let reverseRanges = LinesTextBuffer._getInverseEditRanges(operations);
 		let newTrimAutoWhitespaceCandidates: { lineNumber: number, oldContent: string }[] = [];
 
 		for (let i = 0; i < operations.length; i++) {
@@ -475,7 +460,7 @@ export class TextBuffer implements ITextBuffer {
 	private _doApplyEdits(operations: IValidatedEditOperation[]): [ModelRawChange[], IInternalModelContentChange[]] {
 
 		// Sort operations descending
-		operations.sort(TextBuffer._sortOpsDescending);
+		operations.sort(LinesTextBuffer._sortOpsDescending);
 
 		let rawContentChanges: ModelRawChange[] = [];
 		let contentChanges: IInternalModelContentChange[] = [];

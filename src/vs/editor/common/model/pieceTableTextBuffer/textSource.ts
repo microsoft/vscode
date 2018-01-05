@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { constructLineStarts } from 'vs/editor/common/model/textBuffer2';
 
 /**
  * Raw text buffer for Piece Table.
@@ -25,13 +23,9 @@ export interface IRawPTBuffer {
  */
 export interface IRawTextSource {
 	/**
-	 * The entire text length.
-	 */
-	readonly length: number;
-	/**
 	 * The text split into lines.
 	 */
-	readonly lines: string[] | IRawPTBuffer;
+	readonly lines: IRawPTBuffer;
 	/**
 	 * The BOM (leading character sequence of the file).
 	 */
@@ -50,56 +44,14 @@ export interface IRawTextSource {
 	readonly isBasicASCII: boolean;
 }
 
-export class RawTextSource {
-
-	public static fromString(rawText: string): IRawTextSource {
-		// Count the number of lines that end with \r\n
-		let carriageReturnCnt = 0;
-		let lastCarriageReturnIndex = -1;
-		while ((lastCarriageReturnIndex = rawText.indexOf('\r', lastCarriageReturnIndex + 1)) !== -1) {
-			carriageReturnCnt++;
-		}
-
-		const containsRTL = strings.containsRTL(rawText);
-		const isBasicASCII = (containsRTL ? false : strings.isBasicASCII(rawText));
-
-		// Remove the BOM (if present)
-		let BOM = '';
-		if (strings.startsWithUTF8BOM(rawText)) {
-			BOM = strings.UTF8_BOM_CHARACTER;
-			rawText = rawText.substr(1);
-		}
-
-		let lineStarts = constructLineStarts(rawText);
-
-		return {
-			BOM: BOM,
-			lines: {
-				text: rawText,
-				lineStarts: lineStarts,
-				length: lineStarts.length
-			},
-			length: rawText.length,
-			containsRTL: containsRTL,
-			isBasicASCII: isBasicASCII,
-			totalCRCount: carriageReturnCnt
-		};
-	}
-
-}
-
 /**
  * A processed string with its EOL resolved ready to be turned into an editor model.
  */
 export interface ITextSource {
 	/**
-	 * The entire text length.
-	 */
-	readonly length: number;
-	/**
 	 * The text split into lines.
 	 */
-	readonly lines: string[] | IRawPTBuffer;
+	readonly lines: IRawPTBuffer;
 	/**
 	 * The BOM (leading character sequence of the file).
 	 */
@@ -141,7 +93,6 @@ export class TextSource {
 
 	public static fromRawTextSource(rawTextSource: IRawTextSource, defaultEOL: DefaultEndOfLine): ITextSource {
 		return {
-			length: rawTextSource.length,
 			lines: rawTextSource.lines,
 			BOM: rawTextSource.BOM,
 			EOL: this._getEOL(rawTextSource, defaultEOL),
@@ -149,17 +100,4 @@ export class TextSource {
 			isBasicASCII: rawTextSource.isBasicASCII,
 		};
 	}
-
-	public static fromString(text: string, defaultEOL: DefaultEndOfLine): ITextSource {
-		return this.fromRawTextSource(RawTextSource.fromString(text), defaultEOL);
-	}
-
-	public static create(source: string | IRawTextSource, defaultEOL: DefaultEndOfLine): ITextSource {
-		if (typeof source === 'string') {
-			return this.fromString(source, defaultEOL);
-		}
-
-		return this.fromRawTextSource(source, defaultEOL);
-	}
-
 }

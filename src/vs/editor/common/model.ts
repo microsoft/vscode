@@ -12,10 +12,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ITextSource } from 'vs/editor/common/model/textSource';
-import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelContentChange, ModelRawChange } from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -295,8 +293,9 @@ export interface ISingleEditOperation {
 export interface IIdentifiedSingleEditOperation {
 	/**
 	 * An identifier associated with this single edit operation.
+	 * @internal
 	 */
-	identifier: ISingleEditOperationIdentifier;
+	identifier?: ISingleEditOperationIdentifier;
 	/**
 	 * The range to replace. This can be empty to emulate a simple insert.
 	 */
@@ -309,10 +308,11 @@ export interface IIdentifiedSingleEditOperation {
 	 * This indicates that this operation has "insert" semantics.
 	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
 	 */
-	forceMoveMarkers: boolean;
+	forceMoveMarkers?: boolean;
 	/**
 	 * This indicates that this operation is inserting automatic whitespace
 	 * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.
+	 * @internal
 	 */
 	isAutoWhitespaceEdit?: boolean;
 	/**
@@ -489,7 +489,7 @@ export interface ITextModel {
 	 * Replace the entire text buffer value contained in this model.
 	 * @internal
 	 */
-	setValueFromTextSource(newValue: ITextSource): void;
+	setValueFromTextBuffer(newValue: ITextBuffer): void;
 
 	/**
 	 * Get the text stored in this model.
@@ -508,7 +508,7 @@ export interface ITextModel {
 	 * Check if the raw text stored in this model equals another raw text.
 	 * @internal
 	 */
-	equals(other: ITextSource): boolean;
+	equalsTextBuffer(other: ITextBuffer): boolean;
 
 	/**
 	 * Get the text in a certain range.
@@ -1045,4 +1045,72 @@ export interface ITextModel {
 	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
+}
+
+/**
+ * @internal
+ */
+export interface ITextBufferBuilder {
+	acceptChunk(chunk: string): void;
+	finish(): ITextBufferFactory;
+}
+
+/**
+ * @internal
+ */
+export interface ITextBufferFactory {
+	create(defaultEOL: DefaultEndOfLine): ITextBuffer;
+	getFirstLineText(lengthLimit: number): string;
+}
+
+/**
+ * @internal
+ */
+export interface ITextBuffer {
+	equals(other: ITextBuffer): boolean;
+	mightContainRTL(): boolean;
+	mightContainNonBasicASCII(): boolean;
+	getBOM(): string;
+	getEOL(): string;
+
+	getOffsetAt(lineNumber: number, column: number): number;
+	getPositionAt(offset: number): Position;
+	getRangeAt(offset: number, length: number): Range;
+
+	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getLineCount(): number;
+	getLinesContent(): string[];
+	getLineContent(lineNumber: number): string;
+	getLineCharCode(lineNumber: number, index: number): number;
+	getLineLength(lineNumber: number): number;
+	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
+	getLineLastNonWhitespaceColumn(lineNumber: number): number;
+
+	setEOL(newEOL: string): void;
+	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
+}
+
+/**
+ * @internal
+ */
+export class ApplyEditsResult {
+
+	constructor(
+		public readonly reverseEdits: IIdentifiedSingleEditOperation[],
+		public readonly rawChanges: ModelRawChange[],
+		public readonly changes: IInternalModelContentChange[],
+		public readonly trimAutoWhitespaceLineNumbers: number[]
+	) { }
+
+}
+
+/**
+ * @internal
+ */
+export interface IInternalModelContentChange extends IModelContentChange {
+	range: Range;
+	lines: string[];
+	rangeOffset: number;
+	forceMoveMarkers: boolean;
 }

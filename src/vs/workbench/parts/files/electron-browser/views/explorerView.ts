@@ -395,7 +395,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	public createViewer(container: Builder): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
-		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
+		const controller = this.instantiationService.createInstance(FileController);
 		this.disposables.push(controller);
 		const sorter = this.instantiationService.createInstance(FileSorter);
 		this.disposables.push(sorter);

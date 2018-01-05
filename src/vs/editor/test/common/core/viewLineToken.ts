@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ColorId } from 'vs/editor/common/modes';
-import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
+import { ColorId, TokenMetadata } from 'vs/editor/common/modes';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 
 /**

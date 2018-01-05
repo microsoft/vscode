@@ -11,6 +11,8 @@ import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.c
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { readFile } from 'vs/base/node/pfs';
+import { endsWith } from 'vs/base/common/strings';
+import { basename } from 'path';
 
 interface JsonSerializedSnippet {
 	body: string;
@@ -41,6 +43,22 @@ export class SnippetFile {
 	}
 
 	select(selector: string, bucket: Snippet[]): void {
+		if (endsWith(this.filepath, '.json')) {
+			this._filepathSelect(selector, bucket);
+		} else {
+			this._scopeSelect(selector, bucket);
+		}
+	}
+
+	private _filepathSelect(selector: string, bucket: Snippet[]): void {
+		// for `fooLang.json` files all snippets are accepted
+		if (selector === basename(this.filepath, '.json')) {
+			bucket.push(...this.data);
+		}
+	}
+
+	private _scopeSelect(selector: string, bucket: Snippet[]): void {
+		// for `my.code-snippets` files we need to look at each snippet
 		for (const snippet of this.data) {
 			const len = snippet.scopes.length;
 			if (len === 0) {
@@ -60,7 +78,7 @@ export class SnippetFile {
 
 		let idx = selector.lastIndexOf('.');
 		if (idx >= 0) {
-			this.select(selector.substring(0, idx), bucket);
+			this._scopeSelect(selector.substring(0, idx), bucket);
 		}
 	}
 

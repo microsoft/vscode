@@ -5,55 +5,57 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ModelBuilder, computeHash } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
+import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 import { ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as strings from 'vs/base/common/strings';
-import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
+import { IRawTextSource } from 'vs/editor/common/model/linesTextBuffer/textSource';
 
-export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): string {
+class RawTextSource {
+	public static fromString(rawText: string): IRawTextSource {
+		// Count the number of lines that end with \r\n
+		let carriageReturnCnt = 0;
+		let lastCarriageReturnIndex = -1;
+		while ((lastCarriageReturnIndex = rawText.indexOf('\r', lastCarriageReturnIndex + 1)) !== -1) {
+			carriageReturnCnt++;
+		}
+
+		const containsRTL = strings.containsRTL(rawText);
+		const isBasicASCII = (containsRTL ? false : strings.isBasicASCII(rawText));
+
+		// Split the text into lines
+		const lines = rawText.split(/\r\n|\r|\n/);
+
+		// Remove the BOM (if present)
+		let BOM = '';
+		if (strings.startsWithUTF8BOM(lines[0])) {
+			BOM = strings.UTF8_BOM_CHARACTER;
+			lines[0] = lines[0].substr(1);
+		}
+
+		return {
+			BOM: BOM,
+			lines: lines,
+			containsRTL: containsRTL,
+			isBasicASCII: isBasicASCII,
+			totalCRCount: carriageReturnCnt
+		};
+	}
+}
+
+export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): void {
 	let expectedTextSource = RawTextSource.fromString(chunks.join(''));
-	let expectedHash = computeHash(expectedTextSource);
 
-	let builder = new ModelBuilder(true);
+	let builder = new LinesTextBufferBuilder();
 	for (let i = 0, len = chunks.length; i < len; i++) {
 		builder.acceptChunk(chunks[i]);
 	}
 	let actual = builder.finish();
 
-	let actualTextSource = actual.value;
-	let actualHash = actual.hash;
-
-	assert.equal(actualHash, expectedHash);
-	assert.deepEqual(actualTextSource, expectedTextSource);
-
-	return expectedHash;
-}
-
-function toTextSource(lines: string[]): IRawTextSource {
-	return {
-		BOM: '',
-		lines: lines,
-		totalCRCount: 0,
-		length: 0,
-		containsRTL: false,
-		isBasicASCII: true
-	};
-}
-
-export function testDifferentHash(lines1: string[], lines2: string[]): void {
-	let hash1 = computeHash(toTextSource(lines1));
-	let hash2 = computeHash(toTextSource(lines2));
-	assert.notEqual(hash1, hash2);
+	assert.deepEqual(actual.rawTextSource, expectedTextSource);
 }
 
 suite('ModelBuilder', () => {
-
-	test('uses sha1', () => {
-		// These are the sha1s of the string + \n
-		assert.equal(computeHash(toTextSource([''])), 'adc83b19e793491b1c6ea0fd8b46cd9f32e592fc');
-		assert.equal(computeHash(toTextSource(['hello world'])), '22596363b3de40b06f981fb85d82312e8c0ed511');
-	});
 
 	test('no chunks', () => {
 		testModelBuilder([]);

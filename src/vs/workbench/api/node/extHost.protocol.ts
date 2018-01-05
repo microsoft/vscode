@@ -28,7 +28,6 @@ import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/pro
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import { ITextSource } from 'vs/editor/common/model/textSource';
 
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IConfig } from 'vs/workbench/parts/debug/common/debug';
@@ -40,7 +39,7 @@ import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/ext
 
 
 import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
+import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -148,7 +147,7 @@ export interface MainThreadDecorationsShape extends IDisposable {
 export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 	$registerTextContentProvider(handle: number, scheme: string): void;
 	$unregisterTextContentProvider(handle: number): void;
-	$onVirtualDocumentChange(uri: UriComponents, value: ITextSource): void;
+	$onVirtualDocumentChange(uri: UriComponents, value: string): void;
 }
 
 export interface MainThreadDocumentsShape extends IDisposable {

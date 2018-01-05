@@ -16,7 +16,7 @@ import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { RawTextSource } from 'vs/editor/common/model/textSource';
+import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -220,8 +220,8 @@ suite('BackupFileService', () => {
 
 	test('parseBackupContent', () => {
 		test('should separate metadata from content', () => {
-			const textSource = RawTextSource.fromString('metadata\ncontent');
-			assert.equal(service.parseBackupContent(textSource), 'content');
+			const textBufferFactory = createTextBufferFactory('metadata\ncontent');
+			assert.equal(service.parseBackupContent(textBufferFactory), 'content');
 		});
 	});
 });

@@ -424,7 +424,11 @@ suite('Decorations and editing', () => {
 		].join('\n'));
 
 		const id = model.deltaDecorations([], [{ range: decRange, options: { stickiness: stickiness } }])[0];
-		model.applyEdits([{ range: editRange, text: editText, forceMoveMarkers: editForceMoveMarkers, identifier: null }]);
+		model.applyEdits([{
+			range: editRange,
+			text: editText,
+			forceMoveMarkers: editForceMoveMarkers
+		}]);
 		const actual = model.getDecorationRange(id);
 		assert.deepEqual(actual, expectedDecRange, msg);
 

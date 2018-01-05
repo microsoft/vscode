@@ -20,7 +20,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModelBuilder } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
+import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -56,15 +56,14 @@ export class TextFileService extends AbstractTextFileService {
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
 		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
-			return ModelBuilder.fromStringStream(streamContent.value).then(res => {
+			return createTextBufferFactoryFromStream(streamContent.value).then(res => {
 				const r: IRawTextContent = {
 					resource: streamContent.resource,
 					name: streamContent.name,
 					mtime: streamContent.mtime,
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
-					value: res.value,
-					valueLogicalHash: res.hash
+					value: res
 				};
 				return r;
 			});

@@ -153,7 +153,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	private static _digitCount(n: number): number {
-		var r = 0;
+		let r = 0;
 		while (n) {
 			n = Math.floor(n / 10);
 			r++;

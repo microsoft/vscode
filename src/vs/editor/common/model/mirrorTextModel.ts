@@ -25,7 +25,7 @@ export interface IModelChangedEvent {
 	readonly versionId: number;
 }
 
-export class MirrorModel {
+export class MirrorTextModel {
 
 	protected _uri: URI;
 	protected _lines: string[];

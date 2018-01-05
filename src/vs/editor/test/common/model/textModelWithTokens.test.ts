@@ -16,7 +16,6 @@ import { IFoundBracket } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { RawTextSource } from 'vs/editor/common/model/textSource';
 
 suite('TextModelWithTokens', () => {
 
@@ -75,7 +74,7 @@ suite('TextModelWithTokens', () => {
 		});
 
 		let model = new TextModel(
-			RawTextSource.fromString(contents.join('\n')),
+			contents.join('\n'),
 			TextModel.DEFAULT_CREATION_OPTIONS,
 			languageIdentifier
 		);

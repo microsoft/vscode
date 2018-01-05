@@ -45,19 +45,15 @@ export function getEditOperation(model: ITextModel, command: editorCommon.IComma
 	var editOperationBuilder: editorCommon.IEditOperationBuilder = {
 		addEditOperation: (range: Range, text: string) => {
 			operations.push({
-				identifier: null,
 				range: range,
-				text: text,
-				forceMoveMarkers: false
+				text: text
 			});
 		},
 
 		addTrackedEditOperation: (range: Range, text: string) => {
 			operations.push({
-				identifier: null,
 				range: range,
-				text: text,
-				forceMoveMarkers: false
+				text: text
 			});
 		},
 

@@ -5,65 +5,7 @@
 'use strict';
 
 import { CharCode } from 'vs/base/common/charCode';
-import { ITextBuffer } from 'vs/editor/common/model/textBuffer';
-import { TextBuffer as TextBuffer2 } from 'vs/editor/common/model/textBuffer2';
-import { IRawPTBuffer } from './textSource';
-
-export interface IIndentationGuesserTarget {
-	getLineCount(): number;
-	getLineContent(lineNumber: number): string;
-}
-
-export class IndentationGuesserTextBufferTarget implements IIndentationGuesserTarget {
-
-	constructor(
-		private readonly _buffer: ITextBuffer | TextBuffer2
-	) { }
-
-	public getLineCount(): number {
-		return this._buffer.getLineCount();
-	}
-
-	public getLineContent(lineNumber: number): string {
-		return this._buffer.getLineContent(lineNumber);
-	}
-}
-
-export class IndentationGuesserStringArrayTarget implements IIndentationGuesserTarget {
-
-	constructor(
-		private readonly _lines: string[]
-	) { }
-
-	public getLineCount(): number {
-		return this._lines.length;
-	}
-
-	public getLineContent(lineNumber: number): string {
-		return this._lines[lineNumber - 1];
-	}
-}
-
-export class IndentationGuesserRawTextBufferTarget implements IIndentationGuesserTarget {
-
-	constructor(
-		private readonly _rawBuffer: IRawPTBuffer
-	) { }
-
-	public getLineCount(): number {
-		return this._rawBuffer.length;
-	}
-
-	public getLineContent(lineNumber: number): string {
-		if (lineNumber === 1) {
-			return this._rawBuffer.text.substring(0, this._rawBuffer.lineStarts[0]);
-		} else if (lineNumber === this._rawBuffer.lineStarts.length + 1) {
-			return this._rawBuffer.text.substring(this._rawBuffer.lineStarts[this._rawBuffer.lineStarts.length - 1] + 1);
-		}
-
-		return this._rawBuffer.text.substring(this._rawBuffer.lineStarts[lineNumber - 2] + 1, this._rawBuffer.lineStarts[lineNumber - 1]);
-	}
-}
+import { ITextBuffer } from 'vs/editor/common/model';
 
 /**
  * Compute the diff in spaces between two line's indentation.
@@ -139,9 +81,9 @@ export interface IGuessedIndentation {
 	insertSpaces: boolean;
 }
 
-export function guessIndentation(target: IIndentationGuesserTarget, defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
+export function guessIndentation(source: ITextBuffer, defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
 	// Look at most at the first 10k lines
-	const linesCount = Math.min(target.getLineCount(), 10000);
+	const linesCount = Math.min(source.getLineCount(), 10000);
 
 	let linesIndentedWithTabsCount = 0;				// number of lines that contain at least one tab in indentation
 	let linesIndentedWithSpacesCount = 0;			// number of lines that contain only spaces in indentation
@@ -155,7 +97,7 @@ export function guessIndentation(target: IIndentationGuesserTarget, defaultTabSi
 	let spacesDiffCount = [0, 0, 0, 0, 0, 0, 0, 0, 0];		// `tabSize` scores
 
 	for (let lineNumber = 1; lineNumber <= linesCount; lineNumber++) {
-		let currentLineText = target.getLineContent(lineNumber);
+		let currentLineText = source.getLineContent(lineNumber);
 
 		let currentLineHasContent = false;			// does `currentLineText` contain non-whitespace chars
 		let currentLineIndentation = 0;				// index at which `currentLineText` contains the first non-whitespace char

@@ -15,21 +15,20 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
-import { IRawTextSource, TextSource, RawTextSource, ITextSource } from 'vs/editor/common/model/textSource';
 import { IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerWarning, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
-import { ITextModel, IModelDeltaDecoration, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, DefaultEndOfLine, ITextModelCreationOptions, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { ITextModel, IModelDeltaDecoration, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, DefaultEndOfLine, ITextModelCreationOptions, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBufferFactory, ITextBuffer } from 'vs/editor/common/model';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -355,19 +354,18 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value: string | IRawTextSource, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
+	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language, resource);
-		const rawTextSource = (typeof value === 'string' ? RawTextSource.fromString(value) : value);
-		let model: TextModel = new TextModel(rawTextSource, options, languageIdentifier, resource);
-		let modelId = MODEL_ID(model.uri);
+		const model: TextModel = new TextModel(value, options, languageIdentifier, resource);
+		const modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
 			// There already exists a model with this id => this is a programmer error
 			throw new Error('ModelService: Cannot add model because it already exists!');
 		}
 
-		let modelData = new ModelData(
+		const modelData = new ModelData(
 			model,
 			(model) => this._onWillDispose(model),
 			(model, e) => this._onDidChangeLanguage(model, e)
@@ -377,20 +375,20 @@ export class ModelServiceImpl implements IModelService {
 		return modelData;
 	}
 
-	public updateModel(model: ITextModel, value: string | IRawTextSource): void {
-		let options = this.getCreationOptions(model.getLanguageIdentifier().language, model.uri);
-		const textSource = TextSource.create(value, options.defaultEOL);
+	public updateModel(model: ITextModel, value: string | ITextBufferFactory): void {
+		const options = this.getCreationOptions(model.getLanguageIdentifier().language, model.uri);
+		const textBuffer = createTextBuffer(value, options.defaultEOL);
 
 		// Return early if the text is already set in that form
-		if (model.equals(textSource)) {
+		if (model.equalsTextBuffer(textBuffer)) {
 			return;
 		}
 
 		// Otherwise find a diff between the values and update model
-		model.setEOL(textSource.EOL === '\r\n' ? EndOfLineSequence.CRLF : EndOfLineSequence.LF);
+		model.setEOL(textBuffer.getEOL() === '\r\n' ? EndOfLineSequence.CRLF : EndOfLineSequence.LF);
 		model.pushEditOperations(
 			[new Selection(1, 1, 1, 1)],
-			ModelServiceImpl._computeEdits(model, textSource),
+			ModelServiceImpl._computeEdits(model, textBuffer),
 			(inverseEditOperations: IIdentifiedSingleEditOperation[]) => [new Selection(1, 1, 1, 1)]
 		);
 	}
@@ -398,7 +396,7 @@ export class ModelServiceImpl implements IModelService {
 	/**
 	 * Compute edits to bring `model` to the state of `textSource`.
 	 */
-	public static _computeEdits(model: ITextModel, textSource: ITextSource): IIdentifiedSingleEditOperation[] {
+	public static _computeEdits(model: ITextModel, textBuffer: ITextBuffer): IIdentifiedSingleEditOperation[] {
 		const modelLineSequence = new class implements ISequence {
 			public getLength(): number {
 				return model.getLineCount();
@@ -409,25 +407,10 @@ export class ModelServiceImpl implements IModelService {
 		};
 		const textSourceLineSequence = new class implements ISequence {
 			public getLength(): number {
-				return textSource.lines.length + 1;
+				return textBuffer.getLineCount();
 			}
 			public getElementHash(index: number): string {
-				if (Array.isArray(textSource.lines)) {
-					return textSource.lines[index];
-				} else {
-					if (textSource.lines.length === 0) {
-						return textSource.lines.text;
-					}
-					if (index === 0) {
-						return textSource.lines.text.substring(0, textSource.lines.lineStarts[0]);
-					}
-
-					if (index === textSource.lines.length) {
-						return textSource.lines.text.substring(textSource.lines.lineStarts[index - 1]);
-					}
-
-					return textSource.lines.text.substring(textSource.lines.lineStarts[index - 1], textSource.lines.lineStarts[index]);
-				}
+				return textBuffer.getLineContent(index + 1);
 			}
 		};
 
@@ -444,7 +427,7 @@ export class ModelServiceImpl implements IModelService {
 
 			let lines: string[] = [];
 			for (let j = 0; j < modifiedLength; j++) {
-				lines[j] = textSource.lines[modifiedStart + j];
+				lines[j] = textBuffer.getLineContent(modifiedStart + j + 1);
 			}
 			let text = lines.join('\n');
 
@@ -500,7 +483,7 @@ export class ModelServiceImpl implements IModelService {
 		return edits;
 	}
 
-	public createModel(value: string | IRawTextSource, modeOrPromise: TPromise<IMode> | IMode, resource: URI): ITextModel {
+	public createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI): ITextModel {
 		let modelData: ModelData;
 
 		if (!modeOrPromise || TPromise.is(modeOrPromise)) {

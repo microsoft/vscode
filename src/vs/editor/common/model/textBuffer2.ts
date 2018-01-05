@@ -8,10 +8,20 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
 import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ITextSource, IRawPTBuffer } from 'vs/editor/common/model/textSource';
-import { IIdentifiedSingleEditOperation, EndOfLinePreference } from 'vs/editor/common/model';
-import { ITextBuffer, ApplyEditsResult, IInternalModelContentChange, IValidatedEditOperation } from 'vs/editor/common/model/textBuffer';
+import { ITextSource } from 'vs/editor/common/model/pieceTableTextBuffer/textSource';
+import { IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange, ISingleEditOperationIdentifier } from 'vs/editor/common/model';
 import { ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+
+export interface IValidatedEditOperation {
+	sortIndex: number;
+	identifier: ISingleEditOperationIdentifier;
+	range: Range;
+	rangeOffset: number;
+	rangeLength: number;
+	lines: string[];
+	forceMoveMarkers: boolean;
+	isAutoWhitespaceEdit: boolean;
+}
 
 export const enum NodeColor {
 	Black = 0,
@@ -224,7 +234,7 @@ export class TextBuffer implements ITextBuffer {
 	private _lineCnt: number;
 
 	constructor(textSource: ITextSource) {
-		let rawBuffer = <IRawPTBuffer>textSource.lines;
+		let rawBuffer = textSource.lines;
 		this._originalBuffer = rawBuffer.text;
 		this._changeBuffer = '';
 		this._root = SENTINEL;
@@ -363,14 +373,17 @@ export class TextBuffer implements ITextBuffer {
 		return null;
 	}
 
-	public equals(other: ITextSource): boolean {
-		if (this._BOM !== other.BOM) {
+	public equals(other: ITextBuffer): boolean {
+		if (!(other instanceof TextBuffer)) {
 			return false;
 		}
-		if (this._EOL !== other.EOL) {
+		if (this._BOM !== other._BOM) {
 			return false;
 		}
-		if (this.getLinesContent2() !== (<IRawPTBuffer>other.lines).text) {
+		if (this._EOL !== other._EOL) {
+			return false;
+		}
+		if (this.getLinesContent2() !== other.getLinesContent2()) {
 			return false;
 		}
 		return true;
