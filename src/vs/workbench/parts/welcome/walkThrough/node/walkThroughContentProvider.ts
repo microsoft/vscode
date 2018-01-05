@@ -81,7 +81,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 					return '';
 				};
 
-				const markdown = content.value.lines.join('\n');
+				const markdown = Array.isArray(content.value.lines) ? content.value.lines.join('\n') : content.value.lines.text;
 				marked(markdown, { renderer });
 
 				const modeId = this.modeService.getModeIdForLanguageName(languageName);

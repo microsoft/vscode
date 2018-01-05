@@ -8,6 +8,18 @@ import * as strings from 'vs/base/common/strings';
 import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
 
 /**
+ * Raw text buffer for Piece Table.
+ */
+export interface IRawPTBuffer {
+	text: string;
+	lineStarts: number[];
+	/**
+	 * lines count
+	 */
+	length: number;
+}
+
+/**
  * A processed string ready to be turned into an editor model.
  */
 export interface IRawTextSource {
@@ -18,7 +30,7 @@ export interface IRawTextSource {
 	/**
 	 * The text split into lines.
 	 */
-	readonly lines: string[];
+	readonly lines: string[] | IRawPTBuffer;
 	/**
 	 * The BOM (leading character sequence of the file).
 	 */
@@ -51,18 +63,28 @@ export class RawTextSource {
 		const isBasicASCII = (containsRTL ? false : strings.isBasicASCII(rawText));
 
 		// Split the text into lines
-		const lines = rawText.split(/\r\n|\r|\n/);
+		// const lines = rawText.split(/\r\n|\r|\n/);
 
 		// Remove the BOM (if present)
 		let BOM = '';
-		if (strings.startsWithUTF8BOM(lines[0])) {
+		if (strings.startsWithUTF8BOM(rawText)) {
 			BOM = strings.UTF8_BOM_CHARACTER;
-			lines[0] = lines[0].substr(1);
+			rawText = rawText.substr(1);
+		}
+
+		let lastLineFeed = -1;
+		var lineStarts = [];
+		while ((lastLineFeed = rawText.indexOf('\n', lastLineFeed + 1)) !== -1) {
+			lineStarts.push(lastLineFeed + 1);
 		}
 
 		return {
 			BOM: BOM,
-			lines: lines,
+			lines: {
+				text: rawText,
+				lineStarts: lineStarts,
+				length: lineStarts.length
+			},
 			length: rawText.length,
 			containsRTL: containsRTL,
 			isBasicASCII: isBasicASCII,
@@ -83,7 +105,7 @@ export interface ITextSource {
 	/**
 	 * The text split into lines.
 	 */
-	readonly lines: string[];
+	readonly lines: string[] | IRawPTBuffer;
 	/**
 	 * The BOM (leading character sequence of the file).
 	 */

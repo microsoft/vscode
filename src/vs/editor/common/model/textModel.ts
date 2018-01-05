@@ -10,13 +10,14 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { guessIndentation, IndentationGuesserTextBufferTarget, IndentationGuesserStringArrayTarget } from 'vs/editor/common/model/indentationGuesser';
+import { guessIndentation, IndentationGuesserTextBufferTarget, IndentationGuesserStringArrayTarget, IndentationGuesserRawTextBufferTarget } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { IModelContentChangedEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawEOLChanged, IModelOptionsChangedEvent, InternalModelContentChangeEvent } from 'vs/editor/common/model/textModelEvents';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { TextBuffer } from 'vs/editor/common/model/textBuffer';
+// import { TextBuffer } from 'vs/editor/common/model/textBuffer';
+import { TextBuffer } from 'vs/editor/common/model/textBuffer2';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
@@ -48,7 +49,13 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 
 		let resolvedOpts: editorCommon.TextModelResolvedOptions;
 		if (options.detectIndentation) {
-			const guessedIndentation = guessIndentation(new IndentationGuesserStringArrayTarget(textSource.lines), options.tabSize, options.insertSpaces);
+			const guessedIndentation = guessIndentation(
+				Array.isArray(textSource.lines) ?
+					new IndentationGuesserStringArrayTarget(textSource.lines) :
+					new IndentationGuesserRawTextBufferTarget(textSource.lines),
+				options.tabSize,
+				options.insertSpaces
+			);
 			resolvedOpts = new editorCommon.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
@@ -412,7 +419,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 
 	public getLinesContent(): string[] {
 		this._assertNotDisposed();
-		return this._buffer.getLinesContent();
+		return this._buffer.getLinesContent().split(/\r\n|\r|\n/);
 	}
 
 	public getEOL(): string {

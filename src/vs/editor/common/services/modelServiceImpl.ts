@@ -409,10 +409,25 @@ export class ModelServiceImpl implements IModelService {
 		};
 		const textSourceLineSequence = new class implements ISequence {
 			public getLength(): number {
-				return textSource.lines.length;
+				return textSource.lines.length + 1;
 			}
 			public getElementHash(index: number): string {
-				return textSource.lines[index];
+				if (Array.isArray(textSource.lines)) {
+					return textSource.lines[index];
+				} else {
+					if (textSource.lines.length === 0) {
+						return textSource.lines.text;
+					}
+					if (index === 0) {
+						return textSource.lines.text.substring(0, textSource.lines.lineStarts[0]);
+					}
+
+					if (index === textSource.lines.length) {
+						return textSource.lines.text.substring(textSource.lines.lineStarts[index - 1]);
+					}
+
+					return textSource.lines.text.substring(textSource.lines.lineStarts[index - 1], textSource.lines.lineStarts[index]);
+				}
 			}
 		};
 

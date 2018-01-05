@@ -23,7 +23,7 @@ export class PrefixSumComputer {
 	/**
 	 * values[i] is the value at index i
 	 */
-	private values: Uint32Array;
+	values: Uint32Array;
 
 	/**
 	 * prefixSum[i] = SUM(heights[j]), 0 <= j <= i

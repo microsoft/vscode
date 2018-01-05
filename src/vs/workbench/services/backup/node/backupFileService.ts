@@ -215,7 +215,7 @@ export class BackupFileService implements IBackupFileService {
 
 	public parseBackupContent(rawTextSource: IRawTextSource): string {
 		const textSource = TextSource.fromRawTextSource(rawTextSource, DefaultEndOfLine.LF);
-		return textSource.lines.slice(1).join(textSource.EOL); // The first line of a backup text file is the file name
+		return (<string[]>textSource.lines).slice(1).join(textSource.EOL); // The first line of a backup text file is the file name
 	}
 
 	public toBackupResource(resource: Uri): Uri {

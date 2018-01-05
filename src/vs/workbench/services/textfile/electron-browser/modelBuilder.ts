@@ -56,6 +56,61 @@ function optimizeStringMemory(buff: Buffer, s: string): string {
 	return s;
 }
 
+class PTBasedBuilder {
+	private lineStarts: number[];
+	private text: string;
+	private BOM: string;
+	private chunkIndex: number;
+	private totalLength: number;
+
+	constructor() {
+		this.text = '';
+		this.BOM = '';
+		this.chunkIndex = 0;
+		this.totalLength = 0;
+		this.lineStarts = [];
+	}
+
+	public acceptChunk(chunk: string): void {
+		if (this.chunkIndex === 0) {
+			if (strings.startsWithUTF8BOM(chunk)) {
+				this.BOM = strings.UTF8_BOM_CHARACTER;
+				chunk = chunk.substr(1);
+			}
+		}
+
+		let lastLineFeed = -1;
+		while ((lastLineFeed = chunk.indexOf('\n', lastLineFeed + 1)) !== -1) {
+			this.lineStarts.push(this.totalLength + lastLineFeed + 1);
+		}
+
+		this.text += chunk;
+		this.chunkIndex++;
+	}
+
+	public finish(containsRTL: boolean, isBasicASCII: boolean): ModelBuilderResult {
+		if (this.lineStarts[this.lineStarts.length - 1] > this.totalLength) {
+			this.lineStarts.pop();
+		}
+
+		return {
+			hash: null,
+			value: {
+				length: this.totalLength,
+				lines: {
+					text: this.text,
+					lineStarts: this.lineStarts,
+					length: this.lineStarts.length
+				},
+				BOM: this.BOM,
+				totalCRCount: 0,
+				containsRTL: containsRTL,
+				isBasicASCII: isBasicASCII
+			}
+		};
+	}
+}
+
 class ModelLineBasedBuilder {
 
 	private computeHash: boolean;
@@ -126,13 +181,15 @@ export class ModelBuilder {
 	private containsRTL: boolean;
 	private isBasicASCII: boolean;
 
+	private ptBasedBuilder: PTBasedBuilder;
+
 	public static fromStringStream(stream: IStringStream): TPromise<ModelBuilderResult> {
 		return new TPromise<ModelBuilderResult>((c, e, p) => {
 			let done = false;
 			let builder = new ModelBuilder(false);
 
 			stream.on('data', (chunk) => {
-				builder.acceptChunk(chunk);
+				builder.acceptChunk2(chunk);
 			});
 
 			stream.on('error', (error) => {
@@ -145,7 +202,7 @@ export class ModelBuilder {
 			stream.on('end', () => {
 				if (!done) {
 					done = true;
-					c(builder.finish());
+					c(builder.finish2());
 				}
 			});
 		});
@@ -159,6 +216,7 @@ export class ModelBuilder {
 		this.totalLength = 0;
 		this.containsRTL = false;
 		this.isBasicASCII = true;
+		this.ptBasedBuilder = new PTBasedBuilder();
 	}
 
 	private _updateCRCount(chunk: string): void {
@@ -210,6 +268,22 @@ export class ModelBuilder {
 		this.leftoverPrevChunk = lines[lines.length - 1];
 	}
 
+	public acceptChunk2(chunk: string): void {
+		if (chunk.length === 0) {
+			return;
+		}
+
+		// update lineStart to offset mapping
+		if (!this.containsRTL) {
+			this.containsRTL = strings.containsRTL(chunk);
+		}
+		if (this.isBasicASCII) {
+			this.isBasicASCII = strings.isBasicASCII(chunk);
+		}
+
+		this.ptBasedBuilder.acceptChunk(chunk);
+	}
+
 	public finish(): ModelBuilderResult {
 		let finalLines = [this.leftoverPrevChunk];
 		if (this.leftoverEndsInCR) {
@@ -217,5 +291,9 @@ export class ModelBuilder {
 		}
 		this.lineBasedBuilder.acceptLines(finalLines);
 		return this.lineBasedBuilder.finish(this.totalLength, this.totalCRCount, this.containsRTL, this.isBasicASCII);
+	}
+
+	public finish2(): ModelBuilderResult {
+		return this.ptBasedBuilder.finish(this.containsRTL, this.isBasicASCII);
 	}
 }

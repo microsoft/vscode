@@ -859,7 +859,7 @@ export class TestBackupFileService implements IBackupFileService {
 	}
 
 	public parseBackupContent(rawText: IRawTextSource): string {
-		return rawText.lines.join('\n');
+		return Array.isArray(rawText.lines) ? rawText.lines.join('\n') : rawText.lines.text;
 	}
 
 	public discardResourceBackup(resource: URI): TPromise<void> {

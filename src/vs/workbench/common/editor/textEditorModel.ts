@@ -106,8 +106,10 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 			}
 
 			return firstLineText.substr(0, Math.min(crIndex, lfIndex));
-		} else {
+		} else if (Array.isArray(value.lines)) {
 			return value.lines[0].substr(0, 100);
+		} else {
+			return value.lines.text.substr(0, 100);
 		}
 	}
 

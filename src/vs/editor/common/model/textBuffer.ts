@@ -55,7 +55,7 @@ export class TextBuffer {
 	private _lineStarts: PrefixSumComputer;
 
 	constructor(textSource: ITextSource) {
-		this._lines = textSource.lines.slice(0);
+		this._lines = (<string[]>textSource.lines).slice(0);
 		this._BOM = textSource.BOM;
 		this._EOL = textSource.EOL;
 		this._mightContainRTL = textSource.containsRTL;

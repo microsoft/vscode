@@ -6,6 +6,8 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { TextBuffer } from 'vs/editor/common/model/textBuffer';
+import { TextBuffer as TextBuffer2 } from 'vs/editor/common/model/textBuffer2';
+import { IRawPTBuffer } from './textSource';
 
 export interface IIndentationGuesserTarget {
 	getLineCount(): number;
@@ -15,7 +17,7 @@ export interface IIndentationGuesserTarget {
 export class IndentationGuesserTextBufferTarget implements IIndentationGuesserTarget {
 
 	constructor(
-		private readonly _buffer: TextBuffer
+		private readonly _buffer: TextBuffer | TextBuffer2
 	) { }
 
 	public getLineCount(): number {
@@ -39,6 +41,27 @@ export class IndentationGuesserStringArrayTarget implements IIndentationGuesserT
 
 	public getLineContent(lineNumber: number): string {
 		return this._lines[lineNumber - 1];
+	}
+}
+
+export class IndentationGuesserRawTextBufferTarget implements IIndentationGuesserTarget {
+
+	constructor(
+		private readonly _rawBuffer: IRawPTBuffer
+	) { }
+
+	public getLineCount(): number {
+		return this._rawBuffer.length;
+	}
+
+	public getLineContent(lineNumber: number): string {
+		if (lineNumber === 1) {
+			return this._rawBuffer.text.substring(0, this._rawBuffer.lineStarts[0]);
+		} else if (lineNumber === this._rawBuffer.lineStarts.length + 1) {
+			return this._rawBuffer.text.substring(this._rawBuffer.lineStarts[this._rawBuffer.lineStarts.length - 1] + 1);
+		}
+
+		return this._rawBuffer.text.substring(this._rawBuffer.lineStarts[lineNumber - 2] + 1, this._rawBuffer.lineStarts[lineNumber - 1]);
 	}
 }
 
