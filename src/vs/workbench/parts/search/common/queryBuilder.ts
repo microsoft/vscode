@@ -44,7 +44,7 @@ export class QueryBuilder {
 		return this.query(QueryType.File, null, folderResources, options);
 	}
 
-	private query(type: QueryType, contentPattern: IPatternInfo, folderResources?: uri[], options: IQueryOptions = {}): ISearchQuery {
+	private query(type: QueryType, contentPattern?: IPatternInfo, folderResources?: uri[], options: IQueryOptions = {}): ISearchQuery {
 		let { searchPaths, pattern: includePattern } = this.parseSearchPaths(options.includePattern);
 		let excludePattern = this.parseExcludePattern(options.excludePattern);
 
@@ -71,7 +71,9 @@ export class QueryBuilder {
 
 		const ignoreSymlinks = !this.configurationService.getValue<ISearchConfiguration>().search.followSymlinks;
 
-		this.resolveSmartCaseToCaseSensitive(contentPattern);
+		if (contentPattern) {
+			this.resolveSmartCaseToCaseSensitive(contentPattern);
+		}
 
 		const query = <ISearchQuery>{
 			type,
