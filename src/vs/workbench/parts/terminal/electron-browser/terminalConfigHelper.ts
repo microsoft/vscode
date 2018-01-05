@@ -16,10 +16,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 
-interface IEditorConfiguration {
-	editor: IEditorOptions;
-}
-
 const DEFAULT_LINE_HEIGHT = 1.0;
 
 const MINIMUM_FONT_SIZE = 6;
@@ -90,21 +86,19 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
 	public getFont(excludeDimensions?: boolean): ITerminalFont {
-		const config = this._configurationService.getValue();
-		const editorConfig = (<IEditorConfiguration>config).editor;
-		const terminalConfig = this.config;
+		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
-		let fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
+		let fontFamily = this.config.fontFamily || editorConfig.fontFamily;
 
 		// Work around bad font on Fedora
-		if (!terminalConfig.fontFamily) {
+		if (!this.config.fontFamily) {
 			if (isFedora) {
 				fontFamily = '\'DejaVu Sans Mono\'';
 			}
 		}
 
-		let fontSize = this._toInteger(terminalConfig.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
-		const lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
+		let fontSize = this._toInteger(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 
 		if (excludeDimensions) {
 			return {

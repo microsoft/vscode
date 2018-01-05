@@ -11,6 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 class MockConfigurationService implements IConfigurationService {
 	public _serviceBrand: any;
@@ -33,33 +34,17 @@ suite('Workbench - TerminalConfigHelper', () => {
 	});
 
 	test('TerminalConfigHelper - getFont fontFamily', function () {
-		let configurationService: IConfigurationService;
-		let configHelper: TerminalConfigHelper;
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
+		configurationService.setUserConfiguration('terminal', { integrated: { fontFamily: 'bar' } });
 
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo'
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar'
-				}
-			}
-		});
-		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
+		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontFamily, 'bar', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
 
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo'
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 0
-				}
-			}
-		});
+		configurationService.setUserConfiguration('terminal', { integrated: { fontFamily: null } });
+
+		// Recreate config helper as onDidChangeConfiguration isn't implemented in TestConfigurationService
 		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		if (isFedora) {
@@ -70,64 +55,55 @@ suite('Workbench - TerminalConfigHelper', () => {
 	});
 
 	test('TerminalConfigHelper - getFont fontSize', function () {
-		let configurationService: IConfigurationService;
-		let configHelper: TerminalConfigHelper;
+		const configurationService = new TestConfigurationService();
 
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo',
-				fontSize: 9
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar',
-					fontSize: 10
-				}
+		configurationService.setUserConfiguration('editor', {
+			fontFamily: 'foo',
+			fontSize: 9
+		});
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: 'bar',
+				fontSize: 10
 			}
 		});
-		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
+		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontSize, 10, 'terminal.integrated.fontSize should be selected over editor.fontSize');
 
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo'
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 0,
-					fontSize: 0
-				}
+		configurationService.setUserConfiguration('editor', {
+			fontFamily: 'foo'
+		});
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: null,
+				fontSize: 0
 			}
 		});
 		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontSize, 6, 'The minimum terminal font size should be used when terminal.integrated.fontSize less than it');
 
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo'
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 0,
-					fontSize: 1500
-				}
+		configurationService.setUserConfiguration('editor', {
+			fontFamily: 'foo'
+		});
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: 0,
+				fontSize: 1500
 			}
 		});
 		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontSize, 25, 'The maximum terminal font size should be used when terminal.integrated.fontSize more than it');
 
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo',
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 0,
-					fontSize: null
-				}
+		configurationService.setUserConfiguration('editor', {
+			fontFamily: 'foo'
+		});
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: 0,
+				fontSize: null
 			}
 		});
 		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
@@ -136,35 +112,30 @@ suite('Workbench - TerminalConfigHelper', () => {
 	});
 
 	test('TerminalConfigHelper - getFont lineHeight', function () {
-		let configurationService: IConfigurationService;
-		let configHelper: TerminalConfigHelper;
+		const configurationService = new TestConfigurationService();
 
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo',
-				lineHeight: 1
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 0,
-					lineHeight: 2
-				}
+		configurationService.setUserConfiguration('editor', {
+			fontFamily: 'foo',
+			lineHeight: 1
+		});
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: 0,
+				lineHeight: 2
 			}
 		});
-		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
+		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().lineHeight, 2, 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
 
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo',
-				lineHeight: 1
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 0,
-					lineHeight: 0
-				}
+		configurationService.setUserConfiguration('editor', {
+			fontFamily: 'foo',
+			lineHeight: 1
+		});
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: 0,
+				lineHeight: 0
 			}
 		});
 		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
