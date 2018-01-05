@@ -30,11 +30,7 @@ class LanguagePick implements IPickOpenEntry {
 				result.push(new LanguagePick(langLabel, mode, join(envService.appSettingsHome, 'snippets', `${mode}.json`)));
 			}
 		}
-		if (result.length > 0) {
-			result.sort(LanguagePick.compare);
-			result[0].separator = { label: nls.localize('group.lang', "Language Snippets") };
-		}
-		return result;
+		return result.sort(LanguagePick.compare);
 	}
 
 	label: string;
@@ -89,9 +85,6 @@ class SnippetFilePick implements IPickOpenEntry {
 					result.push(new SnippetFilePick(join(dir, filename)));
 				}
 			}
-			if (result.length > 0) {
-				result[0].separator = { border: true, label: nls.localize('group.global', "Global Snippets") };
-			}
 			return result;
 		});
 	}
@@ -108,7 +101,8 @@ class SnippetFilePick implements IPickOpenEntry {
 
 class NewSnippetFilePick implements IPickOpenEntry {
 
-	readonly label: string = nls.localize('create', "Create Global Snippets File...");
+	label: string = nls.localize('create', "Create Global Snippets File...");
+	separator?: ISeparator;
 
 	constructor(
 		private _envService: IEnvironmentService,
@@ -152,7 +146,6 @@ class NewSnippetFilePick implements IPickOpenEntry {
 	}
 }
 
-type SnippetPick = LanguagePick | SnippetFilePick | NewSnippetFilePick;
 
 CommandsRegistry.registerCommand(id, async accessor => {
 
@@ -166,13 +159,18 @@ CommandsRegistry.registerCommand(id, async accessor => {
 		return windowsService.openWindow([filePath], { forceReuseWindow: true });
 	}
 
-	const picks = <SnippetPick[]>[
-		...LanguagePick.list(modeService, envService),
-		...await SnippetFilePick.list(envService),
-		new NewSnippetFilePick(envService, windowService),
-	];
+	const languagePicks = LanguagePick.list(modeService, envService);
+	const globalPicks = [...await SnippetFilePick.list(envService), new NewSnippetFilePick(envService, windowService)];
 
-	const pick = await quickOpenService.pick(picks, {
+	if (languagePicks.length > 0) {
+		languagePicks[0].separator = { label: nls.localize('group.lang', "Language Snippets") };
+	}
+
+	if (globalPicks.length > 0) {
+		globalPicks[0].separator = { border: true, label: nls.localize('group.global', "Global Snippets") };
+	}
+
+	const pick = await quickOpenService.pick([].concat(languagePicks, globalPicks), {
 		placeHolder: nls.localize('openSnippet.pickLanguage', "Select Language or Global snippet")
 	});
 
