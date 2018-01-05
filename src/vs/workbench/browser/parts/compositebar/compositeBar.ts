@@ -83,6 +83,9 @@ export class CompositeBar implements ICompositeBar {
 
 	public activateComposite(id: string): void {
 		if (this.compositeIdToActions[id]) {
+			if (this.compositeIdToActions[this.activeCompositeId]) {
+				this.compositeIdToActions[this.activeCompositeId].deactivate();
+			}
 			this.compositeIdToActions[id].activate();
 		}
 		this.activeCompositeId = id;
