@@ -378,6 +378,7 @@ export class PieceTableTextBuffer implements ITextBuffer {
 	public getPositionAt(offset: number): Position {
 		let x = this._root;
 		let lfCnt = 0;
+		let originalOffset = offset;
 
 		while (x !== SENTINEL) {
 			if (x.size_left !== 0 && x.size_left >= offset) {
@@ -385,19 +386,15 @@ export class PieceTableTextBuffer implements ITextBuffer {
 			} else if (x.size_left + x.piece.length >= offset) {
 				let out = x.piece.lineStarts.getIndexOf(offset - x.size_left);
 
-				let column = 0;
+				lfCnt += x.lf_left + out.index;
 
 				if (out.index === 0) {
-					let prev = x.prev();
-
-					if (prev !== SENTINEL) {
-						let lineLens = prev.piece.lineStarts.values;
-						column += lineLens[lineLens.length - 1];
-					}
+					let lineStartOffset = this.getOffsetAt(lfCnt + 1, 1);
+					let column = originalOffset - lineStartOffset + 1;
+					return new Position(lfCnt + 1, column);
 				}
 
-				lfCnt += x.lf_left + out.index;
-				return new Position(lfCnt + 1, column + out.remainder + 1);
+				return new Position(lfCnt + 1, out.remainder + 1);
 			} else {
 				offset -= x.size_left + x.piece.length;
 				lfCnt += x.lf_left + x.piece.lineFeedCnt;
@@ -847,6 +844,7 @@ export class PieceTableTextBuffer implements ITextBuffer {
 						let next = startNode.next();
 						this.rbDelete(startNode);
 						this.fixCRLFWithPrev(next);
+						this.computeLineCount();
 						return;
 					}
 					this.deleteNodeHead(startNode, endSplitPos);
