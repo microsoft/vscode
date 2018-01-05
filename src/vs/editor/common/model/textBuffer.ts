@@ -11,18 +11,21 @@ import * as arrays from 'vs/base/common/arrays';
 import { ITextSource, IRawTextSource, TextSource } from 'vs/editor/common/model/textSource';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange, ITextBufferBuilder, DefaultEndOfLine } from 'vs/editor/common/model';
+import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange, ITextBufferFactory, DefaultEndOfLine } from 'vs/editor/common/model';
 
-export class TextBufferBuilder implements ITextBufferBuilder {
+export class TextBufferFactory implements ITextBufferFactory {
 
-	constructor(private readonly textSource: IRawTextSource) {
+	constructor(public readonly rawTextSource: IRawTextSource) {
 	}
 
-	public build(defaultEOL: DefaultEndOfLine): ITextBuffer {
-		const textSource = TextSource.fromRawTextSource(this.textSource, defaultEOL);
+	public create(defaultEOL: DefaultEndOfLine): ITextBuffer {
+		const textSource = TextSource.fromRawTextSource(this.rawTextSource, defaultEOL);
 		return new TextBuffer(textSource);
 	}
 
+	public getFirstLineText(lengthLimit: number): string {
+		return this.rawTextSource.lines[0].substr(0, lengthLimit);
+	}
 }
 
 export interface IValidatedEditOperation {
@@ -64,18 +67,21 @@ export class TextBuffer implements ITextBuffer {
 		this._lineStarts = new PrefixSumComputer(lineStartValues);
 	}
 
-	public equals(other: ITextSource): boolean {
-		if (this._BOM !== other.BOM) {
+	public equals(other: ITextBuffer): boolean {
+		if (!(other instanceof TextBuffer)) {
 			return false;
 		}
-		if (this._EOL !== other.EOL) {
+		if (this._BOM !== other._BOM) {
 			return false;
 		}
-		if (this._lines.length !== other.lines.length) {
+		if (this._EOL !== other._EOL) {
+			return false;
+		}
+		if (this._lines.length !== other._lines.length) {
 			return false;
 		}
 		for (let i = 0, len = this._lines.length; i < len; i++) {
-			if (this._lines[i] !== other.lines[i]) {
+			if (this._lines[i] !== other._lines[i]) {
 				return false;
 			}
 		}

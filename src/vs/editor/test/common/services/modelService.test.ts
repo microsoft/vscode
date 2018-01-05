@@ -10,8 +10,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import URI from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { TextSource } from 'vs/editor/common/model/textSource';
+import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { CharCode } from 'vs/base/common/charCode';
@@ -55,7 +54,7 @@ suite('ModelService', () => {
 			].join('\n')
 		);
 
-		const textSource = TextSource.fromString(
+		const textBuffer = createTextBuffer(
 			[
 				'This is line One', //16
 				'and this is line number two', //27
@@ -65,7 +64,7 @@ suite('ModelService', () => {
 			DefaultEndOfLine.LF
 		);
 
-		const actual = ModelServiceImpl._computeEdits(model, textSource);
+		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, [
 			EditOperation.replace(new Range(1, 1, 1, 17), 'This is line One')
@@ -83,7 +82,7 @@ suite('ModelService', () => {
 			].join('\n')
 		);
 
-		const textSource = TextSource.fromString(
+		const textBuffer = createTextBuffer(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -93,7 +92,7 @@ suite('ModelService', () => {
 			DefaultEndOfLine.LF
 		);
 
-		const actual = ModelServiceImpl._computeEdits(model, textSource);
+		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, []);
 	});
@@ -109,7 +108,7 @@ suite('ModelService', () => {
 			].join('\n')
 		);
 
-		const textSource = TextSource.fromString(
+		const textBuffer = createTextBuffer(
 			[
 				'This is line One', //16
 				'and this is line number two', //27
@@ -119,7 +118,7 @@ suite('ModelService', () => {
 			DefaultEndOfLine.LF
 		);
 
-		const actual = ModelServiceImpl._computeEdits(model, textSource);
+		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, [
 			EditOperation.replace(new Range(1, 1, 1, 17), 'This is line One'),
@@ -137,7 +136,7 @@ suite('ModelService', () => {
 			].join('\n')
 		);
 
-		const textSource = TextSource.fromString(
+		const textBuffer = createTextBuffer(
 			[
 				'package main',	// 1
 				'func foo() {',	// 2
@@ -147,7 +146,7 @@ suite('ModelService', () => {
 			DefaultEndOfLine.LF
 		);
 
-		const actual = ModelServiceImpl._computeEdits(model, textSource);
+		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
 		assert.deepEqual(actual, [
 			EditOperation.replace(new Range(3, 2, 3, 2), '\n')
@@ -272,11 +271,11 @@ suite('ModelService', () => {
 
 function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	const model = TextModel.createFromString(lines1.join('\n'));
-	const textSource = TextSource.fromString(lines2.join('\n'), DefaultEndOfLine.LF);
+	const textBuffer = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF);
 
 	// compute required edits
 	// let start = Date.now();
-	const edits = ModelServiceImpl._computeEdits(model, textSource);
+	const edits = ModelServiceImpl._computeEdits(model, textBuffer);
 	// console.log(`took ${Date.now() - start} ms.`);
 
 	// apply edits

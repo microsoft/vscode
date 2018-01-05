@@ -8,7 +8,6 @@ import * as assert from 'assert';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { Position } from 'vs/editor/common/core/position';
-import { RawTextSource } from 'vs/editor/common/model/textSource';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { EndOfLinePreference, IIdentifiedSingleEditOperation, EndOfLineSequence } from 'vs/editor/common/model';
 
@@ -81,7 +80,7 @@ function assertLineMapping(model: TextModel, msg: string): void {
 
 
 export function assertSyncedModels(text: string, callback: (model: TextModel, assertMirrorModels: () => void) => void, setup: (model: TextModel) => void = null): void {
-	var model = new TextModel(RawTextSource.fromString(text), TextModel.DEFAULT_CREATION_OPTIONS, null);
+	var model = new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
 	model.setEOL(EndOfLineSequence.LF);
 	assertLineMapping(model, 'model');
 

@@ -60,7 +60,7 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 
 						// broadcast event when content changed
 						if (!document.equalLines(textSource)) {
-							return this._proxy.$onVirtualDocumentChange(uri, textSource);
+							return this._proxy.$onVirtualDocumentChange(uri, value);
 						}
 
 					}, onUnexpectedError);

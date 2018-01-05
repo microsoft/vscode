@@ -12,11 +12,11 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { RawTextSource, TextSource } from 'vs/editor/common/model/textSource';
+import { TextSource } from 'vs/editor/common/model/textSource';
 import { TextBuffer, IValidatedEditOperation } from 'vs/editor/common/model/textBuffer';
 
 function createEditableTextModelFromString(text: string): TextModel {
-	return new TextModel(RawTextSource.fromString(text), TextModel.DEFAULT_CREATION_OPTIONS, null);
+	return new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
 }
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {

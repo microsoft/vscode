@@ -8,14 +8,10 @@ import { IStringStream } from 'vs/platform/files/common/files';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CharCode } from 'vs/base/common/charCode';
-import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { ITextBufferFactory, ITextBufferBuilder } from 'vs/editor/common/model';
+import { TextBufferFactory } from 'vs/editor/common/model/textBuffer';
 
 const AVOID_SLICED_STRINGS = true;
-
-export interface ModelBuilderResult {
-	readonly value: IRawTextSource;
-}
-
 const PREALLOC_BUFFER_CHARS = 1000;
 
 const emptyString = '';
@@ -82,21 +78,19 @@ class ModelLineBasedBuilder {
 		}
 	}
 
-	public finish(length: number, carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean): ModelBuilderResult {
-		return {
-			value: {
-				BOM: this.BOM,
-				lines: this.lines,
-				length,
-				containsRTL: containsRTL,
-				totalCRCount: carriageReturnCnt,
-				isBasicASCII,
-			}
-		};
+	public finish(length: number, carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean): TextBufferFactory {
+		return new TextBufferFactory({
+			BOM: this.BOM,
+			lines: this.lines,
+			length,
+			containsRTL: containsRTL,
+			totalCRCount: carriageReturnCnt,
+			isBasicASCII,
+		});
 	}
 }
 
-export class ModelBuilder {
+export class ModelBuilder implements ITextBufferBuilder {
 
 	private leftoverPrevChunk: string;
 	private leftoverEndsInCR: boolean;
@@ -106,8 +100,8 @@ export class ModelBuilder {
 	private containsRTL: boolean;
 	private isBasicASCII: boolean;
 
-	public static fromStringStream(stream: IStringStream): TPromise<ModelBuilderResult> {
-		return new TPromise<ModelBuilderResult>((c, e, p) => {
+	public static fromStringStream(stream: IStringStream): TPromise<ITextBufferFactory> {
+		return new TPromise<ITextBufferFactory>((c, e, p) => {
 			let done = false;
 			let builder = new ModelBuilder();
 
@@ -190,7 +184,7 @@ export class ModelBuilder {
 		this.leftoverPrevChunk = lines[lines.length - 1];
 	}
 
-	public finish(): ModelBuilderResult {
+	public finish(): TextBufferFactory {
 		let finalLines = [this.leftoverPrevChunk];
 		if (this.leftoverEndsInCR) {
 			finalLines.push('');

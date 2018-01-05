@@ -20,9 +20,7 @@ export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptio
 	}
 	let actual = builder.finish();
 
-	let actualTextSource = actual.value;
-
-	assert.deepEqual(actualTextSource, expectedTextSource);
+	assert.deepEqual(actual.rawTextSource, expectedTextSource);
 }
 
 suite('ModelBuilder', () => {

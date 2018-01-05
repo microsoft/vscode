@@ -12,7 +12,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ITextSource } from 'vs/editor/common/model/textSource';
 import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelContentChange, ModelRawChange } from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
@@ -490,7 +489,7 @@ export interface ITextModel {
 	 * Replace the entire text buffer value contained in this model.
 	 * @internal
 	 */
-	setValueFromTextSource(newValue: ITextSource): void;
+	setValueFromTextBuffer(newValue: ITextBuffer): void;
 
 	/**
 	 * Get the text stored in this model.
@@ -509,7 +508,7 @@ export interface ITextModel {
 	 * Check if the raw text stored in this model equals another raw text.
 	 * @internal
 	 */
-	equals(other: ITextSource): boolean;
+	equalsTextBuffer(other: ITextBuffer): boolean;
 
 	/**
 	 * Get the text in a certain range.
@@ -1052,14 +1051,23 @@ export interface ITextModel {
  * @internal
  */
 export interface ITextBufferBuilder {
-	build(defaultEOL: DefaultEndOfLine): ITextBuffer;
+	acceptChunk(chunk: string): void;
+	finish(): ITextBufferFactory;
+}
+
+/**
+ * @internal
+ */
+export interface ITextBufferFactory {
+	create(defaultEOL: DefaultEndOfLine): ITextBuffer;
+	getFirstLineText(lengthLimit: number): string;
 }
 
 /**
  * @internal
  */
 export interface ITextBuffer {
-	equals(other: ITextSource): boolean;
+	equals(other: ITextBuffer): boolean;
 	mightContainRTL(): boolean;
 	mightContainNonBasicASCII(): boolean;
 	getBOM(): string;

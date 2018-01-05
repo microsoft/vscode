@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as model from 'vs/editor/common/model';
 import { LanguageIdentifier, TokenizationRegistry, LanguageId } from 'vs/editor/common/modes';
-import { IRawTextSource, RawTextSource, ITextSource, TextSource } from 'vs/editor/common/model/textSource';
+import { RawTextSource } from 'vs/editor/common/model/textSource';
 import { EditStack } from 'vs/editor/common/model/editStack';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -32,7 +32,17 @@ import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/comm
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { TextBufferBuilder, TextBuffer } from 'vs/editor/common/model/textBuffer';
+import { TextBufferFactory } from 'vs/editor/common/model/textBuffer';
+
+export function createTextBufferFactory(text: string): model.ITextBufferFactory {
+	const rawTextSource = RawTextSource.fromString(text);
+	return new TextBufferFactory(rawTextSource);
+}
+
+export function createTextBuffer(value: string | model.ITextBufferFactory, defaultEOL: model.DefaultEndOfLine): model.ITextBuffer {
+	const factory = (typeof value === 'string' ? createTextBufferFactory(value) : value);
+	return factory.create(defaultEOL);
+}
 
 let MODEL_ID = 0;
 
@@ -69,7 +79,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	};
 
 	public static createFromString(text: string, options: model.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): TextModel {
-		return new TextModel(RawTextSource.fromString(text), options, languageIdentifier, uri);
+		return new TextModel(text, options, languageIdentifier, uri);
 	}
 
 	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
@@ -162,7 +172,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	/*private*/_tokens: ModelLinesTokens;
 	//#endregion
 
-	constructor(rawTextSource: IRawTextSource, creationOptions: model.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier, associatedResource: URI = null) {
+	constructor(source: string | model.ITextBufferFactory, creationOptions: model.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier, associatedResource: URI = null) {
 		super();
 
 		// Generate a new unique model id
@@ -175,8 +185,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 		this._attachedEditorCount = 0;
 
-		const builder: model.ITextBufferBuilder = new TextBufferBuilder(rawTextSource);
-		this._buffer = builder.build(creationOptions.defaultEOL);
+		this._buffer = createTextBuffer(source, creationOptions.defaultEOL);
 
 		this._options = TextModel.resolveOptions(this._buffer, creationOptions);
 
@@ -259,7 +268,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
-	public equals(other: ITextSource): boolean {
+	public equalsTextBuffer(other: model.ITextBuffer): boolean {
 		this._assertNotDisposed();
 		return this._buffer.equals(other);
 	}
@@ -278,8 +287,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 			// There's nothing to do
 			return;
 		}
-		const textSource = TextSource.fromString(value, this._options.defaultEOL);
-		this.setValueFromTextSource(textSource);
+
+		const textBuffer = createTextBuffer(value, this._options.defaultEOL);
+		this.setValueFromTextBuffer(textBuffer);
 	}
 
 	private _createContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
@@ -297,9 +307,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 		};
 	}
 
-	public setValueFromTextSource(newValue: ITextSource): void {
+	public setValueFromTextBuffer(textBuffer: model.ITextBuffer): void {
 		this._assertNotDisposed();
-		if (newValue === null) {
+		if (textBuffer === null) {
 			// There's nothing to do
 			return;
 		}
@@ -308,8 +318,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		const endLineNumber = this.getLineCount();
 		const endColumn = this.getLineMaxColumn(endLineNumber);
 
-		// TODO
-		this._buffer = new TextBuffer(newValue);
+		this._buffer = textBuffer;
 		this._increaseVersionId();
 
 		// Cancel tokenization, clear all tokens and begin tokenizing

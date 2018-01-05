@@ -14,8 +14,8 @@ import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/ser
 import { IFileService } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
-import { TextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
+import { DefaultEndOfLine, ITextBufferFactory, EndOfLinePreference } from 'vs/editor/common/model';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
@@ -213,9 +213,12 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public parseBackupContent(rawTextSource: IRawTextSource): string {
-		const textSource = TextSource.fromRawTextSource(rawTextSource, DefaultEndOfLine.LF);
-		return textSource.lines.slice(1).join(textSource.EOL); // The first line of a backup text file is the file name
+	public parseBackupContent(textBufferFactory: ITextBufferFactory): string {
+		// The first line of a backup text file is the file name
+		const textBuffer = textBufferFactory.create(DefaultEndOfLine.LF);
+		const lineCount = textBuffer.getLineCount();
+		const range = new Range(2, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
+		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 	}
 
 	public toBackupResource(resource: Uri): Uri {
