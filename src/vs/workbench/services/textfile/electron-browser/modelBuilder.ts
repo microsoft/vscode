@@ -62,13 +62,15 @@ class PTBasedBuilder {
 	private BOM: string;
 	private chunkIndex: number;
 	private totalLength: number;
+	private _regex: RegExp;
 
 	constructor() {
 		this.text = '';
 		this.BOM = '';
 		this.chunkIndex = 0;
 		this.totalLength = 0;
-		this.lineStarts = [];
+		this.lineStarts = [0];
+		this._regex = new RegExp(/\r\n|\r|\n/g);
 	}
 
 	public acceptChunk(chunk: string): void {
@@ -79,20 +81,43 @@ class PTBasedBuilder {
 			}
 		}
 
-		let lastLineFeed = -1;
-		while ((lastLineFeed = chunk.indexOf('\n', lastLineFeed + 1)) !== -1) {
-			this.lineStarts.push(this.totalLength + lastLineFeed + 1);
-		}
+		// Reset regex to search from the beginning
+		this._regex.lastIndex = 0;
+		let prevMatchStartIndex = -1;
+		let prevMatchLength = 0;
+
+		let m: RegExpExecArray;
+		do {
+			if (prevMatchStartIndex + prevMatchLength === chunk.length) {
+				// Reached the end of the line
+				break;
+			}
+
+			m = this._regex.exec(chunk);
+			if (!m) {
+				break;
+			}
+
+			const matchStartIndex = m.index;
+			const matchLength = m[0].length;
+
+			if (matchStartIndex === prevMatchStartIndex && matchLength === prevMatchLength) {
+				// Exit early if the regex matches the same range twice
+				break;
+			}
+
+			prevMatchStartIndex = matchStartIndex;
+			prevMatchLength = matchLength;
+
+			this.lineStarts.push(matchStartIndex + matchLength);
+
+		} while (m);
 
 		this.text += chunk;
 		this.chunkIndex++;
 	}
 
 	public finish(containsRTL: boolean, isBasicASCII: boolean): ModelBuilderResult {
-		if (this.lineStarts[this.lineStarts.length - 1] > this.totalLength) {
-			this.lineStarts.pop();
-		}
-
 		return {
 			hash: null,
 			value: {

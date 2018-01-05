@@ -32,8 +32,8 @@ import { ModelLinesTokens, computeIndentLevel, ModelTokensChangedEventBuilder } 
 import { guessIndentation, IndentationGuesserTextBufferTarget, IndentationGuesserStringArrayTarget, IndentationGuesserRawTextBufferTarget } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { TextBuffer, ITextBuffer } from 'vs/editor/common/model/textBuffer';
-// import { TextBuffer } from 'vs/editor/common/model/textBuffer2';
+import { ITextBuffer } from 'vs/editor/common/model/textBuffer';
+import { TextBuffer } from 'vs/editor/common/model/textBuffer2';
 
 var MODEL_ID = 0;
 

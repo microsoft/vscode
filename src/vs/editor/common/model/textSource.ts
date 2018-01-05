@@ -6,6 +6,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { constructLineStarts } from 'vs/editor/common/model/textBuffer2';
 
 /**
  * Raw text buffer for Piece Table.
@@ -62,9 +63,6 @@ export class RawTextSource {
 		const containsRTL = strings.containsRTL(rawText);
 		const isBasicASCII = (containsRTL ? false : strings.isBasicASCII(rawText));
 
-		// Split the text into lines
-		// const lines = rawText.split(/\r\n|\r|\n/);
-
 		// Remove the BOM (if present)
 		let BOM = '';
 		if (strings.startsWithUTF8BOM(rawText)) {
@@ -72,11 +70,7 @@ export class RawTextSource {
 			rawText = rawText.substr(1);
 		}
 
-		let lastLineFeed = -1;
-		var lineStarts = [];
-		while ((lastLineFeed = rawText.indexOf('\n', lastLineFeed + 1)) !== -1) {
-			lineStarts.push(lastLineFeed + 1);
-		}
+		let lineStarts = constructLineStarts(rawText);
 
 		return {
 			BOM: BOM,

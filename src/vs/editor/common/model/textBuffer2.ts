@@ -6,22 +6,17 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
 import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ITextSource, IRawPTBuffer } from 'vs/editor/common/model/textSource';
-import { ApplyEditResult, IInternalModelContentChange } from 'vs/editor/common/model/textBuffer';
-import { IValidatedEditOperation } from 'vs/editor/common/model/editableTextModel';
+import { IIdentifiedSingleEditOperation, EndOfLinePreference } from 'vs/editor/common/model';
+import { ITextBuffer, ApplyEditsResult, IInternalModelContentChange, IValidatedEditOperation } from 'vs/editor/common/model/textBuffer';
 import { ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 
 export const enum NodeColor {
 	Black = 0,
 	Red = 1,
 }
-
-export let error = {
-	sizeLeft: false
-};
 
 function getNodeColor(node: TreeNode) {
 	return node.color;
@@ -65,6 +60,46 @@ function resetSentinel(): void {
 	SENTINEL.parent = SENTINEL;
 }
 
+const lfRegex = new RegExp(/\r\n|\r|\n/g);
+
+export function constructLineStarts(chunk: string): number[] {
+	let lineStarts = [0];
+
+	// Reset regex to search from the beginning
+	lfRegex.lastIndex = 0;
+	let prevMatchStartIndex = -1;
+	let prevMatchLength = 0;
+
+	let m: RegExpExecArray;
+	do {
+		if (prevMatchStartIndex + prevMatchLength === chunk.length) {
+			// Reached the end of the line
+			break;
+		}
+
+		m = lfRegex.exec(chunk);
+		if (!m) {
+			break;
+		}
+
+		const matchStartIndex = m.index;
+		const matchLength = m[0].length;
+
+		if (matchStartIndex === prevMatchStartIndex && matchLength === prevMatchLength) {
+			// Exit early if the regex matches the same range twice
+			break;
+		}
+
+		prevMatchStartIndex = matchStartIndex;
+		prevMatchLength = matchLength;
+
+		lineStarts.push(matchStartIndex + matchLength);
+
+	} while (m);
+
+	return lineStarts;
+}
+
 export class TreeNode {
 	parent: TreeNode;
 	left: TreeNode;
@@ -102,11 +137,7 @@ export class TreeNode {
 		}
 
 		if (node.parent === SENTINEL) {
-			// root
-			// if (node.right === SENTINEL) {
 			return SENTINEL;
-			// }
-			// return leftest(node.right);
 		} else {
 			return node.parent;
 		}
@@ -128,11 +159,7 @@ export class TreeNode {
 		}
 
 		if (node.parent === SENTINEL) {
-			// root
-			// if (node.left === SENTINEL) {
 			return SENTINEL;
-			// }
-			// return righttest(node.left);
 		} else {
 			return node.parent;
 		}
@@ -185,7 +212,7 @@ export class Piece {
 	}
 }
 
-export class TextBuffer {
+export class TextBuffer implements ITextBuffer {
 	private _BOM: string;
 	private _EOL: string;
 	private _mightContainRTL: boolean;
@@ -193,45 +220,53 @@ export class TextBuffer {
 
 	private _originalBuffer: string;
 	private _changeBuffer: string;
-	private _regex: RegExp;
-	root: TreeNode;
+	private _root: TreeNode;
+	private _lineCnt: number;
 
 	constructor(textSource: ITextSource) {
 		let rawBuffer = <IRawPTBuffer>textSource.lines;
 		this._originalBuffer = rawBuffer.text;
 		this._changeBuffer = '';
-		this.root = SENTINEL;
+		this._root = SENTINEL;
 		this._BOM = textSource.BOM;
 		this._EOL = textSource.EOL;
 		this._mightContainNonBasicASCII = !textSource.isBasicASCII;
 		this._mightContainRTL = textSource.containsRTL;
-		this._regex = new RegExp(/\r\n|\r|\n/g);
+		this._lineCnt = 1;
 
 		if (this._originalBuffer.length > 0) {
-			let { lineFeedCount, lineLengths } = this.calculateNewLineCount(this._originalBuffer);
-			let piece = new Piece(true, 0, this._originalBuffer.length, lineFeedCount, lineLengths);
+			let lineLengths: Uint32Array;
+			if (rawBuffer.lineStarts) {
+				lineLengths = new Uint32Array(rawBuffer.lineStarts.length);
+				for (let i = 1; i < rawBuffer.lineStarts.length; i++) {
+					lineLengths[i - 1] = rawBuffer.lineStarts[i] - rawBuffer.lineStarts[i - 1];
+				}
+
+				lineLengths[rawBuffer.lineStarts.length - 1] = rawBuffer.text.length - rawBuffer.lineStarts[rawBuffer.lineStarts.length - 1];
+			} else {
+				lineLengths = this.constructLineLengths(this._originalBuffer);
+			}
+
+			let piece = new Piece(true, 0, this._originalBuffer.length, lineLengths.length - 1, lineLengths);
 			this.rbInsertLeft(null, piece);
+			this._lineCnt = lineLengths.length;
 		}
 	}
 
 	// #region TextBuffer
-	public getLinesContent() {
-		return this.getContentOfSubTree(this.root);
+	public getLinesContent(): string[] {
+		return this.getContentOfSubTree(this._root).split(/\r\n|\r|\n/);
+	}
+
+	public getLinesContent2(): string {
+		return this.getContentOfSubTree(this._root);
 	}
 
 	public getLineCount(): number {
-		let x = this.root;
-
-		let ret = 1;
-		while (x !== SENTINEL) {
-			ret += x.lf_left + x.piece.lineFeedCnt;
-			x = x.right;
-		}
-
-		return ret;
+		return this._lineCnt;
 	}
 
-	public getValueInRange(range: Range, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
+	public getValueInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): string {
 		// todo, validate range.
 		if (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
 			return '';
@@ -269,63 +304,13 @@ export class TextBuffer {
 	}
 
 	public getLineContent(lineNumber: number): string {
-		let x = this.root;
-
-		let ret = '';
-		while (x !== SENTINEL) {
-			if (x.left !== SENTINEL && x.lf_left >= lineNumber - 1) {
-				x = x.left;
-			} else if (x.lf_left + x.piece.lineFeedCnt > lineNumber - 1) {
-				let prevAccumualtedValue = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 2);
-				let accumualtedValue = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 1);
-				let buffer = x.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
-
-				return buffer.substring(x.piece.offset + prevAccumualtedValue, x.piece.offset + accumualtedValue);
-			} else if (x.lf_left + x.piece.lineFeedCnt === lineNumber - 1) {
-				let prevAccumualtedValue = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 2);
-				let buffer = x.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
-
-				ret = buffer.substring(x.piece.offset + prevAccumualtedValue, x.piece.offset + x.piece.length);
-				break;
-			} else {
-				lineNumber -= x.lf_left + x.piece.lineFeedCnt;
-				x = x.right;
-			}
-		}
-
-		// if (x === SENTINEL) {
-		// 	throw('not possible');
-		// }
-
-		// search in order, to find the node contains end column
-		x = x.next();
-		while (x !== SENTINEL) {
-			let buffer = x.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
-
-			if (x.piece.lineFeedCnt > 0) {
-				let accumualtedValue = x.piece.lineStarts.getAccumulatedValue(0);
-
-				ret += buffer.substring(x.piece.offset, x.piece.offset + accumualtedValue);
-				return ret;
-			} else {
-				ret += buffer.substr(x.piece.offset, x.piece.length);
-			}
-
-			x = x.next();
-		}
-
-		return ret;
-
+		return this.getLineRawContent(lineNumber).replace(/(\r\n|\r|\n)$/, '');
 	}
 
-	public getOffsetAt(position: Position): number {
-		return this.getOffsetAt2(position.lineNumber, position.column);
-	}
-
-	public getOffsetAt2(lineNumber: number, column: number): number {
+	public getOffsetAt(lineNumber: number, column: number): number {
 		let leftLen = 0; // inorder
 
-		let x = this.root;
+		let x = this._root;
 
 		while (x !== SENTINEL) {
 			if (x.left !== SENTINEL && x.lf_left + 1 >= lineNumber) {
@@ -346,7 +331,7 @@ export class TextBuffer {
 	}
 
 	public getPositionAt(offset: number): Position {
-		let x = this.root;
+		let x = this._root;
 		let lfCnt = 0;
 
 		while (x !== SENTINEL) {
@@ -385,7 +370,7 @@ export class TextBuffer {
 		if (this._EOL !== other.EOL) {
 			return false;
 		}
-		if (this.getLinesContent() !== (<IRawPTBuffer>other.lines).text) {
+		if (this.getLinesContent2() !== (<IRawPTBuffer>other.lines).text) {
 			return false;
 		}
 		return true;
@@ -412,7 +397,7 @@ export class TextBuffer {
 		// this._constructLineStarts();
 	}
 
-	public _applyEdits(rawOperations: editorCommon.IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditResult {
+	public applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult {
 		let mightContainRTL = this._mightContainRTL;
 		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
 		let canReduceOperations = true;
@@ -435,7 +420,7 @@ export class TextBuffer {
 				sortIndex: i,
 				identifier: op.identifier,
 				range: validatedRange,
-				rangeOffset: this.getOffsetAt(validatedRange.getStartPosition()),
+				rangeOffset: this.getOffsetAt(validatedRange.startLineNumber, validatedRange.startColumn),
 				rangeLength: this.getValueLengthInRange(validatedRange),
 				lines: op.text ? op.text.split(/\r\n|\r|\n/) : null,
 				forceMoveMarkers: op.forceMoveMarkers,
@@ -483,7 +468,7 @@ export class TextBuffer {
 			}
 		}
 
-		let reverseOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let reverseOperations: IIdentifiedSingleEditOperation[] = [];
 		for (let i = 0; i < operations.length; i++) {
 			let op = operations[i];
 			let reverseRange = reverseRanges[i];
@@ -525,7 +510,7 @@ export class TextBuffer {
 			}
 		}
 
-		return new ApplyEditResult(
+		return new ApplyEditsResult(
 			reverseOperations,
 			rawContentChanges,
 			contentChanges,
@@ -590,7 +575,7 @@ export class TextBuffer {
 				newLinesContent[newLinesContent.length - 1] = this.getLineContent(startLineNumber + insertingLinesCnt - 1);
 
 				rawContentChanges.push(
-					new ModelRawLinesInserted(startLineNumber + editingLinesCnt + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'))
+					new ModelRawLinesInserted(startLineNumber + editingLinesCnt + 1, startLineNumber + insertingLinesCnt, newLinesContent)
 				);
 			}
 
@@ -607,7 +592,7 @@ export class TextBuffer {
 		return [rawContentChanges, contentChanges];
 	}
 
-	public getValueLengthInRange(range: Range, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): number {
+	public getValueLengthInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): number {
 		if (range.isEmpty()) {
 			return 0;
 		}
@@ -616,8 +601,8 @@ export class TextBuffer {
 			return (range.endColumn - range.startColumn);
 		}
 
-		let startOffset = this.getOffsetAt(new Position(range.startLineNumber, range.startColumn));
-		let endOffset = this.getOffsetAt(new Position(range.endLineNumber, range.endColumn));
+		let startOffset = this.getOffsetAt(range.startLineNumber, range.startColumn);
+		let endOffset = this.getOffsetAt(range.endLineNumber, range.endColumn);
 		return endOffset - startOffset;
 	}
 
@@ -664,7 +649,7 @@ export class TextBuffer {
 	// #region Piece Table
 	insert(value: string, offset: number): void {
 		// todo, validate value and offset.
-		if (this.root !== SENTINEL) {
+		if (this._root !== SENTINEL) {
 			let { node, remainder } = this.nodeAt(offset);
 			let insertPos = node.piece.lineStarts.getIndexOf(remainder);
 			let nodeOffsetInDocument = this.offsetOfNode(node);
@@ -698,8 +683,8 @@ export class TextBuffer {
 					}
 
 					this._changeBuffer += value;
-					const { lineFeedCount, lineLengths } = this.calculateNewLineCount(value);
-					let newPiece: Piece = new Piece(false, startOffset, value.length, lineFeedCount, lineLengths);
+					const lineLengths = this.constructLineLengths(value);
+					let newPiece: Piece = new Piece(false, startOffset, value.length, lineLengths.length - 1, lineLengths);
 					let newNode = this.rbInsertLeft(node, newPiece);
 					this.fixCRLFWithPrev(newNode);
 
@@ -753,8 +738,8 @@ export class TextBuffer {
 					}
 
 					this._changeBuffer += value;
-					const { lineFeedCount, lineLengths } = this.calculateNewLineCount(value);
-					let newPiece: Piece = new Piece(false, startOffset, value.length, lineFeedCount, lineLengths);
+					const lineLengths = this.constructLineLengths(value);
+					let newPiece: Piece = new Piece(false, startOffset, value.length, lineLengths.length - 1, lineLengths);
 
 					if (newRightPiece.length > 0) {
 						this.rbInsertRight(node, newRightPiece);
@@ -770,8 +755,8 @@ export class TextBuffer {
 					}
 
 					this._changeBuffer += value;
-					const { lineFeedCount, lineLengths } = this.calculateNewLineCount(value);
-					let newPiece: Piece = new Piece(false, startOffset, value.length, lineFeedCount, lineLengths);
+					const lineLengths = this.constructLineLengths(value);
+					let newPiece: Piece = new Piece(false, startOffset, value.length, lineLengths.length - 1, lineLengths);
 					let newNode = this.rbInsertRight(node, newPiece);
 					this.fixCRLFWithPrev(newNode);
 				}
@@ -780,11 +765,14 @@ export class TextBuffer {
 			// insert new node
 			const startOffset = this._changeBuffer.length;
 			this._changeBuffer += value;
-			const { lineFeedCount, lineLengths } = this.calculateNewLineCount(value);
-			let piece = new Piece(false, startOffset, value.length, lineFeedCount, lineLengths);
+			const lineLengths = this.constructLineLengths(value);
+			let piece = new Piece(false, startOffset, value.length, lineLengths.length - 1, lineLengths);
 
 			this.rbInsertLeft(null, piece);
 		}
+
+		// todo, this is too brutal. Total line feed count should be updated the same way as lf_left.
+		this.computeLineCount();
 	}
 
 	delete(offset: number, cnt: number): void {
@@ -792,7 +780,7 @@ export class TextBuffer {
 			return;
 		}
 
-		if (this.root !== SENTINEL) {
+		if (this._root !== SENTINEL) {
 			let startPosition = this.nodeAt(offset);
 			let endPosition = this.nodeAt(offset + cnt);
 			let startNode = startPosition.node;
@@ -815,17 +803,21 @@ export class TextBuffer {
 					}
 					this.deleteNodeHead(startNode, endSplitPos);
 					this.fixCRLFWithPrev(startNode);
+					this.computeLineCount();
 					return;
 				}
 
 				if (startNodeOffsetInDocument + length === offset + cnt) {
 					this.deleteNodeTail(startNode, splitPos);
 					this.fixCRLFWithNext(startNode);
+					this.computeLineCount();
 					return;
 				}
 
 				// delete content in the middle, this node will be splitted to nodes
-				return this.shrinkNode(startNode, splitPos, endSplitPos);
+				this.shrinkNode(startNode, splitPos, endSplitPos);
+				this.computeLineCount();
+				return;
 			}
 
 			// perform read operations before any write operation.
@@ -860,7 +852,65 @@ export class TextBuffer {
 			if (prev !== SENTINEL) {
 				this.fixCRLFWithNext(prev);
 			}
+			this.computeLineCount();
 		}
+	}
+
+	getLineRawContent(lineNumber: number): string {
+		let x = this._root;
+
+		let ret = '';
+		while (x !== SENTINEL) {
+			if (x.left !== SENTINEL && x.lf_left >= lineNumber - 1) {
+				x = x.left;
+			} else if (x.lf_left + x.piece.lineFeedCnt > lineNumber - 1) {
+				let prevAccumualtedValue = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 2);
+				let accumualtedValue = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 1);
+				let buffer = x.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+
+				return buffer.substring(x.piece.offset + prevAccumualtedValue, x.piece.offset + accumualtedValue);
+			} else if (x.lf_left + x.piece.lineFeedCnt === lineNumber - 1) {
+				let prevAccumualtedValue = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 2);
+				let buffer = x.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+
+				ret = buffer.substring(x.piece.offset + prevAccumualtedValue, x.piece.offset + x.piece.length);
+				break;
+			} else {
+				lineNumber -= x.lf_left + x.piece.lineFeedCnt;
+				x = x.right;
+			}
+		}
+
+		// search in order, to find the node contains end column
+		x = x.next();
+		while (x !== SENTINEL) {
+			let buffer = x.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+
+			if (x.piece.lineFeedCnt > 0) {
+				let accumualtedValue = x.piece.lineStarts.getAccumulatedValue(0);
+
+				ret += buffer.substring(x.piece.offset, x.piece.offset + accumualtedValue);
+				return ret;
+			} else {
+				ret += buffer.substr(x.piece.offset, x.piece.length);
+			}
+
+			x = x.next();
+		}
+
+		return ret;
+	}
+
+	computeLineCount() {
+		let x = this._root;
+
+		let ret = 1;
+		while (x !== SENTINEL) {
+			ret += x.lf_left + x.piece.lineFeedCnt;
+			x = x.right;
+		}
+
+		this._lineCnt = ret;
 	}
 
 	// #region node operations
@@ -940,7 +990,8 @@ export class TextBuffer {
 		let hitCRLF = value.charCodeAt(0) === 10 && this.nodeCharCodeAt(node, node.piece.length - 1) === 13;
 		this._changeBuffer += value;
 		node.piece.length += value.length;
-		const { lineFeedCount, lineLengths } = this.calculateNewLineCount(value);
+		const lineLengths = this.constructLineLengths(value);
+		let lineFeedCount = lineLengths.length - 1;
 
 		let lf_delta = lineFeedCount;
 		if (hitCRLF) {
@@ -961,7 +1012,7 @@ export class TextBuffer {
 	}
 
 	nodeAt(offset: number): BufferCursor {
-		let x = this.root;
+		let x = this._root;
 
 		while (x !== SENTINEL) {
 			if (x.size_left > offset) {
@@ -981,7 +1032,7 @@ export class TextBuffer {
 	}
 
 	nodeAt2(position: Position): BufferCursor {
-		let x = this.root;
+		let x = this._root;
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 
@@ -1045,7 +1096,7 @@ export class TextBuffer {
 			return 0;
 		}
 		let pos = node.size_left;
-		while (node !== this.root) {
+		while (node !== this._root) {
 			if (node.parent.right === node) {
 				pos += node.parent.size_left + node.parent.piece.length;
 			}
@@ -1155,7 +1206,8 @@ export class TextBuffer {
 		// create new piece which contains \r\n
 		let startOffset = this._changeBuffer.length;
 		this._changeBuffer += '\r\n';
-		const { lineFeedCount, lineLengths } = this.calculateNewLineCount('\r\n');
+		const lineLengths = this.constructLineLengths('\r\n');
+		let lineFeedCount = lineLengths.length - 1;
 		let piece = new Piece(false, startOffset, 2, lineFeedCount, lineLengths);
 		this.rbInsertRight(prev, piece);
 		// delete empty nodes
@@ -1218,7 +1270,7 @@ export class TextBuffer {
 		}
 		y.parent = x.parent;
 		if (x.parent === SENTINEL) {
-			this.root = y;
+			this._root = y;
 		} else if (x.parent.left === x) {
 			x.parent.left = y;
 		} else {
@@ -1241,7 +1293,7 @@ export class TextBuffer {
 		y.lf_left -= x.lf_left + (x.piece ? x.piece.lineFeedCnt : 0);
 
 		if (y.parent === SENTINEL) {
-			this.root = x;
+			this._root = x;
 		} else if (y === y.parent.right) {
 			y.parent.right = x;
 		} else {
@@ -1267,9 +1319,9 @@ export class TextBuffer {
 		z.size_left = 0;
 		z.lf_left = 0;
 
-		let x = this.root;
+		let x = this._root;
 		if (x === SENTINEL) {
-			this.root = z;
+			this._root = z;
 			setNodeColor(z, NodeColor.Black);
 		} else if (node.right === SENTINEL) {
 			node.right = z;
@@ -1299,9 +1351,9 @@ export class TextBuffer {
 		z.size_left = 0;
 		z.lf_left = 0;
 
-		let x = this.root;
+		let x = this._root;
 		if (x === SENTINEL) {
-			this.root = z;
+			this._root = z;
 			setNodeColor(z, NodeColor.Black);
 		} else if (node.left === SENTINEL) {
 			node.left = z;
@@ -1331,15 +1383,15 @@ export class TextBuffer {
 			x = y.right;
 		}
 
-		if (y === this.root) {
-			this.root = x;
+		if (y === this._root) {
+			this._root = x;
 
 			// if x is null, we are removing the only node
 			setNodeColor(x, NodeColor.Black);
 
 			z.detach();
 			resetSentinel();
-			this.root.parent = SENTINEL;
+			this._root.parent = SENTINEL;
 
 			return;
 		}
@@ -1370,8 +1422,8 @@ export class TextBuffer {
 			y.parent = z.parent;
 			setNodeColor(y, getNodeColor(z));
 
-			if (z === this.root) {
-				this.root = y;
+			if (z === this._root) {
+				this._root = y;
 			} else {
 				if (z === z.parent.left) {
 					z.parent.left = y;
@@ -1416,7 +1468,7 @@ export class TextBuffer {
 
 		// RB-DELETE-FIXUP
 		let w: TreeNode;
-		while (x !== this.root && getNodeColor(x) === NodeColor.Black) {
+		while (x !== this._root && getNodeColor(x) === NodeColor.Black) {
 			if (x === x.parent.left) {
 				w = x.parent.right;
 
@@ -1442,7 +1494,7 @@ export class TextBuffer {
 					setNodeColor(x.parent, NodeColor.Black);
 					setNodeColor(w.right, NodeColor.Black);
 					this.leftRotate(x.parent);
-					x = this.root;
+					x = this._root;
 				}
 			} else {
 				w = x.parent.left;
@@ -1470,7 +1522,7 @@ export class TextBuffer {
 					setNodeColor(x.parent, NodeColor.Black);
 					setNodeColor(w.left, NodeColor.Black);
 					this.rightRotate(x.parent);
-					x = this.root;
+					x = this._root;
 				}
 			}
 		}
@@ -1481,7 +1533,7 @@ export class TextBuffer {
 	fixInsert(x: TreeNode) {
 		this.recomputeMetadata(x);
 
-		while (x !== this.root && getNodeColor(x.parent) === NodeColor.Red) {
+		while (x !== this._root && getNodeColor(x.parent) === NodeColor.Red) {
 			if (x.parent === x.parent.parent.left) {
 				const y = x.parent.parent.right;
 
@@ -1520,12 +1572,12 @@ export class TextBuffer {
 			}
 		}
 
-		setNodeColor(this.root, NodeColor.Black);
+		setNodeColor(this._root, NodeColor.Black);
 	}
 
 	updateMetadata(x: TreeNode, delta: number, lineFeedCntDelta: number): void {
 		// node length change, we need to update the roots of all subtrees containing this node.
-		while (x !== this.root && x !== SENTINEL) {
+		while (x !== this._root && x !== SENTINEL) {
 			if (x.parent.left === x) {
 				x.parent.size_left += delta;
 				x.parent.lf_left += lineFeedCntDelta;
@@ -1538,17 +1590,17 @@ export class TextBuffer {
 	recomputeMetadata(x: TreeNode) {
 		let delta = 0;
 		let lf_delta = 0;
-		if (x === this.root) {
+		if (x === this._root) {
 			return;
 		}
 
 		if (delta === 0) {
 			// go upwards till the node whose left subtree is changed.
-			while (x !== this.root && x === x.parent.right) {
+			while (x !== this._root && x === x.parent.right) {
 				x = x.parent;
 			}
 
-			if (x === this.root) {
+			if (x === this._root) {
 				// well, it means we add a node to the end (inorder)
 				return;
 			}
@@ -1563,7 +1615,7 @@ export class TextBuffer {
 		}
 
 		// go upwards till root. O(logN)
-		while (x !== this.root && (delta !== 0 || lf_delta !== 0)) {
+		while (x !== this._root && (delta !== 0 || lf_delta !== 0)) {
 			if (x.parent.left === x) {
 				x.parent.size_left += delta;
 				x.parent.lf_left += lf_delta;
@@ -1584,41 +1636,8 @@ export class TextBuffer {
 		return this.getContentOfSubTree(node.left) + currentContent + this.getContentOfSubTree(node.right);
 	}
 
-	calculateNewLineCount(chunk: string): { lineFeedCount: number, lineLengths: Uint32Array } {
-		let lineStarts = [0];
-
-		// Reset regex to search from the beginning
-		this._regex.lastIndex = 0;
-		let prevMatchStartIndex = -1;
-		let prevMatchLength = 0;
-
-		let m: RegExpExecArray;
-		do {
-			if (prevMatchStartIndex + prevMatchLength === chunk.length) {
-				// Reached the end of the line
-				break;
-			}
-
-			m = this._regex.exec(chunk);
-			if (!m) {
-				break;
-			}
-
-			const matchStartIndex = m.index;
-			const matchLength = m[0].length;
-
-			if (matchStartIndex === prevMatchStartIndex && matchLength === prevMatchLength) {
-				// Exit early if the regex matches the same range twice
-				break;
-			}
-
-			prevMatchStartIndex = matchStartIndex;
-			prevMatchLength = matchLength;
-
-			lineStarts.push(matchStartIndex + matchLength);
-
-		} while (m);
-
+	constructLineLengths(chunk: string): Uint32Array {
+		let lineStarts = constructLineStarts(chunk);
 		const lineLengths = new Uint32Array(lineStarts.length);
 		for (let i = 1; i < lineStarts.length; i++) {
 			lineLengths[i - 1] = lineStarts[i] - lineStarts[i - 1];
@@ -1626,11 +1645,9 @@ export class TextBuffer {
 
 		lineLengths[lineStarts.length - 1] = chunk.length - lineStarts[lineStarts.length - 1];
 
-		return {
-			lineFeedCount: lineLengths.length - 1,
-			lineLengths: lineLengths
-		};
+		return lineLengths;
 	}
+
 	// #endregion
 
 	// #region helper
