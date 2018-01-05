@@ -7,7 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import { ITextBufferBuilder, DefaultEndOfLine, ITextBufferFactory, ITextBuffer } from 'vs/editor/common/model';
 import { TextSource, IRawTextSource } from 'vs/editor/common/model/pieceTableTextBuffer/textSource';
-import { TextBuffer } from 'vs/editor/common/model/textBuffer2';
+import { PieceTableTextBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBuffer';
 
 export class PieceTableTextBufferFactory implements ITextBufferFactory {
 
@@ -16,7 +16,7 @@ export class PieceTableTextBufferFactory implements ITextBufferFactory {
 
 	public create(defaultEOL: DefaultEndOfLine): ITextBuffer {
 		const textSource = TextSource.fromRawTextSource(this.rawTextSource, defaultEOL);
-		return new TextBuffer(textSource);
+		return new PieceTableTextBuffer(textSource);
 	}
 
 	public getFirstLineText(lengthLimit: number): string {

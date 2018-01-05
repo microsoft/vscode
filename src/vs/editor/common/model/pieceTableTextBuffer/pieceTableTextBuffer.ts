@@ -222,7 +222,7 @@ export class Piece {
 	}
 }
 
-export class TextBuffer implements ITextBuffer {
+export class PieceTableTextBuffer implements ITextBuffer {
 	private _BOM: string;
 	private _EOL: string;
 	private _mightContainRTL: boolean;
@@ -374,7 +374,7 @@ export class TextBuffer implements ITextBuffer {
 	}
 
 	public equals(other: ITextBuffer): boolean {
-		if (!(other instanceof TextBuffer)) {
+		if (!(other instanceof PieceTableTextBuffer)) {
 			return false;
 		}
 		if (this._BOM !== other._BOM) {
@@ -442,7 +442,7 @@ export class TextBuffer implements ITextBuffer {
 		}
 
 		// Sort operations ascending
-		operations.sort(TextBuffer._sortOpsAscending);
+		operations.sort(PieceTableTextBuffer._sortOpsAscending);
 
 		for (let i = 0, count = operations.length - 1; i < count; i++) {
 			let rangeEnd = operations[i].range.getEndPosition();
@@ -459,7 +459,7 @@ export class TextBuffer implements ITextBuffer {
 		}
 
 		// Delta encode operations
-		let reverseRanges = TextBuffer._getInverseEditRanges(operations);
+		let reverseRanges = PieceTableTextBuffer._getInverseEditRanges(operations);
 		let newTrimAutoWhitespaceCandidates: { lineNumber: number, oldContent: string }[] = [];
 
 		for (let i = 0; i < operations.length; i++) {
@@ -532,7 +532,7 @@ export class TextBuffer implements ITextBuffer {
 	}
 
 	private _doApplyEdits(operations: IValidatedEditOperation[]): [ModelRawChange[], IInternalModelContentChange[]] {
-		operations.sort(TextBuffer._sortOpsDescending);
+		operations.sort(PieceTableTextBuffer._sortOpsDescending);
 
 		let rawContentChanges: ModelRawChange[] = [];
 		let contentChanges: IInternalModelContentChange[] = [];
