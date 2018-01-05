@@ -327,13 +327,11 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 
 // Explorer Controller
 export class FileController extends DefaultController implements IDisposable {
-	private state: FileViewletState;
 
 	private contributedContextMenu: IMenu;
 	private toDispose: IDisposable[];
 
-	constructor(state: FileViewletState,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMenuService menuService: IMenuService,
@@ -345,7 +343,6 @@ export class FileController extends DefaultController implements IDisposable {
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
 		this.toDispose.push(this.contributedContextMenu);
 
-		this.state = state;
 	}
 
 	public onLeftClick(tree: ITree, stat: FileStat | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
@@ -429,13 +426,6 @@ export class FileController extends DefaultController implements IDisposable {
 				const actions = [];
 				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : undefined, shouldForwardArgs: true }, actions);
 				return TPromise.as(actions);
-			},
-			getActionsContext: (event) => {
-				return {
-					viewletState: this.state,
-					stat,
-					event
-				};
 			},
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
