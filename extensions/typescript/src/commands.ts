@@ -8,6 +8,11 @@ import * as vscode from 'vscode';
 import { TypeScriptServiceClientHost } from './typescriptMain';
 import { Command } from './utils/commandManager';
 import { Lazy } from './utils/lazy';
+import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';
+
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
+
 
 export class ReloadTypeScriptProjectsCommand implements Command {
 	public readonly id = 'typescript.reloadProjects';
@@ -79,7 +84,7 @@ export class TypeScriptGoToProjectConfigCommand implements Command {
 	public execute() {
 		const editor = vscode.window.activeTextEditor;
 		if (editor) {
-			this.lazyClientHost.value.goToProjectConfig(true, editor.document.uri);
+			goToProjectConfig(this.lazyClientHost.value, true, editor.document.uri);
 		}
 	}
 }
@@ -94,7 +99,89 @@ export class JavaScriptGoToProjectConfigCommand implements Command {
 	public execute() {
 		const editor = vscode.window.activeTextEditor;
 		if (editor) {
-			this.lazyClientHost.value.goToProjectConfig(false, editor.document.uri);
+			goToProjectConfig(this.lazyClientHost.value, false, editor.document.uri);
 		}
+	}
+}
+
+async function goToProjectConfig(
+	clientHost: TypeScriptServiceClientHost,
+	isTypeScriptProject: boolean,
+	resource: vscode.Uri
+): Promise<void> {
+	const client = clientHost.serviceClient;
+	const rootPath = client.getWorkspaceRootForResource(resource);
+	if (!rootPath) {
+		vscode.window.showInformationMessage(
+			localize(
+				'typescript.projectConfigNoWorkspace',
+				'Please open a folder in VS Code to use a TypeScript or JavaScript project'));
+		return;
+	}
+
+	const file = client.normalizePath(resource);
+	// TSServer errors when 'projectInfo' is invoked on a non js/ts file
+	if (!file || !clientHost.handles(file)) {
+		vscode.window.showWarningMessage(
+			localize(
+				'typescript.projectConfigUnsupportedFile',
+				'Could not determine TypeScript or JavaScript project. Unsupported file type'));
+		return;
+	}
+
+	let res: protocol.ProjectInfoResponse | undefined = undefined;
+	try {
+		res = await client.execute('projectInfo', { file, needFileNameList: false } as protocol.ProjectInfoRequestArgs);
+	} catch {
+		// noop
+	}
+	if (!res || !res.body) {
+		vscode.window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'));
+		return;
+	}
+
+	const { configFileName } = res.body;
+	if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
+		const doc = await vscode.workspace.openTextDocument(configFileName);
+		vscode.window.showTextDocument(doc, vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined);
+		return;
+	}
+
+	enum ProjectConfigAction {
+		None,
+		CreateConfig,
+		LearnMore
+	}
+
+	interface ProjectConfigMessageItem extends vscode.MessageItem {
+		id: ProjectConfigAction;
+	}
+
+	const selected = await vscode.window.showInformationMessage<ProjectConfigMessageItem>(
+		(isTypeScriptProject
+			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project')
+			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project')
+		), {
+			title: isTypeScriptProject
+				? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
+				: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
+			id: ProjectConfigAction.CreateConfig
+		}, {
+			title: localize('typescript.projectConfigLearnMore', 'Learn More'),
+			id: ProjectConfigAction.LearnMore
+		});
+
+	switch (selected && selected.id) {
+		case ProjectConfigAction.CreateConfig:
+			openOrCreateConfigFile(isTypeScriptProject, rootPath, client.configuration);
+			return;
+
+		case ProjectConfigAction.LearnMore:
+			if (isTypeScriptProject) {
+				vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=841896'));
+			} else {
+				vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=759670'));
+			}
+			return;
 	}
 }

@@ -8,14 +8,7 @@
  * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
-import { env, languages, commands, workspace, window, Memento, Diagnostic, Range, Disposable, Uri, MessageItem, DiagnosticSeverity, TextDocument, DocumentFilter } from 'vscode';
-
-// This must be the first statement otherwise modules might got loaded with
-// the wrong locale.
-import * as nls from 'vscode-nls';
-nls.config({ locale: env.language });
-const localize = nls.loadMessageBundle();
-
+import { languages, workspace, Memento, Diagnostic, Range, Disposable, Uri, DiagnosticSeverity, TextDocument, DocumentFilter } from 'vscode';
 import { basename } from 'path';
 
 import * as Proto from './protocol';
@@ -29,7 +22,6 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
 import { TypeScriptServerPlugin } from './utils/plugins';
-import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';
 import { tsLocationToVsPosition } from './utils/convert';
 import FormattingConfigurationManager from './features/formattingConfigurationManager';
 import * as languageConfigurations from './utils/languageConfigurations';
@@ -373,86 +365,6 @@ export class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost
 
 	public handles(file: string): boolean {
 		return !!this.findLanguage(file);
-	}
-
-	public async goToProjectConfig(
-		isTypeScriptProject: boolean,
-		resource: Uri
-	): Promise<void> {
-		const rootPath = this.client.getWorkspaceRootForResource(resource);
-		if (!rootPath) {
-			window.showInformationMessage(
-				localize(
-					'typescript.projectConfigNoWorkspace',
-					'Please open a folder in VS Code to use a TypeScript or JavaScript project'));
-			return;
-		}
-
-		const file = this.client.normalizePath(resource);
-		// TSServer errors when 'projectInfo' is invoked on a non js/ts file
-		if (!file || !this.handles(file)) {
-			window.showWarningMessage(
-				localize(
-					'typescript.projectConfigUnsupportedFile',
-					'Could not determine TypeScript or JavaScript project. Unsupported file type'));
-			return;
-		}
-
-		let res: protocol.ProjectInfoResponse | undefined = undefined;
-		try {
-			res = await this.client.execute('projectInfo', { file, needFileNameList: false } as protocol.ProjectInfoRequestArgs);
-		} catch {
-			// noop
-		}
-		if (!res || !res.body) {
-			window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'));
-			return;
-		}
-
-		const { configFileName } = res.body;
-		if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
-			const doc = await workspace.openTextDocument(configFileName);
-			window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined);
-			return;
-		}
-
-		enum ProjectConfigAction {
-			None,
-			CreateConfig,
-			LearnMore
-		}
-
-		interface ProjectConfigMessageItem extends MessageItem {
-			id: ProjectConfigAction;
-		}
-
-		const selected = await window.showInformationMessage<ProjectConfigMessageItem>(
-			(isTypeScriptProject
-				? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project')
-				: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project')
-			), {
-				title: isTypeScriptProject
-					? localize('typescript.configureTsconfigQuickPick', 'Configure tsconfig.json')
-					: localize('typescript.configureJsconfigQuickPick', 'Configure jsconfig.json'),
-				id: ProjectConfigAction.CreateConfig
-			}, {
-				title: localize('typescript.projectConfigLearnMore', 'Learn More'),
-				id: ProjectConfigAction.LearnMore
-			});
-
-		switch (selected && selected.id) {
-			case ProjectConfigAction.CreateConfig:
-				openOrCreateConfigFile(isTypeScriptProject, rootPath, this.client.configuration);
-				return;
-
-			case ProjectConfigAction.LearnMore:
-				if (isTypeScriptProject) {
-					commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=841896'));
-				} else {
-					commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=759670'));
-				}
-				return;
-		}
 	}
 
 	private configurationChanged(): void {
