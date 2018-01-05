@@ -8,10 +8,22 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
-import { ITextSource } from 'vs/editor/common/model/textSource';
+import { ITextSource, IRawTextSource, TextSource } from 'vs/editor/common/model/textSource';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
+import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange, ITextBufferBuilder, DefaultEndOfLine } from 'vs/editor/common/model';
+
+export class TextBufferBuilder implements ITextBufferBuilder {
+
+	constructor(private readonly textSource: IRawTextSource) {
+	}
+
+	public build(defaultEOL: DefaultEndOfLine): ITextBuffer {
+		const textSource = TextSource.fromRawTextSource(this.textSource, defaultEOL);
+		return new TextBuffer(textSource);
+	}
+
+}
 
 export interface IValidatedEditOperation {
 	sortIndex: number;

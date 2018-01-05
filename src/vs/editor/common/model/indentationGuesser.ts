@@ -7,41 +7,6 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { ITextBuffer } from 'vs/editor/common/model';
 
-export interface IIndentationGuesserSource {
-	getLineCount(): number;
-	getLineContent(lineNumber: number): string;
-}
-
-export class IndentationGuesserTextBufferSource implements IIndentationGuesserSource {
-
-	constructor(
-		private readonly _buffer: ITextBuffer
-	) { }
-
-	public getLineCount(): number {
-		return this._buffer.getLineCount();
-	}
-
-	public getLineContent(lineNumber: number): string {
-		return this._buffer.getLineContent(lineNumber);
-	}
-}
-
-export class IndentationGuesserStringArraySource implements IIndentationGuesserSource {
-
-	constructor(
-		private readonly _lines: string[]
-	) { }
-
-	public getLineCount(): number {
-		return this._lines.length;
-	}
-
-	public getLineContent(lineNumber: number): string {
-		return this._lines[lineNumber - 1];
-	}
-}
-
 /**
  * Compute the diff in spaces between two line's indentation.
  */
@@ -116,7 +81,7 @@ export interface IGuessedIndentation {
 	insertSpaces: boolean;
 }
 
-export function guessIndentation(source: IIndentationGuesserSource, defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
+export function guessIndentation(source: ITextBuffer, defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
 	// Look at most at the first 10k lines
 	const linesCount = Math.min(source.getLineCount(), 10000);
 

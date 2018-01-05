@@ -29,10 +29,10 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/common/model/textModelTokens';
-import { guessIndentation, IndentationGuesserTextBufferSource, IndentationGuesserStringArraySource } from 'vs/editor/common/model/indentationGuesser';
+import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { TextBuffer } from 'vs/editor/common/model/textBuffer';
+import { TextBufferBuilder, TextBuffer } from 'vs/editor/common/model/textBuffer';
 
 let MODEL_ID = 0;
 
@@ -54,11 +54,6 @@ function singleLetter(result: number): string {
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
 
-export interface ITextModelCreationData {
-	readonly text: ITextSource;
-	readonly options: model.TextModelResolvedOptions;
-}
-
 export class TextModel extends Disposable implements model.ITextModel {
 
 	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
@@ -77,31 +72,24 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return new TextModel(RawTextSource.fromString(text), options, languageIdentifier, uri);
 	}
 
-	public static resolveCreationData(rawTextSource: IRawTextSource, options: model.ITextModelCreationOptions): ITextModelCreationData {
-		const textSource = TextSource.fromRawTextSource(rawTextSource, options.defaultEOL);
-
-		let resolvedOpts: model.TextModelResolvedOptions;
+	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
 		if (options.detectIndentation) {
-			const guessedIndentation = guessIndentation(new IndentationGuesserStringArraySource(textSource.lines), options.tabSize, options.insertSpaces);
-			resolvedOpts = new model.TextModelResolvedOptions({
+			const guessedIndentation = guessIndentation(textBuffer, options.tabSize, options.insertSpaces);
+			return new model.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL
 			});
-		} else {
-			resolvedOpts = new model.TextModelResolvedOptions({
-				tabSize: options.tabSize,
-				insertSpaces: options.insertSpaces,
-				trimAutoWhitespace: options.trimAutoWhitespace,
-				defaultEOL: options.defaultEOL
-			});
 		}
 
-		return {
-			text: textSource,
-			options: resolvedOpts
-		};
+		return new model.TextModelResolvedOptions({
+			tabSize: options.tabSize,
+			insertSpaces: options.insertSpaces,
+			trimAutoWhitespace: options.trimAutoWhitespace,
+			defaultEOL: options.defaultEOL
+		});
+
 	}
 
 	//#region Events
@@ -135,10 +123,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public readonly id: string;
 	private readonly _associatedResource: URI;
 	private _attachedEditorCount: number;
+	private _buffer: model.ITextBuffer;
+	private _options: model.TextModelResolvedOptions;
 
 	private _isDisposed: boolean;
 	private _isDisposing: boolean;
-	private _options: model.TextModelResolvedOptions;
 	private _versionId: number;
 	/**
 	 * Unlike, versionId, this can go down (via undo) or go to previous values (via redo)
@@ -146,7 +135,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private _alternativeVersionId: number;
 	private readonly _shouldSimplifyMode: boolean;
 	private readonly _isTooLargeForTokenization: boolean;
-	private _buffer: model.ITextBuffer;
 
 	//#region Editing
 	private _commandManager: EditStack;
@@ -187,23 +175,26 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 		this._attachedEditorCount = 0;
 
-		const textModelData = TextModel.resolveCreationData(rawTextSource, creationOptions);
+		const builder: model.ITextBufferBuilder = new TextBufferBuilder(rawTextSource);
+		this._buffer = builder.build(creationOptions.defaultEOL);
 
+		this._options = TextModel.resolveOptions(this._buffer, creationOptions);
+
+		const bufferLineCount = this._buffer.getLineCount();
+		const bufferTextLength = this._buffer.getValueLengthInRange(new Range(1, 1, bufferLineCount, this._buffer.getLineLength(bufferLineCount) + 1), model.EndOfLinePreference.TextDefined);
 		// !!! Make a decision in the ctor and permanently respect this decision !!!
 		// If a model is too large at construction time, it will never get tokenized,
 		// under no circumstances.
 		this._isTooLargeForTokenization = (
-			(textModelData.text.length > TextModel.MODEL_TOKENIZATION_LIMIT)
-			|| (textModelData.text.lines.length > TextModel.MANY_MANY_LINES)
+			(bufferTextLength > TextModel.MODEL_TOKENIZATION_LIMIT)
+			|| (bufferLineCount > TextModel.MANY_MANY_LINES)
 		);
 
 		this._shouldSimplifyMode = (
 			this._isTooLargeForTokenization
-			|| (textModelData.text.length > TextModel.MODEL_SYNC_LIMIT)
+			|| (bufferTextLength > TextModel.MODEL_SYNC_LIMIT)
 		);
 
-		this._options = new model.TextModelResolvedOptions(textModelData.options);
-		this._constructLines(textModelData.text);
 		this._setVersionId(1);
 		this._isDisposed = false;
 		this._isDisposing = false;
@@ -245,10 +236,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._trimAutoWhitespaceLines = null;
 	}
 
-	private _constructLines(textSource: ITextSource): void {
-		this._buffer = new TextBuffer(textSource);
-	}
-
 	public dispose(): void {
 		this._isDisposing = true;
 		this._onWillDispose.fire();
@@ -266,7 +253,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._isDisposing = false;
 	}
 
-	protected _assertNotDisposed(): void {
+	private _assertNotDisposed(): void {
 		if (this._isDisposed) {
 			throw new Error('Model is disposed!');
 		}
@@ -277,7 +264,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._buffer.equals(other);
 	}
 
-	protected _emitContentChangedEvent(rawChange: ModelRawContentChangedEvent, change: IModelContentChangedEvent): void {
+	private _emitContentChangedEvent(rawChange: ModelRawContentChangedEvent, change: IModelContentChangedEvent): void {
 		if (this._isDisposing) {
 			// Do not confuse listeners by emitting any event after disposing
 			return;
@@ -321,7 +308,20 @@ export class TextModel extends Disposable implements model.ITextModel {
 		const endLineNumber = this.getLineCount();
 		const endColumn = this.getLineMaxColumn(endLineNumber);
 
-		this._resetValue(newValue);
+		// TODO
+		this._buffer = new TextBuffer(newValue);
+		this._increaseVersionId();
+
+		// Cancel tokenization, clear all tokens and begin tokenizing
+		this._resetTokenizationState();
+
+		// Destroy all my decorations
+		this._decorations = Object.create(null);
+		this._decorationsTree = new DecorationsTrees();
+
+		// Destroy my edit history and settings
+		this._commandManager = new EditStack(this);
+		this._trimAutoWhitespaceLines = null;
 
 		this._emitContentChangedEvent(
 			new ModelRawContentChangedEvent(
@@ -395,22 +395,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 			recomputeMaxEnd(node);
 		}
-	}
-
-	private _resetValue(newValue: ITextSource): void {
-		this._constructLines(newValue);
-		this._increaseVersionId();
-
-		// Cancel tokenization, clear all tokens and begin tokenizing
-		this._resetTokenizationState();
-
-		// Destroy all my decorations
-		this._decorations = Object.create(null);
-		this._decorationsTree = new DecorationsTrees();
-
-		// Destroy my edit history and settings
-		this._commandManager = new EditStack(this);
-		this._trimAutoWhitespaceLines = null;
 	}
 
 	private _resetTokenizationState(): void {
@@ -515,7 +499,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void {
 		this._assertNotDisposed();
-		let guessedIndentation = guessIndentation(new IndentationGuesserTextBufferSource(this._buffer), defaultTabSize, defaultInsertSpaces);
+		let guessedIndentation = guessIndentation(this._buffer, defaultTabSize, defaultInsertSpaces);
 		this.updateOptions({
 			insertSpaces: guessedIndentation.insertSpaces,
 			tabSize: guessedIndentation.tabSize
@@ -610,7 +594,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._buffer.getPositionAt(offset);
 	}
 
-	protected _increaseVersionId(): void {
+	private _increaseVersionId(): void {
 		this._setVersionId(this._versionId + 1);
 	}
 
@@ -619,7 +603,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._alternativeVersionId = this._versionId;
 	}
 
-	protected _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
+	private _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
 		this._alternativeVersionId = newAlternativeVersionId;
 	}
 
@@ -711,10 +695,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	/**
- * Validates `range` is within buffer bounds, but allows it to sit in between surrogate pairs, etc.
- * Will try to not allocate if possible.
- */
-	protected _validateRangeRelaxedNoAllocations(range: IRange): Range {
+	 * Validates `range` is within buffer bounds, but allows it to sit in between surrogate pairs, etc.
+	 * Will try to not allocate if possible.
+	 */
+	private _validateRangeRelaxedNoAllocations(range: IRange): Range {
 		const linesCount = this._buffer.getLineCount();
 
 		const initialStartLineNumber = range.startLineNumber;

@@ -1051,6 +1051,13 @@ export interface ITextModel {
 /**
  * @internal
  */
+export interface ITextBufferBuilder {
+	build(defaultEOL: DefaultEndOfLine): ITextBuffer;
+}
+
+/**
+ * @internal
+ */
 export interface ITextBuffer {
 	equals(other: ITextSource): boolean;
 	mightContainRTL(): boolean;

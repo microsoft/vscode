@@ -7,9 +7,10 @@
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TextModel, ITextModelCreationData } from 'vs/editor/common/model/textModel';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { DefaultEndOfLine, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { RawTextSource } from 'vs/editor/common/model/textSource';
+import { RawTextSource, ITextSource, TextSource } from 'vs/editor/common/model/textSource';
+import { TextBuffer } from 'vs/editor/common/model/textBuffer';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
 	var m = TextModel.createFromString(
@@ -57,15 +58,20 @@ function assertGuess(expectedInsertSpaces: boolean, expectedTabSize: number, tex
 
 suite('TextModelData.fromString', () => {
 
-	function testTextModelDataFromString(text: string, expected: ITextModelCreationData): void {
+	function testTextModelDataFromString(text: string, expectedTextSource: ITextSource, expectedOptions: TextModelResolvedOptions): void {
 		const rawTextSource = RawTextSource.fromString(text);
-		const actual = TextModel.resolveCreationData(rawTextSource, TextModel.DEFAULT_CREATION_OPTIONS);
-		assert.deepEqual(actual, expected);
+		const actualTextSource = TextSource.fromRawTextSource(rawTextSource, TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL);
+		assert.deepEqual(actualTextSource, expectedTextSource);
+
+		let buffer = new TextBuffer(actualTextSource);
+
+		const actualOptions = TextModel.resolveOptions(buffer, TextModel.DEFAULT_CREATION_OPTIONS);
+		assert.deepEqual(actualOptions, expectedOptions);
 	}
 
 	test('one line text', () => {
-		testTextModelDataFromString('Hello world!', {
-			text: {
+		testTextModelDataFromString('Hello world!',
+			{
 				BOM: '',
 				EOL: '\n',
 				length: 12,
@@ -75,18 +81,18 @@ suite('TextModelData.fromString', () => {
 				containsRTL: false,
 				isBasicASCII: true
 			},
-			options: new TextModelResolvedOptions({
+			new TextModelResolvedOptions({
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
 				tabSize: 4,
 				trimAutoWhitespace: true,
 			})
-		});
+		);
 	});
 
 	test('multiline text', () => {
-		testTextModelDataFromString('Hello,\r\ndear friend\nHow\rare\r\nyou?', {
-			text: {
+		testTextModelDataFromString('Hello,\r\ndear friend\nHow\rare\r\nyou?',
+			{
 				BOM: '',
 				EOL: '\r\n',
 				length: 33,
@@ -100,18 +106,18 @@ suite('TextModelData.fromString', () => {
 				containsRTL: false,
 				isBasicASCII: true
 			},
-			options: new TextModelResolvedOptions({
+			new TextModelResolvedOptions({
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
 				tabSize: 4,
 				trimAutoWhitespace: true,
 			})
-		});
+		);
 	});
 
 	test('Non Basic ASCII 1', () => {
-		testTextModelDataFromString('Hello,\nZürich', {
-			text: {
+		testTextModelDataFromString('Hello,\nZürich',
+			{
 				BOM: '',
 				EOL: '\n',
 				length: 13,
@@ -122,18 +128,18 @@ suite('TextModelData.fromString', () => {
 				containsRTL: false,
 				isBasicASCII: false
 			},
-			options: new TextModelResolvedOptions({
+			new TextModelResolvedOptions({
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
 				tabSize: 4,
 				trimAutoWhitespace: true,
 			})
-		});
+		);
 	});
 
 	test('containsRTL 1', () => {
-		testTextModelDataFromString('Hello,\nזוהי עובדה מבוססת שדעתו', {
-			text: {
+		testTextModelDataFromString('Hello,\nזוהי עובדה מבוססת שדעתו',
+			{
 				BOM: '',
 				EOL: '\n',
 				length: 30,
@@ -144,18 +150,18 @@ suite('TextModelData.fromString', () => {
 				containsRTL: true,
 				isBasicASCII: false
 			},
-			options: new TextModelResolvedOptions({
+			new TextModelResolvedOptions({
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
 				tabSize: 4,
 				trimAutoWhitespace: true,
 			})
-		});
+		);
 	});
 
 	test('containsRTL 2', () => {
-		testTextModelDataFromString('Hello,\nهناك حقيقة مثبتة منذ زمن طويل', {
-			text: {
+		testTextModelDataFromString('Hello,\nهناك حقيقة مثبتة منذ زمن طويل',
+			{
 				BOM: '',
 				EOL: '\n',
 				length: 36,
@@ -166,13 +172,13 @@ suite('TextModelData.fromString', () => {
 				containsRTL: true,
 				isBasicASCII: false
 			},
-			options: new TextModelResolvedOptions({
+			new TextModelResolvedOptions({
 				defaultEOL: DefaultEndOfLine.LF,
 				insertSpaces: true,
 				tabSize: 4,
 				trimAutoWhitespace: true,
 			})
-		});
+		);
 	});
 
 });
