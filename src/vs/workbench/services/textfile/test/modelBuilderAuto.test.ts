@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { testModelBuilder, testDifferentHash } from './modelBuilder.test';
+import { testModelBuilder } from './modelBuilder.test';
 import { CharCode } from 'vs/base/common/charCode';
 
 const GENERATE_TESTS = false;
@@ -19,9 +19,6 @@ suite('ModelBuilder Auto Tests', () => {
 		testModelBuilder(['i', 'yyernubi\r\niimgn\n', 'ut\r']);
 	});
 
-	test('auto3', () => {
-		testDifferentHash([''], ['', '', '']);
-	});
 });
 
 function getRandomInt(min: number, max: number): number {
@@ -95,26 +92,12 @@ function generateRandomChunks(file: string): string[] {
 	return result;
 }
 
-let HASH_TO_CONTENT: { [hash: string]: string; } = {};
-
 function testRandomFile(file: string): boolean {
 	let tests = getRandomInt(5, 10);
 	for (let i = 0; i < tests; i++) {
 		let chunks = generateRandomChunks(file);
 		try {
-			let hash = testModelBuilder(chunks);
-			let logicalContent = JSON.stringify(file.split(/\r\n|\r|\n/));
-			if (HASH_TO_CONTENT.hasOwnProperty(hash)) {
-				let prevLogicalContent = HASH_TO_CONTENT[hash];
-				if (prevLogicalContent !== logicalContent) {
-					console.log('HASH COLLISION: ');
-					console.log(prevLogicalContent);
-					console.log(logicalContent);
-					return false;
-				}
-			} else {
-				HASH_TO_CONTENT[hash] = logicalContent;
-			}
+			testModelBuilder(chunks);
 		} catch (err) {
 			console.log(err);
 			console.log(JSON.stringify(chunks));

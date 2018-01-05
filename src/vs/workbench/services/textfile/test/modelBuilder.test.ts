@@ -5,55 +5,27 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ModelBuilder, computeHash } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
+import { ModelBuilder } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
 import { ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as strings from 'vs/base/common/strings';
-import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
+import { RawTextSource } from 'vs/editor/common/model/textSource';
 
-export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): string {
+export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): void {
 	let expectedTextSource = RawTextSource.fromString(chunks.join(''));
-	let expectedHash = computeHash(expectedTextSource);
 
-	let builder = new ModelBuilder(true);
+	let builder = new ModelBuilder();
 	for (let i = 0, len = chunks.length; i < len; i++) {
 		builder.acceptChunk(chunks[i]);
 	}
 	let actual = builder.finish();
 
 	let actualTextSource = actual.value;
-	let actualHash = actual.hash;
 
-	assert.equal(actualHash, expectedHash);
 	assert.deepEqual(actualTextSource, expectedTextSource);
-
-	return expectedHash;
-}
-
-function toTextSource(lines: string[]): IRawTextSource {
-	return {
-		BOM: '',
-		lines: lines,
-		totalCRCount: 0,
-		length: 0,
-		containsRTL: false,
-		isBasicASCII: true
-	};
-}
-
-export function testDifferentHash(lines1: string[], lines2: string[]): void {
-	let hash1 = computeHash(toTextSource(lines1));
-	let hash2 = computeHash(toTextSource(lines2));
-	assert.notEqual(hash1, hash2);
 }
 
 suite('ModelBuilder', () => {
-
-	test('uses sha1', () => {
-		// These are the sha1s of the string + \n
-		assert.equal(computeHash(toTextSource([''])), 'adc83b19e793491b1c6ea0fd8b46cd9f32e592fc');
-		assert.equal(computeHash(toTextSource(['hello world'])), '22596363b3de40b06f981fb85d82312e8c0ed511');
-	});
 
 	test('no chunks', () => {
 		testModelBuilder([]);

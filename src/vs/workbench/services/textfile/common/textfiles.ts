@@ -134,11 +134,6 @@ export interface IRawTextContent extends IBaseStat {
 	value: IRawTextSource;
 
 	/**
-	 * The line grouped logical hash of a text file.
-	 */
-	valueLogicalHash: string;
-
-	/**
 	 * The encoding of the content if known.
 	 */
 	encoding: string;

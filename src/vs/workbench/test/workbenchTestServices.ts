@@ -211,8 +211,7 @@ export class TestTextFileService extends TextFileService {
 				mtime: content.mtime,
 				etag: content.etag,
 				encoding: content.encoding,
-				value: textSource,
-				valueLogicalHash: null
+				value: textSource
 			};
 		});
 	}

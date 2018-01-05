@@ -5,7 +5,6 @@
 'use strict';
 
 import { IStringStream } from 'vs/platform/files/common/files';
-import * as crypto from 'crypto';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CharCode } from 'vs/base/common/charCode';
@@ -14,7 +13,6 @@ import { IRawTextSource } from 'vs/editor/common/model/textSource';
 const AVOID_SLICED_STRINGS = true;
 
 export interface ModelBuilderResult {
-	readonly hash: string;
 	readonly value: IRawTextSource;
 }
 
@@ -58,18 +56,12 @@ function optimizeStringMemory(buff: Buffer, s: string): string {
 
 class ModelLineBasedBuilder {
 
-	private computeHash: boolean;
-	private hash: crypto.Hash;
 	private buff: Buffer;
 	private BOM: string;
 	private lines: string[];
 	private currLineIndex: number;
 
-	constructor(computeHash: boolean) {
-		this.computeHash = computeHash;
-		if (this.computeHash) {
-			this.hash = crypto.createHash('sha1');
-		}
+	constructor() {
 		this.BOM = '';
 		this.lines = [];
 		this.currLineIndex = 0;
@@ -88,14 +80,10 @@ class ModelLineBasedBuilder {
 		for (let i = 0, len = lines.length; i < len; i++) {
 			this.lines[this.currLineIndex++] = optimizeStringMemory(this.buff, lines[i]);
 		}
-		if (this.computeHash) {
-			this.hash.update(lines.join('\n') + '\n');
-		}
 	}
 
 	public finish(length: number, carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean): ModelBuilderResult {
 		return {
-			hash: this.computeHash ? this.hash.digest('hex') : null,
 			value: {
 				BOM: this.BOM,
 				lines: this.lines,
@@ -106,14 +94,6 @@ class ModelLineBasedBuilder {
 			}
 		};
 	}
-}
-
-export function computeHash(rawText: IRawTextSource): string {
-	let hash = crypto.createHash('sha1');
-	for (let i = 0, len = rawText.lines.length; i < len; i++) {
-		hash.update(rawText.lines[i] + '\n');
-	}
-	return hash.digest('hex');
 }
 
 export class ModelBuilder {
@@ -129,7 +109,7 @@ export class ModelBuilder {
 	public static fromStringStream(stream: IStringStream): TPromise<ModelBuilderResult> {
 		return new TPromise<ModelBuilderResult>((c, e, p) => {
 			let done = false;
-			let builder = new ModelBuilder(false);
+			let builder = new ModelBuilder();
 
 			stream.on('data', (chunk) => {
 				builder.acceptChunk(chunk);
@@ -151,11 +131,11 @@ export class ModelBuilder {
 		});
 	}
 
-	constructor(computeHash: boolean) {
+	constructor() {
 		this.leftoverPrevChunk = '';
 		this.leftoverEndsInCR = false;
 		this.totalCRCount = 0;
-		this.lineBasedBuilder = new ModelLineBasedBuilder(computeHash);
+		this.lineBasedBuilder = new ModelLineBasedBuilder();
 		this.totalLength = 0;
 		this.containsRTL = false;
 		this.isBasicASCII = true;
