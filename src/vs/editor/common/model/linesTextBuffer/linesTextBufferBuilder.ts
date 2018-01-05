@@ -7,17 +7,8 @@
 import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 import { ITextBufferBuilder, ITextBufferFactory, ITextBuffer, DefaultEndOfLine } from 'vs/editor/common/model';
-import { IRawTextSource, TextSource, RawTextSource } from 'vs/editor/common/model/linesTextBuffer/textSource';
-import { TextBuffer } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
-
-export function createTextBufferBuilder(): ITextBufferBuilder {
-	return new ModelBuilder();
-}
-
-export function createTextBufferFactory(text: string): ITextBufferFactory {
-	const rawTextSource = RawTextSource.fromString(text);
-	return new TextBufferFactory(rawTextSource);
-}
+import { IRawTextSource, TextSource } from 'vs/editor/common/model/linesTextBuffer/textSource';
+import { LinesTextBuffer } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
 
 export class TextBufferFactory implements ITextBufferFactory {
 
@@ -26,7 +17,7 @@ export class TextBufferFactory implements ITextBufferFactory {
 
 	public create(defaultEOL: DefaultEndOfLine): ITextBuffer {
 		const textSource = TextSource.fromRawTextSource(this.rawTextSource, defaultEOL);
-		return new TextBuffer(textSource);
+		return new LinesTextBuffer(textSource);
 	}
 
 	public getFirstLineText(lengthLimit: number): string {
@@ -101,11 +92,10 @@ class ModelLineBasedBuilder {
 		}
 	}
 
-	public finish(length: number, carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean): TextBufferFactory {
+	public finish(carriageReturnCnt: number, containsRTL: boolean, isBasicASCII: boolean): TextBufferFactory {
 		return new TextBufferFactory({
 			BOM: this.BOM,
 			lines: this.lines,
-			length,
 			containsRTL: containsRTL,
 			totalCRCount: carriageReturnCnt,
 			isBasicASCII,
@@ -113,24 +103,20 @@ class ModelLineBasedBuilder {
 	}
 }
 
-export class ModelBuilder implements ITextBufferBuilder {
+export class LinesTextBufferBuilder implements ITextBufferBuilder {
 
 	private leftoverPrevChunk: string;
 	private leftoverEndsInCR: boolean;
 	private totalCRCount: number;
 	private lineBasedBuilder: ModelLineBasedBuilder;
-	private totalLength: number;
 	private containsRTL: boolean;
 	private isBasicASCII: boolean;
-
-
 
 	constructor() {
 		this.leftoverPrevChunk = '';
 		this.leftoverEndsInCR = false;
 		this.totalCRCount = 0;
 		this.lineBasedBuilder = new ModelLineBasedBuilder();
-		this.totalLength = 0;
 		this.containsRTL = false;
 		this.isBasicASCII = true;
 	}
@@ -149,7 +135,6 @@ export class ModelBuilder implements ITextBufferBuilder {
 		if (chunk.length === 0) {
 			return;
 		}
-		this.totalLength += chunk.length;
 
 		this._updateCRCount(chunk);
 
@@ -190,6 +175,6 @@ export class ModelBuilder implements ITextBufferBuilder {
 			finalLines.push('');
 		}
 		this.lineBasedBuilder.acceptLines(finalLines);
-		return this.lineBasedBuilder.finish(this.totalLength, this.totalCRCount, this.containsRTL, this.isBasicASCII);
+		return this.lineBasedBuilder.finish(this.totalCRCount, this.containsRTL, this.isBasicASCII);
 	}
 }

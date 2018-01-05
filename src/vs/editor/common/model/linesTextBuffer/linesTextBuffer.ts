@@ -8,7 +8,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
-import { ITextSource } from 'vs/editor/common/model/linesTextBuffer/textSource';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
@@ -24,7 +23,33 @@ export interface IValidatedEditOperation {
 	isAutoWhitespaceEdit: boolean;
 }
 
-export class TextBuffer implements ITextBuffer {
+/**
+ * A processed string with its EOL resolved ready to be turned into an editor model.
+ */
+export interface ITextSource {
+	/**
+	 * The text split into lines.
+	 */
+	readonly lines: string[];
+	/**
+	 * The BOM (leading character sequence of the file).
+	 */
+	readonly BOM: string;
+	/**
+	 * The end of line sequence.
+	 */
+	readonly EOL: string;
+	/**
+	 * The text contains Unicode characters classified as "R" or "AL".
+	 */
+	readonly containsRTL: boolean;
+	/**
+	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
+	 */
+	readonly isBasicASCII: boolean;
+}
+
+export class LinesTextBuffer implements ITextBuffer {
 
 	private _lines: string[];
 	private _BOM: string;
@@ -53,7 +78,7 @@ export class TextBuffer implements ITextBuffer {
 	}
 
 	public equals(other: ITextBuffer): boolean {
-		if (!(other instanceof TextBuffer)) {
+		if (!(other instanceof LinesTextBuffer)) {
 			return false;
 		}
 		if (this._BOM !== other._BOM) {
@@ -261,7 +286,7 @@ export class TextBuffer implements ITextBuffer {
 		}
 
 		// Sort operations ascending
-		operations.sort(TextBuffer._sortOpsAscending);
+		operations.sort(LinesTextBuffer._sortOpsAscending);
 
 		for (let i = 0, count = operations.length - 1; i < count; i++) {
 			let rangeEnd = operations[i].range.getEndPosition();
@@ -278,7 +303,7 @@ export class TextBuffer implements ITextBuffer {
 		}
 
 		// Delta encode operations
-		let reverseRanges = TextBuffer._getInverseEditRanges(operations);
+		let reverseRanges = LinesTextBuffer._getInverseEditRanges(operations);
 		let newTrimAutoWhitespaceCandidates: { lineNumber: number, oldContent: string }[] = [];
 
 		for (let i = 0; i < operations.length; i++) {
@@ -435,7 +460,7 @@ export class TextBuffer implements ITextBuffer {
 	private _doApplyEdits(operations: IValidatedEditOperation[]): [ModelRawChange[], IInternalModelContentChange[]] {
 
 		// Sort operations descending
-		operations.sort(TextBuffer._sortOpsDescending);
+		operations.sort(LinesTextBuffer._sortOpsDescending);
 
 		let rawContentChanges: ModelRawChange[] = [];
 		let contentChanges: IInternalModelContentChange[] = [];

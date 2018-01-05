@@ -33,11 +33,18 @@ import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringStream } from 'vs/platform/files/common/files';
-import * as linesTextBuffer from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
+import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 
-// Here are the two switches for text buffer implementations:
-export const createTextBufferBuilder = linesTextBuffer.createTextBufferBuilder;
-export const createTextBufferFactory = linesTextBuffer.createTextBufferFactory;
+// Here is the master switch for the text buffer implementation:
+function createTextBufferBuilder() {
+	return new LinesTextBufferBuilder();
+}
+
+export function createTextBufferFactory(text: string): model.ITextBufferFactory {
+	const builder = createTextBufferBuilder();
+	builder.acceptChunk(text);
+	return builder.finish();
+}
 
 export function createTextBufferFactoryFromStream(stream: IStringStream): TPromise<model.ITextBufferFactory> {
 	return new TPromise<model.ITextBufferFactory>((c, e, p) => {

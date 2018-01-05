@@ -7,9 +7,7 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { TextSource } from 'vs/editor/common/model/linesTextBuffer/textSource';
-import { TextBuffer, IValidatedEditOperation } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
+import { LinesTextBuffer, IValidatedEditOperation } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
 
 suite('LinesTextBuffer._getInverseEdits', () => {
 
@@ -31,7 +29,7 @@ suite('LinesTextBuffer._getInverseEdits', () => {
 	}
 
 	function assertInverseEdits(ops: IValidatedEditOperation[], expected: Range[]): void {
-		var actual = TextBuffer._getInverseEditRanges(ops);
+		var actual = LinesTextBuffer._getInverseEditRanges(ops);
 		assert.deepEqual(actual, expected);
 	}
 
@@ -278,8 +276,13 @@ suite('LinesTextBuffer._toSingleEditOperation', () => {
 	}
 
 	function testToSingleEditOperation(original: string[], edits: IValidatedEditOperation[], expected: IValidatedEditOperation): void {
-		const textSource = TextSource.fromString(original.join('\n'), DefaultEndOfLine.LF);
-		const textBuffer = new TextBuffer(textSource);
+		const textBuffer = new LinesTextBuffer({
+			BOM: '',
+			EOL: '\n',
+			containsRTL: false,
+			isBasicASCII: true,
+			lines: original
+		});
 
 		const actual = textBuffer._toSingleEditOperation(edits);
 		assert.deepEqual(actual, expected);
