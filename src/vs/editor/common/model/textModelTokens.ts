@@ -11,9 +11,9 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelTokensChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ITextBuffer } from 'vs/editor/common/model/textBuffer';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { ITextBuffer } from 'vs/editor/common/model';
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 	return (

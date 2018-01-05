@@ -5,7 +5,7 @@
 'use strict';
 
 import { CharCode } from 'vs/base/common/charCode';
-import { ITextBuffer } from 'vs/editor/common/model/textBuffer';
+import { ITextBuffer } from 'vs/editor/common/model';
 
 export interface IIndentationGuesserSource {
 	getLineCount(): number;

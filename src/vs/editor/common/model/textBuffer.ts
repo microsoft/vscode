@@ -10,8 +10,8 @@ import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ModelRawChange, IModelContentChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference } from 'vs/editor/common/model';
+import { ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -22,49 +22,6 @@ export interface IValidatedEditOperation {
 	lines: string[];
 	forceMoveMarkers: boolean;
 	isAutoWhitespaceEdit: boolean;
-}
-
-export interface ITextBuffer {
-	equals(other: ITextSource): boolean;
-	mightContainRTL(): boolean;
-	mightContainNonBasicASCII(): boolean;
-	getBOM(): string;
-	getEOL(): string;
-
-	getOffsetAt(lineNumber: number, column: number): number;
-	getPositionAt(offset: number): Position;
-	getRangeAt(offset: number, length: number): Range;
-
-	getValueInRange(range: Range, eol: EndOfLinePreference): string;
-	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
-	getLineCount(): number;
-	getLinesContent(): string[];
-	getLineContent(lineNumber: number): string;
-	getLineCharCode(lineNumber: number, index: number): number;
-	getLineLength(lineNumber: number): number;
-	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
-	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-
-	setEOL(newEOL: string): void;
-	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
-}
-
-export class ApplyEditsResult {
-
-	constructor(
-		public readonly reverseEdits: IIdentifiedSingleEditOperation[],
-		public readonly rawChanges: ModelRawChange[],
-		public readonly changes: IInternalModelContentChange[],
-		public readonly trimAutoWhitespaceLineNumbers: number[]
-	) { }
-
-}
-
-export interface IInternalModelContentChange extends IModelContentChange {
-	range: Range;
-	lines: string[];
-	rangeOffset: number;
-	forceMoveMarkers: boolean;
 }
 
 export class TextBuffer implements ITextBuffer {

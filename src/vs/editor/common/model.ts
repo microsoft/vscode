@@ -13,9 +13,8 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextSource } from 'vs/editor/common/model/textSource';
-import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelContentChange, ModelRawChange } from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -1047,4 +1046,56 @@ export interface ITextModel {
 	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
+}
+
+/**
+ * @internal
+ */
+export interface ITextBuffer {
+	equals(other: ITextSource): boolean;
+	mightContainRTL(): boolean;
+	mightContainNonBasicASCII(): boolean;
+	getBOM(): string;
+	getEOL(): string;
+
+	getOffsetAt(lineNumber: number, column: number): number;
+	getPositionAt(offset: number): Position;
+	getRangeAt(offset: number, length: number): Range;
+
+	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getLineCount(): number;
+	getLinesContent(): string[];
+	getLineContent(lineNumber: number): string;
+	getLineCharCode(lineNumber: number, index: number): number;
+	getLineLength(lineNumber: number): number;
+	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
+	getLineLastNonWhitespaceColumn(lineNumber: number): number;
+
+	setEOL(newEOL: string): void;
+	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
+}
+
+/**
+ * @internal
+ */
+export class ApplyEditsResult {
+
+	constructor(
+		public readonly reverseEdits: IIdentifiedSingleEditOperation[],
+		public readonly rawChanges: ModelRawChange[],
+		public readonly changes: IInternalModelContentChange[],
+		public readonly trimAutoWhitespaceLineNumbers: number[]
+	) { }
+
+}
+
+/**
+ * @internal
+ */
+export interface IInternalModelContentChange extends IModelContentChange {
+	range: Range;
+	lines: string[];
+	rangeOffset: number;
+	forceMoveMarkers: boolean;
 }

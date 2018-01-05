@@ -32,7 +32,7 @@ import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/comm
 import { guessIndentation, IndentationGuesserTextBufferSource, IndentationGuesserStringArraySource } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { TextBuffer, ITextBuffer } from 'vs/editor/common/model/textBuffer';
+import { TextBuffer } from 'vs/editor/common/model/textBuffer';
 
 let MODEL_ID = 0;
 
@@ -146,7 +146,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private _alternativeVersionId: number;
 	private readonly _shouldSimplifyMode: boolean;
 	private readonly _isTooLargeForTokenization: boolean;
-	private _buffer: ITextBuffer;
+	private _buffer: model.ITextBuffer;
 
 	//#region Editing
 	private _commandManager: EditStack;
