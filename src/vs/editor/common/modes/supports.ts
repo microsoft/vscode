@@ -59,7 +59,7 @@ export class ScopedLineTokens {
 	}
 
 	public getLineContent(): string {
-		var actualLineContent = this._actual.getLineContent();
+		const actualLineContent = this._actual.getLineContent();
 		return actualLineContent.substring(this.firstCharOffset, this._lastCharOffset);
 	}
 

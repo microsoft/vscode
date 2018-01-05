@@ -34,7 +34,7 @@ import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextBuffer, ITextBuffer } from 'vs/editor/common/model/textBuffer';
 
-var MODEL_ID = 0;
+let MODEL_ID = 0;
 
 /**
  * Produces 'a'-'z', followed by 'A'-'Z'... followed by 'a'-'z', etc.
@@ -316,10 +316,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 			// There's nothing to do
 			return;
 		}
-		var oldFullModelRange = this.getFullModelRange();
-		var oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);
-		var endLineNumber = this.getLineCount();
-		var endColumn = this.getLineMaxColumn(endLineNumber);
+		const oldFullModelRange = this.getFullModelRange();
+		const oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);
+		const endLineNumber = this.getLineCount();
+		const endColumn = this.getLineMaxColumn(endLineNumber);
 
 		this._resetValue(newValue);
 
@@ -625,8 +625,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public getValue(eol?: model.EndOfLinePreference, preserveBOM: boolean = false): string {
 		this._assertNotDisposed();
-		var fullModelRange = this.getFullModelRange();
-		var fullModelValue = this.getValueInRange(fullModelRange, eol);
+		const fullModelRange = this.getFullModelRange();
+		const fullModelValue = this.getValueInRange(fullModelRange, eol);
 
 		if (preserveBOM) {
 			return this._buffer.getBOM() + fullModelValue;
@@ -654,8 +654,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public getValueLengthInRange(rawRange: IRange, eol: model.EndOfLinePreference = model.EndOfLinePreference.TextDefined): number {
 		this._assertNotDisposed();
-		var range = this.validateRange(rawRange);
-		return this._buffer.getValueLengthInRange(range, eol);
+		return this._buffer.getValueLengthInRange(this.validateRange(rawRange), eol);
 	}
 
 	public getLineCount(): number {
@@ -871,7 +870,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public getFullModelRange(): Range {
 		this._assertNotDisposed();
-		var lineCount = this.getLineCount();
+		const lineCount = this.getLineCount();
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
 
@@ -1496,7 +1495,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	_warmUpTokens(): void {
 		// Warm up first 100 lines (if it takes less than 50ms)
-		var maxLineNumber = Math.min(100, this.getLineCount());
+		const maxLineNumber = Math.min(100, this.getLineCount());
 		this._revalidateTokensNow(maxLineNumber);
 
 		if (this._tokens.hasLinesToTokenize(this._buffer)) {
@@ -1570,7 +1569,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	public getWordUntilPosition(position: IPosition): model.IWordAtPosition {
-		var wordAtPosition = this.getWordAtPosition(position);
+		const wordAtPosition = this.getWordAtPosition(position);
 		if (!wordAtPosition) {
 			return {
 				word: '',

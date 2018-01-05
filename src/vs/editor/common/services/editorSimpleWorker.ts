@@ -130,7 +130,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 	}
 
 	public getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition {
-		var wordAtPosition = this.getWordAtPosition(position, wordDefinition);
+		const wordAtPosition = this.getWordAtPosition(position, wordDefinition);
 		if (!wordAtPosition) {
 			return {
 				word: '',
@@ -146,7 +146,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 	}
 
 	private _getAllWords(wordDefinition: RegExp): string[] {
-		var result: string[] = [];
+		let result: string[] = [];
 		this._lines.forEach((line) => {
 			this._wordenize(line, wordDefinition).forEach((info) => {
 				result.push(line.substring(info.start, info.end));
@@ -156,8 +156,8 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 	}
 
 	public getAllUniqueWords(wordDefinition: RegExp, skipWordOnce?: string): string[] {
-		var foundSkipWord = false;
-		var uniqueWords = Object.create(null);
+		let foundSkipWord = false;
+		let uniqueWords = Object.create(null);
 		return this._getAllWords(wordDefinition).filter((word) => {
 			if (skipWordOnce && !foundSkipWord && skipWordOnce === word) {
 				foundSkipWord = true;
@@ -194,13 +194,13 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 			return this._lines[range.startLineNumber - 1].substring(range.startColumn - 1, range.endColumn - 1);
 		}
 
-		var lineEnding = this._eol,
-			startLineIndex = range.startLineNumber - 1,
-			endLineIndex = range.endLineNumber - 1,
-			resultLines: string[] = [];
+		let lineEnding = this._eol;
+		let startLineIndex = range.startLineNumber - 1;
+		let endLineIndex = range.endLineNumber - 1;
+		let resultLines: string[] = [];
 
 		resultLines.push(this._lines[startLineIndex].substring(range.startColumn - 1));
-		for (var i = startLineIndex + 1; i < endLineIndex; i++) {
+		for (let i = startLineIndex + 1; i < endLineIndex; i++) {
 			resultLines.push(this._lines[i]);
 		}
 		resultLines.push(this._lines[endLineIndex].substring(0, range.endColumn - 1));

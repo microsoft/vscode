@@ -12,7 +12,7 @@ import { ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
 import { IRawTextSource } from 'vs/editor/common/model/textSource';
 
-export var IModelService = createDecorator<IModelService>('modelService');
+export const IModelService = createDecorator<IModelService>('modelService');
 
 export interface IModelService {
 	_serviceBrand: any;

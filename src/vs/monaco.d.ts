@@ -2135,7 +2135,7 @@ declare module monaco.editor {
 	/**
 	 * The type of the `IEditor`.
 	 */
-	export var EditorType: {
+	export const EditorType: {
 		ICodeEditor: string;
 		IDiffEditor: string;
 	};

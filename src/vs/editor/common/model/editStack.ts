@@ -69,7 +69,7 @@ export class EditStack {
 			};
 		}
 
-		var inverseEditOperation: IEditOperation = {
+		const inverseEditOperation: IEditOperation = {
 			operations: this.model.applyEdits(editOperations)
 		};
 
@@ -90,11 +90,11 @@ export class EditStack {
 		this.pushStackElement();
 
 		if (this.past.length > 0) {
-			var pastStackElement = this.past.pop();
+			const pastStackElement = this.past.pop();
 
 			try {
 				// Apply all operations in reverse order
-				for (var i = pastStackElement.editOperations.length - 1; i >= 0; i--) {
+				for (let i = pastStackElement.editOperations.length - 1; i >= 0; i--) {
 					pastStackElement.editOperations[i] = {
 						operations: this.model.applyEdits(pastStackElement.editOperations[i].operations)
 					};
@@ -122,11 +122,11 @@ export class EditStack {
 				throw new Error('How is this possible?');
 			}
 
-			var futureStackElement = this.future.pop();
+			const futureStackElement = this.future.pop();
 
 			try {
 				// Apply all operations
-				for (var i = 0; i < futureStackElement.editOperations.length; i++) {
+				for (let i = 0; i < futureStackElement.editOperations.length; i++) {
 					futureStackElement.editOperations[i] = {
 						operations: this.model.applyEdits(futureStackElement.editOperations[i].operations)
 					};

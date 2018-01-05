@@ -576,7 +576,7 @@ export interface IDecorationOptions {
 /**
  * The type of the `IEditor`.
  */
-export var EditorType = {
+export const EditorType = {
 	ICodeEditor: 'vs.editor.ICodeEditor',
 	IDiffEditor: 'vs.editor.IDiffEditor'
 };
@@ -585,7 +585,7 @@ export var EditorType = {
  * Built-in commands.
  * @internal
  */
-export var Handler = {
+export const Handler = {
 	ExecuteCommand: 'executeCommand',
 	ExecuteCommands: 'executeCommands',
 
