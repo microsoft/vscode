@@ -276,7 +276,42 @@ export class PieceTableTextBuffer implements ITextBuffer {
 		return this._lineCnt;
 	}
 
+	private _getEndOfLine(eol: EndOfLinePreference): string {
+		switch (eol) {
+			case EndOfLinePreference.LF:
+				return '\n';
+			case EndOfLinePreference.CRLF:
+				return '\r\n';
+			case EndOfLinePreference.TextDefined:
+				return this.getEOL();
+		}
+		throw new Error('Unknown EOL preference');
+	}
+
 	public getValueInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): string {
+		if (range.isEmpty()) {
+			return '';
+		}
+
+		if (range.startLineNumber === range.endLineNumber) {
+			return this.getLineRawContent(range.startLineNumber).substring(range.startColumn - 1, range.endColumn - 1);
+		}
+
+		const lineEnding = this._getEndOfLine(eol);
+		const startLineIndex = range.startLineNumber - 1;
+		const endLineIndex = range.endLineNumber - 1;
+		let resultLines: string[] = [];
+
+		resultLines.push(this.getLineContent(startLineIndex + 1).substring(range.startColumn - 1));
+		for (let i = startLineIndex + 1; i < endLineIndex; i++) {
+			resultLines.push(this.getLineContent(i + 1));
+		}
+		resultLines.push(this.getLineRawContent(endLineIndex + 1).substring(0, range.endColumn - 1));
+
+		return resultLines.join(lineEnding);
+	}
+
+	public getValueInRange2(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): string {
 		// todo, validate range.
 		if (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
 			return '';
