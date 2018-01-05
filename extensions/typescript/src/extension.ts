@@ -12,7 +12,7 @@ nls.config({ locale: vscode.env.language });
 nls.loadMessageBundle();
 
 import { CommandManager } from './utils/commandManager';
-import { TypeScriptServiceClientHost } from './typescriptMain';
+import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import * as commands from './commands';
 
 import TypeScriptTaskProviderManager from './features/taskProvider';

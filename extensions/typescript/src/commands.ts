@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 
-import { TypeScriptServiceClientHost } from './typescriptMain';
+import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { Command } from './utils/commandManager';
 import { Lazy } from './utils/lazy';
 import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';

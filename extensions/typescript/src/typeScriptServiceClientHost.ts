@@ -35,7 +35,7 @@ const styleCheckDiagnostics = [
 	7030	// not all code paths return a value
 ];
 
-export class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
+export default class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 	private readonly ataProgressReporter: AtaProgressReporter;
 	private readonly typingsStatus: TypingsStatus;
 	private readonly client: TypeScriptServiceClient;
