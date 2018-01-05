@@ -159,18 +159,18 @@ CommandsRegistry.registerCommand(id, async accessor => {
 		return windowsService.openWindow([filePath], { forceReuseWindow: true });
 	}
 
-	const languagePicks = LanguagePick.list(modeService, envService);
 	const globalPicks = [...await SnippetFilePick.list(envService), new NewSnippetFilePick(envService, windowService)];
-
-	if (languagePicks.length > 0) {
-		languagePicks[0].separator = { label: nls.localize('group.lang', "Language Snippets") };
-	}
+	const languagePicks = LanguagePick.list(modeService, envService);
 
 	if (globalPicks.length > 0) {
-		globalPicks[0].separator = { border: true, label: nls.localize('group.global', "Global Snippets") };
+		globalPicks[0].separator = { label: nls.localize('group.global', "Global Snippets") };
 	}
 
-	const pick = await quickOpenService.pick([].concat(languagePicks, globalPicks), {
+	if (languagePicks.length > 0) {
+		languagePicks[0].separator = { border: true, label: nls.localize('group.lang', "Language Snippets") };
+	}
+
+	const pick = await quickOpenService.pick([].concat(globalPicks, languagePicks), {
 		placeHolder: nls.localize('openSnippet.pickLanguage', "Select Language or Global snippet")
 	});
 
