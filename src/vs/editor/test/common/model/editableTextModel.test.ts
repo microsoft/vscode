@@ -538,10 +538,8 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () =
 
 	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
 		return {
-			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
-			text: text.join('\n'),
-			forceMoveMarkers: false
+			text: text.join('\n')
 		};
 	}
 
@@ -586,10 +584,8 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicAS
 
 	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
 		return {
-			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
-			text: text.join('\n'),
-			forceMoveMarkers: false
+			text: text.join('\n')
 		};
 	}
 
@@ -1500,10 +1496,9 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		assertSyncedModels('Hello', (model, assertMirrorModels) => {
 			model.applyEdits([{
-				identifier: null,
 				range: new Range(1, 6, 1, 6),
 				text: ' world!',
-				forceMoveMarkers: false
+				// forceMoveMarkers: false
 			}]);
 
 			assertMirrorModels();
@@ -1517,10 +1512,9 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				isFirstTime = false;
 
 				model.applyEdits([{
-					identifier: null,
 					range: new Range(1, 13, 1, 13),
 					text: ' How are you?',
-					forceMoveMarkers: false
+					// forceMoveMarkers: false
 				}]);
 			});
 		});
@@ -1530,10 +1524,9 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		assertSyncedModels('Hello', (model, assertMirrorModels) => {
 			model.applyEdits([{
-				identifier: null,
 				range: new Range(1, 6, 1, 6),
 				text: ' world!',
-				forceMoveMarkers: false
+				// forceMoveMarkers: false
 			}]);
 
 			assertMirrorModels();
@@ -1547,10 +1540,9 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				isFirstTime = false;
 
 				model.applyEdits([{
-					identifier: null,
 					range: new Range(1, 13, 1, 13),
 					text: ' How are you?',
-					forceMoveMarkers: false
+					// forceMoveMarkers: false
 				}]);
 			});
 		});

@@ -295,8 +295,9 @@ export interface ISingleEditOperation {
 export interface IIdentifiedSingleEditOperation {
 	/**
 	 * An identifier associated with this single edit operation.
+	 * @internal
 	 */
-	identifier: ISingleEditOperationIdentifier;
+	identifier?: ISingleEditOperationIdentifier;
 	/**
 	 * The range to replace. This can be empty to emulate a simple insert.
 	 */
@@ -309,10 +310,11 @@ export interface IIdentifiedSingleEditOperation {
 	 * This indicates that this operation has "insert" semantics.
 	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
 	 */
-	forceMoveMarkers: boolean;
+	forceMoveMarkers?: boolean;
 	/**
 	 * This indicates that this operation is inserting automatic whitespace
 	 * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.
+	 * @internal
 	 */
 	isAutoWhitespaceEdit?: boolean;
 	/**

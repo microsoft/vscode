@@ -205,7 +205,11 @@ suite('SideEditing', () => {
 		const cursor = new Cursor(config, model, viewModel);
 
 		cursor.setSelections('tests', [selection]);
-		model.applyEdits([{ range: editRange, text: editText, forceMoveMarkers: editForceMoveMarkers, identifier: null }]);
+		model.applyEdits([{
+			range: editRange,
+			text: editText,
+			forceMoveMarkers: editForceMoveMarkers
+		}]);
 		const actual = cursor.getSelection();
 		assert.deepEqual(actual.toString(), expected.toString(), msg);
 

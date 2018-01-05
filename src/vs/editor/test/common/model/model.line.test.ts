@@ -446,19 +446,15 @@ suite('ModelLinesTokens', () => {
 		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, TestToken.toTokens([new TestToken(0, 1)]));
 
 		model.applyEdits([{
-			identifier: null,
 			range: new Range(1, 1, 1, 10),
-			text: '',
-			forceMoveMarkers: false
+			text: ''
 		}]);
 
 		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, new Uint32Array(0));
 
 		model.applyEdits([{
-			identifier: null,
 			range: new Range(1, 1, 1, 1),
-			text: 'a',
-			forceMoveMarkers: false
+			text: 'a'
 		}]);
 
 		const actualTokens = model.getLineTokens(1);

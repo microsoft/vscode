@@ -624,9 +624,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		this._model.applyEdits([
 			{
 				text: mostRelevantContent,
-				forceMoveMarkers: false,
-				range: new Range(mostRelevantLineOffset, 1, mostRelevantEndLine, 1),
-				identifier: { major: 1, minor: 0 }
+				range: new Range(mostRelevantLineOffset, 1, mostRelevantEndLine, 1)
 			}
 		]);
 

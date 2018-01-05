@@ -290,12 +290,12 @@ export class TextBuffer implements ITextBuffer {
 			}
 			operations[i] = {
 				sortIndex: i,
-				identifier: op.identifier,
+				identifier: op.identifier || null,
 				range: validatedRange,
 				rangeOffset: this.getOffsetAt(validatedRange.startLineNumber, validatedRange.startColumn),
 				rangeLength: this.getValueLengthInRange(validatedRange, EndOfLinePreference.TextDefined),
 				lines: op.text ? op.text.split(/\r\n|\r|\n/) : null,
-				forceMoveMarkers: op.forceMoveMarkers,
+				forceMoveMarkers: op.forceMoveMarkers || false,
 				isAutoWhitespaceEdit: op.isAutoWhitespaceEdit || false
 			};
 		}

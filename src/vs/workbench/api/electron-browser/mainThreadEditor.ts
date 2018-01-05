@@ -355,7 +355,6 @@ export class MainThreadTextEditor {
 
 		let transformedEdits = edits.map((edit): IIdentifiedSingleEditOperation => {
 			return {
-				identifier: null,
 				range: Range.lift(edit.range),
 				text: edit.text,
 				forceMoveMarkers: edit.forceMoveMarkers

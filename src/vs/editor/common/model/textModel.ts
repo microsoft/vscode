@@ -985,11 +985,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 					if (allowTrimLine) {
 						editOperations.push({
-							identifier: null,
 							range: new Range(trimLineNumber, 1, trimLineNumber, maxLineColumn),
-							text: null,
-							forceMoveMarkers: false,
-							isAutoWhitespaceEdit: false
+							text: null
 						});
 					}
 

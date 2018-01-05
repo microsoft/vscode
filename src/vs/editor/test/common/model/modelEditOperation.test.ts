@@ -42,10 +42,7 @@ suite('Editor Model - Model Edit Operation', () => {
 		);
 
 		return {
-			identifier: {
-				major: 0,
-				minor: 0
-			},
+			identifier: null,
 			range: range,
 			text: text,
 			forceMoveMarkers: false

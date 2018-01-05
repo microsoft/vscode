@@ -242,7 +242,6 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		return {
 			text,
 			range: Range.lift(range),
-			identifier: undefined,
 			forceMoveMarkers: true
 		};
 	}
