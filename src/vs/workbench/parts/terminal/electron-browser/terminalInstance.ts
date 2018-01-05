@@ -171,6 +171,15 @@ export class TerminalInstance implements ITerminalInstance {
 				this.attachToElement(_container);
 			}
 		});
+
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('terminal.integrated')) {
+				this.updateConfig();
+			}
+			if (e.affectsConfiguration('editor.accessibilitySupport')) {
+				this.updateAccessibilitySupport();
+			}
+		});
 	}
 
 	public addDisposable(disposable: lifecycle.IDisposable): void {
@@ -967,8 +976,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._setEnableBell(this._configHelper.config.enableBell);
 	}
 
-	public updateAccessibilitySupport(isEnabled: boolean): void {
-		this._xterm.setOption('screenReaderMode', isEnabled);
+	public updateAccessibilitySupport(): void {
+		const value = this._configurationService.getValue('editor.accessibilitySupport');
+		this._xterm.setOption('screenReaderMode', value === 'on');
 	}
 
 	private _setCursorBlink(blink: boolean): void {

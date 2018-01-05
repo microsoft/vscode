@@ -30,17 +30,17 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 	constructor(
 		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IConfigurationService _configurationService: IConfigurationService,
 		@IPanelService _panelService: IPanelService,
 		@IPartService _partService: IPartService,
 		@ILifecycleService _lifecycleService: ILifecycleService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IQuickOpenService private _quickOpenService: IQuickOpenService,
 		@IChoiceService private _choiceService: IChoiceService,
 		@IStorageService private _storageService: IStorageService,
 		@IMessageService private _messageService: IMessageService
 	) {
-		super(_contextKeyService, _configurationService, _panelService, _partService, _lifecycleService);
+		super(_contextKeyService, _panelService, _partService, _lifecycleService);
 
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 	}
