@@ -306,7 +306,7 @@ export class PieceTableTextBuffer implements ITextBuffer {
 		for (let i = startLineIndex + 1; i < endLineIndex; i++) {
 			resultLines.push(this.getLineContent(i + 1));
 		}
-		resultLines.push(this.getLineRawContent(endLineIndex + 1).substring(0, range.endColumn - 1));
+		resultLines.push(this.getLineContent(endLineIndex + 1).substring(0, range.endColumn - 1));
 
 		return resultLines.join(lineEnding);
 	}
