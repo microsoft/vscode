@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { ColorId, StandardTokenType, LanguageId } from 'vs/editor/common/modes';
+import { ColorId, StandardTokenType, LanguageId, TokenMetadata } from 'vs/editor/common/modes';
 
 export interface IViewLineTokens {
 	equals(other: IViewLineTokens): boolean;
