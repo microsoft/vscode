@@ -19,12 +19,12 @@ suite('Snippets', function () {
 	}
 
 	test('SnippetFile#select', function () {
-		let file = new TestSnippetFile('somepath/foo.json', []);
+		let file = new TestSnippetFile('somepath/foo.code-snippets', []);
 		let bucket: Snippet[] = [];
 		file.select('', bucket);
 		assert.equal(bucket.length, 0);
 
-		file = new TestSnippetFile('somepath/foo.json', [
+		file = new TestSnippetFile('somepath/foo.code-snippets', [
 			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test'),
 			new Snippet(['foo'], 'FooSnippet2', 'foo', '', 'snippet', 'test'),
 			new Snippet(['bar'], 'BarSnippet1', 'foo', '', 'snippet', 'test'),
@@ -56,7 +56,7 @@ suite('Snippets', function () {
 
 	test('SnippetFile#select - any scope', function () {
 
-		let file = new TestSnippetFile('somepath/foo.json', [
+		let file = new TestSnippetFile('somepath/foo.code-snippets', [
 			new Snippet([], 'AnySnippet1', 'foo', '', 'snippet', 'test'),
 			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test'),
 		]);
