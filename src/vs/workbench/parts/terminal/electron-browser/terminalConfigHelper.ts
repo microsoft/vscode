@@ -11,20 +11,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import { deepClone } from 'vs/base/common/objects';
 
 interface IEditorConfiguration {
 	editor: IEditorOptions;
-}
-
-interface IFullTerminalConfiguration {
-	terminal: {
-		integrated: ITerminalConfiguration;
-	};
 }
 
 const DEFAULT_LINE_HEIGHT = 1.0;
@@ -41,16 +34,24 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 	private _charMeasureElement: HTMLElement;
 	private _lastFontMeasurement: ITerminalFont;
+	public config: ITerminalConfiguration;
 
 	public constructor(
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IWorkspaceConfigurationService private _workspaceConfigurationService: IWorkspaceConfigurationService,
 		@IChoiceService private _choiceService: IChoiceService,
-		@IStorageService private _storageService: IStorageService) {
+		@IStorageService private _storageService: IStorageService
+	) {
+		this._updateConfig();
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
+				this._updateConfig();
+			}
+		});
 	}
 
-	public get config(): ITerminalConfiguration {
-		return deepClone(this._configurationService.getValue<IFullTerminalConfiguration>().terminal.integrated);
+	private _updateConfig(): void {
+		this.config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {

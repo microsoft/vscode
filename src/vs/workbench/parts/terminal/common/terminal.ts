@@ -47,6 +47,8 @@ export const TerminalCursorStyle = {
 	UNDERLINE: 'underline'
 };
 
+export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
+
 export interface ITerminalConfiguration {
 	shell: {
 		linux: string;
