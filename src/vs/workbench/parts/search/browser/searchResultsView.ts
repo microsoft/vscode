@@ -242,7 +242,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
 		if (folderMatch.hasRoot()) {
-			templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.ROOT_FOLDER });
+			templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.FOLDER });
 		} else {
 			templateData.label.setValue(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}

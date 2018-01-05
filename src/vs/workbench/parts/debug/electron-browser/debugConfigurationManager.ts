@@ -14,7 +14,7 @@ import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -378,7 +378,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 	}
 
-	public canSetBreakpointsIn(model: IModel): boolean {
+	public canSetBreakpointsIn(model: ITextModel): boolean {
 		const modeId = model ? model.getLanguageIdentifier().language : null;
 		if (!modeId || modeId === 'jsonc' || modeId === 'log') {
 			// do not allow breakpoints in our settings files and output

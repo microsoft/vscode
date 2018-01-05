@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EndOfLinePreference, IModel } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
 import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
@@ -49,7 +49,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		this.registerModelDisposeListener(model);
 	}
 
-	private registerModelDisposeListener(model: IModel): void {
+	private registerModelDisposeListener(model: ITextModel): void {
 		if (this.modelDisposeListener) {
 			this.modelDisposeListener.dispose();
 		}
@@ -60,7 +60,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		});
 	}
 
-	public get textEditorModel(): IModel {
+	public get textEditorModel(): ITextModel {
 		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 

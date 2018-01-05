@@ -10,7 +10,7 @@ import * as strings from 'vs/base/common/strings';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModel, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ITextModel, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
@@ -46,7 +46,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 		}
 	}
 
-	private doTrimTrailingWhitespace(model: IModel, isAutoSaved: boolean): void {
+	private doTrimTrailingWhitespace(model: ITextModel, isAutoSaved: boolean): void {
 		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
 		const cursors: Position[] = [];
 
@@ -69,7 +69,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 	}
 }
 
-function findEditor(model: IModel, codeEditorService: ICodeEditorService): ICodeEditor {
+function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): ICodeEditor {
 	let candidate: ICodeEditor = null;
 
 	if (model.isAttachedToEditor()) {
@@ -102,7 +102,7 @@ export class FinalNewLineParticipant implements ISaveParticipantParticipant {
 		}
 	}
 
-	private doInsertFinalNewLine(model: IModel): void {
+	private doInsertFinalNewLine(model: ITextModel): void {
 		const lineCount = model.getLineCount();
 		const lastLine = model.getLineContent(lineCount);
 		const lastLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(lastLine) === -1;
@@ -140,7 +140,7 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 		}
 	}
 
-	private doTrimFinalNewLines(model: IModel): void {
+	private doTrimFinalNewLines(model: ITextModel): void {
 		const lineCount = model.getLineCount();
 
 		// Do not insert new line if file does not end with new line
@@ -223,7 +223,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		EditOperationsCommand.execute(editor, edits);
 	}
 
-	private _editWithModel(model: IModel, edits: ISingleEditOperation[]): void {
+	private _editWithModel(model: ITextModel, edits: ISingleEditOperation[]): void {
 
 		const [{ range }] = edits;
 		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);

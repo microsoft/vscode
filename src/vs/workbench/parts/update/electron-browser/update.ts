@@ -33,7 +33,6 @@ import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/
 import * as semver from 'semver';
 import { OS, isLinux, isWindows } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { HappyHolidaysAction } from 'vs/workbench/parts/holidays/electron-browser/holidays.contribution';
 
 class ApplyUpdateAction extends Action {
 	constructor( @IUpdateService private updateService: IUpdateService) {
@@ -309,6 +308,7 @@ export class UpdateContribution implements IGlobalActivity {
 	private static readonly showCommandsId = 'workbench.action.showCommands';
 	private static readonly openSettingsId = 'workbench.action.openGlobalSettings';
 	private static readonly openKeybindingsId = 'workbench.action.openGlobalKeybindings';
+	private static readonly openUserSnippets = 'workbench.action.openSnippets';
 	private static readonly selectColorThemeId = 'workbench.action.selectTheme';
 	private static readonly selectIconThemeId = 'workbench.action.selectIconTheme';
 
@@ -431,12 +431,12 @@ export class UpdateContribution implements IGlobalActivity {
 			new CommandAction(UpdateContribution.openSettingsId, nls.localize('settings', "Settings"), this.commandService),
 			new CommandAction(UpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), this.commandService),
 			new Separator(),
+			new CommandAction(UpdateContribution.openUserSnippets, nls.localize('userSnippets', "User Snippets"), this.commandService),
+			new Separator(),
 			new CommandAction(UpdateContribution.selectColorThemeId, nls.localize('selectTheme.label', "Color Theme"), this.commandService),
 			new CommandAction(UpdateContribution.selectIconThemeId, nls.localize('themes.selectIconTheme.label', "File Icon Theme"), this.commandService),
 			new Separator(),
-			updateAction,
-			new Separator(),
-			new HappyHolidaysAction()
+			updateAction
 		];
 	}
 

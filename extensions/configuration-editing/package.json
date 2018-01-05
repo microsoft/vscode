@@ -69,6 +69,10 @@
         "url": "vscode://schemas/snippets"
       },
       {
+        "fileMatch": "%APP_SETTINGS_HOME%/snippets/*.code-snippets",
+        "url": "vscode://schemas/global-snippets"
+      },
+      {
         "fileMatch": "/.vscode/extensions.json",
         "url": "vscode://schemas/extensions"
       }

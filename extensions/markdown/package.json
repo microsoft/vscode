@@ -143,11 +143,13 @@
 				},
 				{
 					"command": "markdown.refreshPreview",
-					"when": "resourceScheme == markdown"
+					"when": "resourceScheme == markdown",
+					"group": "1_markdown"
 				},
 				{
 					"command": "markdown.showPreviewSecuritySelector",
-					"when": "resourceScheme == markdown"
+					"when": "resourceScheme == markdown",
+					"group": "1_markdown"
 				}
 			],
 			"explorer/context": [

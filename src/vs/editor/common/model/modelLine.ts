@@ -12,16 +12,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelTokensChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { TextBuffer } from 'vs/editor/common/model/textBuffer';
+import { ITextBuffer } from 'vs/editor/common/model/textBuffer';
 import { TextBuffer as TextBuffer2 } from 'vs/editor/common/model/textBuffer2';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
-
-export interface ILineEdit {
-	startColumn: number;
-	endColumn: number;
-	text: string;
-}
 
 /**
  * Returns:
@@ -254,7 +248,7 @@ export class ModelLinesTokens {
 		return (firstInvalidLineNumber >= lineNumber);
 	}
 
-	public hasLinesToTokenize(buffer: TextBuffer | TextBuffer2): boolean {
+	public hasLinesToTokenize(buffer: ITextBuffer | TextBuffer2): boolean {
 		return (this._invalidLineStartIndex < buffer.getLineCount());
 	}
 
@@ -420,7 +414,7 @@ export class ModelLinesTokens {
 
 	//#region Tokenization
 
-	public _tokenizeOneLine(buffer: TextBuffer | TextBuffer2, eventBuilder: ModelTokensChangedEventBuilder): number {
+	public _tokenizeOneLine(buffer: ITextBuffer | TextBuffer2, eventBuilder: ModelTokensChangedEventBuilder): number {
 		if (!this.hasLinesToTokenize(buffer)) {
 			return buffer.getLineCount() + 1;
 		}
@@ -429,7 +423,7 @@ export class ModelLinesTokens {
 		return lineNumber;
 	}
 
-	public _updateTokensUntilLine(buffer: TextBuffer | TextBuffer2, eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
+	public _updateTokensUntilLine(buffer: ITextBuffer | TextBuffer2, eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
 		if (!this.tokenizationSupport) {
 			this._invalidLineStartIndex = buffer.getLineCount();
 			return;

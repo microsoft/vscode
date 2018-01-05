@@ -15,14 +15,20 @@ export interface IOpenFileOptions {
 	payload: any;
 }
 
+export interface IFileResultsNavigationOptions {
+	openOnFocus: boolean;
+}
+
 export default class FileResultsNavigation extends Disposable {
 
 	private _openFile: Emitter<IOpenFileOptions> = new Emitter<IOpenFileOptions>();
 	public readonly openFile: Event<IOpenFileOptions> = this._openFile.event;
 
-	constructor(private tree: ITree) {
+	constructor(private tree: ITree, options?: IFileResultsNavigationOptions) {
 		super();
-		this._register(this.tree.onDidChangeFocus(e => this.onFocus(e)));
+		if (options && options.openOnFocus) {
+			this._register(this.tree.onDidChangeFocus(e => this.onFocus(e)));
+		}
 		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
 	}
 

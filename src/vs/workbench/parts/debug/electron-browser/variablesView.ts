@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { RunOnceScheduler, sequence } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
-import { prepareActions } from 'vs/workbench/browser/actions';
 import { IHighlightEvent, IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -106,7 +105,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 		this.tree.setInput(viewModel);
 
 		const collapseAction = new CollapseAction(this.tree, false, 'explorer-action collapse-explorer');
-		this.toolbar.setActions(prepareActions([collapseAction]))();
+		this.toolbar.setActions([collapseAction])();
 
 		this.disposables.push(viewModel.onDidFocusStackFrame(sf => {
 			if (!this.isVisible() || !this.isExpanded()) {

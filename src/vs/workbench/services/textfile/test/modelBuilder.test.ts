@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { ModelBuilder, computeHash } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
-import { ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
+import { ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as strings from 'vs/base/common/strings';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';

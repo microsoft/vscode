@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
@@ -34,7 +34,7 @@ suite('Editor Model - Model Modes 1', () => {
 		}
 	};
 
-	let thisModel: Model = null;
+	let thisModel: TextModel = null;
 	let languageRegistration: IDisposable = null;
 
 	setup(() => {
@@ -47,7 +47,7 @@ suite('Editor Model - Model Modes 1', () => {
 		const LANGUAGE_ID = 'modelModeTest1';
 		calledFor = [];
 		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		thisModel = Model.createFromString(TEXT, undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
+		thisModel = TextModel.createFromString(TEXT, undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
 	});
 
 	teardown(() => {
@@ -182,7 +182,7 @@ suite('Editor Model - Model Modes 2', () => {
 		}
 	};
 
-	function invalidEqual(model: Model, expected: number[]): void {
+	function invalidEqual(model: TextModel, expected: number[]): void {
 		let actual: number[] = [];
 		for (let i = 0, len = model.getLineCount(); i < len; i++) {
 			if (model._tokens._isInvalid(i)) {
@@ -196,7 +196,7 @@ suite('Editor Model - Model Modes 2', () => {
 		assert.equal((<ModelState2>state).prevLineContent, content);
 	}
 
-	function statesEqual(model: Model, states: string[]): void {
+	function statesEqual(model: TextModel, states: string[]): void {
 		var i, len = states.length - 1;
 		for (i = 0; i < len; i++) {
 			stateEqual(model._tokens._getState(i), states[i]);
@@ -204,7 +204,7 @@ suite('Editor Model - Model Modes 2', () => {
 		stateEqual((<any>model)._tokens._lastState, states[len]);
 	}
 
-	let thisModel: Model = null;
+	let thisModel: TextModel = null;
 	let languageRegistration: IDisposable = null;
 
 	setup(() => {
@@ -216,7 +216,7 @@ suite('Editor Model - Model Modes 2', () => {
 			'Line5';
 		const LANGUAGE_ID = 'modelModeTest2';
 		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		thisModel = Model.createFromString(TEXT, undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
+		thisModel = TextModel.createFromString(TEXT, undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
 	});
 
 	teardown(() => {

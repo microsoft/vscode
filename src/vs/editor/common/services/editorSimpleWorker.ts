@@ -20,6 +20,7 @@ import { computeLinks } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
+import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -56,7 +57,7 @@ export interface ICommonModel {
 	getLinesContent(): string[];
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
-	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): editorCommon.IWordAtPosition;
+	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
 	getAllUniqueWords(wordDefinition: RegExp, skipWordOnce?: string): string[];
 	getValueInRange(range: IRange): string;
 	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range;
@@ -128,7 +129,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		return null;
 	}
 
-	public getWordUntilPosition(position: IPosition, wordDefinition: RegExp): editorCommon.IWordAtPosition {
+	public getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition {
 		var wordAtPosition = this.getWordAtPosition(position, wordDefinition);
 		if (!wordAtPosition) {
 			return {
@@ -349,7 +350,7 @@ export abstract class BaseEditorSimpleWorker {
 		}
 
 		const result: TextEdit[] = [];
-		let lastEol: editorCommon.EndOfLineSequence;
+		let lastEol: EndOfLineSequence;
 
 		for (let { range, text, eol } of edits) {
 

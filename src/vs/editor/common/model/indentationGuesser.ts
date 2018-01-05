@@ -5,7 +5,7 @@
 'use strict';
 
 import { CharCode } from 'vs/base/common/charCode';
-import { TextBuffer } from 'vs/editor/common/model/textBuffer';
+import { ITextBuffer } from 'vs/editor/common/model/textBuffer';
 import { TextBuffer as TextBuffer2 } from 'vs/editor/common/model/textBuffer2';
 import { IRawPTBuffer } from './textSource';
 
@@ -17,7 +17,7 @@ export interface IIndentationGuesserTarget {
 export class IndentationGuesserTextBufferTarget implements IIndentationGuesserTarget {
 
 	constructor(
-		private readonly _buffer: TextBuffer | TextBuffer2
+		private readonly _buffer: ITextBuffer | TextBuffer2
 	) { }
 
 	public getLineCount(): number {

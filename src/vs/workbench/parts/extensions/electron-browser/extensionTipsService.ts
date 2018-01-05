@@ -12,7 +12,7 @@ import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/node/product';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
@@ -47,6 +47,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _disposables: IDisposable[] = [];
 
 	private _allWorkspaceRecommendedExtensions: string[] = [];
+	public promptWorkspaceRecommendationsPromise: TPromise<any>;
 
 	constructor(
 		@IExtensionGalleryService private _galleryService: IExtensionGalleryService,
@@ -69,7 +70,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		}
 
 		this._suggestFileBasedRecommendations();
-		this._suggestWorkspaceRecommendations();
+		this.promptWorkspaceRecommendationsPromise = this._suggestWorkspaceRecommendations();
 
 		// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
 		// So that the startup is not affected
@@ -253,7 +254,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._modelService.getModels().forEach(model => this._suggest(model));
 	}
 
-	private _suggest(model: IModel): void {
+	private _suggest(model: ITextModel): void {
 		const uri = model.uri;
 
 		if (!uri || uri.scheme !== Schemas.file) {
@@ -370,24 +371,16 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		});
 	}
 
-	private _suggestWorkspaceRecommendations() {
+	private _suggestWorkspaceRecommendations(): TPromise<any> {
 		const storageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
-
-		if (this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
-			return;
-		}
-
 		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
 
-		if (config.ignoreRecommendations) {
-			return;
-		}
-		this.getWorkspaceRecommendations().done(allRecommendations => {
-			if (!allRecommendations.length) {
+		return this.getWorkspaceRecommendations().then(allRecommendations => {
+			if (!allRecommendations.length || config.ignoreRecommendations || this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
 				return;
 			}
 
-			this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
+			return this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
 				const recommendations = allRecommendations
 					.filter(id => local.every(local => `${local.manifest.publisher.toLowerCase()}.${local.manifest.name.toLowerCase()}` !== id));
 
@@ -406,7 +399,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					localize('close', "Close")
 				];
 
-				this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
+				return this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
 					switch (choice) {
 						case 0:
 							/* __GDPR__

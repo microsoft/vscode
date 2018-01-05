@@ -7,12 +7,14 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import * as paths from 'vs/base/common/paths';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { IOutputService, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
 import * as Constants from 'vs/workbench/parts/logs/common/logConstants';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import URI from 'vs/base/common/uri';
 
 export class OpenLogsFolderAction extends Action {
 
@@ -55,6 +57,38 @@ export class ShowLogsAction extends Action {
 			.then(entry => {
 				if (entry) {
 					return this.outputService.showChannel(entry.id);
+				}
+				return null;
+			});
+	}
+}
+
+export class OpenLogFileAction extends Action {
+
+	static ID = 'workbench.action.openLogFile';
+	static LABEL = nls.localize('openLogFile', "Open Log File...");
+
+	constructor(id: string, label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ICommandService private commandService: ICommandService,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		const entries: IPickOpenEntry[] = [
+			{ id: URI.file(paths.join(this.environmentService.logsPath, `main.log`)).fsPath, label: nls.localize('mainProcess', "Main") },
+			{ id: URI.file(paths.join(this.environmentService.logsPath, `sharedprocess.log`)).fsPath, label: nls.localize('sharedProcess', "Shared") },
+			{ id: URI.file(paths.join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: nls.localize('rendererProcess', "Window") },
+			{ id: URI.file(paths.join(this.environmentService.logsPath, `extHost${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: nls.localize('extensionHost', "Extension Host") }
+		];
+
+		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select process") })
+			.then(entry => {
+				if (entry) {
+					return this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, URI.file(entry.id));
 				}
 				return null;
 			});

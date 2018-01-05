@@ -108,6 +108,7 @@ function cleanEnv() {
 	var keys = [
 		'AMD_ENTRYPOINT',
 		'ELECTRON_RUN_AS_NODE',
+		'GOOGLE_API_KEY',
 		'PTYCWD',
 		'PTYPID',
 		'PTYSHELL',
@@ -124,6 +125,7 @@ function cleanEnv() {
 	var i = 0;
 	while (process.env['PTYSHELLARG' + i]) {
 		delete process.env['PTYSHELLARG' + i];
+		i++;
 	}
 }
 

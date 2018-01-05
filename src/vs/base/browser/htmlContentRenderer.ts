@@ -11,13 +11,13 @@ import { escape } from 'vs/base/common/strings';
 import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
 import { marked } from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { isThenable } from 'vs/base/common/async';
 
 export interface RenderOptions {
 	className?: string;
 	inline?: boolean;
 	actionCallback?: (content: string, event?: IMouseEvent) => void;
-	codeBlockRenderer?: (modeId: string, value: string) => string | Thenable<string>;
+	codeBlockRenderer?: (modeId: string, value: string) => Thenable<string>;
+	codeBlockRenderCallback?: () => void;
 }
 
 function createElement(options: RenderOptions): HTMLElement {
@@ -118,27 +118,24 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
 			const value = options.codeBlockRenderer(lang, code);
-			if (typeof value === 'string') {
-				return value;
+			// when code-block rendering is async we return sync
+			// but update the node with the real result later.
+			const id = defaultGenerator.nextId();
+			const promise = Promise.all([value, withInnerHTML]).then(values => {
+				const strValue = values[0];
+				const span = element.querySelector(`div[data-code="${id}"]`);
+				if (span) {
+					span.innerHTML = strValue;
+				}
+			}).catch(err => {
+				// ignore
+			});
+
+			if (options.codeBlockRenderCallback) {
+				promise.then(options.codeBlockRenderCallback);
 			}
 
-			if (isThenable(value)) {
-				// when code-block rendering is async we return sync
-				// but update the node with the real result later.
-				const id = defaultGenerator.nextId();
-				Promise.all([value, withInnerHTML]).then(values => {
-					const strValue = values[0] as string;
-					const span = element.querySelector(`div[data-code="${id}"]`);
-					if (span) {
-						span.innerHTML = strValue;
-					}
-				}).catch(err => {
-					// ignore
-				});
-				return `<div class="code" data-code="${id}">${escape(code)}</div>`;
-			}
-
-			return code;
+			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
 		};
 	}
 

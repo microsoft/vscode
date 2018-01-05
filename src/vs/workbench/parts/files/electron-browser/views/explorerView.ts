@@ -14,9 +14,8 @@ import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
 import glob = require('vs/base/common/glob');
 import { Action, IAction } from 'vs/base/common/actions';
-import { prepareActions } from 'vs/workbench/browser/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
@@ -68,6 +67,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
+	private rootContext: IContextKey<boolean>;
 
 	private fileEventsFilter: ResourceGlobMatcher;
 
@@ -104,6 +104,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
+		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
 
 		this.fileEventsFilter = instantiationService.createInstance(
 			ResourceGlobMatcher,
@@ -160,7 +161,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		this.tree = this.createViewer($(this.treeContainer));
 
 		if (this.toolbar) {
-			this.toolbar.setActions(prepareActions(this.getActions()), this.getSecondaryActions())();
+			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
 		}
 
 		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
@@ -181,12 +182,6 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		actions.push(this.instantiationService.createInstance(NewFolderAction, this.getViewer(), null));
 		actions.push(this.instantiationService.createInstance(RefreshViewExplorerAction, this, 'explorer-action refresh-explorer'));
 		actions.push(this.instantiationService.createInstance(CollapseAction, this.getViewer(), true, 'explorer-action collapse-explorer'));
-
-		// Set Order
-		for (let i = 0; i < actions.length; i++) {
-			const action = actions[i];
-			action.order = 10 * (i + 1);
-		}
 
 		return actions;
 	}
@@ -401,6 +396,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
 		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
+		this.disposables.push(controller);
 		const sorter = this.instantiationService.createInstance(FileSorter);
 		this.disposables.push(sorter);
 		this.filter = this.instantiationService.createInstance(FileFilter);
@@ -440,8 +436,11 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		// Update resource context based on focused element
 		this.disposables.push(this.explorerViewer.onDidChangeFocus((e: { focus: FileStat }) => {
-			this.resourceContext.set(e.focus && e.focus.resource);
-			this.folderContext.set(e.focus && e.focus.isDirectory);
+			const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
+			const resource = e.focus ? e.focus.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
+			this.resourceContext.set(resource);
+			this.folderContext.set((isSingleFolder && !e.focus) || e.focus && e.focus.isDirectory);
+			this.rootContext.set(!e.focus || (e.focus && e.focus.isRoot));
 		}));
 
 		// Open when selecting via keyboard

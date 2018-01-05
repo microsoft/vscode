@@ -28,11 +28,10 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
  * the TextEditor widget to show the contents.
  */
-export class TextResourceEditor extends BaseTextEditor {
-
-	public static readonly ID = 'workbench.editors.textResourceEditor';
+export class AbstractTextResourceEditor extends BaseTextEditor {
 
 	constructor(
+		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -41,7 +40,7 @@ export class TextResourceEditor extends BaseTextEditor {
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
+		super(id, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
 	}
 
 	public getTitle(): string {
@@ -194,5 +193,22 @@ export class TextResourceEditor extends BaseTextEditor {
 				super.clearTextEditorViewState([key]);
 			});
 		}
+	}
+}
+
+export class TextResourceEditor extends AbstractTextResourceEditor {
+
+	public static readonly ID = 'workbench.editors.textResourceEditor';
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@IThemeService themeService: IThemeService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@ITextFileService textFileService: ITextFileService
+	) {
+		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService);
 	}
 }

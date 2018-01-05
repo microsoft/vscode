@@ -89,7 +89,7 @@ function main() {
 			});
 		}
 
-		require(['vs/code/electron-browser/sharedProcessMain'], function (sharedProcess) {
+		require(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess) {
 			sharedProcess.startup({
 				machineId: configuration.machineId
 			});

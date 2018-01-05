@@ -23,7 +23,8 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IEditorAction, EndOfLineSequence, IModel } from 'vs/editor/common/editorCommon';
+import { IEditorAction } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { IModelLanguageChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/indentation';
@@ -910,7 +911,7 @@ export class ChangeModeAction extends Action {
 			// Change mode for active editor
 			activeEditor = this.editorService.getActiveEditor();
 			const codeOrDiffEditor = getCodeOrDiffEditor(activeEditor);
-			const models: IModel[] = [];
+			const models: ITextModel[] = [];
 			if (codeOrDiffEditor.codeEditor) {
 				const codeEditorModel = codeOrDiffEditor.codeEditor.getModel();
 				if (codeEditorModel) {

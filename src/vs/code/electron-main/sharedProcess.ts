@@ -43,7 +43,7 @@ export class SharedProcess implements ISharedProcess {
 			userEnv: this.userEnv
 		});
 
-		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 		this.window.loadURL(url);
 
 		// Prevent the window from dying

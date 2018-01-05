@@ -6,7 +6,7 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -144,14 +144,14 @@ class RawToken {
 
 class ModelRawTokenScanner {
 
-	private _model: IModel;
+	private _model: ITextModel;
 	private _lineCount: number;
 	private _versionId: number;
 	private _lineNumber: number;
 	private _tokenIndex: number;
 	private _lineTokens: LineTokens;
 
-	constructor(model: IModel) {
+	constructor(model: ITextModel) {
 		this._model = model;
 		this._lineCount = this._model.getLineCount();
 		this._versionId = this._model.getVersionId();
@@ -203,7 +203,7 @@ class TokenScanner {
 	private _cachedLanguageBrackets: RichEditBrackets;
 	private _cachedLanguageId: LanguageId;
 
-	constructor(model: IModel) {
+	constructor(model: ITextModel) {
 		this._rawTokenScanner = new ModelRawTokenScanner(model);
 		this._nextBuff = [];
 		this._cachedLanguageBrackets = null;
@@ -290,7 +290,7 @@ class TokenTreeBuilder {
 	private _stack: Token[] = [];
 	private _currentToken: Token;
 
-	constructor(model: IModel) {
+	constructor(model: ITextModel) {
 		this._scanner = new TokenScanner(model);
 	}
 
@@ -404,7 +404,7 @@ class TokenTreeBuilder {
  *	line = { block | "token" }
  *	block = "open_bracket" { line } "close_bracket"
  */
-export function build(model: IModel): Node {
+export function build(model: ITextModel): Node {
 	var node = new TokenTreeBuilder(model).build();
 	return node;
 }

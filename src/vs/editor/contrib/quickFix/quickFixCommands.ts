@@ -111,9 +111,9 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private async _onApplyCodeAction(action: CodeAction): TPromise<void> {
-		if (action.edits) {
+		if (action.edit) {
 			const edit = createBulkEdit(this._textModelService, this._editor, this._fileService);
-			edit.add(action.edits.edits);
+			edit.add(action.edit.edits);
 			await edit.finish();
 		}
 

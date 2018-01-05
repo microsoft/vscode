@@ -5,8 +5,9 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ICursorStateComputer, IEditableTextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ICursorStateComputer, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 interface IEditOperation {
 	operations: IIdentifiedSingleEditOperation[];
@@ -29,12 +30,12 @@ export interface IUndoRedoResult {
 
 export class EditStack {
 
-	private model: IEditableTextModel;
+	private model: TextModel;
 	private currentOpenStackElement: IStackElement;
 	private past: IStackElement[];
 	private future: IStackElement[];
 
-	constructor(model: IEditableTextModel) {
+	constructor(model: TextModel) {
 		this.model = model;
 		this.currentOpenStackElement = null;
 		this.past = [];

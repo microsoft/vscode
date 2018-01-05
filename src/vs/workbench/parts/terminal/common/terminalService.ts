@@ -12,6 +12,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -63,8 +64,12 @@ export abstract class TerminalService implements ITerminalService {
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
 			}
+			if (e.affectsConfiguration('editor.accessibilitySupport')) {
+				this.updateAccessibilitySupport();
+			}
 		});
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
+		lifecycleService.onShutdown(() => this._onShutdown());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
@@ -89,12 +94,15 @@ export abstract class TerminalService implements ITerminalService {
 			}
 		}
 
-		// Dispose all terminal instances and don't veto
 		this._isShuttingDown = true;
+
+		return false;
+	}
+
+	private _onShutdown(): void {
 		this.terminalInstances.forEach(instance => {
 			instance.dispose();
 		});
-		return false;
 	}
 
 	public getInstanceLabels(): string[] {
@@ -234,6 +242,11 @@ export abstract class TerminalService implements ITerminalService {
 
 	public updateConfig(): void {
 		this.terminalInstances.forEach(instance => instance.updateConfig());
+	}
+
+	public updateAccessibilitySupport(): void {
+		const isEnabled = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport === 'on';
+		this.terminalInstances.forEach(instance => instance.updateAccessibilitySupport(isEnabled));
 	}
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {

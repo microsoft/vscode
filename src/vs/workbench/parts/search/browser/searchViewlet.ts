@@ -30,7 +30,7 @@ import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration, IPatternInfo } from 'vs/platform/search/common/search';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -514,7 +514,7 @@ export class SearchViewlet extends Viewlet {
 			this.tree.setInput(this.viewModel.searchResult);
 			this.toUnbind.push(renderer);
 
-			const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree));
+			const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree, { openOnFocus: true }));
 			this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {
 				if (options.element instanceof Match) {
 					let selectedMatch: Match = options.element;
@@ -980,12 +980,13 @@ export class SearchViewlet extends Viewlet {
 			}
 		}
 
-		const content = {
+		const content: IPatternInfo = {
 			pattern: contentPattern,
 			isRegExp: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWordMatch: isWholeWords,
-			wordSeparators: this.configurationService.getValue<ISearchConfiguration>().editor.wordSeparators
+			wordSeparators: this.configurationService.getValue<ISearchConfiguration>().editor.wordSeparators,
+			isSmartCase: this.configurationService.getValue<ISearchConfiguration>().search.smartCase
 		};
 
 		const excludePattern = this.inputPatternExcludes.getValue();
@@ -1063,7 +1064,7 @@ export class SearchViewlet extends Viewlet {
 		this.showEmptyStage();
 
 		let isDone = false;
-		const outputChannel = this.outputService.getChannel('search');
+		const outputChannel = this.outputService.getChannel(Constants.SEARCH_OUTPUT_CHANNEL_ID);
 		let onComplete = (completed?: ISearchComplete) => {
 			if (query.useRipgrep) {
 				outputChannel.append('\n');

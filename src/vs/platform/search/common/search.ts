@@ -95,6 +95,7 @@ export interface IPatternInfo {
 	wordSeparators?: string;
 	isMultiline?: boolean;
 	isCaseSensitive?: boolean;
+	isSmartCase?: boolean;
 }
 
 export interface IFileMatch {
@@ -170,16 +171,19 @@ export class LineMatch implements ILineMatch {
 	}
 }
 
+export interface ISearchConfigurationProperties {
+	exclude: glob.IExpression;
+	useRipgrep: boolean;
+	/**
+	 * Use ignore file for file search.
+	 */
+	useIgnoreFiles: boolean;
+	followSymlinks: boolean;
+	smartCase: boolean;
+}
+
 export interface ISearchConfiguration extends IFilesConfiguration {
-	search: {
-		exclude: glob.IExpression;
-		useRipgrep: boolean;
-		/**
-		 * Use ignore file for file search.
-		 */
-		useIgnoreFiles: boolean;
-		followSymlinks: boolean;
-	};
+	search: ISearchConfigurationProperties;
 	editor: {
 		wordSeparators: string;
 	};

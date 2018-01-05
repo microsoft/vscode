@@ -8,9 +8,9 @@ import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { CharacterHardWrappingLineMapping, CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ILineMapping, IModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { ILineMapping, SplitLine, SplitLinesCollection, ISimpleModel } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { toUint32Array } from 'vs/editor/common/core/uint';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
@@ -87,7 +87,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		}
 	});
 
-	function withSplitLinesCollection(text: string, callback: (model: Model, linesCollection: SplitLinesCollection) => void): void {
+	function withSplitLinesCollection(text: string, callback: (model: TextModel, linesCollection: SplitLinesCollection) => void): void {
 		let config = new TestConfiguration({});
 
 		let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
@@ -96,7 +96,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			config.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
 		);
 
-		let model = Model.createFromString([
+		let model = TextModel.createFromString([
 			'int main() {',
 			'\tprintf("Hello world!");',
 			'}',
@@ -322,7 +322,7 @@ suite('SplitLinesCollection', () => {
 		]
 	];
 
-	let model: Model = null;
+	let model: TextModel = null;
 	let languageRegistration: IDisposable = null;
 
 	setup(() => {
@@ -345,7 +345,7 @@ suite('SplitLinesCollection', () => {
 		};
 		const LANGUAGE_ID = 'modelModeTest1';
 		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		model = Model.createFromString(_text.join('\n'), undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
+		model = TextModel.createFromString(_text.join('\n'), undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
 		// force tokenization
 		model.forceTokenization(model.getLineCount());
 	});
@@ -727,7 +727,7 @@ suite('SplitLinesCollection', () => {
 		});
 	});
 
-	function withSplitLinesCollection(model: Model, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: SplitLinesCollection) => void): void {
+	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: SplitLinesCollection) => void): void {
 		let configuration = new TestConfiguration({
 			wordWrap: wordWrap,
 			wordWrapColumn: wordWrapColumn,
@@ -771,7 +771,7 @@ function createLineMapping(breakingLengths: number[], wrappedLinesPrefix: string
 	);
 }
 
-function createModel(text: string): IModel {
+function createModel(text: string): ISimpleModel {
 	return {
 		getLineTokens: (lineNumber: number) => {
 			return null;

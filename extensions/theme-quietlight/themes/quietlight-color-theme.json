@@ -486,6 +486,7 @@
 		"pickerGroup.border": "#749351",
 		"list.activeSelectionForeground": "#6c6c6c",
 		"list.focusBackground": "#CADEB9",
+		"list.hoverBackground": "#e0e0e0",
 		"list.activeSelectionBackground": "#c4d9b1",
 		"list.inactiveSelectionBackground": "#d3dbcd",
 		"list.highlightForeground": "#9769dc",

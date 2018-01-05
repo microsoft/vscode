@@ -157,10 +157,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === sessionId).pop();
 		if (process) {
 			return process.session.custom(request, args).then(response => {
-				if (response.success) {
+				if (response && response.success) {
 					return response.body;
 				} else {
-					return TPromise.wrapError(new Error(response.message));
+					return TPromise.wrapError(new Error(response ? response.message : 'custom request failed'));
 				}
 			});
 		}

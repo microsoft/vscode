@@ -29,7 +29,7 @@ import { IInstantiationService, optional } from 'vs/platform/instantiation/commo
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel, ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { PeekViewWidget } from './peekViewWidget';
@@ -40,13 +40,13 @@ import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/t
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import URI from 'vs/base/common/uri';
+import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 class DecorationsManager implements IDisposable {
 
 	private static readonly DecorationOptions = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'reference-decoration'
 	});
 
@@ -84,7 +84,7 @@ class DecorationsManager implements IDisposable {
 
 		this._editor.changeDecorations(accessor => {
 
-			const newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+			const newDecorations: IModelDeltaDecoration[] = [];
 			const newDecorationsActualIndex: number[] = [];
 
 			for (let i = 0, len = reference.children.length; i < len; i++) {
@@ -578,7 +578,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _sash: VSash;
 	private _preview: ICodeEditor;
 	private _previewModelReference: IReference<ITextEditorModel>;
-	private _previewNotAvailableMessage: Model;
+	private _previewNotAvailableMessage: TextModel;
 	private _previewContainer: Builder;
 	private _messageContainer: Builder;
 
@@ -670,7 +670,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 			this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);
 			this._previewContainer = div.hide();
-			this._previewNotAvailableMessage = Model.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
+			this._previewNotAvailableMessage = TextModel.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
 		});
 
 		// sash

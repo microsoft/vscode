@@ -20,6 +20,7 @@ import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import Event, { Emitter } from 'vs/base/common/event';
+import { ITextModel, IIdentifiedSingleEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -60,7 +61,7 @@ export class CursorModelState {
 	public readonly modelVersionId: number;
 	public readonly cursorState: CursorState[];
 
-	constructor(model: editorCommon.IModel, cursor: Cursor) {
+	constructor(model: ITextModel, cursor: Cursor) {
 		this.modelVersionId = model.getVersionId();
 		this.cursorState = cursor.getAll();
 	}
@@ -90,7 +91,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	public readonly onDidChange: Event<CursorStateChangedEvent> = this._onDidChange.event;
 
 	private readonly _configuration: editorCommon.IConfiguration;
-	private readonly _model: editorCommon.IModel;
+	private readonly _model: ITextModel;
 	private readonly _viewModel: IViewModel;
 	public context: CursorContext;
 	private _cursors: CursorCollection;
@@ -100,7 +101,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private _columnSelectData: IColumnSelectData;
 	private _prevEditOperationType: EditOperationType;
 
-	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModel: IViewModel) {
+	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: IViewModel) {
 		super();
 		this._configuration = configuration;
 		this._model = model;
@@ -543,25 +544,25 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 }
 
 interface IExecContext {
-	readonly model: editorCommon.IModel;
+	readonly model: ITextModel;
 	readonly selectionsBefore: Selection[];
 	readonly trackedRanges: string[];
 	readonly trackedRangesDirection: SelectionDirection[];
 }
 
 interface ICommandData {
-	operations: editorCommon.IIdentifiedSingleEditOperation[];
+	operations: IIdentifiedSingleEditOperation[];
 	hadTrackedEditOperation: boolean;
 }
 
 interface ICommandsData {
-	operations: editorCommon.IIdentifiedSingleEditOperation[];
+	operations: IIdentifiedSingleEditOperation[];
 	hadTrackedEditOperation: boolean;
 }
 
 class CommandExecutor {
 
-	public static executeCommands(model: editorCommon.IModel, selectionsBefore: Selection[], commands: editorCommon.ICommand[]): Selection[] {
+	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: editorCommon.ICommand[]): Selection[] {
 
 		const ctx: IExecContext = {
 			model: model,
@@ -573,7 +574,7 @@ class CommandExecutor {
 		const result = this._innerExecuteCommands(ctx, commands);
 
 		for (let i = 0, len = ctx.trackedRanges.length; i < len; i++) {
-			ctx.model._setTrackedRange(ctx.trackedRanges[i], null, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+			ctx.model._setTrackedRange(ctx.trackedRanges[i], null, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 		}
 
 		return result;
@@ -600,7 +601,7 @@ class CommandExecutor {
 		}
 
 		// Remove operations belonging to losing cursors
-		let filteredOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let filteredOperations: IIdentifiedSingleEditOperation[] = [];
 		for (let i = 0, len = rawOperations.length; i < len; i++) {
 			if (!loserCursorsMap.hasOwnProperty(rawOperations[i].identifier.major.toString())) {
 				filteredOperations.push(rawOperations[i]);
@@ -612,8 +613,8 @@ class CommandExecutor {
 		if (commandsData.hadTrackedEditOperation && filteredOperations.length > 0) {
 			filteredOperations[0]._isTracked = true;
 		}
-		const selectionsAfter = ctx.model.pushEditOperations(ctx.selectionsBefore, filteredOperations, (inverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[]): Selection[] => {
-			let groupedInverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[][] = [];
+		const selectionsAfter = ctx.model.pushEditOperations(ctx.selectionsBefore, filteredOperations, (inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] => {
+			let groupedInverseEditOperations: IIdentifiedSingleEditOperation[][] = [];
 			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
 				groupedInverseEditOperations[i] = [];
 			}
@@ -625,7 +626,7 @@ class CommandExecutor {
 				}
 				groupedInverseEditOperations[op.identifier.major].push(op);
 			}
-			const minorBasedSorter = (a: editorCommon.IIdentifiedSingleEditOperation, b: editorCommon.IIdentifiedSingleEditOperation) => {
+			const minorBasedSorter = (a: IIdentifiedSingleEditOperation, b: IIdentifiedSingleEditOperation) => {
 				return a.identifier.minor - b.identifier.minor;
 			};
 			let cursorSelections: Selection[] = [];
@@ -684,7 +685,7 @@ class CommandExecutor {
 	}
 
 	private static _getEditOperations(ctx: IExecContext, commands: editorCommon.ICommand[]): ICommandsData {
-		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let operations: IIdentifiedSingleEditOperation[] = [];
 		let hadTrackedEditOperation: boolean = false;
 
 		for (let i = 0, len = commands.length; i < len; i++) {
@@ -703,7 +704,7 @@ class CommandExecutor {
 	private static _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand): ICommandData {
 		// This method acts as a transaction, if the command fails
 		// everything it has done is ignored
-		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let operations: IIdentifiedSingleEditOperation[] = [];
 		let operationMinor = 0;
 
 		const addEditOperation = (selection: Range, text: string) => {
@@ -730,25 +731,25 @@ class CommandExecutor {
 		};
 
 		const trackSelection = (selection: Selection, trackPreviousOnEmpty?: boolean) => {
-			let stickiness: editorCommon.TrackedRangeStickiness;
+			let stickiness: TrackedRangeStickiness;
 			if (selection.isEmpty()) {
 				if (typeof trackPreviousOnEmpty === 'boolean') {
 					if (trackPreviousOnEmpty) {
-						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
+						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
 					} else {
-						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
 					}
 				} else {
 					// Try to lock it with surrounding text
 					const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
 					if (selection.startColumn === maxLineColumn) {
-						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
+						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
 					} else {
-						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
 					}
 				}
 			} else {
-				stickiness = editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+				stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 			}
 
 			const l = ctx.trackedRanges.length;
@@ -781,12 +782,12 @@ class CommandExecutor {
 		};
 	}
 
-	private static _getLoserCursorMap(operations: editorCommon.IIdentifiedSingleEditOperation[]): { [index: string]: boolean; } {
+	private static _getLoserCursorMap(operations: IIdentifiedSingleEditOperation[]): { [index: string]: boolean; } {
 		// This is destructive on the array
 		operations = operations.slice(0);
 
 		// Sort operations with last one first
-		operations.sort((a: editorCommon.IIdentifiedSingleEditOperation, b: editorCommon.IIdentifiedSingleEditOperation): number => {
+		operations.sort((a: IIdentifiedSingleEditOperation, b: IIdentifiedSingleEditOperation): number => {
 			// Note the minus!
 			return -(Range.compareRangesUsingEnds(a.range, b.range));
 		});

@@ -128,6 +128,12 @@
 			const text = data.contents.join('\n');
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
+			newDocument.querySelectorAll('a').forEach(a => {
+				if (!a.title) {
+					a.title = a.href;
+				}
+			});
+
 			// set base-url if applicable
 			if (initData.baseUrl && newDocument.head.getElementsByTagName('base').length === 0) {
 				const baseElement = newDocument.createElement('base');

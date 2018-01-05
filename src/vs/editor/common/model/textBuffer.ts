@@ -6,36 +6,58 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { IValidatedEditOperation } from 'vs/editor/common/model/editableTextModel';
 import { ModelRawChange, IModelContentChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { ILineEdit } from 'vs/editor/common/model/modelLine';
+import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference } from 'vs/editor/common/model';
 
-export interface ITextBuffer {
-	mightContainRTL(): boolean;
-	mightContainNonBasicASCII(): boolean;
-	getOffsetAt(position: Position): number;
-	getPositionAt(offset: number): Position;
-	getBOM(): string;
+export interface IValidatedEditOperation {
+	sortIndex: number;
+	identifier: ISingleEditOperationIdentifier;
+	range: Range;
+	rangeOffset: number;
+	rangeLength: number;
+	lines: string[];
+	forceMoveMarkers: boolean;
+	isAutoWhitespaceEdit: boolean;
 }
 
-export class ApplyEditResult {
+export interface ITextBuffer {
+	equals(other: ITextSource): boolean;
+	mightContainRTL(): boolean;
+	mightContainNonBasicASCII(): boolean;
+	getBOM(): string;
+	getEOL(): string;
+
+	getOffsetAt(lineNumber: number, column: number): number;
+	getPositionAt(offset: number): Position;
+	getRangeAt(offset: number, length: number): Range;
+
+	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getLineCount(): number;
+	getLinesContent(): string[];
+	getLineContent(lineNumber: number): string;
+	getLineCharCode(lineNumber: number, index: number): number;
+	getLineLength(lineNumber: number): number;
+	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
+	getLineLastNonWhitespaceColumn(lineNumber: number): number;
+
+	setEOL(newEOL: string): void;
+	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
+}
+
+export class ApplyEditsResult {
 
 	constructor(
-		public readonly reverseEdits: editorCommon.IIdentifiedSingleEditOperation[],
+		public readonly reverseEdits: IIdentifiedSingleEditOperation[],
 		public readonly rawChanges: ModelRawChange[],
 		public readonly changes: IInternalModelContentChange[],
 		public readonly trimAutoWhitespaceLineNumbers: number[]
 	) { }
 
-}
-
-interface IIdentifiedLineEdit extends ILineEdit {
-	lineNumber: number;
 }
 
 export interface IInternalModelContentChange extends IModelContentChange {
@@ -45,7 +67,7 @@ export interface IInternalModelContentChange extends IModelContentChange {
 	forceMoveMarkers: boolean;
 }
 
-export class TextBuffer {
+export class TextBuffer implements ITextBuffer {
 
 	private _lines: string[];
 	private _BOM: string;
@@ -107,13 +129,7 @@ export class TextBuffer {
 		return this._EOL;
 	}
 
-	// TODO@TextModel
-	public getOffsetAt(position: Position): number {
-		return this.getOffsetAt2(position.lineNumber, position.column);
-	}
-
-	// TODO@TextModel
-	public getOffsetAt2(lineNumber: number, column: number): number {
+	public getOffsetAt(lineNumber: number, column: number): number {
 		return this._lineStarts.getAccumulatedValue(lineNumber - 2) + column - 1;
 	}
 
@@ -129,37 +145,31 @@ export class TextBuffer {
 		return new Position(out.index + 1, Math.min(out.remainder + 1, lineLength + 1));
 	}
 
-	// TODO@TextModel
-	public getRangeAt(start: number, end: number): Range {
-		const startResult = this._lineStarts.getIndexOf(start);
+	public getRangeAt(offset: number, length: number): Range {
+		const startResult = this._lineStarts.getIndexOf(offset);
 		const startLineLength = this._lines[startResult.index].length;
 		const startColumn = Math.min(startResult.remainder + 1, startLineLength + 1);
 
-		const endResult = this._lineStarts.getIndexOf(end);
+		const endResult = this._lineStarts.getIndexOf(offset + length);
 		const endLineLength = this._lines[endResult.index].length;
 		const endColumn = Math.min(endResult.remainder + 1, endLineLength + 1);
 
 		return new Range(startResult.index + 1, startColumn, endResult.index + 1, endColumn);
 	}
 
-	// TODO@TextModel
-	public getRangeAt2(offset: number, length: number): Range {
-		return this.getRangeAt(offset, offset + length);
-	}
-
-	private _getEndOfLine(eol: editorCommon.EndOfLinePreference): string {
+	private _getEndOfLine(eol: EndOfLinePreference): string {
 		switch (eol) {
-			case editorCommon.EndOfLinePreference.LF:
+			case EndOfLinePreference.LF:
 				return '\n';
-			case editorCommon.EndOfLinePreference.CRLF:
+			case EndOfLinePreference.CRLF:
 				return '\r\n';
-			case editorCommon.EndOfLinePreference.TextDefined:
+			case EndOfLinePreference.TextDefined:
 				return this.getEOL();
 		}
 		throw new Error('Unknown EOL preference');
 	}
 
-	public getValueInRange(range: Range, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
+	public getValueInRange(range: Range, eol: EndOfLinePreference): string {
 		if (range.isEmpty()) {
 			return '';
 		}
@@ -182,7 +192,7 @@ export class TextBuffer {
 		return resultLines.join(lineEnding);
 	}
 
-	public getValueLengthInRange(range: Range, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): number {
+	public getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
 		if (range.isEmpty()) {
 			return 0;
 		}
@@ -191,8 +201,8 @@ export class TextBuffer {
 			return (range.endColumn - range.startColumn);
 		}
 
-		let startOffset = this.getOffsetAt(new Position(range.startLineNumber, range.startColumn));
-		let endOffset = this.getOffsetAt(new Position(range.endLineNumber, range.endColumn));
+		let startOffset = this.getOffsetAt(range.startLineNumber, range.startColumn);
+		let endOffset = this.getOffsetAt(range.endLineNumber, range.endColumn);
 		return endOffset - startOffset;
 	}
 
@@ -214,14 +224,6 @@ export class TextBuffer {
 
 	public getLineLength(lineNumber: number): number {
 		return this._lines[lineNumber - 1].length;
-	}
-
-	public getLineMinColumn(lineNumber: number): number {
-		return 1;
-	}
-
-	public getLineMaxColumn(lineNumber: number): number {
-		return this._lines[lineNumber - 1].length + 1;
 	}
 
 	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
@@ -263,9 +265,9 @@ export class TextBuffer {
 		return -r;
 	}
 
-	public _applyEdits(rawOperations: editorCommon.IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditResult {
+	public applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult {
 		if (rawOperations.length === 0) {
-			return new ApplyEditResult([], [], [], []);
+			return new ApplyEditsResult([], [], [], []);
 		}
 
 		let mightContainRTL = this._mightContainRTL;
@@ -290,8 +292,8 @@ export class TextBuffer {
 				sortIndex: i,
 				identifier: op.identifier,
 				range: validatedRange,
-				rangeOffset: this.getOffsetAt(validatedRange.getStartPosition()),
-				rangeLength: this.getValueLengthInRange(validatedRange),
+				rangeOffset: this.getOffsetAt(validatedRange.startLineNumber, validatedRange.startColumn),
+				rangeLength: this.getValueLengthInRange(validatedRange, EndOfLinePreference.TextDefined),
 				lines: op.text ? op.text.split(/\r\n|\r|\n/) : null,
 				forceMoveMarkers: op.forceMoveMarkers,
 				isAutoWhitespaceEdit: op.isAutoWhitespaceEdit || false
@@ -338,7 +340,7 @@ export class TextBuffer {
 			}
 		}
 
-		let reverseOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let reverseOperations: IIdentifiedSingleEditOperation[] = [];
 		for (let i = 0; i < operations.length; i++) {
 			let op = operations[i];
 			let reverseRange = reverseRanges[i];
@@ -346,7 +348,7 @@ export class TextBuffer {
 			reverseOperations[i] = {
 				identifier: op.identifier,
 				range: reverseRange,
-				text: this.getValueInRange(op.range),
+				text: this.getValueInRange(op.range, EndOfLinePreference.TextDefined),
 				forceMoveMarkers: op.forceMoveMarkers
 			};
 		}
@@ -380,7 +382,7 @@ export class TextBuffer {
 			}
 		}
 
-		return new ApplyEditResult(
+		return new ApplyEditsResult(
 			reverseOperations,
 			rawContentChanges,
 			contentChanges,
@@ -456,15 +458,20 @@ export class TextBuffer {
 			sortIndex: 0,
 			identifier: operations[0].identifier,
 			range: entireEditRange,
-			rangeOffset: this.getOffsetAt(entireEditRange.getStartPosition()),
-			rangeLength: this.getValueLengthInRange(entireEditRange),
+			rangeOffset: this.getOffsetAt(entireEditRange.startLineNumber, entireEditRange.startColumn),
+			rangeLength: this.getValueLengthInRange(entireEditRange, EndOfLinePreference.TextDefined),
 			lines: result.join('').split('\n'),
 			forceMoveMarkers: forceMoveMarkers,
 			isAutoWhitespaceEdit: false
 		};
 	}
 
-	// TODO: simplify
+	private _setLineContent(lineNumber: number, content: string, rawContentChanges: ModelRawChange[]): void {
+		this._lines[lineNumber - 1] = content;
+		this._lineStarts.changeValue(lineNumber - 1, content.length + this._EOL.length);
+		rawContentChanges.push(new ModelRawLineChanged(lineNumber, content));
+	}
+
 	private _doApplyEdits(operations: IValidatedEditOperation[]): [ModelRawChange[], IInternalModelContentChange[]] {
 
 		// Sort operations descending
@@ -472,67 +479,9 @@ export class TextBuffer {
 
 		let rawContentChanges: ModelRawChange[] = [];
 		let contentChanges: IInternalModelContentChange[] = [];
-		let lineEditsQueue: IIdentifiedLineEdit[] = [];
-
-		const queueLineEdit = (lineEdit: IIdentifiedLineEdit) => {
-			if (lineEdit.startColumn === lineEdit.endColumn && lineEdit.text.length === 0) {
-				// empty edit => ignore it
-				return;
-			}
-			lineEditsQueue.push(lineEdit);
-		};
-
-		const flushLineEdits = () => {
-			if (lineEditsQueue.length === 0) {
-				return;
-			}
-
-			lineEditsQueue.reverse();
-
-			// `lineEditsQueue` now contains edits from smaller (line number,column) to larger (line number,column)
-			let currentLineNumber = lineEditsQueue[0].lineNumber;
-			let currentLineNumberStart = 0;
-
-			for (let i = 1, len = lineEditsQueue.length; i < len; i++) {
-				const lineNumber = lineEditsQueue[i].lineNumber;
-
-				if (lineNumber === currentLineNumber) {
-					continue;
-				}
-
-				this._lines[currentLineNumber - 1] = applyLineEdits(
-					this._lines[currentLineNumber - 1],
-					lineEditsQueue.slice(currentLineNumberStart, i)
-				);
-				this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].length + this._EOL.length);
-				rawContentChanges.push(
-					new ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1])
-				);
-
-				currentLineNumber = lineNumber;
-				currentLineNumberStart = i;
-			}
-
-			this._lines[currentLineNumber - 1] = applyLineEdits(
-				this._lines[currentLineNumber - 1],
-				lineEditsQueue.slice(currentLineNumberStart, lineEditsQueue.length)
-			);
-			this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].length + this._EOL.length);
-			rawContentChanges.push(
-				new ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1])
-			);
-
-			lineEditsQueue = [];
-		};
 
 		for (let i = 0, len = operations.length; i < len; i++) {
 			const op = operations[i];
-
-			// console.log();
-			// console.log('-------------------');
-			// console.log('OPERATION #' + (i));
-			// console.log('op: ', op);
-			// console.log('<<<\n' + this._lines.map(l => l.text).join('\n') + '\n>>>');
 
 			const startLineNumber = op.range.startLineNumber;
 			const startColumn = op.range.startColumn;
@@ -548,54 +497,41 @@ export class TextBuffer {
 			const insertingLinesCnt = (op.lines ? op.lines.length - 1 : 0);
 			const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
 
-			// Iterating descending to overlap with previous op
-			// in case there are common lines being edited in both
 			for (let j = editingLinesCnt; j >= 0; j--) {
 				const editLineNumber = startLineNumber + j;
+				let editText = (op.lines ? op.lines[j] : '');
 
-				queueLineEdit({
-					lineNumber: editLineNumber,
-					startColumn: (editLineNumber === startLineNumber ? startColumn : 1),
-					endColumn: (editLineNumber === endLineNumber ? endColumn : this.getLineMaxColumn(editLineNumber)),
-					text: (op.lines ? op.lines[j] : '')
-				});
+				if (editLineNumber === startLineNumber || editLineNumber === endLineNumber) {
+					const editStartColumn = (editLineNumber === startLineNumber ? startColumn : 1);
+					const editEndColumn = (editLineNumber === endLineNumber ? endColumn : this.getLineLength(editLineNumber) + 1);
+
+					editText = (
+						this._lines[editLineNumber - 1].substring(0, editStartColumn - 1)
+						+ editText
+						+ this._lines[editLineNumber - 1].substring(editEndColumn - 1)
+					);
+				}
+
+				this._setLineContent(editLineNumber, editText, rawContentChanges);
 			}
 
 			if (editingLinesCnt < deletingLinesCnt) {
 				// Must delete some lines
 
-				// Flush any pending line edits
-				flushLineEdits();
-
 				const spliceStartLineNumber = startLineNumber + editingLinesCnt;
-
-				const [t1, t2] = splitLine(this._lines[endLineNumber - 1], endColumn);
-				this._lines[endLineNumber - 1] = t1;
-				const endLineRemains = t2;
-
-				const spliceCnt = endLineNumber - spliceStartLineNumber;
-
-				this._lines.splice(spliceStartLineNumber, spliceCnt);
-				this._lineStarts.removeValues(spliceStartLineNumber, spliceCnt);
+				const endLineRemains = this._lines[endLineNumber - 1].substring(endColumn - 1);
 
 				// Reconstruct first line
-				this._lines[spliceStartLineNumber - 1] += endLineRemains;
-				this._lineStarts.changeValue(spliceStartLineNumber - 1, this._lines[spliceStartLineNumber - 1].length + this._EOL.length);
+				this._setLineContent(spliceStartLineNumber, this._lines[spliceStartLineNumber - 1] + endLineRemains, rawContentChanges);
 
-				rawContentChanges.push(
-					new ModelRawLineChanged(spliceStartLineNumber, this._lines[spliceStartLineNumber - 1])
-				);
+				this._lines.splice(spliceStartLineNumber, endLineNumber - spliceStartLineNumber);
+				this._lineStarts.removeValues(spliceStartLineNumber, endLineNumber - spliceStartLineNumber);
 
-				rawContentChanges.push(
-					new ModelRawLinesDeleted(spliceStartLineNumber + 1, spliceStartLineNumber + spliceCnt)
-				);
+				rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber));
 			}
 
 			if (editingLinesCnt < insertingLinesCnt) {
 				// Must insert some lines
-
-				// Flush any pending line edits
-				flushLineEdits();
 
 				const spliceLineNumber = startLineNumber + editingLinesCnt;
 				let spliceColumn = (spliceLineNumber === startLineNumber ? startColumn : 1);
@@ -604,33 +540,23 @@ export class TextBuffer {
 				}
 
 				// Split last line
-				const [t1, t2] = splitLine(this._lines[spliceLineNumber - 1], spliceColumn);
-				this._lines[spliceLineNumber - 1] = t1;
-				const leftoverLine = t2;
-				this._lineStarts.changeValue(spliceLineNumber - 1, this._lines[spliceLineNumber - 1].length + this._EOL.length);
-				rawContentChanges.push(
-					new ModelRawLineChanged(spliceLineNumber, this._lines[spliceLineNumber - 1])
-				);
+				const leftoverLine = this._lines[spliceLineNumber - 1].substring(spliceColumn - 1);
+
+				this._setLineContent(spliceLineNumber, this._lines[spliceLineNumber - 1].substring(0, spliceColumn - 1), rawContentChanges);
 
 				// Lines in the middle
-				let newLines: string[] = [];
-				let newLinesContent: string[] = [];
+				let newLines: string[] = new Array<string>(insertingLinesCnt - editingLinesCnt);
 				let newLinesLengths = new Uint32Array(insertingLinesCnt - editingLinesCnt);
 				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
-					newLines.push(op.lines[j]);
-					newLinesContent.push(op.lines[j]);
+					newLines[j - editingLinesCnt - 1] = op.lines[j];
 					newLinesLengths[j - editingLinesCnt - 1] = op.lines[j].length + this._EOL.length;
 				}
+				newLines[newLines.length - 1] += leftoverLine;
+				newLinesLengths[newLines.length - 1] += leftoverLine.length;
 				this._lines = arrays.arrayInsert(this._lines, startLineNumber + editingLinesCnt, newLines);
-				newLinesContent[newLinesContent.length - 1] += leftoverLine;
 				this._lineStarts.insertValues(startLineNumber + editingLinesCnt, newLinesLengths);
 
-				// Last line
-				this._lines[startLineNumber + insertingLinesCnt - 1] += leftoverLine;
-				this._lineStarts.changeValue(startLineNumber + insertingLinesCnt - 1, this._lines[startLineNumber + insertingLinesCnt - 1].length + this._EOL.length);
-				rawContentChanges.push(
-					new ModelRawLinesInserted(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'))
-				);
+				rawContentChanges.push(new ModelRawLinesInserted(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLines));
 			}
 
 			const contentChangeRange = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
@@ -643,16 +569,10 @@ export class TextBuffer {
 				rangeOffset: op.rangeOffset,
 				forceMoveMarkers: op.forceMoveMarkers
 			});
-
-			// console.log('AFTER:');
-			// console.log('<<<\n' + this._lines.map(l => l.text).join('\n') + '\n>>>');
 		}
-
-		flushLineEdits();
 
 		return [rawContentChanges, contentChanges];
 	}
-
 
 	/**
 	 * Assumes `operations` are validated and sorted ascending
@@ -713,37 +633,4 @@ export class TextBuffer {
 	}
 
 	//#endregion
-}
-
-export function applyLineEdits(text: string, edits: ILineEdit[]): string {
-	let deltaColumn = 0;
-	let resultText = text;
-
-	for (let i = 0, len = edits.length; i < len; i++) {
-		let edit = edits[i];
-
-		// console.log();
-		// console.log('=============================');
-		// console.log('EDIT #' + i + ' [ ' + edit.startColumn + ' -> ' + edit.endColumn + ' ] : <<<' + edit.text + '>>>');
-		// console.log('deltaColumn: ' + deltaColumn);
-
-		let startColumn = deltaColumn + edit.startColumn;
-		let endColumn = deltaColumn + edit.endColumn;
-		let deletingCnt = endColumn - startColumn;
-		let insertingCnt = edit.text.length;
-
-		// Perform the edit & update `deltaColumn`
-		resultText = resultText.substring(0, startColumn - 1) + edit.text + resultText.substring(endColumn - 1);
-		deltaColumn += insertingCnt - deletingCnt;
-	}
-
-	// Save the resulting text
-	return resultText;
-}
-
-export function splitLine(text: string, splitColumn: number): [string, string] {
-	const myText = text.substring(0, splitColumn - 1);
-	const otherText = text.substring(splitColumn - 1);
-
-	return [myText, otherText];
 }

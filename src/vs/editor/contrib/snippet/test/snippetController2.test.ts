@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -30,13 +30,13 @@ suite('SnippetController2', function () {
 	}
 
 	let editor: ICodeEditor;
-	let model: Model;
+	let model: TextModel;
 	let contextKeys: MockContextKeyService;
 	let logService = new NullLogService();
 
 	setup(function () {
 		contextKeys = new MockContextKeyService();
-		model = Model.createFromString('if\n    $state\nfi');
+		model = TextModel.createFromString('if\n    $state\nfi');
 		editor = createTestCodeEditor(model);
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');

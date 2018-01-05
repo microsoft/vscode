@@ -587,9 +587,9 @@ export class DebugService implements debug.IDebugService {
 		return this.sendBreakpoints(uri);
 	}
 
-	public updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): TPromise<void> {
+	public updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): void {
 		this.model.updateBreakpoints(data);
-		return this.sendBreakpoints(uri);
+		this.breakpointsToSendOnResourceSaved.add(uri.toString());
 	}
 
 	public removeBreakpoints(id?: string): TPromise<any> {
@@ -1151,11 +1151,6 @@ export class DebugService implements debug.IDebugService {
 		const sendBreakpointsToProcess = (process: debug.IProcess): TPromise<void> => {
 			const session = <RawDebugSession>process.session;
 			if (!session.readyForBreakpoints) {
-				return TPromise.as(null);
-			}
-			if (this.textFileService.isDirty(modelUri)) {
-				// Only send breakpoints for a file once it is not dirty #8077
-				this.breakpointsToSendOnResourceSaved.add(modelUri.toString());
 				return TPromise.as(null);
 			}
 

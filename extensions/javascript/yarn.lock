@@ -6,9 +6,11 @@
   version "8.0.33"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.33.tgz#1126e94374014e54478092830704f6ea89df04cd"
 
-agent-base@~1.0.1:
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-1.0.2.tgz#6890d3fb217004b62b70f8928e0fae5f8952a706"
+agent-base@4, agent-base@^4.1.0:
+  version "4.1.2"
+  resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-4.1.2.tgz#80fa6cde440f4dcf9af2617cf246099b5d99f0c8"
+  dependencies:
+    es6-promisify "^5.0.0"
 
 debug@2:
   version "2.2.0"
@@ -16,25 +18,35 @@ debug@2:
   dependencies:
     ms "0.7.1"
 
-extend@3:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/extend/-/extend-3.0.0.tgz#5a474353b9f3353ddd8176dfd37b91c83a46f1d4"
-
-http-proxy-agent@^0.2.6:
-  version "0.2.7"
-  resolved "https://registry.yarnpkg.com/http-proxy-agent/-/http-proxy-agent-0.2.7.tgz#e17fda65f0902d952ce7921e62c7ff8862655a5e"
+debug@^3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/debug/-/debug-3.1.0.tgz#5bb5a0672628b64149566ba16819e61518c67261"
   dependencies:
-    agent-base "~1.0.1"
-    debug "2"
-    extend "3"
+    ms "2.0.0"
 
-https-proxy-agent@^0.3.5:
-  version "0.3.6"
-  resolved "https://registry.yarnpkg.com/https-proxy-agent/-/https-proxy-agent-0.3.6.tgz#713fa38e5d353f50eb14a342febe29033ed1619b"
+es6-promise@^4.0.3:
+  version "4.1.1"
+  resolved "https://registry.yarnpkg.com/es6-promise/-/es6-promise-4.1.1.tgz#8811e90915d9a0dba36274f0b242dbda78f9c92a"
+
+es6-promisify@^5.0.0:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/es6-promisify/-/es6-promisify-5.0.0.tgz#5109d62f3e56ea967c4b63505aef08291c8a5203"
   dependencies:
-    agent-base "~1.0.1"
+    es6-promise "^4.0.3"
+
+http-proxy-agent@2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/http-proxy-agent/-/http-proxy-agent-2.0.0.tgz#46482a2f0523a4d6082551709f469cb3e4a85ff4"
+  dependencies:
+    agent-base "4"
     debug "2"
-    extend "3"
+
+https-proxy-agent@2.1.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/https-proxy-agent/-/https-proxy-agent-2.1.1.tgz#a7ce4382a1ba8266ee848578778122d491260fd9"
+  dependencies:
+    agent-base "^4.1.0"
+    debug "^3.1.0"
 
 jsonc-parser@^1.0.0:
   version "1.0.0"
@@ -44,12 +56,16 @@ ms@0.7.1:
   version "0.7.1"
   resolved "https://registry.yarnpkg.com/ms/-/ms-0.7.1.tgz#9cd13c03adbff25b65effde7ce864ee952017098"
 
-request-light@^0.2.1:
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.2.1.tgz#986f5a82893e9d1ca6a896ebe6f46c51c6b4557f"
+ms@2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/ms/-/ms-2.0.0.tgz#5608aeadfc00be6c2901df5f9861788de0d597c8"
+
+request-light@^0.2.2:
+  version "0.2.2"
+  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.2.2.tgz#53e48af32ad1514e45221ea5ece5ce782720f712"
   dependencies:
-    http-proxy-agent "^0.2.6"
-    https-proxy-agent "^0.3.5"
+    http-proxy-agent "2.0.0"
+    https-proxy-agent "2.1.1"
     vscode-nls "^2.0.2"
 
 vscode-nls@^2.0.2:

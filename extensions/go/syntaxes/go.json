@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-go/commit/f7c6ca60bfd9d11252560b21e9378e5f82438ce3",
+	"version": "https://github.com/atom/language-go/commit/b6fd68f74efa109679e31fe6f4a41ac105262d0e",
 	"scopeName": "source.go",
 	"name": "Go",
 	"comment": "Go language",
@@ -491,7 +491,7 @@
 					"name": "keyword.operator.increment.go"
 				},
 				{
-					"match": "(==|!=|<=|>=|<[^<]|>[^>])",
+					"match": "(==|!=|<=|>=|<(?!<)|>(?!>))",
 					"name": "keyword.operator.comparison.go"
 				},
 				{

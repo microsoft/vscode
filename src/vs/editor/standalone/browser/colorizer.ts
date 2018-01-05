@@ -6,7 +6,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { ColorId, MetadataConsts, FontStyle, TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { renderViewLine2 as renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
@@ -111,7 +111,7 @@ export class Colorizer {
 		return renderResult.html;
 	}
 
-	public static colorizeModelLine(model: IModel, lineNumber: number, tabSize: number = 4): string {
+	public static colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
 		let content = model.getLineContent(lineNumber);
 		model.forceTokenization(lineNumber);
 		let tokens = model.getLineTokens(lineNumber);

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
+import { DefaultEndOfLine } from 'vs/editor/common/model';
 
 /**
  * Raw text buffer for Piece Table.

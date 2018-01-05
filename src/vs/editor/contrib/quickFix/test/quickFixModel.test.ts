@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { QuickFixOracle } from 'vs/editor/contrib/quickFix/quickFixModel';
@@ -20,7 +20,7 @@ suite('QuickFix', () => {
 
 	const languageIdentifier = new LanguageIdentifier('foo-lang', 3);
 	let uri = URI.parse('untitled:path');
-	let model: Model;
+	let model: TextModel;
 	let markerService: MarkerService;
 	let editor: ICodeEditor;
 	let reg: IDisposable;
@@ -32,7 +32,7 @@ suite('QuickFix', () => {
 			}
 		});
 		markerService = new MarkerService();
-		model = Model.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
+		model = TextModel.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
 		editor = createTestCodeEditor(model);
 		editor.setPosition({ lineNumber: 1, column: 1 });
 	});

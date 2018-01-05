@@ -11,8 +11,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import { Model as EditorModel } from 'vs/editor/common/model/model';
+import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
 import { TestRPCProtocol } from './testRPCProtocol';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -33,9 +32,10 @@ import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import 'vs/workbench/parts/search/electron-browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { ITextModel } from 'vs/editor/common/model';
 
 const defaultSelector = { scheme: 'far' };
-const model: EditorCommon.IModel = EditorModel.createFromString(
+const model: ITextModel = EditorModel.createFromString(
 	[
 		'This is the first line',
 		'This is the second line',

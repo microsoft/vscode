@@ -7,8 +7,7 @@
 
 import 'vs/css!./media/titlecontrol';
 import nls = require('vs/nls');
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Scope, IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
+import { prepareActions } from 'vs/workbench/browser/actions';
 import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
@@ -17,7 +16,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import arrays = require('vs/base/common/arrays');
 import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
-import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -30,7 +29,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { SplitEditorAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
@@ -69,13 +68,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 	protected dragged: boolean;
 
 	protected closeEditorAction: CloseEditorAction;
-	protected pinEditorAction: KeepEditorAction;
-	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
-	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
-	protected closeUnmodifiedEditorsInGroupAction: CloseUnmodifiedEditorsInGroupAction;
-	protected closeEditorsInGroupAction: CloseEditorsInGroupAction;
 	protected splitEditorAction: SplitEditorAction;
-	protected showEditorsInGroupAction: ShowEditorsInGroupAction;
 
 	private parent: HTMLElement;
 
@@ -227,12 +220,6 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 	protected initActions(services: IInstantiationService): void {
 		this.closeEditorAction = services.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
-		this.closeOtherEditorsAction = services.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
-		this.closeRightEditorsAction = services.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
-		this.closeEditorsInGroupAction = services.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
-		this.closeUnmodifiedEditorsInGroupAction = services.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified"));
-		this.pinEditorAction = services.createInstance(KeepEditorAction, KeepEditorAction.ID, nls.localize('keepOpen', "Keep Open"));
-		this.showEditorsInGroupAction = services.createInstance(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, nls.localize('showOpenedEditors', "Show Opened Editors"));
 		this.splitEditorAction = services.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
 	}
 
@@ -279,12 +266,6 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		// Check Active Editor
 		if (editor instanceof BaseEditor) {
 			actionItem = editor.getActionItem(action);
-		}
-
-		// Check Registry
-		if (!actionItem) {
-			const actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
-			actionItem = actionBarRegistry.getActionItemForContext(Scope.EDITOR, { input: editor && editor.input, editor, position }, action);
 		}
 
 		// Check extensions
@@ -358,15 +339,6 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		}
 
 		const tabOptions = this.editorGroupService.getTabOptions();
-		if (tabOptions.showTabs) {
-			if (secondaryEditorActions.length > 0) {
-				secondaryEditorActions.push(new Separator());
-			}
-			secondaryEditorActions.push(this.showEditorsInGroupAction);
-			secondaryEditorActions.push(new Separator());
-			secondaryEditorActions.push(this.closeUnmodifiedEditorsInGroupAction);
-			secondaryEditorActions.push(this.closeEditorsInGroupAction);
-		}
 
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
 		if (!tabOptions.showTabs) {
@@ -412,9 +384,14 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			anchor = { x: event.posx, y: event.posy };
 		}
 
+		// Fill in contributed actions
+		const actions: IAction[] = [];
+		fillInActions(this.contextMenu, { shouldForwardArgs: true, arg: this.resourceContext.get() }, actions);
+
+		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(this.getContextMenuActions(identifier)),
+			getActions: () => TPromise.as(actions),
 			getActionsContext: () => identifier,
 			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: (cancel) => {
@@ -441,51 +418,13 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		return keybinding ? keybinding.getLabel() : void 0;
 	}
 
-	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
-		const { editor, group } = identifier;
-
-		// Enablement
-		this.closeOtherEditorsAction.enabled = group.count > 1;
-		this.pinEditorAction.enabled = !group.isPinned(editor);
-		this.closeRightEditorsAction.enabled = group.indexOf(editor) !== group.count - 1;
-
-		// Actions: For all editors
-		const actions: IAction[] = [
-			this.closeEditorAction,
-			this.closeOtherEditorsAction
-		];
-		const tabOptions = this.editorGroupService.getTabOptions();
-
-		if (tabOptions.showTabs) {
-			actions.push(this.closeRightEditorsAction);
-		}
-
-		actions.push(this.closeUnmodifiedEditorsInGroupAction);
-		actions.push(this.closeEditorsInGroupAction);
-
-		if (tabOptions.previewEditors) {
-			actions.push(new Separator(), this.pinEditorAction);
-		}
-
-		// Fill in contributed actions
-		fillInActions(this.contextMenu, { arg: this.resourceContext.get() }, actions);
-
-		return actions;
-	}
-
 	public dispose(): void {
 		super.dispose();
 
 		// Actions
 		[
 			this.splitEditorAction,
-			this.showEditorsInGroupAction,
-			this.closeEditorAction,
-			this.closeRightEditorsAction,
-			this.closeUnmodifiedEditorsInGroupAction,
-			this.closeOtherEditorsAction,
-			this.closeEditorsInGroupAction,
-			this.pinEditorAction
+			this.closeEditorAction
 		].forEach((action) => {
 			action.dispose();
 		});

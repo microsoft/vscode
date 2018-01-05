@@ -6,8 +6,8 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 suite('Editor Model - Model Edit Operation', () => {
 	var LINE1 = 'My First Line';
@@ -16,7 +16,7 @@ suite('Editor Model - Model Edit Operation', () => {
 	var LINE4 = '';
 	var LINE5 = '1';
 
-	var model: Model;
+	var model: TextModel;
 
 	setup(() => {
 		var text =
@@ -25,7 +25,7 @@ suite('Editor Model - Model Edit Operation', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		model = Model.createFromString(text);
+		model = TextModel.createFromString(text);
 	});
 
 	teardown(() => {
