@@ -29,6 +29,7 @@ class PTBasedBuilder {
 	private text: string;
 	private BOM: string;
 	private chunkIndex: number;
+	private totalCRCount: number;
 	private _regex: RegExp;
 
 	constructor() {
@@ -36,6 +37,7 @@ class PTBasedBuilder {
 		this.BOM = '';
 		this.chunkIndex = 0;
 		this.lineStarts = [0];
+		this.totalCRCount = 0;
 		this._regex = new RegExp(/\r\n|\r|\n/g);
 	}
 
@@ -72,6 +74,10 @@ class PTBasedBuilder {
 				break;
 			}
 
+			if (matchLength === 2 || m[0] === '\r') {
+				this.totalCRCount++;
+			}
+
 			prevMatchStartIndex = matchStartIndex;
 			prevMatchLength = matchLength;
 
@@ -91,7 +97,7 @@ class PTBasedBuilder {
 				length: this.lineStarts.length
 			},
 			BOM: this.BOM,
-			totalCRCount: 0,
+			totalCRCount: this.totalCRCount,
 			containsRTL: containsRTL,
 			isBasicASCII: isBasicASCII
 		});
