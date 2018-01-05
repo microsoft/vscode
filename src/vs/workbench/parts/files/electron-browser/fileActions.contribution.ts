@@ -70,8 +70,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: moveFileToTrashHandler
 });
 
+const DELETE_FILE_ID = 'deleteFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'deleteFile',
+	id: DELETE_FILE_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
 	when: FilesExplorerFocusCondition,
 	primary: KeyMod.Shift | KeyCode.Delete,
@@ -419,6 +420,10 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 20,
 	command: {
 		id: MOVE_FILE_TO_TRASH_ID,
+		title: MOVE_FILE_TO_TRASH_LABEL
+	},
+	alt: {
+		id: DELETE_FILE_ID,
 		title: MOVE_FILE_TO_TRASH_LABEL
 	},
 	when: ExplorerRootContext.toNegated()
