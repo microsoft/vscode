@@ -28,8 +28,8 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { ModelLinesTokens, computeIndentLevel, ModelTokensChangedEventBuilder } from 'vs/editor/common/model/modelLine';
-import { guessIndentation, IndentationGuesserTextBufferTarget, IndentationGuesserStringArrayTarget } from 'vs/editor/common/model/indentationGuesser';
+import { ModelLinesTokens, ModelTokensChangedEventBuilder } from 'vs/editor/common/model/modelLine';
+import { guessIndentation, IndentationGuesserTextBufferSource, IndentationGuesserStringArraySource } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextBuffer, ITextBuffer } from 'vs/editor/common/model/textBuffer';
@@ -82,7 +82,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		let resolvedOpts: model.TextModelResolvedOptions;
 		if (options.detectIndentation) {
-			const guessedIndentation = guessIndentation(new IndentationGuesserStringArrayTarget(textSource.lines), options.tabSize, options.insertSpaces);
+			const guessedIndentation = guessIndentation(new IndentationGuesserStringArraySource(textSource.lines), options.tabSize, options.insertSpaces);
 			resolvedOpts = new model.TextModelResolvedOptions({
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
@@ -515,7 +515,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void {
 		this._assertNotDisposed();
-		let guessedIndentation = guessIndentation(new IndentationGuesserTextBufferTarget(this._buffer), defaultTabSize, defaultInsertSpaces);
+		let guessedIndentation = guessIndentation(new IndentationGuesserTextBufferSource(this._buffer), defaultTabSize, defaultInsertSpaces);
 		this.updateOptions({
 			insertSpaces: guessedIndentation.insertSpaces,
 			tabSize: guessedIndentation.tabSize
@@ -1944,8 +1944,37 @@ export class TextModel extends Disposable implements model.ITextModel {
 		};
 	}
 
+	/**
+	 * Returns:
+	 *  - -1 => the line consists of whitespace
+	 *  - otherwise => the indent level is returned value
+	 */
+	public static computeIndentLevel(line: string, tabSize: number): number {
+		let indent = 0;
+		let i = 0;
+		let len = line.length;
+
+		while (i < len) {
+			let chCode = line.charCodeAt(i);
+			if (chCode === CharCode.Space) {
+				indent++;
+			} else if (chCode === CharCode.Tab) {
+				indent = indent - indent % tabSize + tabSize;
+			} else {
+				break;
+			}
+			i++;
+		}
+
+		if (i === len) {
+			return -1; // line only consists of whitespace
+		}
+
+		return indent;
+	}
+
 	private _computeIndentLevel(lineIndex: number): number {
-		return computeIndentLevel(this._buffer.getLineContent(lineIndex + 1), this._options.tabSize);
+		return TextModel.computeIndentLevel(this._buffer.getLineContent(lineIndex + 1), this._options.tabSize);
 	}
 
 	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {

@@ -5,7 +5,6 @@
 'use strict';
 
 import { IState, FontStyle, StandardTokenType, MetadataConsts, ColorId, LanguageId, ITokenizationSupport, LanguageIdentifier } from 'vs/editor/common/modes';
-import { CharCode } from 'vs/base/common/charCode';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as arrays from 'vs/base/common/arrays';
 import { Position } from 'vs/editor/common/core/position';
@@ -15,35 +14,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ITextBuffer } from 'vs/editor/common/model/textBuffer';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
-
-/**
- * Returns:
- *  - -1 => the line consists of whitespace
- *  - otherwise => the indent level is returned value
- */
-export function computeIndentLevel(line: string, tabSize: number): number {
-	let indent = 0;
-	let i = 0;
-	let len = line.length;
-
-	while (i < len) {
-		let chCode = line.charCodeAt(i);
-		if (chCode === CharCode.Space) {
-			indent++;
-		} else if (chCode === CharCode.Tab) {
-			indent = indent - indent % tabSize + tabSize;
-		} else {
-			break;
-		}
-		i++;
-	}
-
-	if (i === len) {
-		return -1; // line only consists of whitespace
-	}
-
-	return indent;
-}
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
 	return (

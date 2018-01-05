@@ -7,12 +7,12 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { ITextBuffer } from 'vs/editor/common/model/textBuffer';
 
-export interface IIndentationGuesserTarget {
+export interface IIndentationGuesserSource {
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
 }
 
-export class IndentationGuesserTextBufferTarget implements IIndentationGuesserTarget {
+export class IndentationGuesserTextBufferSource implements IIndentationGuesserSource {
 
 	constructor(
 		private readonly _buffer: ITextBuffer
@@ -27,7 +27,7 @@ export class IndentationGuesserTextBufferTarget implements IIndentationGuesserTa
 	}
 }
 
-export class IndentationGuesserStringArrayTarget implements IIndentationGuesserTarget {
+export class IndentationGuesserStringArraySource implements IIndentationGuesserSource {
 
 	constructor(
 		private readonly _lines: string[]
@@ -116,9 +116,9 @@ export interface IGuessedIndentation {
 	insertSpaces: boolean;
 }
 
-export function guessIndentation(target: IIndentationGuesserTarget, defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
+export function guessIndentation(source: IIndentationGuesserSource, defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
 	// Look at most at the first 10k lines
-	const linesCount = Math.min(target.getLineCount(), 10000);
+	const linesCount = Math.min(source.getLineCount(), 10000);
 
 	let linesIndentedWithTabsCount = 0;				// number of lines that contain at least one tab in indentation
 	let linesIndentedWithSpacesCount = 0;			// number of lines that contain only spaces in indentation
@@ -132,7 +132,7 @@ export function guessIndentation(target: IIndentationGuesserTarget, defaultTabSi
 	let spacesDiffCount = [0, 0, 0, 0, 0, 0, 0, 0, 0];		// `tabSize` scores
 
 	for (let lineNumber = 1; lineNumber <= linesCount; lineNumber++) {
-		let currentLineText = target.getLineContent(lineNumber);
+		let currentLineText = source.getLineContent(lineNumber);
 
 		let currentLineHasContent = false;			// does `currentLineText` contain non-whitespace chars
 		let currentLineIndentation = 0;				// index at which `currentLineText` contains the first non-whitespace char
