@@ -11,7 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Position } from 'vs/editor/common/core/position';
-import { overlap, compare, startsWith } from 'vs/base/common/strings';
+import { overlap, compare, startsWith, isFalsyOrWhitespace, endsWith } from 'vs/base/common/strings';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
@@ -36,19 +36,26 @@ namespace schema {
 	}
 
 	export function isValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeService: IModeService): boolean {
-		if (!snippet.language || (typeof snippet.language !== 'string') || !modeService.isRegisteredMode(snippet.language)) {
-			extension.collector.error(localize(
-				'invalid.language',
-				"Unknown language in `contributes.{0}.language`. Provided value: {1}",
-				extension.description.name, String(snippet.language)
-			));
-			return false;
 
-		} else if (!snippet.path || (typeof snippet.path !== 'string')) {
+		if (isFalsyOrWhitespace(snippet.path)) {
 			extension.collector.error(localize(
 				'invalid.path.0',
 				"Expected string in `contributes.{0}.path`. Provided value: {1}",
 				extension.description.name, String(snippet.path)
+			));
+			return false;
+		} else if (isFalsyOrWhitespace(snippet.language) && !endsWith(snippet.path, '.code-snippets')) {
+			extension.collector.error(localize(
+				'invalid.language.0',
+				"When omitting the language, the value of `contribtes.{0}.path` must be a `.code-snippets`-file. Provided value: {1}",
+				extension.description.name, String(snippet.path)
+			));
+			return false;
+		} else if (!isFalsyOrWhitespace(snippet.language) && !modeService.isRegisteredMode(snippet.language)) {
+			extension.collector.error(localize(
+				'invalid.language',
+				"Unknown language in `contributes.{0}.language`. Provided value: {1}",
+				extension.description.name, String(snippet.language)
 			));
 			return false;
 
