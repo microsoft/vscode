@@ -105,9 +105,7 @@ function main() {
 		}
 
 		require([
-			'vs/code/electron-browser/taskManager/taskManagerMain',
-			'vs/nls!vs/code/electron-browser/taskManager/taskManager.main',
-			'vs/css!vs/code/electron-browser/taskManager/taskManager.main'
+			'vs/code/electron-browser/taskManager/taskManagerMain'
 		], function (taskManager) {
 			taskManager.startup();
 		});
