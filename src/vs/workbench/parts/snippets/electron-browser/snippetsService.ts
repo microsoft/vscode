@@ -129,7 +129,7 @@ class SnippetsService implements ISnippetsService {
 			this._files.forEach(file => {
 				promises.push(file.load()
 					.then(file => file.select(langName, result))
-					.catch(err => this._logService.error(err))
+					.catch(err => this._logService.error(err, file.filepath))
 				);
 			});
 			return Promise.all(promises).then(() => result);
