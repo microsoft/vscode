@@ -10,7 +10,7 @@ npm run smoketest
 npm run smoketest -- --build "path/to/code"
 
 # Data Migration tests
-npm run smoketest -- --build "path/to/code-insiders" --stable "path/to/code"
+npm run smoketest -- --build "path/to/code-insiders" --stable-build "path/to/code"
 ```
 
 The script calls mocha, so all mocha arguments should work fine. For example, use `-f Git` to only run the `Git` tests.

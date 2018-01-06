@@ -16,7 +16,7 @@ import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService } from 'vs/platform/storage/common/storageService';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -28,14 +28,10 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
-import { Action } from 'vs/base/common/actions';
-import product from 'vs/platform/node/product';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	public _serviceBrand: any;
-
-	private static INFO_MESSAGE_KEY = 'enterWorkspace.message';
 
 	constructor(
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
@@ -51,7 +47,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	) {
 	}
 
-	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[]): TPromise<void> {
+	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): TPromise<void> {
 		const state = this.contextService.getWorkbenchState();
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
@@ -71,10 +67,10 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Delegate addition of folders to workspace service otherwise
 		return this.contextService.addFolders(foldersToAdd)
-			.then(() => null, error => this.handleWorkspaceConfigurationEditingError(error));
+			.then(() => null, error => donotNotifyError ? TPromise.wrapError(error) : this.handleWorkspaceConfigurationEditingError(error));
 	}
 
-	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
+	public removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): TPromise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we close the workspace and enter the empty workspace state for the window.
@@ -87,7 +83,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Delegate removal of folders to workspace service otherwise
 		return this.contextService.removeFolders(foldersToRemove)
-			.then(() => null, error => this.handleWorkspaceConfigurationEditingError(error));
+			.then(() => null, error => donotNotifyError ? TPromise.wrapError(error) : this.handleWorkspaceConfigurationEditingError(error));
 	}
 
 	public createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<void> {
@@ -145,15 +141,14 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			if (result) {
 				return this.migrate(result.workspace).then(() => {
 
-					// Show message to user (once)
-					this.informUserOnce(); // TODO@Ben remove me after a couple of releases
+					// TODO@Ben TODO@Sandeep the following requires ugly casts and should probably have a service interface
 
 					// Reinitialize backup service
-					const backupFileService = this.backupFileService as BackupFileService; // TODO@Ben ugly cast
+					const backupFileService = this.backupFileService as BackupFileService;
 					backupFileService.initialize(result.backupPath);
 
 					// Reinitialize configuration service
-					const workspaceImpl = this.contextService as WorkspaceService; // TODO@Ben TODO@Sandeep ugly cast
+					const workspaceImpl = this.contextService as WorkspaceService;
 					return workspaceImpl.initialize(result.workspace);
 				});
 			}
@@ -163,53 +158,6 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			startExtensionHost(); // in any case start the extension host again!
 
 			return TPromise.wrapError(error);
-		});
-	}
-
-	private informUserOnce(): void {
-		if (product.quality !== 'stable') {
-			return; // only for stable
-		}
-
-		if (this.storageService.getBoolean(WorkspaceEditingService.INFO_MESSAGE_KEY)) {
-			return; // user does not want to see it again
-		}
-
-		const closeAction = new Action(
-			'enterWorkspace.close',
-			nls.localize('enterWorkspace.close', "Close"),
-			null,
-			true,
-			() => TPromise.as(true)
-		);
-
-		const dontShowAgainAction = new Action(
-			'enterWorkspace.dontShowAgain',
-			nls.localize('enterWorkspace.dontShowAgain', "Don't Show Again"),
-			null,
-			true,
-			() => {
-				this.storageService.store(WorkspaceEditingService.INFO_MESSAGE_KEY, true, StorageScope.GLOBAL);
-
-				return TPromise.as(true);
-			}
-		);
-		const moreInfoAction = new Action(
-			'enterWorkspace.moreInfo',
-			nls.localize('enterWorkspace.moreInfo', "More Information"),
-			null,
-			true,
-			() => {
-				const uri = URI.parse(product.documentationUrl);
-				window.open(uri.toString(true));
-
-				return TPromise.as(true);
-			}
-		);
-
-		this.messageService.show(Severity.Info, {
-			message: nls.localize('enterWorkspace.prompt', "Learn more about working with multiple folders in VS Code."),
-			actions: [moreInfoAction, dontShowAgainAction, closeAction]
 		});
 	}
 
@@ -238,7 +186,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const targetWorkspaceConfiguration = {};
 		for (const key of this.workspaceConfigurationService.keys().workspace) {
-			if (configurationProperties[key] && !configurationProperties[key].isFromExtensions && configurationProperties[key].scope === ConfigurationScope.WINDOW) {
+			if (configurationProperties[key] && !configurationProperties[key].notMultiRootAdopted && configurationProperties[key].scope === ConfigurationScope.WINDOW) {
 				targetWorkspaceConfiguration[key] = this.workspaceConfigurationService.inspect(key).workspace;
 			}
 		}

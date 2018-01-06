@@ -33,5 +33,6 @@
 	"schema.fontSize": "Quando si usa un tipo di carattere: dimensioni del carattere in percentuale rispetto al tipo di carattere del testo. Se non è impostato, per impostazione predefinita vengono usate le dimensioni della definizione del tipo di carattere.",
 	"schema.fontId": "Quando si usa un tipo di carattere: ID del tipo di carattere. Se non è impostato, per impostazione predefinita viene usata la prima definizione del tipo di carattere.",
 	"schema.light": "Associazioni facoltative per le icone di file in temi colore chiari.",
-	"schema.highContrast": "Associazioni facoltative per le icone di file in temi colore a contrasto elevato."
+	"schema.highContrast": "Associazioni facoltative per le icone di file in temi colore a contrasto elevato.",
+	"schema.hidesExplorerArrows": "Determina se le frecce dell'esploratore di file devono essere nascoste quando è attivo questo tema."
 }

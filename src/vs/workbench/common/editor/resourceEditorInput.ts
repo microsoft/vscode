@@ -93,7 +93,8 @@ export class ResourceEditorInput extends EditorInput {
 			if (!(model instanceof ResourceEditorModel)) {
 				ref.dispose();
 				this.modelReference = null;
-				return TPromise.wrapError<ITextEditorModel>(new Error(`Unexpected model for ResourceInput: ${this.resource}`)); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
+
+				return TPromise.wrapError<ITextEditorModel>(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
 			}
 
 			return model;

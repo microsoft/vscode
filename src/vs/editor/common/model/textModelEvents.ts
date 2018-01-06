@@ -8,20 +8,6 @@
 import { IRange } from 'vs/editor/common/core/range';
 
 /**
- * @internal
- */
-export const TextModelEventType = {
-	ModelDispose: 'modelDispose',
-	ModelTokensChanged: 'modelTokensChanged',
-	ModelLanguageChanged: 'modelLanguageChanged',
-	ModelOptionsChanged: 'modelOptionsChanged',
-	ModelContentChanged: 'contentChanged',
-	ModelRawContentChanged2: 'rawContentChanged2',
-	ModelDecorationsChanged: 'decorationsChanged',
-	ModelLanguageConfigurationChanged: 'modelLanguageConfigurationChanged'
-};
-
-/**
  * An event describing that the current mode associated with a model has changed.
  */
 export interface IModelLanguageChangedEvent {
@@ -190,9 +176,9 @@ export class ModelRawLinesInserted {
 	/**
 	 * The text that was inserted
 	 */
-	public readonly detail: string;
+	public readonly detail: string[];
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string) {
+	constructor(fromLineNumber: number, toLineNumber: number, detail: string[]) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
 		this.detail = detail;
@@ -248,4 +234,14 @@ export class ModelRawContentChangedEvent {
 		}
 		return false;
 	}
+}
+
+/**
+ * @internal
+ */
+export class InternalModelContentChangeEvent {
+	constructor(
+		public readonly rawContentChangedEvent: ModelRawContentChangedEvent,
+		public readonly contentChangedEvent: IModelContentChangedEvent,
+	) { }
 }

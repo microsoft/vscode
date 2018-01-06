@@ -5,11 +5,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import { FoldingModel } from 'vs/editor/contrib/folding/common/foldingModel';
-import { Model } from 'vs/editor/common/model/model';
-import { computeRanges } from 'vs/editor/common/model/indentRanges';
+import { FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { TestDecorationProvider } from './foldingModel.test';
-import { HiddenRangeModel } from 'vs/editor/contrib/folding/common/hiddenRangeModel';
+import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IRange } from 'vs/editor/common/core/range';
 
 
@@ -40,8 +40,8 @@ suite('Hidden Range Model', () => {
 		/* 9*/	'  }',
 		/* 10*/	'}'];
 
-		let textModel = Model.createFromString(lines.join('\n'));
-		let foldingModel = new FoldingModel(textModel, new TestDecorationProvider());
+		let textModel = TextModel.createFromString(lines.join('\n'));
+		let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 		let hiddenRangeModel = new HiddenRangeModel(foldingModel);
 
 		assert.equal(hiddenRangeModel.hasRanges(), false);

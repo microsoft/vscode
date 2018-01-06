@@ -6,7 +6,7 @@
 		"lib": [
 			"es2015"
 		],
-		"strictNullChecks": true
+		"strict": true
 	},
 	"include": [
 		"src/**/*"

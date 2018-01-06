@@ -53,5 +53,5 @@
 	"screenReaderDetectedExplanation.answerYes": "是",
 	"screenReaderDetectedExplanation.answerNo": "否",
 	"screenReaderDetectedExplanation.body1": "VS Code 已为屏幕阅读器的使用进行优化。",
-	"screenReaderDetectedExplanation.body2": "一些编辑器功能将有不同的行为: 例如，文字换行，折叠，自动关闭括号等。"
+	"screenReaderDetectedExplanation.body2": "某些编辑器功能可能会有不同的行为，例如自动换行、折叠等。"
 }

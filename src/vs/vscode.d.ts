@@ -839,6 +839,16 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
+		fontStyle?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
+		fontWeight?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
 		textDecoration?: string;
 
 		/**
@@ -902,6 +912,14 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
 		borderColor?: string | ThemeColor;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontStyle?: string;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontWeight?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
@@ -1714,7 +1732,15 @@ declare module 'vscode' {
 
 	/**
 	 * A file glob pattern to match file paths against. This can either be a glob pattern string
-	 * (like `**∕*.{ts,js}` or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
+	 * (like `**​/*.{ts,js}` or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
+	 *
+	 * Glob patterns can have the following syntax:
+	 * * `*` to match one or more characters in a path segment
+	 * * `?` to match on one character in a path segment
+	 * * `**` to match any number of path segments, including none
+	 * * `{}` to group conditions (e.g. `**​/*.{ts,js}` matches all TypeScript and JavaScript files)
+	 * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
+	 * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
 	 */
 	export type GlobPattern = string | RelativePattern;
 
@@ -1724,7 +1750,7 @@ declare module 'vscode' {
 	 * its resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName).
 	 *
 	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
-	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**∕package.json' }`
+	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**​/package.json' }`
 	 */
 	export interface DocumentFilter {
 
@@ -1750,7 +1776,7 @@ declare module 'vscode' {
 	 * and [language filters](#DocumentFilter).
 	 *
 	 * @sample `let sel:DocumentSelector = 'typescript'`;
-	 * @sample `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**∕tsconfig.json' }]`;
+	 * @sample `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**​/tsconfig.json' }]`;
 	 */
 	export type DocumentSelector = string | DocumentFilter | (string | DocumentFilter)[];
 
@@ -1791,11 +1817,52 @@ declare module 'vscode' {
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
 	export interface CodeActionContext {
-
 		/**
 		 * An array of diagnostics.
 		 */
 		readonly diagnostics: Diagnostic[];
+	}
+
+	/**
+	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
+	 * to refactor code.
+	 */
+	export class CodeAction {
+
+		/**
+		 * A short, human-readanle, title for this code action.
+		 */
+		title: string;
+
+		/**
+		 * A workspace edit this code action performs.
+		 *
+		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
+		 */
+		edit?: WorkspaceEdit;
+
+		/**
+		 * Diagnostics that this code action resolves.
+		 */
+		diagnostics?: Diagnostic[];
+
+		/**
+		 * A command this code action performs.
+		 *
+		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
+		 */
+		command?: Command;
+
+		/**
+		 * Creates a new code action.
+		 *
+		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edits)
+		 * or a [command](#CodeAction.command).
+		 *
+		 * @param title The title of the code action.
+		 * @param edits The edit of the code action.
+		 */
+		constructor(title: string, edit?: WorkspaceEdit);
 	}
 
 	/**
@@ -1813,10 +1880,10 @@ declare module 'vscode' {
 		 * @param range The range for which the command was invoked.
 		 * @param context Context carrying additional information.
 		 * @param token A cancellation token.
-		 * @return An array of commands or a thenable of such. The lack of a result can be
+		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<Command[]>;
+		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
 	}
 
 	/**
@@ -2902,12 +2969,11 @@ declare module 'vscode' {
 	 * The completion item provider interface defines the contract between extensions and
 	 * [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
 	 *
-	 * When computing *complete* completion items is expensive, providers can optionally implement
-	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
-	 * items with a [label](#CompletionItem.label) from the
-	 * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
-	 * when a completion item is shown in the UI and gains focus this provider is asked to resolve
-	 * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
+	 * Providers can delay the computation of the [`detail`](#CompletionItem.detail)
+	 * and [`documentation`](#CompletionItem.documentation) properties by implementing the
+	 * [`resolveCompletionItem`](#CompletionItemProvider.resolveCompletionItem)-function. However, properties that
+	 * are needed for the inital sorting and filtering, like `sortText`, `filterText`, `insertText`, and `range`, must
+	 * not be changed during resolve.
 	 *
 	 * Providers are asked for completions either explicitly by a user gesture or -depending on the configuration-
 	 * implicitly when typing words or trigger characters.
@@ -3446,7 +3512,7 @@ declare module 'vscode' {
 		uri: Uri;
 
 		/**
-		 * The document range of this locations.
+		 * The document range of this location.
 		 */
 		range: Range;
 
@@ -4490,7 +4556,7 @@ declare module 'vscode' {
 		 * has changed. *Note* that the event also fires when the active editor changes
 		 * to `undefined`.
 		 */
-		export const onDidChangeActiveTextEditor: Event<TextEditor>;
+		export const onDidChangeActiveTextEditor: Event<TextEditor | undefined>;
 
 		/**
 		 * An [event](#Event) which fires when the array of [visible editors](#window.visibleTextEditors)
@@ -4979,6 +5045,12 @@ declare module 'vscode' {
 		 * Args for the custom shell executable, this does not work on Windows (see #8429)
 		 */
 		shellArgs?: string[];
+
+		/**
+		 * A path for the current working directory to be used for the terminal.
+		 */
+		cwd?: string;
+
 		/**
 		 * Object with environment variables that will be added to the VS Code process.
 		 */
@@ -5254,7 +5326,7 @@ declare module 'vscode' {
 		/**
 		 * Find files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
 		 *
-		 * @sample `findFiles('**∕*.js', '**∕node_modules∕**', 10)`
+		 * @sample `findFiles('**​/*.js', '**​/node_modules/**', 10)`
 		 * @param include A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace. Use a [relative pattern](#RelativePattern)
 		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
@@ -5417,11 +5489,11 @@ declare module 'vscode' {
 	export interface ConfigurationChangeEvent {
 
 		/**
-		 * Returns `true` if the given section for the given resource (if provided) has affected.
+		 * Returns `true` if the given section for the given resource (if provided) is affected.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @param resource A resource Uri.
-		 * @return `true` if the given section for the given resource (if provided) has affected.
+		 * @return `true` if the given section for the given resource (if provided) is affected.
 		 */
 		affectsConfiguration(section: string, resource?: Uri): boolean;
 	}
@@ -5771,6 +5843,16 @@ declare module 'vscode' {
 		 * Setter and getter for the contents of the input box.
 		 */
 		value: string;
+
+		/**
+		 * A string to show as place holder in the input box to guide the user.
+		 */
+		placeholder: string;
+
+		/**
+		 * The warning threshold for lines in the input box.
+		 */
+		lineWarningLength: number | undefined;
 	}
 
 	interface QuickDiffProvider {
@@ -6088,6 +6170,26 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents the debug console.
+	 */
+	export interface DebugConsole {
+		/**
+		 * Append the given value to the debug console.
+		 *
+		 * @param value A string, falsy values will not be printed.
+		 */
+		append(value: string): void;
+
+		/**
+		 * Append the given value and a line feed character
+		 * to the debug console.
+		 *
+		 * @param value A string, falsy values will be printed.
+		 */
+		appendLine(value: string): void;
+	}
+
+	/**
 	 * Namespace for dealing with debug sessions.
 	 */
 	export namespace debug {
@@ -6110,6 +6212,11 @@ declare module 'vscode' {
 		 * If no debug session is active, the value is `undefined`.
 		 */
 		export let activeDebugSession: DebugSession | undefined;
+
+		/**
+		 * The currently active [debug console](#DebugConsole).
+		 */
+		export let activeDebugConsole: DebugConsole;
 
 		/**
 		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)

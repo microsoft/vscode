@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/26b83893bf071f291481c924051462e17d2f77cd",
+	"version": "https://github.com/atom/language-java/commit/cf96ae95ea2e2f4cfd5e6e685e6d7db039859cc6",
 	"scopeName": "source.java",
 	"name": "Java",
 	"fileTypes": [
@@ -189,6 +189,9 @@
 			},
 			"end": "(?=;|\\)|,|:|}|\\+)",
 			"patterns": [
+				{
+					"include": "#comments"
+				},
 				{
 					"include": "#function-call"
 				},
@@ -1078,16 +1081,16 @@
 					]
 				},
 				{
-					"begin": "\\b(?:[A-Z]\\w*\\s*(\\.)\\s*)*[A-Z]\\w*\\s*(?=<)",
+					"begin": "\\b((?:[A-Z]\\w*\\s*(\\.)\\s*)*[A-Z]\\w*)\\s*(?=<)",
 					"beginCaptures": {
-						"0": {
+						"1": {
 							"name": "storage.type.java"
 						},
-						"1": {
+						"2": {
 							"name": "punctuation.separator.period.java"
 						}
 					},
-					"end": "(?<=>)",
+					"end": "(?<=>)|(?!;)",
 					"patterns": [
 						{
 							"include": "#generics"

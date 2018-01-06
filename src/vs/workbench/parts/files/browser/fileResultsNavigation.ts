@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Throttler } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
@@ -16,18 +15,21 @@ export interface IOpenFileOptions {
 	payload: any;
 }
 
+export interface IFileResultsNavigationOptions {
+	openOnFocus: boolean;
+}
+
 export default class FileResultsNavigation extends Disposable {
 
 	private _openFile: Emitter<IOpenFileOptions> = new Emitter<IOpenFileOptions>();
 	public readonly openFile: Event<IOpenFileOptions> = this._openFile.event;
 
-	private throttler: Throttler;
-
-	constructor(private tree: ITree) {
+	constructor(private tree: ITree, options?: IFileResultsNavigationOptions) {
 		super();
-		this.throttler = new Throttler();
-		this._register(this.tree.addListener('focus', e => this.onFocus(e)));
-		this._register(this.tree.addListener('selection', e => this.onSelection(e)));
+		if (options && options.openOnFocus) {
+			this._register(this.tree.onDidChangeFocus(e => this.onFocus(e)));
+		}
+		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
 	}
 
 	private onFocus(event: any): void {
@@ -49,16 +51,17 @@ export default class FileResultsNavigation extends Disposable {
 		if (payload && payload.fromFocus) {
 			return;
 		}
-		let keyboard = payload && payload.origin === 'keyboard';
-		let originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
 
-		let pinned = (payload && payload.origin === 'mouse' && originalEvent && originalEvent.detail === 2);
+		const keyboard = payload && payload.origin === 'keyboard';
+		const originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
+
+		const pinned = (payload && payload.origin === 'mouse' && originalEvent && originalEvent.detail === 2);
 		if (pinned && originalEvent) {
 			originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
 		}
 
-		let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-		let preserveFocus = !((keyboard && (!payload || !payload.preserveFocus)) || pinned || (payload && payload.focusEditor));
+		const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
+		const preserveFocus = !((keyboard && (!payload || !payload.preserveFocus)) || pinned || (payload && payload.focusEditor));
 		this._openFile.fire({
 			editorOptions: {
 				preserveFocus,

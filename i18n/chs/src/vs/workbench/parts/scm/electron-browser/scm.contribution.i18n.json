@@ -6,6 +6,6 @@
 {
 	"toggleGitViewlet": "显示 Git",
 	"source control": "源代码管理",
-	"toggleSCMViewlet": "显示 SCM",
+	"toggleSCMViewlet": "显示源代码管理",
 	"view": "查看"
 }

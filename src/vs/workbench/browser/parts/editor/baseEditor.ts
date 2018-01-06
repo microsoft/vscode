@@ -52,7 +52,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		this._input = input;
 		this._options = options;
 
-		return TPromise.as<void>(null);
+		return TPromise.wrap<void>(null);
 	}
 
 	/**

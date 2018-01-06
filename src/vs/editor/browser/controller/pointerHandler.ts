@@ -28,7 +28,7 @@ function gestureChangeEventMerger(lastEvent: IThrottledGestureEvent, currentEven
 		r.translationX += lastEvent.translationX;
 	}
 	return r;
-};
+}
 
 /**
  * Basically IE10 and IE11
@@ -188,12 +188,10 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 
 class TouchHandler extends MouseHandler {
 
-	private gesture: Gesture;
-
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
-		this.gesture = new Gesture(this.viewHelper.linesContentDomNode);
+		Gesture.addTarget(this.viewHelper.linesContentDomNode);
 
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Change, (e) => this.onChange(e)));
@@ -202,7 +200,6 @@ class TouchHandler extends MouseHandler {
 	}
 
 	public dispose(): void {
-		this.gesture.dispose();
 		super.dispose();
 	}
 

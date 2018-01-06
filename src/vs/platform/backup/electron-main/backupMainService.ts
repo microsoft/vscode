@@ -14,7 +14,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspacesMainService, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export class BackupMainService implements IBackupMainService {
 
@@ -28,8 +28,7 @@ export class BackupMainService implements IBackupMainService {
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ILogService private logService: ILogService,
-		@IWorkspacesMainService private workspacesService: IWorkspacesMainService
+		@ILogService private logService: ILogService
 	) {
 		this.backupHome = environmentService.backupHome;
 		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
@@ -66,7 +65,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	private getHotExitConfig(): string {
-		const config = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const config = this.configurationService.getValue<IFilesConfiguration>();
 
 		return (config && config.files && config.files.hotExit) || HotExitConfiguration.ON_EXIT;
 	}
@@ -310,7 +309,7 @@ export class BackupMainService implements IBackupMainService {
 				fs.mkdirSync(this.backupHome);
 			}
 
-			fs.writeFileSync(this.workspacesJsonPath, JSON.stringify(this.backups));
+			extfs.writeFileAndFlushSync(this.workspacesJsonPath, JSON.stringify(this.backups));
 		} catch (ex) {
 			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
 		}

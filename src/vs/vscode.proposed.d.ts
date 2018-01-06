@@ -86,9 +86,9 @@ declare module 'vscode' {
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
 
-		onDidChange?: Event<FileChange[]>;
+		readonly onDidChange?: Event<FileChange[]>;
 
-		root: Uri;
+		readonly root: Uri;
 
 		// more...
 		//
@@ -198,30 +198,118 @@ declare module 'vscode' {
 
 	//#endregion
 
-	/**
-	 * Represents the debug console.
-	 */
-	export interface DebugConsole {
-		/**
-		 * Append the given value to the debug console.
-		 *
-		 * @param value A string, falsy values will not be printed.
-		 */
-		append(value: string): void;
+	export namespace debug {
 
 		/**
-		 * Append the given value and a line feed character
-		 * to the debug console.
+		 * List of breakpoints.
 		 *
-		 * @param value A string, falsy values will be printed.
+		 * @readonly
 		 */
-		appendLine(value: string): void;
+		export let breakpoints: Breakpoint[];
+
+		/**
+		 * An event that is emitted when a breakpoint is added, removed, or changed.
+		 */
+		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
 	}
 
-	export namespace debug {
+	/**
+	 * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
+	 */
+	export interface BreakpointsChangeEvent {
 		/**
-		 * The [debug console](#DebugConsole) singleton.
+		 * Added breakpoints.
 		 */
-		export let console: DebugConsole;
+		readonly added: Breakpoint[];
+
+		/**
+		 * Removed breakpoints.
+		 */
+		readonly removed: Breakpoint[];
+
+		/**
+		 * Changed breakpoints.
+		 */
+		readonly changed: Breakpoint[];
+	}
+
+	/**
+	 * The base class of all breakpoint types.
+	 */
+	export class Breakpoint {
+		/**
+		 * Is breakpoint enabled.
+		 */
+		readonly enabled: boolean;
+		/**
+		 * An optional expression for conditional breakpoints.
+		 */
+		readonly condition?: string;
+		/**
+		 * An optional expression that controls how many hits of the breakpoint are ignored.
+		 */
+		readonly hitCondition?: string;
+
+		protected constructor(enabled: boolean, condition: string, hitCondition: string);
+	}
+
+	/**
+	 * A breakpoint specified by a source location.
+	 */
+	export class SourceBreakpoint extends Breakpoint {
+		/**
+		 * The source and line position of this breakpoint.
+		 */
+		readonly location: Location;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, location: Location);
+	}
+
+	/**
+	 * A breakpoint specified by a function name.
+	 */
+	export class FunctionBreakpoint extends Breakpoint {
+		/**
+		 * The name of the function to which this breakpoint is attached.
+		 */
+		readonly functionName: string;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string);
+	}
+
+	/**
+	 * The severity level of a log message
+	 */
+	export enum LogLevel {
+		Trace = 1,
+		Debug = 2,
+		Info = 3,
+		Warning = 4,
+		Error = 5,
+		Critical = 6,
+		Off = 7
+	}
+
+	/**
+	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
+	 */
+	export interface Logger {
+		readonly onDidChangeLogLevel: Event<LogLevel>;
+		readonly currentLevel: LogLevel;
+		readonly logDirectory: Thenable<string>;
+
+		trace(message: string, ...args: any[]): void;
+		debug(message: string, ...args: any[]): void;
+		info(message: string, ...args: any[]): void;
+		warn(message: string, ...args: any[]): void;
+		error(message: string | Error, ...args: any[]): void;
+		critical(message: string | Error, ...args: any[]): void;
+	}
+
+	export interface ExtensionContext {
+		/**
+		 * This extension's logger
+		 */
+		logger: Logger;
 	}
 }

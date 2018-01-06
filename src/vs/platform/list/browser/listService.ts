@@ -4,12 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ITree } from 'vs/base/parts/tree/browser/tree';
-import { List } from 'vs/base/browser/ui/list/listWidget';
+import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
+import { List, IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { IDisposable, toDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
+import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import Event, { Emitter } from 'vs/base/common/event';
+import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
+
+export type ListWidget = List<any> | PagedList<any> | ITree;
 
 export const IListService = createDecorator<IListService>('listService');
 
@@ -18,51 +26,31 @@ export interface IListService {
 	_serviceBrand: any;
 
 	/**
-	 * Makes a tree or list widget known to the list service. It will track the lists focus and
-	 * blur events to update context keys based on the widget being focused or not.
-	 *
-	 * @param extraContextKeys an optional list of additional context keys to update based on
-	 * the widget being focused or not.
-	 */
-	register(tree: ITree, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable;
-	register(list: List<any>, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable;
-
-	/**
 	 * Returns the currently focused list widget if any.
 	 */
-	getFocused(): ITree | List<any>;
+	readonly lastFocusedList: ListWidget | undefined;
 }
 
-export const ListFocusContext = new RawContextKey<boolean>('listFocus', false);
-
 interface IRegisteredList {
-	widget: ITree | List<any>;
+	widget: ListWidget;
 	extraContextKeys?: (IContextKey<boolean>)[];
 }
 
 export class ListService implements IListService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
-	private focusedTreeOrList: ITree | List<any>;
-	private lists: IRegisteredList[];
+	private lists: IRegisteredList[] = [];
+	private _lastFocusedWidget: ListWidget | undefined = undefined;
 
-	private listFocusContext: IContextKey<boolean>;
-
-	private focusChangeScheduler: RunOnceScheduler;
-
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService
-	) {
-		this.listFocusContext = ListFocusContext.bindTo(contextKeyService);
-		this.lists = [];
-		this.focusChangeScheduler = new RunOnceScheduler(() => this.onFocusChange(), 50 /* delay until the focus/blur dust settles */);
+	get lastFocusedList(): ListWidget | undefined {
+		return this._lastFocusedWidget;
 	}
 
-	public register(tree: ITree, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable;
-	public register(list: List<any>, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable;
-	public register(widget: ITree | List<any>, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
-		if (this.indexOf(widget) >= 0) {
+	constructor( @IContextKeyService contextKeyService: IContextKeyService) { }
+
+	register(widget: ListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
+		if (this.lists.some(l => l.widget === widget)) {
 			throw new Error('Cannot register the same widget multiple times');
 		}
 
@@ -72,83 +60,121 @@ export class ListService implements IListService {
 
 		// Check for currently being focused
 		if (widget.isDOMFocused()) {
-			this.setFocusedList(registeredList);
+			this._lastFocusedWidget = widget;
 		}
 
-		const toDispose = [
-			widget.onDOMFocus(() => this.focusChangeScheduler.schedule()),
-			widget.onDOMBlur(() => this.focusChangeScheduler.schedule())
-		];
+		const result = combinedDisposable([
+			widget.onDidFocus(() => this._lastFocusedWidget = widget),
+			toDisposable(() => this.lists.splice(this.lists.indexOf(registeredList), 1))
+		]);
 
-		// Special treatment for tree highlight mode
-		if (!(widget instanceof List)) {
-			const tree = widget;
+		return result;
+	}
+}
 
-			toDispose.push(tree.onHighlightChange(() => {
-				this.focusChangeScheduler.schedule();
-			}));
-		}
+const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
+export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
+export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
 
-		// Remove list once disposed
-		toDispose.push({
-			dispose: () => { this.lists.splice(this.lists.indexOf(registeredList), 1); }
-		});
+export type Widget = List<any> | PagedList<any> | ITree;
 
-		return {
-			dispose: () => dispose(toDispose)
-		};
+function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: Widget): IContextKeyService {
+	const result = contextKeyService.createScoped(widget.getHTMLElement());
+
+	if (widget instanceof List || widget instanceof PagedList) {
+		WorkbenchListSupportsMultiSelectContextKey.bindTo(result);
 	}
 
-	private indexOf(widget: ITree | List<any>): number {
-		for (let i = 0; i < this.lists.length; i++) {
-			const list = this.lists[i];
-			if (list.widget === widget) {
-				return i;
-			}
-		}
+	RawWorkbenchListFocusContextKey.bindTo(result);
+	return result;
+}
 
-		return -1;
+export class WorkbenchList<T> extends List<T> {
+
+	readonly contextKeyService: IContextKeyService;
+	private disposable: IDisposable;
+
+	constructor(
+		container: HTMLElement,
+		delegate: IDelegate<T>,
+		renderers: IRenderer<T, any>[],
+		options: IListOptions<T>,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService
+	) {
+		super(container, delegate, renderers, options);
+		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		this.disposable = combinedDisposable([
+			this.contextKeyService,
+			(listService as ListService).register(this),
+			attachListStyler(this, themeService)
+		]);
 	}
 
-	private onFocusChange(): void {
-		let focusedList: IRegisteredList;
-		for (let i = 0; i < this.lists.length; i++) {
-			const list = this.lists[i];
-			if (document.activeElement === list.widget.getHTMLElement()) {
-				focusedList = list;
-				break;
-			}
-		}
+	dispose(): void {
+		this.disposable.dispose();
+	}
+}
 
-		this.setFocusedList(focusedList);
+export class WorkbenchPagedList<T> extends PagedList<T> {
+
+	readonly contextKeyService: IContextKeyService;
+	private disposable: IDisposable;
+
+	constructor(
+		container: HTMLElement,
+		delegate: IDelegate<number>,
+		renderers: IPagedRenderer<T, any>[],
+		options: IListOptions<any>,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService
+	) {
+		super(container, delegate, renderers, options);
+		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		this.disposable = combinedDisposable([
+			this.contextKeyService,
+			(listService as ListService).register(this),
+			attachListStyler(this, themeService)
+		]);
 	}
 
-	private setFocusedList(focusedList?: IRegisteredList): void {
+	dispose(): void {
+		this.disposable.dispose();
+	}
+}
 
-		// First update our context
-		if (focusedList) {
-			this.focusedTreeOrList = focusedList.widget;
-			this.listFocusContext.set(true);
-		} else {
-			this.focusedTreeOrList = void 0;
-			this.listFocusContext.set(false);
-		}
+export class WorkbenchTree extends Tree {
 
-		// Then check for extra contexts to unset
-		for (let i = 0; i < this.lists.length; i++) {
-			const list = this.lists[i];
-			if (list !== focusedList && list.extraContextKeys) {
-				list.extraContextKeys.forEach(key => key.set(false));
-			}
-		}
+	private _onFocusChange = new Emitter<boolean>();
+	readonly onFocusChange: Event<boolean> = this._onFocusChange.event;
 
-		// Finally set context for focused list if there are any
-		if (focusedList && focusedList.extraContextKeys) {
-			focusedList.extraContextKeys.forEach(key => key.set(true));
-		}
+	readonly contextKeyService: IContextKeyService;
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		container: HTMLElement,
+		configuration: ITreeConfiguration,
+		options: ITreeOptions,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService
+	) {
+		super(container, configuration, options);
+
+		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		this.disposables.push(
+			this.contextKeyService,
+			(listService as ListService).register(this),
+			attachListStyler(this, themeService)
+		);
 	}
 
-	public getFocused(): ITree | List<any> {
-		return this.focusedTreeOrList;
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }

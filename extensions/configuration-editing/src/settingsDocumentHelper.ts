@@ -149,20 +149,36 @@ export class SettingsDocument {
 		return Promise.resolve(completions);
 	}
 
-	private provideLanguageCompletionItems(location: Location, range: vscode.Range, formatFunc: (string) => string = (l) => JSON.stringify(l)): vscode.ProviderResult<vscode.CompletionItem[]> {
+	private provideLanguageCompletionItems(location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): vscode.ProviderResult<vscode.CompletionItem[]> {
 		return vscode.languages.getLanguages().then(languages => {
-			return languages.map(l => {
-				return this.newSimpleCompletionItem(formatFunc(l), range);
-			});
+			const completionItems = [];
+			const configuration = vscode.workspace.getConfiguration();
+			for (const language of languages) {
+				const inspect = configuration.inspect(`[${language}]`);
+				if (!inspect || !inspect.defaultValue) {
+					const item = new vscode.CompletionItem(formatFunc(language));
+					item.kind = vscode.CompletionItemKind.Property;
+					item.range = range;
+					completionItems.push(item);
+				}
+			}
+			return completionItems;
 		});
 	}
 
 	private provideLanguageOverridesCompletionItems(location: Location, position: vscode.Position): vscode.ProviderResult<vscode.CompletionItem[]> {
-		let range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-		const text = this.document.getText(range);
 
 		if (location.path.length === 0) {
 
+			let range = this.document.getWordRangeAtPosition(position, /^\s*\[.*]?/) || new vscode.Range(position, position);
+			let text = this.document.getText(range);
+			if (text && text.trim().startsWith('[')) {
+				range = new vscode.Range(new vscode.Position(range.start.line, range.start.character + text.indexOf('[')), range.end);
+				return this.provideLanguageCompletionItems(location, range, language => `"[${language}]"`);
+			}
+
+			range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+			text = this.document.getText(range);
 			let snippet = '"[${1:language}]": {\n\t"$0"\n}';
 
 			// Suggestion model word matching includes quotes,
@@ -184,6 +200,7 @@ export class SettingsDocument {
 		if (location.path.length === 1 && location.previousNode && typeof location.previousNode.value === 'string' && location.previousNode.value.startsWith('[')) {
 			// Suggestion model word matching includes closed sqaure bracket and ending quote
 			// Hence include them in the proposal to replace
+			let range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			return this.provideLanguageCompletionItems(location, range, language => `"[${language}]"`);
 		}
 		return Promise.resolve([]);

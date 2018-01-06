@@ -4,15 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
+import { SpectronApplication, Quality } from '../../spectron/application';
 
-describe('Extensions', () => {
-	let app: SpectronApplication = new SpectronApplication();
-	before(() => app.start('Extensions'));
-	after(() => app.stop());
+export function setup() {
+	describe('Extensions', () => {
+		before(function () {
+			this.app.suiteName = 'Extensions';
+		});
 
-	if (app.build !== VSCODE_BUILD.DEV) {
 		it(`install and activate vscode-smoketest-check extension`, async function () {
+			const app = this.app as SpectronApplication;
+
+			if (app.quality === Quality.Dev) {
+				this.skip();
+				return;
+			}
+
 			const extensionName = 'vscode-smoketest-check';
 			await app.workbench.extensions.openExtensionsViewlet();
 
@@ -27,5 +34,5 @@ describe('Extensions', () => {
 			await app.screenCapturer.capture('Statusbar');
 			assert.equal(statusbarText, 'VS Code Smoke Test Check');
 		});
-	}
-});
+	});
+}

@@ -68,7 +68,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		// Return early for same input unless we force to open
 		const forceOpen = options && options.forceOpen;
 		if (!forceOpen && input.matches(this.input)) {
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Otherwise set input and resolve
@@ -88,7 +88,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 				// Render Input
 				const model = <BinaryEditorModel>resolvedModel;
 				ResourceViewer.show(
-					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag() },
+					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() },
 					this.binaryContainer,
 					this.scrollbar,
 					(resource: URI) => {

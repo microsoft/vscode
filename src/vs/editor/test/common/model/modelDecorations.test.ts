@@ -8,8 +8,8 @@ import * as assert from 'assert';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDeltaDecoration, TrackedRangeStickiness, EndOfLineSequence } from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { IModelDeltaDecoration, TrackedRangeStickiness, EndOfLineSequence } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 // --------- utils
 
@@ -18,7 +18,7 @@ interface ILightWeightDecoration2 {
 	className: string;
 }
 
-function modelHasDecorations(model: Model, decorations: ILightWeightDecoration2[]) {
+function modelHasDecorations(model: TextModel, decorations: ILightWeightDecoration2[]) {
 	let modelDecorations: ILightWeightDecoration2[] = [];
 	let actualDecorations = model.getAllDecorations();
 	for (let i = 0, len = actualDecorations.length; i < len; i++) {
@@ -31,18 +31,18 @@ function modelHasDecorations(model: Model, decorations: ILightWeightDecoration2[
 	assert.deepEqual(modelDecorations, decorations);
 }
 
-function modelHasDecoration(model: Model, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string) {
+function modelHasDecoration(model: TextModel, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string) {
 	modelHasDecorations(model, [{
 		range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 		className: className
 	}]);
 }
 
-function modelHasNoDecorations(model: Model) {
+function modelHasNoDecorations(model: TextModel) {
 	assert.equal(model.getAllDecorations().length, 0, 'Model has no decoration');
 }
 
-function addDecoration(model: Model, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string): string {
+function addDecoration(model: TextModel, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string): string {
 	return model.changeDecorations((changeAccessor) => {
 		return changeAccessor.addDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), {
 			className: className
@@ -50,7 +50,7 @@ function addDecoration(model: Model, startLineNumber: number, startColumn: numbe
 	});
 }
 
-function lineHasDecorations(model: Model, lineNumber: number, decorations: { start: number; end: number; className: string; }[]) {
+function lineHasDecorations(model: TextModel, lineNumber: number, decorations: { start: number; end: number; className: string; }[]) {
 	var lineDecorations = [];
 	var decs = model.getLineDecorations(lineNumber);
 	for (var i = 0, len = decs.length; i < len; i++) {
@@ -63,11 +63,11 @@ function lineHasDecorations(model: Model, lineNumber: number, decorations: { sta
 	assert.deepEqual(lineDecorations, decorations, 'Line decorations');
 }
 
-function lineHasNoDecorations(model: Model, lineNumber: number) {
+function lineHasNoDecorations(model: TextModel, lineNumber: number) {
 	lineHasDecorations(model, lineNumber, []);
 }
 
-function lineHasDecoration(model: Model, lineNumber: number, start: number, end: number, className: string) {
+function lineHasDecoration(model: TextModel, lineNumber: number, start: number, end: number, className: string) {
 	lineHasDecorations(model, lineNumber, [{
 		start: start,
 		end: end,
@@ -84,7 +84,7 @@ suite('Editor Model - Model Decorations', () => {
 
 	// --------- Model Decorations
 
-	var thisModel: Model;
+	var thisModel: TextModel;
 
 	setup(() => {
 		var text =
@@ -93,7 +93,7 @@ suite('Editor Model - Model Decorations', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = Model.createFromString(text);
+		thisModel = TextModel.createFromString(text);
 	});
 
 	teardown(() => {
@@ -402,7 +402,7 @@ suite('Editor Model - Model Decorations', () => {
 	});
 
 	test('removeAllDecorationsWithOwnerId can be called after model dispose', () => {
-		let model = Model.createFromString('asd');
+		let model = TextModel.createFromString('asd');
 		model.dispose();
 		model.removeAllDecorationsWithOwnerId(1);
 	});
@@ -417,14 +417,18 @@ suite('Editor Model - Model Decorations', () => {
 suite('Decorations and editing', () => {
 
 	function _runTest(decRange: Range, stickiness: TrackedRangeStickiness, editRange: Range, editText: string, editForceMoveMarkers: boolean, expectedDecRange: Range, msg: string): void {
-		let model = Model.createFromString([
+		let model = TextModel.createFromString([
 			'My First Line',
 			'My Second Line',
 			'Third Line'
 		].join('\n'));
 
 		const id = model.deltaDecorations([], [{ range: decRange, options: { stickiness: stickiness } }])[0];
-		model.applyEdits([{ range: editRange, text: editText, forceMoveMarkers: editForceMoveMarkers, identifier: null }]);
+		model.applyEdits([{
+			range: editRange,
+			text: editText,
+			forceMoveMarkers: editForceMoveMarkers
+		}]);
 		const actual = model.getDecorationRange(id);
 		assert.deepEqual(actual, expectedDecRange, msg);
 
@@ -1135,7 +1139,7 @@ suite('deltaDecorations', () => {
 		return 1;
 	}
 
-	function readModelDecorations(model: Model, ids: string[]): ILightWeightDecoration[] {
+	function readModelDecorations(model: TextModel, ids: string[]): ILightWeightDecoration[] {
 		return ids.map((id) => {
 			return {
 				range: model.getDecorationRange(id),
@@ -1146,7 +1150,7 @@ suite('deltaDecorations', () => {
 
 	function testDeltaDecorations(text: string[], decorations: ILightWeightDecoration[], newDecorations: ILightWeightDecoration[]): void {
 
-		var model = Model.createFromString(text.join('\n'));
+		var model = TextModel.createFromString(text.join('\n'));
 
 		// Add initial decorations & assert they are added
 		var initialIds = model.deltaDecorations([], decorations.map(toModelDeltaDecoration));
@@ -1154,7 +1158,6 @@ suite('deltaDecorations', () => {
 
 		assert.equal(initialIds.length, decorations.length, 'returns expected cnt of ids');
 		assert.equal(initialIds.length, model.getAllDecorations().length, 'does not leak decorations');
-		assert.equal(initialIds.length, model._getTrackedRangesCount(), 'does not leak tracked ranges');
 		actualDecorations.sort((a, b) => strcmp(a.id, b.id));
 		decorations.sort((a, b) => strcmp(a.id, b.id));
 		assert.deepEqual(actualDecorations, decorations);
@@ -1164,7 +1167,6 @@ suite('deltaDecorations', () => {
 
 		assert.equal(newIds.length, newDecorations.length, 'returns expected cnt of ids');
 		assert.equal(newIds.length, model.getAllDecorations().length, 'does not leak decorations');
-		assert.equal(newIds.length, model._getTrackedRangesCount(), 'does not leak tracked ranges');
 		actualNewDecorations.sort((a, b) => strcmp(a.id, b.id));
 		newDecorations.sort((a, b) => strcmp(a.id, b.id));
 		assert.deepEqual(actualDecorations, decorations);
@@ -1177,7 +1179,7 @@ suite('deltaDecorations', () => {
 	}
 
 	test('result respects input', () => {
-		var model = Model.createFromString([
+		var model = TextModel.createFromString([
 			'Hello world,',
 			'How are you?'
 		].join('\n'));
@@ -1265,7 +1267,7 @@ suite('deltaDecorations', () => {
 
 	test('issue #4317: editor.setDecorations doesn\'t update the hover message', () => {
 
-		let model = Model.createFromString('Hello world!');
+		let model = TextModel.createFromString('Hello world!');
 
 		let ids = model.deltaDecorations([], [{
 			range: {
@@ -1299,7 +1301,7 @@ suite('deltaDecorations', () => {
 	});
 
 	test('model doesn\'t get confused with individual tracked ranges', () => {
-		var model = Model.createFromString([
+		var model = TextModel.createFromString([
 			'Hello world,',
 			'How are you?'
 		].join('\n'));
@@ -1340,7 +1342,7 @@ suite('deltaDecorations', () => {
 	});
 
 	test('issue #16922: Clicking on link doesn\'t seem to do anything', () => {
-		var model = Model.createFromString([
+		var model = TextModel.createFromString([
 			'Hello world,',
 			'How are you?',
 			'Fine.',

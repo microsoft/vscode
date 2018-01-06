@@ -66,8 +66,11 @@ export class Search extends Viewlet {
 		await this.spectron.client.waitForText(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch a.label-name`, void 0, result => result !== file);
 	}
 
-	async setReplaceText(text: string): Promise<void> {
+	async expandReplace(): Promise<void> {
 		await this.spectron.client.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.collapse`);
+	}
+
+	async setReplaceText(text: string): Promise<void> {
 		await this.spectron.client.waitAndClick(`${VIEWLET} .search-widget .replace-container .monaco-inputbox input[title="Replace"]`);
 		await this.spectron.client.element(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`);
 		await this.spectron.client.setValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`, text);

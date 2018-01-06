@@ -44,6 +44,7 @@
 	"listHoverForeground": "Fare ile ögelerin üzerine gelindiğinde Liste/Ağaç ön planı.",
 	"listDropBackground": "Fare ile ögeler taşınırken Liste/Ağaç sürükle ve bırak arka planı.",
 	"highlight": "Liste/Ağaç içinde arama yaparken eşleşme vurgularının Liste/Ağaç ön plan rengi.",
+	"invalidItemForeground": "Gezginde çözümlenmemiş bir kök klasör gibi geçersiz ögeler için Liste/Ağaç ön plan rengi.",
 	"pickerGroupForeground": "Gruplama etiketleri için hızlı seçici rengi.",
 	"pickerGroupBorder": "Gruplama kenarlıkları için hızlı seçici rengi.",
 	"buttonForeground": "Buton ön plan rengi.",

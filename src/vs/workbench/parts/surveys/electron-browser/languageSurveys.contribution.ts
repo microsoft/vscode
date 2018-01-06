@@ -19,6 +19,7 @@ import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import pkg from 'vs/platform/node/package';
 import product, { ISurveyData } from 'vs/platform/node/product';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 class LanguageSurvey {
 
@@ -122,8 +123,6 @@ class LanguageSurvey {
 
 class LanguageSurveysContribution implements IWorkbenchContribution {
 
-	private surveys: LanguageSurvey[];
-
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -132,16 +131,12 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService
 	) {
-		this.surveys = product.surveys.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability).map(surveyData =>
+		product.surveys.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability).map(surveyData =>
 			new LanguageSurvey(surveyData, instantiationService, storageService, messageService, telemetryService, fileService, modelService));
-	}
-
-	getId(): string {
-		return 'languagesurveys.contribution';
 	}
 }
 
 if (language === 'en' && product.surveys && product.surveys.length) {
 	const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution);
+	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution, LifecyclePhase.Running);
 }

@@ -140,7 +140,7 @@ suite('DecorationsService', function () {
 		assert.equal(deco.tooltip, '.txt.bubble');
 
 		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
-		assert.equal(deco.tooltip, '');
+		assert.equal(typeof deco.tooltip, 'string');
 	});
 
 	test('Overwrite data', function () {

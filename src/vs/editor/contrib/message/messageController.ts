@@ -12,21 +12,21 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { commonEditorContribution, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPosition } from 'vs/editor/common/core/position';
 import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { inputValidationInfoBorder, inputValidationInfoBackground } from 'vs/platform/theme/common/colorRegistry';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-@commonEditorContribution
-export class MessageController {
+export class MessageController implements editorCommon.IEditorContribution {
 
-	private static _id = 'editor.contrib.messageController';
+	private static readonly _id = 'editor.contrib.messageController';
 
 	static CONTEXT_SNIPPET_MODE = new RawContextKey<boolean>('messageVisible', false);
 
-	static get(editor: editorCommon.ICommonCodeEditor): MessageController {
+	static get(editor: ICodeEditor): MessageController {
 		return editor.getContribution<MessageController>(MessageController._id);
 	}
 
@@ -101,12 +101,12 @@ export class MessageController {
 const MessageCommand = EditorCommand.bindToContribution<MessageController>(MessageController.get);
 
 
-CommonEditorRegistry.registerEditorCommand(new MessageCommand({
+registerEditorCommand(new MessageCommand({
 	id: 'leaveEditorMessage',
 	precondition: MessageController.CONTEXT_SNIPPET_MODE,
 	handler: c => c.closeMessage(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(30),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
 		primary: KeyCode.Escape
 	}
 }));
@@ -138,10 +138,9 @@ class MessageWidget implements IContentWidget {
 
 		this._editor = editor;
 		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, editorCommon.ScrollType.Smooth);
-		this._position = { lineNumber, column: 1 };
+		this._position = { lineNumber, column: column - 1 };
 
 		this._domNode = document.createElement('div');
-		this._domNode.style.paddingLeft = `${editor.getOffsetForColumn(lineNumber, column) - 6}px`;
 		this._domNode.classList.add('monaco-editor-overlaymessage');
 
 		const message = document.createElement('div');
@@ -173,6 +172,8 @@ class MessageWidget implements IContentWidget {
 		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE] };
 	}
 }
+
+registerEditorContribution(MessageController);
 
 registerThemingParticipant((theme, collector) => {
 	let border = theme.getColor(inputValidationInfoBorder);

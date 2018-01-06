@@ -26,6 +26,7 @@
 	"editKeybindingLabel": "Изменить настраиваемое сочетание клавиш",
 	"addKeybindingLabelWithKey": "Добавить настраиваемое сочетание клавиш {0}",
 	"addKeybindingLabel": "Добавить настраиваемое сочетание клавиш",
+	"title": "{0} ({1})",
 	"commandAriaLabel": "Команда: {0}.",
 	"keybindingAriaLabel": "Настраиваемое сочетание клавиш: {0}.",
 	"noKeybinding": "Нет назначенных настраиваемых сочетаний клавиш.",

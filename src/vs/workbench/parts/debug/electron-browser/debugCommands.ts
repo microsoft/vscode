@@ -9,7 +9,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as errors from 'vs/base/common/errors';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -19,13 +18,14 @@ import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_
 import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.logToDebugConsole',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		handler(accessor: ServicesAccessor, value: string) {
+		handler: (accessor: ServicesAccessor, value: string) => {
 			if (typeof value === 'string') {
 				const debugService = accessor.get(IDebugService);
 				// Use warning as severity to get the orange color for messages coming from the debug extension
@@ -44,7 +44,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -64,7 +64,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -85,7 +85,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -106,7 +106,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -127,7 +127,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -170,9 +170,9 @@ export function registerCommands(): void {
 			}
 			const launch = manager.getLaunches().filter(l => l.workspace.uri.toString() === workspaceUri).pop() || manager.selectedLaunch;
 
-			return launch.openConfigFile(false).done(editor => {
-				if (editor) {
-					const codeEditor = <ICommonCodeEditor>editor.getControl();
+			return launch.openConfigFile(false).done(result => {
+				if (result.editor && !result.configFileCreated) {
+					const codeEditor = <ICodeEditor>result.editor.getControl();
 					if (codeEditor) {
 						return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
 					}

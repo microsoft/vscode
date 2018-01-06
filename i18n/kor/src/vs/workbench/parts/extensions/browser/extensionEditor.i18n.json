@@ -6,9 +6,11 @@
 {
 	"name": "확장 이름",
 	"extension id": "확장 ID",
+	"preview": "미리 보기",
 	"publisher": "게시자 이름",
 	"install count": "설치 수",
 	"rating": "등급",
+	"repository": "리포지토리",
 	"license": "라이선스",
 	"details": "세부 정보",
 	"contributions": "기여",

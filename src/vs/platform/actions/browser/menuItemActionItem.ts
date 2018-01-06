@@ -16,6 +16,34 @@ import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { domEvent } from 'vs/base/browser/event';
 import { Emitter } from 'vs/base/common/event';
 
+const _altKey = new class extends Emitter<boolean> {
+
+	private _subscriptions: IDisposable[] = [];
+	private _isPressed: boolean;
+
+	constructor() {
+		super();
+
+		this._subscriptions.push(domEvent(document.body, 'keydown')(e => this.isPressed = e.altKey));
+		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.isPressed = false));
+		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.isPressed = false));
+		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.isPressed = false));
+	}
+
+	get isPressed(): boolean {
+		return this._isPressed;
+	}
+
+	set isPressed(value: boolean) {
+		this._isPressed = value;
+		this.fire(this._isPressed);
+	}
+
+	dispose() {
+		super.dispose();
+		this._subscriptions = dispose(this._subscriptions);
+	}
+};
 
 export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	const groups = menu.getActions(options);
@@ -25,6 +53,10 @@ export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: 
 
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
+		if (_altKey.isPressed) {
+			actions = actions.map(a => !!a.alt ? a.alt : a);
+		}
+
 		if (isPrimaryGroup(group)) {
 
 			const head = Array.isArray<IAction>(target) ? target : target.primary;
@@ -71,26 +103,6 @@ export function createActionItem(action: IAction, keybindingService: IKeybinding
 	}
 	return undefined;
 }
-
-
-const _altKey = new class extends Emitter<boolean> {
-
-	private _subscriptions: IDisposable[] = [];
-
-	constructor() {
-		super();
-
-		this._subscriptions.push(domEvent(document.body, 'keydown')(e => this.fire(e.altKey)));
-		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.fire(false)));
-		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.fire(false)));
-		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.fire(false)));
-	}
-
-	dispose() {
-		super.dispose();
-		this._subscriptions = dispose(this._subscriptions);
-	}
-};
 
 export class MenuItemActionItem extends ActionItem {
 

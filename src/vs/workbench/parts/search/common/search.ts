@@ -6,11 +6,9 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { onUnexpectedError, illegalArgument } from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { ISearchConfiguration } from 'vs/platform/search/common/search';
-import glob = require('vs/base/common/glob');
+import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { SymbolInformation } from 'vs/editor/common/modes';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -65,24 +63,14 @@ export function getWorkspaceSymbols(query: string): TPromise<[IWorkspaceSymbolPr
 	return TPromise.join(promises).then(_ => result);
 }
 
-CommonEditorRegistry.registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, args: { query: string; }) {
-	let { query } = args;
-	if (typeof query !== 'string') {
-		throw illegalArgument();
-	}
-	return getWorkspaceSymbols(query);
-});
+export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigurationProperties {
+	quickOpen: {
+		includeSymbols: boolean;
+	};
+}
 
 export interface IWorkbenchSearchConfiguration extends ISearchConfiguration {
-	search: {
-		quickOpen: {
-			includeSymbols: boolean;
-		},
-		exclude: glob.IExpression,
-		useRipgrep: boolean,
-		useIgnoreFilesByDefault: boolean,
-		followSymlinks: boolean;
-	};
+	search: IWorkbenchSearchConfigurationProperties;
 }
 
 /**

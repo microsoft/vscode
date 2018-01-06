@@ -42,6 +42,10 @@ export class MarkdownEngine {
 			this.md = (await import('markdown-it'))({
 				html: true,
 				highlight: (str: string, lang: string) => {
+					// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
+					if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
+						lang = 'jsx';
+					}
 					if (lang && hljs.getLanguage(lang)) {
 						try {
 							return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
@@ -133,8 +137,9 @@ export class MarkdownEngine {
 		md.normalizeLink = (link: string) => {
 			try {
 				let uri = vscode.Uri.parse(link);
-				if (!uri.scheme && uri.path && !uri.fragment) {
+				if (!uri.scheme && uri.path) {
 					// Assume it must be a file
+					const fragment = uri.fragment;
 					if (uri.path[0] === '/') {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument);
 						if (root) {
@@ -142,6 +147,10 @@ export class MarkdownEngine {
 						}
 					} else {
 						uri = vscode.Uri.file(path.join(path.dirname(this.currentDocument.path), uri.path));
+					}
+
+					if (fragment) {
+						uri = uri.with({ fragment });
 					}
 					return normalizeLink(uri.toString(true));
 				}

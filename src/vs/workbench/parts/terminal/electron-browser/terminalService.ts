@@ -23,11 +23,10 @@ import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
-	public get configHelper(): ITerminalConfigHelper { return this._configHelper; };
+	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
 	constructor(
 		@IContextKeyService _contextKeyService: IContextKeyService,
@@ -36,7 +35,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IPartService _partService: IPartService,
 		@ILifecycleService _lifecycleService: ILifecycleService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IWindowService private _windowService: IWindowService,
 		@IQuickOpenService private _quickOpenService: IQuickOpenService,
 		@IChoiceService private _choiceService: IChoiceService,
 		@IStorageService private _storageService: IStorageService,
@@ -44,7 +42,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	) {
 		super(_contextKeyService, _configurationService, _panelService, _partService, _lifecycleService);
 
-		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, platform.platform);
+		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 	}
 
 	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
@@ -182,6 +180,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			]
 		};
 		const promises: TPromise<[string, string]>[] = [];
@@ -214,7 +213,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return activeInstance ? activeInstance : this.createInstance(undefined, wasNewTerminalAction);
 	}
 
-	protected _showTerminalCloseConfirmation(): boolean {
+	protected _showTerminalCloseConfirmation(): TPromise<boolean> {
 		let message;
 		if (this.terminalInstances.length === 1) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
@@ -222,10 +221,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
 
-		return !this._messageService.confirmSync({
+		return this._messageService.confirm({
 			message,
 			type: 'warning',
-		});
+		}).then(confirmed => !confirmed);
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {

@@ -16,8 +16,3 @@ export interface IWatcherService {
 	initialize(verboseLogging: boolean): TPromise<void>;
 	setRoots(roots: IWatcherRequest[]): TPromise<void>;
 }
-
-export interface IFileWatcher {
-	startWatching(): () => void;
-	addFolder(folder: string): void;
-}

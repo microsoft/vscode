@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "0.0.8",
-    "vscode-nls": "2.0.1"
+    "vscode-extension-telemetry": "^0.0.8",
+    "vscode-nls": "^2.0.2"
   },
   "devDependencies": {
     "@types/node": "8.0.33",
@@ -38,7 +38,7 @@
     "onCommand:typescript.openTsServerLog",
     "onCommand:workbench.action.tasks.runTask"
   ],
-  "main": "./out/typescriptMain",
+  "main": "./out/extension",
   "contributes": {
     "languages": [
       {
@@ -165,6 +165,12 @@
           "default": false,
           "description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%",
           "scope": "resource"
+        },
+        "typescript.reportStyleChecksAsWarnings": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.reportStyleChecksAsWarnings%",
+          "scope": "window"
         },
         "typescript.validate.enable": {
           "type": "boolean",
@@ -417,6 +423,19 @@
             "string",
             "null"
           ],
+          "enum": [
+            "de",
+            "es",
+            "en",
+            "fr",
+            "it",
+            "ja",
+            "ko",
+            "ru",
+            "zh-CN",
+            "zh-TW",
+            null
+          ],
           "default": null,
           "description": "%typescript.locale%",
           "scope": "window"
@@ -464,23 +483,23 @@
       "commandPalette": [
         {
           "command": "typescript.reloadProjects",
-          "when": "editorLangId == 'typescript'"
+          "when": "editorLangId == typescript && typescript.isManagedFile"
         },
         {
           "command": "typescript.reloadProjects",
-          "when": "editorLangId == typescriptreact"
+          "when": "editorLangId == typescriptreact && typescript.isManagedFile"
         },
         {
           "command": "javascript.reloadProjects",
-          "when": "editorLangId == 'javascript'"
+          "when": "editorLangId == javascript && typescript.isManagedFile"
         },
         {
           "command": "javascript.reloadProjects",
-          "when": "editorLangId == javascriptreact"
+          "when": "editorLangId == javascriptreact && typescript.isManagedFile"
         },
         {
           "command": "typescript.goToProjectConfig",
-          "when": "editorLangId == 'typescript'"
+          "when": "editorLangId == typescript && typescript.isManagedFile"
         },
         {
           "command": "typescript.goToProjectConfig",
@@ -488,11 +507,23 @@
         },
         {
           "command": "javascript.goToProjectConfig",
-          "when": "editorLangId == 'javascript'"
+          "when": "editorLangId == javascript && typescript.isManagedFile"
         },
         {
           "command": "javascript.goToProjectConfig",
-          "when": "editorLangId == javascriptreact"
+          "when": "editorLangId == javascriptreact && typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.selectTypeScriptVersion",
+          "when": "typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.openTsServerLog",
+          "when": "typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.restartTsServer",
+          "when": "typescript.isManagedFile"
         }
       ]
     },
@@ -511,13 +542,13 @@
       },
       {
         "language": "typescriptreact",
-        "path": "./snippets/typescriptreact.json"
+        "path": "./snippets/typescript.json"
       }
     ],
     "jsonValidation": [
       {
         "fileMatch": "tsconfig.json",
-        "url": "http://json.schemastore.org/tsconfig"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
       },
       {
         "fileMatch": "tsconfig.json",
@@ -525,7 +556,7 @@
       },
       {
         "fileMatch": "tsconfig.*.json",
-        "url": "http://json.schemastore.org/tsconfig"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
       },
       {
         "fileMatch": "tsconfig.*.json",
@@ -533,7 +564,7 @@
       },
       {
         "fileMatch": "typings.json",
-        "url": "http://json.schemastore.org/typings"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/typings.json"
       }
     ],
     "taskDefinitions": [

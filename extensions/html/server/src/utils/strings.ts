@@ -41,6 +41,17 @@ export function startsWith(haystack: string, needle: string): boolean {
 	return true;
 }
 
+export function endsWith(haystack: string, needle: string): boolean {
+	let diff = haystack.length - needle.length;
+	if (diff > 0) {
+		return haystack.indexOf(needle, diff) === diff;
+	} else if (diff === 0) {
+		return haystack === needle;
+	} else {
+		return false;
+	}
+}
+
 export function repeat(value: string, count: number) {
 	var s = '';
 	while (count > 0) {

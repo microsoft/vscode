@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, ProviderResult, } from 'vscode';
+import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter } from 'vscode';
 import * as Proto from '../protocol';
 
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange } from '../utils/convert';
 
 export class ReferencesCodeLens extends CodeLens {
@@ -19,12 +19,44 @@ export class ReferencesCodeLens extends CodeLens {
 	}
 }
 
+export class CachedNavTreeResponse {
+	private response?: Promise<Proto.NavTreeResponse>;
+	private version: number = -1;
+	private document: string = '';
+
+	public execute(
+		document: TextDocument,
+		f: () => Promise<Proto.NavTreeResponse>
+	) {
+		if (this.matches(document)) {
+			return this.response;
+		}
+
+		return this.update(document, f());
+	}
+
+	private matches(document: TextDocument): boolean {
+		return this.version === document.version && this.document === document.uri.toString();
+	}
+
+	private update(
+		document: TextDocument,
+		response: Promise<Proto.NavTreeResponse>
+	): Promise<Proto.NavTreeResponse> {
+		this.response = response;
+		this.version = document.version;
+		this.document = document.uri.toString();
+		return response;
+	}
+}
+
 export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider {
 	private enabled: boolean = true;
 	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
 
 	public constructor(
-		protected client: ITypescriptServiceClient
+		protected client: ITypeScriptServiceClient,
+		private cachedResponse: CachedNavTreeResponse
 	) { }
 
 	public get onDidChangeCodeLenses(): Event<void> {
@@ -38,7 +70,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		}
 	}
 
-	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
+	async provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
 		if (!this.enabled) {
 			return [];
 		}
@@ -47,19 +79,22 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		if (!filepath) {
 			return [];
 		}
-		return this.client.execute('navtree', { file: filepath }, token).then(response => {
+
+		try {
+			const response = await this.cachedResponse.execute(document, () => this.client.execute('navtree', { file: filepath }, token));
 			if (!response) {
 				return [];
 			}
+
 			const tree = response.body;
 			const referenceableSpans: Range[] = [];
 			if (tree && tree.childItems) {
 				tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
 			}
 			return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
-		}, () => {
+		} catch {
 			return [];
-		});
+		}
 	}
 
 	protected abstract extractSymbol(

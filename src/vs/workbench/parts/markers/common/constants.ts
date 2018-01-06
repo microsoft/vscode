@@ -11,5 +11,5 @@ export default {
 	MARKER_COPY_MESSAGE_ACTION_ID: 'problems.action.copyMessage',
 	MARKER_OPEN_SIDE_ACTION_ID: 'problems.action.openToSide',
 
-	MarkerFocusContextKey: new RawContextKey<boolean>('problemFocus', false)
+	MarkerFocusContextKey: new RawContextKey<boolean>('problemFocus', true)
 };

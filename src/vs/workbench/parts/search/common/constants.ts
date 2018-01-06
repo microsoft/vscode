@@ -6,9 +6,10 @@
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const VIEWLET_ID = 'workbench.view.search';
+export const SEARCH_OUTPUT_CHANNEL_ID = 'search';
 
 export const FindInFilesActionId = 'workbench.action.findInFiles';
-export const FocusActiveEditorActionId = 'search.action.focusActiveEditor';
+export const FocusActiveEditorCommandId = 'search.action.focusActiveEditor';
 
 export const FocusSearchFromResults = 'search.action.focusSearchFromResults';
 export const OpenMatchToSide = 'search.action.openResultToSide';
@@ -16,10 +17,11 @@ export const CancelActionId = 'search.action.cancel';
 export const RemoveActionId = 'search.action.remove';
 export const ReplaceActionId = 'search.action.replace';
 export const ReplaceAllInFileActionId = 'search.action.replaceAllInFile';
-export const ToggleCaseSensitiveActionId = 'toggleSearchCaseSensitive';
-export const ToggleWholeWordActionId = 'toggleSearchWholeWord';
-export const ToggleRegexActionId = 'toggleSearchRegex';
+export const ReplaceAllInFolderActionId = 'search.action.replaceAllInFolder';
 export const CloseReplaceWidgetActionId = 'closeReplaceInFilesWidget';
+export const ToggleCaseSensitiveCommandId = 'toggleSearchCaseSensitive';
+export const ToggleWholeWordCommandId = 'toggleSearchWholeWord';
+export const ToggleRegexCommandId = 'toggleSearchRegex';
 
 export const SearchViewletVisibleKey = new RawContextKey<boolean>('searchViewletVisible', true);
 export const InputBoxFocusedKey = new RawContextKey<boolean>('inputBoxFocus', false);
@@ -32,4 +34,5 @@ export const ReplaceActiveKey = new RawContextKey<boolean>('replaceActive', fals
 export const FirstMatchFocusKey = new RawContextKey<boolean>('firstMatchFocus', false);
 export const FileMatchOrMatchFocusKey = new RawContextKey<boolean>('fileMatchOrMatchFocus', false);
 export const FileFocusKey = new RawContextKey<boolean>('fileMatchFocus', false);
+export const FolderFocusKey = new RawContextKey<boolean>('folderMatchFocus', false);
 export const MatchFocusKey = new RawContextKey<boolean>('matchFocus', false);

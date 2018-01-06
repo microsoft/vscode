@@ -10,6 +10,7 @@ import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IExtensionsViewlet, VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 class SimpleEntry extends QuickOpenEntry {
 
@@ -71,11 +72,41 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.gallery';
 
-	constructor( @IViewletService private viewletService: IViewletService) {
+	constructor(
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
+		@IExtensionManagementService private extensionsService: IExtensionManagementService
+	) {
 		super();
 	}
 
 	getResults(text: string): TPromise<IModel<any>> {
+		if (/\./.test(text)) {
+			return this.galleryService.query({ names: [text], pageSize: 1 })
+				.then(galleryResult => {
+					const entries: SimpleEntry[] = [];
+					const galleryExtension = galleryResult.firstPage[0];
+
+					if (!galleryExtension) {
+						const label = nls.localize('notfound', "Extension '{0}' not found in the Marketplace.", text);
+						entries.push(new SimpleEntry(label, () => null));
+
+					} else {
+						const label = nls.localize('install', "Press Enter to install '{0}' from the Marketplace.", text);
+						const action = () => {
+							return this.viewletService.openViewlet(VIEWLET_ID, true)
+								.then(viewlet => viewlet as IExtensionsViewlet)
+								.then(viewlet => viewlet.search(`@id:${text}`))
+								.done(() => this.extensionsService.installFromGallery(galleryExtension));
+						};
+
+						entries.push(new SimpleEntry(label, action));
+					}
+
+					return new QuickOpenModel(entries);
+				});
+		}
+
 		const entries: SimpleEntry[] = [];
 
 		if (text) {

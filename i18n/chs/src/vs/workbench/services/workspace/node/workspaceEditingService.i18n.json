@@ -10,5 +10,6 @@
 	"close": "关闭",
 	"enterWorkspace.close": "关闭",
 	"enterWorkspace.dontShowAgain": "不再显示",
-	"enterWorkspace.moreInfo": "详细信息"
+	"enterWorkspace.moreInfo": "详细信息",
+	"enterWorkspace.prompt": "了解有关在 VS Code 中使用多个文件夹的详细信息。"
 }

@@ -6,6 +6,7 @@
 {
 	"schema.token.settings": "Colori e stili per il token.",
 	"schema.token.foreground": "Colore primo piano per il token.",
+	"schema.token.background.warning": "I colori di sfondo del token non sono supportati.",
 	"schema.token.fontStyle": "Stile del carattere della regola: uno o combinazione di 'italic', 'bold' e 'underline'",
 	"schema.fontStyle.error": "Lo stile del carattere deve essere una combinazione di 'italic', 'bold' e 'underline'",
 	"schema.properties.name": "Descrizione della regola.",

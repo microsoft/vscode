@@ -17,12 +17,11 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { editorAction, CommonEditorRegistry, EditorAction, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, registerEditorContribution, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
+import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -31,15 +30,15 @@ import * as platform from 'vs/base/common/platform';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
-@editorContribution
 class AccessibilityHelpController extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.accessibilityHelpController';
+	private static readonly ID = 'editor.contrib.accessibilityHelpController';
 
-	public static get(editor: ICommonCodeEditor): AccessibilityHelpController {
+	public static get(editor: ICodeEditor): AccessibilityHelpController {
 		return editor.getContribution<AccessibilityHelpController>(AccessibilityHelpController.ID);
 	}
 
@@ -71,9 +70,9 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 
 class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
-	private static ID = 'editor.contrib.accessibilityHelpWidget';
-	private static WIDTH = 500;
-	private static HEIGHT = 300;
+	private static readonly ID = 'editor.contrib.accessibilityHelpWidget';
+	private static readonly WIDTH = 500;
+	private static readonly HEIGHT = 300;
 
 	private _editor: ICodeEditor;
 	private _domNode: FastDomNode<HTMLElement>;
@@ -192,7 +191,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		text += '\n\n' + nls.localize('status', "Status:");
 
-		const configuredValue = this._configurationService.getConfiguration<editorOptions.IEditorOptions>('editor').accessibilitySupport;
+		const configuredValue = this._configurationService.getValue<editorOptions.IEditorOptions>('editor').accessibilitySupport;
 		const actualValue = opts.accessibilitySupport;
 
 		const emergencyTurnOnMessage = (
@@ -277,7 +276,6 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 }
 
-@editorAction
 class ShowAccessibilityHelpAction extends EditorAction {
 
 	constructor() {
@@ -293,7 +291,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = AccessibilityHelpController.get(editor);
 		if (controller) {
 			controller.show();
@@ -301,14 +299,17 @@ class ShowAccessibilityHelpAction extends EditorAction {
 	}
 }
 
+registerEditorContribution(AccessibilityHelpController);
+registerEditorAction(ShowAccessibilityHelpAction);
+
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
 
-CommonEditorRegistry.registerEditorCommand(new AccessibilityHelpCommand({
+registerEditorCommand(new AccessibilityHelpCommand({
 	id: 'closeAccessibilityHelp',
 	precondition: CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE,
 	handler: x => x.hide(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(100),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(100),
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
 	}

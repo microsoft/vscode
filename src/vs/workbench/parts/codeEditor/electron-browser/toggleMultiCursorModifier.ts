@@ -14,10 +14,10 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 
 export class ToggleMultiCursorModifierAction extends Action {
 
-	public static ID = 'workbench.action.toggleMultiCursorModifier';
-	public static LABEL = nls.localize('toggleLocation', "Toggle Multi-Cursor Modifier");
+	public static readonly ID = 'workbench.action.toggleMultiCursorModifier';
+	public static readonly LABEL = nls.localize('toggleLocation', "Toggle Multi-Cursor Modifier");
 
-	private static multiCursorModifierConfigurationKey = 'editor.multiCursorModifier';
+	private static readonly multiCursorModifierConfigurationKey = 'editor.multiCursorModifier';
 
 	constructor(
 		id: string,
@@ -28,7 +28,7 @@ export class ToggleMultiCursorModifierAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const editorConf = this.configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		const editorConf = this.configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		const newValue: 'ctrlCmd' | 'alt' = (editorConf.multiCursorModifier === 'ctrlCmd' ? 'alt' : 'ctrlCmd');
 
 		return this.configurationService.updateValue(ToggleMultiCursorModifierAction.multiCursorModifierConfigurationKey, newValue, ConfigurationTarget.USER);

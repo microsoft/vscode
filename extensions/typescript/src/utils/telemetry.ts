@@ -23,8 +23,17 @@ export default class TelemetryReporter {
 		}
 	}
 
+	constructor(
+		private readonly clientVersionDelegate: () => string
+	) { }
+
 	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
 		if (this.reporter) {
+			if (!properties) {
+				properties = {};
+			}
+			properties['version'] = this.clientVersionDelegate();
+
 			this.reporter.sendTelemetryEvent(eventName, properties);
 		}
 	}

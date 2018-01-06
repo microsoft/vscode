@@ -30,7 +30,6 @@
 	"deactivateBreakpoints": "ブレークポイントの非アクティブ化",
 	"reapplyAllBreakpoints": "すべてのブレークポイントを再適用する",
 	"addFunctionBreakpoint": "関数ブレークポイントの追加",
-	"renameFunctionBreakpoint": "関数ブレークポイントの名前変更",
 	"addConditionalBreakpoint": "条件付きブレークポイントの追加...",
 	"editConditionalBreakpoint": "ブレークポイントの編集...",
 	"setValue": "値の設定",

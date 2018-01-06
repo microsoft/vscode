@@ -33,6 +33,7 @@
 	"openPreviousEditor": "이전 편집기 열기",
 	"nextEditorInGroup": "그룹에서 다음 편집기 열기",
 	"openPreviousEditorInGroup": "그룹에서 이전 편집기 열기",
+	"lastEditorInGroup": "그룹의 마지막 편집기 열기",
 	"navigateNext": "앞으로 이동",
 	"navigatePrevious": "뒤로 이동",
 	"navigateLast": "마지막으로 이동",

@@ -9,7 +9,6 @@ import * as platform from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -34,6 +33,7 @@ const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharacte
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
 replacing space with nonBreakningSpace or space ASCII code - 32. */
 const lineAndColumnClause = [
+	'((\\S*)", line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
 	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
 	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
@@ -42,7 +42,7 @@ const lineAndColumnClause = [
 
 // Changing any regex may effect this value, hence changes this as well if required.
 const winLineAndColumnMatchIndex = 12;
-const unixLineAndColumnMatchIndex = 23;
+const unixLineAndColumnMatchIndex = 11;
 
 // Each line and column clause have 6 groups (ie no. of expressions in round brackets)
 const lineAndColumnClauseGroupCount = 6;
@@ -67,7 +67,6 @@ export class TerminalLinkHandler {
 		private _platform: platform.Platform,
 		private _initialCwd: string,
 		@IOpenerService private _openerService: IOpenerService,
-		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@ITerminalService private _terminalService: ITerminalService
 	) {
@@ -169,7 +168,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _isLinkActivationModifierDown(event: MouseEvent): boolean {
-		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			return !!event.altKey;
 		}
@@ -177,7 +176,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _getLinkHoverString(): string {
-		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			return nls.localize('terminalLinkHandler.followLinkAlt', 'Alt + click to follow link');
 		}
@@ -298,4 +297,4 @@ export class TerminalLinkHandler {
 export interface LineColumnInfo {
 	lineNumber?: string;
 	columnNumber?: string;
-};
+}

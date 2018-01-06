@@ -6,9 +6,11 @@
 {
 	"name": "Nome da extensão",
 	"extension id": "Identificador da extensão",
+	"preview": "Visualizar",
 	"publisher": "Nome do editor",
 	"install count": "Quantidade de Instalações",
 	"rating": "Avaliação",
+	"repository": "Repositório",
 	"license": "Licença",
 	"details": "Detalhes",
 	"contributions": "Contribuições",

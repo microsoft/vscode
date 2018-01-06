@@ -36,9 +36,11 @@ function getRgArgs(config: IRawSearch, folderQuery: IFolderSearch, includePatter
 		.forEach(rgGlob => args.push('-g', `!${anchor(isMac ? normalizeNFD(rgGlob) : rgGlob)}`));
 	siblingClauses = rgGlobs.siblingClauses;
 
-	if (config.disregardIgnoreFiles) {
+	if (folderQuery.disregardIgnoreFiles !== false) {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
+	} else {
+		args.push('--no-ignore-parent');
 	}
 
 	// Follow symlinks

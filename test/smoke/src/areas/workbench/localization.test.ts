@@ -5,41 +5,52 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
+import { SpectronApplication, Quality } from '../../spectron/application';
 
-describe('Localization', () => {
-	let app: SpectronApplication = new SpectronApplication();
-	if (app.build === VSCODE_BUILD.DEV) {
-		return;
-	}
+export function setup() {
+	describe('Localization', () => {
+		before(async function () {
+			const app = this.app as SpectronApplication;
+			this.app.suiteName = 'Localization';
 
-	after(() => app.stop());
+			if (app.quality === Quality.Dev) {
+				return;
+			}
 
-	it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
-		await app.start('Localization', ['--locale=DE']);
+			await app.restart(['--locale=DE']);
+		});
 
-		let text = await app.workbench.explorer.getOpenEditorsViewTitle();
-		await app.screenCapturer.capture('Open editors title');
-		assert(/geöffnete editoren/i.test(text));
+		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
+			const app = this.app as SpectronApplication;
 
-		await app.workbench.search.openSearchViewlet();
-		text = await app.workbench.search.getTitle();
-		await app.screenCapturer.capture('Search title');
-		assert(/suchen/i.test(text));
+			if (app.quality === Quality.Dev) {
+				this.skip();
+				return;
+			}
 
-		await app.workbench.scm.openSCMViewlet();
-		text = await app.workbench.scm.getTitle();
-		await app.screenCapturer.capture('Scm title');
-		assert(/quellcodeverwaltung/i.test(text));
+			let text = await app.workbench.explorer.getOpenEditorsViewTitle();
+			await app.screenCapturer.capture('Open editors title');
+			assert(/geöffnete editoren/i.test(text));
 
-		await app.workbench.debug.openDebugViewlet();
-		text = await app.workbench.debug.getTitle();
-		await app.screenCapturer.capture('Debug title');
-		assert(/debuggen/i.test(text));
+			await app.workbench.search.openSearchViewlet();
+			text = await app.workbench.search.getTitle();
+			await app.screenCapturer.capture('Search title');
+			assert(/suchen/i.test(text));
 
-		await app.workbench.extensions.openExtensionsViewlet();
-		text = await app.workbench.extensions.getTitle();
-		await app.screenCapturer.capture('Extensions title');
-		assert(/erweiterungen/i.test(text));
+			await app.workbench.scm.openSCMViewlet();
+			text = await app.workbench.scm.getTitle();
+			await app.screenCapturer.capture('Scm title');
+			assert(/quellcodeverwaltung/i.test(text));
+
+			await app.workbench.debug.openDebugViewlet();
+			text = await app.workbench.debug.getTitle();
+			await app.screenCapturer.capture('Debug title');
+			assert(/debuggen/i.test(text));
+
+			await app.workbench.extensions.openExtensionsViewlet();
+			text = await app.workbench.extensions.getTitle();
+			await app.screenCapturer.capture('Extensions title');
+			assert(/erweiterungen/i.test(text));
+		});
 	});
-});
+}

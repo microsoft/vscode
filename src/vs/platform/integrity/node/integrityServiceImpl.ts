@@ -15,6 +15,7 @@ import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -22,7 +23,7 @@ interface IStorageData {
 }
 
 class IntegrityStorage {
-	private static KEY = 'integrityService';
+	private static readonly KEY = 'integrityService';
 
 	private _storageService: IStorageService;
 	private _value: IStorageData;
@@ -60,11 +61,12 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 	private _messageService: IMessageService;
 	private _storage: IntegrityStorage;
-	private _isPurePromise: TPromise<IntegrityTestResult>;
+	private _isPurePromise: Thenable<IntegrityTestResult>;
 
 	constructor(
 		@IMessageService messageService: IMessageService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		this._messageService = messageService;
 		this._storage = new IntegrityStorage(storageService);
@@ -124,14 +126,14 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		});
 	}
 
-	public isPure(): TPromise<IntegrityTestResult> {
+	public isPure(): Thenable<IntegrityTestResult> {
 		return this._isPurePromise;
 	}
 
-	private _isPure(): TPromise<IntegrityTestResult> {
+	private _isPure(): Thenable<IntegrityTestResult> {
 		const expectedChecksums = product.checksums || {};
 
-		return TPromise.timeout(10000).then(() => {
+		return this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 			let asyncResults: TPromise<ChecksumPair>[] = Object.keys(expectedChecksums).map((filename) => {
 				return this._resolve(filename, expectedChecksums[filename]);
 			});

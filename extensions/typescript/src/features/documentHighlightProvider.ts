@@ -5,13 +5,15 @@
 
 import { DocumentHighlightProvider, DocumentHighlight, DocumentHighlightKind, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
+const stringDelimiters = ['"', '\'', '`'];
 
 export default class TypeScriptDocumentHighlightProvider implements DocumentHighlightProvider {
 	public constructor(
-		private client: ITypescriptServiceClient) { }
+		private client: ITypeScriptServiceClient
+	) { }
 
 	public async provideDocumentHighlights(
 		resource: TextDocument,
@@ -34,7 +36,6 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 				if (this.client.apiVersion.has213Features() && firstOccurrence.start.offset > 1) {
 					// Check to see if contents around first occurrence are string delimiters
 					const contents = resource.getText(new Range(firstOccurrence.start.line - 1, firstOccurrence.start.offset - 1 - 1, firstOccurrence.end.line - 1, firstOccurrence.end.offset - 1 + 1));
-					const stringDelimiters = ['"', '\'', '`'];
 					if (contents && contents.length > 2 && stringDelimiters.indexOf(contents[0]) >= 0 && contents[0] === contents[contents.length - 1]) {
 						return [];
 					}

@@ -11,7 +11,7 @@ import { ITerminalService, ITerminalInstance, ITerminalConfiguration } from 'vs/
 import { ITerminalService as IExternalTerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-const enum ShellType { cmd, powershell, bash };
+const enum ShellType { cmd, powershell, bash }
 
 export class TerminalSupport {
 
@@ -61,7 +61,7 @@ export class TerminalSupport {
 
 		// get the shell configuration for the current platform
 		let shell: string;
-		const shell_config = (<ITerminalConfiguration>configurationService.getConfiguration<any>().terminal.integrated).shell;
+		const shell_config = (<ITerminalConfiguration>configurationService.getValue<any>().terminal.integrated).shell;
 		if (platform.isWindows) {
 			shell = shell_config.windows;
 			shellType = ShellType.cmd;
@@ -102,7 +102,12 @@ export class TerminalSupport {
 				}
 				if (args.env) {
 					for (let key in args.env) {
-						command += `$env:${key}='${args.env[key]}'; `;
+						const value = args.env[key];
+						if (value === null) {
+							command += `Remove-Item env:${key}; `;
+						} else {
+							command += `\${env:${key}}='${value}'; `;
+						}
 					}
 				}
 				if (args.args && args.args.length > 0) {
@@ -127,7 +132,12 @@ export class TerminalSupport {
 				if (args.env) {
 					command += 'cmd /C "';
 					for (let key in args.env) {
-						command += `set "${key}=${args.env[key]}" && `;
+						const value = args.env[key];
+						if (value === null) {
+							command += `set "${key}=" && `;
+						} else {
+							command += `set "${key}=${args.env[key]}" && `;
+						}
 					}
 				}
 				for (let a of args.args) {
@@ -151,7 +161,12 @@ export class TerminalSupport {
 				if (args.env) {
 					command += 'env';
 					for (let key in args.env) {
-						command += ` "${key}=${args.env[key]}"`;
+						const value = args.env[key];
+						if (value === null) {
+							command += ` -u "${key}"`;
+						} else {
+							command += ` "${key}=${value}"`;
+						}
 					}
 					command += ' ';
 				}

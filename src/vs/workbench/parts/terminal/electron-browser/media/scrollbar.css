@@ -26,6 +26,7 @@
 .monaco-workbench .panel.integrated-terminal .xterm:focus .xterm-viewport,
 .monaco-workbench .panel.integrated-terminal .xterm:hover .xterm-viewport {
 	transition: opacity 100ms linear;
+	cursor: default;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {

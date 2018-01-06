@@ -30,7 +30,6 @@
 	"deactivateBreakpoints": "停用中斷點",
 	"reapplyAllBreakpoints": "重新套用所有中斷點",
 	"addFunctionBreakpoint": "加入函式中斷點",
-	"renameFunctionBreakpoint": "重新命名函式中斷點",
 	"addConditionalBreakpoint": "新增條件中斷點...",
 	"editConditionalBreakpoint": "編輯中斷點...",
 	"setValue": "設定值",

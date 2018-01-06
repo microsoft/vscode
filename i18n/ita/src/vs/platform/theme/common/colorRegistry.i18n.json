@@ -44,6 +44,7 @@
 	"listHoverForeground": "Primo piano Elenco/Struttura ad albero al passaggio del mouse sugli elementi.",
 	"listDropBackground": "Sfondo Elenco/Struttura ad albero durante il trascinamento degli elementi selezionati.",
 	"highlight": "Colore primo piano Elenco/Struttura ad albero delle occorrenze trovate durante la ricerca nell'Elenco/Struttura ad albero.",
+	"invalidItemForeground": "Colore di primo piano di Elenco/Struttura ad albero per gli elementi non validi, ad esempio una radice non risolta in Esplora.",
 	"pickerGroupForeground": "Colore di selezione rapida per il raggruppamento delle etichette.",
 	"pickerGroupBorder": "Colore di selezione rapida per il raggruppamento dei bordi.",
 	"buttonForeground": "Colore primo piano del pulsante.",

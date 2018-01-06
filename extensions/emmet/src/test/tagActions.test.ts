@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'mocha';
 import * as assert from 'assert';
 import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
@@ -44,7 +45,7 @@ suite('Tests for Emmet actions on html tags', () => {
 				new Selection(5, 35, 5, 35), // cursor inside closing tag
 			];
 
-			return updateTag('section').then(() => {
+			return updateTag('section')!.then(() => {
 				assert.equal(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
@@ -70,7 +71,7 @@ suite('Tests for Emmet actions on html tags', () => {
 				new Selection(5, 35, 5, 35), // cursor inside closing tag
 			];
 
-			return removeTag().then(() => {
+			return removeTag()!.then(() => {
 				assert.equal(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
@@ -94,7 +95,7 @@ suite('Tests for Emmet actions on html tags', () => {
 				new Selection(7, 5, 7, 5), // split tag
 			];
 
-			return splitJoinTag().then(() => {
+			return splitJoinTag()!.then(() => {
 				assert.equal(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
@@ -137,7 +138,7 @@ suite('Tests for Emmet actions on html tags', () => {
 				new Selection(2, 3, 2, 3)
 			];
 
-			return mergeLines().then(() => {
+			return mergeLines()!.then(() => {
 				assert.equal(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
@@ -152,7 +153,7 @@ suite('Tests for Emmet actions on html tags', () => {
 				new Selection(5, 5, 5, 20) // selection spans multiple nodes in the same line
 			];
 
-			return mergeLines().then(() => {
+			return mergeLines()!.then(() => {
 				assert.equal(doc.getText(), contents);
 				return Promise.resolve();
 			});

@@ -5,17 +5,16 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import * as encoding from 'vs/base/node/encoding';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { Queue } from 'vs/base/common/async';
 import { Edit } from 'vs/base/common/jsonFormatter';
 import { IReference } from 'vs/base/common/lifecycle';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Range } from 'vs/editor/common/core/range';
@@ -24,13 +23,14 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService, IConfigurationOverrides, keyFromOverrideIdentifier, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextModel } from 'vs/editor/common/model';
 
 export enum ConfigurationEditingErrorCode {
 
@@ -109,11 +109,6 @@ interface IConfigurationEditOperation extends IConfigurationValue {
 
 }
 
-interface IValidationResult {
-	error?: ConfigurationEditingErrorCode;
-	exists?: boolean;
-}
-
 interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
 	force?: boolean;
 }
@@ -159,15 +154,15 @@ export class ConfigurationEditingService {
 				.then(() => reference.dispose()));
 	}
 
-	private writeToBuffer(model: editorCommon.IModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
+	private writeToBuffer(model: ITextModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
 		const edit = this.getEdits(model, operation)[0];
-		if (this.applyEditsToBuffer(edit, model) && save) {
+		if (edit && this.applyEditsToBuffer(edit, model) && save) {
 			return this.textFileService.save(operation.resource, { skipSaveParticipants: true /* programmatic change */ });
 		}
 		return TPromise.as(null);
 	}
 
-	private applyEditsToBuffer(edit: Edit, model: editorCommon.IModel): boolean {
+	private applyEditsToBuffer(edit: Edit, model: ITextModel): boolean {
 		const startPosition = model.getPositionAt(edit.offset);
 		const endPosition = model.getPositionAt(edit.offset + edit.length);
 		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
@@ -308,7 +303,7 @@ export class ConfigurationEditingService {
 						return nls.localize('errorInvalidConfigurationFolder', "Unable to write into folder settings. Please open **Folder Settings** file under **{0}** folder to correct errors/warnings in it and try again.", workspaceFolderName);
 				}
 				return '';
-			};
+			}
 			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY: {
 				if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
 					return nls.localize('errorTasksConfigurationFileDirty', "Unable to write into tasks file because the file is dirty. Please save the **Tasks Configuration** file and try again.");
@@ -326,7 +321,7 @@ export class ConfigurationEditingService {
 						return nls.localize('errorConfigurationFileDirtyFolder', "Unable to write into folder settings because the file is dirty. Please save the **Folder Settings** file under **{0}** folder and try again.", workspaceFolderName);
 				}
 				return '';
-			};
+			}
 		}
 	}
 
@@ -342,7 +337,7 @@ export class ConfigurationEditingService {
 		return '';
 	}
 
-	private getEdits(model: editorCommon.IModel, edit: IConfigurationEditOperation): Edit[] {
+	private getEdits(model: ITextModel, edit: IConfigurationEditOperation): Edit[] {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const { value, jsonPath } = edit;
@@ -352,7 +347,7 @@ export class ConfigurationEditingService {
 			const content = JSON.stringify(value, null, insertSpaces ? strings.repeat(' ', tabSize) : '\t');
 			return [{
 				content,
-				length: content.length,
+				length: model.getValue().length,
 				offset: 0
 			}];
 		}
@@ -368,7 +363,7 @@ export class ConfigurationEditingService {
 			});
 	}
 
-	private hasParseErrors(model: editorCommon.IModel, operation: IConfigurationEditOperation): boolean {
+	private hasParseErrors(model: ITextModel, operation: IConfigurationEditOperation): boolean {
 		// If we write to a workspace standalone file and replace the entire contents (no key provided)
 		// we can return here because any parse errors can safely be ignored since all contents are replaced
 		if (operation.workspaceStandAloneConfigurationKey && !operation.key) {
@@ -467,7 +462,7 @@ export class ConfigurationEditingService {
 			return { key, jsonPath, value: config.value, resource: URI.file(this.environmentService.appSettingsPath), target };
 		}
 
-		const resource = this.getConfigurationFileResource(target, WORKSPACE_CONFIG_DEFAULT_PATH, overrides.resource);
+		const resource = this.getConfigurationFileResource(target, FOLDER_SETTINGS_PATH, overrides.resource);
 		if (workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath) {
 			jsonPath = ['settings', ...jsonPath];
 		}

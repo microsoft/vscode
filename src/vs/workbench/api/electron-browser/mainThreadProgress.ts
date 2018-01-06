@@ -5,7 +5,6 @@
 'use strict';
 
 import { IProgressService2, IProgress, IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadProgressShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
@@ -33,17 +32,21 @@ export class MainThreadProgress implements MainThreadProgressShape {
 	}
 
 	$progressReport(handle: number, message: IProgressStep): void {
-		this._progress.get(handle).progress.report(message);
+		if (this._progress.has(handle)) {
+			this._progress.get(handle).progress.report(message);
+		}
 	}
 
 	$progressEnd(handle: number): void {
-		this._progress.get(handle).resolve();
-		this._progress.delete(handle);
+		if (this._progress.has(handle)) {
+			this._progress.get(handle).resolve();
+			this._progress.delete(handle);
+		}
 	}
 
 	private _createTask(handle: number) {
 		return (progress: IProgress<IProgressStep>) => {
-			return new TPromise<any>(resolve => {
+			return new Promise<any>(resolve => {
 				this._progress.set(handle, { resolve, progress });
 			});
 		};

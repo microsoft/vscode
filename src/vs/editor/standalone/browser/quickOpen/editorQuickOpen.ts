@@ -8,13 +8,13 @@ import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { QuickOpenEditorWidget } from './quickOpenEditorWidget';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorContribution, IActionOptions, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;
@@ -22,12 +22,11 @@ export interface IQuickOpenControllerOpts {
 	getAutoFocus(searchValue: string): IAutoFocus;
 }
 
-@editorContribution
-export class QuickOpenController implements editorCommon.IEditorContribution {
+export class QuickOpenController implements editorCommon.IEditorContribution, IDecorator {
 
-	private static ID = 'editor.controller.quickOpenController';
+	private static readonly ID = 'editor.controller.quickOpenController';
 
-	public static get(editor: editorCommon.ICommonCodeEditor): QuickOpenController {
+	public static get(editor: ICodeEditor): QuickOpenController {
 		return editor.getContribution<QuickOpenController>(QuickOpenController.ID);
 	}
 
@@ -95,20 +94,20 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 		this.widget.show('');
 	}
 
-	private static _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});
 
 	public decorateLine(range: Range, editor: ICodeEditor): void {
-		editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
+		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			const oldDecorations: string[] = [];
 			if (this.rangeHighlightDecorationId) {
 				oldDecorations.push(this.rangeHighlightDecorationId);
 				this.rangeHighlightDecorationId = null;
 			}
 
-			const newDecorations: editorCommon.IModelDeltaDecoration[] = [
+			const newDecorations: IModelDeltaDecoration[] = [
 				{
 					range: range,
 					options: QuickOpenController._RANGE_HIGHLIGHT_DECORATION
@@ -122,7 +121,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 
 	public clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
-			this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
+			this.editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 				changeAccessor.deltaDecorations([this.rangeHighlightDecorationId], []);
 				this.rangeHighlightDecorationId = null;
 			});
@@ -154,7 +153,7 @@ export abstract class BaseEditorQuickOpenAction extends EditorAction {
 		this._inputAriaLabel = inputAriaLabel;
 	}
 
-	protected getController(editor: editorCommon.ICommonCodeEditor): QuickOpenController {
+	protected getController(editor: ICodeEditor): QuickOpenController {
 		return QuickOpenController.get(editor);
 	}
 
@@ -171,3 +170,5 @@ export interface IDecorator {
 	decorateLine(range: Range, editor: editorCommon.IEditor): void;
 	clearDecorations(): void;
 }
+
+registerEditorContribution(QuickOpenController);

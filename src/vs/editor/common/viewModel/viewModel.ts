@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, EndOfLinePreference, IViewState, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { INewScrollPosition, IViewState } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, IModelDecorationOptions } from 'vs/editor/common/model';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import { ViewEvent, IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Scrollable, IScrollPosition } from 'vs/base/common/scrollable';
@@ -64,7 +64,7 @@ export interface IViewLayout {
 	getWhitespaces(): IEditorWhitespace[];
 
 	saveState(): IViewState;
-	restoreState(state: IViewState): void;
+	reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; };
 
 	isAfterLines(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
@@ -101,14 +101,12 @@ export interface ICoordinatesConverter {
 	// View -> Model conversion and related methods
 	convertViewPositionToModelPosition(viewPosition: Position): Position;
 	convertViewRangeToModelRange(viewRange: Range): Range;
-	convertViewSelectionToModelSelection(viewSelection: Selection): Selection;
 	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
 	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
 
 	// Model -> View conversion and related methods
 	convertModelPositionToViewPosition(modelPosition: Position): Position;
 	convertModelRangeToViewRange(modelRange: Range): Range;
-	convertModelSelectionToViewSelection(modelSelection: Selection): Selection;
 	modelPositionIsVisible(modelPosition: Position): boolean;
 }
 
@@ -147,7 +145,8 @@ export interface IViewModel {
 	validateModelPosition(modelPosition: IPosition): Position;
 
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
-	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
+	getEOL(): string;
+	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | string[];
 	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
 }
 
@@ -182,13 +181,13 @@ export class ViewLineData {
 	/**
 	 * The tokens at this view line.
 	 */
-	public readonly tokens: ViewLineToken[];
+	public readonly tokens: IViewLineTokens;
 
 	constructor(
 		content: string,
 		minColumn: number,
 		maxColumn: number,
-		tokens: ViewLineToken[]
+		tokens: IViewLineTokens
 	) {
 		this.content = content;
 		this.minColumn = minColumn;
@@ -221,7 +220,7 @@ export class ViewLineRenderingData {
 	/**
 	 * The tokens at this view line.
 	 */
-	public readonly tokens: ViewLineToken[];
+	public readonly tokens: IViewLineTokens;
 	/**
 	 * Inline decorations at this view line.
 	 */
@@ -237,7 +236,7 @@ export class ViewLineRenderingData {
 		content: string,
 		mightContainRTL: boolean,
 		mightContainNonBasicASCII: boolean,
-		tokens: ViewLineToken[],
+		tokens: IViewLineTokens,
 		inlineDecorations: InlineDecoration[],
 		tabSize: number
 	) {
@@ -252,17 +251,18 @@ export class ViewLineRenderingData {
 	}
 }
 
+export const enum InlineDecorationType {
+	Regular = 0,
+	Before = 1,
+	After = 2
+}
+
 export class InlineDecoration {
-	_inlineDecorationBrand: void;
-
-	readonly range: Range;
-	readonly inlineClassName: string;
-	readonly insertsBeforeOrAfter: boolean;
-
-	constructor(range: Range, inlineClassName: string, insertsBeforeOrAfter: boolean) {
-		this.range = range;
-		this.inlineClassName = inlineClassName;
-		this.insertsBeforeOrAfter = insertsBeforeOrAfter;
+	constructor(
+		public readonly range: Range,
+		public readonly inlineClassName: string,
+		public readonly type: InlineDecorationType
+	) {
 	}
 }
 

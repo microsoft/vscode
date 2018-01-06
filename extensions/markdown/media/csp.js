@@ -12,7 +12,7 @@
 	let didShow = false;
 
 	const showCspWarning = () => {
-		if (didShow) {
+		if (didShow || settings.disableSecurityWarnings) {
 			return;
 		}
 		didShow = true;

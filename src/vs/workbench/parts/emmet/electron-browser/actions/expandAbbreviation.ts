@@ -6,12 +6,11 @@
 'use strict';
 import nls = require('vs/nls');
 import { EmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
-import { editorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
-@editorAction
 class ExpandAbbreviationAction extends EmmetEditorAction {
 
 	constructor() {
@@ -33,3 +32,5 @@ class ExpandAbbreviationAction extends EmmetEditorAction {
 
 	}
 }
+
+registerEditorAction(ExpandAbbreviationAction);

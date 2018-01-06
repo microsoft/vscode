@@ -64,7 +64,7 @@ export class ExtHostOutputService {
 	private _proxy: MainThreadOutputServiceShape;
 
 	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadOutputService);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadOutputService);
 	}
 
 	createOutputChannel(name: string): vscode.OutputChannel {

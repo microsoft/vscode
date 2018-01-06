@@ -126,3 +126,24 @@
 .xterm:not(.enable-mouse-events) {
 	cursor: text;
 }
+
+.xterm .accessibility {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	right: 0;
+	z-index: 100;
+}
+
+.xterm .accessibility-tree {
+	color: transparent;
+}
+
+.xterm .live-region {
+	position: absolute;
+	left: -9999px;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+}

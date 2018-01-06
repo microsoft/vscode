@@ -5,7 +5,7 @@
 
 import { Application } from 'spectron';
 import { RawResult, Element } from 'webdriverio';
-import { SpectronApplication, WAIT_TIME } from './application';
+import { SpectronApplication } from './application';
 
 /**
  * Abstracts the Spectron's WebdriverIO managed client property on the created Application instances.
@@ -17,12 +17,12 @@ export class SpectronClient {
 	private retryCount: number;
 	private readonly retryDuration = 100; // in milliseconds
 
-	constructor(readonly spectron: Application, private application: SpectronApplication) {
-		this.retryCount = (WAIT_TIME * 1000) / this.retryDuration;
-	}
-
-	windowByIndex(index: number): Promise<any> {
-		return this.spectron.client.windowByIndex(index);
+	constructor(
+		readonly spectron: Application,
+		private application: SpectronApplication,
+		waitTime: number
+	) {
+		this.retryCount = (waitTime * 1000) / this.retryDuration;
 	}
 
 	keys(keys: string[]): Promise<void> {
@@ -48,10 +48,6 @@ export class SpectronClient {
 	async waitForValue(selector: string, value?: string, accept?: (result: string) => boolean): Promise<any> {
 		accept = accept ? accept : result => value !== void 0 ? value === result : !!result;
 		return this.waitFor(() => this.spectron.client.getValue(selector), accept, `getValue with selector ${selector}`);
-	}
-
-	async waitForHTML(selector: string, accept: (result: string) => boolean = (result: string) => !!result): Promise<any> {
-		return this.waitFor(() => this.spectron.client.getHTML(selector), accept, `getHTML with selector ${selector}`);
 	}
 
 	async waitAndClick(selector: string): Promise<any> {

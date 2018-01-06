@@ -22,9 +22,11 @@ export const IEditorGroupService = createDecorator<IEditorGroupService>('editorG
 export interface IEditorTabOptions {
 	showTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
+	tabSizing?: 'fit' | 'shrink';
 	showIcons?: boolean;
 	previewEditors?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	iconTheme?: string;
 }
 
 export interface IMoveOptions {
@@ -114,12 +116,6 @@ export interface IEditorGroupService {
 	 */
 	pinEditor(group: IEditorGroup, input: IEditorInput): void;
 	pinEditor(position: Position, input: IEditorInput): void;
-
-	/**
-	 * Removes the pinned state of an editor making it a preview editor.
-	 */
-	unpinEditor(group: IEditorGroup, input: IEditorInput): void;
-	unpinEditor(position: Position, input: IEditorInput): void;
 
 	/**
 	 * Moves an editor from one group to another. The index in the group is optional.

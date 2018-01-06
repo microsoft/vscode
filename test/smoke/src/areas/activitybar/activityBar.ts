@@ -9,7 +9,7 @@ import { SpectronApplication } from '../../spectron/application';
 export enum ActivityBarPosition {
 	LEFT = 0,
 	RIGHT = 1
-};
+}
 
 export class ActivityBar {
 

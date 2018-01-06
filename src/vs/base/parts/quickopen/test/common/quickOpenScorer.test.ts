@@ -210,7 +210,7 @@ suite('Quick Open Scorer', () => {
 	});
 
 	test('scoreItem - avoid match scattering (bug #36119)', function () {
-		const resource = URI.file('projects/ui/cula/ats/target.mk');;
+		const resource = URI.file('projects/ui/cula/ats/target.mk');
 
 		const pathRes = scoreItem(resource, 'tcltarget.mk', true, ResourceAccessor, cache);
 		assert.ok(pathRes.score);
@@ -235,6 +235,50 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res.descriptionMatch[0].end, 12);
 		assert.equal(res.descriptionMatch[1].start, 13);
 		assert.equal(res.descriptionMatch[1].end, 14);
+	});
+
+	test('scoreItem - proper target offset', function () {
+		const resource = URI.file('etem');
+
+		const res = scoreItem(resource, 'teem', true, ResourceAccessor, cache);
+		assert.ok(!res.score);
+	});
+
+	test('scoreItem - proper target offset #2', function () {
+		const resource = URI.file('ede');
+
+		const res = scoreItem(resource, 'de', true, ResourceAccessor, cache);
+
+		assert.equal(res.labelMatch.length, 1);
+		assert.equal(res.labelMatch[0].start, 1);
+		assert.equal(res.labelMatch[0].end, 3);
+	});
+
+	test('scoreItem - proper target offset #3', function () {
+		const resource = URI.file('/src/vs/editor/browser/viewParts/lineNumbers/flipped-cursor-2x.svg');
+
+		const res = scoreItem(resource, 'debug', true, ResourceAccessor, cache);
+
+		assert.equal(res.descriptionMatch.length, 3);
+		assert.equal(res.descriptionMatch[0].start, 9);
+		assert.equal(res.descriptionMatch[0].end, 10);
+		assert.equal(res.descriptionMatch[1].start, 36);
+		assert.equal(res.descriptionMatch[1].end, 37);
+		assert.equal(res.descriptionMatch[2].start, 40);
+		assert.equal(res.descriptionMatch[2].end, 41);
+
+		assert.equal(res.labelMatch.length, 2);
+		assert.equal(res.labelMatch[0].start, 9);
+		assert.equal(res.labelMatch[0].end, 10);
+		assert.equal(res.labelMatch[1].start, 20);
+		assert.equal(res.labelMatch[1].end, 21);
+	});
+
+	test('scoreItem - no match unless query contained in sequence', function () {
+		const resource = URI.file('abcde');
+
+		const res = scoreItem(resource, 'edcda', true, ResourceAccessor, cache);
+		assert.ok(!res.score);
 	});
 
 	test('compareItemsByScore - identity', function () {
