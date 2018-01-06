@@ -17,6 +17,9 @@ export const TERMINAL_SERVICE_ID = 'terminalService';
 
 export const TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE = platform.isWindows;
 
+/**  A context key that is set when the integrated terminal OR the terminal FindWidget has focus. */
+export const KEYBINDING_CONTEXT_TERMINAL_COMPONENTS_FOCUS = new RawContextKey<boolean>('terminalComponentsFocus', undefined);
+
 /**  A context key that is set when the integrated terminal has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', undefined);
 /**  A context key that is set when the integrated terminal does not have focus. */
@@ -164,6 +167,8 @@ export interface ITerminalService {
 	hidePanel(): void;
 	focusFindWidget(): TPromise<void>;
 	hideFindWidget(): void;
+	nextMatchFindWidget(): void;
+	previousMatchFindWidget(): void;
 	showNextFindTermFindWidget(): void;
 	showPreviousFindTermFindWidget(): void;
 

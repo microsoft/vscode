@@ -5,10 +5,11 @@
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class TerminalFindWidget extends SimpleFindWidget {
+	protected _findWidgetVisible: IContextKey<boolean>;
 	protected _findInputFocused: IContextKey<boolean>;
 
 	constructor(
@@ -17,6 +18,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@ITerminalService private _terminalService: ITerminalService
 	) {
 		super(_contextViewService);
+		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this._findInputFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
 	}
 
@@ -24,6 +26,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		let val = this.inputValue;
 		let instance = this._terminalService.getActiveInstance();
 		if (instance !== null) {
+			this.reveal(undefined, false);
 			if (previous) {
 				instance.findPrevious(val);
 			} else {
@@ -32,8 +35,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}
 	}
 
+	public reveal(initialInput?: string, focusFindInput = true): void {
+		super.reveal(initialInput, focusFindInput);
+		this._findWidgetVisible.set(true);
+	}
+
 	public hide() {
 		super.hide();
+		this._findWidgetVisible.reset();
 		this._terminalService.getActiveInstance().focus();
 	}
 
