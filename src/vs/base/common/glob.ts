@@ -251,6 +251,8 @@ export interface IGlobOptions {
 	 * Simplify patterns for use as exclusion filters during tree traversal to skip entire subtrees. Cannot be used outside of a tree traversal.
 	 */
 	trimForExclusions?: boolean;
+
+	caseSensitive?: boolean;
 }
 
 interface ParsedStringPattern {
@@ -294,16 +296,22 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	// Whitespace trimming
 	pattern = pattern.trim();
 
+	if (!options.caseSensitive) {
+		pattern = pattern.toLowerCase();
+	}
+
 	// Check cache
-	const patternKey = `${pattern}_${!!options.trimForExclusions}`;
-	let parsedPattern = CACHE.get(patternKey);
-	if (parsedPattern) {
-		return wrapRelativePattern(parsedPattern, arg1);
+	const patternKey = `${pattern}_${!!options.trimForExclusions}_${!!options.caseSensitive}`;
+	let parsedPattern: ParsedStringPattern;
+	let match: RegExpExecArray;
+
+	// Check cache
+	if (CACHE.has(patternKey)) {
+		parsedPattern = CACHE.get(patternKey);
 	}
 
 	// Check for Trivias
-	let match: RegExpExecArray;
-	if (T1.test(pattern)) { // common pattern: **/*.txt just need endsWith check
+	else if (T1.test(pattern)) { // common pattern: **/*.txt just need endsWith check
 		const base = pattern.substr(4); // '**/*'.length === 4
 		parsedPattern = function (path, basename) {
 			return path && strings.endsWith(path, base) ? pattern : null;
@@ -326,7 +334,16 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	// Cache
 	CACHE.set(patternKey, parsedPattern);
 
-	return wrapRelativePattern(parsedPattern, arg1);
+	const relativePattern = wrapRelativePattern(parsedPattern, arg1);
+	return options.caseSensitive ?
+		relativePattern :
+		wrapCaseInsensitivePattern(relativePattern);
+}
+
+function wrapCaseInsensitivePattern(parsedPattern: ParsedStringPattern): ParsedStringPattern {
+	return function (path, basename) {
+		return parsedPattern(path && path.toLowerCase(), basename);
+	};
 }
 
 function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | IRelativePattern): ParsedStringPattern {

@@ -275,6 +275,11 @@ configurationRegistry.registerConfiguration({
 		'files.defaultLanguage': {
 			'type': 'string',
 			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files.")
+		},
+		'files.caseSensitiveGlobPatterns': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('caseSensitiveGlobPatterns', "Apply glob patterns case-sensitively, anywhere that they are used.")
 		}
 	}
 });

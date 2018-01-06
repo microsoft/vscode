@@ -266,6 +266,7 @@ export class DiskSearch implements ISearchResultProvider {
 			filePattern: query.filePattern,
 			excludePattern: query.excludePattern,
 			includePattern: query.includePattern,
+			caseSensitivePatterns: query.caseSensitivePatterns,
 			maxResults: query.maxResults,
 			exists: query.exists,
 			sortByScore: query.sortByScore,

@@ -618,6 +618,7 @@ export interface IFilesConfiguration {
 		eol: string;
 		hotExit: string;
 		useExperimentalFileWatcher: boolean;
+		caseSensitiveGlobPatterns: boolean;
 	};
 }
 

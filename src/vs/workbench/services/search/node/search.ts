@@ -25,6 +25,7 @@ export interface IRawSearch {
 	filePattern?: string;
 	excludePattern?: IExpression;
 	includePattern?: IExpression;
+	caseSensitivePatterns?: boolean;
 	contentPattern?: IPatternInfo;
 	maxResults?: number;
 	exists?: boolean;

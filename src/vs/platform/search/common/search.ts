@@ -57,6 +57,7 @@ export interface ICommonQueryOptions {
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
+	caseSensitivePatterns?: boolean;
 }
 
 export interface IQueryOptions extends ICommonQueryOptions {

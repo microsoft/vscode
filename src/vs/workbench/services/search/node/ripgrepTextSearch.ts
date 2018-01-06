@@ -429,9 +429,11 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 		args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 	}
 
+	const globArgName = config.caseSensitivePatterns ? '-g' : '--iglob';
+
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
-		args.push('-g', globArg);
+		args.push(globArgName, globArg);
 	});
 
 	let siblingClauses: glob.IExpression;
@@ -441,10 +443,10 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	const universalExcludes = findUniversalExcludes(config.folderQueries);
 	const rgGlobs = foldersToRgExcludeGlobs(config.folderQueries, config.excludePattern, universalExcludes);
 	rgGlobs.globArgs
-		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
+		.forEach(rgGlob => args.push(globArgName, `!${rgGlob}`));
 	if (universalExcludes) {
 		universalExcludes
-			.forEach(exclude => args.push('-g', `!${trimTrailingSlash(exclude)}`));
+			.forEach(exclude => args.push(globArgName, `!${trimTrailingSlash(exclude)}`));
 	}
 	siblingClauses = rgGlobs.siblingClauses;
 

@@ -75,6 +75,8 @@ export class QueryBuilder {
 			this.resolveSmartCaseToCaseSensitive(contentPattern);
 		}
 
+		const caseSensitivePatterns = this.configurationService.getValue<ISearchConfiguration>().files.caseSensitiveGlobPatterns;
+
 		const query = <ISearchQuery>{
 			type,
 			folderQueries,
@@ -83,6 +85,7 @@ export class QueryBuilder {
 			filePattern: options.filePattern,
 			excludePattern,
 			includePattern,
+			caseSensitivePatterns,
 			maxResults: options.maxResults,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
