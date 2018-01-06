@@ -376,6 +376,9 @@ export class PieceTableTextBuffer implements ITextBuffer {
 	}
 
 	public getPositionAt(offset: number): Position {
+		offset = Math.floor(offset);
+		offset = Math.max(0, offset);
+
 		let x = this._root;
 		let lfCnt = 0;
 		let originalOffset = offset;
@@ -390,19 +393,27 @@ export class PieceTableTextBuffer implements ITextBuffer {
 
 				if (out.index === 0) {
 					let lineStartOffset = this.getOffsetAt(lfCnt + 1, 1);
-					let column = originalOffset - lineStartOffset + 1;
-					return new Position(lfCnt + 1, column);
+					let column = originalOffset - lineStartOffset;
+					return new Position(lfCnt + 1, column + 1);
 				}
 
 				return new Position(lfCnt + 1, out.remainder + 1);
 			} else {
 				offset -= x.size_left + x.piece.length;
 				lfCnt += x.lf_left + x.piece.lineFeedCnt;
-				x = x.right;
+
+				if (x.right === SENTINEL) {
+					// last node
+					let lineStartOffset = this.getOffsetAt(lfCnt + 1, 1);
+					let column = originalOffset - offset - lineStartOffset;
+					return new Position(lfCnt + 1, column + 1);
+				} else {
+					x = x.right;
+				}
 			}
 		}
 
-		return null;
+		return new Position(1, 1);
 	}
 
 	public equals(other: ITextBuffer): boolean {
