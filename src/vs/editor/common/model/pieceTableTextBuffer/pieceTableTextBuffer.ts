@@ -683,7 +683,8 @@ export class PieceTableTextBuffer implements ITextBuffer {
 		return result + 2;
 	}
 
-	public getRangeAt(start: number, end: number): Range {
+	public getRangeAt(start: number, length: number): Range {
+		let end = start + length;
 		const startPosition = this.getPositionAt(start);
 		const endPosition = this.getPositionAt(end);
 		return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
