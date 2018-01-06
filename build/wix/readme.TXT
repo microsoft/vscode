@@ -8,7 +8,6 @@ How to upgrade to a new VSCode Version:
 
 1. Open "Build.cmd" with an Editor and change below version lines:
 
-  - SET ProductId={PUT-GUID-HERE}
   - SET ProductMajorVersion=1
   - SET ProductMinorVersion=17
   - SET ProductMaintenanceVersion=2
