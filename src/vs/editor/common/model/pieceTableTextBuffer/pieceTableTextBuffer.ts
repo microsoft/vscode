@@ -349,6 +349,7 @@ export class PieceTableTextBuffer implements ITextBuffer {
 	}
 
 	public getLineContent(lineNumber: number): string {
+		// console.log('getLineContent ' + lineNumber);
 		return this.getLineRawContent(lineNumber).replace(/(\r\n|\r|\n)$/, '');
 	}
 
@@ -384,6 +385,7 @@ export class PieceTableTextBuffer implements ITextBuffer {
 		let originalOffset = offset;
 
 		while (x !== SENTINEL) {
+			// console.log('getPositionAt while loop');
 			if (x.size_left !== 0 && x.size_left >= offset) {
 				x = x.left;
 			} else if (x.size_left + x.piece.length >= offset) {

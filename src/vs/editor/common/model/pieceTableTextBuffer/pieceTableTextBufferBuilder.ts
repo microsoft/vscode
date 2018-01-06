@@ -31,6 +31,7 @@ class PTBasedBuilder {
 	private chunkIndex: number;
 	private totalCRCount: number;
 	private _regex: RegExp;
+	private totalLength: number;
 
 	constructor() {
 		this.text = '';
@@ -39,6 +40,7 @@ class PTBasedBuilder {
 		this.lineStarts = [0];
 		this.totalCRCount = 0;
 		this._regex = new RegExp(/\r\n|\r|\n/g);
+		this.totalLength = 0;
 	}
 
 	public acceptChunk(chunk: string): void {
@@ -81,11 +83,11 @@ class PTBasedBuilder {
 			prevMatchStartIndex = matchStartIndex;
 			prevMatchLength = matchLength;
 
-			this.lineStarts.push(matchStartIndex + matchLength);
-
+			this.lineStarts.push(this.totalLength + matchStartIndex + matchLength);
 		} while (m);
 
 		this.text += chunk;
+		this.totalLength += chunk.length;
 		this.chunkIndex++;
 	}
 
