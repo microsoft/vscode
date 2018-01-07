@@ -396,11 +396,16 @@ class OpenLinkAction extends EditorAction {
 			return;
 		}
 
-		let link = linkDetector.getLinkOccurrence(editor.getPosition());
+		let selections = editor.getSelections();
+
+		for (let sel of selections) {
+			let link = linkDetector.getLinkOccurrence(sel.getEndPosition());
+
 		if (link) {
 			linkDetector.openLinkOccurrence(link, false);
 		}
 	}
+}
 }
 
 registerEditorContribution(LinkDetector);
