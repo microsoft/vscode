@@ -315,7 +315,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		const editorService = accessor.get(IWorkbenchEditorService);
-		if (!resource) {
+		if (!URI.isUri(resource)) {
 			resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		}
 
@@ -371,7 +371,7 @@ CommandsRegistry.registerCommand({
 
 const revealInOSHandler = (accessor: ServicesAccessor, resource: URI) => {
 	// Without resource, try to look at the active editor
-	if (!resource) {
+	if (!URI.isUri(resource)) {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 	}
@@ -411,7 +411,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COPY_PATH_COMMAND_ID,
 	handler: (accessor, resource: URI) => {
 		// Without resource, try to look at the active editor
-		if (!resource) {
+		if (!URI.isUri(resource)) {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const activeEditor = editorService.getActiveEditor();
