@@ -71,7 +71,7 @@ async function promptUserToConfirmLogUplod(
 		output: process.stdout
 	});
 
-	return new Promise<boolean>(resolve =>
+	return new TPromise<boolean>(resolve =>
 		rl.question(
 			localize('logUploadPromptHeader', 'Upload session logs to secure endpoint?')
 			+ '\n\n' + localize('logUploadPromptBody', 'Please review your log files: \'{0}\'', logsPath)
