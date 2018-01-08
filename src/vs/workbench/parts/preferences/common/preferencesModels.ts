@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { assign } from 'vs/base/common/objects';
-import { tail, flatten, fill, first } from 'vs/base/common/arrays';
+import { tail, flatten, first } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference, Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -698,7 +698,7 @@ class SettingsContentBuilder {
 		this._contentByLines.push(...lineText);
 	}
 
-	pushGroups(settingsGroups: ISettingsGroup[], padTo = 0): void {
+	pushGroups(settingsGroups: ISettingsGroup[]): void {
 		let lastSetting: ISetting = null;
 		this._contentByLines.push('{');
 		this._contentByLines.push('');
@@ -711,11 +711,6 @@ class SettingsContentBuilder {
 			const lineIdx = this.offsetIndexToIndex(lastSetting.range.endLineNumber);
 			const content = this._contentByLines[lineIdx - 2];
 			this._contentByLines[lineIdx - 2] = content.substring(0, content.length - 1);
-		}
-		if (padTo) {
-			if (this._contentByLines.length < padTo - 1) {
-				this._contentByLines.push(...fill(padTo - this._contentByLines.length - 1, () => ''));
-			}
 		}
 
 		this._contentByLines.push('}');
