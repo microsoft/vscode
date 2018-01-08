@@ -31,7 +31,6 @@ class MyCompletionItem extends CompletionItem {
 		useCodeSnippetsOnMethodSuggest: boolean
 	) {
 		super(tsEntry.name);
-		this.source = tsEntry.source;
 
 		if (tsEntry.isRecommended) {
 			// Make sure isRecommended property always comes first
@@ -270,8 +269,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		try {
 			const args: Proto.CompletionsRequestArgs = {
 				...vsPositionToTsFileLocation(file, position),
-				includeExternalModuleExports: config.autoImportSuggestions,
-				includeInsertTextCompletions: true
+				includeExternalModuleExports: config.autoImportSuggestions
 			};
 			const msg = await this.client.execute('completions', args, token);
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
