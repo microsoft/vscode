@@ -909,6 +909,7 @@ export class ReportIssueAction extends Action {
 	<li>OS Version: ${osVersion}</li>
 	<li>${areExtensionsDisabled ? 'Extensions: Extensions are disabled' : this.generateExtensionTable(extensions)}</li>
 </ul>
+
 ---
 
 Steps to Reproduce:
