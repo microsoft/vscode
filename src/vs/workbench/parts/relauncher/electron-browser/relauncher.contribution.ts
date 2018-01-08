@@ -94,7 +94,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		}
 
 		// Touchbar config
-		if (config.keyboard && typeof config.keyboard.touchbar.enabled === 'boolean' && config.keyboard.touchbar.enabled !== this.touchbarEnabled) {
+		if (config.keyboard && config.keyboard.touchbar && typeof config.keyboard.touchbar.enabled === 'boolean' && config.keyboard.touchbar.enabled !== this.touchbarEnabled) {
 			this.touchbarEnabled = config.keyboard.touchbar.enabled;
 			changed = true;
 		}
