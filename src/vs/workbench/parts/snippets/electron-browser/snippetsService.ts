@@ -17,7 +17,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { join, basename, extname } from 'path';
-import { mkdirp, readdir } from 'vs/base/node/pfs';
+import { mkdirp, readdir, exists } from 'vs/base/node/pfs';
 import { watch } from 'fs';
 import { SnippetFile, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
@@ -218,19 +218,19 @@ class SnippetsService implements ISnippetsService {
 					return;
 				}
 				const filepath = join(userSnippetsFolder, filename);
-				if (type === 'change') {
-					// `changed` file
-					if (this._files.has(filepath)) {
-						this._files.get(filepath).reset();
-					}
-				} else if (type === 'rename') {
-					// `created` or `deleted` file
-					if (!this._files.has(filepath)) {
-						addUserSnippet(filepath);
+				exists(filepath).then(value => {
+					if (value) {
+						// file created or changed
+						if (this._files.has(filepath)) {
+							this._files.get(filepath).reset();
+						} else {
+							addUserSnippet(filepath);
+						}
 					} else {
+						// file not found
 						this._files.delete(filepath);
 					}
-				}
+				});
 			});
 		}).then(undefined, err => {
 			this._logService.error('Failed to load user snippets', err);
