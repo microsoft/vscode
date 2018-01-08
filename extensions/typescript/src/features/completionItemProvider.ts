@@ -17,7 +17,6 @@ import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
 import * as languageModeIds from '../utils/languageModeIds';
 import { CommandManager, Command } from '../utils/commandManager';
-import { TsServerLogLevel } from '../utils/configuration';
 
 const localize = nls.loadMessageBundle();
 
@@ -195,7 +194,7 @@ class ApplyCompletionCodeActionCommand implements Command {
 }
 
 interface Configuration {
-	useCodeSnippetsOnMethodShowest: boolean;
+	useCodeSnippetsOnMethodSuggest: boolean;
 	nameSuggestions: boolean;
 	quickSuggestionsForPaths: boolean;
 	autoImportSuggestions: boolean;
