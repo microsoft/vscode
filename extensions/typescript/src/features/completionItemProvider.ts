@@ -17,6 +17,7 @@ import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
 import * as languageModeIds from '../utils/languageModeIds';
 import { CommandManager, Command } from '../utils/commandManager';
+import { TsServerLogLevel } from '../utils/configuration';
 
 const localize = nls.loadMessageBundle();
 
@@ -51,6 +52,12 @@ class MyCompletionItem extends CompletionItem {
 
 		if (tsEntry.replacementSpan) {
 			this.range = tsTextSpanToVsRange(tsEntry.replacementSpan);
+		}
+
+		if (tsEntry.kindModifiers.match(/\boptional\b/)) {
+			this.insertText = this.label;
+			this.filterText = this.label;
+			this.label += '?';
 		}
 	}
 
@@ -188,7 +195,7 @@ class ApplyCompletionCodeActionCommand implements Command {
 }
 
 interface Configuration {
-	useCodeSnippetsOnMethodSuggest: boolean;
+	useCodeSnippetsOnMethodShowest: boolean;
 	nameSuggestions: boolean;
 	quickSuggestionsForPaths: boolean;
 	autoImportSuggestions: boolean;
