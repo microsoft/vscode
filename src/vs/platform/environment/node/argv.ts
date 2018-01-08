@@ -164,7 +164,7 @@ const troubleshootingHelp: { [name: string]: string; } = {
 	'--inspect-extensions': localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection uri."),
 	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection uri."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
-	'--upload-logs': localize('uploadLogs', "Upload logs.")
+	'--upload-logs': localize('uploadLogs', "Uploads logs from current session to a secure endpoint.")
 };
 
 export function formatOptions(options: { [name: string]: string; }, columns: number): string {
