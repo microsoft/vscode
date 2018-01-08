@@ -399,7 +399,7 @@ class OpenLinkAction extends EditorAction {
 		let selections = editor.getSelections();
 
 		for (let sel of selections) {
-				let link = linkDetector.getLinkOccurrence(sel.getEndPosition());
+			let link = linkDetector.getLinkOccurrence(sel.getEndPosition());
 
 			if (link) {
 				linkDetector.openLinkOccurrence(link, false);
