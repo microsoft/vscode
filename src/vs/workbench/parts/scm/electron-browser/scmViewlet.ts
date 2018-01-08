@@ -323,7 +323,7 @@ class MainPanel extends ViewletPanel {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		fillInActions(menu, { shouldForwardArgs: true }, result, g => g === 'inline');
+		fillInActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
 
 		menu.dispose();
 		contextKeyService.dispose();
@@ -912,7 +912,7 @@ export class RepositoryPanel extends ViewletPanel {
 			return undefined;
 		}
 
-		return new SCMMenuItemActionItem(action, this.keybindingService, this.messageService);
+		return new SCMMenuItemActionItem(action, this.keybindingService, this.messageService, this.contextMenuService);
 	}
 
 	getActionsContext(): any {
@@ -1028,7 +1028,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IMessageService protected messageService: IMessageService,
-		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService protected themeService: IThemeService,
 		@ICommandService protected commandService: ICommandService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
@@ -1036,7 +1036,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true }, telemetryService, themeService);
 
@@ -1176,7 +1176,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			return undefined;
 		}
 
-		return new SCMMenuItemActionItem(action, this.keybindingService, this.messageService);
+		return new SCMMenuItemActionItem(action, this.keybindingService, this.messageService, this.contextMenuService);
 	}
 
 	layout(dimension: Dimension): void {

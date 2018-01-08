@@ -111,7 +111,7 @@ export class TreeView extends TreeViewsViewletPanel {
 	}
 
 	getActionItem(action: IAction): IActionItem {
-		return createActionItem(action, this.keybindingService, this.messageService);
+		return createActionItem(action, this.keybindingService, this.messageService, this.contextMenuService);
 	}
 
 	private setInput(): TPromise<void> {
@@ -400,7 +400,8 @@ class Menus implements IDisposable {
 	constructor(
 		private id: string,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IMenuService private menuService: IMenuService
+		@IMenuService private menuService: IMenuService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		if (this.titleDisposable) {
 			this.titleDisposable.dispose();
@@ -414,7 +415,7 @@ class Menus implements IDisposable {
 		const updateActions = () => {
 			this.titleActions = [];
 			this.titleSecondaryActions = [];
-			fillInActions(titleMenu, null, { primary: this.titleActions, secondary: this.titleSecondaryActions });
+			fillInActions(titleMenu, null, { primary: this.titleActions, secondary: this.titleSecondaryActions }, this.contextMenuService);
 			this._onDidChangeTitle.fire();
 		};
 
@@ -451,7 +452,7 @@ class Menus implements IDisposable {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		fillInActions(menu, { shouldForwardArgs: true }, result);
+		fillInActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService);
 
 		menu.dispose();
 		contextKeyService.dispose();
