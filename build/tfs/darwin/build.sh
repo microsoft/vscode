@@ -19,8 +19,8 @@ step "Install dependencies" \
 step "Hygiene" \
 	npm run gulp -- hygiene
 
-step "Monaco Editor Check" \
-	./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
+# step "Monaco Editor Check" \
+# 	./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
 
 step "Mix in repository from vscode-distro" \
 	npm run gulp -- mixin

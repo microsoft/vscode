@@ -24,9 +24,9 @@ step "Hygiene" {
   exec { & npm run gulp -- hygiene }
 }
 
-step "Monaco Editor Check" {
-	exec { & .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit }
-}
+# step "Monaco Editor Check" {
+# 	exec { & .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit }
+# }
 
 $env:VSCODE_MIXIN_PASSWORD = $mixinPassword
 step "Mix in repository from vscode-distro" {
