@@ -19,19 +19,20 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ReferencesModel, OneReference } from './referencesModel';
+import { ReferencesModel } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Location } from 'vs/editor/common/modes';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
 export interface RequestOptions {
 	getMetaTitle(model: ReferencesModel): string;
-	onGoto?: (reference: OneReference) => TPromise<any>;
+	onGoto?: (reference: Location) => TPromise<any>;
 }
 
 export class ReferencesController implements editorCommon.IEditorContribution {
@@ -189,7 +190,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
-	private _gotoReference(ref: OneReference): void {
+	private _gotoReference(ref: Location): void {
 		this._widget.hide();
 
 		this._ignoreModelChangeEvent = true;
@@ -222,7 +223,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		});
 	}
 
-	private _openReference(ref: OneReference, sideBySide: boolean): void {
+	private _openReference(ref: Location, sideBySide: boolean): void {
 		const { uri, range } = ref;
 		this._editorService.openEditor({
 			resource: uri,
