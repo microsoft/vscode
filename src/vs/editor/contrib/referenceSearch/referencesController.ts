@@ -28,7 +28,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
-export const ctxReferenceSearchTreeFocused = new RawContextKey<boolean>('referenceSearchTreeFocused', false);
 
 export interface RequestOptions {
 	getMetaTitle(model: ReferencesModel): string;
@@ -47,7 +46,6 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	private _ignoreModelChangeEvent = false;
 
 	private _referenceSearchVisible: IContextKey<boolean>;
-	private _referenceSearchTreeFocused: IContextKey<boolean>;
 
 	public static get(editor: ICodeEditor): ReferencesController {
 		return editor.getContribution<ReferencesController>(ReferencesController.ID);
@@ -68,7 +66,6 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	) {
 		this._editor = editor;
 		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(contextKeyService);
-		this._referenceSearchTreeFocused = ctxReferenceSearchTreeFocused.bindTo(contextKeyService);
 	}
 
 	public getId(): string {
@@ -141,8 +138,6 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			}
 		}));
 
-		this._disposables.push(this._widget.onDidChangeTreeDOMFocus(focus => this._referenceSearchTreeFocused.set(focus)));
-
 		const requestId = ++this._requestIdPool;
 
 		modelPromise.then(model => {
@@ -185,7 +180,6 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			this._widget = null;
 		}
 		this._referenceSearchVisible.reset();
-		this._referenceSearchTreeFocused.reset();
 		this._disposables = dispose(this._disposables);
 		if (this._model) {
 			this._model.dispose();

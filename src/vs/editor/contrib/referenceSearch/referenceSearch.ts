@@ -18,7 +18,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Location, ReferenceProviderRegistry } from 'vs/editor/common/modes';
 import { PeekContext, getOuterEditor } from './peekViewWidget';
-import { ReferencesController, RequestOptions, ctxReferenceSearchVisible, ctxReferenceSearchTreeFocused } from './referencesController';
+import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from './referencesController';
 import { ReferencesModel, OneReference } from './referencesModel';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -27,6 +27,7 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { ctxReferenceWidgetSearchTreeFocused } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -195,7 +196,7 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearch',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(350),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek')),
@@ -213,10 +214,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'openReferenceToSide',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(350),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
-	secondary: [KeyMod.WinCtrl | KeyCode.Enter],
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ctxReferenceSearchTreeFocused),
+	mac: {
+		primary: KeyMod.WinCtrl | KeyCode.Enter
+	},
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ctxReferenceWidgetSearchTreeFocused),
 	handler: openReferenceToSide
 });
 

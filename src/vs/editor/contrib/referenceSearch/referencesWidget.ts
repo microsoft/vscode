@@ -42,6 +42,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import URI from 'vs/base/common/uri';
 import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 class DecorationsManager implements IDisposable {
 
@@ -502,6 +503,8 @@ export interface SelectionEvent {
 	element: OneReference;
 }
 
+export const ctxReferenceWidgetSearchTreeFocused = new RawContextKey<boolean>('referenceSearchTreeFocused', true);
+
 /**
  * ZoneWidget that is shown inside the editor
  */
@@ -513,7 +516,6 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _disposeOnNewModel: IDisposable[] = [];
 	private _callOnDispose: IDisposable[] = [];
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
-	private _onDidChangeTreeDOMFocus = new Emitter<boolean>();
 
 	private _tree: WorkbenchTree;
 	private _treeContainer: Builder;
@@ -560,10 +562,6 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	get onDidSelectReference(): Event<SelectionEvent> {
 		return this._onDidSelectReference.event;
-	}
-
-	get onDidChangeTreeDOMFocus(): Event<boolean> {
-		return this._onDidChangeTreeDOMFocus.event;
 	}
 
 	show(where: IRange) {
@@ -649,6 +647,8 @@ export class ReferenceWidget extends PeekViewWidget {
 			this._tree = this._instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), config, options);
 			this._callOnDispose.push(attachListStyler(this._tree, this._themeService));
 
+			ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
+
 			// listen on selection and focus
 			var onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
 				if (element instanceof OneReference) {
@@ -663,10 +663,6 @@ export class ReferenceWidget extends PeekViewWidget {
 			this._disposables.push(controller.onDidFocus(element => onEvent(element, 'show')));
 			this._disposables.push(controller.onDidSelect(event => onEvent(event.focus, 'goto')));
 			this._disposables.push(controller.onDidOpenToSide(event => onEvent(event.focus, 'side')));
-
-			// listen to DOM focus changes
-			this._disposables.push(this._tree.onDidFocus(() => this._onDidChangeTreeDOMFocus.fire(true)));
-			this._disposables.push(this._tree.onDidBlur(() => this._onDidChangeTreeDOMFocus.fire(false)));
 
 			this._treeContainer = div.hide();
 		});
