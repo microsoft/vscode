@@ -175,7 +175,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			cmd.on('exit', () => {
 				if (stderr.length > 0) {
-					reject(stderr);
+					reject(new Error(stderr));
+					return;
 				}
 				let processItems: Map<number, ProcessItem> = new Map();
 				try {
