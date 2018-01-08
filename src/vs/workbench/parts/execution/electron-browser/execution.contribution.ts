@@ -91,7 +91,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		// Try workspace path first
 		const root = historyService.getLastActiveWorkspaceRoot('file');
-		return !resource ? TPromise.as(root && root.fsPath) : fileService.resolveFile(resource).then(stat => {
+		return !uri.isUri(resource) ? TPromise.as(root && root.fsPath) : fileService.resolveFile(resource).then(stat => {
 			return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
 		}).then(directoryToOpen => {
 

@@ -4,8 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+
+// This must be the first statement otherwise modules might got loaded with
+// the wrong locale.
+import * as nls from 'vscode-nls';
+nls.config({ locale: vscode.env.language });
+nls.loadMessageBundle();
+
 import { CommandManager } from './utils/commandManager';
-import { TypeScriptServiceClientHost } from './typescriptMain';
+import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import * as commands from './commands';
 
 import TypeScriptTaskProviderManager from './features/taskProvider';
@@ -70,11 +77,13 @@ function createLazyClientHost(
 			commandManager,
 			logDirectoryProvider);
 		context.subscriptions.push(clientHost);
-		const host = clientHost;
-		clientHost.serviceClient.onReady().then(() => {
-			context.subscriptions.push(ProjectStatus.create(host.serviceClient, host.serviceClient.telemetryReporter, path => new Promise<boolean>(resolve => setTimeout(() => resolve(host.handles(path)), 750)), context.workspaceState));
-		}, () => {
-			// Nothing to do here. The client did show a message;
+		clientHost.serviceClient.onReady(() => {
+			context.subscriptions.push(
+				ProjectStatus.create(
+					clientHost.serviceClient,
+					clientHost.serviceClient.telemetryReporter,
+					path => new Promise<boolean>(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
+					context.workspaceState));
 		});
 		return clientHost;
 	});

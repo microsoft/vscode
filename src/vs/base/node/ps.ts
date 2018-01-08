@@ -7,6 +7,7 @@
 
 import { spawn, exec } from 'child_process';
 import * as path from 'path';
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 
 export interface ProcessItem {
@@ -120,6 +121,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		if (process.platform === 'win32') {
 
+			console.log(nls.localize('collecting', 'Collecting CPU and memory information. This might take a couple of seconds.'));
+
 			interface ProcessInfo {
 				type: 'processInfo';
 				name: string;
@@ -175,7 +178,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			cmd.on('exit', () => {
 				if (stderr.length > 0) {
-					reject(stderr);
+					reject(new Error(stderr));
+					return;
 				}
 				let processItems: Map<number, ProcessItem> = new Map();
 				try {

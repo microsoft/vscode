@@ -683,6 +683,20 @@ suite('QueryBuilder', () => {
 			assert(query.contentPattern.isCaseSensitive);
 		});
 	});
+
+	suite('file', () => {
+		test('simple file query', () => {
+			const cacheKey = 'asdf';
+			const query = queryBuilder.file([ROOT_1_URI], {
+				cacheKey,
+				sortByScore: true
+			});
+
+			assert.equal(query.folderQueries.length, 1);
+			assert.equal(query.cacheKey, cacheKey);
+			assert(query.sortByScore);
+		});
+	});
 });
 
 function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void {

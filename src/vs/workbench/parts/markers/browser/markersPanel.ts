@@ -158,7 +158,7 @@ export class MarkersPanel extends Panel {
 					selection: marker.range,
 					preserveFocus,
 					pinned,
-					revealIfVisible: true
+					revealIfVisible: !sideByside
 				},
 			}, sideByside).done(editor => {
 				if (editor && preserveFocus) {

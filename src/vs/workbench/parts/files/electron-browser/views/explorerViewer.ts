@@ -424,7 +424,7 @@ export class FileController extends DefaultController implements IDisposable {
 			getAnchor: () => anchor,
 			getActions: () => {
 				const actions = [];
-				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : undefined, shouldForwardArgs: true }, actions);
+				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : undefined, shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
 			onHide: (wasCancelled?: boolean) => {
@@ -661,10 +661,6 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private statToResource(stat: FileStat): URI {
-		if (stat.isRoot) {
-			return null; // Can not move root folder
-		}
-
 		if (stat.isDirectory) {
 			return URI.from({ scheme: 'folder', path: stat.resource.path }); // indicates that we are dragging a folder
 		}
@@ -744,6 +740,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			if (sources.some((source) => {
 				if (source instanceof NewStatPlaceholder) {
 					return true; // NewStatPlaceholders can not be moved
+				}
+
+				if (source.isRoot) {
+					return true; // Root folder can not be moved
 				}
 
 				if (source.resource.toString() === target.resource.toString()) {

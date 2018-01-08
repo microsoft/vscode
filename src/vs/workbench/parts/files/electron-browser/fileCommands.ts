@@ -29,7 +29,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IResourceInput, Position } from 'vs/platform/editor/common/editor';
+import { IResourceInput, Position, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -38,6 +38,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 
 // Commands
 
@@ -244,7 +245,7 @@ CommandsRegistry.registerCommand({
 		const textFileService = accessor.get(ITextFileService);
 		const messageService = accessor.get(IMessageService);
 
-		if (!resource) {
+		if (!URI.isUri(resource)) {
 			resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		}
 
@@ -259,7 +260,7 @@ CommandsRegistry.registerCommand({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
 	when: ExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	mac: {
@@ -269,18 +270,32 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const listService = accessor.get(IListService);
 		const tree = listService.lastFocusedList;
+
+		let resourceOrEditor: URI | IEditorInput;
+		if (URI.isUri(resource)) {
+			resourceOrEditor = resource;
+		} else {
+			const focus = tree.getFocus();
+			if (focus instanceof FileStat && !focus.isDirectory) {
+				resourceOrEditor = focus.resource;
+			} else if (focus instanceof OpenEditor) {
+				resourceOrEditor = focus.editorInput;
+			}
+		}
+
 		// Remove highlight
 		if (tree instanceof Tree) {
 			tree.clearHighlight();
 		}
 
 		// Set side input
-		return editorService.openEditor({
-			resource,
-			options: {
-				preserveFocus: false
-			}
-		}, true);
+		if (URI.isUri(resourceOrEditor)) {
+			return editorService.openEditor({ resource: resourceOrEditor, options: { preserveFocus: false } }, true);
+		} else if (resourceOrEditor) {
+			return editorService.openEditor(resourceOrEditor, { preserveFocus: false }, true);
+		}
+
+		return TPromise.as(true);
 	}
 });
 
@@ -300,7 +315,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		const editorService = accessor.get(IWorkbenchEditorService);
-		if (!resource) {
+		if (!URI.isUri(resource)) {
 			resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		}
 
@@ -356,7 +371,7 @@ CommandsRegistry.registerCommand({
 
 const revealInOSHandler = (accessor: ServicesAccessor, resource: URI) => {
 	// Without resource, try to look at the active editor
-	if (!resource) {
+	if (!URI.isUri(resource)) {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 	}
@@ -396,7 +411,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COPY_PATH_COMMAND_ID,
 	handler: (accessor, resource: URI) => {
 		// Without resource, try to look at the active editor
-		if (!resource) {
+		if (!URI.isUri(resource)) {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const activeEditor = editorService.getActiveEditor();

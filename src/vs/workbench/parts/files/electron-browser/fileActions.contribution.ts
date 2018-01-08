@@ -96,7 +96,7 @@ const PASTE_FILE_ID = 'filesExplorer.paste';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: PASTE_FILE_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
-	when: FilesExplorerFocusCondition,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, FileCopiedContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 	handler: pasteFileHandler
 });
@@ -424,7 +424,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	},
 	alt: {
 		id: DELETE_FILE_ID,
-		title: MOVE_FILE_TO_TRASH_LABEL
+		title: nls.localize('deleteFile', "Delete Permanently")
 	},
 	when: ExplorerRootContext.toNegated()
 });

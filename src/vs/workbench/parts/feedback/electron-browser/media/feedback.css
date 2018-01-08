@@ -160,7 +160,12 @@
 	display: flex;
 }
 
-.monaco-shell .feedback-form .form-buttons .hide-button {
+.monaco-shell .feedback-form .form-buttons .hide-button-container {
+	display: flex;
+}
+
+.monaco-shell .feedback-form .form-buttons .hide-button-container input,
+.monaco-shell .feedback-form .form-buttons .hide-button-container label {
 	align-self: center;
 }
 

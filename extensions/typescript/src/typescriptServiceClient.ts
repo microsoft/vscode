@@ -69,7 +69,6 @@ class CallbackMap {
 
 interface RequestItem {
 	request: Proto.Request;
-	promise: Promise<any> | null;
 	callbacks: CallbackItem | null;
 }
 
@@ -294,8 +293,8 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return this._apiVersion;
 	}
 
-	public onReady(): Promise<void> {
-		return this._onReady!.promise;
+	public onReady(f: () => void): Promise<void> {
+		return this._onReady!.promise.then(f);
 	}
 
 	private info(message: string, data?: any): void {
@@ -485,7 +484,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	private serviceStarted(resendModels: boolean): void {
-		let configureOptions: Proto.ConfigureRequestArguments = {
+		const configureOptions: Proto.ConfigureRequestArguments = {
 			hostInfo: 'vscode'
 		};
 		this.execute('configure', configureOptions);
@@ -590,10 +589,12 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		if (resource.scheme !== fileSchemes.file) {
 			return null;
 		}
+
 		const result = resource.fsPath;
 		if (!result) {
 			return null;
 		}
+
 		// Both \ and / must be escaped in regular expressions
 		return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
 	}
@@ -635,10 +636,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		const request = this.requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request: request,
-			promise: null,
 			callbacks: null
 		};
-		let result: Promise<any> = Promise.resolve(null);
+		let result: Promise<any>;
 		if (expectsResult) {
 			let wasCancelled = false;
 			result = new Promise<any>((resolve, reject) => {
@@ -657,8 +657,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				}
 				throw err;
 			});
+		} else {
+			result = Promise.resolve(null);
 		}
-		requestInfo.promise = result;
 		this.requestQueue.push(requestInfo);
 		this.sendNextRequests();
 

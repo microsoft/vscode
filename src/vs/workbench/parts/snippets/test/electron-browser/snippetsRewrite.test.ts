@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 
 suite('SnippetRewrite', function () {
 
