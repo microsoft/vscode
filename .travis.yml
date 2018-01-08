@@ -29,6 +29,8 @@ addons:
       - libx11-dev
       - libxkbfile-dev
       - libsecret-1-dev
+      - dbus
+      - dbus-x11
 
 before_install:
   - export GITHUB_TOKEN=$PUBLIC_GITHUB_TOKEN
