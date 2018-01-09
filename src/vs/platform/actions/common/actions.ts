@@ -25,6 +25,7 @@ export interface ICommandAction {
 	category?: string | ILocalizedString;
 	iconClass?: string;
 	iconPath?: string;
+	precondition?: ContextKeyExpr;
 }
 
 export interface IMenuItem {
@@ -175,15 +176,16 @@ export class MenuItemAction extends ExecuteCommandAction {
 		item: ICommandAction,
 		alt: ICommandAction,
 		options: IMenuActionOptions,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService
 	) {
 		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
 		this._cssClass = item.iconClass;
-		this._enabled = true;
+		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this._options = options || {};
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
 	}
 
 	run(...args: any[]): TPromise<any> {
