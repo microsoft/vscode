@@ -105,14 +105,15 @@ export class ViewCursor {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo) {
-			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
-			this._lineCursorWidth = Math.min(this._context.configuration.editor.viewInfo.lineCursorWidth, this._typicalHalfwidthCharacterWidth);
-		}
 		if (e.fontInfo) {
 			Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
 			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		}
+		if (e.viewInfo) {
+			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+			this._lineCursorWidth = Math.min(this._context.configuration.editor.viewInfo.lineCursorWidth, this._typicalHalfwidthCharacterWidth);
+		}
+
 		return true;
 	}
 
@@ -123,7 +124,7 @@ export class ViewCursor {
 
 	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData {
 		let textContent = '';
-		const lineContent = this._context.model.getLineContent(this._position.lineNumber);
+
 		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
 			const visibleRange = ctx.visibleRangeForPosition(this._position);
 			if (!visibleRange) {
@@ -134,6 +135,7 @@ export class ViewCursor {
 			if (this._cursorStyle === TextEditorCursorStyle.Line) {
 				width = dom.computeScreenAwareSize(this._lineCursorWidth > 0 ? this._lineCursorWidth : 2);
 				if (this._lineCursorWidth > 2) {
+					const lineContent = this._context.model.getLineContent(this._position.lineNumber);
 					textContent = lineContent.charAt(this._position.column - 1);
 				}
 			} else {
@@ -154,6 +156,7 @@ export class ViewCursor {
 		const width = range.width < 1 ? this._typicalHalfwidthCharacterWidth : range.width;
 
 		if (this._cursorStyle === TextEditorCursorStyle.Block) {
+			const lineContent = this._context.model.getLineContent(this._position.lineNumber);
 			textContent = lineContent.charAt(this._position.column - 1);
 		}
 
