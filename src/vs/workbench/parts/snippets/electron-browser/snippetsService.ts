@@ -163,27 +163,33 @@ class SnippetsService implements ISnippetsService {
 						continue;
 					}
 
-					const file = new SnippetFile(contribution.path, contribution.language, extension.description);
-					this._files.set(file.filepath, file);
+					if (this._files.has(contribution.path)) {
+						this._files.get(contribution.path).defaultScopes.push(contribution.language);
 
-					if (this._environmentService.isExtensionDevelopment) {
-						file.load().then(file => {
-							// warn about bad tabstop/variable usage
-							if (file.data.some(snippet => snippet.isBogous)) {
+					} else {
+						const file = new SnippetFile(contribution.path, [contribution.language], extension.description);
+						this._files.set(file.filepath, file);
+
+						if (this._environmentService.isExtensionDevelopment) {
+							file.load().then(file => {
+								// warn about bad tabstop/variable usage
+								if (file.data.some(snippet => snippet.isBogous)) {
+									extension.collector.warn(localize(
+										'badVariableUse',
+										"One or more snippets from the extension '{0}' very likely confuse snippet-variables and snippet-placeholders (see https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details)",
+										extension.description.name
+									));
+								}
+							}, err => {
+								// generic error
 								extension.collector.warn(localize(
-									'badVariableUse',
-									"One or more snippets from the extension '{0}' very likely confuse snippet-variables and snippet-placeholders (see https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details)",
-									extension.description.name
+									'badFile',
+									"The snippet file \"{0}\" could not be read.",
+									file.filepath
 								));
-							}
-						}, err => {
-							// generic error
-							extension.collector.warn(localize(
-								'badFile',
-								"The snippet file \"{0}\" could not be read.",
-								file.filepath
-							));
-						});
+							});
+						}
+
 					}
 				}
 			}
@@ -195,7 +201,7 @@ class SnippetsService implements ISnippetsService {
 			const ext = extname(filepath);
 			if (ext === '.json') {
 				const langName = basename(filepath, '.json');
-				this._files.set(filepath, new SnippetFile(filepath, langName, undefined));
+				this._files.set(filepath, new SnippetFile(filepath, [langName], undefined));
 
 			} else if (ext === '.code-snippets') {
 				this._files.set(filepath, new SnippetFile(filepath, undefined, undefined));
