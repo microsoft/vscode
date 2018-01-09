@@ -176,6 +176,10 @@
 	background-image: url('images/next.svg');
 }
 
+.monaco-editor .find-widget .all {
+	background-image: url('images/all.svg');
+}
+
 .monaco-editor .find-widget .disabled {
 	opacity: 0.3;
 	cursor: default;
@@ -266,6 +270,7 @@
 
 .monaco-editor .find-widget.collapsed-find-widget .button.previous,
 .monaco-editor .find-widget.collapsed-find-widget .button.next,
+.monaco-editor .find-widget.collapsed-find-widget .button.all,
 .monaco-editor .find-widget.collapsed-find-widget .button.replace,
 .monaco-editor .find-widget.collapsed-find-widget .button.replace-all,
 .monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput .controls {
@@ -300,6 +305,11 @@
 .monaco-editor.hc-black .find-widget .next,
 .monaco-editor.vs-dark .find-widget .next {
 	background-image: url('images/next-inverse.svg');
+}
+
+.monaco-editor.hc-black .find-widget .all,
+.monaco-editor.vs-dark .find-widget .all {
+	background-image: url('images/all-inverse.svg');
 }
 
 .monaco-editor.hc-black .find-widget .monaco-checkbox .label,
