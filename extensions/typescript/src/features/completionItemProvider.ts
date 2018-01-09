@@ -53,6 +53,17 @@ class MyCompletionItem extends CompletionItem {
 			this.range = tsTextSpanToVsRange(tsEntry.replacementSpan);
 		}
 
+		if (typeof (tsEntry as any).insertText === 'string') {
+			this.insertText = (tsEntry as any).insertText as string;
+
+			if (tsEntry.replacementSpan) {
+				this.range = tsTextSpanToVsRange(tsEntry.replacementSpan);
+				if (this.insertText[0] === '[') { // o.x -> o['x']
+					this.filterText = '.' + this.label;
+				}
+			}
+		}
+
 		if (tsEntry.kindModifiers.match(/\boptional\b/)) {
 			this.insertText = this.label;
 			this.filterText = this.label;
@@ -275,8 +286,9 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		try {
 			const args: Proto.CompletionsRequestArgs = {
 				...vsPositionToTsFileLocation(file, position),
-				includeExternalModuleExports: config.autoImportSuggestions
-			};
+				includeExternalModuleExports: config.autoImportSuggestions,
+				includeInsertTextCompletions: true
+			} as Proto.CompletionsRequestArgs;
 			const msg = await this.client.execute('completions', args, token);
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
 			// let isMemberCompletion = false;
@@ -402,7 +414,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		if (detail && item.useCodeSnippet) {
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position);
 			if (shouldCompleteFunction) {
-				item.insertText = this.snippetForFunctionCall(detail);
+				item.insertText = this.snippetForFunctionCall(item, detail);
 			}
 			return item;
 		}
@@ -430,12 +442,15 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 	}
 
-	private snippetForFunctionCall(detail: Proto.CompletionEntryDetails): SnippetString {
+	private snippetForFunctionCall(
+		item: CompletionItem,
+		detail: Proto.CompletionEntryDetails
+	): SnippetString {
 		let hasOptionalParameters = false;
 		let hasAddedParameters = false;
 
 		const snippet = new SnippetString();
-		snippet.appendText(detail.name);
+		snippet.appendText(item.label || item.insertText as string);
 		snippet.appendText('(');
 
 		let parenCount = 0;
