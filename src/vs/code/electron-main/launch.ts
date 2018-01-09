@@ -105,8 +105,7 @@ export class LaunchService implements ILaunchService {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
 		// Check early for open-url which is handled in URL service
-		const openUrlArg = args['open-url'] || [];
-		const openUrl = typeof openUrlArg === 'string' ? [openUrlArg] : openUrlArg;
+		const openUrl = (args['open-url'] ? args._urls : []) || [];
 		if (openUrl.length > 0) {
 			openUrl.forEach(url => this.urlService.open(url));
 
