@@ -748,6 +748,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			className: 'all',
 			onTrigger: () => {
 				this._codeEditor.getAction(FIND_IDS.AllMatchFindAction).run().done(null, onUnexpectedError);
+				// Close widget
 				this._state.change({ isRevealed: false, searchScope: null }, false);
 			},
 			onKeyDown: (e) => { }
