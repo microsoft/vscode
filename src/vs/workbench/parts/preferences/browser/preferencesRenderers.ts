@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
-import * as map from 'vs/base/common/map';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -18,7 +17,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults, IWorkbenchSettingsConfiguration, ISearchResultGroup, IMultiSearchResult } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
@@ -45,66 +44,12 @@ export interface IPreferencesRenderer<T> extends IDisposable {
 
 	render(): void;
 	updatePreference(key: string, value: any, source: T, index: number): void;
-	renderSearchResultGroup(query: string, id: string, resultGroup: ISearchResultGroup): IFilterResult;
 	focusPreference(setting: T): void;
 	clearFocus(setting: T): void;
+	filterPreferences(filterResult: IFilterResult): void;
 }
 
-export abstract class AbstractSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
-
-	protected _currentResultGroups = new Map<string, ISearchResultGroup>();
-
-	abstract preferencesModel: IPreferencesEditorModel<ISetting>;
-	abstract associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
-
-	abstract onFocusPreference: Event<ISetting>;
-	abstract onClearFocusPreference: Event<ISetting>;
-
-
-	abstract render(): void;
-	abstract updatePreference(key: string, value: any, source: ISetting, index: number): void;
-	abstract focusPreference(setting: ISetting): void;
-	abstract clearFocus(setting: ISetting): void;
-
-	renderSearchResultGroup(query: string, id: string, resultGroup: ISearchResultGroup): IFilterResult {
-		if (resultGroup) {
-			this._currentResultGroups.set(id, resultGroup);
-		} else {
-			this._currentResultGroups.delete(id);
-		}
-
-		let filterResult: IFilterResult;
-		if (this._currentResultGroups.size > 0) {
-			this._removeDuplicateResults();
-			filterResult = this.getFilterResult(query);
-		} else {
-			filterResult = null;
-		}
-
-		this.filterPreferences(filterResult);
-		return filterResult;
-	}
-
-	protected abstract filterPreferences(filterResult: IFilterResult): void;
-
-	protected abstract getFilterResult(query: string): IFilterResult;
-
-	// Remove duplicates between local and remote results
-	// TODO simplify, maybe move to upstream renderer
-	private _removeDuplicateResults(): void {
-		const keys = map.keys(this._currentResultGroups);
-		if (keys.length > 1) {
-			const keySet = new Set<string>();
-			const firstGroup = this._currentResultGroups.get(keys[0]);
-			const secondGroup = this._currentResultGroups.get(keys[1]);
-
-			firstGroup.result.filterMatches.forEach(s => keySet.add(s.setting.key));
-			secondGroup.result.filterMatches = secondGroup.result.filterMatches.filter(s => !keySet.has(s.setting.key));
-		}
-	}
-}
-
-export class UserSettingsRenderer extends AbstractSettingsRenderer implements IPreferencesRenderer<ISetting> {
+export class UserSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
 
 	private settingHighlighter: SettingHighlighter;
 	private editSettingActionRenderer: EditSettingRenderer;
@@ -219,45 +164,7 @@ export class UserSettingsRenderer extends AbstractSettingsRenderer implements IP
 		return this.preferencesModel.getPreference(key);
 	}
 
-	protected getFilterResult(query: string): IFilterResult {
-		const resultGroups = map.values(this._currentResultGroups);
-
-		// Transform multiResult into IFilterResult - ISetting ranges are already correct here
-		const filteredSettings: ISetting[] = [];
-		const matches: IRange[] = [];
-		resultGroups
-			.forEach(group => {
-				group.result.filterMatches.forEach(filterMatch => {
-					filteredSettings.push(filterMatch.setting);
-					matches.push(...filterMatch.matches);
-				});
-			});
-
-		let filteredGroup: ISettingsGroup;
-		const modelGroup = this.preferencesModel.settingsGroups[0]; // Editable model has one or zero groups
-		if (modelGroup) {
-			filteredGroup = {
-				id: modelGroup.id,
-				range: modelGroup.range,
-				sections: [{
-					title: modelGroup.sections[0].title,
-					titleRange: modelGroup.sections[0].titleRange,
-					settings: filteredSettings
-				}],
-				title: modelGroup.title,
-				titleRange: modelGroup.titleRange
-			};
-		}
-
-		return <IFilterResult>{
-			allGroups: this.preferencesModel.settingsGroups,
-			filteredGroups: filteredGroup ? [filteredGroup] : [],
-			matches,
-			query
-		};
-	}
-
-	protected filterPreferences(filterResult: IFilterResult): void {
+	public filterPreferences(filterResult: IFilterResult): void {
 		this.filterResult = filterResult;
 		this.settingHighlighter.clear(true);
 		this.highlightMatchesRenderer.render(filterResult ? filterResult.matches : []);
@@ -329,7 +236,7 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 	}
 }
 
-export class DefaultSettingsRenderer extends AbstractSettingsRenderer implements IPreferencesRenderer<ISetting> {
+export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
 
 	private _associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 	private settingHighlighter: SettingHighlighter;
@@ -379,16 +286,6 @@ export class DefaultSettingsRenderer extends AbstractSettingsRenderer implements
 		this.editSettingActionRenderer.associatedPreferencesModel = associatedPreferencesModel;
 	}
 
-	protected getFilterResult(query: string): IFilterResult {
-		const resultGroups = map.values(this._currentResultGroups);
-		const multiResult = <IMultiSearchResult>{
-			query,
-			resultGroups
-		};
-
-		return this.preferencesModel.renderFullSearchResults(multiResult);
-	}
-
 	public render() {
 		this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
@@ -399,7 +296,7 @@ export class DefaultSettingsRenderer extends AbstractSettingsRenderer implements
 		this.hiddenAreasRenderer.render();
 	}
 
-	protected filterPreferences(filterResult: IFilterResult): void {
+	public filterPreferences(filterResult: IFilterResult): void {
 		this.filterResult = filterResult;
 		if (filterResult) {
 			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);

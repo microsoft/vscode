@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { assign } from 'vs/base/common/objects';
+import * as map from 'vs/base/common/map';
 import { tail, flatten, first } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference, Disposable } from 'vs/base/common/lifecycle';
@@ -14,13 +15,47 @@ import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, IGroupFilter, ISettingMatcher, ISettingMatch, IMultiSearchResult, ISearchResultGroup } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, IGroupFilter, ISettingMatcher, ISettingMatch, ISearchResultGroup } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export abstract class AbstractSettingsModel extends EditorModel {
+
+	protected _currentResultGroups = new Map<string, ISearchResultGroup>();
+
+	public updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult {
+		if (resultGroup) {
+			this._currentResultGroups.set(id, resultGroup);
+		} else {
+			this._currentResultGroups.delete(id);
+		}
+
+		let filterResult: IFilterResult;
+		if (this._currentResultGroups.size > 0) {
+			this._removeDuplicateResults();
+			filterResult = this.update();
+		} else {
+			filterResult = null;
+		}
+
+		return filterResult;
+	}
+
+	// Remove duplicates between local and remote results
+	// TODO simplify
+	private _removeDuplicateResults(): void {
+		const keys = map.keys(this._currentResultGroups);
+		if (keys.length > 1) {
+			const keySet = new Set<string>();
+			const firstGroup = this._currentResultGroups.get(keys[0]);
+			const secondGroup = this._currentResultGroups.get(keys[1]);
+
+			firstGroup.result.filterMatches.forEach(s => keySet.add(s.setting.key));
+			secondGroup.result.filterMatches = secondGroup.result.filterMatches.filter(s => !keySet.has(s.setting.key));
+		}
+	}
 
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[] {
 		const allGroups = this.filterGroups;
@@ -66,6 +101,8 @@ export abstract class AbstractSettingsModel extends EditorModel {
 	public abstract settingsGroups: ISettingsGroup[];
 
 	public abstract findValueMatches(filter: string, setting: ISetting): IRange[];
+
+	protected abstract update(): IFilterResult;
 }
 
 export class SettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
@@ -115,6 +152,40 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 
 	protected parse(): void {
 		this._settingsGroups = parse(this.settingsModel, (property: string, previousParents: string[]): boolean => this.isSettingsProperty(property, previousParents));
+	}
+
+	protected update(): IFilterResult {
+		const resultGroups = map.values(this._currentResultGroups);
+
+		// Transform resultGroups into IFilterResult - ISetting ranges are already correct here
+		const filteredSettings: ISetting[] = [];
+		const matches: IRange[] = [];
+		resultGroups.forEach(group => {
+			group.result.filterMatches.forEach(filterMatch => {
+				filteredSettings.push(filterMatch.setting);
+				matches.push(...filterMatch.matches);
+			});
+		});
+
+		let filteredGroup: ISettingsGroup;
+		const modelGroup = this.settingsGroups[0]; // Editable model has one or zero groups
+		if (modelGroup) {
+			filteredGroup = {
+				id: modelGroup.id,
+				range: modelGroup.range,
+				sections: [{
+					settings: filteredSettings
+				}],
+				title: modelGroup.title,
+				titleRange: modelGroup.titleRange
+			};
+		}
+
+		return <IFilterResult>{
+			allGroups: this.settingsGroups,
+			filteredGroups: filteredGroup ? [filteredGroup] : [],
+			matches
+		};
 	}
 }
 
@@ -545,20 +616,24 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return this.settingsGroups.slice(1);
 	}
 
-	renderFullSearchResults(result: IMultiSearchResult): IFilterResult {
+	protected update(): IFilterResult {
+		const resultGroups = map.values(this._currentResultGroups);
+		return this.renderFullSearchResults(resultGroups);
+	}
+
+	renderFullSearchResults(searchResultGroups: ISearchResultGroup[]): IFilterResult {
 		if (!this._resultsGroupsStartLine) {
 			this._resultsGroupsStartLine = tail(this.settingsGroups).range.endLineNumber + 2;
 		}
 
-		const groupWithMetadata = first(result.resultGroups, group => !!group.result.metadata);
-		const renderResult = this.renderResultGroups(result.resultGroups, this._resultsGroupsStartLine);
+		const groupWithMetadata = first(searchResultGroups, group => !!group.result.metadata);
+		const renderResult = this.renderResultGroups(searchResultGroups, this._resultsGroupsStartLine);
 
 		return <IFilterResult>{
 			allGroups: this.settingsGroups,
 			filteredGroups: renderResult.settingsGroups,
 			matches: renderResult.matches,
-			metadata: groupWithMetadata && groupWithMetadata.result.metadata,
-			query: result.query
+			metadata: groupWithMetadata && groupWithMetadata.result.metadata
 		};
 	}
 

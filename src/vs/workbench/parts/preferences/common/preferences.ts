@@ -67,13 +67,8 @@ export interface ISearchResultGroup {
 	result: ISearchResult;
 }
 
-export interface IMultiSearchResult {
-	query: string;
-	resultGroups: ISearchResultGroup[];
-}
-
 export interface IFilterResult {
-	query: string;
+	query?: string;
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
@@ -114,6 +109,7 @@ export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> 
 	settingsGroups: ISettingsGroup[];
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
+	updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult;
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
