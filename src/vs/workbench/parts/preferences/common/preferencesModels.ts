@@ -619,26 +619,26 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	protected update(): IFilterResult {
 		const resultGroups = map.values(this._currentResultGroups);
-		return this.renderFullSearchResults(resultGroups);
-	}
 
-	renderFullSearchResults(searchResultGroups: ISearchResultGroup[]): IFilterResult {
 		if (!this._resultsGroupsStartLine) {
 			this._resultsGroupsStartLine = tail(this.settingsGroups).range.endLineNumber + 2;
 		}
 
-		const groupWithMetadata = first(searchResultGroups, group => !!group.result.metadata);
-		const renderResult = this.renderResultGroups(searchResultGroups, this._resultsGroupsStartLine);
+		const groupWithMetadata = first(resultGroups, group => !!group.result.metadata);
+		const { settingsGroups: filteredGroups, matches } = this.writeResultGroups(resultGroups, this._resultsGroupsStartLine);
 
 		return <IFilterResult>{
 			allGroups: this.settingsGroups,
-			filteredGroups: renderResult.settingsGroups,
-			matches: renderResult.matches,
+			filteredGroups,
+			matches,
 			metadata: groupWithMetadata && groupWithMetadata.result.metadata
 		};
 	}
 
-	private renderResultGroups(groups: ISearchResultGroup[], startLine: number): { matches: IRange[], settingsGroups: ISettingsGroup[] } {
+	/**
+	 * Translate the ISearchResultGroups to text, and write it to the editor model
+	 */
+	private writeResultGroups(groups: ISearchResultGroup[], startLine: number): { matches: IRange[], settingsGroups: ISettingsGroup[] } {
 		const contentBuilderOffset = startLine - 1;
 		const builder = new SettingsContentBuilder(contentBuilderOffset);
 
@@ -647,7 +647,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		groups.forEach(resultGroup => {
 			const settingsGroup = this.getGroup(resultGroup);
 			settingsGroups.push(settingsGroup);
-			matches.push(...this.renderSettingsGroupToBuilder(builder, settingsGroup, resultGroup.result.filterMatches));
+			matches.push(...this.writeSettingsGroupToBuilder(builder, settingsGroup, resultGroup.result.filterMatches));
 		});
 
 		// note: 1-indexed line numbers here
@@ -665,7 +665,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return { matches, settingsGroups };
 	}
 
-	private renderSettingsGroupToBuilder(builder: SettingsContentBuilder, settingsGroup: ISettingsGroup, filterMatches: ISettingMatch[]): IRange[] {
+	private writeSettingsGroupToBuilder(builder: SettingsContentBuilder, settingsGroup: ISettingsGroup, filterMatches: ISettingMatch[]): IRange[] {
 		// Fix match ranges to offset from setting start line
 		filterMatches = filterMatches.map(filteredMatch => {
 			return <ISettingMatch>{
