@@ -58,7 +58,7 @@ export class BufferLogService implements ILogService {
 		if (this._logger) {
 			const fn = getLogFunction(this._logger, level);
 			fn.apply(this._logger, args);
-		} else if (this.level < level) {
+		} else if (this.level <= level) {
 			this.buffer.push({ level, args });
 		}
 	}
