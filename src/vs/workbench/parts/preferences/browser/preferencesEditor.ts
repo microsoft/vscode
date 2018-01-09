@@ -509,7 +509,10 @@ class PreferencesRenderersController extends Disposable {
 						}) :
 						model.updateResultGroup(groupId, null);
 
-					filterResult.query = filter;
+					if (filterResult) {
+						filterResult.query = filter;
+					}
+
 					preferencesRenderer.filterPreferences(filterResult);
 					return filterResult;
 				});
