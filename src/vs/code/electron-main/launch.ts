@@ -116,8 +116,7 @@ export class LaunchService implements ILaunchService {
 	}
 
 	private startOpenUrl(args: ParsedArgs): TPromise<void> {
-		const openUrlArg = args['open-url'] || [];
-		if (openUrlArg && args._urls && args._urls.length) {
+		if (args['open-url'] && args._urls && args._urls.length > 0) {
 			// --open-url must contain -- followed by the url(s)
 			// process.argv is used over args._ as args._ are resolved to file paths at this point
 			args._urls.forEach(url => this.urlService.open(url));
