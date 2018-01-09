@@ -7,9 +7,9 @@
 import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 import { PieceTableTextBufferBuilder } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBufferBuilder';
 import { IIdentifiedSingleEditOperation, ITextBuffer } from 'vs/editor/common/model';
-import { randomEdits, createMockText, createMockBuffer } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
+import { createMockText, createMockBuffer, generateRandomReplaces } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
 
-let modelBuildBenchmark = function (id: string, buffer: ITextBuffer, edits: IIdentifiedSingleEditOperation[]) {
+let appyEditsBenchmark = function (id: string, buffer: ITextBuffer, edits: IIdentifiedSingleEditOperation[]) {
 	console.time(id);
 	for (let i = 0, len = edits.length; i < len; i++) {
 		buffer.applyEdits([edits[i]], false);
@@ -17,12 +17,13 @@ let modelBuildBenchmark = function (id: string, buffer: ITextBuffer, edits: IIde
 	console.timeEnd(id);
 };
 
-let text = createMockText(1000, 0, 10);
+let text = createMockText(1000, 50, 100);
 
-for (let i of [10, 100, 1000]) {
+console.log('--- replace all ---');
+for (let i of [10, 100, 500, 1000]) {
 	let linesTextBuffer = createMockBuffer(text, new LinesTextBufferBuilder());
 	let pieceTableTextBuffer = createMockBuffer(text, new PieceTableTextBufferBuilder());
-	let edits = randomEdits(text, i);
-	modelBuildBenchmark(`line text model builder ${i}\t`, linesTextBuffer, edits);
-	modelBuildBenchmark(`piece table model builder ${i}\t`, pieceTableTextBuffer, edits);
+	let edits = generateRandomReplaces(text, i, 5, 10);
+	appyEditsBenchmark(`line text model \t replace all ${i}\t`, linesTextBuffer, edits);
+	appyEditsBenchmark(`piece table model \t replace all ${i}\t`, pieceTableTextBuffer, edits);
 }

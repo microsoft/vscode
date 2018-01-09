@@ -32,7 +32,7 @@ export function getRandomString(minLength: number, maxLength: number): string {
 	return r;
 }
 
-export function randomEdits(str: string, editCnt: number): IIdentifiedSingleEditOperation[] {
+export function generateRandomEdits(str: string, editCnt: number): IIdentifiedSingleEditOperation[] {
 	let lines = str.split(/\r\n|\r|\n/);
 	let ops: IIdentifiedSingleEditOperation[] = [];
 
@@ -50,6 +50,56 @@ export function randomEdits(str: string, editCnt: number): IIdentifiedSingleEdit
 			range: new Range(line, startColumn, line, endColumn)
 		});
 		lines[line - 1] = lines[line - 1].substring(0, startColumn - 1) + text + lines[line - 1].substring(endColumn - 1);
+	}
+
+	return ops;
+}
+
+export function generateSequentialInserts(str: string, editCnt: number): IIdentifiedSingleEditOperation[] {
+	let lines = str.split(/\r\n|\r|\n/);
+	let ops: IIdentifiedSingleEditOperation[] = [];
+
+	for (let i = 0; i < editCnt; i++) {
+		let line = lines.length;
+		let column = lines[line - 1].length + 1;
+		let text: string = '';
+		if (Math.random() < .5) {
+			text = '\n';
+			lines.push('');
+		} else {
+			text = getRandomString(50, 100);
+			lines[line - 1] += text;
+		}
+
+		ops.push({
+			text: text,
+			range: new Range(line, column, line, column)
+		});
+	}
+
+	return ops;
+}
+
+export function generateRandomReplaces(str: string, editCnt: number, searchStringLen: number, replaceStringLen: number): IIdentifiedSingleEditOperation[] {
+	let lines = str.split(/\r\n|\r|\n/);
+	let ops: IIdentifiedSingleEditOperation[] = [];
+	let chunkSize = Math.max(1, Math.floor(lines.length / editCnt));
+	let chunkCnt = Math.floor(lines.length / chunkSize);
+	let replaceString = getRandomString(replaceStringLen, replaceStringLen);
+
+	let previousChunksLength = 0;
+	for (let i = 0; i < chunkCnt; i++) {
+		let startLine = previousChunksLength + 1;
+		let endLine = previousChunksLength + chunkSize;
+		let line = getRandomInt(startLine, endLine);
+		let maxColumn = lines[line - 1].length + 1;
+		let startColumn = getRandomInt(1, maxColumn);
+		let endColumn = Math.min(maxColumn, startColumn + searchStringLen);
+
+		ops.push({
+			text: replaceString,
+			range: new Range(line, startColumn, line, endColumn)
+		});
 	}
 
 	return ops;

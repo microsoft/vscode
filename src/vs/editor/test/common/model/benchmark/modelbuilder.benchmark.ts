@@ -13,7 +13,7 @@ let linesTextBufferBuilder = new LinesTextBufferBuilder();
 let pieceTableTextBufferBuilder = new PieceTableTextBufferBuilder();
 let chunks = [];
 
-for (let i = 0; i < 1000; i++) {
+for (let i = 0; i < 100; i++) {
 	chunks.push(generateRandomChunkWithLF(16 * 1000, 64 * 1000));
 }
 
@@ -25,6 +25,8 @@ let modelBuildBenchmark = function (id: string, builder: ITextBufferBuilder, chu
 	builder.finish();
 	console.timeEnd(id);
 };
+
+console.log('--- model builder ---');
 
 for (let i of [10, 100, 1000]) {
 	modelBuildBenchmark(`line text model builder ${i}`, linesTextBufferBuilder, i);
