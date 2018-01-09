@@ -158,7 +158,8 @@ function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorS
 
 		// Pin the active editor if we are saving it
 		const editor = editorService.getActiveEditor();
-		if (editor && editor.input && editor.input.getResource().toString() === resource.toString()) {
+		const activeEditorResource = editor && editor.input && editor.input.getResource();
+		if (activeEditorResource && activeEditorResource.toString() === resource.toString()) {
 			editorGroupService.pinEditor(editor.position, editor.input);
 		}
 
