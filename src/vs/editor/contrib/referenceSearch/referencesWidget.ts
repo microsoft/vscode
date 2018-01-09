@@ -659,10 +659,18 @@ export class ReferenceWidget extends PeekViewWidget {
 					this._onDidSelectReference.fire({ element, kind, source: 'tree' });
 				}
 			};
-			this._disposables.push(this._tree.onDidChangeFocus(event => onEvent(event.focus, 'show')));
-			this._disposables.push(this._tree.onDidChangeSelection(event => onEvent(event.selection[0], event && event.payload && event.payload.origin === 'keyboard' ? 'goto' : 'show')));
+			this._disposables.push(this._tree.onDidChangeFocus(event => {
+				if (event && event.payload && event.payload.origin === 'keyboard') {
+					onEvent(event.focus, 'show'); // only handle events from keyboard, mouse/touch is handled by other listeners below
+				}
+			}));
+			this._disposables.push(this._tree.onDidChangeSelection(event => {
+				if (event && event.payload && event.payload.origin === 'keyboard') {
+					onEvent(event.selection[0], 'goto'); // only handle events from keyboard, mouse/touch is handled by other listeners below
+				}
+			}));
 			this._disposables.push(controller.onDidFocus(element => onEvent(element, 'show')));
-			this._disposables.push(controller.onDidSelect(event => onEvent(event.focus, 'goto')));
+			this._disposables.push(controller.onDidSelect(element => onEvent(element, 'goto')));
 			this._disposables.push(controller.onDidOpenToSide(element => onEvent(element, 'side')));
 
 			this._treeContainer = div.hide();
