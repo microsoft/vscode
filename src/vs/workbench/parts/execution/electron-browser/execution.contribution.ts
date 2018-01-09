@@ -15,7 +15,6 @@ import uri from 'vs/base/common/uri';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { toResource } from 'vs/workbench/common/editor';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ITerminalService as IIntegratedTerminalService, KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
@@ -25,6 +24,8 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { getResourceForCommand } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);
@@ -88,21 +89,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const fileService = accessor.get(IFileService);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 		const terminalService = accessor.get(ITerminalService);
+		resource = getResourceForCommand(resource, accessor.get(IListService), editorService);
 
 		// Try workspace path first
 		const root = historyService.getLastActiveWorkspaceRoot('file');
 		return !uri.isUri(resource) ? TPromise.as(root && root.fsPath) : fileService.resolveFile(resource).then(stat => {
 			return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
 		}).then(directoryToOpen => {
-
-			// Otherwise check if we have an active file open
-			if (!directoryToOpen) {
-				const file = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-				if (file) {
-					directoryToOpen = paths.dirname(file.fsPath); // take parent folder of file
-				}
-			}
-
 			if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
 				const instance = integratedTerminalService.createInstance({ cwd: directoryToOpen }, true);
 				if (instance) {

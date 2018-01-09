@@ -14,7 +14,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import * as objects from 'vs/base/common/objects';
-import { explorerItemToFileResource, ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
+import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions } from 'vs/workbench/browser/quickopen';
@@ -41,12 +41,15 @@ import { OpenSymbolHandler } from 'vs/workbench/parts/search/browser/openSymbolH
 import { OpenAnythingHandler } from 'vs/workbench/parts/search/browser/openAnythingHandler';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
-import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
+import { illegalArgument } from 'vs/base/common/errors';
 import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
 import URI from 'vs/base/common/uri';
 import { relative } from 'path';
 import { dirname } from 'vs/base/common/resources';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { getResourceForCommand } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IFileService } from 'vs/platform/files/common/files';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -188,30 +191,25 @@ CommandsRegistry.registerCommand({
 	handler: (accessor, resource?: URI) => {
 		const listService = accessor.get(IListService);
 		const viewletService = accessor.get(IViewletService);
+		const fileService = accessor.get(IFileService);
+		resource = getResourceForCommand(resource, listService, accessor.get(IWorkbenchEditorService));
 
-		if (!URI.isUri(resource)) {
-			const lastFocusedList = listService.lastFocusedList;
-			const focus = lastFocusedList ? lastFocusedList.getFocus() : void 0;
-			if (focus) {
-				const file = explorerItemToFileResource(focus);
-				if (file) {
-					resource = file.isDirectory ? file.resource : dirname(file.resource);
-				}
-			}
-		}
-
-		viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
+		return viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
 			if (resource) {
-				(viewlet as SearchViewlet).searchInFolder(resource, (from, to) => relative(from, to));
+				fileService.resolveFile(resource).then(stat => {
+					return stat.isDirectory ? stat.resource : dirname(stat.resource);
+				}).then(resource =>
+					(viewlet as SearchViewlet).searchInFolder(resource, (from, to) => relative(from, to))
+					);
 			}
-		}).done(null, onUnexpectedError);
+		});
 	}
 });
 
 const FIND_IN_WORKSPACE_ID = 'filesExplorer.findInWorkspace';
 CommandsRegistry.registerCommand({
 	id: FIND_IN_WORKSPACE_ID,
-	handler: (accessor, ) => {
+	handler: (accessor) => {
 		const viewletService = accessor.get(IViewletService);
 		return viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
 			(viewlet as SearchViewlet).searchInFolder(null, (from, to) => relative(from, to));
