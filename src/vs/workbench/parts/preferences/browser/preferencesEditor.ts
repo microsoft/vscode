@@ -110,7 +110,7 @@ export class PreferencesEditor extends BaseEditor {
 	private preferencesRenderers: PreferencesRenderersController;
 
 	private delayedFilterLogging: Delayer<void>;
-	private nlpSearchThrottle: ThrottledDelayer<void>;
+	private remoteSearchThrottle: ThrottledDelayer<void>;
 
 	private latestEmptyFilters: string[] = [];
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
@@ -129,7 +129,7 @@ export class PreferencesEditor extends BaseEditor {
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
 		this.focusSettingsContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
-		this.nlpSearchThrottle = new ThrottledDelayer(200);
+		this.remoteSearchThrottle = new ThrottledDelayer(200);
 	}
 
 	public createEditor(parent: Builder): void {
@@ -238,16 +238,16 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private onInputChanged(): void {
-		this.triggerThrottledFilter();
-		this.filterPreferences();
+		this.triggerThrottledSearch();
+		this.localFilterPreferences();
 	}
 
-	private triggerThrottledFilter(): void {
+	private triggerThrottledSearch(): void {
 		if (this.searchWidget.getValue()) {
-			this.nlpSearchThrottle.trigger(() => this.nlpSearchPreferences());
+			this.remoteSearchThrottle.trigger(() => this.remoteSearchPreferences());
 		} else {
-			// When clearing the input, update nlp immediately to clear it
-			this.nlpSearchPreferences();
+			// When clearing the input, update immediately to clear it
+			this.remoteSearchPreferences();
 		}
 	}
 
@@ -268,16 +268,16 @@ export class PreferencesEditor extends BaseEditor {
 		});
 	}
 
-	private nlpSearchPreferences(): TPromise<void> {
+	private remoteSearchPreferences(): TPromise<void> {
 		const query = this.searchWidget.getValue().trim();
-		return this.preferencesRenderers.nlpSearchPreferences(query).then(result => {
+		return this.preferencesRenderers.remoteSearchPreferences(query).then(result => {
 			this.onSearchResult(query, result);
 		}, onUnexpectedError);
 	}
 
-	private filterPreferences(): TPromise<void> {
+	private localFilterPreferences(): TPromise<void> {
 		const query = this.searchWidget.getValue().trim();
-		return this.preferencesRenderers.filterPreferences(query).then(result => {
+		return this.preferencesRenderers.localFilterPreferences(query).then(result => {
 			this.onSearchResult(query, result);
 		}, onUnexpectedError);
 	}
@@ -374,7 +374,7 @@ class SettingsNavigator implements INavigator<ISetting> {
 	}
 }
 
-interface IFilterOrNlpResult {
+interface IFilterOrSearchResult {
 	count: number;
 	metadata: IFilterMetadata;
 }
@@ -438,21 +438,21 @@ class PreferencesRenderersController extends Disposable {
 	}
 
 	async _onEditableContentDidChange(): TPromise<void> {
-		await this.filterPreferences(this._lastQuery, true);
-		await this.nlpSearchPreferences(this._lastQuery, true);
+		await this.localFilterPreferences(this._lastQuery, true);
+		await this.remoteSearchPreferences(this._lastQuery, true);
 	}
 
-	nlpSearchPreferences(query: string, updateCurrentResults?: boolean): TPromise<IFilterOrNlpResult> {
+	remoteSearchPreferences(query: string, updateCurrentResults?: boolean): TPromise<IFilterOrSearchResult> {
 		this._currentRemoteSearchProvider = (updateCurrentResults && this._currentRemoteSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query);
-		return this.filterOrNlpPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"));
+		return this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"));
 	}
 
-	filterPreferences(query: string, updateCurrentResults?: boolean): TPromise<IFilterOrNlpResult> {
+	localFilterPreferences(query: string, updateCurrentResults?: boolean): TPromise<IFilterOrSearchResult> {
 		this._currentLocalSearchProvider = (updateCurrentResults && this._currentLocalSearchProvider) || this.preferencesSearchService.getLocalSearchProvider(query);
-		return this.filterOrNlpPreferences(query, this._currentLocalSearchProvider, 'filterResult', nls.localize('filterResult', "Filtered Results"));
+		return this.filterOrSearchPreferences(query, this._currentLocalSearchProvider, 'filterResult', nls.localize('filterResult', "Filtered Results"));
 	}
 
-	filterOrNlpPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterOrNlpResult> {
+	filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterOrSearchResult> {
 		this._lastQuery = query;
 		if (this._filtersInProgress) {
 			// Resolved/rejected promises have no .cancel()
@@ -460,8 +460,8 @@ class PreferencesRenderersController extends Disposable {
 		}
 
 		this._filtersInProgress = [
-			this._filterOrNlpPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel),
-			this._filterOrNlpPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel)];
+			this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel),
+			this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel)];
 
 		return TPromise.join(this._filtersInProgress).then(results => {
 			this._filtersInProgress = null;
@@ -482,7 +482,7 @@ class PreferencesRenderersController extends Disposable {
 		this._focusPreference(setting, this._editablePreferencesRenderer);
 	}
 
-	private _filterOrNlpPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterResult> {
+	private _filterOrSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
 			return provider.searchModel(model)
