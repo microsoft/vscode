@@ -11,7 +11,7 @@ import { mkdirp, dirExists } from 'vs/base/node/pfs';
 import Event, { Emitter } from 'vs/base/common/event';
 import { LogLevel } from 'vs/workbench/api/node/extHostTypes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createLogService } from 'vs/platform/log/node/spdlogService';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
 
@@ -23,7 +23,7 @@ export class ExtHostLogService {
 
 	getExtLogger(extensionID: string): ExtHostLogger {
 		if (!this._loggers.has(extensionID)) {
-			const logService = createLogService(extensionID, this._environmentService, extensionID);
+			const logService = createSpdLogService(extensionID, this._environmentService, extensionID);
 			const logsDirPath = path.join(this._environmentService.logsPath, extensionID);
 			this._loggers.set(extensionID, new ExtHostLogger(logService, logsDirPath));
 		}

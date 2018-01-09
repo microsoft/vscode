@@ -42,16 +42,16 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { createLogService } from 'vs/platform/log/node/spdlogService';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
+import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 
-function createServices(args: ParsedArgs): IInstantiationService {
+function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(args, process.execPath);
-	const spdlogService = createLogService('main', environmentService);
 	const consoleLogService = new ConsoleLogMainService(environmentService);
-	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
+	const logService = new MultiplexLogService([consoleLogService, bufferLogService]);
 
 	process.once('exit', () => logService.dispose());
 
@@ -284,7 +284,12 @@ function main() {
 		return;
 	}
 
-	const instantiationService = createServices(args);
+	// We need to buffer the spdlog logs until we are sure
+	// we are the only instance running, otherwise we'll have concurrent
+	// log file access on Windows
+	// https://github.com/Microsoft/vscode/issues/41218
+	const bufferLogService = new BufferLogService();
+	const instantiationService = createServices(args, bufferLogService);
 
 	return instantiationService.invokeFunction(accessor => {
 
@@ -300,7 +305,10 @@ function main() {
 		// Startup
 		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
 			.then(() => instantiationService.invokeFunction(setupIPC))
-			.then(mainIpcServer => instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup());
+			.then(mainIpcServer => {
+				bufferLogService.logger = createSpdLogService('main', environmentService);
+				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup();
+			});
 	}).done(null, err => instantiationService.invokeFunction(quit, err));
 }
 
