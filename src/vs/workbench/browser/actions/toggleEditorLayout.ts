@@ -10,7 +10,7 @@ import nls = require('vs/nls');
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IEditorGroupService, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -19,8 +19,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 
 export class ToggleEditorLayoutAction extends Action {
 
-	public static ID = 'workbench.action.toggleEditorGroupLayout';
-	public static LABEL = nls.localize('toggleEditorGroupLayout', "Toggle Editor Group Vertical/Horizontal Layout");
+	public static readonly ID = 'workbench.action.toggleEditorGroupLayout';
+	public static readonly LABEL = nls.localize('toggleEditorGroupLayout', "Toggle Editor Group Vertical/Horizontal Layout");
 
 	private toDispose: IDisposable[];
 
@@ -81,4 +81,4 @@ CommandsRegistry.registerCommand('_workbench.editor.setGroupOrientation', functi
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const group = nls.localize('view', "View");
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_1, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_1 } }), 'View: Toggle Editor Group Vertical/Horizontal Layout', group);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Toggle Editor Group Vertical/Horizontal Layout', group);

@@ -39,13 +39,13 @@ export class Checkbox extends Widget {
 
 	constructor(opts: ICheckboxOpts) {
 		super();
-		this._opts = objects.clone(opts);
+		this._opts = objects.deepClone(opts);
 		objects.mixin(this._opts, defaultOpts, false);
 		this._checked = this._opts.isChecked;
 
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
-		this.domNode.className = this._className();
+		this.domNode.className = 'custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
@@ -73,6 +73,10 @@ export class Checkbox extends Widget {
 		});
 	}
 
+	public get enabled(): boolean {
+		return this.domNode.getAttribute('aria-disabled') !== 'true';
+	}
+
 	public focus(): void {
 		this.domNode.focus();
 	}
@@ -84,12 +88,13 @@ export class Checkbox extends Widget {
 	public set checked(newIsChecked: boolean) {
 		this._checked = newIsChecked;
 		this.domNode.setAttribute('aria-checked', String(this._checked));
-		this.domNode.className = this._className();
-		this.applyStyles();
-	}
+		if (this._checked) {
+			this.domNode.classList.add('checked');
+		} else {
+			this.domNode.classList.remove('checked');
+		}
 
-	private _className(): string {
-		return 'custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
+		this.applyStyles();
 	}
 
 	public width(): number {
@@ -105,7 +110,7 @@ export class Checkbox extends Widget {
 
 	protected applyStyles(): void {
 		if (this.domNode) {
-			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : null;
+			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : 'transparent';
 		}
 	}
 

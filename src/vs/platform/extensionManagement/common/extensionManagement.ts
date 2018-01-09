@@ -79,6 +79,12 @@ export interface IView {
 	name: string;
 }
 
+export interface IColor {
+	id: string;
+	description: string;
+	defaults: { light: string, dark: string, highContrast: string };
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration;
@@ -90,7 +96,9 @@ export interface IExtensionContributions {
 	menus?: { [context: string]: IMenu[] };
 	snippets?: ISnippet[];
 	themes?: ITheme[];
+	iconThemes?: ITheme[];
 	views?: { [location: string]: IView[] };
+	colors: IColor[];
 }
 
 export interface IExtensionManifest {
@@ -125,12 +133,17 @@ export interface IGalleryExtensionAssets {
 	download: IGalleryExtensionAsset;
 	icon: IGalleryExtensionAsset;
 	license: IGalleryExtensionAsset;
+	repository: IGalleryExtensionAsset;
+}
+
+export interface IExtensionIdentifier {
+	id: string;
+	uuid?: string;
 }
 
 export interface IGalleryExtension {
-	uuid: string;
-	id: string;
 	name: string;
+	identifier: IExtensionIdentifier;
 	version: string;
 	date: string;
 	displayName: string;
@@ -143,6 +156,8 @@ export interface IGalleryExtension {
 	ratingCount: number;
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
+	telemetryData: any;
+	preview: boolean;
 }
 
 export interface IGalleryMetadata {
@@ -158,7 +173,7 @@ export enum LocalExtensionType {
 
 export interface ILocalExtension {
 	type: LocalExtensionType;
-	id: string;
+	identifier: IExtensionIdentifier;
 	manifest: IExtensionManifest;
 	metadata: IGalleryMetadata;
 	path: string;
@@ -176,7 +191,8 @@ export enum SortBy {
 	PublisherName = 3,
 	InstallCount = 4,
 	PublishedDate = 5,
-	AverageRating = 6
+	AverageRating = 6,
+	WeightedRating = 12
 }
 
 export enum SortOrder {
@@ -192,38 +208,43 @@ export interface IQueryOptions {
 	pageSize?: number;
 	sortBy?: SortBy;
 	sortOrder?: SortOrder;
+	source?: string;
+}
+
+export enum StatisticType {
+	Uninstall = 'uninstall'
 }
 
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
-	getRequestHeaders(): TPromise<{ [key: string]: string; }>;
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension): TPromise<string>;
+	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void>;
 	getReadme(extension: IGalleryExtension): TPromise<string>;
 	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
-	getChangelog(extension: IGalleryMetadata): TPromise<string>;
+	getChangelog(extension: IGalleryExtension): TPromise<string>;
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
-	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]>;
+	loadAllDependencies(dependencies: IExtensionIdentifier[]): TPromise<IGalleryExtension[]>;
 }
 
 export interface InstallExtensionEvent {
-	id: string;
+	identifier: IExtensionIdentifier;
 	zipPath?: string;
 	gallery?: IGalleryExtension;
 }
 
 export interface DidInstallExtensionEvent {
-	id: string;
+	identifier: IExtensionIdentifier;
 	zipPath?: string;
 	gallery?: IGalleryExtension;
 	local?: ILocalExtension;
-	error?: Error;
+	error?: string;
 }
 
 export interface DidUninstallExtensionEvent {
-	id: string;
-	error?: Error;
+	identifier: IExtensionIdentifier;
+	error?: string;
 }
 
 export interface IExtensionManagementService {
@@ -231,13 +252,22 @@ export interface IExtensionManagementService {
 
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtension: Event<DidInstallExtensionEvent>;
-	onUninstallExtension: Event<string>;
+	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
 	install(zipPath: string): TPromise<void>;
-	installFromGallery(extension: IGalleryExtension, promptToInstallDependencies?: boolean): TPromise<void>;
+	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
+
+	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension>;
+}
+
+export enum EnablementState {
+	Disabled,
+	WorkspaceDisabled,
+	Enabled,
+	WorkspaceEnabled
 }
 
 export const IExtensionEnablementService = createDecorator<IExtensionEnablementService>('extensionEnablementService');
@@ -249,24 +279,28 @@ export interface IExtensionEnablementService {
 	/**
 	 * Event to listen on for extension enablement changes
 	 */
-	onEnablementChanged: Event<string>;
+	onEnablementChanged: Event<IExtensionIdentifier>;
 
 	/**
-	 * Returns all globally disabled extension identifiers.
-	 * Returns an empty array if none exist.
+	 * Returns all disabled extension identifiers for current workspace
+	 * Returns an empty array if none exist
 	 */
-	getGloballyDisabledExtensions(): string[];
+	getDisabledExtensions(): TPromise<IExtensionIdentifier[]>;
 
 	/**
-	 * Returns all workspace disabled extension identifiers.
-	 * Returns an empty array if none exist or workspace does not exist.
+	 * Returns the enablement state for the given extension
 	 */
-	getWorkspaceDisabledExtensions(): string[];
+	getEnablementState(identifier: IExtensionIdentifier): EnablementState;
 
 	/**
-	 * Returns `true` if given extension can be enabled by calling `setEnablement`, otherwise false`.
+	 * Returns `true` if the enablement can be changed.
 	 */
-	canEnable(identifier: string): boolean;
+	canChangeEnablement(): boolean;
+
+	/**
+	 * Returns `true` if the given extension identifier is enabled.
+	 */
+	isEnabled(identifier: IExtensionIdentifier): boolean;
 
 	/**
 	 * Enable or disable the given extension.
@@ -277,14 +311,18 @@ export interface IExtensionEnablementService {
 	 *
 	 * Throws error if enablement is requested for workspace and there is no workspace
 	 */
-	setEnablement(identifier: string, enable: boolean, workspace?: boolean): TPromise<boolean>;
+	setEnablement(identifier: IExtensionIdentifier, state: EnablementState): TPromise<boolean>;
+
+	migrateToIdentifiers(installed: IExtensionIdentifier[]): void;
 }
 
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
 
 export interface IExtensionTipsService {
 	_serviceBrand: any;
-	getRecommendations(): string[];
+	getAllRecommendationsWithReason(): { [id: string]: string; };
+	getFileBasedRecommendations(): string[];
+	getOtherRecommendations(): string[];
 	getWorkspaceRecommendations(): TPromise<string[]>;
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];

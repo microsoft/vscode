@@ -11,8 +11,8 @@
 
 	let didShow = false;
 
-	document.addEventListener('securitypolicyviolation', () => {
-		if (didShow) {
+	const showCspWarning = () => {
+		if (didShow || settings.disableSecurityWarnings) {
 			return;
 		}
 		didShow = true;
@@ -28,5 +28,15 @@
 		notification.setAttribute('href', `command:markdown.showPreviewSecuritySelector?${encodeURIComponent(JSON.stringify(args))}`);
 
 		document.body.appendChild(notification);
+	};
+
+	document.addEventListener('securitypolicyviolation', () => {
+		showCspWarning();
+	});
+
+	window.addEventListener('message', (event) => {
+		if (event && event.data && event.data.name === 'vscode-did-block-svg') {
+			showCspWarning();
+		}
 	});
 }());

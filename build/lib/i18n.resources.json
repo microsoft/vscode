@@ -71,6 +71,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/logs",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/nps",
 			"project": "vscode-workbench"
 		},
@@ -131,10 +135,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/parts/views",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/parts/watermark",
 			"project": "vscode-workbench"
 		},
@@ -152,6 +152,10 @@
 		},
 		{
 			"name": "vs/workbench/services/editor",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/extensions",
 			"project": "vscode-workbench"
 		},
 		{
@@ -184,6 +188,14 @@
 		},
 		{
 			"name": "vs/workbench/services/textMate",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/workspace",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/decorations",
 			"project": "vscode-workbench"
 		},
 		{

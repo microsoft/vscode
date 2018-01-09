@@ -7,520 +7,20 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
-import { EditableTextModel, IValidatedEditOperation } from 'vs/editor/common/model/editableTextModel';
-import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
+import { EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 
-suite('EditorModel - EditableTextModel._getInverseEdits', () => {
-
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string[]): IValidatedEditOperation {
-		return {
-			sortIndex: 0,
-			identifier: null,
-			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
-			rangeLength: rangeLength,
-			lines: text,
-			forceMoveMarkers: false,
-			isAutoWhitespaceEdit: false
-		};
-	}
-
-	function inverseEditOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number): Range {
-		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
-	}
-
-	function assertInverseEdits(ops: IValidatedEditOperation[], expected: Range[]): void {
-		var actual = EditableTextModel._getInverseEditRanges(ops);
-		assert.deepEqual(actual, expected);
-	}
-
-	test('single insert', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 1, 0, ['hello'])
-			],
-			[
-				inverseEditOp(1, 1, 1, 6)
-			]
-		);
-	});
-
-	test('Bug 19872: Undo is funky', () => {
-		assertInverseEdits(
-			[
-				editOp(2, 1, 2, 2, 0, ['']),
-				editOp(3, 1, 4, 2, 0, [''])
-			],
-			[
-				inverseEditOp(2, 1, 2, 1),
-				inverseEditOp(3, 1, 3, 1)
-			]
-		);
-	});
-
-	test('two single unrelated inserts', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 1, 0, ['hello']),
-				editOp(2, 1, 2, 1, 0, ['world'])
-			],
-			[
-				inverseEditOp(1, 1, 1, 6),
-				inverseEditOp(2, 1, 2, 6)
-			]
-		);
-	});
-
-	test('two single inserts 1', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 1, 0, ['hello']),
-				editOp(1, 2, 1, 2, 0, ['world'])
-			],
-			[
-				inverseEditOp(1, 1, 1, 6),
-				inverseEditOp(1, 7, 1, 12)
-			]
-		);
-	});
-
-	test('two single inserts 2', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 1, 0, ['hello']),
-				editOp(1, 4, 1, 4, 0, ['world'])
-			],
-			[
-				inverseEditOp(1, 1, 1, 6),
-				inverseEditOp(1, 9, 1, 14)
-			]
-		);
-	});
-
-	test('multiline insert', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 1, 0, ['hello', 'world'])
-			],
-			[
-				inverseEditOp(1, 1, 2, 6)
-			]
-		);
-	});
-
-	test('two unrelated multiline inserts', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 1, 0, ['hello', 'world']),
-				editOp(2, 1, 2, 1, 0, ['how', 'are', 'you?']),
-			],
-			[
-				inverseEditOp(1, 1, 2, 6),
-				inverseEditOp(3, 1, 5, 5),
-			]
-		);
-	});
-
-	test('two multiline inserts 1', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 1, 0, ['hello', 'world']),
-				editOp(1, 2, 1, 2, 0, ['how', 'are', 'you?']),
-			],
-			[
-				inverseEditOp(1, 1, 2, 6),
-				inverseEditOp(2, 7, 4, 5),
-			]
-		);
-	});
-
-	test('single delete', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 6, 0, null)
-			],
-			[
-				inverseEditOp(1, 1, 1, 1)
-			]
-		);
-	});
-
-	test('two single unrelated deletes', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 6, 0, null),
-				editOp(2, 1, 2, 6, 0, null)
-			],
-			[
-				inverseEditOp(1, 1, 1, 1),
-				inverseEditOp(2, 1, 2, 1)
-			]
-		);
-	});
-
-	test('two single deletes 1', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 6, 0, null),
-				editOp(1, 7, 1, 12, 0, null)
-			],
-			[
-				inverseEditOp(1, 1, 1, 1),
-				inverseEditOp(1, 2, 1, 2)
-			]
-		);
-	});
-
-	test('two single deletes 2', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 6, 0, null),
-				editOp(1, 9, 1, 14, 0, null)
-			],
-			[
-				inverseEditOp(1, 1, 1, 1),
-				inverseEditOp(1, 4, 1, 4)
-			]
-		);
-	});
-
-	test('multiline delete', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 2, 6, 0, null)
-			],
-			[
-				inverseEditOp(1, 1, 1, 1)
-			]
-		);
-	});
-
-	test('two unrelated multiline deletes', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 2, 6, 0, null),
-				editOp(3, 1, 5, 5, 0, null),
-			],
-			[
-				inverseEditOp(1, 1, 1, 1),
-				inverseEditOp(2, 1, 2, 1),
-			]
-		);
-	});
-
-	test('two multiline deletes 1', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 2, 6, 0, null),
-				editOp(2, 7, 4, 5, 0, null),
-			],
-			[
-				inverseEditOp(1, 1, 1, 1),
-				inverseEditOp(1, 2, 1, 2),
-			]
-		);
-	});
-
-	test('single replace', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 6, 0, ['Hello world'])
-			],
-			[
-				inverseEditOp(1, 1, 1, 12)
-			]
-		);
-	});
-
-	test('two replaces', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 1, 1, 6, 0, ['Hello world']),
-				editOp(1, 7, 1, 8, 0, ['How are you?']),
-			],
-			[
-				inverseEditOp(1, 1, 1, 12),
-				inverseEditOp(1, 13, 1, 25)
-			]
-		);
-	});
-
-	test('many edits', () => {
-		assertInverseEdits(
-			[
-				editOp(1, 2, 1, 2, 0, ['', '  ']),
-				editOp(1, 5, 1, 6, 0, ['']),
-				editOp(1, 9, 1, 9, 0, ['', ''])
-			],
-			[
-				inverseEditOp(1, 2, 2, 3),
-				inverseEditOp(2, 6, 2, 6),
-				inverseEditOp(2, 9, 3, 1)
-			]
-		);
-	});
-});
-
-suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
-
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string[]): IValidatedEditOperation {
-		return {
-			sortIndex: 0,
-			identifier: null,
-			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
-			rangeLength: rangeLength,
-			lines: text,
-			forceMoveMarkers: false,
-			isAutoWhitespaceEdit: false
-		};
-	}
-
-	function testSimpleApplyEdits(original: string[], edits: IValidatedEditOperation[], expected: IValidatedEditOperation): void {
-		let model = EditableTextModel.createFromString(original.join('\n'));
-		model.setEOL(EndOfLineSequence.LF);
-
-		let actual = model._toSingleEditOperation(edits);
-		assert.deepEqual(actual, expected);
-
-		model.dispose();
-	}
-
-	test('one edit op is unchanged', () => {
-		testSimpleApplyEdits(
-			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
-				'',
-				'1'
-			],
-			[
-				editOp(1, 3, 1, 3, 0, [' new line', 'No longer'])
-			],
-			editOp(1, 3, 1, 3, 0, [' new line', 'No longer'])
-		);
-	});
-
-	test('two edits on one line', () => {
-		testSimpleApplyEdits([
-			'My First Line',
-			'\t\tMy Second Line',
-			'    Third Line',
-			'',
-			'1'
-		], [
-				editOp(1, 1, 1, 3, 0, ['Your']),
-				editOp(1, 4, 1, 4, 0, ['Interesting ']),
-				editOp(2, 3, 2, 6, 0, null)
-			],
-			editOp(1, 1, 2, 6, 19, [
-				'Your Interesting First Line',
-				'\t\t'
-			]));
-	});
-
-	test('insert multiple newlines', () => {
-		testSimpleApplyEdits(
-			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
-				'',
-				'1'
-			],
-			[
-				editOp(1, 3, 1, 3, 0, ['', '', '', '', '']),
-				editOp(3, 15, 3, 15, 0, ['a', 'b'])
-			],
-			editOp(1, 3, 3, 15, 43, [
-				'',
-				'',
-				'',
-				'',
-				' First Line',
-				'\t\tMy Second Line',
-				'    Third Linea',
-				'b'
-			])
-		);
-	});
-
-	test('delete empty text', () => {
-		testSimpleApplyEdits(
-			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
-				'',
-				'1'
-			],
-			[
-				editOp(1, 1, 1, 1, 0, [''])
-			],
-			editOp(1, 1, 1, 1, 0, [''])
-		);
-	});
-
-	test('two unrelated edits', () => {
-		testSimpleApplyEdits(
-			[
-				'My First Line',
-				'\t\tMy Second Line',
-				'    Third Line',
-				'',
-				'123'
-			],
-			[
-				editOp(2, 1, 2, 3, 0, ['\t']),
-				editOp(3, 1, 3, 5, 0, [''])
-			],
-			editOp(2, 1, 3, 5, 21, ['\tMy Second Line', ''])
-		);
-	});
-
-	test('many edits', () => {
-		testSimpleApplyEdits(
-			[
-				'{"x" : 1}'
-			],
-			[
-				editOp(1, 2, 1, 2, 0, ['\n  ']),
-				editOp(1, 5, 1, 6, 0, ['']),
-				editOp(1, 9, 1, 9, 0, ['\n'])
-			],
-			editOp(1, 2, 1, 9, 7, [
-				'',
-				'  "x": 1',
-				''
-			])
-		);
-	});
-
-	test('many edits reversed', () => {
-		testSimpleApplyEdits(
-			[
-				'{',
-				'  "x": 1',
-				'}'
-			],
-			[
-				editOp(1, 2, 2, 3, 0, ['']),
-				editOp(2, 6, 2, 6, 0, [' ']),
-				editOp(2, 9, 3, 1, 0, [''])
-			],
-			editOp(1, 2, 3, 1, 10, ['"x" : 1'])
-		);
-	});
-
-	test('replacing newlines 1', () => {
-		testSimpleApplyEdits(
-			[
-				'{',
-				'"a": true,',
-				'',
-				'"b": true',
-				'}'
-			],
-			[
-				editOp(1, 2, 2, 1, 0, ['', '\t']),
-				editOp(2, 11, 4, 1, 0, ['', '\t'])
-			],
-			editOp(1, 2, 4, 1, 13, [
-				'',
-				'\t"a": true,',
-				'\t'
-			])
-		);
-	});
-
-	test('replacing newlines 2', () => {
-		testSimpleApplyEdits(
-			[
-				'some text',
-				'some more text',
-				'now comes an empty line',
-				'',
-				'after empty line',
-				'and the last line'
-			],
-			[
-				editOp(1, 5, 3, 1, 0, [' text', 'some more text', 'some more text']),
-				editOp(3, 2, 4, 1, 0, ['o more lines', 'asd', 'asd', 'asd']),
-				editOp(5, 1, 5, 6, 0, ['zzzzzzzz']),
-				editOp(5, 11, 6, 16, 0, ['1', '2', '3', '4'])
-			],
-			editOp(1, 5, 6, 16, 78, [
-				' text',
-				'some more text',
-				'some more textno more lines',
-				'asd',
-				'asd',
-				'asd',
-				'zzzzzzzz empt1',
-				'2',
-				'3',
-				'4'
-			])
-		);
-	});
-
-	test('advanced', () => {
-		testSimpleApplyEdits(
-			[
-				' {       "d": [',
-				'             null',
-				'        ] /*comment*/',
-				'        ,"e": /*comment*/ [null] }',
-			],
-			[
-				editOp(1, 1, 1, 2, 0, ['']),
-				editOp(1, 3, 1, 10, 0, ['', '  ']),
-				editOp(1, 16, 2, 14, 0, ['', '    ']),
-				editOp(2, 18, 3, 9, 0, ['', '  ']),
-				editOp(3, 22, 4, 9, 0, ['']),
-				editOp(4, 10, 4, 10, 0, ['', '  ']),
-				editOp(4, 28, 4, 28, 0, ['', '    ']),
-				editOp(4, 32, 4, 32, 0, ['', '  ']),
-				editOp(4, 33, 4, 34, 0, ['', ''])
-			],
-			editOp(1, 1, 4, 34, 89, [
-				'{',
-				'  "d": [',
-				'    null',
-				'  ] /*comment*/,',
-				'  "e": /*comment*/ [',
-				'    null',
-				'  ]',
-				''
-			])
-		);
-	});
-
-	test('advanced simplified', () => {
-		testSimpleApplyEdits(
-			[
-				'   abc',
-				' ,def'
-			],
-			[
-				editOp(1, 1, 1, 4, 0, ['']),
-				editOp(1, 7, 2, 2, 0, ['']),
-				editOp(2, 3, 2, 3, 0, ['', ''])
-			],
-			editOp(1, 1, 2, 3, 9, [
-				'abc,',
-				''
-			])
-		);
-	});
-});
+function createEditableTextModelFromString(text: string): TextModel {
+	return new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
+}
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
 
 	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before: boolean, after: boolean): void {
-		let model = EditableTextModel.createFromString(original.join('\n'));
+		let model = createEditableTextModelFromString(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
 		assert.equal(model.mightContainRTL(), before);
@@ -532,10 +32,8 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () =
 
 	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
 		return {
-			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
-			text: text.join('\n'),
-			forceMoveMarkers: false
+			text: text.join('\n')
 		};
 	}
 
@@ -568,7 +66,7 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () =
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicASCII', () => {
 
 	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before: boolean, after: boolean): void {
-		let model = EditableTextModel.createFromString(original.join('\n'));
+		let model = createEditableTextModelFromString(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
 		assert.equal(model.mightContainNonBasicASCII(), before);
@@ -580,10 +78,8 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicAS
 
 	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
 		return {
-			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
-			text: text.join('\n'),
-			forceMoveMarkers: false
+			text: text.join('\n')
 		};
 	}
 
@@ -1363,7 +859,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	function testApplyEditsFails(original: string[], edits: IIdentifiedSingleEditOperation[]): void {
-		let model = EditableTextModel.createFromString(original.join('\n'));
+		let model = createEditableTextModelFromString(original.join('\n'));
 
 		let hasThrown = false;
 		try {
@@ -1494,27 +990,25 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		assertSyncedModels('Hello', (model, assertMirrorModels) => {
 			model.applyEdits([{
-				identifier: null,
 				range: new Range(1, 6, 1, 6),
 				text: ' world!',
-				forceMoveMarkers: false
+				// forceMoveMarkers: false
 			}]);
 
 			assertMirrorModels();
 
 		}, (model) => {
 			var isFirstTime = true;
-			model.addBulkListener((events) => {
+			model.onDidChangeRawContent(() => {
 				if (!isFirstTime) {
 					return;
 				}
 				isFirstTime = false;
 
 				model.applyEdits([{
-					identifier: null,
 					range: new Range(1, 13, 1, 13),
 					text: ' How are you?',
-					forceMoveMarkers: false
+					// forceMoveMarkers: false
 				}]);
 			});
 		});
@@ -1524,10 +1018,9 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		assertSyncedModels('Hello', (model, assertMirrorModels) => {
 			model.applyEdits([{
-				identifier: null,
 				range: new Range(1, 6, 1, 6),
 				text: ' world!',
-				forceMoveMarkers: false
+				// forceMoveMarkers: false
 			}]);
 
 			assertMirrorModels();
@@ -1541,20 +1034,19 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				isFirstTime = false;
 
 				model.applyEdits([{
-					identifier: null,
 					range: new Range(1, 13, 1, 13),
 					text: ' How are you?',
-					forceMoveMarkers: false
+					// forceMoveMarkers: false
 				}]);
 			});
 		});
 	});
 
 	test('issue #1580: Changes in line endings are not correctly reflected in the extension host, leading to invalid offsets sent to external refactoring tools', () => {
-		let model = EditableTextModel.createFromString('Hello\nWorld!');
+		let model = createEditableTextModelFromString('Hello\nWorld!');
 		assert.equal(model.getEOL(), '\n');
 
-		let mirrorModel2 = new MirrorModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
+		let mirrorModel2 = new MirrorTextModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
 		model.onDidChangeContent((e: IModelContentChangedEvent) => {
@@ -1567,7 +1059,6 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		});
 
 		let assertMirrorModels = () => {
-			model._assertLineNumbersOK();
 			assert.equal(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
 			assert.equal(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
 		};
@@ -1577,259 +1068,5 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		model.dispose();
 		mirrorModel2.dispose();
-	});
-});
-
-interface ILightWeightMarker {
-	id: string;
-	lineNumber: number;
-	column: number;
-	stickToPreviousCharacter: boolean;
-}
-
-suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
-
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
-		return {
-			identifier: null,
-			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
-			text: text.join('\n'),
-			forceMoveMarkers: false
-		};
-	}
-
-	function marker(id: string, lineNumber: number, column: number, stickToPreviousCharacter: boolean): ILightWeightMarker {
-		return {
-			id: id,
-			lineNumber: lineNumber,
-			column: column,
-			stickToPreviousCharacter: stickToPreviousCharacter
-		};
-	}
-
-	function toMarkersMap(markers: ILightWeightMarker[]): { [markerId: string]: ILightWeightMarker } {
-		var result: { [markerId: string]: ILightWeightMarker } = {};
-		markers.forEach(m => {
-			result[m.id] = m;
-		});
-		return result;
-	}
-
-	function testApplyEditsAndMarkers(text: string[], markers: ILightWeightMarker[], edits: IIdentifiedSingleEditOperation[], changedMarkers: string[], expectedText: string[], expectedMarkers: ILightWeightMarker[]): void {
-		var textStr = text.join('\n');
-		var expectedTextStr = expectedText.join('\n');
-		var markersMap = toMarkersMap(markers);
-		// var expectedMarkersMap = toMarkersMap(expectedMarkers);
-		var markerId2ModelMarkerId = Object.create(null);
-
-		var model = EditableTextModel.createFromString(textStr);
-		model.setEOL(EndOfLineSequence.LF);
-
-		// Add markers
-		markers.forEach((m) => {
-			let modelMarkerId = model._addMarker(0, m.lineNumber, m.column, m.stickToPreviousCharacter);
-			markerId2ModelMarkerId[m.id] = modelMarkerId;
-		});
-
-		// Apply edits & collect inverse edits
-		model.applyEdits(edits);
-		model._assertLineNumbersOK();
-
-		// Assert edits produced expected result
-		assert.deepEqual(model.getValue(EndOfLinePreference.LF), expectedTextStr);
-
-		let actualChangedMarkers: string[] = [];
-		for (let i = 0, len = expectedMarkers.length; i < len; i++) {
-			let expectedMarker = expectedMarkers[i];
-			let initialMarker = markersMap[expectedMarker.id];
-			let expectedMarkerModelMarkerId = markerId2ModelMarkerId[expectedMarker.id];
-			let actualMarker = model._getMarker(expectedMarkerModelMarkerId);
-
-			if (actualMarker.lineNumber !== initialMarker.lineNumber || actualMarker.column !== initialMarker.column) {
-				actualChangedMarkers.push(initialMarker.id);
-			}
-
-			assert.equal(actualMarker.lineNumber, expectedMarker.lineNumber, 'marker lineNumber of marker ' + expectedMarker.id);
-			assert.equal(actualMarker.column, expectedMarker.column, 'marker column of marker ' + expectedMarker.id);
-		}
-
-		changedMarkers.sort();
-		actualChangedMarkers.sort();
-		assert.deepEqual(actualChangedMarkers, changedMarkers, 'changed markers');
-
-		model.dispose();
-	}
-
-	test('no markers changed', () => {
-		testApplyEditsAndMarkers(
-			[
-				'Hello world,',
-				'this is a short text',
-				'that is used in testing'
-			],
-			[
-				marker('a', 1, 1, true),
-				marker('b', 1, 1, false),
-				marker('c', 1, 7, false),
-				marker('d', 1, 12, true),
-				marker('e', 2, 1, false),
-				marker('f', 2, 16, true),
-				marker('g', 2, 21, true),
-				marker('h', 3, 24, false)
-			],
-			[
-				editOp(1, 13, 1, 13, [' how are you?'])
-			],
-			[],
-			[
-				'Hello world, how are you?',
-				'this is a short text',
-				'that is used in testing'
-			],
-			[
-				marker('a', 1, 1, true),
-				marker('b', 1, 1, false),
-				marker('c', 1, 7, false),
-				marker('d', 1, 12, true),
-				marker('e', 2, 1, false),
-				marker('f', 2, 16, true),
-				marker('g', 2, 21, true),
-				marker('h', 3, 24, false)
-			]
-		);
-	});
-
-	test('first line changes', () => {
-		testApplyEditsAndMarkers(
-			[
-				'Hello world,',
-				'this is a short text',
-				'that is used in testing'
-			],
-			[
-				marker('a', 1, 1, true),
-				marker('b', 1, 1, false),
-				marker('c', 1, 7, false),
-				marker('d', 1, 12, true),
-				marker('e', 2, 1, false),
-				marker('f', 2, 16, true),
-				marker('g', 2, 21, true),
-				marker('h', 3, 24, false)
-			],
-			[
-				editOp(1, 7, 1, 12, ['friends'])
-			],
-			[],
-			[
-				'Hello friends,',
-				'this is a short text',
-				'that is used in testing'
-			],
-			[
-				marker('a', 1, 1, true),
-				marker('b', 1, 1, false),
-				marker('c', 1, 7, false),
-				marker('d', 1, 12, true),
-				marker('e', 2, 1, false),
-				marker('f', 2, 16, true),
-				marker('g', 2, 21, true),
-				marker('h', 3, 24, false)
-			]
-		);
-	});
-
-	test('inserting lines', () => {
-		testApplyEditsAndMarkers(
-			[
-				'Hello world,',
-				'this is a short text',
-				'that is used in testing'
-			],
-			[
-				marker('a', 1, 1, true),
-				marker('b', 1, 1, false),
-				marker('c', 1, 7, false),
-				marker('d', 1, 12, true),
-				marker('e', 2, 1, false),
-				marker('f', 2, 16, true),
-				marker('g', 2, 21, true),
-				marker('h', 3, 24, false)
-			],
-			[
-				editOp(1, 7, 1, 12, ['friends']),
-				editOp(1, 13, 1, 13, ['', 'this is an inserted line', 'and another one. By the way,'])
-			],
-			['e', 'f', 'g', 'h'],
-			[
-				'Hello friends,',
-				'this is an inserted line',
-				'and another one. By the way,',
-				'this is a short text',
-				'that is used in testing'
-			],
-			[
-				marker('a', 1, 1, true),
-				marker('b', 1, 1, false),
-				marker('c', 1, 7, false),
-				marker('d', 1, 12, true),
-				marker('e', 4, 1, false),
-				marker('f', 4, 16, true),
-				marker('g', 4, 21, true),
-				marker('h', 5, 24, false)
-			]
-		);
-	});
-
-	test('replacing a lot', () => {
-		testApplyEditsAndMarkers(
-			[
-				'Hello world,',
-				'this is a short text',
-				'that is used in testing',
-				'more lines...',
-				'more lines...',
-				'more lines...',
-				'more lines...'
-			],
-			[
-				marker('a', 1, 1, true),
-				marker('b', 1, 1, false),
-				marker('c', 1, 7, false),
-				marker('d', 1, 12, true),
-				marker('e', 2, 1, false),
-				marker('f', 2, 16, true),
-				marker('g', 2, 21, true),
-				marker('h', 3, 24, false),
-				marker('i', 5, 1, false),
-				marker('j', 6, 1, false),
-				marker('k', 7, 14, false),
-			],
-			[
-				editOp(1, 7, 1, 12, ['friends']),
-				editOp(1, 13, 1, 13, ['', 'this is an inserted line', 'and another one. By the way,', 'This is another line']),
-				editOp(2, 1, 7, 14, ['Some new text here'])
-			],
-			['e', 'f', 'g', 'h', 'i', 'j', 'k'],
-			[
-				'Hello friends,',
-				'this is an inserted line',
-				'and another one. By the way,',
-				'This is another line',
-				'Some new text here'
-			],
-			[
-				marker('a', 1, 1, true),
-				marker('b', 1, 1, false),
-				marker('c', 1, 7, false),
-				marker('d', 1, 12, true),
-				marker('e', 5, 1, false),
-				marker('f', 5, 16, true),
-				marker('g', 5, 19, true),
-				marker('h', 5, 19, false),
-				marker('i', 5, 19, false),
-				marker('j', 5, 19, false),
-				marker('k', 5, 19, false),
-			]
-		);
 	});
 });

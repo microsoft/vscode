@@ -27,7 +27,7 @@
 					"PHP",
 					"php"
 				],
-        "firstLine": "^#!/.*\\bphp\\b",
+				"firstLine": "^#!/.*\\bphp\\b",
 				"mimetypes": [
 					"application/x-php"
 				],
@@ -37,8 +37,13 @@
 		"grammars": [
 			{
 				"language": "php",
+				"scopeName": "source.php",
+				"path": "./syntaxes/php.tmLanguage.json"
+			},
+			{
+				"language": "php",
 				"scopeName": "text.html.php",
-				"path": "./syntaxes/php.tmLanguage.json",
+				"path": "./syntaxes/html.tmLanguage.json",
 				"embeddedLanguages": {
 					"text.html": "html",
 					"source.php": "php",
@@ -53,7 +58,7 @@
 		"snippets": [
 			{
 				"language": "php",
-				"path": "./snippets/php.json"
+				"path": "./snippets/php.snippets.json"
 			}
 		],
 		"configuration": {
@@ -118,6 +123,6 @@
 		"update-grammar": "node ./build/update-grammar.js"
 	},
 	"devDependencies": {
-		"@types/node": "^7.0.4"
+		"@types/node": "7.0.43"
 	}
 }

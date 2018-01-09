@@ -8,6 +8,7 @@
 	"requirestring": "свойство \"{0}\" является обязательным и должно иметь тип string",
 	"optstring": "свойство \"{0}\" может быть опущено или должно иметь тип string",
 	"vscode.extension.contributes.keybindings.command": "Идентификатор команды, выполняемой при нажатии настраиваемого сочетания клавиш.",
+	"vscode.extension.contributes.keybindings.key": "Клавиша или последовательность клавиш (клавиши разделяются знаком плюс, а последовательности — пробелом, например CTRL+O или CTRL+L L для сочетания).",
 	"vscode.extension.contributes.keybindings.mac": "Клавиша или последовательность клавиш для Mac.",
 	"vscode.extension.contributes.keybindings.linux": "Клавиша или последовательность клавиш для Linux.",
 	"vscode.extension.contributes.keybindings.win": "Клавиша или последовательность клавиш для Windows.",
@@ -21,5 +22,5 @@
 	"keybindings.json.when": "Условие, когда клавиша нажата.",
 	"keybindings.json.args": "Аргументы, передаваемые в выполняемую команду.",
 	"keyboardConfigurationTitle": "Клавиатура",
-	"dispatch": "Управляет логикой диспетчеризации для нажатий клавиш \"keydown.code\" (рекомендуется) или \"keydown.keyCode\"."
+	"dispatch": "Управляет логикой диспетчеризации для нажатий клавиш \"code\" (рекомендуется) или \"keyCode\"."
 }

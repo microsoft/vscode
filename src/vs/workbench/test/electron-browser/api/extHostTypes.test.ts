@@ -333,8 +333,8 @@ suite('ExtHostTypes', function () {
 
 	test('WorkspaceEdit', function () {
 
-		let a = types.Uri.file('a.ts');
-		let b = types.Uri.file('b.ts');
+		let a = URI.file('a.ts');
+		let b = URI.file('b.ts');
 
 		let edit = new types.WorkspaceEdit();
 		assert.ok(!edit.has(a));
@@ -371,8 +371,8 @@ suite('ExtHostTypes', function () {
 
 		assertToJSON(new types.Selection(3, 4, 2, 1), { start: { line: 2, character: 1 }, end: { line: 3, character: 4 }, anchor: { line: 3, character: 4 }, active: { line: 2, character: 1 } });
 
-		assertToJSON(new types.Location(types.Uri.file('u.ts'), new types.Position(3, 4)), { uri: URI.parse('file:///u.ts').toJSON(), range: [{ line: 3, character: 4 }, { line: 3, character: 4 }] });
-		assertToJSON(new types.Location(types.Uri.file('u.ts'), new types.Range(1, 2, 3, 4)), { uri: URI.parse('file:///u.ts').toJSON(), range: [{ line: 1, character: 2 }, { line: 3, character: 4 }] });
+		assertToJSON(new types.Location(URI.file('u.ts'), new types.Position(3, 4)), { uri: URI.parse('file:///u.ts').toJSON(), range: [{ line: 3, character: 4 }, { line: 3, character: 4 }] });
+		assertToJSON(new types.Location(URI.file('u.ts'), new types.Range(1, 2, 3, 4)), { uri: URI.parse('file:///u.ts').toJSON(), range: [{ line: 1, character: 2 }, { line: 3, character: 4 }] });
 
 		let diag = new types.Diagnostic(new types.Range(0, 1, 2, 3), 'hello');
 		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [{ line: 0, character: 1 }, { line: 2, character: 3 }] });

@@ -12,22 +12,21 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { OpenRecentAction } from 'vs/workbench/electron-browser/actions';
-import { GlobalNewUntitledFileAction, OpenFileAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { GlobalNewUntitledFileAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { OpenFolderAction, OpenFileFolderAction, OpenFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
-import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
+import { Parts, IPartService, Dimension } from 'vs/workbench/services/part/common/partService';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
 import { ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { escape } from 'vs/base/common/strings';
-import { QUICKOPEN_ACTION_ID } from "vs/workbench/browser/parts/quickopen/quickopen";
+import { QUICKOPEN_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
 
 interface WatermarkEntry {
 	text: string;
@@ -100,43 +99,50 @@ const folderEntries = [
 ];
 
 const UNBOUND = nls.localize('watermark.unboundCommand', "unbound");
+const WORKBENCH_TIPS_ENABLED_KEY = 'workbench.tips.enabled';
 
 export class WatermarkContribution implements IWorkbenchContribution {
 
 	private toDispose: IDisposable[] = [];
 	private watermark: Builder;
 	private enabled: boolean;
+	private workbenchState: WorkbenchState;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IPartService private partService: IPartService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
+		this.workbenchState = contextService.getWorkbenchState();
+
 		lifecycleService.onShutdown(this.dispose, this);
-		this.partService.joinCreation().then(() => {
-			this.enabled = this.configurationService.lookup<boolean>('workbench.tips.enabled').value;
-			if (this.enabled) {
-				this.create();
-			}
-		});
-		this.configurationService.onDidUpdateConfiguration(e => {
-			const enabled = this.configurationService.lookup<boolean>('workbench.tips.enabled').value;
-			if (enabled !== this.enabled) {
-				this.enabled = enabled;
-				if (this.enabled) {
-					this.create();
-				} else {
-					this.destroy();
+		this.enabled = this.configurationService.getValue<boolean>(WORKBENCH_TIPS_ENABLED_KEY);
+		if (this.enabled) {
+			this.create();
+		}
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(WORKBENCH_TIPS_ENABLED_KEY)) {
+				const enabled = this.configurationService.getValue<boolean>(WORKBENCH_TIPS_ENABLED_KEY);
+				if (enabled !== this.enabled) {
+					this.enabled = enabled;
+					if (this.enabled) {
+						this.create();
+					} else {
+						this.destroy();
+					}
 				}
 			}
-		});
-	}
+		}));
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(e => {
+			const previousWorkbenchState = this.workbenchState;
+			this.workbenchState = this.contextService.getWorkbenchState();
 
-	public getId() {
-		return 'vs.watermark';
+			if (this.enabled && this.workbenchState !== previousWorkbenchState) {
+				this.recreate();
+			}
+		}));
 	}
 
 	private create(): void {
@@ -147,7 +153,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 			.div({ 'class': 'watermark' });
 		const box = $(this.watermark)
 			.div({ 'class': 'watermark-box' });
-		const folder = this.contextService.hasWorkspace();
+		const folder = this.workbenchState !== WorkbenchState.EMPTY;
 		const selected = folder ? folderEntries : noFolderEntries
 			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh);
 		const update = () => {
@@ -170,15 +176,12 @@ export class WatermarkContribution implements IWorkbenchContribution {
 				});
 			});
 		};
-		const layout = () => {
-			const { height } = container.getBoundingClientRect();
-			container.classList[height <= 478 ? 'add' : 'remove']('max-height-478px');
-		};
 		update();
 		this.watermark.build(container.firstElementChild as HTMLElement, 0);
-		layout();
 		this.toDispose.push(this.keybindingService.onDidUpdateKeybindings(update));
-		this.toDispose.push(this.partService.onEditorLayout(layout));
+		this.toDispose.push(this.partService.onEditorLayout(({ height }: Dimension) => {
+			container.classList[height <= 478 ? 'add' : 'remove']('max-height-478px');
+		}));
 	}
 
 	private destroy(): void {
@@ -189,13 +192,18 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		}
 	}
 
+	private recreate(): void {
+		this.destroy();
+		this.create();
+	}
+
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WatermarkContribution);
+	.registerWorkbenchContribution(WatermarkContribution, LifecyclePhase.Running);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({

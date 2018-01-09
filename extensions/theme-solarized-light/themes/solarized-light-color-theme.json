@@ -8,6 +8,13 @@
 			}
 		},
 		{
+			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"settings": {
+				"background": "#FDF6E3",
+				"foreground": "#657B83"
+			}
+		},
+		{
 			"name": "Comment",
 			"scope": "comment",
 			"settings": {
@@ -477,6 +484,6 @@
 		"terminal.ansiBrightBlue": "#839496",
 		"terminal.ansiBrightMagenta": "#6c71c4",
 		"terminal.ansiBrightCyan": "#93a1a1",
-		"terminal.ansiBrightWhite": "#fdf6e3"
+		"terminal.ansiBrightWhite": "#eee8d5"
 	}
 }

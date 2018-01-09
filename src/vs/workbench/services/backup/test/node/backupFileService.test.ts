@@ -16,25 +16,12 @@ import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { parseArgs } from 'vs/platform/environment/node/argv';
-import { RawTextSource } from 'vs/editor/common/model/textSource';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
+import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
-class TestEnvironmentService extends EnvironmentService {
-
-	constructor(private _backupHome: string, private _backupWorkspacesPath: string) {
-		super(parseArgs(process.argv), process.execPath);
-	}
-
-	get backupHome(): string { return this._backupHome; }
-
-	get backupWorkspacesPath(): string { return this._backupWorkspacesPath; }
-}
-
-const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
+const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');
 const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
@@ -44,19 +31,18 @@ const fooFile = Uri.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
 const barFile = Uri.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
 const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
-const fooBackupPathLegacy = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath.toLowerCase()).digest('hex'));
 const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
 const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
 
 class TestBackupFileService extends BackupFileService {
 	constructor(workspace: Uri, backupHome: string, workspacesJsonPath: string) {
-		const fileService = new FileService(new TestContextService(new Workspace(workspace.fsPath, workspace.fsPath, [workspace])), new TestConfigurationService(), { disableWatcher: true });
+		const fileService = new FileService(new TestContextService(new Workspace(workspace.fsPath, workspace.fsPath, toWorkspaceFolders([{ path: workspace.fsPath }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true });
 
 		super(workspaceBackupPath, fileService);
 	}
 
-	public getBackupResource(resource: Uri, legacyMacWindowsFormat?: boolean): Uri {
-		return super.getBackupResource(resource, legacyMacWindowsFormat);
+	public toBackupResource(resource: Uri): Uri {
+		return super.toBackupResource(resource);
 	}
 }
 
@@ -87,7 +73,7 @@ suite('BackupFileService', () => {
 			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
-			assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
+			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
 
 		test('should get the correct backup path for untitled files', () => {
@@ -96,7 +82,7 @@ suite('BackupFileService', () => {
 			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
-			assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
+			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
 	});
 
@@ -104,47 +90,6 @@ suite('BackupFileService', () => {
 		test('should return whether a backup resource exists', done => {
 			pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
 				fs.writeFileSync(fooBackupPath, 'foo');
-				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
-				service.loadBackupResource(fooFile).then(resource => {
-					assert.ok(resource);
-					assert.equal(path.basename(resource.fsPath), path.basename(fooBackupPath));
-					return service.hasBackups().then(hasBackups => {
-						assert.ok(hasBackups);
-						done();
-					});
-				});
-			});
-		});
-
-		test('should return whether a backup resource exists - legacy support (read old lowercase format as fallback)', done => {
-			if (platform.isLinux) {
-				done();
-				return; // only on mac and windows
-			}
-
-			pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
-				fs.writeFileSync(fooBackupPathLegacy, 'foo');
-				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
-				service.loadBackupResource(fooFile).then(resource => {
-					assert.ok(resource);
-					assert.equal(path.basename(resource.fsPath), path.basename(fooBackupPathLegacy));
-					return service.hasBackups().then(hasBackups => {
-						assert.ok(hasBackups);
-						done();
-					});
-				});
-			});
-		});
-
-		test('should return whether a backup resource exists - legacy support #2 (both cases present, return case sensitive backup)', done => {
-			if (platform.isLinux) {
-				done();
-				return; // only on mac and windows
-			}
-
-			pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
-				fs.writeFileSync(fooBackupPath, 'foo');
-				fs.writeFileSync(fooBackupPathLegacy, 'foo');
 				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
 				service.loadBackupResource(fooFile).then(resource => {
 					assert.ok(resource);
@@ -197,27 +142,6 @@ suite('BackupFileService', () => {
 					assert.equal(fs.existsSync(untitledBackupPath), false);
 					assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 0);
 					done();
-				});
-			});
-		});
-
-		test('text file - legacy support (dicard lowercase backup file if present)', done => {
-			if (platform.isLinux) {
-				done();
-				return; // only on mac and windows
-			}
-
-			pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
-				fs.writeFileSync(fooBackupPathLegacy, 'foo');
-				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
-				service.backupResource(fooFile, 'test').then(() => {
-					assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 2);
-					service.discardResourceBackup(fooFile).then(() => {
-						assert.equal(fs.existsSync(fooBackupPath), false);
-						assert.equal(fs.existsSync(fooBackupPathLegacy), false);
-						assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 0);
-						done();
-					});
 				});
 			});
 		});
@@ -296,8 +220,8 @@ suite('BackupFileService', () => {
 
 	test('parseBackupContent', () => {
 		test('should separate metadata from content', () => {
-			const textSource = RawTextSource.fromString('metadata\ncontent');
-			assert.equal(service.parseBackupContent(textSource), 'content');
+			const textBufferFactory = createTextBufferFactory('metadata\ncontent');
+			assert.equal(service.parseBackupContent(textBufferFactory), 'content');
 		});
 	});
 });

@@ -9,7 +9,5 @@
 	"cut": "Taglia",
 	"copy": "Copia",
 	"paste": "Incolla",
-	"selectAll": "Seleziona tutto",
-	"confirmOpen": "Aprire le cartelle di {0}?",
-	"confirmOpenButton": "&&Apri"
+	"selectAll": "Seleziona tutto"
 }

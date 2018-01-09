@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/atom/language-clojure/commit/71068a45499cace7a69c45e337860ebbc9b7fccc",
 	"scopeName": "source.clojure",
 	"fileTypes": [
 		"boot",
@@ -15,7 +16,9 @@
 		"cljx",
 		"clojure",
 		"edn",
-		"org"
+		"org",
+		"joke",
+		"joker"
 	],
 	"foldingStartMarker": "\\(\\s*$",
 	"foldingStopMarker": "^\\s*\\)",

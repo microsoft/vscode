@@ -8,9 +8,10 @@ import * as strings from 'vs/base/common/strings';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CharCode } from 'vs/base/common/charCode';
+import { ITextModel } from 'vs/editor/common/model';
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;
@@ -62,7 +63,7 @@ export class ShiftCommand implements ICommand {
 		}
 	}
 
-	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		const startLine = this._selection.startLineNumber;
 
 		let endLine = this._selection.endLineNumber;
@@ -112,28 +113,30 @@ export class ShiftCommand implements ICommand {
 					if (contentStartVisibleColumn % tabSize !== 0) {
 						// The current line is "miss-aligned", so let's see if this is expected...
 						// This can only happen when it has trailing commas in the indent
-						let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
-						if (enterAction) {
-							extraSpaces = previousLineExtraSpaces;
-							if (enterAction.appendText) {
-								for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
-									if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
-										extraSpaces++;
-									} else {
-										break;
+						if (model.isCheapToTokenize(lineNumber - 1)) {
+							let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
+							if (enterAction) {
+								extraSpaces = previousLineExtraSpaces;
+								if (enterAction.appendText) {
+									for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
+										if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
+											extraSpaces++;
+										} else {
+											break;
+										}
 									}
 								}
-							}
-							if (enterAction.removeText) {
-								extraSpaces = Math.max(0, extraSpaces - enterAction.removeText);
-							}
-
-							// Act as if `prefixSpaces` is not part of the indentation
-							for (let j = 0; j < extraSpaces; j++) {
-								if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== CharCode.Space) {
-									break;
+								if (enterAction.removeText) {
+									extraSpaces = Math.max(0, extraSpaces - enterAction.removeText);
 								}
-								indentationEndIndex--;
+
+								// Act as if `prefixSpaces` is not part of the indentation
+								for (let j = 0; j < extraSpaces; j++) {
+									if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== CharCode.Space) {
+										break;
+									}
+									indentationEndIndex--;
+								}
 							}
 						}
 					}
@@ -214,7 +217,7 @@ export class ShiftCommand implements ICommand {
 		this._selectionId = builder.trackSelection(this._selection);
 	}
 
-	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		if (this._useLastEditRangeForCursorEndPosition) {
 			let lastOp = helper.getInverseEditOperations()[0];
 			return new Selection(lastOp.range.endLineNumber, lastOp.range.endColumn, lastOp.range.endLineNumber, lastOp.range.endColumn);

@@ -6,6 +6,9 @@
 {
 	"debugAdapterBinNotFound": "Die ausführbare Datei \"{0}\" des Debugadapters ist nicht vorhanden.",
 	"debugAdapterCannotDetermineExecutable": "Die ausführbare Datei \"{0}\" des Debugadapters kann nicht bestimmt werden.",
+	"launch.config.comment1": "Verwendet IntelliSense zum Ermitteln möglicher Attribute.",
+	"launch.config.comment2": "Zeigen Sie auf vorhandene Attribute, um die zugehörigen Beschreibungen anzuzeigen.",
+	"launch.config.comment3": "Weitere Informationen finden Sie unter {0}",
 	"debugType": "Der Typ der Konfiguration.",
 	"debugTypeNotRecognised": "Dieser Debugging-Typ wurde nicht erkannt. Bitte installieren und aktivieren Sie die dazugehörige Debugging-Erweiterung.",
 	"node2NotSupported": "\"node2\" wird nicht mehr unterstützt, verwenden Sie stattdessen \"node\", und legen Sie das Attribut \"protocol\" auf \"inspector\" fest.",

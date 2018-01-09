@@ -1,5 +1,6 @@
 {
 	"command.category": "Merge Conflict",
+	"command.accept.all-current": "Accept All Current",
 	"command.accept.all-incoming": "Accept All Incoming",
 	"command.accept.all-both": "Accept All Both",
 	"command.accept.current": "Accept Current",

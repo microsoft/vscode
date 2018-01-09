@@ -7,7 +7,6 @@
 	"openFolderFirst": "Çalışma alanı ayarları oluşturmak için ilk olarak bir klasör açın",
 	"emptyKeybindingsHeader": "Varsayılanların üzerine yazmak için tuş bağlarınızı bu dosyaya yerleştirin",
 	"defaultKeybindings": "Varsayılan Tuş Bağları",
-	"emptySettingsHeader": "Varsayılan ayarların üzerine yazmak için ayarlarınızı bu dosyaya yerleştirin.",
-	"emptySettingsHeader1": "Varsayılan ayarların ve kullanıcı ayarlarının üzerine yazmak için ayarlarınızı bu dosyaya yerleştirin.",
+	"folderSettingsName": "{0} (Klasör Ayarları)",
 	"fail.createSettings": " '{0}' oluşturulamadı ({1})."
 }

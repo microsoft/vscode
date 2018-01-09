@@ -5,9 +5,9 @@
 
 'use strict';
 
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { nfcall, Queue } from 'vs/base/common/async';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -19,39 +19,14 @@ export function readdir(path: string): TPromise<string[]> {
 }
 
 export function exists(path: string): TPromise<boolean> {
-	return new Promise(c => fs.exists(path, c));
+	return new TPromise(c => fs.exists(path, c));
 }
 
 export function chmod(path: string, mode: number): TPromise<boolean> {
 	return nfcall(fs.chmod, path, mode);
 }
 
-export function mkdirp(path: string, mode?: number): TPromise<boolean> {
-	const mkdir = () => nfcall(fs.mkdir, path, mode)
-		.then(null, (err: NodeJS.ErrnoException) => {
-			if (err.code === 'EEXIST') {
-				return nfcall(fs.stat, path)
-					.then((stat: fs.Stats) => stat.isDirectory
-						? null
-						: Promise.wrapError(new Error(`'${path}' exists and is not a directory.`)));
-			}
-
-			return TPromise.wrapError<boolean>(err);
-		});
-
-	// is root?
-	if (path === dirname(path)) {
-		return TPromise.as(true);
-	}
-
-	return mkdir().then(null, (err: NodeJS.ErrnoException) => {
-		if (err.code === 'ENOENT') {
-			return mkdirp(dirname(path), mode).then(mkdir);
-		}
-
-		return TPromise.wrapError<boolean>(err);
-	});
-}
+export import mkdirp = extfs.mkdirp;
 
 export function rimraf(path: string): TPromise<void> {
 	return lstat(path).then(stat => {
@@ -83,15 +58,15 @@ export function lstat(path: string): TPromise<fs.Stats> {
 	return nfcall(fs.lstat, path);
 }
 
-export function rename(oldPath: string, newPath: string): Promise {
+export function rename(oldPath: string, newPath: string): TPromise<void> {
 	return nfcall(fs.rename, oldPath, newPath);
 }
 
-export function rmdir(path: string): Promise {
+export function rmdir(path: string): TPromise<void> {
 	return nfcall(fs.rmdir, path);
 }
 
-export function unlink(path: string): Promise {
+export function unlink(path: string): TPromise<void> {
 	return nfcall(fs.unlink, path);
 }
 
@@ -109,6 +84,10 @@ export function touch(path: string): TPromise<void> {
 	return nfcall(fs.utimes, path, now, now);
 }
 
+export function truncate(path: string, len: number): TPromise<void> {
+	return nfcall(fs.truncate, path, len);
+}
+
 export function readFile(path: string): TPromise<Buffer>;
 export function readFile(path: string, encoding: string): TPromise<string>;
 export function readFile(path: string, encoding?: string): TPromise<Buffer | string> {
@@ -120,12 +99,12 @@ export function readFile(path: string, encoding?: string): TPromise<Buffer | str
 // Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
 const writeFilePathQueue: { [path: string]: Queue<void> } = Object.create(null);
 
-export function writeFile(path: string, data: string, encoding?: string): TPromise<void>;
-export function writeFile(path: string, data: NodeBuffer, encoding?: string): TPromise<void>;
-export function writeFile(path: string, data: any, encoding: string = 'utf8'): TPromise<void> {
+export function writeFile(path: string, data: string, options?: { mode?: number; flag?: string; }): TPromise<void>;
+export function writeFile(path: string, data: NodeBuffer, options?: { mode?: number; flag?: string; }): TPromise<void>;
+export function writeFile(path: string, data: any, options?: { mode?: number; flag?: string; }): TPromise<void> {
 	let queueKey = toQueueKey(path);
 
-	return ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, encoding));
+	return ensureWriteFileQueue(queueKey).queue(() => nfcall(extfs.writeFileAndFlush, path, data, options));
 }
 
 function toQueueKey(path: string): string {
@@ -184,4 +163,25 @@ export function fileExists(path: string): TPromise<boolean> {
 const tmpDir = os.tmpdir();
 export function del(path: string, tmp = tmpDir): TPromise<void> {
 	return nfcall(extfs.del, path, tmp);
+}
+
+export function whenDeleted(path: string): TPromise<void> {
+
+	// Complete when wait marker file is deleted
+	return new TPromise<void>(c => {
+		let running = false;
+		const interval = setInterval(() => {
+			if (!running) {
+				running = true;
+				fs.exists(path, exists => {
+					running = false;
+
+					if (!exists) {
+						clearInterval(interval);
+						c(null);
+					}
+				});
+			}
+		}, 1000);
+	});
 }

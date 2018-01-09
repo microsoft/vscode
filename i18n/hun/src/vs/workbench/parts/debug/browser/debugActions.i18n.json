@@ -30,7 +30,6 @@
 	"deactivateBreakpoints": "Töréspontok deaktiválása",
 	"reapplyAllBreakpoints": "Töréspontok felvétele ismét",
 	"addFunctionBreakpoint": "Függvénytöréspont hozzáadása",
-	"renameFunctionBreakpoint": "Függvénytöréspont átnevezése",
 	"addConditionalBreakpoint": "Feltételes töréspont hozzáadása...",
 	"editConditionalBreakpoint": "Töréspont szerkesztése...",
 	"setValue": "Érték beállítása",

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
-const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;]'; // '":; are allowed in paths but they are often separators so ignore them
-const escapedExcludedPathCharactersClause = '(\\\\s|\\\\!|\\\\$|\\\\`|\\\\&|\\\\*|(|)|\\+)';
+// '":; are allowed in paths but they are often separators so ignore them
+// Also disallow \\ to prevent a catastropic backtracking case #24798
+const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;\\\\]';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
-const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + '|' + escapedExcludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + '|' + escapedExcludedPathCharactersClause + ')+)+)';
+const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + ')+)+)';
 
 const winDrivePrefix = '[a-zA-Z]:';
 const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
@@ -33,6 +33,7 @@ const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharacte
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
 replacing space with nonBreakningSpace or space ASCII code - 32. */
 const lineAndColumnClause = [
+	'((\\S*)", line ((\\d+)( column (\\d+))?))', // "(file path)", line 45 [see #40468]
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
 	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
 	'(([^\\s\\(\\)]*)(\\s?[\\(\\[](\\d+)(,\\s?(\\d+))?)[\\)\\]])', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18), (file path)(45, 18), (file path) (45, 18), also with []
@@ -41,7 +42,7 @@ const lineAndColumnClause = [
 
 // Changing any regex may effect this value, hence changes this as well if required.
 const winLineAndColumnMatchIndex = 12;
-const unixLineAndColumnMatchIndex = 15;
+const unixLineAndColumnMatchIndex = 11;
 
 // Each line and column clause have 6 groups (ie no. of expressions in round brackets)
 const lineAndColumnClauseGroupCount = 6;
@@ -52,7 +53,7 @@ const CUSTOM_LINK_PRIORITY = -1;
 const LOCAL_LINK_PRIORITY = -2;
 
 export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolean | void;
-export type XtermLinkMatcherValidationCallback = (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void;
+export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
 
 export class TerminalLinkHandler {
 	private _hoverDisposables: IDisposable[] = [];
@@ -66,15 +67,19 @@ export class TerminalLinkHandler {
 		private _platform: platform.Platform,
 		private _initialCwd: string,
 		@IOpenerService private _openerService: IOpenerService,
-		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IConfigurationService private _configurationService: IConfigurationService,
+		@ITerminalService private _terminalService: ITerminalService
 	) {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
-		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(() => true));
-		this._xterm.setHypertextValidationCallback((uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => {
-			this._validateWebLink(uri, element, callback);
+
+		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(uri => {
+			this._handleHypertextLink(uri);
+		}));
+
+		this._xterm.setHypertextValidationCallback((uri: string, callback: (isValid: boolean) => void) => {
+			this._validateWebLink(uri, callback);
 		});
 	}
 
@@ -83,17 +88,11 @@ export class TerminalLinkHandler {
 	}
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
-		const wrappedValidationCallback = (uri, element, callback) => {
-			this._addTooltipEventListeners(element);
-			if (validationCallback) {
-				validationCallback(uri, element, callback);
-			} else {
-				callback(true);
-			}
-		};
 		return this._xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
 			matchIndex,
-			validationCallback: wrappedValidationCallback,
+			validationCallback: (uri: string, callback: (isValid: boolean) => void) => validationCallback(uri, callback),
+			tooltipCallback: (e: MouseEvent, u) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
+			leaveCallback: () => this._widgetManager.closeMessage(),
 			priority: CUSTOM_LINK_PRIORITY
 		});
 	}
@@ -101,11 +100,12 @@ export class TerminalLinkHandler {
 	public registerLocalLinkHandler(): number {
 		const wrappedHandler = this._wrapLinkHandler(url => {
 			this._handleLocalLink(url);
-			return;
 		});
 
 		return this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
-			validationCallback: (link: string, element: HTMLElement, callback: (isValid: boolean) => void) => this._validateLocalLink(link, element, callback),
+			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
+			tooltipCallback: (e: MouseEvent, u) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
+			leaveCallback: () => this._widgetManager.closeMessage(),
 			priority: LOCAL_LINK_PRIORITY
 		});
 	}
@@ -117,9 +117,13 @@ export class TerminalLinkHandler {
 
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
 		return (event: MouseEvent, uri: string) => {
+			// Prevent default electron link handling so Alt+Click mode works normally
+			event.preventDefault();
 			// Require correct modifier on click
 			if (!this._isLinkActivationModifierDown(event)) {
-				event.preventDefault();
+				// If the modifier is not pressed, the terminal should be
+				// focused if it's not already
+				this._terminalService.getActiveInstance().focus(true);
 				return false;
 			}
 			return handler(uri);
@@ -150,22 +154,21 @@ export class TerminalLinkHandler {
 		});
 	}
 
-	private _validateLocalLink(link: string, element: HTMLElement, callback: (isValid: boolean) => void): void {
-		this._resolvePath(link).then(resolvedLink => {
-			if (resolvedLink) {
-				this._addTooltipEventListeners(element);
-			}
-			callback(!!resolvedLink);
-		});
+	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {
+		this._resolvePath(link).then(resolvedLink => callback(!!resolvedLink));
 	}
 
-	private _validateWebLink(link: string, element: HTMLElement, callback: (isValid: boolean) => void): void {
-		this._addTooltipEventListeners(element);
+	private _validateWebLink(link: string, callback: (isValid: boolean) => void): void {
 		callback(true);
 	}
 
+	private _handleHypertextLink(url: string): void {
+		let uri = Uri.parse(url);
+		this._openerService.open(uri);
+	}
+
 	private _isLinkActivationModifierDown(event: MouseEvent): boolean {
-		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			return !!event.altKey;
 		}
@@ -173,7 +176,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _getLinkHoverString(): string {
-		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			return nls.localize('terminalLinkHandler.followLinkAlt', 'Alt + click to follow link');
 		}
@@ -181,30 +184,6 @@ export class TerminalLinkHandler {
 			return nls.localize('terminalLinkHandler.followLinkCmd', 'Cmd + click to follow link');
 		}
 		return nls.localize('terminalLinkHandler.followLinkCtrl', 'Ctrl + click to follow link');
-	}
-
-	private _addTooltipEventListeners(element: HTMLElement): void {
-		let timeout = null;
-		let isMessageShowing = false;
-		this._hoverDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, e => {
-			element.classList.toggle('active', this._isLinkActivationModifierDown(e));
-			this._mouseMoveDisposable = dom.addDisposableListener(element, dom.EventType.MOUSE_MOVE, e => {
-				element.classList.toggle('active', this._isLinkActivationModifierDown(e));
-			});
-			timeout = setTimeout(() => {
-				this._widgetManager.showMessage(element.offsetLeft, element.offsetTop, this._getLinkHoverString());
-				isMessageShowing = true;
-			}, 500);
-		}));
-		this._hoverDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => {
-			element.classList.remove('active');
-			if (this._mouseMoveDisposable) {
-				this._mouseMoveDisposable.dispose();
-			}
-			clearTimeout(timeout);
-			this._widgetManager.closeMessage();
-			isMessageShowing = false;
-		}));
 	}
 
 	protected _preprocessPath(link: string): string {
@@ -318,4 +297,4 @@ export class TerminalLinkHandler {
 export interface LineColumnInfo {
 	lineNumber?: string;
 	columnNumber?: string;
-};
+}

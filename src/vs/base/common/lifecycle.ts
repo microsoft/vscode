@@ -7,12 +7,17 @@
 
 import { once } from 'vs/base/common/functional';
 
-export const empty: IDisposable = Object.freeze({
+export const empty: IDisposable = Object.freeze<IDisposable>({
 	dispose() { }
 });
 
 export interface IDisposable {
 	dispose(): void;
+}
+
+export function isDisposable<E extends object>(thing: E): thing is E & IDisposable {
+	return typeof (<IDisposable><any>thing).dispose === 'function'
+		&& (<IDisposable><any>thing).dispose.length === 0;
 }
 
 export function dispose<T extends IDisposable>(disposable: T): T;
@@ -65,22 +70,6 @@ export abstract class Disposable implements IDisposable {
 	protected _register<T extends IDisposable>(t: T): T {
 		this._toDispose.push(t);
 		return t;
-	}
-}
-
-export class OneDisposable implements IDisposable {
-
-	private _value: IDisposable;
-
-	set value(value: IDisposable) {
-		if (this._value) {
-			this._value.dispose();
-		}
-		this._value = value;
-	}
-
-	dispose() {
-		this.value = null;
 	}
 }
 

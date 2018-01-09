@@ -31,6 +31,10 @@ export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED: ContextKeyExpr = KEY
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('terminalFindWidgetVisible', undefined);
 /**  A context key that is set when the find widget in integrated terminal is not visible. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.toNegated();
+/**  A context key that is set when the find widget find input in integrated terminal is focused. */
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('terminalFindWidgetInputFocused', false);
+/**  A context key that is set when the find widget find input in integrated terminal is not focused. */
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
@@ -59,7 +63,7 @@ export interface ITerminalConfiguration {
 	cursorBlinking: boolean;
 	cursorStyle: string;
 	fontFamily: string;
-	fontLigatures: boolean;
+	// fontLigatures: boolean;
 	fontSize: number;
 	lineHeight: number;
 	setLocaleVariables: boolean;
@@ -67,11 +71,13 @@ export interface ITerminalConfiguration {
 	commandsToSkipShell: string[];
 	cwd: string;
 	confirmOnExit: boolean;
+	enableBell: boolean;
 	env: {
 		linux: { [key: string]: string };
 		osx: { [key: string]: string };
 		windows: { [key: string]: string };
 	};
+	showExitAlert: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -87,10 +93,10 @@ export interface ITerminalConfigHelper {
 
 export interface ITerminalFont {
 	fontFamily: string;
-	fontSize: string;
+	fontSize: number;
 	lineHeight: number;
-	charWidth: number;
-	charHeight: number;
+	charWidth?: number;
+	charHeight?: number;
 }
 
 export interface IShellLaunchConfig {
@@ -147,6 +153,7 @@ export interface ITerminalService {
 
 	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
+	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
@@ -159,6 +166,9 @@ export interface ITerminalService {
 	hidePanel(): void;
 	focusFindWidget(): TPromise<void>;
 	hideFindWidget(): void;
+	showNextFindTermFindWidget(): void;
+	showPreviousFindTermFindWidget(): void;
+
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	updateConfig(): void;
 	selectDefaultWindowsShell(): TPromise<string>;
@@ -203,6 +213,12 @@ export interface ITerminalInstance {
 	hadFocusOnExit: boolean;
 
 	/**
+	 * False when the title is set by an API or the user. We check this to make sure we
+	 * do not override the title when the process title changes in the terminal.
+	 */
+	isTitleSetByProcess: boolean;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 */
 	dispose(): void;
@@ -218,7 +234,7 @@ export interface ITerminalInstance {
 	 * added to the DOM.
 	 * @return The ID of the new matcher, this can be used to deregister.
 	 */
-	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void): number;
+	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number;
 
 	/**
 	 * Deregisters a link matcher if it has been registered.
@@ -322,6 +338,12 @@ export interface ITerminalInstance {
 	updateConfig(): void;
 
 	/**
+	 * Updates the accessibility support state of the terminal instance.
+	 * @param isEnabled Whether it's enabled.
+	 */
+	updateAccessibilitySupport(isEnabled: boolean): void;
+
+	/**
 	 * Configure the dimensions of the terminal instance.
 	 *
 	 * @param dimension The dimensions of the container.
@@ -336,12 +358,16 @@ export interface ITerminalInstance {
 	setVisible(visible: boolean): void;
 
 	/**
-	 * Attach a listener to the data stream from the terminal's pty process.
+	 * Attach a listener to listen for new lines added to this terminal instance.
 	 *
-	 * @param listener The listener function which takes the processes' data stream (including
-	 * ANSI escape sequences).
+	 * @param listener The listener function which takes new line strings added to the terminal,
+	 * excluding ANSI escape sequences. The line event will fire when an LF character is added to
+	 * the terminal (ie. the line is not wrapped). Note that this means that the line data will
+	 * not fire for the last line, until either the line is ended with a LF character of the process
+	 * is exited. The lineData string will contain the fully wrapped line, not containing any LF/CR
+	 * characters.
 	 */
-	onData(listener: (data: string) => void): IDisposable;
+	onLineData(listener: (lineData: string) => void): IDisposable;
 
 	/**
 	 * Attach a listener that fires when the terminal's pty process exits.
@@ -361,5 +387,5 @@ export interface ITerminalInstance {
 	/**
 	 * Sets the title of the terminal instance.
 	 */
-	setTitle(title: string): void;
+	setTitle(title: string, eventFromProcess: boolean): void;
 }

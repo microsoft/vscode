@@ -27,23 +27,57 @@
 	height: calc(100% - 38px);
 }
 
+.extensions-viewlet > .extensions .extensions-list > .monaco-list {
+	height: auto;
+}
+
+.extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item > .octicon {
+	font-size: 12px;
+	line-height: 1;
+	margin-right: 10px;
+}
+
+.extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item.disabled  {
+	display: none;
+}
+
 .extensions-viewlet > .extensions .extensions-list.hidden,
 .extensions-viewlet > .extensions .message.hidden {
 	display: none;
 	visibility: hidden;
 }
 
-.extensions-viewlet > .extensions .header {
+.extensions-viewlet > .extensions .panel-header {
 	padding-right: 12px;
 }
 
-.extensions-viewlet > .extensions .header > .title {
+.extensions-viewlet > .extensions .panel-header > .title {
 	flex: 1;
 }
 
 .extensions-viewlet > .extensions .message {
 	padding: 5px 9px 5px 16px;
 	cursor: default;
+}
+
+.extensions-viewlet > .extensions .monaco-list-row > .bookmark {
+	display: none;
+}
+
+.extensions-viewlet > .extensions .monaco-list-row.recommended > .bookmark {
+	display: inline-block;
+	height: 20px;
+	width: 20px;
+	border-right: 20px solid transparent;
+	border-top: 20px solid;
+	box-sizing: border-box;
+}
+
+.extensions-viewlet > .extensions .monaco-list-row > .bookmark > .octicon {
+	position: absolute;
+	top: 1px;
+	left: 1px;
+	font-size: 90%;
 }
 
 .extensions-viewlet > .extensions .extension {
@@ -53,6 +87,8 @@
 	padding: 0 11px 0 16px;
 	overflow: hidden;
 	display: flex;
+	position: absolute;
+	top: 0;
 }
 
 .extensions-viewlet > .extensions .extension.loading {
@@ -94,7 +130,6 @@
 	overflow: hidden;
 	flex: 1;
 	min-width: 0;
-
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .name {
@@ -154,6 +189,10 @@
 	margin-right: 0;
 	margin-left: 0.3em;
 	line-height: 15px;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label:not(:empty) {
+	opacity: 0.9;
 }
 
 .extensions-viewlet > .extensions .extension.disabled > .icon,

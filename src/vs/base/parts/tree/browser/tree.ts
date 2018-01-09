@@ -6,7 +6,6 @@
 
 import WinJS = require('vs/base/common/winjs.base');
 import Touch = require('vs/base/browser/touch');
-import Events = require('vs/base/common/eventEmitter');
 import Mouse = require('vs/base/browser/mouseEvent');
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import { INavigator } from 'vs/base/common/iterator';
@@ -14,15 +13,18 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import Event from 'vs/base/common/event';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { Color } from 'vs/base/common/color';
+import { IItemCollapseEvent, IItemExpandEvent } from 'vs/base/parts/tree/browser/treeModel';
 
-export interface ITree extends Events.IEventEmitter {
+export interface ITree {
 
-	emit(eventType: string, data?: any): void;
-
-	onDOMFocus: Event<void>;
-	onDOMBlur: Event<void>;
-	onHighlightChange: Event<void>;
-	onDispose: Event<void>;
+	onDidFocus: Event<void>;
+	onDidBlur: Event<void>;
+	onDidChangeFocus: Event<IFocusEvent>;
+	onDidChangeSelection: Event<ISelectionEvent>;
+	onDidChangeHighlight: Event<IHighlightEvent>;
+	onDidExpandItem: Event<IItemExpandEvent>;
+	onDidCollapseItem: Event<IItemCollapseEvent>;
+	onDidDispose: Event<void>;
 
 	/**
 	 * Returns the tree's DOM element.
@@ -102,9 +104,16 @@ export interface ITree extends Events.IEventEmitter {
 	collapseAll(elements?: any[], recursive?: boolean): WinJS.Promise;
 
 	/**
+	 * Collapses several elements.
+	 * Collapses all elements at the greatest tree depth that has expanded elements.
+	 * The returned promise returns a boolean for whether the elements were collapsed or not.
+	 */
+	collapseDeepestExpandedLevel(): WinJS.Promise;
+
+	/**
 	 * Toggles an element's expansion state.
 	 */
-	toggleExpansion(element: any): WinJS.Promise;
+	toggleExpansion(element: any, recursive?: boolean): WinJS.Promise;
 
 	/**
 	 * Toggles several element's expansion state.
@@ -670,6 +679,7 @@ export interface ITreeOptions extends ITreeStyles {
 	paddingOnRow?: boolean;
 	ariaLabel?: string;
 	keyboardSupport?: boolean;
+	preventRootFocus?: boolean;
 }
 
 export interface ITreeStyles {

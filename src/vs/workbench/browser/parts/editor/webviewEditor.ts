@@ -14,11 +14,6 @@ export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
 }
 
-interface HtmlPreviewEditorViewStates {
-	0?: HtmlPreviewEditorViewState;
-	1?: HtmlPreviewEditorViewState;
-	2?: HtmlPreviewEditorViewState;
-}
 
 /**
  * This class is only intended to be subclassed and not instantiated.
@@ -40,13 +35,13 @@ export abstract class BaseWebviewEditor extends BaseEditor {
 
 	protected saveViewState(resource: URI | string, editorViewState: HtmlPreviewEditorViewState): void {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		let editorViewStateMemento = memento[this.viewStateStorageKey];
+		let editorViewStateMemento: { [key: string]: { [position: number]: HtmlPreviewEditorViewState } } = memento[this.viewStateStorageKey];
 		if (!editorViewStateMemento) {
 			editorViewStateMemento = Object.create(null);
 			memento[this.viewStateStorageKey] = editorViewStateMemento;
 		}
 
-		let fileViewState: HtmlPreviewEditorViewStates = editorViewStateMemento[resource.toString()];
+		let fileViewState = editorViewStateMemento[resource.toString()];
 		if (!fileViewState) {
 			fileViewState = Object.create(null);
 			editorViewStateMemento[resource.toString()] = fileViewState;
@@ -59,9 +54,9 @@ export abstract class BaseWebviewEditor extends BaseEditor {
 
 	protected loadViewState(resource: URI | string): HtmlPreviewEditorViewState | null {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		const editorViewStateMemento = memento[this.viewStateStorageKey];
+		const editorViewStateMemento: { [key: string]: { [position: number]: HtmlPreviewEditorViewState } } = memento[this.viewStateStorageKey];
 		if (editorViewStateMemento) {
-			const fileViewState: HtmlPreviewEditorViewStates = editorViewStateMemento[resource.toString()];
+			const fileViewState = editorViewStateMemento[resource.toString()];
 			if (fileViewState) {
 				return fileViewState[this.position];
 			}

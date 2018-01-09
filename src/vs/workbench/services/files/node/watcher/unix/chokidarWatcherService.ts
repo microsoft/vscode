@@ -5,7 +5,7 @@
 
 'use strict';
 
-import chokidar = require('chokidar');
+import chokidar = require('vscode-chokidar');
 import fs = require('fs');
 
 import gracefulFs = require('graceful-fs');
@@ -22,8 +22,8 @@ import { IWatcherRequest, IWatcherService } from './watcher';
 
 export class ChokidarWatcherService implements IWatcherService {
 
-	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
-	private static EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
+	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
+	private static readonly EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
 
 	private spamCheckStartTime: number;
 	private spamWarningLogged: boolean;
@@ -63,6 +63,12 @@ export class ChokidarWatcherService implements IWatcherService {
 
 		return new TPromise<void>((c, e, p) => {
 			chokidarWatcher.on('all', (type: string, path: string) => {
+				if (isMacintosh) {
+					// Mac: uses NFD unicode form on disk, but we want NFC
+					// See also https://github.com/nodejs/node/issues/2165
+					path = strings.normalizeNFC(path);
+				}
+
 				if (path.indexOf(realBasePath) < 0) {
 					return; // we really only care about absolute paths here in our basepath context here
 				}

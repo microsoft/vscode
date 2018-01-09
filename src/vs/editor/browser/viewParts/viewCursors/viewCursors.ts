@@ -101,8 +101,8 @@ export class ViewCursors extends ViewPart {
 		}
 		return true;
 	}
-	private _onCursorPositionChanged(position: Position, secondaryPositions: Position[], isInEditableRange: boolean): void {
-		this._primaryCursor.onCursorPositionChanged(position, isInEditableRange);
+	private _onCursorPositionChanged(position: Position, secondaryPositions: Position[]): void {
+		this._primaryCursor.onCursorPositionChanged(position);
 		this._updateBlinking();
 
 		if (this._secondaryCursors.length < secondaryPositions.length) {
@@ -123,7 +123,7 @@ export class ViewCursors extends ViewPart {
 		}
 
 		for (let i = 0; i < secondaryPositions.length; i++) {
-			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i], isInEditableRange);
+			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i]);
 		}
 
 	}
@@ -132,7 +132,7 @@ export class ViewCursors extends ViewPart {
 		for (let i = 0, len = e.selections.length; i < len; i++) {
 			positions[i] = e.selections[i].getPosition();
 		}
-		this._onCursorPositionChanged(positions[0], positions.slice(1), e.isInEditableRange);
+		this._onCursorPositionChanged(positions[0], positions.slice(1));
 
 		const selectionIsEmpty = e.selections[0].isEmpty();
 		if (this._selectionIsEmpty !== selectionIsEmpty) {
@@ -192,17 +192,13 @@ export class ViewCursors extends ViewPart {
 
 	// --- end event handlers
 
-	public getPosition(): Position {
-		return this._primaryCursor.getPosition();
-	}
-
 	// ---- blinking logic
 
 	private _getCursorBlinking(): TextEditorCursorBlinkingStyle {
 		if (!this._editorHasFocus) {
 			return TextEditorCursorBlinkingStyle.Hidden;
 		}
-		if (this._readOnly || !this._primaryCursor.getIsInEditableRange()) {
+		if (this._readOnly) {
 			return TextEditorCursorBlinkingStyle.Solid;
 		}
 		return this._cursorBlinking;
@@ -330,14 +326,21 @@ export class ViewCursors extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		this._renderData = [];
-		this._renderData.push(this._primaryCursor.render(ctx));
-		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._renderData.push(this._secondaryCursors[i].render(ctx));
+		let renderData: IViewCursorRenderData[] = [], renderDataLen = 0;
+
+		const primaryRenderData = this._primaryCursor.render(ctx);
+		if (primaryRenderData) {
+			renderData[renderDataLen++] = primaryRenderData;
 		}
 
-		// Keep only data of cursors that are visible
-		this._renderData = this._renderData.filter(d => !!d);
+		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
+			const secondaryRenderData = this._secondaryCursors[i].render(ctx);
+			if (secondaryRenderData) {
+				renderData[renderDataLen++] = secondaryRenderData;
+			}
+		}
+
+		this._renderData = renderData;
 	}
 
 	public getLastRenderData(): IViewCursorRenderData[] {

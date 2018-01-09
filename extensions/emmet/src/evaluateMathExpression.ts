@@ -10,11 +10,11 @@ import evaluate from '@emmetio/math-expression';
 import { DocumentStreamReader } from './bufferStream';
 
 export function evaluateMathExpression() {
-	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
+	if (!vscode.window.activeTextEditor) {
 		vscode.window.showInformationMessage('No editor is active');
 		return;
 	}
+	const editor = vscode.window.activeTextEditor;
 	const stream = new DocumentStreamReader(editor.document);
 	editor.edit(editBuilder => {
 		editor.selections.forEach(selection => {
@@ -25,6 +25,7 @@ export function evaluateMathExpression() {
 				const result = String(evaluate(stream, true));
 				editBuilder.replace(new vscode.Range(stream.pos, pos), result);
 			} catch (err) {
+				vscode.window.showErrorMessage('Could not evaluate expression');
 				// Ignore error since most likely it’s because of non-math expression
 				console.warn('Math evaluation error', err);
 			}

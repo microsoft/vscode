@@ -4,48 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { disposed } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILineChange } from 'vs/editor/common/editorCommon';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { IDecorationRenderOptions, IDecorationOptions, ILineChange } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation } from 'vs/editor/common/model';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions } from 'vs/workbench/api/node/extHost.protocol';
-
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals as objectEquals } from 'vs/base/common/objects';
-import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IExtHostContext, IWorkspaceResourceEdit } from '../node/extHost.protocol';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { bulkEdit, IResourceEdit } from 'vs/editor/browser/services/bulkEdit';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
-export class MainThreadEditors extends MainThreadEditorsShape {
+export class MainThreadEditors implements MainThreadEditorsShape {
 
 	private _proxy: ExtHostEditorsShape;
 	private _documentsAndEditors: MainThreadDocumentsAndEditors;
 	private _workbenchEditorService: IWorkbenchEditorService;
-	private _telemetryService: ITelemetryService;
 	private _toDispose: IDisposable[];
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
 	private _editorPositionData: ITextEditorPositionData;
+	private _registeredDecorationTypes: { [decorationType: string]: boolean; };
 
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
+		extHostContext: IExtHostContext,
 		@ICodeEditorService private _codeEditorService: ICodeEditorService,
-		@IThreadService threadService: IThreadService,
 		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IFileService private readonly _fileService: IFileService,
+		@IModelService private readonly _modelService: IModelService,
 	) {
-		super();
-		this._proxy = threadService.get(ExtHostContext.ExtHostEditors);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
 		this._workbenchEditorService = workbenchEditorService;
-		this._telemetryService = telemetryService;
 		this._toDispose = [];
 		this._textEditorsListenersMap = Object.create(null);
 		this._editorPositionData = null;
@@ -54,7 +58,9 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		this._toDispose.push(documentsAndEditors.onTextEditorRemove(editors => editors.forEach(this._onTextEditorRemove, this)));
 
 		this._toDispose.push(editorGroupService.onEditorsChanged(() => this._updateActiveAndVisibleTextEditors()));
-		this._toDispose.push(editorGroupService.onEditorsMoved(() => this._updateActiveAndVisibleTextEditors()));
+		this._toDispose.push(editorGroupService.onEditorGroupMoved(() => this._updateActiveAndVisibleTextEditors()));
+
+		this._registeredDecorationTypes = Object.create(null);
 	}
 
 	public dispose(): void {
@@ -63,6 +69,10 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		});
 		this._textEditorsListenersMap = Object.create(null);
 		this._toDispose = dispose(this._toDispose);
+		for (let decorationType in this._registeredDecorationTypes) {
+			this._codeEditorService.removeDecorationType(decorationType);
+		}
+		this._registeredDecorationTypes = Object.create(null);
 	}
 
 	private _onTextEditorAdd(textEditor: MainThreadTextEditor): void {
@@ -106,7 +116,9 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	// --- from extension host process
 
-	$tryShowTextDocument(resource: URI, options: ITextDocumentShowOptions): TPromise<string> {
+	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): TPromise<string> {
+		const uri = URI.revive(resource);
+
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.pinned,
@@ -114,7 +126,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		};
 
 		const input = {
-			resource,
+			resource: uri,
 			options: editorOptions
 		};
 
@@ -127,9 +139,6 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 	}
 
 	$tryShowEditor(id: string, position: EditorPosition): TPromise<void> {
-		// check how often this is used
-		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.show' });
-
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let model = mainThreadEditor.getModel();
@@ -142,9 +151,6 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 	}
 
 	$tryHideEditor(id: string): TPromise<void> {
-		// check how often this is used
-		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.hide' });
-
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let editors = this._workbenchEditorService.getVisibleEditors();
@@ -157,33 +163,41 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		return undefined;
 	}
 
-	$trySetSelections(id: string, selections: ISelection[]): TPromise<any> {
+	$trySetSelections(id: string, selections: ISelection[]): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(new Error('TextEditor disposed'));
+			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setSelections(selections);
 		return TPromise.as(null);
 	}
 
-	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<any> {
+	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(new Error('TextEditor disposed'));
+			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorations(key, ranges);
 		return TPromise.as(null);
 	}
 
-	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any> {
+	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(new Error('TextEditor disposed'));
+			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+		}
+		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, ranges);
+		return TPromise.as(null);
+	}
+
+	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void> {
+		if (!this._documentsAndEditors.getEditor(id)) {
+			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).revealRange(range, revealType);
 		return undefined;
 	}
 
-	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> {
+	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(new Error('TextEditor disposed'));
+			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setConfiguration(options);
 		return TPromise.as(null);
@@ -191,23 +205,72 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError<boolean>(new Error('TextEditor disposed'));
+			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
 		}
 		return TPromise.as(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
 	}
 
+	$tryApplyWorkspaceEdit(workspaceResourceEdits: IWorkspaceResourceEdit[]): TPromise<boolean> {
+
+		// First check if loaded models were not changed in the meantime
+		for (let i = 0, len = workspaceResourceEdits.length; i < len; i++) {
+			const workspaceResourceEdit = workspaceResourceEdits[i];
+			if (workspaceResourceEdit.modelVersionId) {
+				const uri = URI.revive(workspaceResourceEdit.resource);
+				let model = this._modelService.getModel(uri);
+				if (model && model.getVersionId() !== workspaceResourceEdit.modelVersionId) {
+					// model changed in the meantime
+					return TPromise.as(false);
+				}
+			}
+		}
+
+		// Convert to shape expected by bulkEdit below
+		let resourceEdits: IResourceEdit[] = [];
+		for (let i = 0, len = workspaceResourceEdits.length; i < len; i++) {
+			const workspaceResourceEdit = workspaceResourceEdits[i];
+			const uri = URI.revive(workspaceResourceEdit.resource);
+			const edits = workspaceResourceEdit.edits;
+
+			for (let j = 0, lenJ = edits.length; j < lenJ; j++) {
+				const edit = edits[j];
+
+				resourceEdits.push({
+					resource: uri,
+					newText: edit.newText,
+					newEol: edit.newEol,
+					range: edit.range
+				});
+			}
+		}
+
+		let codeEditor: ICodeEditor;
+		let editor = this._workbenchEditorService.getActiveEditor();
+		if (editor) {
+			let candidate = editor.getControl();
+			if (isCodeEditor(candidate)) {
+				codeEditor = candidate;
+			}
+		}
+
+		return bulkEdit(this._textModelResolverService, codeEditor, resourceEdits, this._fileService)
+			.then(() => true);
+	}
+
 	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): TPromise<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError<boolean>(new Error('TextEditor disposed'));
+			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
 		}
 		return TPromise.as(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {
+		this._registeredDecorationTypes[key] = true;
 		this._codeEditorService.registerDecorationType(key, options);
 	}
 
 	$removeTextEditorDecorationType(key: string): void {
+		delete this._registeredDecorationTypes[key];
 		this._codeEditorService.removeDecorationType(key);
 	}
 

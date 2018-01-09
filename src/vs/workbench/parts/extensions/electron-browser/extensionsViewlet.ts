@@ -25,30 +25,30 @@ import { append, $, addStandardDisposableListener, EventType, addClass, removeCl
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState, AutoUpdateConfigurationKey } from '../common/extensions';
 import {
-	ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
+	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { LocalExtensionType, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
-import { ExtensionsListView, InstalledExtensionsView, RecommendedExtensionsView } from './extensionsViews';
+import { ExtensionsListView, InstalledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView } from './extensionsViews';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
-import { IActivityBarService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/parts/views/browser/viewsRegistry';
-import { ComposedViewsViewlet, IView } from 'vs/workbench/parts/views/browser/views';
+import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
+import { PersistentViewsViewlet, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
@@ -57,18 +57,18 @@ interface SearchInputEvent extends Event {
 	immediate?: boolean;
 }
 
-const ExtensionsViewletVisibleContext = new RawContextKey<boolean>('extensionsViewletVisible', false);
+const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const SearchExtensionsContext = new RawContextKey<boolean>('searchExtensions', false);
 const SearchInstalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
-const SearchRecommendedExtensionsContext = new RawContextKey<boolean>('searchRecommendedExtensions', false);
+const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
 
-export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensionsViewlet {
+export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtensionsViewlet {
 
 	private onSearchChange: EventOf<string>;
-	private extensionsViewletVisibleContextKey: IContextKey<boolean>;
+	private nonEmptyWorkspaceContextKey: IContextKey<boolean>;
 	private searchExtensionsContextKey: IContextKey<boolean>;
 	private searchInstalledExtensionsContextKey: IContextKey<boolean>;
-	private searchRecommendedExtensionsContextKey: IContextKey<boolean>;
+	private recommendedExtensionsContextKey: IContextKey<boolean>;
 
 	private searchDelayer: ThrottledDelayer<any>;
 	private root: HTMLElement;
@@ -79,15 +79,12 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 	private secondaryActions: IAction[];
 	private disposables: IDisposable[] = [];
 
-	private isAutoUpdateEnabled: boolean;
-
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProgressService private progressService: IProgressService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorInputService: IEditorGroupService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IMessageService private messageService: IMessageService,
 		@IViewletService private viewletService: IViewletService,
@@ -103,18 +100,15 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 
 		this.registerViews();
 		this.searchDelayer = new ThrottledDelayer(500);
-		this.extensionsViewletVisibleContextKey = ExtensionsViewletVisibleContext.bindTo(contextKeyService);
+		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);
 		this.searchExtensionsContextKey = SearchExtensionsContext.bindTo(contextKeyService);
 		this.searchInstalledExtensionsContextKey = SearchInstalledExtensionsContext.bindTo(contextKeyService);
-		this.searchRecommendedExtensionsContextKey = SearchRecommendedExtensionsContext.bindTo(contextKeyService);
+		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
 
-		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
-		this.isAutoUpdateEnabled = this.extensionsWorkbenchService.isAutoUpdateEnabled;
+		this.disposables.push(this.viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
 
-		this.configurationService.onDidUpdateConfiguration(() => {
-			const isAutoUpdateEnabled = this.extensionsWorkbenchService.isAutoUpdateEnabled;
-			if (this.isAutoUpdateEnabled !== isAutoUpdateEnabled) {
-				this.isAutoUpdateEnabled = isAutoUpdateEnabled;
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
 				this.secondaryActions = null;
 				this.updateTitleArea();
 			}
@@ -126,7 +120,9 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		viewDescriptors.push(this.createMarketPlaceExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createInstalledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createSearchInstalledExtensionsListViewDescriptor());
-		viewDescriptors.push(this.createRecommendedExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createDefaultRecommendedExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createOtherRecommendedExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createWorkspaceRecommendedExtensionsListViewDescriptor());
 		ViewsRegistry.registerViews(viewDescriptors);
 	}
 
@@ -136,8 +132,8 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			name: localize('marketPlace', "Marketplace"),
 			location: ViewLocation.Extensions,
 			ctor: ExtensionsListView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('extensionsViewletVisible'), ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions')),
-			size: 100
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions'), ContextKeyExpr.not('recommendedExtensions')),
+			weight: 100
 		};
 	}
 
@@ -147,8 +143,8 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			name: localize('installedExtensions', "Installed"),
 			location: ViewLocation.Extensions,
 			ctor: InstalledExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('extensionsViewletVisible'), ContextKeyExpr.not('searchExtensions')),
-			size: 50
+			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
+			weight: 30
 		};
 	}
 
@@ -158,24 +154,50 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			name: localize('searchInstalledExtensions', "Installed"),
 			location: ViewLocation.Extensions,
 			ctor: InstalledExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('extensionsViewletVisible'), ContextKeyExpr.has('searchInstalledExtensions')),
-			size: 50
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchInstalledExtensions')),
+			weight: 100
 		};
 	}
 
-	private createRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
+	private createDefaultRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
 			id: 'extensions.recommendedList',
 			name: localize('recommendedExtensions', "Recommended"),
 			location: ViewLocation.Extensions,
 			ctor: RecommendedExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.has('extensionsViewletVisible'), ContextKeyExpr.not('searchExtensions')),
-			size: 50,
+			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
+			weight: 70,
 			canToggleVisibility: true
 		};
 	}
 
-	create(parent: Builder): TPromise<void> {
+	private createOtherRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
+		return {
+			id: 'extensions.otherrecommendedList',
+			name: localize('otherRecommendedExtensions', "Other Recommendations"),
+			location: ViewLocation.Extensions,
+			ctor: RecommendedExtensionsView,
+			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions')),
+			weight: 50,
+			canToggleVisibility: true,
+			order: 2
+		};
+	}
+
+	private createWorkspaceRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
+		return {
+			id: 'extensions.workspaceRecommendedList',
+			name: localize('workspaceRecommendedExtensions', "Workspace Recommendations"),
+			location: ViewLocation.Extensions,
+			ctor: WorkspaceRecommendedExtensionsView,
+			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), ContextKeyExpr.has('nonEmptyWorkspace')),
+			weight: 50,
+			canToggleVisibility: true,
+			order: 1
+		};
+	}
+
+	async create(parent: Builder): TPromise<void> {
 		parent.addClass('extensions-viewlet');
 		this.root = parent.getHTMLElement();
 
@@ -204,14 +226,14 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 
 		this.onSearchChange = mapEvent(onSearchInput, e => e.target.value);
 
-		return this.extensionManagementService.getInstalled(LocalExtensionType.User)
-			.then(installed => {
-				if (installed.length === 0) {
-					this.searchBox.value = '@sort:installs';
-				}
-				this.searchExtensionsContextKey.set(!!this.searchBox.value);
-				return super.create(new Builder(this.extensionsBox));
-			});
+		await super.create(new Builder(this.extensionsBox));
+
+		const installed = await this.extensionManagementService.getInstalled(LocalExtensionType.User);
+
+		if (installed.length === 0) {
+			this.searchBox.value = '@sort:installs';
+			this.searchExtensionsContextKey.set(true);
+		}
 	}
 
 	public updateStyles(): void {
@@ -230,7 +252,6 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		const isVisibilityChanged = this.isVisible() !== visible;
 		return super.setVisible(visible).then(() => {
 			if (isVisibilityChanged) {
-				this.extensionsViewletVisibleContextKey.set(visible);
 				if (visible) {
 					this.searchBox.focus();
 					this.searchBox.setSelectionRange(0, this.searchBox.value.length);
@@ -266,9 +287,9 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 			this.secondaryActions = [
 				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
+				this.instantiationService.createInstance(ShowEnabledExtensionsAction, ShowEnabledExtensionsAction.ID, ShowEnabledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL),
-				this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, ShowWorkspaceRecommendedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
 				new Separator(),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs'),
@@ -276,7 +297,7 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.name', localize('sort by name', "Sort By: Name"), this.onSearchChange, 'name'),
 				new Separator(),
 				this.instantiationService.createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL),
-				...(this.isAutoUpdateEnabled ? [this.instantiationService.createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL)] : [this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL)]),
+				...(this.configurationService.getValue(AutoUpdateConfigurationKey) ? [this.instantiationService.createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL)] : [this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL)]),
 				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL),
 				new Separator(),
 				this.instantiationService.createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL),
@@ -304,12 +325,13 @@ export class ExtensionsViewlet extends ComposedViewsViewlet implements IExtensio
 		const value = this.searchBox.value || '';
 		this.searchExtensionsContextKey.set(!!value);
 		this.searchInstalledExtensionsContextKey.set(InstalledExtensionsView.isInsalledExtensionsQuery(value));
-		this.searchRecommendedExtensionsContextKey.set(RecommendedExtensionsView.isRecommendedExtensionsQuery(value));
+		this.recommendedExtensionsContextKey.set(ExtensionsListView.isRecommendedExtensionsQuery(value));
+		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 
-		await this.updateViews(!!value);
+		await this.updateViews([], !!value);
 	}
 
-	protected async updateViews(showAll?: boolean): TPromise<IView[]> {
+	protected async updateViews(unregisteredViews: IViewDescriptor[] = [], showAll = false): TPromise<ViewsViewletPanel[]> {
 		const created = await super.updateViews();
 		const toShow = showAll ? this.views : created;
 		if (toShow.length) {
@@ -403,14 +425,10 @@ export class StatusUpdater implements IWorkbenchContribution {
 	private badgeHandle: IDisposable;
 
 	constructor(
-		@IActivityBarService private activityBarService: IActivityBarService,
+		@IActivityService private activityService: IActivityService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		extensionsWorkbenchService.onChange(this.onServiceChange, this, this.disposables);
-	}
-
-	getId(): string {
-		return 'vs.extensions.statusupdater';
 	}
 
 	private onServiceChange(): void {
@@ -418,14 +436,14 @@ export class StatusUpdater implements IWorkbenchContribution {
 		dispose(this.badgeHandle);
 
 		if (this.extensionsWorkbenchService.local.some(e => e.state === ExtensionState.Installing)) {
-			this.badgeHandle = this.activityBarService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', "Extensions")), 'extensions-badge progress-badge');
+			this.badgeHandle = this.activityService.showActivity(VIEWLET_ID, new ProgressBadge(() => localize('extensions', "Extensions")), 'extensions-badge progress-badge');
 			return;
 		}
 
 		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated ? 1 : 0), 0);
 		if (outdated > 0) {
 			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
-			this.badgeHandle = this.activityBarService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
+			this.badgeHandle = this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
 		}
 	}
 

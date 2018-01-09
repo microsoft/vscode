@@ -6,6 +6,7 @@
 {
 	"newWindow": "Nova Janela",
 	"newWindowDesc": "Abrir uma nova janela",
-	"recentFolders": "Pastas Recentes",
-	"folderDesc": "{0} {1}"
+	"recentFolders": "Espaços de trabalho recentes",
+	"folderDesc": "{0} {1}",
+	"codeWorkspace": "Área de trabalho de código"
 }

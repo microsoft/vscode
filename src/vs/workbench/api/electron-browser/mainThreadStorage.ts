@@ -6,15 +6,22 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { MainThreadStorageShape } from '../node/extHost.protocol';
+import { MainThreadStorageShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
-export class MainThreadStorage extends MainThreadStorageShape {
+@extHostNamedCustomer(MainContext.MainThreadStorage)
+export class MainThreadStorage implements MainThreadStorageShape {
 
 	private _storageService: IStorageService;
 
-	constructor( @IStorageService storageService: IStorageService) {
-		super();
+	constructor(
+		extHostContext: IExtHostContext,
+		@IStorageService storageService: IStorageService
+	) {
 		this._storageService = storageService;
+	}
+
+	dispose(): void {
 	}
 
 	$getValue<T>(shared: boolean, key: string): TPromise<T> {
@@ -31,7 +38,7 @@ export class MainThreadStorage extends MainThreadStorageShape {
 		}
 	}
 
-	$setValue(shared: boolean, key: string, value: any): TPromise<any> {
+	$setValue(shared: boolean, key: string, value: any): TPromise<void> {
 		let jsonValue: any;
 		try {
 			jsonValue = JSON.stringify(value);

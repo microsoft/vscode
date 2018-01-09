@@ -4,31 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { parse, validate, getNode } from './util';
+import { parseDocument, validate, getNode } from './util';
 import { HtmlNode } from 'EmmetNode';
 
 export function removeTag() {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate(false)) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
+	const editor = vscode.window.activeTextEditor;
 
-	let rootNode = <HtmlNode>parse(editor.document);
+	let rootNode = <HtmlNode>parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}
 
 	let indentInSpaces = '';
-	for (let i = 0; i < editor.options.tabSize; i++) {
+	const tabSize: number = editor.options.tabSize ? +editor.options.tabSize : 0;
+	for (let i = 0; i < tabSize || 0; i++) {
 		indentInSpaces += ' ';
 	}
 
-	let rangesToRemove = [];
+	let rangesToRemove: vscode.Range[] = [];
 	editor.selections.reverse().forEach(selection => {
 		rangesToRemove = rangesToRemove.concat(getRangeToRemove(editor, rootNode, selection, indentInSpaces));
 	});
 
-	editor.edit(editBuilder => {
+	return editor.edit(editBuilder => {
 		rangesToRemove.forEach(range => {
 			editBuilder.replace(range, '');
 		});
@@ -43,14 +44,11 @@ function getRangeToRemove(editor: vscode.TextEditor, rootNode: HtmlNode, selecti
 	}
 
 	let openRange = new vscode.Range(nodeToUpdate.open.start, nodeToUpdate.open.end);
-	let closeRange = null;
+	let closeRange: vscode.Range | null = null;
 	if (nodeToUpdate.close) {
 		closeRange = new vscode.Range(nodeToUpdate.close.start, nodeToUpdate.close.end);
 	}
 
-	if (!openRange.contains(selection.start) && !closeRange.contains(selection.start)) {
-		return [];
-	}
 	let ranges = [openRange];
 	if (closeRange) {
 		for (let i = openRange.start.line + 1; i <= closeRange.start.line; i++) {

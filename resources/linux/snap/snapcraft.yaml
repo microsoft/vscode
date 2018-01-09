@@ -1,0 +1,42 @@
+name: @@NAME@@
+version: @@VERSION@@
+summary: Code editing. Redefined.
+description: |
+  Visual Studio Code is a new choice of tool that combines the
+  simplicity of a code editor with what developers need for the core
+  edit-build-debug cycle.
+
+grade: stable
+confinement: classic
+
+parts:
+  code:
+    plugin: dump
+    source: .
+    after:
+      - desktop-gtk2
+    stage-packages:
+      - gconf2
+      - libasound2
+      - libnotify4
+      - libnspr4
+      - libnss3
+      - libpulse0
+      - libxss1
+      - libxtst6
+    prime:
+      - -usr/share/dh-python
+  electron-launch:
+    plugin: dump
+    source: .
+    organize:
+      electron-launch: bin/electron-launch
+    prime:
+      - -monitor.sh
+      - -OLD_VERSION
+      - -*.bz2
+
+apps:
+  @@NAME@@:
+    command: bin/electron-launch classic ${SNAP}/usr/share/@@NAME@@/bin/@@NAME@@
+    desktop: usr/share/applications/@@NAME@@.desktop

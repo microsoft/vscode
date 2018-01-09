@@ -57,7 +57,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 		let key = this.getCacheKey(document);
 
 		if (!key) {
-			// Document doesnt have a uri, can't cache it, so return
+			// Document doesn't have a uri, can't cache it, so return
 			return Promise.resolve(this.getConflictsOrEmpty(document, [origin]));
 		}
 
@@ -116,7 +116,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 		this.cache.clear();
 	}
 
-	private getConflictsOrEmpty(document: vscode.TextDocument, origins: string[]): interfaces.IDocumentMergeConflict[] {
+	private getConflictsOrEmpty(document: vscode.TextDocument, _origins: string[]): interfaces.IDocumentMergeConflict[] {
 		const containsConflict = MergeConflictParser.containsConflict(document);
 
 		if (!containsConflict) {

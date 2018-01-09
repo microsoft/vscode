@@ -11,12 +11,13 @@ import { IContext, QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickope
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
-import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
 
 interface ParseResult {
 	position: Position;
@@ -52,8 +53,8 @@ export class GotoLineEntry extends QuickOpenEntry {
 			position = new Position(numbers[0], numbers[1]);
 		}
 
-		let model: editorCommon.IModel;
-		if (editorCommon.isCommonCodeEditor(this.editor)) {
+		let model: ITextModel;
+		if (isCodeEditor(this.editor)) {
 			model = this.editor.getModel();
 		} else {
 			model = (<IDiffEditor>this.editor).getModel().modified;
@@ -107,7 +108,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 		// Apply selection and focus
 		let range = this.toSelection();
 		(<ICodeEditor>this.editor).setSelection(range);
-		(<ICodeEditor>this.editor).revealRangeInCenter(range);
+		(<ICodeEditor>this.editor).revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
 		this.editor.focus();
 
 		return true;
@@ -123,7 +124,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 
 		// Select Line Position
 		let range = this.toSelection();
-		this.editor.revealRangeInCenter(range);
+		this.editor.revealRangeInCenter(range, editorCommon.ScrollType.Smooth);
 
 		// Decorate if possible
 		this.decorator.decorateLine(range, this.editor);
@@ -141,7 +142,6 @@ export class GotoLineEntry extends QuickOpenEntry {
 	}
 }
 
-@editorAction
 export class GotoLineAction extends BaseEditorQuickOpenAction {
 
 	constructor() {
@@ -158,7 +158,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		this._show(this.getController(editor), {
 			getModel: (value: string): QuickOpenModel => {
 				return new QuickOpenModel([new GotoLineEntry(value, editor, this.getController(editor))]);
@@ -172,3 +172,5 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 }
+
+registerEditorAction(GotoLineAction);

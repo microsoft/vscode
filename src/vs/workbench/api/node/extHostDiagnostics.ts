@@ -5,12 +5,11 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
-import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape } from './extHost.protocol';
+import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
 import { mergeSort } from 'vs/base/common/arrays';
 
@@ -112,7 +111,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					orderLoop: for (let i = 0; i < 4; i++) {
 						for (let diagnostic of diagnostics) {
 							if (diagnostic.severity === order[i]) {
-								const len = marker.push(DiagnosticCollection._toMarkerData(diagnostic));
+								const len = marker.push(DiagnosticCollection.toMarkerData(diagnostic));
 								if (len === DiagnosticCollection._maxDiagnosticsPerFile) {
 									break orderLoop;
 								}
@@ -130,11 +129,11 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 						endColumn: marker[marker.length - 1].endColumn
 					});
 				} else {
-					marker = diagnostics.map(DiagnosticCollection._toMarkerData);
+					marker = diagnostics.map(DiagnosticCollection.toMarkerData);
 				}
 			}
 
-			entries.push([<URI>uri, marker]);
+			entries.push([uri, marker]);
 		}
 
 		this._proxy.$changeMany(this.name, entries);
@@ -143,7 +142,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	delete(uri: vscode.Uri): void {
 		this._checkDisposed();
 		this._data.delete(uri.toString());
-		this._proxy.$changeMany(this.name, [[<URI>uri, undefined]]);
+		this._proxy.$changeMany(this.name, [[uri, undefined]]);
 	}
 
 	clear(): void {
@@ -180,7 +179,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		}
 	}
 
-	private static _toMarkerData(diagnostic: vscode.Diagnostic): IMarkerData {
+	public static toMarkerData(diagnostic: vscode.Diagnostic): IMarkerData {
 
 		let range = diagnostic.range;
 
@@ -217,16 +216,15 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 	}
 }
 
-export class ExtHostDiagnostics extends ExtHostDiagnosticsShape {
+export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private static _idPool: number = 0;
 
 	private _proxy: MainThreadDiagnosticsShape;
 	private _collections: DiagnosticCollection[];
 
-	constructor(threadService: IThreadService) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadDiagnostics);
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
 		this._collections = [];
 	}
 
@@ -257,4 +255,3 @@ export class ExtHostDiagnostics extends ExtHostDiagnosticsShape {
 		this._collections.forEach(callback);
 	}
 }
-

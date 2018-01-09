@@ -114,7 +114,7 @@
 	white-space: pre;
 }
 
-.file-icons-enabled .show-file-icons .vs_code_editor_walkthrough\.md-name-file-icon.md-ext-file-icon.markdown-lang-file-icon.file-icon::before {
+.file-icons-enabled .show-file-icons .vs_code_editor_walkthrough\.md-name-file-icon.md-ext-file-icon.ext-file-icon.markdown-lang-file-icon.file-icon::before {
 	content: ' ';
 	background-image: url('../../code-icon.svg');
 }

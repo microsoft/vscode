@@ -5,26 +5,30 @@
 
 import { DocumentHighlightProvider, DocumentHighlight, DocumentHighlightKind, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
-import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
+const stringDelimiters = ['"', '\'', '`'];
 
 export default class TypeScriptDocumentHighlightProvider implements DocumentHighlightProvider {
 	public constructor(
-		private client: ITypescriptServiceClient) { }
+		private client: ITypeScriptServiceClient
+	) { }
 
-	public provideDocumentHighlights(resource: TextDocument, position: Position, token: CancellationToken): Promise<DocumentHighlight[]> {
+	public async provideDocumentHighlights(
+		resource: TextDocument,
+		position: Position,
+		token: CancellationToken
+	): Promise<DocumentHighlight[]> {
 		const filepath = this.client.normalizePath(resource.uri);
 		if (!filepath) {
-			return Promise.resolve<DocumentHighlight[]>([]);
+			return [];
 		}
-		const args: Proto.FileLocationRequestArgs = {
-			file: filepath,
-			line: position.line + 1,
-			offset: position.character + 1
-		};
-		return this.client.execute('occurrences', args, token).then((response): DocumentHighlight[] => {
-			let data = response.body;
+
+		const args = vsPositionToTsFileLocation(filepath, position);
+		try {
+			const response = await this.client.execute('occurrences', args, token);
+			const data = response.body;
 			if (data && data.length) {
 				// Workaround for https://github.com/Microsoft/TypeScript/issues/12780
 				// Don't highlight string occurrences
@@ -32,19 +36,18 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 				if (this.client.apiVersion.has213Features() && firstOccurrence.start.offset > 1) {
 					// Check to see if contents around first occurrence are string delimiters
 					const contents = resource.getText(new Range(firstOccurrence.start.line - 1, firstOccurrence.start.offset - 1 - 1, firstOccurrence.end.line - 1, firstOccurrence.end.offset - 1 + 1));
-					const stringDelimiters = ['"', '\'', '`'];
 					if (contents && contents.length > 2 && stringDelimiters.indexOf(contents[0]) >= 0 && contents[0] === contents[contents.length - 1]) {
 						return [];
 					}
 				}
-				return data.map((item) => {
-					return new DocumentHighlight(new Range(item.start.line - 1, item.start.offset - 1, item.end.line - 1, item.end.offset - 1),
-						item.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read);
-				});
+				return data.map(item =>
+					new DocumentHighlight(
+						tsTextSpanToVsRange(item),
+						item.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read));
 			}
 			return [];
-		}, () => {
+		} catch {
 			return [];
-		});
+		}
 	}
 }

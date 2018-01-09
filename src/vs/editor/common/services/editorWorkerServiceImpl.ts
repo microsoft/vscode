@@ -20,7 +20,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITextModel } from 'vs/editor/common/model';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -51,8 +51,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 
 	constructor(
 		@IModelService modelService: IModelService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@IModeService modeService: IModeService
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService
 	) {
 		super();
 		this._modelService = modelService;
@@ -67,7 +66,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
 			}
 		}));
-		this._register(modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, modeService, this._modelService)));
+		this._register(modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
 	}
 
 	public dispose(): void {
@@ -90,14 +89,14 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: IRange[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): TPromise<modes.TextEdit[]> {
 		if (!Array.isArray(edits) || edits.length === 0) {
 			return TPromise.as(edits);
 		} else {
 			if (!canSyncModel(this._modelService, resource)) {
 				return TPromise.as(edits); // File too large
 			}
-			return this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits, ranges));
+			return this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
 		}
 	}
 
@@ -114,23 +113,20 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 	private readonly _workerManager: WorkerManager;
 	private readonly _configurationService: ITextResourceConfigurationService;
-	private readonly _modeService: IModeService;
 	private readonly _modelService: IModelService;
 
 	constructor(
 		workerManager: WorkerManager,
 		configurationService: ITextResourceConfigurationService,
-		modeService: IModeService,
 		modelService: IModelService
 	) {
 		this._workerManager = workerManager;
 		this._configurationService = configurationService;
-		this._modeService = modeService;
 		this._modelService = modelService;
 	}
 
-	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
-		const { wordBasedSuggestions } = this._configurationService.getConfiguration<IEditorOptions>(model.uri, position, 'editor');
+	provideCompletionItems(model: ITextModel, position: Position): TPromise<modes.ISuggestResult> {
+		const { wordBasedSuggestions } = this._configurationService.getValue<IEditorOptions>(model.uri, position, 'editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
 		}
@@ -395,9 +391,9 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: IRange[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): TPromise<modes.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
-			return proxy.computeMoreMinimalEdits(resource.toString(), edits, ranges);
+			return proxy.computeMoreMinimalEdits(resource.toString(), edits);
 		});
 	}
 

@@ -11,7 +11,7 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
-import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as TypeConverters from './extHostTypeConverters';
 import { MainThreadEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from './extHost.protocol';
 import * as vscode from 'vscode';
@@ -20,7 +20,7 @@ import { IRange } from 'vs/editor/common/core/range';
 
 export class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 
-	private static _Keys = new IdGenerator('TextEditorDecorationType');
+	private static readonly _Keys = new IdGenerator('TextEditorDecorationType');
 
 	private _proxy: MainThreadEditorsShape;
 	public key: string;
@@ -416,11 +416,29 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
 		this._runOnProxy(
-			() => this._proxy.$trySetDecorations(
-				this._id,
-				decorationType.key,
-				TypeConverters.fromRangeOrRangeWithMessage(ranges)
-			)
+			() => {
+				if (TypeConverters.isDecorationOptionsArr(ranges)) {
+					return this._proxy.$trySetDecorations(
+						this._id,
+						decorationType.key,
+						TypeConverters.fromRangeOrRangeWithMessage(ranges)
+					);
+				} else {
+					let _ranges: number[] = new Array<number>(4 * ranges.length);
+					for (let i = 0, len = ranges.length; i < len; i++) {
+						const range = ranges[i];
+						_ranges[4 * i] = range.start.line + 1;
+						_ranges[4 * i + 1] = range.start.character + 1;
+						_ranges[4 * i + 2] = range.end.line + 1;
+						_ranges[4 * i + 3] = range.end.character + 1;
+					}
+					return this._proxy.$trySetDecorationsFast(
+						this._id,
+						decorationType.key,
+						_ranges
+					);
+				}
+			}
 		);
 	}
 
@@ -542,8 +560,10 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 			return TPromise.as(undefined);
 		}
 		return callback().then(() => this, err => {
-			console.warn(err);
-			return undefined;
+			if (!(err instanceof Error && err.name === 'DISPOSED')) {
+				console.warn(err);
+			}
+			return null;
 		});
 	}
 }

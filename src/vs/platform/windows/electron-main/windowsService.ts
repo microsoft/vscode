@@ -9,18 +9,16 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
-import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { shell, crashReporter, app } from 'electron';
-import Event, { chain } from 'vs/base/common/event';
-import { fromEventEmitter } from 'vs/base/node/event';
+import { shell, crashReporter, app, Menu } from 'electron';
+import Event, { chain, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { ILifecycleService } from "vs/platform/lifecycle/electron-main/lifecycleMain";
-import { IWindowsMainService, ISharedProcess } from "vs/platform/windows/electron-main/windows";
-import { IHistoryMainService, IRecentlyOpened } from "vs/platform/history/common/history";
-import { findExtensionDevelopmentWindow } from "vs/code/node/windowsFinder";
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { IWindowsMainService, ISharedProcess } from 'vs/platform/windows/electron-main/windows';
+import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export class WindowsService implements IWindowsService, IDisposable {
 
@@ -28,8 +26,9 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 	private disposables: IDisposable[] = [];
 
-	onWindowOpen: Event<number> = fromEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id);
-	onWindowFocus: Event<number> = fromEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowOpen: Event<number> = fromNodeEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowFocus: Event<number> = fromNodeEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowBlur: Event<number> = fromNodeEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id);
 
 	constructor(
 		private sharedProcess: ISharedProcess,
@@ -52,27 +51,46 @@ export class WindowsService implements IWindowsService, IDisposable {
 			.on(this.openExtensionForURI, this, this.disposables);
 	}
 
-	pickFileFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		this.windowsMainService.pickFileFolderAndOpen(forceNewWindow, data);
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickFileFolderAndOpen(options);
+
 		return TPromise.as(null);
 	}
 
-	pickFileAndOpen(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
-		this.windowsMainService.pickFileAndOpen(forceNewWindow, path, undefined, data);
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickFileAndOpen(options);
+
 		return TPromise.as(null);
 	}
 
-	pickFolderAndOpen(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickFolderAndOpen(options);
+
+		return TPromise.as(null);
+	}
+
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickWorkspaceAndOpen(options);
+
+		return TPromise.as(null);
+	}
+
+	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
-		this.windowsMainService.pickFolderAndOpen(forceNewWindow, codeWindow, data);
 
-		return TPromise.as(null);
+		return this.windowsMainService.showMessageBox(options, codeWindow);
 	}
 
-	pickFolder(windowId: number, options?: { buttonLabel: string; title: string; }): TPromise<string[]> {
+	showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): TPromise<string> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		return this.windowsMainService.pickFolder(codeWindow, options);
+		return this.windowsMainService.showSaveDialog(options, codeWindow);
+	}
+
+	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		return this.windowsMainService.showOpenDialog(options, codeWindow);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
@@ -110,11 +128,41 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
+	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			codeWindow.updateTouchBar(items);
+		}
+
+		return TPromise.as(null);
+	}
+
 	closeWorkspace(windowId: number): TPromise<void> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
 			this.windowsMainService.closeWorkspace(codeWindow);
+		}
+
+		return TPromise.as(null);
+	}
+
+	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			return this.windowsMainService.createAndEnterWorkspace(codeWindow, folders, path);
+		}
+
+		return TPromise.as(null);
+	}
+
+	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			return this.windowsMainService.saveAndEnterWorkspace(codeWindow, path);
 		}
 
 		return TPromise.as(null);
@@ -166,6 +214,36 @@ export class WindowsService implements IWindowsService, IDisposable {
 		}
 
 		return TPromise.as(this.historyService.getRecentlyOpened());
+	}
+
+	showPreviousWindowTab(): TPromise<void> {
+		Menu.sendActionToFirstResponder('selectPreviousTab:');
+
+		return TPromise.as(void 0);
+	}
+
+	showNextWindowTab(): TPromise<void> {
+		Menu.sendActionToFirstResponder('selectNextTab:');
+
+		return TPromise.as(void 0);
+	}
+
+	moveWindowTabToNewWindow(): TPromise<void> {
+		Menu.sendActionToFirstResponder('moveTabToNewWindow:');
+
+		return TPromise.as(void 0);
+	}
+
+	mergeAllWindowTabs(): TPromise<void> {
+		Menu.sendActionToFirstResponder('mergeAllWindows:');
+
+		return TPromise.as(void 0);
+	}
+
+	toggleWindowTabsBar(): TPromise<void> {
+		Menu.sendActionToFirstResponder('toggleTabBar:');
+
+		return TPromise.as(void 0);
 	}
 
 	focusWindow(windowId: number): TPromise<void> {
@@ -248,12 +326,20 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
 		if (!paths || !paths.length) {
 			return TPromise.as(null);
 		}
 
-		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options && options.forceNewWindow, forceReuseWindow: options && options.forceReuseWindow });
+		this.windowsMainService.open({
+			context: OpenContext.API,
+			cli: this.environmentService.args,
+			pathsToOpen: paths,
+			forceNewWindow: options && options.forceNewWindow,
+			forceReuseWindow: options && options.forceReuseWindow,
+			forceOpenWorkspaceAsFile: options && options.forceOpenWorkspaceAsFile
+		});
+
 		return TPromise.as(null);
 	}
 
@@ -285,16 +371,6 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 	log(severity: string, ...messages: string[]): TPromise<void> {
 		console[severity].apply(console, ...messages);
-		return TPromise.as(null);
-	}
-
-	closeExtensionHostWindow(extensionDevelopmentPaths: string[]): TPromise<void> {
-		extensionDevelopmentPaths.map(extensionDevelopmentPath => findExtensionDevelopmentWindow(this.windowsMainService.getWindows(), extensionDevelopmentPath)).forEach(extensionDevelopmentWindow => {
-			if (extensionDevelopmentWindow) {
-				extensionDevelopmentWindow.win.close();
-			}
-		});
-
 		return TPromise.as(null);
 	}
 
@@ -344,10 +420,15 @@ export class WindowsService implements IWindowsService, IDisposable {
 	 * This should only fire whenever an extension URL is open
 	 * and there are no windows to handle it.
 	 */
-	private openExtensionForURI(uri: URI): TPromise<void> {
+	private async openExtensionForURI(uri: URI): TPromise<void> {
 		const cli = assign(Object.create(null), this.environmentService.args);
-		this.windowsMainService.open({ context: OpenContext.API, cli });
-		return TPromise.as(null);
+		const window = await this.windowsMainService.open({ context: OpenContext.API, cli })[0];
+
+		if (!window) {
+			return;
+		}
+
+		window.win.show();
 	}
 
 	dispose(): void {

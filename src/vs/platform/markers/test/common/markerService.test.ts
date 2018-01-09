@@ -176,4 +176,24 @@ suite('Marker Service', () => {
 		service.changeOne('o', URI.parse('some:uri/2'), []);
 
 	});
+
+	test('Error code of zero in markers get removed, #31275', function () {
+		let data = <IMarkerData>{
+			code: '0',
+			startLineNumber: 1,
+			startColumn: 2,
+			endLineNumber: 1,
+			endColumn: 5,
+			message: 'test',
+			severity: 0,
+			source: 'me'
+		};
+		let service = new markerService.MarkerService();
+
+		service.changeOne('far', URI.parse('some:thing'), [data]);
+		let marker = service.read({ resource: URI.parse('some:thing') });
+
+		assert.equal(marker.length, 1);
+		assert.equal(marker[0].code, '0');
+	});
 });

@@ -9,7 +9,6 @@ import assert = require('assert');
 import os = require('os');
 import path = require('path');
 import fs = require('fs');
-import uri from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import { OS } from 'vs/base/common/platform';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -17,8 +16,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import extfs = require('vs/base/node/extfs');
-import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
-import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
+import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService, TestHashService } from 'vs/workbench/test/workbenchTestServices';
+import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import uuid = require('vs/base/common/uuid');
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
@@ -38,11 +37,14 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { mkdirp } from 'vs/base/node/pfs';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -56,7 +58,7 @@ suite('Keybindings Editing', () => {
 	let instantiationService: TestInstantiationService;
 	let testObject: KeybindingsEditingService;
 	let testDir: string;
-	let keybindingsFile;
+	let keybindingsFile: string;
 
 	setup(() => {
 		return setUpWorkspace().then(() => {
@@ -66,15 +68,19 @@ suite('Keybindings Editing', () => {
 
 			instantiationService.stub(IEnvironmentService, { appKeybindingsPath: keybindingsFile });
 			instantiationService.stub(IConfigurationService, ConfigurationService);
-			instantiationService.stub(IConfigurationService, 'getConfiguration', { 'eol': '\n' });
+			instantiationService.stub(IConfigurationService, 'getValue', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
+			instantiationService.stub(IConfigurationService, 'onDidChangeConfiguration', () => { });
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
-			instantiationService.stub(ILifecycleService, new TestLifecycleService());
+			const lifecycleService = new TestLifecycleService();
+			instantiationService.stub(ILifecycleService, lifecycleService);
+			instantiationService.stub(IContextKeyService, <IContextKeyService>instantiationService.createInstance(MockContextKeyService));
+			instantiationService.stub(IHashService, new TestHashService());
 			instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IModeService, ModeServiceImpl);
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, [uri.file(testDir)])), new TestConfigurationService(), { disableWatcher: true }));
+			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), lifecycleService, { disableWatcher: true }));
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
@@ -84,17 +90,9 @@ suite('Keybindings Editing', () => {
 		});
 	});
 
-	function setUpWorkspace(): TPromise<void> {
-		return new TPromise<void>((c, e) => {
-			testDir = path.join(os.tmpdir(), 'vsctests', uuid.generateUuid());
-			extfs.mkdirp(testDir, 493, (error) => {
-				if (error) {
-					e(error);
-				} else {
-					c(null);
-				}
-			});
-		});
+	function setUpWorkspace(): TPromise<boolean> {
+		testDir = path.join(os.tmpdir(), 'vsctests', uuid.generateUuid());
+		return mkdirp(testDir, 493);
 	}
 
 	teardown(() => {

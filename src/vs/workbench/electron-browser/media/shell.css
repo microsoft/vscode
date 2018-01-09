@@ -99,7 +99,7 @@
 }
 
 .monaco-shell .mac select:focus {
-	border: none; /* outline is a square, but border has a radius, so we avoid this glitch when focussed (https://github.com/Microsoft/vscode/issues/26045) */
+	border: none; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
 }
 
 .monaco-shell.hc-black [tabindex="0"]:focus,
@@ -124,7 +124,8 @@
 	outline-style: solid;
 }
 
-.monaco-shell .monaco-tree.focused.no-focused-item:focus:before {
+.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
+.monaco-shell .monaco-list:not(.element-focused):focus:before {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -157,8 +158,9 @@
 	outline: 0 !important; /* outline is not going well with decoration */
 }
 
-.monaco-shell .monaco-tree.focused:focus {
-	outline: 0 !important; /* tree indicates focus not via outline but through the focussed item */
+.monaco-shell .monaco-tree.focused:focus,
+.monaco-shell .monaco-list:focus {
+	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
 }
 
 .monaco-shell [tabindex="0"]:active,

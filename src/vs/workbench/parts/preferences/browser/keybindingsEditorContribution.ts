@@ -7,7 +7,7 @@
 
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { MarkedString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod, KeyChord, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -15,10 +15,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ServicesAccessor, registerEditorCommand, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorContribution, ServicesAccessor, registerEditorCommand, EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SmartSnippetInserter } from 'vs/workbench/parts/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -27,18 +26,20 @@ import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybinding
 import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
+import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
+import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
 
 const INTERESTING_FILE = /keybindings\.json$/;
 
-@editorContribution
 export class DefineKeybindingController extends Disposable implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.defineKeybinding';
+	private static readonly ID = 'editor.contrib.defineKeybinding';
 
-	public static get(editor: editorCommon.ICommonCodeEditor): DefineKeybindingController {
+	public static get(editor: ICodeEditor): DefineKeybindingController {
 		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);
 	}
 
@@ -191,7 +192,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	private _updateDecorationsNow(): void {
 		const model = this._editor.getModel();
 
-		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
+		let newDecorations: IModelDeltaDecoration[] = [];
 
 		const root = parseTree(model.getValue());
 		if (root && Array.isArray(root.children)) {
@@ -207,7 +208,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		this._dec = this._editor.deltaDecorations(this._dec, newDecorations);
 	}
 
-	private _getDecorationForEntry(model: editorCommon.IModel, entry: Node): editorCommon.IModelDeltaDecoration {
+	private _getDecorationForEntry(model: ITextModel, entry: Node): IModelDeltaDecoration {
 		if (!Array.isArray(entry.children)) {
 			return null;
 		}
@@ -288,22 +289,22 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		return false;
 	}
 
-	private _createDecoration(isError: boolean, uiLabel: string, usLabel: string, model: editorCommon.IModel, keyNode: Node): editorCommon.IModelDeltaDecoration {
-		let msg: MarkedString[];
+	private _createDecoration(isError: boolean, uiLabel: string, usLabel: string, model: ITextModel, keyNode: Node): IModelDeltaDecoration {
+		let msg: MarkdownString;
 		let className: string;
 		let beforeContentClassName: string;
-		let overviewRulerColor: string;
+		let overviewRulerColor: ThemeColor;
 
 		if (isError) {
 			// this is the error case
-			msg = [NLS_KB_LAYOUT_ERROR_MESSAGE];
+			msg = new MarkdownString().appendText(NLS_KB_LAYOUT_ERROR_MESSAGE);
 			className = 'keybindingError';
 			beforeContentClassName = 'inlineKeybindingError';
-			overviewRulerColor = 'rgba(250, 100, 100, 0.6)';
+			overviewRulerColor = themeColorFromId(overviewRulerError);
 		} else {
 			// this is the info case
 			if (usLabel && uiLabel !== usLabel) {
-				msg = [
+				msg = new MarkdownString(
 					nls.localize({
 						key: 'defineKeybinding.kbLayoutLocalAndUSMessage',
 						comment: [
@@ -311,9 +312,9 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 							'The placeholders will contain a keyboard combination e.g. Ctrl+Shift+/'
 						]
 					}, "**{0}** for your current keyboard layout (**{1}** for US standard).", uiLabel, usLabel)
-				];
+				);
 			} else {
-				msg = [
+				msg = new MarkdownString(
 					nls.localize({
 						key: 'defineKeybinding.kbLayoutLocalMessage',
 						comment: [
@@ -321,11 +322,11 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 							'The placeholder will contain a keyboard combination e.g. Ctrl+Shift+/'
 						]
 					}, "**{0}** for your current keyboard layout.", uiLabel)
-				];
+				);
 			}
 			className = 'keybindingInfo';
 			beforeContentClassName = 'inlineKeybindingInfo';
-			overviewRulerColor = 'rgba(100, 100, 250, 0.6)';
+			overviewRulerColor = themeColorFromId(overviewRulerInfo);
 		}
 
 		const startPosition = model.getPositionAt(keyNode.offset);
@@ -339,14 +340,14 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		return {
 			range: range,
 			options: {
-				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: className,
 				beforeContentClassName: beforeContentClassName,
 				hoverMessage: msg,
 				overviewRuler: {
 					color: overviewRulerColor,
 					darkColor: overviewRulerColor,
-					position: editorCommon.OverviewRulerLane.Right
+					position: OverviewRulerLane.Right
 				}
 			}
 		};
@@ -356,7 +357,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 class DefineKeybindingCommand extends EditorCommand {
 
-	static ID = 'editor.action.defineKeybinding';
+	static readonly ID = 'editor.action.defineKeybinding';
 
 	constructor() {
 		super({
@@ -369,7 +370,7 @@ class DefineKeybindingCommand extends EditorCommand {
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		if (!isInterestingEditorModel(editor) || editor.getConfiguration().readOnly) {
 			return;
 		}
@@ -380,7 +381,7 @@ class DefineKeybindingCommand extends EditorCommand {
 	}
 }
 
-function isInterestingEditorModel(editor: editorCommon.ICommonCodeEditor): boolean {
+function isInterestingEditorModel(editor: ICodeEditor): boolean {
 	let model = editor.getModel();
 	if (!model) {
 		return false;
@@ -389,4 +390,5 @@ function isInterestingEditorModel(editor: editorCommon.ICommonCodeEditor): boole
 	return INTERESTING_FILE.test(url);
 }
 
+registerEditorContribution(DefineKeybindingController);
 registerEditorCommand(new DefineKeybindingCommand());

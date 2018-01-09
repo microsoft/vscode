@@ -8,8 +8,10 @@
 
 	const ipcRenderer = require('electron').ipcRenderer;
 
-
+	// state
 	var firstLoad = true;
+	var loadTimeout;
+	var pendingMessages = [];
 
 	const initData = {
 		initialScrollProgress: undefined
@@ -44,20 +46,21 @@
 		if (!event || !event.view || !event.view.document) {
 			return;
 		}
+
+		var baseElement = event.view.document.getElementsByTagName('base')[0];
 		/** @type {any} */
 		var node = event.target;
 		while (node) {
 			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
-				var baseElement = event.view.document.getElementsByTagName("base")[0];
-				if (node.getAttribute("href") === "#") {
+				if (node.getAttribute('href') === '#') {
 					event.view.scrollTo(0, 0);
-				} else if (node.hash && (node.getAttribute("href") === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {
+				} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {
 					var scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
 					if (scrollTarget) {
 						scrollTarget.scrollIntoView();
 					}
 				} else {
-					ipcRenderer.sendToHost("did-click-link", node.href);
+					ipcRenderer.sendToHost('did-click-link', node.href);
 				}
 				event.preventDefault();
 				break;
@@ -93,8 +96,8 @@
 			initData.baseUrl = value;
 		});
 
-		ipcRenderer.on('styles', function (event, value, activeTheme) {
-			initData.styles = value;
+		ipcRenderer.on('styles', function (event, variables, activeTheme) {
+			initData.styles = variables;
 			initData.activeTheme = activeTheme;
 
 			// webview
@@ -106,10 +109,9 @@
 			styleBody(body[0]);
 
 			// iframe
-			var defaultStyles = target.contentDocument.getElementById('_defaultStyles');
-			if (defaultStyles) {
-				defaultStyles.innerHTML = initData.styles;
-			}
+			Object.keys(variables).forEach(function (variable) {
+				target.contentDocument.documentElement.style.setProperty(`--${variable}`, variables[variable]);
+			});
 		});
 
 		// propagate focus
@@ -126,14 +128,11 @@
 			const text = data.contents.join('\n');
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
-			// know what happens here
-			const stats = {
-				scriptTags: newDocument.documentElement.querySelectorAll('script').length,
-				inputTags: newDocument.documentElement.querySelectorAll('input').length,
-				styleTags: newDocument.documentElement.querySelectorAll('style').length,
-				linkStyleSheetTags: newDocument.documentElement.querySelectorAll('link[rel=stylesheet]').length,
-				stringLen: text.length
-			};
+			newDocument.querySelectorAll('a').forEach(a => {
+				if (!a.title) {
+					a.title = a.href;
+				}
+			});
 
 			// set base-url if applicable
 			if (initData.baseUrl && newDocument.head.getElementsByTagName('base').length === 0) {
@@ -145,7 +144,53 @@
 			// apply default styles
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
-			defaultStyles.innerHTML = initData.styles;
+
+			const vars = Object.keys(initData.styles).map(function (variable) {
+				return `--${variable}: ${initData.styles[variable]};`;
+			});
+			defaultStyles.innerHTML = `
+			:root { ${vars.join(' ')} }
+
+			body {
+				background-color: var(--background-color);
+				color: var(--color);
+				font-family: var(--font-family);
+				font-weight: var(--font-weight);
+				font-size: var(--font-size);
+				margin: 0;
+				padding: 0 20px;
+			}
+
+			img {
+				max-width: 100%;
+				max-height: 100%;
+			}
+
+			body a {
+				color: var(--link-color);
+			}
+
+			a:focus,
+			input:focus,
+			select:focus,
+			textarea:focus {
+				outline: 1px solid -webkit-focus-ring-color;
+				outline-offset: -1px;
+			}
+			::-webkit-scrollbar {
+				width: 10px;
+				height: 10px;
+			}
+			::-webkit-scrollbar-thumb {
+				background-color: var(--scrollbar-thumb);
+			}
+			::-webkit-scrollbar-thumb:hover {
+				background-color: var(--scrollbar-thumb-hover);
+			}
+			::-webkit-scrollbar-thumb:active {
+				background-color: var(--scrollbar-thumb-active);
+			}
+			`;
 			if (newDocument.head.hasChildNodes()) {
 				newDocument.head.insertBefore(defaultStyles, newDocument.head.firstChild);
 			} else {
@@ -160,18 +205,15 @@
 			var setInitialScrollPosition;
 			if (firstLoad) {
 				firstLoad = false;
-				setInitialScrollPosition = function (body, window) {
-					body.scrollTop = 0;
+				setInitialScrollPosition = function (body) {
 					if (!isNaN(initData.initialScrollProgress)) {
-						window.addEventListener('load', function () {
-							if (body.scrollTop === 0) {
-								body.scrollTop = body.clientHeight * initData.initialScrollProgress;
-							}
-						});
+						if (body.scrollTop === 0) {
+							body.scrollTop = body.clientHeight * initData.initialScrollProgress;
+						}
 					}
 				};
 			} else {
-				const scrollY = frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
+				const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
 				setInitialScrollPosition = function (body) {
 					if (body.scrollTop === 0) {
 						body.scrollTop = scrollY;
@@ -185,12 +227,13 @@
 				previousPendingFrame.setAttribute('id', '');
 				document.body.removeChild(previousPendingFrame);
 			}
+			pendingMessages = [];
 
 			const newFrame = document.createElement('iframe');
 			newFrame.setAttribute('id', 'pending-frame');
 			newFrame.setAttribute('frameborder', '0');
 			newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
-			newFrame.style.cssText = "margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; display: none";
+			newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 			document.body.appendChild(newFrame);
 
 			// write new content onto iframe
@@ -200,13 +243,11 @@
 				return false;
 			};
 
-			newFrame.contentWindow.addEventListener('DOMContentLoaded', function (e) {
-				/** @type {any} */
-				const contentDocument = e.target;
+			var onLoad = function (contentDocument, contentWindow) {
 				if (contentDocument.body) {
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
 					// check new scrollTop and reset if neccessary
-					setInitialScrollPosition(contentDocument.body, this);
+					setInitialScrollPosition(contentDocument.body);
 
 					// Bubble out link clicks
 					contentDocument.body.addEventListener('click', handleInnerClick);
@@ -219,8 +260,29 @@
 						document.body.removeChild(oldActiveFrame);
 					}
 					newFrame.setAttribute('id', 'active-frame');
-					newFrame.style.display = 'block';
-					this.addEventListener('scroll', handleInnerScroll);
+					newFrame.style.visibility = 'visible';
+					contentWindow.addEventListener('scroll', handleInnerScroll);
+
+					pendingMessages.forEach(function (data) {
+						contentWindow.postMessage(data, document.location.origin);
+					});
+					pendingMessages = [];
+				}
+			};
+
+			clearTimeout(loadTimeout);
+			loadTimeout = undefined;
+			loadTimeout = setTimeout(function () {
+				clearTimeout(loadTimeout);
+				loadTimeout = undefined;
+				onLoad(newFrame.contentDocument, newFrame.contentWindow);
+			}, 200);
+
+			newFrame.contentWindow.addEventListener('load', function (e) {
+				if (loadTimeout) {
+					clearTimeout(loadTimeout);
+					loadTimeout = undefined;
+					onLoad(e.target, this);
 				}
 			});
 
@@ -230,14 +292,19 @@
 			newFrame.contentDocument.write(newDocument.documentElement.innerHTML);
 			newFrame.contentDocument.close();
 
-			ipcRenderer.sendToHost('did-set-content', stats);
+			ipcRenderer.sendToHost('did-set-content');
 		});
 
 		// Forward message to the embedded iframe
 		ipcRenderer.on('message', function (event, data) {
-			const target = getActiveFrame();
-			if (target) {
-				target.contentWindow.postMessage(data, document.location.origin);
+			const pending = getPendingFrame();
+			if (pending) {
+				pendingMessages.push(data);
+			} else {
+				const target = getActiveFrame();
+				if (target) {
+					target.contentWindow.postMessage(data, document.location.origin);
+				}
 			}
 		});
 

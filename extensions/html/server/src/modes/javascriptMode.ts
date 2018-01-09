@@ -6,7 +6,7 @@
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation, Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString, DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
-import { LanguageMode } from './languageModes';
+import { LanguageMode, Settings } from './languageModes';
 import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
 
@@ -60,23 +60,24 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	};
 	let jsLanguageService = ts.createLanguageService(host);
 
-	let settings: any = {};
+	let globalSettings: Settings = {};
 
 	return {
 		getId() {
 			return 'javascript';
 		},
 		configure(options: any) {
-			settings = options && options.javascript;
+			globalSettings = options;
 		},
 		doValidation(document: TextDocument): Diagnostic[] {
 			updateCurrentTextDocument(document);
 			const syntaxDiagnostics = jsLanguageService.getSyntacticDiagnostics(FILE_NAME);
 			const semanticDiagnostics = jsLanguageService.getSemanticDiagnostics(FILE_NAME);
-			return syntaxDiagnostics.concat(semanticDiagnostics).map((diag): Diagnostic => {
+			return syntaxDiagnostics.concat(semanticDiagnostics).map((diag: ts.Diagnostic): Diagnostic => {
 				return {
 					range: convertRange(currentTextDocument, diag),
 					severity: DiagnosticSeverity.Error,
+					source: 'js',
 					message: ts.flattenDiagnosticMessageText(diag.messageText, '\n')
 				};
 			});
@@ -84,7 +85,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		doComplete(document: TextDocument, position: Position): CompletionList {
 			updateCurrentTextDocument(document);
 			let offset = currentTextDocument.offsetAt(position);
-			let completions = jsLanguageService.getCompletionsAtPosition(FILE_NAME, offset);
+			let completions = jsLanguageService.getCompletionsAtPosition(FILE_NAME, offset, { includeExternalModuleExports: false });
 			if (!completions) {
 				return { isIncomplete: false, items: [] };
 			}
@@ -110,7 +111,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		doResolve(document: TextDocument, item: CompletionItem): CompletionItem {
 			updateCurrentTextDocument(document);
-			let details = jsLanguageService.getCompletionEntryDetails(FILE_NAME, item.data.offset, item.label);
+			let details = jsLanguageService.getCompletionEntryDetails(FILE_NAME, item.data.offset, item.label, undefined, undefined);
 			if (details) {
 				item.detail = ts.displayPartsToString(details.displayParts);
 				item.documentation = ts.displayPartsToString(details.documentation);
@@ -118,7 +119,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			}
 			return item;
 		},
-		doHover(document: TextDocument, position: Position): Hover {
+		doHover(document: TextDocument, position: Position): Hover | null {
 			updateCurrentTextDocument(document);
 			let info = jsLanguageService.getQuickInfoAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (info) {
@@ -130,7 +131,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			}
 			return null;
 		},
-		doSignatureHelp(document: TextDocument, position: Position): SignatureHelp {
+		doSignatureHelp(document: TextDocument, position: Position): SignatureHelp | null {
 			updateCurrentTextDocument(document);
 			let signHelp = jsLanguageService.getSignatureHelpItems(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (signHelp) {
@@ -143,7 +144,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 					let signature: SignatureInformation = {
 						label: '',
-						documentation: null,
+						documentation: undefined,
 						parameters: []
 					};
 
@@ -155,7 +156,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 							documentation: ts.displayPartsToString(p.documentation)
 						};
 						signature.label += label;
-						signature.parameters.push(parameter);
+						signature.parameters!.push(parameter);
 						if (i < a.length - 1) {
 							signature.label += ts.displayPartsToString(item.separatorDisplayParts);
 						}
@@ -164,7 +165,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 					ret.signatures.push(signature);
 				});
 				return ret;
-			};
+			}
 			return null;
 		},
 		findDocumentHighlight(document: TextDocument, position: Position): DocumentHighlight[] {
@@ -177,15 +178,15 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 						kind: <DocumentHighlightKind>(entry.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Text)
 					};
 				});
-			};
-			return null;
+			}
+			return [];
 		},
 		findDocumentSymbols(document: TextDocument): SymbolInformation[] {
 			updateCurrentTextDocument(document);
 			let items = jsLanguageService.getNavigationBarItems(FILE_NAME);
 			if (items) {
 				let result: SymbolInformation[] = [];
-				let existing = {};
+				let existing = Object.create(null);
 				let collectSymbols = (item: ts.NavigationBarItem, containerLabel?: string) => {
 					let sig = item.text + item.kind + item.spans[0].start;
 					if (item.kind !== 'script' && !existing[sig]) {
@@ -214,9 +215,9 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				items.forEach(item => collectSymbols(item));
 				return result;
 			}
-			return null;
+			return [];
 		},
-		findDefinition(document: TextDocument, position: Position): Definition {
+		findDefinition(document: TextDocument, position: Position): Definition | null {
 			updateCurrentTextDocument(document);
 			let definition = jsLanguageService.getDefinitionAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (definition) {
@@ -240,18 +241,20 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 					};
 				});
 			}
-			return null;
+			return [];
 		},
-		format(document: TextDocument, range: Range, formatParams: FormattingOptions): TextEdit[] {
+		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings): TextEdit[] {
 			currentTextDocument = documentRegions.get(document).getEmbeddedDocument('javascript', true);
 			scriptFileVersion++;
 
+			let formatterSettings = settings && settings.javascript && settings.javascript.format;
+
 			let initialIndentLevel = computeInitialIndent(document, range, formatParams);
-			let formatSettings = convertOptions(formatParams, settings && settings.format, initialIndentLevel + 1);
+			let formatSettings = convertOptions(formatParams, formatterSettings, initialIndentLevel + 1);
 			let start = currentTextDocument.offsetAt(range.start);
 			let end = currentTextDocument.offsetAt(range.end);
 			let lastLineRange = null;
-			if (range.end.character === 0 || isWhitespaceOnly(currentTextDocument.getText().substr(end - range.end.character, range.end.character))) {
+			if (range.end.line > range.start.line && (range.end.character === 0 || isWhitespaceOnly(currentTextDocument.getText().substr(end - range.end.character, range.end.character)))) {
 				end -= range.end.character;
 				lastLineRange = Range.create(Position.create(range.end.line, 0), range.end);
 			}
@@ -274,7 +277,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				}
 				return result;
 			}
-			return null;
+			return [];
 		},
 		onDocumentRemoved(document: TextDocument) {
 			jsDocuments.onDocumentRemoved(document);
@@ -284,11 +287,15 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			jsDocuments.dispose();
 		}
 	};
-};
+}
 
-function convertRange(document: TextDocument, span: { start: number, length: number }): Range {
-	let startPosition = document.positionAt(span.start);
-	let endPosition = document.positionAt(span.start + span.length);
+function convertRange(document: TextDocument, span: { start: number | undefined, length: number | undefined }): Range {
+	if (typeof span.start === 'undefined') {
+		const pos = document.positionAt(0);
+		return Range.create(pos, pos);
+	}
+	const startPosition = document.positionAt(span.start);
+	const endPosition = document.positionAt(span.start + (span.length || 0));
 	return Range.create(startPosition, endPosition);
 }
 

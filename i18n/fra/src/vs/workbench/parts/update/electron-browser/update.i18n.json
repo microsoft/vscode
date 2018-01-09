@@ -13,7 +13,10 @@
 	"read the release notes": "Bienvenue dans {0} v{1} ! Voulez-vous lire les notes de publication ?",
 	"licenseChanged": "Nos termes du contrat de licence ont changé. Prenez un instant pour les consulter.",
 	"license": "Lire la licence",
-	"updateIsReady": "Nouvelle mise à jour disponible.",
+	"neveragain": "Ne plus afficher",
+	"64bitisavailable": "{0} pour Windows 64 bits est maintenant disponible !",
+	"learn more": "En savoir plus",
+	"updateIsReady": "Nouvelle mise à jour de {0} disponible.",
 	"thereIsUpdateAvailable": "Une mise à jour est disponible.",
 	"updateAvailable": "{0} sera mis à jour après avoir redémarré.",
 	"noUpdatesAvailable": "Aucune mise à jour n'est disponible actuellement.",
@@ -27,5 +30,6 @@
 	"DownloadUpdate": "Télécharger la mise à jour disponible",
 	"DownloadingUpdate": "Téléchargement de la mise à jour...",
 	"InstallingUpdate": "Installation de la mise à jour...",
+	"restartToUpdate": "Redémarrer pour mettre à jour...",
 	"checkForUpdates": "Rechercher les mises à jour..."
 }

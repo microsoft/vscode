@@ -5,27 +5,28 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
-@editorAction
 export class ToggleRenderControlCharacterAction extends EditorAction {
 
 	constructor() {
 		super({
 			id: 'editor.action.toggleRenderControlCharacter',
-			label: nls.localize('toggleRenderControlCharacters', "Toggle Control Characters"),
-			alias: 'Toggle Control Characters',
+			label: nls.localize('toggleRenderControlCharacters', "View: Toggle Control Characters"),
+			alias: 'View: Toggle Control Characters',
 			precondition: null
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		const configurationEditingService = accessor.get(IConfigurationEditingService);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const configurationService = accessor.get(IConfigurationService);
 
 		let newRenderControlCharacters = !editor.getConfiguration().viewInfo.renderControlCharacters;
 
-		configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'editor.renderControlCharacters', value: newRenderControlCharacters });
+		configurationService.updateValue('editor.renderControlCharacters', newRenderControlCharacters, ConfigurationTarget.USER);
 	}
 }
+
+registerEditorAction(ToggleRenderControlCharacterAction);

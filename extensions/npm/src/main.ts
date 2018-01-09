@@ -2,39 +2,31 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+//tslint:disable
 'use strict';
 
 import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
+let localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off';
 let taskProvider: vscode.Disposable | undefined;
 
 export function activate(_context: vscode.ExtensionContext): void {
-	let workspaceRoot = vscode.workspace.rootPath;
-	if (!workspaceRoot) {
+	if (!vscode.workspace.workspaceFolders) {
 		return;
 	}
 
-	function onConfigurationChanged() {
-		let autoDetect = vscode.workspace.getConfiguration('npm').get<AutoDetect>('autoDetect');
-		if (taskProvider && autoDetect === 'off') {
-			taskProvider.dispose();
-			taskProvider = undefined;
-		} else if (!taskProvider && autoDetect === 'on') {
-			taskProvider = vscode.workspace.registerTaskProvider('npm', {
-				provideTasks: () => {
-					return getNpmScriptsAsTasks();
-				},
-				resolveTask(_task: vscode.Task): vscode.Task | undefined {
-					return undefined;
-				}
-			});
+	taskProvider = vscode.workspace.registerTaskProvider('npm', {
+		provideTasks: () => {
+			return provideNpmScripts();
+		},
+		resolveTask(_task: vscode.Task): vscode.Task | undefined {
+			return undefined;
 		}
-	}
-	vscode.workspace.onDidChangeConfiguration(onConfigurationChanged);
-	onConfigurationChanged();
+	});
 }
 
 export function deactivate(): void {
@@ -87,46 +79,58 @@ function isTestTask(name: string): boolean {
 	return false;
 }
 
-function getNpmCommandLine(script: string): string {
-	if (vscode.workspace.getConfiguration('npm').get<boolean>('runSilent')) {
-		return `npm --silent run ${script}`;
-	}
-	return `npm run ${script}`;
+function isNotPreOrPostScript(script: string): boolean {
+	return !(script.startsWith('pre') || script.startsWith('post'));
 }
 
-async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
-	let workspaceRoot = vscode.workspace.rootPath;
+async function provideNpmScripts(): Promise<vscode.Task[]> {
+	let emptyTasks: vscode.Task[] = [];
+	let allTasks: vscode.Task[] = [];
+	let folders = vscode.workspace.workspaceFolders;
 
+	if (!folders) {
+		return emptyTasks;
+	}
+	try {
+		for (let i = 0; i < folders.length; i++) {
+			if (isEnabled(folders[i])) {
+				let tasks = await provideNpmScriptsForFolder(folders[i]);
+				allTasks.push(...tasks);
+			}
+		}
+		return allTasks;
+	} catch (error) {
+		return Promise.reject(error);
+	}
+}
+
+function isEnabled(folder: vscode.WorkspaceFolder): boolean {
+	return vscode.workspace.getConfiguration('npm', folder.uri).get<AutoDetect>('autoDetect') === 'on';
+}
+
+async function provideNpmScriptsForFolder(folder: vscode.WorkspaceFolder): Promise<vscode.Task[]> {
 	let emptyTasks: vscode.Task[] = [];
 
-	if (!workspaceRoot) {
+	if (folder.uri.scheme !== 'file') {
 		return emptyTasks;
 	}
+	let rootPath = folder.uri.fsPath;
 
-	let packageJson = path.join(workspaceRoot, 'package.json');
+	let packageJson = path.join(rootPath, 'package.json');
 	if (!await exists(packageJson)) {
 		return emptyTasks;
-	}
-
-	let silent = '';
-	if (vscode.workspace.getConfiguration('npm').get<boolean>('runSilent')) {
-		silent = '--silent';
 	}
 
 	try {
 		var contents = await readFile(packageJson);
 		var json = JSON.parse(contents);
 		if (!json.scripts) {
-			return Promise.resolve(emptyTasks);
+			return emptyTasks;
 		}
 
 		const result: vscode.Task[] = [];
-		Object.keys(json.scripts).forEach(each => {
-			const kind: NpmTaskDefinition = {
-				type: 'npm',
-				script: each
-			};
-			const task = new vscode.Task(kind, `run ${each}`, 'npm', new vscode.ShellExecution(getNpmCommandLine(each)));
+		Object.keys(json.scripts).filter(isNotPreOrPostScript).forEach(each => {
+			const task = createTask(each, `run ${each}`, rootPath, folder);
 			const lowerCaseTaskName = each.toLowerCase();
 			if (isBuildTask(lowerCaseTaskName)) {
 				task.group = vscode.TaskGroup.Build;
@@ -135,10 +139,33 @@ async function getNpmScriptsAsTasks(): Promise<vscode.Task[]> {
 			}
 			result.push(task);
 		});
-		// add some 'well known' npm tasks
-		result.push(new vscode.Task({ type: 'npm', script: 'install' } as NpmTaskDefinition, `install`, 'npm', new vscode.ShellExecution(`npm install`), []));
-		return Promise.resolve(result);
+		// always add npm install (without a problem matcher)
+		// result.push(createTask('install', 'install', rootPath, folder, []));
+		return result;
 	} catch (e) {
-		return Promise.resolve(emptyTasks);
+		let localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJson);
+		throw new Error(localizedParseError);
 	}
+}
+
+function createTask(script: string, cmd: string, rootPath: string, folder: vscode.WorkspaceFolder, matcher?: any): vscode.Task {
+
+	function getTaskName(script: string) {
+		return script;
+	}
+
+	function getCommandLine(folder: vscode.WorkspaceFolder, cmd: string): string {
+		let packageManager = vscode.workspace.getConfiguration('npm', folder.uri).get<string>('packageManager', 'npm');
+		if (vscode.workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
+			return `${packageManager} --silent ${cmd}`;
+		}
+		return `${packageManager} ${cmd}`;
+	}
+
+	let kind: NpmTaskDefinition = {
+		type: 'npm',
+		script: script
+	};
+	let taskName = getTaskName(script);
+	return new vscode.Task(kind, folder, taskName, 'npm', new vscode.ShellExecution(getCommandLine(folder, cmd), { cwd: rootPath }), matcher);
 }

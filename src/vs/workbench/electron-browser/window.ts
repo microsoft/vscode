@@ -6,32 +6,26 @@
 'use strict';
 
 import nls = require('vs/nls');
-import platform = require('vs/base/common/platform');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { stat } from 'vs/base/node/pfs';
 import arrays = require('vs/base/common/arrays');
+import objects = require('vs/base/common/objects');
 import DOM = require('vs/base/browser/dom');
 import Severity from 'vs/base/common/severity';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
-import { extractResources } from 'vs/base/browser/dnd';
-import { Builder, $ } from 'vs/base/browser/builder';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IWindowsService, IWindowService, IWindowSettings, IPath, IOpenFileRequest, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowSettings, IPath, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
@@ -40,10 +34,20 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
-
+import { Themable } from 'vs/workbench/common/theme';
 import { ipcRenderer as ipc, webFrame } from 'electron';
-import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
+import { AccessibilitySupport, isRootUser, isWindows, isMacintosh } from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -58,154 +62,108 @@ const TextInputActions: IAction[] = [
 
 export class ElectronWindow extends Themable {
 
-	private static AUTO_SAVE_SETTING = 'files.autoSave';
+	private static readonly AUTO_SAVE_SETTING = 'files.autoSave';
+
+	private touchBarUpdater: RunOnceScheduler;
+	private touchBarMenu: IMenu;
+	private touchBarDisposables: IDisposable[];
+	private lastInstalledTouchedBar: ICommandAction[][];
+
+	private previousConfiguredZoomLevel: number;
+
+	private addFoldersScheduler: RunOnceScheduler;
+	private pendingFoldersToAdd: IAddFoldersRequest[];
 
 	constructor(
 		shellContainer: HTMLElement,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IPartService private partService: IPartService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@ITitleService private titleService: ITitleService,
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IMessageService private messageService: IMessageService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@ICommandService private commandService: ICommandService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IViewletService private viewletService: IViewletService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@IFileService private fileService: IFileService,
+		@IMenuService private menuService: IMenuService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IIntegrityService private integrityService: IIntegrityService
 	) {
 		super(themeService);
 
+		this.touchBarDisposables = [];
+
+		this.touchBarUpdater = new RunOnceScheduler(() => this.doSetupTouchbar(), 300);
+		this.toUnbind.push(this.touchBarUpdater);
+
+		this.pendingFoldersToAdd = [];
+		this.addFoldersScheduler = new RunOnceScheduler(() => this.doAddFolders(), 100);
+		this.toUnbind.push(this.addFoldersScheduler);
+
 		this.registerListeners();
-		this.setup();
+		this.create();
 	}
 
 	private registerListeners(): void {
 
 		// React to editor input changes
-		this.editorGroupService.onEditorsChanged(() => {
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => {
+
+			// Represented File Name
 			const file = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-
 			this.titleService.setRepresentedFilename(file ? file.fsPath : '');
-		});
 
-		let draggedExternalResources: URI[];
-		let dropOverlay: Builder;
-
-		function cleanUp(): void {
-			draggedExternalResources = void 0;
-
-			if (dropOverlay) {
-				dropOverlay.destroy();
-				dropOverlay = void 0;
-			}
-		}
-
-		// Detect resources dropped into Code from outside
-		window.document.body.addEventListener(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-			DOM.EventHelper.stop(e);
-
-			if (!draggedExternalResources) {
-				draggedExternalResources = extractResources(e, true /* external only */).map(d => d.resource);
-
-				// Find out if folders are dragged and show the appropiate feedback then
-				this.includesFolder(draggedExternalResources).done(includesFolder => {
-					if (includesFolder) {
-						const activeContrastBorderColor = this.getColor(activeContrastBorder);
-						dropOverlay = $(window.document.getElementById(this.partService.getWorkbenchElementId()))
-							.div({
-								id: 'monaco-workbench-drop-overlay'
-							})
-							.style({
-								backgroundColor: this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND),
-								outlineColor: activeContrastBorderColor,
-								outlineOffset: activeContrastBorderColor ? '-2px' : null,
-								outlineStyle: activeContrastBorderColor ? 'dashed' : null,
-								outlineWidth: activeContrastBorderColor ? '2px' : null
-							})
-							.on(DOM.EventType.DROP, (e: DragEvent) => {
-								DOM.EventHelper.stop(e, true);
-
-								this.windowService.focusWindow(); // make sure this window has focus so that the open call reaches the right window!
-
-								// Ask the user when opening a potential large number of folders
-								let doOpen = true;
-								if (draggedExternalResources.length > 20) {
-									doOpen = this.messageService.confirm({
-										message: nls.localize('confirmOpen', "Are you sure you want to open {0} folders?", draggedExternalResources.length),
-										primaryButton: nls.localize({ key: 'confirmOpenButton', comment: ['&& denotes a mnemonic'] }, "&&Open"),
-										type: 'question'
-									});
-								}
-
-								if (doOpen) {
-									this.windowsService.openWindow(draggedExternalResources.map(r => r.fsPath), { forceReuseWindow: true });
-								}
-
-								cleanUp();
-							})
-							.on([DOM.EventType.DRAG_LEAVE, DOM.EventType.DRAG_END], () => {
-								cleanUp();
-							}).once(DOM.EventType.MOUSE_OVER, () => {
-								// Under some circumstances we have seen reports where the drop overlay is not being
-								// cleaned up and as such the editor area remains under the overlay so that you cannot
-								// type into the editor anymore. This seems related to using VMs and DND via host and
-								// guest OS, though some users also saw it without VMs.
-								// To protect against this issue we always destroy the overlay as soon as we detect a
-								// mouse event over it. The delay is used to guarantee we are not interfering with the
-								// actual DROP event that can also trigger a mouse over event.
-								// See also: https://github.com/Microsoft/vscode/issues/10970
-								setTimeout(() => {
-									cleanUp();
-								}, 300);
-							});
-					}
-				});
-			}
-		});
-
-		// Clear our map and overlay on any finish of DND outside the overlay
-		[DOM.EventType.DROP, DOM.EventType.DRAG_END].forEach(event => {
-			window.document.body.addEventListener(event, (e: DragEvent) => {
-				if (!dropOverlay || e.target !== dropOverlay.getHTMLElement()) {
-					cleanUp(); // only run cleanUp() if we are not over the overlay (because we are being called in capture phase)
-				}
-			}, true /* use capture because components within may preventDefault() when they accept the drop */);
-		});
+			// Touch Bar
+			this.updateTouchbarMenu();
+		}));
 
 		// prevent opening a real URL inside the shell
-		window.document.body.addEventListener(DOM.EventType.DROP, (e: DragEvent) => {
-			DOM.EventHelper.stop(e);
+		[DOM.EventType.DRAG_OVER, DOM.EventType.DROP].forEach(event => {
+			window.document.body.addEventListener(event, (e: DragEvent) => {
+				DOM.EventHelper.stop(e);
+			});
 		});
 
-		// Handle window.open() calls
-		const $this = this;
-		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
-			$this.windowsService.openExternal(url);
-
-			return null;
-		};
-	}
-
-	private setup(): void {
-
 		// Support runAction event
-		ipc.on('vscode:runAction', (event, actionId: string) => {
-			this.commandService.executeCommand(actionId, { from: 'menu' }).done(_ => {
-				this.telemetryService.publicLog('commandExecuted', { id: actionId, from: 'menu' });
+		ipc.on('vscode:runAction', (_event: any, request: IRunActionInWindowRequest) => {
+			const args: any[] = [];
+
+			// If we run an action from the touchbar, we fill in the currently active resource
+			// as payload because the touch bar items are context aware depending on the editor
+			if (request.from === 'touchbar') {
+				const activeEditor = this.editorService.getActiveEditor();
+				if (activeEditor) {
+					const resource = toResource(activeEditor.input, { supportSideBySide: true });
+					if (resource) {
+						args.push(resource);
+					}
+				}
+			} else {
+				args.push({ from: request.from }); // TODO@telemetry this is a bit weird to send this to every action?
+			}
+
+			this.commandService.executeCommand(request.id, ...args).done(_ => {
+				/* __GDPR__
+					"commandExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('commandExecuted', { id: request.id, from: request.from });
 			}, err => {
 				this.messageService.show(Severity.Error, err);
 			});
 		});
 
 		// Support resolve keybindings event
-		ipc.on('vscode:resolveKeybindings', (event, rawActionIds: string) => {
+		ipc.on('vscode:resolveKeybindings', (_event: any, rawActionIds: string) => {
 			let actionIds: string[] = [];
 			try {
 				actionIds = JSON.parse(rawActionIds);
@@ -221,12 +179,7 @@ export class ElectronWindow extends Themable {
 			}, () => errors.onUnexpectedError);
 		});
 
-		// Send over all extension viewlets when extensions are ready
-		this.extensionService.onReady().then(() => {
-			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().filter(v => !!v.extensionId).map(v => { return { id: v.id, label: v.name }; })));
-		});
-
-		ipc.on('vscode:reportError', (event, error) => {
+		ipc.on('vscode:reportError', (_event: any, error: string) => {
 			if (error) {
 				const errorParsed = JSON.parse(error);
 				errorParsed.mainProcess = true;
@@ -235,111 +188,230 @@ export class ElectronWindow extends Themable {
 		});
 
 		// Support openFiles event for existing and new files
-		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => this.onOpenFiles(request));
+		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => this.onOpenFiles(request));
 
-		// Emit event when vscode has loaded
-		this.partService.joinCreation().then(() => {
-			ipc.send('vscode:workbenchLoaded', this.windowService.getCurrentWindowId());
-		});
+		// Support addFolders event if we have a workspace opened
+		ipc.on('vscode:addFolders', (_event: any, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
 
 		// Message support
-		ipc.on('vscode:showInfoMessage', (event, message: string) => {
+		ipc.on('vscode:showInfoMessage', (_event: any, message: string) => {
 			this.messageService.show(Severity.Info, message);
 		});
 
 		// Support toggling auto save
-		ipc.on('vscode.toggleAutoSave', event => {
+		ipc.on('vscode.toggleAutoSave', () => {
 			this.toggleAutoSave();
 		});
 
 		// Fullscreen Events
-		ipc.on('vscode:enterFullScreen', event => {
-			this.partService.joinCreation().then(() => {
+		ipc.on('vscode:enterFullScreen', () => {
+			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 				browser.setFullscreen(true);
 			});
 		});
 
-		ipc.on('vscode:leaveFullScreen', event => {
-			this.partService.joinCreation().then(() => {
+		ipc.on('vscode:leaveFullScreen', () => {
+			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 				browser.setFullscreen(false);
 			});
 		});
 
 		// High Contrast Events
-		ipc.on('vscode:enterHighContrast', event => {
-			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		ipc.on('vscode:enterHighContrast', () => {
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
-				this.partService.joinCreation().then(() => {
+				this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 					this.themeService.setColorTheme(VS_HC_THEME, null);
 				});
 			}
 		});
 
-		ipc.on('vscode:leaveHighContrast', event => {
-			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		ipc.on('vscode:leaveHighContrast', () => {
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
-				this.partService.joinCreation().then(() => {
+				this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 					this.themeService.setColorTheme(VS_DARK_THEME, null);
 				});
 			}
 		});
 
 		// keyboard layout changed event
-		ipc.on('vscode:keyboardLayoutChanged', (event, isISOKeyboard: boolean) => {
-			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(isISOKeyboard);
+		ipc.on('vscode:keyboardLayoutChanged', () => {
+			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 		});
 
 		// keyboard layout changed event
-		ipc.on('vscode:accessibilitySupportChanged', (event, accessibilitySupportEnabled: boolean) => {
-			browser.setAccessibilitySupport(accessibilitySupportEnabled ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
+		ipc.on('vscode:accessibilitySupportChanged', (_event: any, accessibilitySupportEnabled: boolean) => {
+			browser.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
-		// Configuration changes
-		let previousConfiguredZoomLevel: number;
-		this.configurationService.onDidUpdateConfiguration(e => {
-			const windowConfig: IWindowsConfiguration = this.configurationService.getConfiguration<IWindowsConfiguration>();
-
-			let newZoomLevel = 0;
-			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-				newZoomLevel = windowConfig.window.zoomLevel;
-
-				// Leave early if the configured zoom level did not change (https://github.com/Microsoft/vscode/issues/1536)
-				if (previousConfiguredZoomLevel === newZoomLevel) {
-					return;
-				}
-
-				previousConfiguredZoomLevel = newZoomLevel;
+		// Zoom level changes
+		this.updateWindowZoomLevel();
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('window.zoomLevel')) {
+				this.updateWindowZoomLevel();
 			}
-
-			if (webFrame.getZoomLevel() !== newZoomLevel) {
-				webFrame.setZoomLevel(newZoomLevel);
-				browser.setZoomFactor(webFrame.getZoomFactor());
-				// See https://github.com/Microsoft/vscode/issues/26151
-				// Cannot be trusted because the webFrame might take some time
-				// until it really applies the new zoom level
-				browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
-			}
-		});
+		}));
 
 		// Context menu support in input/textarea
-		window.document.addEventListener('contextmenu', e => {
-			if (e.target instanceof HTMLElement) {
-				const target = <HTMLElement>e.target;
-				if (target.nodeName && (target.nodeName.toLowerCase() === 'input' || target.nodeName.toLowerCase() === 'textarea')) {
-					e.preventDefault();
-					e.stopPropagation();
+		window.document.addEventListener('contextmenu', e => this.onContextMenu(e));
+	}
 
-					this.contextMenuService.showContextMenu({
-						getAnchor: () => e,
-						getActions: () => TPromise.as(TextInputActions)
-					});
-				}
+	private onContextMenu(e: PointerEvent): void {
+		if (e.target instanceof HTMLElement) {
+			const target = <HTMLElement>e.target;
+			if (target.nodeName && (target.nodeName.toLowerCase() === 'input' || target.nodeName.toLowerCase() === 'textarea')) {
+				e.preventDefault();
+				e.stopPropagation();
+
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => e,
+					getActions: () => TPromise.as(TextInputActions)
+				});
 			}
+		}
+	}
+
+	private updateWindowZoomLevel(): void {
+		const windowConfig: IWindowsConfiguration = this.configurationService.getValue<IWindowsConfiguration>();
+
+		let newZoomLevel = 0;
+		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
+			newZoomLevel = windowConfig.window.zoomLevel;
+
+			// Leave early if the configured zoom level did not change (https://github.com/Microsoft/vscode/issues/1536)
+			if (this.previousConfiguredZoomLevel === newZoomLevel) {
+				return;
+			}
+
+			this.previousConfiguredZoomLevel = newZoomLevel;
+		}
+
+		if (webFrame.getZoomLevel() !== newZoomLevel) {
+			webFrame.setZoomLevel(newZoomLevel);
+			browser.setZoomFactor(webFrame.getZoomFactor());
+			// See https://github.com/Microsoft/vscode/issues/26151
+			// Cannot be trusted because the webFrame might take some time
+			// until it really applies the new zoom level
+			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
+		}
+	}
+
+	private create(): void {
+
+		// Handle window.open() calls
+		const $this = this;
+		(<any>window).open = function (url: string, target: string, features: string, replace: boolean): any {
+			$this.windowsService.openExternal(url);
+
+			return null;
+		};
+
+		// Send over all extension viewlets when extensions are ready
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().filter(v => !!v.extensionId).map(v => { return { id: v.id, label: v.name }; })));
+		});
+
+		// Emit event when vscode has loaded
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+			ipc.send('vscode:workbenchLoaded', this.windowService.getCurrentWindowId());
+		});
+
+		// Touchbar Support
+		this.updateTouchbarMenu();
+
+		// Integrity warning
+		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
+
+		// Root warning
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+			let isAdminPromise: Promise<boolean>;
+			if (isWindows) {
+				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated());
+			} else {
+				isAdminPromise = Promise.resolve(isRootUser);
+			}
+
+			return isAdminPromise.then(isAdmin => {
+
+				// Update title
+				this.titleService.updateProperties({ isAdmin });
+
+				// Show warning message (unix only)
+				if (isAdmin && !isWindows) {
+					this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
+				}
+			});
 		});
 	}
 
+	private updateTouchbarMenu(): void {
+		if (!isMacintosh) {
+			return; // macOS only
+		}
+
+		const touchbarEnabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled');
+		if (!touchbarEnabled) {
+			return; // disabled via setting
+		}
+
+		// Dispose old
+		this.touchBarDisposables = dispose(this.touchBarDisposables);
+
+		// Create new
+		this.touchBarMenu = this.editorGroupService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
+		this.touchBarDisposables.push(this.touchBarMenu);
+		this.touchBarDisposables.push(this.touchBarMenu.onDidChange(() => {
+			this.scheduleSetupTouchbar();
+		}));
+
+		this.scheduleSetupTouchbar();
+	}
+
+	private scheduleSetupTouchbar(): void {
+		this.touchBarUpdater.schedule();
+	}
+
+	private doSetupTouchbar(): void {
+		const actions: (MenuItemAction | Separator)[] = [];
+
+		// Fill actions into groups respecting order
+		fillInActions(this.touchBarMenu, void 0, actions, this.contextMenuService);
+
+		// Convert into command action multi array
+		const items: ICommandAction[][] = [];
+		let group: ICommandAction[] = [];
+		for (let i = 0; i < actions.length; i++) {
+			const action = actions[i];
+
+			// Command
+			if (action instanceof MenuItemAction) {
+				group.push(action.item);
+			}
+
+			// Separator
+			else if (action instanceof Separator) {
+				if (group.length) {
+					items.push(group);
+				}
+
+				group = [];
+			}
+		}
+
+		if (group.length) {
+			items.push(group);
+		}
+
+		// Only update if the actions have changed
+		if (!objects.equals(this.lastInstalledTouchedBar, items)) {
+			this.lastInstalledTouchedBar = items;
+			this.windowService.updateTouchBar(items);
+		}
+	}
+
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
-		return this.partService.joinCreation().then(() => {
+		return TPromise.join([this.lifecycleService.when(LifecyclePhase.Running), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
 			return arrays.coalesce(actionIds.map(id => {
 				const binding = this.keybindingService.lookupKeybinding(id);
 				if (!binding) {
@@ -363,9 +435,32 @@ export class ElectronWindow extends Themable {
 		});
 	}
 
+	private onAddFoldersRequest(request: IAddFoldersRequest): void {
+
+		// Buffer all pending requests
+		this.pendingFoldersToAdd.push(request);
+
+		// Delay the adding of folders a bit to buffer in case more requests are coming
+		if (!this.addFoldersScheduler.isScheduled()) {
+			this.addFoldersScheduler.schedule();
+		}
+	}
+
+	private doAddFolders(): void {
+		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
+
+		this.pendingFoldersToAdd.forEach(request => {
+			foldersToAdd.push(...request.foldersToAdd.map(folderToAdd => ({ uri: URI.file(folderToAdd.filePath) })));
+		});
+
+		this.pendingFoldersToAdd = [];
+
+		this.workspaceEditingService.addFolders(foldersToAdd).done(null, errors.onUnexpectedError);
+	}
+
 	private onOpenFiles(request: IOpenFileRequest): void {
-		let inputs: IResourceInputType[] = [];
-		let diffMode = (request.filesToDiff.length === 2);
+		const inputs: IResourceInputType[] = [];
+		const diffMode = (request.filesToDiff.length === 2);
 
 		if (!diffMode && request.filesToOpen) {
 			inputs.push(...this.toInputs(request.filesToOpen, false));
@@ -380,13 +475,27 @@ export class ElectronWindow extends Themable {
 		}
 
 		if (inputs.length) {
-			this.openResources(inputs, diffMode).done(null, errors.onUnexpectedError);
+			this.openResources(inputs, diffMode).then(null, errors.onUnexpectedError);
+		}
+
+		if (request.filesToWait && inputs.length) {
+			// In wait mode, listen to changes to the editors and wait until the files
+			// are closed that the user wants to wait for. When this happens we delete
+			// the wait marker file to signal to the outside that editing is done.
+			const resourcesToWaitFor = request.filesToWait.paths.map(p => URI.file(p.filePath));
+			const waitMarkerFile = URI.file(request.filesToWait.waitMarkerFilePath);
+			const stacks = this.editorGroupService.getStacksModel();
+			const unbind = stacks.onEditorClosed(() => {
+				if (resourcesToWaitFor.every(r => !stacks.isOpen(r))) {
+					unbind.dispose();
+					this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
+				}
+			});
 		}
 	}
 
-	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): TPromise<IEditor | IEditor[]> {
-		return this.partService.joinCreation().then((): TPromise<IEditor | IEditor[]> => {
-
+	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): Thenable<IEditor | IEditor[]> {
+		return this.lifecycleService.when(LifecyclePhase.Running).then((): TPromise<IEditor | IEditor[]> => {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {
@@ -431,7 +540,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private toggleAutoSave(): void {
-		const setting = this.configurationService.lookup(ElectronWindow.AUTO_SAVE_SETTING);
+		const setting = this.configurationService.inspect(ElectronWindow.AUTO_SAVE_SETTING);
 		let userAutoSaveConfig = setting.user;
 		if (types.isUndefinedOrNull(userAutoSaveConfig)) {
 			userAutoSaveConfig = setting.default; // use default if setting not defined
@@ -444,12 +553,12 @@ export class ElectronWindow extends Themable {
 			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
 		}
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue });
+		this.configurationService.updateValue(ElectronWindow.AUTO_SAVE_SETTING, newAutoSaveValue, ConfigurationTarget.USER);
 	}
 
-	private includesFolder(resources: URI[]): TPromise<boolean> {
-		return TPromise.join(resources.map(resource => {
-			return stat(resource.fsPath).then(stats => stats.isDirectory() ? true : false, error => false);
-		})).then(res => res.some(res => !!res));
+	public dispose(): void {
+		this.touchBarDisposables = dispose(this.touchBarDisposables);
+
+		super.dispose();
 	}
 }

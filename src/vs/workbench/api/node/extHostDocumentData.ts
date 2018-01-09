@@ -6,13 +6,12 @@
 
 import { ok } from 'vs/base/common/assert';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
+import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import URI from 'vs/base/common/uri';
 import { Range, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { MainThreadDocumentsShape } from './extHost.protocol';
-import { ITextSource } from 'vs/editor/common/model/textSource';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
@@ -23,7 +22,7 @@ export function getWordDefinitionFor(modeId: string): RegExp {
 	return _modeId2WordDefinition.get(modeId);
 }
 
-export class ExtHostDocumentData extends MirrorModel {
+export class ExtHostDocumentData extends MirrorTextModel {
 
 	private _proxy: MainThreadDocumentsShape;
 	private _languageId: string;
@@ -50,7 +49,7 @@ export class ExtHostDocumentData extends MirrorModel {
 		this._isDirty = false;
 	}
 
-	equalLines({ lines }: ITextSource): boolean {
+	equalLines(lines: string[]): boolean {
 		const len = lines.length;
 		if (len !== this._lines.length) {
 			return false;
@@ -78,7 +77,7 @@ export class ExtHostDocumentData extends MirrorModel {
 				getText(range?) { return range ? data._getTextInRange(range) : data.getText(); },
 				get eol() { return data._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
 				get lineCount() { return data._lines.length; },
-				lineAt(lineOrPos) { return data._lineAt(lineOrPos); },
+				lineAt(lineOrPos: number | vscode.Position) { return data._lineAt(lineOrPos); },
 				offsetAt(pos) { return data._offsetAt(pos); },
 				positionAt(offset) { return data._positionAt(offset); },
 				validateRange(ran) { return data._validateRange(ran); },

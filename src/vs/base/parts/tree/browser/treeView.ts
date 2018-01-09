@@ -23,7 +23,8 @@ import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { KeyCode } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
-import { EmitterEvent } from 'vs/base/common/eventEmitter';
+import { IDomNodePagePosition } from 'vs/base/browser/dom';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export interface IRow {
 	element: HTMLElement;
@@ -379,7 +380,6 @@ export class TreeView extends HeightMap {
 	private styleElement: HTMLStyleElement;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
-	private wrapperGesture: Touch.Gesture;
 	private msGesture: MSGesture;
 	private lastPointerType: string;
 	private lastClickTimeStamp: number = 0;
@@ -392,8 +392,6 @@ export class TreeView extends HeightMap {
 
 	private isRefreshing = false;
 	private refreshingPreviousChildrenIds: { [id: string]: string[] } = {};
-
-	private dragAndDropListeners: { (): void; }[];
 	private currentDragAndDropData: _.IDragAndDropData;
 	private currentDropElement: any;
 	private currentDropElementReaction: _.IDragOverReaction;
@@ -437,14 +435,14 @@ export class TreeView extends HeightMap {
 
 		this.modelListeners = [];
 		this.viewListeners = [];
-		this.dragAndDropListeners = [];
 
 		this.model = null;
 		this.items = {};
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = `monaco-tree no-focused-item monaco-tree-instance-${this.instance}`;
-		this.domNode.tabIndex = 0;
+		// to allow direct tabbing into the tree instead of first focusing the tree
+		this.domNode.tabIndex = context.options.preventRootFocus ? -1 : 0;
 
 		this.styleElement = DOM.createStyleSheet(this.domNode);
 
@@ -472,14 +470,13 @@ export class TreeView extends HeightMap {
 		});
 		this.scrollableElement.onScroll((e) => {
 			this.render(e.scrollTop, e.height);
-			this.emit('scroll', e); // TODO@Joao: is anyone interested in this event?
 		});
 
 		if (Browser.isIE) {
 			this.wrapper.style.msTouchAction = 'none';
 			this.wrapper.style.msContentZooming = 'none';
 		} else {
-			this.wrapperGesture = new Touch.Gesture(this.wrapper);
+			Touch.Gesture.addTarget(this.wrapper);
 		}
 
 		this.rowsContainer = document.createElement('div');
@@ -489,8 +486,8 @@ export class TreeView extends HeightMap {
 		}
 
 		var focusTracker = DOM.trackFocus(this.domNode);
-		focusTracker.addFocusListener(() => this.onFocus());
-		focusTracker.addBlurListener(() => this.onBlur());
+		this.viewListeners.push(focusTracker.onDidFocus(() => this.onFocus()));
+		this.viewListeners.push(focusTracker.onDidBlur(() => this.onBlur()));
 		this.viewListeners.push(focusTracker);
 
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'keydown', (e) => this.onKeyDown(e)));
@@ -717,65 +714,21 @@ export class TreeView extends HeightMap {
 		this.releaseModel();
 		this.model = newModel;
 
-		this.modelListeners.push(this.model.addBulkListener((e) => this.onModelEvents(e)));
-	}
+		this.model.onRefresh(this.onRefreshing, this, this.modelListeners);
+		this.model.onDidRefresh(this.onRefreshed, this, this.modelListeners);
+		this.model.onSetInput(this.onClearingInput, this, this.modelListeners);
+		this.model.onDidSetInput(this.onSetInput, this, this.modelListeners);
+		this.model.onDidFocus(this.onModelFocusChange, this, this.modelListeners);
 
-	private onModelEvents(events: EmitterEvent[]): void {
-		var elementsToRefresh: Model.Item[] = [];
-
-		for (var i = 0, len = events.length; i < len; i++) {
-			var event = events[i];
-			var data = event.data;
-
-			switch (event.type) {
-				case 'refreshing':
-					this.onRefreshing();
-					break;
-				case 'refreshed':
-					this.onRefreshed();
-					break;
-				case 'clearingInput':
-					this.onClearingInput(data);
-					break;
-				case 'setInput':
-					this.onSetInput(data);
-					break;
-				case 'item:childrenRefreshing':
-					this.onItemChildrenRefreshing(data);
-					break;
-				case 'item:childrenRefreshed':
-					this.onItemChildrenRefreshed(data);
-					break;
-				case 'item:refresh':
-					elementsToRefresh.push(data.item);
-					break;
-				case 'item:expanding':
-					this.onItemExpanding(data);
-					break;
-				case 'item:expanded':
-					this.onItemExpanded(data);
-					break;
-				case 'item:collapsing':
-					this.onItemCollapsing(data);
-					break;
-				case 'item:reveal':
-					this.onItemReveal(data);
-					break;
-				case 'item:addTrait':
-					this.onItemAddTrait(data);
-					break;
-				case 'item:removeTrait':
-					this.onItemRemoveTrait(data);
-					break;
-				case 'focus':
-					this.onModelFocusChange();
-					break;
-			}
-		}
-
-		if (elementsToRefresh.length > 0) {
-			this.onItemsRefresh(elementsToRefresh);
-		}
+		this.model.onRefreshItemChildren(this.onItemChildrenRefreshing, this, this.modelListeners);
+		this.model.onDidRefreshItemChildren(this.onItemChildrenRefreshed, this, this.modelListeners);
+		this.model.onDidRefreshItem(this.onItemRefresh, this, this.modelListeners);
+		this.model.onExpandItem(this.onItemExpanding, this, this.modelListeners);
+		this.model.onDidExpandItem(this.onItemExpanded, this, this.modelListeners);
+		this.model.onCollapseItem(this.onItemCollapsing, this, this.modelListeners);
+		this.model.onDidRevealItem(this.onItemReveal, this, this.modelListeners);
+		this.model.onDidAddTraitItem(this.onItemAddTrait, this, this.modelListeners);
+		this.model.onDidRemoveTraitItem(this.onItemRemoveTrait, this, this.modelListeners);
 	}
 
 	private onRefreshing(): void {
@@ -846,32 +799,34 @@ export class TreeView extends HeightMap {
 	}
 
 	public get viewHeight() {
-		const scrollState = this.scrollableElement.getScrollState();
-		return scrollState.height;
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		return scrollDimensions.height;
 	}
 
 	public set viewHeight(viewHeight: number) {
-		this.scrollableElement.updateState({
+		this.scrollableElement.setScrollDimensions({
 			height: viewHeight,
 			scrollHeight: this.getTotalHeight()
 		});
 	}
 
 	public get scrollTop(): number {
-		const scrollState = this.scrollableElement.getScrollState();
-		return scrollState.scrollTop;
+		const scrollPosition = this.scrollableElement.getScrollPosition();
+		return scrollPosition.scrollTop;
 	}
 
 	public set scrollTop(scrollTop: number) {
-		this.scrollableElement.updateState({
-			scrollTop: scrollTop,
+		this.scrollableElement.setScrollDimensions({
 			scrollHeight: this.getTotalHeight()
+		});
+		this.scrollableElement.setScrollPosition({
+			scrollTop: scrollTop
 		});
 	}
 
 	public getScrollPosition(): number {
 		const height = this.getTotalHeight() - this.viewHeight;
-		return height <= 0 ? 0 : this.scrollTop / height;
+		return height <= 0 ? 1 : this.scrollTop / height;
 	}
 
 	public setScrollPosition(pos: number): void {
@@ -892,7 +847,6 @@ export class TreeView extends HeightMap {
 	private onSetInput(e: Model.IInputEvent): void {
 		this.context.cache.garbageCollect();
 		this.inputItem = new RootViewItem(this.context, <Model.Item>e.item, this.wrapper);
-		this.emit('viewItem:create', { item: this.inputItem.model });
 	}
 
 	private onItemChildrenRefreshing(e: Model.IItemChildrenRefreshEvent): void {
@@ -1000,6 +954,10 @@ export class TreeView extends HeightMap {
 				this.onRowsChanged();
 			}
 		}
+	}
+
+	private onItemRefresh(item: Model.Item): void {
+		this.onItemsRefresh([item]);
 	}
 
 	private onItemsRefresh(items: Model.Item[]): void {
@@ -1143,10 +1101,7 @@ export class TreeView extends HeightMap {
 
 	public onRemoveItem(item: ViewItem): void {
 		this.removeItemFromDOM(item);
-
 		item.dispose();
-		this.emit('viewItem:dispose', { item: this.inputItem.model });
-
 		delete this.items[item.id];
 	}
 
@@ -1267,13 +1222,16 @@ export class TreeView extends HeightMap {
 			var keyboardEvent = new Keyboard.StandardKeyboardEvent(<KeyboardEvent>event);
 			element = this.model.getFocus();
 
-			if (!element) {
-				return;
-			}
+			var position: IDomNodePagePosition;
 
-			var id = this.context.dataSource.getId(this.context.tree, element);
-			var viewItem = this.items[id];
-			var position = DOM.getDomNodePagePosition(viewItem.element);
+			if (!element) {
+				element = this.model.getInput();
+				position = DOM.getDomNodePagePosition(this.inputItem.element);
+			} else {
+				var id = this.context.dataSource.getId(this.context.tree, element);
+				var viewItem = this.items[id];
+				position = DOM.getDomNodePagePosition(viewItem.element);
+			}
 
 			resultEvent = new _.KeyboardContextMenuEvent(position.left + position.width, position.top, keyboardEvent);
 
@@ -1334,7 +1292,7 @@ export class TreeView extends HeightMap {
 		}
 
 		e.dataTransfer.effectAllowed = 'copyMove';
-		e.dataTransfer.setData('URL', item.uri);
+		e.dataTransfer.setData(DataTransfers.URL, item.uri);
 		if (e.dataTransfer.setDragImage) {
 			let label: string;
 
@@ -1687,11 +1645,6 @@ export class TreeView extends HeightMap {
 			this.domNode.parentNode.removeChild(this.domNode);
 		}
 		this.domNode = null;
-
-		if (this.wrapperGesture) {
-			this.wrapperGesture.dispose();
-			this.wrapperGesture = null;
-		}
 
 		if (this.context.cache) {
 			this.context.cache.dispose();

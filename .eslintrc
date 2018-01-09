@@ -10,5 +10,10 @@
 		"no-extra-semi": "warn",
 		"semi": "warn"
 	},
-	"extends": "eslint:recommended"
+	"extends": "eslint:recommended",
+	"parserOptions": {
+		"ecmaFeatures": {
+			"experimentalObjectRestSpread": true
+		}
+	}
 }

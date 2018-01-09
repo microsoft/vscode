@@ -5,16 +5,17 @@
 'use strict';
 
 import {
-	createConnection, IConnection, Range,
-	TextDocuments, TextDocument, InitializeParams, InitializeResult, RequestType
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities
 } from 'vscode-languageserver';
+
+import { TextDocument } from 'vscode-languageserver-types';
+
+import { ConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
+import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-
-namespace ColorSymbolRequest {
-	export const type: RequestType<string, Range[], any, any> = new RequestType('css/colorSymbols');
-}
+import { formatError, runSafe } from './utils/errors';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -27,6 +28,10 @@ let connection: IConnection = createConnection();
 
 console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
+
+process.on('unhandledRejection', (e: any) => {
+	connection.console.error(formatError(`Unhandled exception`, e));
+});
 
 // Create a simple text document manager. The text document manager
 // supports full document sync only
@@ -43,24 +48,34 @@ connection.onShutdown(() => {
 	stylesheets.dispose();
 });
 
+let scopedSettingsSupport = false;
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
-	let snippetSupport = params.capabilities && params.capabilities.textDocument && params.capabilities.textDocument.completion && params.capabilities.textDocument.completion.completionItem && params.capabilities.textDocument.completion.completionItem.snippetSupport;
-	return {
-		capabilities: {
-			// Tell the client that the server works in FULL text document sync mode
-			textDocumentSync: documents.syncKind,
-			completionProvider: snippetSupport ? { resolveProvider: false } : null,
-			hoverProvider: true,
-			documentSymbolProvider: true,
-			referencesProvider: true,
-			definitionProvider: true,
-			documentHighlightProvider: true,
-			codeActionProvider: true,
-			renameProvider: true
+	function hasClientCapability(name: string) {
+		let keys = name.split('.');
+		let c: any = params.capabilities;
+		for (let i = 0; c && i < keys.length; i++) {
+			c = c[keys[i]];
 		}
+		return !!c;
+	}
+	let snippetSupport = hasClientCapability('textDocument.completion.completionItem.snippetSupport');
+	scopedSettingsSupport = hasClientCapability('workspace.configuration');
+	let capabilities: ServerCapabilities & CPServerCapabilities = {
+		// Tell the client that the server works in FULL text document sync mode
+		textDocumentSync: documents.syncKind,
+		completionProvider: snippetSupport ? { resolveProvider: false } : undefined,
+		hoverProvider: true,
+		documentSymbolProvider: true,
+		referencesProvider: true,
+		definitionProvider: true,
+		documentHighlightProvider: true,
+		codeActionProvider: true,
+		renameProvider: true,
+		colorProvider: true
 	};
+	return { capabilities };
 });
 
 let languageServices: { [id: string]: LanguageService } = {
@@ -78,6 +93,24 @@ function getLanguageService(document: TextDocument) {
 	return service;
 }
 
+let documentSettings: { [key: string]: Thenable<LanguageSettings | undefined> } = {};
+// remove document settings on close
+documents.onDidClose(e => {
+	delete documentSettings[e.document.uri];
+});
+function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSettings | undefined> {
+	if (scopedSettingsSupport) {
+		let promise = documentSettings[textDocument.uri];
+		if (!promise) {
+			let configRequestParam = { items: [{ scopeUri: textDocument.uri, section: textDocument.languageId }] };
+			promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => s[0]);
+			documentSettings[textDocument.uri] = promise;
+		}
+		return promise;
+	}
+	return Promise.resolve(void 0);
+}
+
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration(change => {
 	updateConfiguration(<Settings>change.settings);
@@ -85,14 +118,16 @@ connection.onDidChangeConfiguration(change => {
 
 function updateConfiguration(settings: Settings) {
 	for (let languageId in languageServices) {
-		languageServices[languageId].configure(settings[languageId]);
+		languageServices[languageId].configure((settings as any)[languageId]);
 	}
+	// reset all document settings
+	documentSettings = {};
 	// Revalidate any open text documents
 	documents.all().forEach(triggerValidation);
 }
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
-const validationDelayMs = 200;
+const validationDelayMs = 500;
 
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
@@ -123,67 +158,101 @@ function triggerValidation(textDocument: TextDocument): void {
 }
 
 function validateTextDocument(textDocument: TextDocument): void {
-	let stylesheet = stylesheets.get(textDocument);
-	let diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet);
-	// Send the computed diagnostics to VSCode.
-	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+	let settingsPromise = getDocumentSettings(textDocument);
+	settingsPromise.then(settings => {
+		let stylesheet = stylesheets.get(textDocument);
+		let diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings);
+		// Send the computed diagnostics to VSCode.
+		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+	}, e => {
+		connection.console.error(formatError(`Error while validating ${textDocument.uri}`, e));
+	});
 }
 
 connection.onCompletion(textDocumentPosition => {
-	let document = documents.get(textDocumentPosition.textDocument.uri);
-	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheet);
+	return runSafe(() => {
+		let document = documents.get(textDocumentPosition.textDocument.uri);
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheet)!; /* TODO: remove ! once LS has null annotations */
+	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
 });
 
 connection.onHover(textDocumentPosition => {
-	let document = documents.get(textDocumentPosition.textDocument.uri);
-	let styleSheet = stylesheets.get(document);
-	return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet);
+	return runSafe(() => {
+		let document = documents.get(textDocumentPosition.textDocument.uri);
+		let styleSheet = stylesheets.get(document);
+		return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet)!; /* TODO: remove ! once LS has null annotations */
+	}, null, `Error while computing hover for ${textDocumentPosition.textDocument.uri}`);
 });
 
 connection.onDocumentSymbol(documentSymbolParams => {
-	let document = documents.get(documentSymbolParams.textDocument.uri);
-	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).findDocumentSymbols(document, stylesheet);
+	return runSafe(() => {
+		let document = documents.get(documentSymbolParams.textDocument.uri);
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).findDocumentSymbols(document, stylesheet);
+	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`);
 });
 
 connection.onDefinition(documentSymbolParams => {
-	let document = documents.get(documentSymbolParams.textDocument.uri);
-	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).findDefinition(document, documentSymbolParams.position, stylesheet);
+	return runSafe(() => {
+		let document = documents.get(documentSymbolParams.textDocument.uri);
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).findDefinition(document, documentSymbolParams.position, stylesheet);
+	}, null, `Error while computing definitions for ${documentSymbolParams.textDocument.uri}`);
 });
 
 connection.onDocumentHighlight(documentSymbolParams => {
-	let document = documents.get(documentSymbolParams.textDocument.uri);
-	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).findDocumentHighlights(document, documentSymbolParams.position, stylesheet);
+	return runSafe(() => {
+		let document = documents.get(documentSymbolParams.textDocument.uri);
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).findDocumentHighlights(document, documentSymbolParams.position, stylesheet);
+	}, [], `Error while computing document highlights for ${documentSymbolParams.textDocument.uri}`);
 });
 
 connection.onReferences(referenceParams => {
-	let document = documents.get(referenceParams.textDocument.uri);
-	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).findReferences(document, referenceParams.position, stylesheet);
+	return runSafe(() => {
+		let document = documents.get(referenceParams.textDocument.uri);
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).findReferences(document, referenceParams.position, stylesheet);
+	}, [], `Error while computing references for ${referenceParams.textDocument.uri}`);
 });
 
 connection.onCodeAction(codeActionParams => {
-	let document = documents.get(codeActionParams.textDocument.uri);
-	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
+	return runSafe(() => {
+		let document = documents.get(codeActionParams.textDocument.uri);
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
+	}, [], `Error while computing code actions for ${codeActionParams.textDocument.uri}`);
 });
 
-connection.onRequest(ColorSymbolRequest.type, uri => {
-	let document = documents.get(uri);
-	if (document) {
-		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).findColorSymbols(document, stylesheet);
-	}
-	return [];
+connection.onRequest(DocumentColorRequest.type, params => {
+	return runSafe(() => {
+		let document = documents.get(params.textDocument.uri);
+		if (document) {
+			let stylesheet = stylesheets.get(document);
+			return getLanguageService(document).findDocumentColors(document, stylesheet);
+		}
+		return [];
+	}, [], `Error while computing document colors for ${params.textDocument.uri}`);
+});
+
+connection.onRequest(ColorPresentationRequest.type, params => {
+	return runSafe(() => {
+		let document = documents.get(params.textDocument.uri);
+		if (document) {
+			let stylesheet = stylesheets.get(document);
+			return getLanguageService(document).getColorPresentations(document, stylesheet, params.color, params.range);
+		}
+		return [];
+	}, [], `Error while computing color presentations for ${params.textDocument.uri}`);
 });
 
 connection.onRenameRequest(renameParameters => {
-	let document = documents.get(renameParameters.textDocument.uri);
-	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).doRename(document, renameParameters.position, renameParameters.newName, stylesheet);
+	return runSafe(() => {
+		let document = documents.get(renameParameters.textDocument.uri);
+		let stylesheet = stylesheets.get(document);
+		return getLanguageService(document).doRename(document, renameParameters.position, renameParameters.newName, stylesheet);
+	}, null, `Error while computing renames for ${renameParameters.textDocument.uri}`);
 });
 
 // Listen on the connection

@@ -30,14 +30,17 @@ namespace schema {
 	export function parseMenuId(value: string): MenuId {
 		switch (value) {
 			case 'commandPalette': return MenuId.CommandPalette;
+			case 'touchBar': return MenuId.TouchBarContext;
 			case 'editor/title': return MenuId.EditorTitle;
 			case 'editor/context': return MenuId.EditorContext;
 			case 'explorer/context': return MenuId.ExplorerContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
 			case 'scm/title': return MenuId.SCMTitle;
+			case 'scm/sourceControl': return MenuId.SCMSourceControl;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
+			case 'scm/change/title': return MenuId.SCMChangeContext;
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
 		}
@@ -104,6 +107,11 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
+			'touchBar': {
+				description: localize('menus.touchBar', "The touch bar (macOS only)"),
+				type: 'array',
+				items: menuItem
+			},
 			'editor/title': {
 				description: localize('menus.editorTitle', "The editor title menu"),
 				type: 'array',
@@ -131,6 +139,11 @@ namespace schema {
 			},
 			'scm/title': {
 				description: localize('menus.scmTitle', "The Source Control title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'scm/sourceControl': {
+				description: localize('menus.scmSourceControl', "The Source Control menu"),
 				type: 'array',
 				items: menuItem
 			},
@@ -278,20 +291,23 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 
 		let { icon, category, title, command } = userFriendlyCommand;
 		let iconClass: string;
+		let iconPath: string;
 		if (icon) {
 			iconClass = ids.nextId();
 			if (typeof icon === 'string') {
-				const path = join(extension.description.extensionFolderPath, icon);
-				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(path).toString()}")`);
+				iconPath = join(extension.description.extensionFolderPath, icon);
+				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(iconPath).toString()}")`);
 			} else {
 				const light = join(extension.description.extensionFolderPath, icon.light);
 				const dark = join(extension.description.extensionFolderPath, icon.dark);
 				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(light).toString()}")`);
 				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${URI.file(dark).toString()}")`);
+
+				iconPath = join(extension.description.extensionFolderPath, icon.dark);
 			}
 		}
 
-		if (MenuRegistry.addCommand({ id: command, title, category, iconClass })) {
+		if (MenuRegistry.addCommand({ id: command, title, category, iconClass, iconPath })) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
 	}
@@ -329,17 +345,14 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 				let alt = item.alt && MenuRegistry.getCommand(item.alt);
 
 				if (!command) {
-					collector.warn(localize('missing.command', "Menu item references a command `{0}` which is not defined in the 'commands' section.", item.command));
+					collector.error(localize('missing.command', "Menu item references a command `{0}` which is not defined in the 'commands' section.", item.command));
+					continue;
 				}
 				if (item.alt && !alt) {
 					collector.warn(localize('missing.altCommand', "Menu item references an alt-command `{0}` which is not defined in the 'commands' section.", item.alt));
 				}
 				if (item.command === item.alt) {
 					collector.info(localize('dupe.command', "Menu item references the same command as default and alt-command"));
-				}
-
-				if (item.alt && menu !== MenuId.EditorTitle && item.group !== 'navigation') {
-					collector.info(localize('nosupport.altCommand', "Sorry, but currently only the 'navigation' group of the 'editor/title' menu supports alt-commands"));
 				}
 
 				let group: string;

@@ -1,5 +1,6 @@
 {
 	"markdown.preview.breaks.desc": "Sets how line-breaks are rendered in the markdown preview. Setting it to 'true' creates a <br> for every newline.",
+	"markdown.preview.linkify": "Enable or disable conversion of URL-like text to links in the markdown preview.",
 	"markdown.preview.doubleClickToSwitchToEditor.desc": "Double click in the markdown preview to switch to the editor.",
 	"markdown.preview.fontFamily.desc": "Controls the font family used in the markdown preview.",
 	"markdown.preview.fontSize.desc": "Controls the font size in pixels used in the markdown preview.",
@@ -12,6 +13,7 @@
 	"markdown.previewSide.title" : "Open Preview to the Side",
 	"markdown.showSource.title" : "Show Source",
 	"markdown.styles.dec": "A list of URLs or local paths to CSS style sheets to use from the markdown preview. Relative paths are interpreted relative to the folder open in the explorer. If there is no open folder, they are interpreted relative to the location of the markdown file. All '\\' need to be written as '\\\\'.",
-	"markdown.showPreviewSecuritySelector.title": "Change Markdown Preview Security Settings",
-	"markdown.trace.desc": "Enable debug logging for the markdown extension."
+	"markdown.showPreviewSecuritySelector.title": "Change Preview Security Settings",
+	"markdown.trace.desc": "Enable debug logging for the markdown extension.",
+	"markdown.refreshPreview.title": "Refresh Preview"
 }

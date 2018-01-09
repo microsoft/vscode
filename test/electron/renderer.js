@@ -12,6 +12,12 @@ const glob = require('glob');
 const minimatch = require('minimatch');
 const istanbul = require('istanbul');
 const i_remap = require('remap-istanbul/lib/remap');
+const util = require('util');
+
+// Disabled custom inspect. See #38847
+if (util.inspect && util.inspect['defaultOptions']) {
+	util.inspect['defaultOptions'].customInspect = false;
+}
 
 let _tests_glob = '**/test/**/*.test.js';
 let loader;

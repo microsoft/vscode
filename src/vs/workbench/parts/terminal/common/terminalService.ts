@@ -12,6 +12,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -43,7 +44,7 @@ export abstract class TerminalService implements ITerminalService {
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IConfigurationService private _configurationService: IConfigurationService,
+		@IConfigurationService protected _configurationService: IConfigurationService,
 		@IPanelService protected _panelService: IPanelService,
 		@IPartService private _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService
@@ -59,14 +60,22 @@ export abstract class TerminalService implements ITerminalService {
 		this._onInstanceTitleChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
 
-		this._configurationService.onDidUpdateConfiguration(() => this.updateConfig());
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('terminal.integrated')) {
+				this.updateConfig();
+			}
+			if (e.affectsConfiguration('editor.accessibilitySupport')) {
+				this.updateAccessibilitySupport();
+			}
+		});
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
+		lifecycleService.onShutdown(() => this._onShutdown());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
 	}
 
-	protected abstract _showTerminalCloseConfirmation(): boolean;
+	protected abstract _showTerminalCloseConfirmation(): TPromise<boolean>;
 	public abstract createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): TPromise<string>;
@@ -85,12 +94,15 @@ export abstract class TerminalService implements ITerminalService {
 			}
 		}
 
-		// Dispose all terminal instances and don't veto
 		this._isShuttingDown = true;
+
+		return false;
+	}
+
+	private _onShutdown(): void {
 		this.terminalInstances.forEach(instance => {
 			instance.dispose();
 		});
-		return false;
 	}
 
 	public getInstanceLabels(): string[] {
@@ -132,6 +144,10 @@ export abstract class TerminalService implements ITerminalService {
 
 	public getInstanceFromId(terminalId: number): ITerminalInstance {
 		return this.terminalInstances[this._getIndexFromId(terminalId)];
+	}
+
+	public getInstanceFromIndex(terminalIndex: number): ITerminalInstance {
+		return this.terminalInstances[terminalIndex];
 	}
 
 	public setActiveInstance(terminalInstance: ITerminalInstance): void {
@@ -181,13 +197,17 @@ export abstract class TerminalService implements ITerminalService {
 			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
 				return this._panelService.openPanel(TERMINAL_PANEL_ID, focus).then(() => {
 					if (focus) {
-						this.getActiveInstance().focus(true);
+						// Do the focus call asynchronously as going through the
+						// command palette will force editor focus
+						setTimeout(() => this.getActiveInstance().focus(true), 0);
 					}
 					complete(void 0);
 				});
 			} else {
 				if (focus) {
-					this.getActiveInstance().focus(true);
+					// Do the focus call asynchronously as going through the
+					// command palette will force editor focus
+					setTimeout(() => this.getActiveInstance().focus(true), 0);
 				}
 				complete(void 0);
 			}
@@ -204,6 +224,8 @@ export abstract class TerminalService implements ITerminalService {
 
 	public abstract focusFindWidget(): TPromise<void>;
 	public abstract hideFindWidget(): void;
+	public abstract showNextFindTermFindWidget(): void;
+	public abstract showPreviousFindTermFindWidget(): void;
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
@@ -220,6 +242,11 @@ export abstract class TerminalService implements ITerminalService {
 
 	public updateConfig(): void {
 		this.terminalInstances.forEach(instance => instance.updateConfig());
+	}
+
+	public updateAccessibilitySupport(): void {
+		const isEnabled = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport === 'on';
+		this.terminalInstances.forEach(instance => instance.updateAccessibilitySupport(isEnabled));
 	}
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {

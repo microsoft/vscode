@@ -23,8 +23,13 @@ import { WebviewEditor } from 'vs/workbench/parts/html/browser/webviewEditor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IMode, TokenizationRegistry } from 'vs/editor/common/modes';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 
-function renderBody(body: string): string {
+function renderBody(body: string, css: string): string {
 	return `<!DOCTYPE html>
 		<html>
 			<head>
@@ -32,6 +37,7 @@ function renderBody(body: string): string {
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src file: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
 				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
+				<style>${css}</style>
 			</head>
 			<body>${body}</body>
 		</html>`;
@@ -46,6 +52,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IThemeService protected themeService: IThemeService,
 		@IOpenerService private openerService: IOpenerService,
 		@IModeService private modeService: IModeService,
@@ -62,9 +69,9 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		this.content = append(container, $('.release-notes', { 'style': 'height: 100%; position: relative; overflow: hidden;' }));
 	}
 
-	setInput(input: ReleaseNotesInput, options: EditorOptions): TPromise<void> {
+	async setInput(input: ReleaseNotesInput, options: EditorOptions): TPromise<void> {
 		if (this.input && this.input.matches(input)) {
-			return TPromise.as(undefined);
+			return undefined;
 		}
 
 		const { text } = input;
@@ -72,48 +79,48 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.content.innerHTML = '';
 
-		return super.setInput(input, options)
-			.then(() => {
-				const result = [];
-				const renderer = new marked.Renderer();
-				renderer.code = (code, lang) => {
-					const modeId = this.modeService.getModeIdForLanguageName(lang);
-					result.push(this.modeService.getOrCreateMode(modeId));
-					return '';
-				};
+		await super.setInput(input, options);
 
-				marked(text, { renderer });
-				return TPromise.join(result);
-			}).then(() => {
-				const renderer = new marked.Renderer();
-				renderer.code = (code, lang) => {
-					const modeId = this.modeService.getModeIdForLanguageName(lang);
-					return `<code>${tokenizeToString(code, modeId)}</code>`;
-				};
+		const result: TPromise<IMode>[] = [];
+		const renderer = new marked.Renderer();
+		renderer.code = (code, lang) => {
+			const modeId = this.modeService.getModeIdForLanguageName(lang);
+			result.push(this.modeService.getOrCreateMode(modeId));
+			return '';
+		};
 
-				return marked(text, { renderer });
-			})
-			.then(renderBody)
-			.then<void>(body => {
-				this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey);
+		marked(text, { renderer });
+		await TPromise.join(result);
 
-				if (this.input && this.input instanceof ReleaseNotesInput) {
-					const state = this.loadViewState(this.input.version);
-					if (state) {
-						this._webview.initialScrollProgress = state.scrollYPercentage;
-					}
-				}
-				this.onThemeChange(this.themeService.getTheme());
-				this._webview.contents = [body];
+		renderer.code = (code, lang) => {
+			const modeId = this.modeService.getModeIdForLanguageName(lang);
+			return `<code>${tokenizeToString(code, modeId)}</code>`;
+		};
 
-				this._webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
-				this._webview.onDidScroll(event => {
-					this.scrollYPercentage = event.scrollYPercentage;
-				}, null, this.contentDisposables);
-				this.themeService.onThemeChange(this.onThemeChange, null, this.contentDisposables);
-				this.contentDisposables.push(this._webview);
-				this.contentDisposables.push(toDisposable(() => this._webview = null));
-			});
+		const colorMap = TokenizationRegistry.getColorMap();
+		const css = generateTokensCSSForColorMap(colorMap);
+		const body = renderBody(marked(text, { renderer }), css);
+		this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, this.findInputFocusContextKey);
+		if (this.input && this.input instanceof ReleaseNotesInput) {
+			const state = this.loadViewState(this.input.version);
+			if (state) {
+				this._webview.initialScrollProgress = state.scrollYPercentage;
+			}
+		}
+		this.onThemeChange(this.themeService.getTheme());
+		this._webview.contents = [body];
+
+		this._webview.onDidClickLink(link => {
+			addGAParameters(this.telemetryService, this.environmentService, link, 'ReleaseNotes')
+				.then(updated => this.openerService.open(updated))
+				.then(null, onUnexpectedError);
+		}, null, this.contentDisposables);
+		this._webview.onDidScroll(event => {
+			this.scrollYPercentage = event.scrollYPercentage;
+		}, null, this.contentDisposables);
+		this.themeService.onThemeChange(this.onThemeChange, this, this.contentDisposables);
+		this.contentDisposables.push(this._webview);
+		this.contentDisposables.push(toDisposable(() => this._webview = null));
 	}
 
 	layout(): void {

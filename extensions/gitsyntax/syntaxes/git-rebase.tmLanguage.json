@@ -4,6 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/textmate/git.tmbundle/commit/d1db42c2d71948662098183a6df519fb53a7a15b",
 	"fileTypes": [
 		"git-rebase-todo"
 	],

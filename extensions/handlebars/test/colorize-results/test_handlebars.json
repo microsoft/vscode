@@ -220,7 +220,7 @@
 		}
 	},
 	{
-		"c": "{{#if",
+		"c": "{{",
 		"t": "text.html.handlebars meta.function.block.start.handlebars support.constant.handlebars",
 		"r": {
 			"dark_plus": "support.constant.handlebars: #DCDCAA",
@@ -228,6 +228,17 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.constant.handlebars: #DCDCAA"
+		}
+	},
+	{
+		"c": "#if",
+		"t": "text.html.handlebars meta.function.block.start.handlebars support.constant.handlebars keyword.control",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -429,7 +440,29 @@
 		}
 	},
 	{
-		"c": "{{else}}",
+		"c": "{{",
+		"t": "text.html.handlebars meta.function.inline.else.handlebars support.constant.handlebars",
+		"r": {
+			"dark_plus": "support.constant.handlebars: #DCDCAA",
+			"light_plus": "support.constant.handlebars: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.constant.handlebars: #DCDCAA"
+		}
+	},
+	{
+		"c": "else",
+		"t": "text.html.handlebars meta.function.inline.else.handlebars support.constant.handlebars keyword.control",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "}}",
 		"t": "text.html.handlebars meta.function.inline.else.handlebars support.constant.handlebars",
 		"r": {
 			"dark_plus": "support.constant.handlebars: #DCDCAA",
@@ -539,7 +572,29 @@
 		}
 	},
 	{
-		"c": "{{/if}}",
+		"c": "{{",
+		"t": "text.html.handlebars meta.function.block.end.handlebars support.constant.handlebars",
+		"r": {
+			"dark_plus": "support.constant.handlebars: #DCDCAA",
+			"light_plus": "support.constant.handlebars: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.constant.handlebars: #DCDCAA"
+		}
+	},
+	{
+		"c": "/if",
+		"t": "text.html.handlebars meta.function.block.end.handlebars support.constant.handlebars keyword.control",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "}}",
 		"t": "text.html.handlebars meta.function.block.end.handlebars support.constant.handlebars",
 		"r": {
 			"dark_plus": "support.constant.handlebars: #DCDCAA",
@@ -627,7 +682,7 @@
 		}
 	},
 	{
-		"c": "{{#unless",
+		"c": "{{",
 		"t": "text.html.handlebars meta.function.block.start.handlebars support.constant.handlebars",
 		"r": {
 			"dark_plus": "support.constant.handlebars: #DCDCAA",
@@ -635,6 +690,17 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.constant.handlebars: #DCDCAA"
+		}
+	},
+	{
+		"c": "#unless",
+		"t": "text.html.handlebars meta.function.block.start.handlebars support.constant.handlebars keyword.control",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -825,7 +891,29 @@
 		}
 	},
 	{
-		"c": "{{/unless}}",
+		"c": "{{",
+		"t": "text.html.handlebars meta.function.block.end.handlebars support.constant.handlebars",
+		"r": {
+			"dark_plus": "support.constant.handlebars: #DCDCAA",
+			"light_plus": "support.constant.handlebars: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.constant.handlebars: #DCDCAA"
+		}
+	},
+	{
+		"c": "/unless",
+		"t": "text.html.handlebars meta.function.block.end.handlebars support.constant.handlebars keyword.control",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "}}",
 		"t": "text.html.handlebars meta.function.block.end.handlebars support.constant.handlebars",
 		"r": {
 			"dark_plus": "support.constant.handlebars: #DCDCAA",
@@ -990,7 +1078,7 @@
 		}
 	},
 	{
-		"c": "{{#each",
+		"c": "{{",
 		"t": "text.html.handlebars meta.function.block.start.handlebars support.constant.handlebars",
 		"r": {
 			"dark_plus": "support.constant.handlebars: #DCDCAA",
@@ -998,6 +1086,17 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.constant.handlebars: #DCDCAA"
+		}
+	},
+	{
+		"c": "#each",
+		"t": "text.html.handlebars meta.function.block.start.handlebars support.constant.handlebars keyword.control",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -1155,7 +1254,29 @@
 		}
 	},
 	{
-		"c": "{{/each}}",
+		"c": "{{",
+		"t": "text.html.handlebars meta.function.block.end.handlebars support.constant.handlebars",
+		"r": {
+			"dark_plus": "support.constant.handlebars: #DCDCAA",
+			"light_plus": "support.constant.handlebars: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.constant.handlebars: #DCDCAA"
+		}
+	},
+	{
+		"c": "/each",
+		"t": "text.html.handlebars meta.function.block.end.handlebars support.constant.handlebars keyword.control",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "}}",
 		"t": "text.html.handlebars meta.function.block.end.handlebars support.constant.handlebars",
 		"r": {
 			"dark_plus": "support.constant.handlebars: #DCDCAA",
@@ -1430,7 +1551,7 @@
 		}
 	},
 	{
-		"c": "{{#each",
+		"c": "{{",
 		"t": "text.html.handlebars meta.function.block.start.handlebars support.constant.handlebars",
 		"r": {
 			"dark_plus": "support.constant.handlebars: #DCDCAA",
@@ -1438,6 +1559,17 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.constant.handlebars: #DCDCAA"
+		}
+	},
+	{
+		"c": "#each",
+		"t": "text.html.handlebars meta.function.block.start.handlebars support.constant.handlebars keyword.control",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -1914,7 +2046,29 @@
 		}
 	},
 	{
-		"c": "{{/each}}",
+		"c": "{{",
+		"t": "text.html.handlebars meta.function.block.end.handlebars support.constant.handlebars",
+		"r": {
+			"dark_plus": "support.constant.handlebars: #DCDCAA",
+			"light_plus": "support.constant.handlebars: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.constant.handlebars: #DCDCAA"
+		}
+	},
+	{
+		"c": "/each",
+		"t": "text.html.handlebars meta.function.block.end.handlebars support.constant.handlebars keyword.control",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "}}",
 		"t": "text.html.handlebars meta.function.block.end.handlebars support.constant.handlebars",
 		"r": {
 			"dark_plus": "support.constant.handlebars: #DCDCAA",

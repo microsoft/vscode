@@ -5,23 +5,28 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { wireCancellationToken } from 'vs/base/common/async';
+import { wireCancellationToken, asWinJsPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { QuickPickOptions, QuickPickItem, InputBoxOptions } from 'vscode';
-import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems } from './extHost.protocol';
+import { QuickPickOptions, QuickPickItem, InputBoxOptions, WorkspaceFolderPickOptions, WorkspaceFolder } from 'vscode';
+import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, IMainContext } from './extHost.protocol';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 
 export type Item = string | QuickPickItem;
 
-export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
+export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	private _proxy: MainThreadQuickOpenShape;
-	private _onDidSelectItem: (handle: number) => void;
-	private _validateInput: (input: string) => string;
+	private _workspace: ExtHostWorkspace;
+	private _commands: ExtHostCommands;
 
-	constructor(threadService: IThreadService) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadQuickOpen);
+	private _onDidSelectItem: (handle: number) => void;
+	private _validateInput: (input: string) => string | Thenable<string>;
+
+	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace, commands: ExtHostCommands) {
+		this._proxy = mainContext.getProxy(MainContext.MainThreadQuickOpen);
+		this._workspace = workspace;
+		this._commands = commands;
 	}
 
 	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
@@ -115,8 +120,20 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 
 	$validateInput(input: string): TPromise<string> {
 		if (this._validateInput) {
-			return TPromise.as(this._validateInput(input));
+			return asWinJsPromise(_ => this._validateInput(input));
 		}
 		return undefined;
+	}
+
+	// ---- workspace folder picker
+
+	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Thenable<WorkspaceFolder> {
+		return this._commands.executeCommand('_workbench.pickWorkspaceFolder', [options]).then((selectedFolder: WorkspaceFolder) => {
+			if (!selectedFolder) {
+				return undefined;
+			}
+
+			return this._workspace.getWorkspaceFolders().filter(folder => folder.uri.toString() === selectedFolder.uri.toString())[0];
+		});
 	}
 }

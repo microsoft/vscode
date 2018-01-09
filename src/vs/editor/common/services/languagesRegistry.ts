@@ -14,7 +14,7 @@ import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { NULL_MODE_ID, NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 
-var hasOwnProperty = Object.prototype.hasOwnProperty;
+const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 export interface IResolvedLanguage {
 	identifier: LanguageIdentifier;
@@ -36,13 +36,16 @@ export class LanguagesRegistry {
 	private _nameMap: { [name: string]: LanguageIdentifier; };
 	private _lowercaseNameMap: { [name: string]: LanguageIdentifier; };
 
-	constructor(useModesRegistry = true) {
+	private _warnOnOverwrite: boolean;
+
+	constructor(useModesRegistry = true, warnOnOverwrite = false) {
 		this._nextLanguageId = 1;
 		this._languages = {};
 		this._mimeTypesMap = {};
 		this._nameMap = {};
 		this._lowercaseNameMap = {};
 		this._languageIds = [];
+		this._warnOnOverwrite = warnOnOverwrite;
 
 		if (useModesRegistry) {
 			this._registerLanguages(ModesRegistry.getLanguages());
@@ -100,10 +103,10 @@ export class LanguagesRegistry {
 			this._languages[langId] = resolvedLanguage;
 		}
 
-		LanguagesRegistry._mergeLanguage(resolvedLanguage, lang);
+		this._mergeLanguage(resolvedLanguage, lang);
 	}
 
-	private static _mergeLanguage(resolvedLanguage: IResolvedLanguage, lang: ILanguageExtensionPoint): void {
+	private _mergeLanguage(resolvedLanguage: IResolvedLanguage, lang: ILanguageExtensionPoint): void {
 		const langId = lang.id;
 
 		let primaryMime: string = null;
@@ -124,21 +127,21 @@ export class LanguagesRegistry {
 
 		if (Array.isArray(lang.extensions)) {
 			for (let extension of lang.extensions) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, extension: extension });
+				mime.registerTextMime({ id: langId, mime: primaryMime, extension: extension }, this._warnOnOverwrite);
 				resolvedLanguage.extensions.push(extension);
 			}
 		}
 
 		if (Array.isArray(lang.filenames)) {
 			for (let filename of lang.filenames) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, filename: filename });
+				mime.registerTextMime({ id: langId, mime: primaryMime, filename: filename }, this._warnOnOverwrite);
 				resolvedLanguage.filenames.push(filename);
 			}
 		}
 
 		if (Array.isArray(lang.filenamePatterns)) {
 			for (let filenamePattern of lang.filenamePatterns) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, filepattern: filenamePattern });
+				mime.registerTextMime({ id: langId, mime: primaryMime, filepattern: filenamePattern }, this._warnOnOverwrite);
 			}
 		}
 
@@ -150,7 +153,7 @@ export class LanguagesRegistry {
 			try {
 				let firstLineRegex = new RegExp(firstLineRegexStr);
 				if (!strings.regExpLeadsToEndlessLoop(firstLineRegex)) {
-					mime.registerTextMime({ id: langId, mime: primaryMime, firstline: firstLineRegex });
+					mime.registerTextMime({ id: langId, mime: primaryMime, firstline: firstLineRegex }, this._warnOnOverwrite);
 				}
 			} catch (err) {
 				// Most likely, the regex was bad
@@ -296,7 +299,7 @@ export class LanguagesRegistry {
 		if (!filename && !firstLine) {
 			return [];
 		}
-		var mimeTypes = mime.guessMimeTypes(filename, firstLine);
+		let mimeTypes = mime.guessMimeTypes(filename, firstLine);
 		return this.extractModeIds(mimeTypes.join(','));
 	}
 

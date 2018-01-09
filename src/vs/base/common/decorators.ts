@@ -5,6 +5,27 @@
 
 'use strict';
 
+export function createDecorator(mapFn: (fn: Function, key: string) => Function): Function {
+	return (target: any, key: string, descriptor: any) => {
+		let fnKey: string = null;
+		let fn: Function = null;
+
+		if (typeof descriptor.value === 'function') {
+			fnKey = 'value';
+			fn = descriptor.value;
+		} else if (typeof descriptor.get === 'function') {
+			fnKey = 'get';
+			fn = descriptor.get;
+		}
+
+		if (!fn) {
+			throw new Error('not supported');
+		}
+
+		descriptor[fnKey] = mapFn(fn, key);
+	};
+}
+
 export function memoize(target: any, key: string, descriptor: any) {
 	let fnKey: string = null;
 	let fn: Function = null;
@@ -35,4 +56,15 @@ export function memoize(target: any, key: string, descriptor: any) {
 
 		return this[memoizeKey];
 	};
+}
+
+export function debounce(delay: number): Function {
+	return createDecorator((fn, key) => {
+		const timerKey = `$debounce$${key}`;
+
+		return function (this: any, ...args: any[]) {
+			clearTimeout(this[timerKey]);
+			this[timerKey] = setTimeout(() => fn.apply(this, args), delay);
+		};
+	});
 }

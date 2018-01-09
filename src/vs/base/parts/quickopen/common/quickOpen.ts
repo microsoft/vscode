@@ -49,8 +49,13 @@ export enum Mode {
 
 export interface IEntryRunContext {
 	event: any;
-	keymods: number[];
+	keymods: IKeyMods;
 	quickNavigateConfiguration: IQuickNavigateConfiguration;
+}
+
+export interface IKeyMods {
+	ctrlCmd: boolean;
+	alt: boolean;
 }
 
 export interface IDataSource<T> {

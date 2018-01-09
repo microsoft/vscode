@@ -19,8 +19,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { marked } from 'vs/base/common/marked/marked';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -33,8 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { once } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -42,6 +39,7 @@ import { registerColor, focusBorder, textLinkForeground, textLinkActiveForegroun
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { deepClone } from 'vs/base/common/objects';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -99,15 +97,12 @@ export class WalkThroughPart extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService protected themeService: IThemeService,
 		@IOpenerService private openerService: IOpenerService,
-		@IFileService private fileService: IFileService,
 		@IModelService protected modelService: IModelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IStorageService private storageService: IStorageService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IModeService private modeService: IModeService,
-		@IMessageService private messageService: IMessageService,
-		@IPartService private partService: IPartService
+		@IMessageService private messageService: IMessageService
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
@@ -134,11 +129,12 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private updatedScrollPosition() {
-		const scrollState = this.scrollbar.getScrollState();
-		const scrollHeight = scrollState.scrollHeight;
+		const scrollDimensions = this.scrollbar.getScrollDimensions();
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		const scrollHeight = scrollDimensions.scrollHeight;
 		if (scrollHeight && this.input instanceof WalkThroughInput) {
-			const scrollTop = scrollState.scrollTop;
-			const height = scrollState.height;
+			const scrollTop = scrollPosition.scrollTop;
+			const height = scrollDimensions.height;
 			this.input.relativeScrollPosition(scrollTop / scrollHeight, (scrollTop + height) / scrollHeight);
 		}
 	}
@@ -163,9 +159,9 @@ export class WalkThroughPart extends BaseEditor {
 		this.disposables.push(this.addEventListener(this.content, 'focusin', e => {
 			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
 			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
-				let scrollState = this.scrollbar.getScrollState();
-				this.content.scrollTop = scrollState.scrollTop;
-				this.content.scrollLeft = scrollState.scrollLeft;
+				const scrollPosition = this.scrollbar.getScrollPosition();
+				this.content.scrollTop = scrollPosition.scrollTop;
+				this.content.scrollLeft = scrollPosition.scrollLeft;
 			}
 		}));
 	}
@@ -176,17 +172,12 @@ export class WalkThroughPart extends BaseEditor {
 				if (node instanceof HTMLAnchorElement && node.href) {
 					let baseElement = window.document.getElementsByTagName('base')[0] || window.location;
 					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
-						let scrollTarget = this.content.querySelector(node.hash);
-						this.telemetryService.publicLog('revealInDocument', {
-							hash: node.hash,
-							broken: !scrollTarget,
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
-						});
+						const scrollTarget = this.content.querySelector(node.hash);
 						const innerContent = this.content.firstElementChild;
 						if (scrollTarget && innerContent) {
 							const targetTop = scrollTarget.getBoundingClientRect().top - 20;
 							const containerTop = innerContent.getBoundingClientRect().top;
-							this.scrollbar.updateState({ scrollTop: targetTop - containerTop });
+							this.scrollbar.setScrollPosition({ scrollTop: targetTop - containerTop });
 						}
 					} else {
 						this.open(URI.parse(node.href));
@@ -207,12 +198,6 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private open(uri: URI) {
-		if (uri.scheme === 'http' || uri.scheme === 'https') {
-			this.telemetryService.publicLog('openExternal', {
-				uri: uri.toString(true),
-				from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
-			});
-		}
 		if (uri.scheme === 'command' && uri.path === 'git.clone' && !CommandsRegistry.getCommand('git.clone')) {
 			this.messageService.show(Severity.Info, localize('walkThrough.gitNotFound', "It looks like Git is not installed on your system."));
 			return;
@@ -261,17 +246,17 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	arrowUp() {
-		const scrollState = this.scrollbar.getScrollState();
-		this.scrollbar.updateState({ scrollTop: scrollState.scrollTop - this.getArrowScrollHeight() });
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop - this.getArrowScrollHeight() });
 	}
 
 	arrowDown() {
-		const scrollState = this.scrollbar.getScrollState();
-		this.scrollbar.updateState({ scrollTop: scrollState.scrollTop + this.getArrowScrollHeight() });
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + this.getArrowScrollHeight() });
 	}
 
 	private getArrowScrollHeight() {
-		let fontSize = this.configurationService.lookup<number>('editor.fontSize').value;
+		let fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		if (typeof fontSize !== 'number' || fontSize < 1) {
 			fontSize = 12;
 		}
@@ -279,13 +264,15 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	pageUp() {
-		const scrollState = this.scrollbar.getScrollState();
-		this.scrollbar.updateState({ scrollTop: scrollState.scrollTop - scrollState.height });
+		const scrollDimensions = this.scrollbar.getScrollDimensions();
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop - scrollDimensions.height });
 	}
 
 	pageDown() {
-		const scrollState = this.scrollbar.getScrollState();
-		this.scrollbar.updateState({ scrollTop: scrollState.scrollTop + scrollState.height });
+		const scrollDimensions = this.scrollbar.getScrollDimensions();
+		const scrollPosition = this.scrollbar.getScrollPosition();
+		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + scrollDimensions.height });
 	}
 
 	setInput(input: WalkThroughInput, options: EditorOptions): TPromise<void> {
@@ -338,6 +325,12 @@ export class WalkThroughPart extends BaseEditor {
 					const div = innerContent.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
 
 					const options = this.getEditorOptions(snippet.textEditorModel.getModeId());
+					/* __GDPR__FRAGMENT__
+						"EditorTelemetryData" : {
+							"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					const telemetryData = {
 						target: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 						snippet: i
@@ -367,24 +360,32 @@ export class WalkThroughPart extends BaseEditor {
 							const lineHeight = editor.getConfiguration().lineHeight;
 							const lineTop = (targetTop + (e.position.lineNumber - 1) * lineHeight) - containerTop;
 							const lineBottom = lineTop + lineHeight;
-							const scrollState = this.scrollbar.getScrollState();
-							const scrollTop = scrollState.scrollTop;
-							const height = scrollState.height;
+							const scrollDimensions = this.scrollbar.getScrollDimensions();
+							const scrollPosition = this.scrollbar.getScrollPosition();
+							const scrollTop = scrollPosition.scrollTop;
+							const height = scrollDimensions.height;
 							if (scrollTop > lineTop) {
-								this.scrollbar.updateState({ scrollTop: lineTop });
+								this.scrollbar.setScrollPosition({ scrollTop: lineTop });
 							} else if (scrollTop < lineBottom - height) {
-								this.scrollbar.updateState({ scrollTop: lineBottom - height });
+								this.scrollbar.setScrollPosition({ scrollTop: lineBottom - height });
 							}
 						}
 					}));
 
-					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => {
+					this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(() => {
 						if (snippet.textEditorModel) {
 							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()));
 						}
 					}));
 
 					this.contentDisposables.push(once(editor.onMouseDown)(() => {
+						/* __GDPR__
+							"walkThroughSnippetInteraction" : {
+								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							}
+						*/
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'mouseDown',
@@ -392,6 +393,13 @@ export class WalkThroughPart extends BaseEditor {
 						});
 					}));
 					this.contentDisposables.push(once(editor.onKeyDown)(() => {
+						/* __GDPR__
+							"walkThroughSnippetInteraction" : {
+								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							}
+						*/
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'keyDown',
@@ -399,6 +407,13 @@ export class WalkThroughPart extends BaseEditor {
 						});
 					}));
 					this.contentDisposables.push(once(editor.onDidChangeModelContent)(() => {
+						/* __GDPR__
+							"walkThroughSnippetInteraction" : {
+								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							}
+						*/
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'changeModelContent',
@@ -408,7 +423,11 @@ export class WalkThroughPart extends BaseEditor {
 				});
 				this.updateSizeClasses();
 				this.multiCursorModifier();
-				this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => this.multiCursorModifier()));
+				this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration('editor.multiCursorModifier')) {
+						this.multiCursorModifier();
+					}
+				}));
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
@@ -419,7 +438,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private getEditorOptions(language: string): IEditorOptions {
-		const config = this.configurationService.getConfiguration<IEditorOptions>('editor', { overrideIdentifier: language });
+		const config = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
 		return {
 			...isObject(config) ? config : Object.create(null),
 			scrollBeyondLastLine: false,
@@ -466,8 +485,8 @@ export class WalkThroughPart extends BaseEditor {
 
 	private multiCursorModifier() {
 		const labels = UILabelProvider.modifierLabels[OS];
-		const setting = this.configurationService.lookup<string>('editor.multiCursorModifier');
-		const modifier = labels[setting.value === 'ctrlCmd' ? (OS === OperatingSystem.Macintosh ? 'metaKey' : 'ctrlKey') : 'altKey'];
+		const value = this.configurationService.getValue<string>('editor.multiCursorModifier');
+		const modifier = labels[value === 'ctrlCmd' ? (OS === OperatingSystem.Macintosh ? 'metaKey' : 'ctrlKey') : 'altKey'];
 		const keys = this.content.querySelectorAll('.multi-cursor-modifier');
 		Array.prototype.forEach.call(keys, (key: Element) => {
 			while (key.firstChild) {
@@ -479,21 +498,21 @@ export class WalkThroughPart extends BaseEditor {
 
 	private saveTextEditorViewState(resource: URI): void {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		let editorViewStateMemento = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		let editorViewStateMemento: { [key: string]: { [position: number]: IWalkThroughEditorViewState } } = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (!editorViewStateMemento) {
 			editorViewStateMemento = Object.create(null);
 			memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY] = editorViewStateMemento;
 		}
 
-		const scrollState = this.scrollbar.getScrollState();
+		const scrollPosition = this.scrollbar.getScrollPosition();
 		const editorViewState: IWalkThroughEditorViewState = {
 			viewState: {
-				scrollTop: scrollState.scrollTop,
-				scrollLeft: scrollState.scrollLeft
+				scrollTop: scrollPosition.scrollTop,
+				scrollLeft: scrollPosition.scrollLeft
 			}
 		};
 
-		let fileViewState: IWalkThroughEditorViewStates = editorViewStateMemento[resource.toString()];
+		let fileViewState = editorViewStateMemento[resource.toString()];
 		if (!fileViewState) {
 			fileViewState = Object.create(null);
 			editorViewStateMemento[resource.toString()] = fileViewState;
@@ -506,13 +525,13 @@ export class WalkThroughPart extends BaseEditor {
 
 	private loadTextEditorViewState(resource: URI) {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		const editorViewStateMemento = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		const editorViewStateMemento: { [key: string]: IWalkThroughEditorViewStates } = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (editorViewStateMemento) {
-			const fileViewState: IWalkThroughEditorViewStates = editorViewStateMemento[resource.toString()];
+			const fileViewState = editorViewStateMemento[resource.toString()];
 			if (fileViewState) {
-				const state: IWalkThroughEditorViewState = fileViewState[this.position];
+				const state = fileViewState[this.position];
 				if (state) {
-					this.scrollbar.updateState(state.viewState);
+					this.scrollbar.setScrollPosition(state.viewState);
 				}
 			}
 		}

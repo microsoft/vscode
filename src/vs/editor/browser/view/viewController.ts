@@ -6,12 +6,13 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
-import { CoreNavigationCommands, CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
+import { CoreNavigationCommands, CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 
 export interface ExecCoreEditorCommandFunc {
@@ -61,10 +62,11 @@ export class ViewController {
 		this._execCoreEditorCommandFunc(editorCommand, args);
 	}
 
-	public paste(source: string, text: string, pasteOnNewLine: boolean): void {
+	public paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[]): void {
 		this.commandService.executeCommand(editorCommon.Handler.Paste, {
 			text: text,
 			pasteOnNewLine: pasteOnNewLine,
+			multicursorText: multicursorText
 		});
 	}
 
@@ -91,6 +93,13 @@ export class ViewController {
 
 	public cut(source: string): void {
 		this.commandService.executeCommand(editorCommon.Handler.Cut, {});
+	}
+
+	public setSelection(source: string, modelSelection: Selection): void {
+		this._execCoreEditorCommandFunc(CoreNavigationCommands.SetSelection, {
+			source: source,
+			selection: modelSelection
+		});
 	}
 
 	private _validateViewColumn(viewPosition: Position): Position {

@@ -175,6 +175,7 @@ const schema: IJSONSchema = {
 		},
 		taskRunnerConfiguration: {
 			type: 'object',
+			required: [],
 			properties: {
 				command: {
 					type: 'string',

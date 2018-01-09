@@ -9,13 +9,12 @@ import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escape } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
-import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
-import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import { registerEditorAction, registerEditorContribution, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, ITokenizationSupport, IState } from 'vs/editor/common/modes';
+import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, ITokenizationSupport, IState, TokenMetadata } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { NULL_STATE, nullTokenize, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
@@ -25,12 +24,11 @@ import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/com
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 
 
-@editorContribution
 class InspectTokensController extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.inspectTokens';
+	private static readonly ID = 'editor.contrib.inspectTokens';
 
-	public static get(editor: ICommonCodeEditor): InspectTokensController {
+	public static get(editor: ICodeEditor): InspectTokensController {
 		return editor.getContribution<InspectTokensController>(InspectTokensController.ID);
 	}
 
@@ -82,7 +80,6 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 	}
 }
 
-@editorAction
 class InspectTokens extends EditorAction {
 
 	constructor() {
@@ -94,7 +91,7 @@ class InspectTokens extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = InspectTokensController.get(editor);
 		if (controller) {
 			controller.launch();
@@ -163,16 +160,15 @@ function getSafeTokenizationSupport(languageIdentifier: LanguageIdentifier): ITo
 
 class InspectTokensWidget extends Disposable implements IContentWidget {
 
-	private static _ID = 'editor.contrib.inspectTokensWidget';
+	private static readonly _ID = 'editor.contrib.inspectTokensWidget';
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
 	private _editor: ICodeEditor;
-	private _standaloneThemeService: IStandaloneThemeService;
 	private _modeService: IModeService;
 	private _tokenizationSupport: ITokenizationSupport;
-	private _model: IModel;
+	private _model: ITextModel;
 	private _domNode: HTMLElement;
 
 	constructor(
@@ -182,7 +178,6 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	) {
 		super();
 		this._editor = editor;
-		this._standaloneThemeService = standaloneThemeService;
 		this._modeService = modeService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');
@@ -240,8 +235,8 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td>`;
 		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td>`;
 		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td>`;
-		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${metadata.foreground.toRGBHex()}</td>`;
-		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata.background.toRGBHex()}</td>`;
+		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${Color.Format.CSS.formatHex(metadata.foreground)}</td>`;
+		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${Color.Format.CSS.formatHex(metadata.background)}</td>`;
 		result += `</tbody></table>`;
 
 		result += `<hr class="tokens-inspect-separator"/>`;
@@ -333,6 +328,9 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		};
 	}
 }
+
+registerEditorContribution(InspectTokensController);
+registerEditorAction(InspectTokens);
 
 registerThemingParticipant((theme, collector) => {
 	let border = theme.getColor(editorHoverBorder);

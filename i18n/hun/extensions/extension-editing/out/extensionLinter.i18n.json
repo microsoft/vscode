@@ -8,5 +8,7 @@
 	"svgsNotValid": "Az SVG-k nem érvényes képforrások.",
 	"embeddedSvgsNotValid": "A beágyazott SVG-k nem érvényes képforrások.",
 	"dataUrlsNotValid": "A data URL-ek nem érvényes képforrások.",
-	"relativeUrlRequiresHttpsRepository": "A relatív kép URL-ekhez egy HTTPS-protokollal rendelkező forráskódtárat kell megadni a package.json-ban."
+	"relativeUrlRequiresHttpsRepository": "A relatív kép URL-ekhez egy HTTPS-protokollal rendelkező forráskódtárat kell megadni a package.json-ban.",
+	"relativeIconUrlRequiresHttpsRepository": "Az ikonhoz egy HTTPS-protokollal rendelkező forráskódtárat kell megadni a package.json-ban.",
+	"relativeBadgeUrlRequiresHttpsRepository": "A relatív jelvény URL-ekhez egy HTTPS-protokollal rendelkező forráskódtárat kell megadni a package.json-ban."
 }

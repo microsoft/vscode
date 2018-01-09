@@ -9,7 +9,6 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import errors = require('vs/base/common/errors');
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -17,6 +16,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -24,18 +24,18 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	constructor(
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IPartService private partService: IPartService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEditorGroupService private groupService: IEditorGroupService
+		@IEditorGroupService private groupService: IEditorGroupService,
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		this.restoreBackups();
 	}
 
 	private restoreBackups(): void {
 		if (this.backupFileService.backupEnabled) {
-			this.partService.joinCreation().then(() => {
+			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 				this.doRestoreBackups().done(null, errors.onUnexpectedError);
 			});
 		}
@@ -62,7 +62,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private doResolveOpenedBackups(backups: URI[]): TPromise<URI[]> {
 		const stacks = this.groupService.getStacksModel();
 
-		const restorePromises: TPromise<number>[] = [];
+		const restorePromises: TPromise<any>[] = [];
 		const unresolved: URI[] = [];
 
 		backups.forEach(backup => {
@@ -93,15 +93,9 @@ export class BackupRestorer implements IWorkbenchContribution {
 		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
 
 		if (resource.scheme === UNTITLED_SCHEMA && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
-			// TODO@Ben debt: instead of guessing if an untitled file has an associated file path or not
-			// this information should be provided by the backup service and stored as meta data within
 			return { filePath: resource.fsPath, options };
 		}
 
 		return { resource, options };
-	}
-
-	public getId(): string {
-		return 'vs.backup.backupRestorer';
 	}
 }

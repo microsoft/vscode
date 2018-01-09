@@ -5,21 +5,8 @@
 
 'use strict';
 
-if (process.argv.indexOf('--prof-startup') >= 0) {
-	var profiler = require('v8-profiler');
-	var prefix = require('crypto').randomBytes(2).toString('hex');
-	process.env.VSCODE_PROFILES_PREFIX = prefix;
-	profiler.startProfiling('main', true);
-}
-
-// Workaround for https://github.com/electron/electron/issues/9225. Chrome has an issue where
-// in certain locales (e.g. PL), image metrics are wrongly computed. We explicitly set the
-// LC_NUMERIC to prevent this from happening (selects the numeric formatting category of the
-// C locale, http://en.cppreference.com/w/cpp/locale/LC_categories). TODO@Ben temporary.
-if (process.env.LC_ALL) {
-	process.env.LC_ALL = 'C';
-}
-process.env.LC_NUMERIC = 'C';
+var perf = require('./vs/base/common/performance');
+perf.mark('main:started');
 
 // Perf measurements
 global.perfStartTime = Date.now();
@@ -128,6 +115,10 @@ function getNLSConfiguration() {
 }
 
 function getNodeCachedDataDir() {
+	// flag to disable cached data support
+	if (process.argv.indexOf('--no-cached-data') > 0) {
+		return Promise.resolve(undefined);
+	}
 
 	// IEnvironmentService.isBuilt
 	if (process.env['VSCODE_DEV']) {
@@ -227,7 +218,7 @@ var nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
 
 // Load our code once ready
 app.once('ready', function () {
-	global.perfAppReady = Date.now();
+	perf.mark('main:appReady');
 	var nlsConfig = getNLSConfiguration();
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 

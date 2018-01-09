@@ -26,6 +26,7 @@
 	"editKeybindingLabel": "Cambia tasto di scelta rapida",
 	"addKeybindingLabelWithKey": "Aggiungi tasto di scelta rapida {0}",
 	"addKeybindingLabel": "Aggiungi tasto di scelta rapida",
+	"title": "{0} ({1})",
 	"commandAriaLabel": "Il comando è {0}.",
 	"keybindingAriaLabel": "Il tasto di scelta rapida è {0}.",
 	"noKeybinding": "Non è stato assegnato alcun tasto di scelta rapida.",

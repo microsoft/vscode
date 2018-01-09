@@ -7,7 +7,7 @@
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import { BoundedMap } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -15,10 +15,22 @@ export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
 }
 
+export interface IRelativePattern {
+	base: string;
+	pattern: string;
+	pathToRelative(from: string, to: string): string;
+}
+
+export function getEmptyExpression(): IExpression {
+	return Object.create(null);
+}
+
 export interface SiblingClause {
 	when: string;
 }
 
+const GLOBSTAR = '**';
+const GLOB_SPLIT = '/';
 const PATH_REGEX = '[/\\\\]';		// any slash or backslash
 const NO_PATH_REGEX = '[^/\\\\]';	// any non-slash and non-backslash
 const ALL_FORWARD_SLASHES = /\//g;
@@ -94,10 +106,10 @@ function parseRegExp(pattern: string): string {
 	let regEx = '';
 
 	// Split up into segments for each slash found
-	let segments = splitGlobAware(pattern, '/');
+	let segments = splitGlobAware(pattern, GLOB_SPLIT);
 
 	// Special case where we only have globstars
-	if (segments.every(s => s === '**')) {
+	if (segments.every(s => s === GLOBSTAR)) {
 		regEx = '.*';
 	}
 
@@ -107,7 +119,7 @@ function parseRegExp(pattern: string): string {
 		segments.forEach((segment, index) => {
 
 			// Globstar is special
-			if (segment === '**') {
+			if (segment === GLOBSTAR) {
 
 				// if we have more than one globstar after another, just ignore it
 				if (!previousSegmentWasGlobStar) {
@@ -136,17 +148,28 @@ function parseRegExp(pattern: string): string {
 				}
 
 				// Support brackets
-				if (char !== ']' && inBrackets) {
+				if (inBrackets && (char !== ']' || !bracketVal) /* ] is literally only allowed as first character in brackets to match it */) {
 					let res: string;
-					switch (char) {
-						case '-':		// allow the range operator
-							res = char;
-							break;
-						case '^':		// allow the negate operator
-							res = char;
-							break;
-						default:
-							res = strings.escapeRegExpCharacters(char);
+
+					// range operator
+					if (char === '-') {
+						res = char;
+					}
+
+					// negation operator (only valid on first index in bracket)
+					else if ((char === '^' || char === '!') && !bracketVal) {
+						res = '^';
+					}
+
+					// glob split matching is not allowed within character ranges
+					// see http://man7.org/linux/man-pages/man7/glob.7.html
+					else if (char === GLOB_SPLIT) {
+						res = '';
+					}
+
+					// anything else gets escaped
+					else {
+						res = strings.escapeRegExpCharacters(char);
 					}
 
 					bracketVal += res;
@@ -198,7 +221,7 @@ function parseRegExp(pattern: string): string {
 			}
 
 			// Tail: Add the slash we had split on if there is more to come and the next one is not a globstar
-			if (index < segments.length - 1 && segments[index + 1] !== '**') {
+			if (index < segments.length - 1 && segments[index + 1] !== GLOBSTAR) {
 				regEx += PATH_REGEX;
 			}
 
@@ -245,7 +268,7 @@ interface ParsedExpressionPattern {
 	allPaths?: string[];
 }
 
-const CACHE = new BoundedMap<ParsedStringPattern>(10000); // bounded to 10000 elements
+const CACHE = new LRUCache<string, ParsedStringPattern>(10000); // bounded to 10000 elements
 
 const FALSE = function () {
 	return false;
@@ -255,9 +278,17 @@ const NULL = function (): string {
 	return null;
 };
 
-function parsePattern(pattern: string, options: IGlobOptions): ParsedStringPattern {
-	if (!pattern) {
+function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): ParsedStringPattern {
+	if (!arg1) {
 		return NULL;
+	}
+
+	// Handle IRelativePattern
+	let pattern: string;
+	if (typeof arg1 !== 'string') {
+		pattern = arg1.pattern;
+	} else {
+		pattern = arg1;
 	}
 
 	// Whitespace trimming
@@ -267,7 +298,7 @@ function parsePattern(pattern: string, options: IGlobOptions): ParsedStringPatte
 	const patternKey = `${pattern}_${!!options.trimForExclusions}`;
 	let parsedPattern = CACHE.get(patternKey);
 	if (parsedPattern) {
-		return parsedPattern;
+		return wrapRelativePattern(parsedPattern, arg1);
 	}
 
 	// Check for Trivias
@@ -295,7 +326,21 @@ function parsePattern(pattern: string, options: IGlobOptions): ParsedStringPatte
 	// Cache
 	CACHE.set(patternKey, parsedPattern);
 
-	return parsedPattern;
+	return wrapRelativePattern(parsedPattern, arg1);
+}
+
+function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | IRelativePattern): ParsedStringPattern {
+	if (typeof arg2 === 'string') {
+		return parsedPattern;
+	}
+
+	return function (path, basename) {
+		if (!paths.isEqualOrParent(path, arg2.base)) {
+			return null;
+		}
+
+		return parsedPattern(paths.normalize(arg2.pathToRelative(arg2.base, path)), basename);
+	};
 }
 
 function trimForExclusions(pattern: string, options: IGlobOptions): string {
@@ -386,9 +431,9 @@ function toRegExp(pattern: string): ParsedStringPattern {
  * - simple brace expansion ({js,ts} => js or ts)
  * - character ranges (using [...])
  */
-export function match(pattern: string, path: string): boolean;
+export function match(pattern: string | IRelativePattern, path: string): boolean;
 export function match(expression: IExpression, path: string, siblingsFn?: () => string[]): string /* the matching pattern */;
-export function match(arg1: string | IExpression, path: string, siblingsFn?: () => string[]): any {
+export function match(arg1: string | IExpression | IRelativePattern, path: string, siblingsFn?: () => string[]): any {
 	if (!arg1 || !path) {
 		return false;
 	}
@@ -404,16 +449,16 @@ export function match(arg1: string | IExpression, path: string, siblingsFn?: () 
  * - simple brace expansion ({js,ts} => js or ts)
  * - character ranges (using [...])
  */
-export function parse(pattern: string, options?: IGlobOptions): ParsedPattern;
+export function parse(pattern: string | IRelativePattern, options?: IGlobOptions): ParsedPattern;
 export function parse(expression: IExpression, options?: IGlobOptions): ParsedExpression;
-export function parse(arg1: string | IExpression, options: IGlobOptions = {}): any {
+export function parse(arg1: string | IExpression | IRelativePattern, options: IGlobOptions = {}): any {
 	if (!arg1) {
 		return FALSE;
 	}
 
 	// Glob with String
-	if (typeof arg1 === 'string') {
-		const parsedPattern = parsePattern(arg1, options);
+	if (typeof arg1 === 'string' || isRelativePattern(arg1)) {
+		const parsedPattern = parsePattern(arg1 as string | IRelativePattern, options);
 		if (parsedPattern === NULL) {
 			return FALSE;
 		}
@@ -433,12 +478,18 @@ export function parse(arg1: string | IExpression, options: IGlobOptions = {}): a
 	return parsedExpression(<IExpression>arg1, options);
 }
 
+export function isRelativePattern(obj: any): obj is IRelativePattern {
+	const rp = obj as IRelativePattern;
+
+	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string' && typeof rp.pathToRelative === 'function';
+}
+
 /**
  * Same as `parse`, but the ParsedExpression is guaranteed to return a Promise
  */
 export function parseToAsync(expression: IExpression, options?: IGlobOptions): ParsedExpression {
 	const parsedExpression = parse(expression, options);
-	return (path: string, basename?: string, siblingsFn?: () => TPromise<string[]>): TPromise<string> => {
+	return (path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): string | TPromise<string> => {
 		const result = parsedExpression(path, basename, siblingsFn);
 		return result instanceof TPromise ? result : TPromise.as(result);
 	};

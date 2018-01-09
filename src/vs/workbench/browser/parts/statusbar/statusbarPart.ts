@@ -17,18 +17,17 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_MULTI_FOLDER_BACKGROUND, STATUS_BAR_MULTI_FOLDER_FOREGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
@@ -37,10 +36,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	public _serviceBrand: any;
 
-	private static PRIORITY_PROP = 'priority';
-	private static ALIGNMENT_PROP = 'alignment';
+	private static readonly PRIORITY_PROP = 'priority';
+	private static readonly ALIGNMENT_PROP = 'alignment';
 
-	private toDispose: IDisposable[];
 	private statusItemsContainer: Builder;
 	private statusMsgDispose: IDisposable;
 
@@ -52,7 +50,11 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	) {
 		super(id, { hasTitle: false }, themeService);
 
-		this.toDispose = [];
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 	}
 
 	public addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
@@ -120,7 +122,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		const descriptors = rightDescriptors.concat(leftDescriptors); // right first because they float
 
-		this.toDispose.push(...descriptors.map(descriptor => {
+		this.toUnbind.push(...descriptors.map(descriptor => {
 			const item = this.instantiationService.createInstance(descriptor.syncDescriptor);
 			const el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
 
@@ -138,10 +140,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		const container = this.getContainer();
 
-		container.style('color', this.getColor(this.contextService.hasMultiFolderWorkspace() ? STATUS_BAR_MULTI_FOLDER_FOREGROUND : this.contextService.hasWorkspace() ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
-		container.style('background-color', this.getColor(this.contextService.hasMultiFolderWorkspace() ? STATUS_BAR_MULTI_FOLDER_BACKGROUND : this.contextService.hasWorkspace() ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND));
+		container.style('color', this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
+		container.style('background-color', this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND));
 
-		const borderColor = this.getColor(STATUS_BAR_BORDER) || this.getColor(contrastBorder);
+		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
 		container.style('border-top-width', borderColor ? '1px' : null);
 		container.style('border-top-style', borderColor ? 'solid' : null);
 		container.style('border-top-color', borderColor);
@@ -200,12 +202,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		return dispose;
 	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-
-		super.dispose();
-	}
 }
 
 let manageExtensionAction: ManageExtensionAction;
@@ -238,7 +234,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		if (this.entry.command) {
 			textContainer = document.createElement('a');
 
-			$(textContainer).on('click', () => this.executeCommand(this.entry.command), toDispose);
+			$(textContainer).on('click', () => this.executeCommand(this.entry.command, this.entry.arguments), toDispose);
 		} else {
 			textContainer = document.createElement('span');
 		}
@@ -287,24 +283,8 @@ class StatusBarEntryItem implements IStatusbarItem {
 		};
 	}
 
-	private executeCommand(id: string) {
-
-		// Lookup built in commands
-		const builtInActionDescriptor = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).getWorkbenchAction(id);
-		if (builtInActionDescriptor) {
-			const action = this.instantiationService.createInstance(builtInActionDescriptor.syncDescriptor);
-
-			if (action.enabled) {
-				this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'status bar' });
-				(action.run() || TPromise.as(null)).done(() => {
-					action.dispose();
-				}, (err) => this.messageService.show(Severity.Error, toErrorMessage(err)));
-			} else {
-				this.messageService.show(Severity.Warning, nls.localize('canNotRun', "Command '{0}' is currently not enabled and can not be run.", action.label || id));
-			}
-
-			return;
-		}
+	private executeCommand(id: string, args?: any[]) {
+		args = args || [];
 
 		// Maintain old behaviour of always focusing the editor here
 		const activeEditor = this.editorService.getActiveEditor();
@@ -313,8 +293,14 @@ class StatusBarEntryItem implements IStatusbarItem {
 			codeEditor.focus();
 		}
 
-		// Fallback to the command service for any other case
-		this.commandService.executeCommand(id).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
+		/* __GDPR__
+			"workbenchActionExecuted" : {
+				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: 'status bar' });
+		this.commandService.executeCommand(id, ...args).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
 	}
 }
 

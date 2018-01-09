@@ -12,5 +12,6 @@
 	"vscode.extension.contributes.view.when": "显示此视图必须为真的条件",
 	"vscode.extension.contributes.views": "向编辑器提供视图",
 	"views.explorer": "资源管理器视图",
+	"views.debug": "调试视图",
 	"locationId.invalid": "“{0}”为无效视图位置"
 }

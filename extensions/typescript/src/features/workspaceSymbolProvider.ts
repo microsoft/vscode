@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Range, Location, CancellationToken } from 'vscode';
+import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Location, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { tsTextSpanToVsRange } from '../utils/convert';
 
 function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
 	switch (item.kind) {
@@ -22,10 +23,11 @@ function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
 
 export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
 	public constructor(
-		private client: ITypescriptServiceClient,
-		private modeId: string) { }
+		private client: ITypeScriptServiceClient,
+		private modeIds: string[]
+	) { }
 
-	public provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<SymbolInformation[]> {
+	public async provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<SymbolInformation[]> {
 		// typescript wants to have a resource even when asking
 		// general questions so we check the active editor. If this
 		// doesn't match we take the first TS document.
@@ -33,14 +35,14 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		const editor = window.activeTextEditor;
 		if (editor) {
 			const document = editor.document;
-			if (document && document.languageId === this.modeId) {
+			if (document && this.modeIds.indexOf(document.languageId) >= 0) {
 				uri = document.uri;
 			}
 		}
 		if (!uri) {
 			const documents = workspace.textDocuments;
 			for (const document of documents) {
-				if (document.languageId === this.modeId) {
+				if (this.modeIds.indexOf(document.languageId) >= 0) {
 					uri = document.uri;
 					break;
 				}
@@ -48,37 +50,40 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		}
 
 		if (!uri) {
-			return Promise.resolve<SymbolInformation[]>([]);
+			return [];
 		}
 
 		const filepath = this.client.normalizePath(uri);
 		if (!filepath) {
-			return Promise.resolve<SymbolInformation[]>([]);
+			return [];
 		}
 		const args: Proto.NavtoRequestArgs = {
 			file: filepath,
 			searchValue: search
 		};
-		return this.client.execute('navto', args, token).then((response): SymbolInformation[] => {
-			const result: SymbolInformation[] = [];
-			let data = response.body;
-			if (data) {
-				for (let item of data) {
-					if (!item.containerName && item.kind === 'alias') {
-						continue;
-					}
-					const range = new Range(item.start.line - 1, item.start.offset - 1, item.end.line - 1, item.end.offset - 1);
-					let label = item.name;
-					if (item.kind === 'method' || item.kind === 'function') {
-						label += '()';
-					}
-					result.push(new SymbolInformation(label, getSymbolKind(item), item.containerName || '',
-						new Location(this.client.asUrl(item.file), range)));
-				}
-			}
-			return result;
-		}, () => {
+		const response = await this.client.execute('navto', args, token);
+		if (!response.body) {
 			return [];
-		});
+		}
+
+		const result: SymbolInformation[] = [];
+		for (const item of response.body) {
+			if (!item.containerName && item.kind === 'alias') {
+				continue;
+			}
+			const range = tsTextSpanToVsRange(item);
+			const label = TypeScriptWorkspaceSymbolProvider.getLabel(item);
+			result.push(new SymbolInformation(label, getSymbolKind(item), item.containerName || '',
+				new Location(this.client.asUrl(item.file), range)));
+		}
+		return result;
+	}
+
+	private static getLabel(item: Proto.NavtoItem) {
+		let label = item.name;
+		if (item.kind === 'method' || item.kind === 'function') {
+			label += '()';
+		}
+		return label;
 	}
 }

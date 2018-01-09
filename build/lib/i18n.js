@@ -64,7 +64,7 @@ var ModuleJsonFormat;
     }
     ModuleJsonFormat.is = is;
 })(ModuleJsonFormat || (ModuleJsonFormat = {}));
-var Line = (function () {
+var Line = /** @class */ (function () {
     function Line(indent) {
         if (indent === void 0) { indent = 0; }
         this.indent = indent;
@@ -83,7 +83,7 @@ var Line = (function () {
     return Line;
 }());
 exports.Line = Line;
-var TextModel = (function () {
+var TextModel = /** @class */ (function () {
     function TextModel(contents) {
         this._lines = contents.split(/\r\n|\r|\n/);
     }
@@ -96,7 +96,7 @@ var TextModel = (function () {
     });
     return TextModel;
 }());
-var XLF = (function () {
+var XLF = /** @class */ (function () {
     function XLF(project) {
         this.project = project;
         this.buffer = [];
@@ -141,7 +141,7 @@ var XLF = (function () {
     };
     XLF.prototype.addStringItem = function (item) {
         if (!item.id || !item.message) {
-            throw new Error('No item ID or value specified.');
+            throw new Error("No item ID or value specified: " + JSON.stringify(item));
         }
         this.appendNewLine("<trans-unit id=\"" + item.id + "\">", 4);
         this.appendNewLine("<source xml:lang=\"en\">" + item.message + "</source>", 6);

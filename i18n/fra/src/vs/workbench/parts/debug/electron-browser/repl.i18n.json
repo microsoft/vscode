@@ -7,5 +7,6 @@
 	"replAriaLabel": "Panneau REPL (Read Eval Print Loop)",
 	"actions.repl.historyPrevious": "Historique précédent",
 	"actions.repl.historyNext": "Historique suivant",
-	"actions.repl.acceptInput": "Accepter l'entrée REPL"
+	"actions.repl.acceptInput": "Accepter l'entrée REPL",
+	"actions.repl.copyAll": "Débogage : Tout copier (console)"
 }

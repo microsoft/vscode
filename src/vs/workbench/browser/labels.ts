@@ -6,35 +6,40 @@
 'use strict';
 
 import uri from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import { IconLabel, IIconLabelOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { toResource } from 'vs/workbench/common/editor';
-import { getPathLabel } from 'vs/base/common/labels';
+import { getPathLabel, IWorkspaceFolderProvider } from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IUntitledEditorService } from "vs/workbench/services/untitled/common/untitledEditorService";
-import { Schemas } from "vs/base/common/network";
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IDecorationsService, IResourceDecorationChangeEvent, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { Schemas } from 'vs/base/common/network';
+import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
+import { ITextModel } from 'vs/editor/common/model';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-export interface IEditorLabel {
+export interface IResourceLabel {
 	name: string;
 	description?: string;
 	resource?: uri;
 }
 
 export interface IResourceLabelOptions extends IIconLabelOptions {
-	isFolder?: boolean;
+	fileKind?: FileKind;
+	fileDecorations?: { colors: boolean, badges: boolean, data?: IDecorationData };
 }
 
 export class ResourceLabel extends IconLabel {
 	private toDispose: IDisposable[];
-	private label: IEditorLabel;
+	private label: IResourceLabel;
 	private options: IResourceLabelOptions;
 	private computedIconClasses: string[];
 	private lastKnownConfiguredLangId: string;
@@ -47,7 +52,9 @@ export class ResourceLabel extends IconLabel {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
-		@IEnvironmentService protected environmentService: IEnvironmentService
+		@IEnvironmentService protected environmentService: IEnvironmentService,
+		@IDecorationsService protected decorationsService: IDecorationsService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(container, options);
 
@@ -57,11 +64,58 @@ export class ResourceLabel extends IconLabel {
 	}
 
 	private registerListeners(): void {
-		this.extensionService.onReady().then(() => this.render(true /* clear cache */)); // update when extensions are loaded with potentially new languages
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.render(true /* clear cache */))); // update when file.associations change
+
+		// update when extensions are registered with potentially new languages
+		this.toDispose.push(this.extensionService.onDidRegisterExtensions(() => this.render(true /* clear cache */)));
+
+		// react to model mode changes
+		this.toDispose.push(this.modelService.onModelModeChanged(e => this.onModelModeChanged(e)));
+
+		// react to file decoration changes
+		this.toDispose.push(this.decorationsService.onDidChangeDecorations(this.onFileDecorationsChanges, this));
+
+		// react to theme changes
+		this.toDispose.push(this.themeService.onThemeChange(() => this.render(false)));
+
+		// react to files.associations changes
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
+				this.render(true /* clear cache */);
+			}
+		}));
 	}
 
-	public setLabel(label: IEditorLabel, options?: IResourceLabelOptions): void {
+	private onModelModeChanged(e: { model: ITextModel; oldModeId: string; }): void {
+		if (!this.label || !this.label.resource) {
+			return; // only update if label exists
+		}
+
+		if (!e.model.uri) {
+			return; // we need the resource to compare
+		}
+
+		if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) {
+			return; // ignore transitions in files from no mode to specific mode because this happens each time a model is created
+		}
+
+		if (e.model.uri.toString() === this.label.resource.toString()) {
+			if (this.lastKnownConfiguredLangId !== e.model.getLanguageIdentifier().language) {
+				this.render(true); // update if the language id of the model has changed from our last known state
+			}
+		}
+	}
+
+	private onFileDecorationsChanges(e: IResourceDecorationChangeEvent): void {
+		if (!this.options || !this.label || !this.label.resource) {
+			return;
+		}
+
+		if (this.options.fileDecorations && e.affectsResource(this.label.resource)) {
+			this.render(false);
+		}
+	}
+
+	public setLabel(label: IResourceLabel, options?: IResourceLabelOptions): void {
 		const hasResourceChanged = this.hasResourceChanged(label, options);
 
 		this.label = label;
@@ -70,14 +124,14 @@ export class ResourceLabel extends IconLabel {
 		this.render(hasResourceChanged);
 	}
 
-	private hasResourceChanged(label: IEditorLabel, options: IResourceLabelOptions): boolean {
+	private hasResourceChanged(label: IResourceLabel, options: IResourceLabelOptions): boolean {
 		const newResource = label ? label.resource : void 0;
 		const oldResource = this.label ? this.label.resource : void 0;
 
-		const newIsFolder = options ? options.isFolder : false;
-		const oldIsFolder = this.options ? this.options.isFolder : false;
+		const newFileKind = options ? options.fileKind : void 0;
+		const oldFileKind = this.options ? this.options.fileKind : void 0;
 
-		if (newIsFolder !== oldIsFolder) {
+		if (newFileKind !== oldFileKind) {
 			return true; // same resource but different kind (file, folder)
 		}
 
@@ -118,28 +172,51 @@ export class ResourceLabel extends IconLabel {
 			return;
 		}
 
-		const resource = this.label.resource;
+		const iconLabelOptions: IIconLabelOptions = {
+			title: '',
+			italic: this.options && this.options.italic,
+			matches: this.options && this.options.matches,
+		};
 
-		let title = '';
+		const resource = this.label.resource;
+		const label = this.label.name;
+
 		if (this.options && typeof this.options.title === 'string') {
-			title = this.options.title;
-		} else if (resource) {
-			title = getPathLabel(resource.fsPath, void 0, this.environmentService);
+			iconLabelOptions.title = this.options.title;
+		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
+			iconLabelOptions.title = getPathLabel(resource, void 0, this.environmentService);
 		}
 
 		if (!this.computedIconClasses) {
-			this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.isFolder);
+			this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.fileKind);
 		}
 
-		let extraClasses = this.computedIconClasses.slice(0);
+		iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		if (this.options && this.options.extraClasses) {
-			extraClasses.push(...this.options.extraClasses);
+			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
 		}
 
-		const italic = this.options && this.options.italic;
-		const matches = this.options && this.options.matches;
+		if (this.options && this.options.fileDecorations && resource) {
+			let deco = this.decorationsService.getDecoration(
+				resource,
+				this.options.fileKind !== FileKind.FILE,
+				this.options.fileDecorations.data
+			);
 
-		this.setValue(this.label.name, this.label.description, { title, extraClasses, italic, matches });
+			if (deco) {
+				if (deco.tooltip) {
+					iconLabelOptions.title = `${iconLabelOptions.title} • ${deco.tooltip}`;
+				}
+				if (this.options.fileDecorations.colors) {
+					iconLabelOptions.extraClasses.push(deco.labelClassName);
+				}
+				if (this.options.fileDecorations.badges) {
+					iconLabelOptions.extraClasses.push(deco.badgeClassName);
+				}
+			}
+		}
+
+		this.setValue(label, this.label.description, iconLabelOptions);
 	}
 
 	public dispose(): void {
@@ -167,6 +244,7 @@ export class EditorLabel extends ResourceLabel {
 export interface IFileLabelOptions extends IResourceLabelOptions {
 	hideLabel?: boolean;
 	hidePath?: boolean;
+	root?: uri;
 }
 
 export class FileLabel extends ResourceLabel {
@@ -180,60 +258,84 @@ export class FileLabel extends ResourceLabel {
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IDecorationsService decorationsService: IDecorationsService,
+		@IThemeService themeService: IThemeService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 	) {
-		super(container, options, extensionService, contextService, configurationService, modeService, modelService, environmentService);
+		super(container, options, extensionService, contextService, configurationService, modeService, modelService, environmentService, decorationsService, themeService);
 	}
 
-	public setFile(resource: uri, options: IFileLabelOptions = Object.create(null)): void {
-		const hidePath = options.hidePath || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
+	public setFile(resource: uri, options?: IFileLabelOptions): void {
+		const hideLabel = options && options.hideLabel;
+		let name: string;
+		if (!hideLabel) {
+			if (options && options.fileKind === FileKind.ROOT_FOLDER) {
+				const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
+				if (workspaceFolder) {
+					name = workspaceFolder.name;
+				}
+			}
 
-		this.setLabel({
-			resource,
-			name: !options.hideLabel ? paths.basename(resource.fsPath) : void 0,
-			description: !hidePath ? getPathLabel(paths.dirname(resource.fsPath), this.contextService, this.environmentService) : void 0
-		}, options);
+			if (!name) {
+				name = resources.basenameOrAuthority(resource);
+			}
+		}
+
+		let description: string;
+		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
+		if (!hidePath) {
+			let rootProvider: IWorkspaceFolderProvider;
+			if (options && options.root) {
+				rootProvider = {
+					getWorkspaceFolder(): { uri } { return { uri: options.root }; },
+					getWorkspace(): { folders: { uri: uri }[]; } { return { folders: [{ uri: options.root }] }; },
+				};
+			} else {
+				rootProvider = this.contextService;
+			}
+
+			description = getPathLabel(resources.dirname(resource), rootProvider, this.environmentService);
+		}
+
+		this.setLabel({ resource, name, description }, options);
 	}
 }
 
-export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri, isFolder?: boolean): string[] {
+export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri, fileKind?: FileKind): string[] {
 
 	// we always set these base classes even if we do not have a path
-	const classes = isFolder ? ['folder-icon'] : ['file-icon'];
+	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
 
-	let path: string;
 	if (resource) {
-		path = resource.fsPath;
-	}
-
-	if (path) {
-		const basename = cssEscape(paths.basename(path).toLowerCase());
+		const name = cssEscape(resources.basenameOrAuthority(resource).toLowerCase());
 
 		// Folders
-		if (isFolder) {
-			classes.push(`${basename}-name-folder-icon`);
+		if (fileKind === FileKind.FOLDER) {
+			classes.push(`${name}-name-folder-icon`);
 		}
 
 		// Files
 		else {
 
 			// Name
-			classes.push(`${basename}-name-file-icon`);
+			classes.push(`${name}-name-file-icon`);
 
 			// Extension(s)
-			const dotSegments = basename.split('.');
+			const dotSegments = name.split('.');
 			for (let i = 1; i < dotSegments.length; i++) {
 				classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
 			}
+			classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 
 			// Configured Language
 			let configuredLangId = getConfiguredLangId(modelService, resource);
-			configuredLangId = configuredLangId || modeService.getModeIdByFilenameOrFirstLine(path);
+			configuredLangId = configuredLangId || modeService.getModeIdByFilenameOrFirstLine(name);
 			if (configuredLangId) {
 				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
 			}
 		}
 	}
+
 	return classes;
 }
 

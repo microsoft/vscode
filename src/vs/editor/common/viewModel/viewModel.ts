@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, IModelDecoration, EndOfLinePreference, IViewState } from 'vs/editor/common/editorCommon';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { INewScrollPosition, IViewState } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, IModelDecorationOptions } from 'vs/editor/common/model';
+import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import { ViewEvent, IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Scrollable } from 'vs/base/common/scrollable';
+import { Scrollable, IScrollPosition } from 'vs/base/common/scrollable';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: number;
@@ -44,19 +45,26 @@ export interface IViewLayout {
 
 	onMaxLineWidthChanged(width: number): void;
 
-	getScrollLeft(): number;
 	getScrollWidth(): number;
 	getScrollHeight(): number;
-	getScrollTop(): number;
+
+	getCurrentScrollLeft(): number;
+	getCurrentScrollTop(): number;
 	getCurrentViewport(): Viewport;
-	setScrollPosition(position: INewScrollPosition): void;
+
+	getFutureViewport(): Viewport;
+
+	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
+	setScrollPositionNow(position: INewScrollPosition): void;
+	setScrollPositionSmooth(position: INewScrollPosition): void;
+	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
 	getWhitespaces(): IEditorWhitespace[];
 
 	saveState(): IViewState;
-	restoreState(state: IViewState): void;
+	reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; };
 
 	isAfterLines(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
@@ -93,14 +101,12 @@ export interface ICoordinatesConverter {
 	// View -> Model conversion and related methods
 	convertViewPositionToModelPosition(viewPosition: Position): Position;
 	convertViewRangeToModelRange(viewRange: Range): Range;
-	convertViewSelectionToModelSelection(viewSelection: Selection): Selection;
 	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
 	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
 
 	// Model -> View conversion and related methods
 	convertModelPositionToViewPosition(modelPosition: Position): Position;
 	convertModelRangeToViewRange(modelRange: Range): Range;
-	convertModelSelectionToViewSelection(modelSelection: Selection): Selection;
 	modelPositionIsVisible(modelPosition: Position): boolean;
 }
 
@@ -126,18 +132,21 @@ export interface IViewModel {
 	getTabSize(): number;
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
-	getLineIndentGuide(lineNumber: number): number;
+	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	getAllOverviewRulerDecorations(): ViewModelDecoration[];
+	getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations;
+	invalidateOverviewRulerColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
 
-	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
+	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
+	getEOL(): string;
+	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | string[];
 	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
 }
 
@@ -172,13 +181,13 @@ export class ViewLineData {
 	/**
 	 * The tokens at this view line.
 	 */
-	public readonly tokens: ViewLineToken[];
+	public readonly tokens: IViewLineTokens;
 
 	constructor(
 		content: string,
 		minColumn: number,
 		maxColumn: number,
-		tokens: ViewLineToken[]
+		tokens: IViewLineTokens
 	) {
 		this.content = content;
 		this.minColumn = minColumn;
@@ -211,7 +220,7 @@ export class ViewLineRenderingData {
 	/**
 	 * The tokens at this view line.
 	 */
-	public readonly tokens: ViewLineToken[];
+	public readonly tokens: IViewLineTokens;
 	/**
 	 * Inline decorations at this view line.
 	 */
@@ -227,7 +236,7 @@ export class ViewLineRenderingData {
 		content: string,
 		mightContainRTL: boolean,
 		mightContainNonBasicASCII: boolean,
-		tokens: ViewLineToken[],
+		tokens: IViewLineTokens,
 		inlineDecorations: InlineDecoration[],
 		tabSize: number
 	) {
@@ -242,30 +251,41 @@ export class ViewLineRenderingData {
 	}
 }
 
+export const enum InlineDecorationType {
+	Regular = 0,
+	Before = 1,
+	After = 2
+}
+
 export class InlineDecoration {
-	_inlineDecorationBrand: void;
-
-	readonly range: Range;
-	readonly inlineClassName: string;
-	readonly insertsBeforeOrAfter: boolean;
-
-	constructor(range: Range, inlineClassName: string, insertsBeforeOrAfter: boolean) {
-		this.range = range;
-		this.inlineClassName = inlineClassName;
-		this.insertsBeforeOrAfter = insertsBeforeOrAfter;
+	constructor(
+		public readonly range: Range,
+		public readonly inlineClassName: string,
+		public readonly type: InlineDecorationType
+	) {
 	}
 }
 
 export class ViewModelDecoration {
 	_viewModelDecorationBrand: void;
 
-	public range: Range;
-	public readonly source: IModelDecoration;
+	public readonly range: Range;
+	public readonly options: IModelDecorationOptions;
 
-	constructor(source: IModelDecoration) {
-		this.range = null;
-		this.source = source;
+	constructor(range: Range, options: IModelDecorationOptions) {
+		this.range = range;
+		this.options = options;
 	}
+}
+
+/**
+ * Decorations are encoded in a number array using the following scheme:
+ *  - 3*i = lane
+ *  - 3*i+1 = startLineNumber
+ *  - 3*i+2 = endLineNumber
+ */
+export interface IOverviewRulerDecorations {
+	[color: string]: number[];
 }
 
 export class ViewEventsCollector {

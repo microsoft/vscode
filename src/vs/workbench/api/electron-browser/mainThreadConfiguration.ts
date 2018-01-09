@@ -4,41 +4,78 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { MainThreadConfigurationShape, ExtHostContext } from '../node/extHost.protocol';
+import { MainThreadConfigurationShape, MainContext, ExtHostContext, IExtHostContext, IWorkspaceConfigurationChangeEventData } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 
-export class MainThreadConfiguration extends MainThreadConfigurationShape {
+@extHostNamedCustomer(MainContext.MainThreadConfiguration)
+export class MainThreadConfiguration implements MainThreadConfigurationShape {
 
-	private _configurationEditingService: IConfigurationEditingService;
-	private _toDispose: IDisposable;
+	private readonly _configurationListener: IDisposable;
 
 	constructor(
-		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
-		@IThreadService threadService: IThreadService
+		extHostContext: IExtHostContext,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
-		super();
-		this._configurationEditingService = configurationEditingService;
-		const proxy = threadService.get(ExtHostContext.ExtHostConfiguration);
+		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostConfiguration);
 
-		this._toDispose = configurationService.onDidUpdateConfiguration(() => {
-			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData());
+		this._configurationListener = configurationService.onDidChangeConfiguration(e => {
+			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData(), this.toConfigurationChangeEventData(e));
 		});
 	}
 
 	public dispose(): void {
-		this._toDispose = dispose(this._toDispose);
+		this._configurationListener.dispose();
 	}
 
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> {
-		return this._configurationEditingService.writeConfiguration(target, { key, value }, { donotNotifyError: true });
+	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resourceUriComponenets: UriComponents): TPromise<void> {
+		const resource = resourceUriComponenets ? URI.revive(resourceUriComponenets) : null;
+		return this.writeConfiguration(target, key, value, resource);
 	}
 
-	$removeConfigurationOption(target: ConfigurationTarget, key: string): TPromise<void> {
-		return this._configurationEditingService.writeConfiguration(target, { key, value: undefined }, { donotNotifyError: true });
+	$removeConfigurationOption(target: ConfigurationTarget, key: string, resourceUriComponenets: UriComponents): TPromise<void> {
+		const resource = resourceUriComponenets ? URI.revive(resourceUriComponenets) : null;
+		return this.writeConfiguration(target, key, undefined, resource);
+	}
+
+	private writeConfiguration(target: ConfigurationTarget, key: string, value: any, resource: URI): TPromise<void> {
+		target = target !== null && target !== undefined ? target : this.deriveConfigurationTarget(key, resource);
+		return this.configurationService.updateValue(key, value, { resource }, target, true);
+	}
+
+	private deriveConfigurationTarget(key: string, resource: URI): ConfigurationTarget {
+		if (resource && this._workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+			if (configurationProperties[key] && configurationProperties[key].scope === ConfigurationScope.RESOURCE) {
+				return ConfigurationTarget.WORKSPACE_FOLDER;
+			}
+		}
+		return ConfigurationTarget.WORKSPACE;
+	}
+
+	private toConfigurationChangeEventData(event: IConfigurationChangeEvent): IWorkspaceConfigurationChangeEventData {
+		return {
+			changedConfiguration: this.toJSONConfiguration(event.changedConfiguration),
+			changedConfigurationByResource: event.changedConfigurationByResource.keys().reduce((result, resource) => {
+				result[resource.toString()] = this.toJSONConfiguration(event.changedConfigurationByResource.get(resource));
+				return result;
+			}, Object.create({}))
+		};
+	}
+
+	private toJSONConfiguration({ contents, keys, overrides }: IConfigurationModel = { contents: {}, keys: [], overrides: [] }): IConfigurationModel {
+		return {
+			contents,
+			keys,
+			overrides
+		};
 	}
 }

@@ -4,13 +4,12 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
+	"version": "https://github.com/textmate/lua.tmbundle/commit/42da2c6ff5d86c068f72520f856190f413911a80",
 	"comment": "Lua Syntax: version 0.8",
 	"fileTypes": [
 		"lua",
 		"p8",
-		"rockspec",
-		"luacheckrc",
-		"lakefile"
+		"rockspec"
 	],
 	"firstLineMatch": "\\A#!.*?\\blua(\\d+(\\.\\d+)?)?\\b|\\A--\\s+-\\*-\\s*lua\\s*-\\*-",
 	"keyEquivalent": "^~L",
@@ -47,11 +46,11 @@
 			]
 		},
 		{
-			"match": "(?<![\\w\\d.])0[xX]\\h+(?![pPeE.0-9])",
+			"match": "(?<![\\w\\d.])0[xX][0-9A-Fa-f]+(?![pPeE.0-9])",
 			"name": "constant.numeric.integer.hexadecimal.lua"
 		},
 		{
-			"match": "(?<![\\w\\d.])0[xX]\\h+(\\.\\h+)?([eE]-?\\d*)?([pP][-+]\\d+)?",
+			"match": "(?<![\\w\\d.])0[xX][0-9A-Fa-f]+(\\.[0-9A-Fa-f]+)?([eE]-?\\d*)?([pP][-+]\\d+)?",
 			"name": "constant.numeric.float.hexadecimal.lua"
 		},
 		{
@@ -265,11 +264,11 @@
 					"name": "constant.character.escape.byte.lua"
 				},
 				{
-					"match": "\\\\x\\h\\h",
+					"match": "\\\\x[0-9A-Fa-f][0-9A-Fa-f]",
 					"name": "constant.character.escape.byte.lua"
 				},
 				{
-					"match": "\\\\u\\{\\h+\\}",
+					"match": "\\\\u\\{[0-9A-Fa-f]+\\}",
 					"name": "constant.character.escape.unicode.lua"
 				},
 				{

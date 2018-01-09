@@ -7,14 +7,14 @@
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { Position } from 'vs/platform/editor/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
+import { HtmlInput, HtmlInputOptions, areHtmlInputOptionsEqual } from 'vs/workbench/parts/html/common/htmlInput';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -38,7 +38,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 	private _webviewDisposables: IDisposable[];
 
 	private _modelRef: IReference<ITextEditorModel>;
-	public get model(): IModel { return this._modelRef && this._modelRef.object.textEditorModel; }
+	public get model(): ITextModel { return this._modelRef && this._modelRef.object.textEditorModel; }
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
 
@@ -84,7 +84,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 				webviewOptions = this.input.options;
 			}
 
-			this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, webviewOptions);
+			this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, this.findInputFocusContextKey, webviewOptions);
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
@@ -178,11 +178,14 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
 
-		if (this.input && this.input.matches(input) && this._hasValidModel()) {
+		if (this.input && this.input.matches(input) && this._hasValidModel() && this.input instanceof HtmlInput && input instanceof HtmlInput && areHtmlInputOptionsEqual(this.input.options, input.options)) {
 			return TPromise.as(undefined);
 		}
 
+		let oldOptions: HtmlInputOptions | undefined = undefined;
+
 		if (this.input instanceof HtmlInput) {
+			oldOptions = this.input.options;
 			this.saveViewState(this.input.getResource(), {
 				scrollYPercentage: this.scrollYPercentage
 			});
@@ -208,6 +211,10 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 				if (!this.model) {
 					return TPromise.wrapError<void>(new Error(localize('html.voidInput', "Invalid editor input.")));
+				}
+
+				if (oldOptions && !areHtmlInputOptionsEqual(oldOptions, input.options)) {
+					this._doSetVisible(false);
 				}
 
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => {

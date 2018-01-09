@@ -14,15 +14,20 @@ var url = require('url');
 
 function getOptions(urlString) {
 	var _url = url.parse(urlString);
+	var headers = {
+		'User-Agent': 'VSCode'
+	};
+	var token = process.env['GITHUB_TOKEN'];
+	if (token) {
+		headers['Authorization'] = 'token ' + token
+	}
 	return {
 		protocol: _url.protocol,
 		host: _url.host,
 		port: _url.port,
 		path: _url.path,
-		headers: {
-			'User-Agent': 'NodeJS'
-		}
-	}
+		headers: headers
+	};
 }
 
 function download(url, redirectCount) {
@@ -68,8 +73,8 @@ function getCommitSha(repoId, repoPath) {
 	});
 }
 
-exports.update = function (repoId, repoPath, dest, modifyGrammar) {
-	var contentPath = 'https://raw.githubusercontent.com/' + repoId + '/master/' + repoPath;
+exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'master') {
+	var contentPath = 'https://raw.githubusercontent.com/' + repoId + `/${version}/` + repoPath;
 	console.log('Reading from ' + contentPath);
 	return download(contentPath).then(function (content) {
 		var ext = path.extname(repoPath);
@@ -100,7 +105,9 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar) {
 				result.version = 'https://github.com/' + repoId + '/commit/' + info.commitSha;
 			}
 			for (let key in grammar) {
-				result[key] = grammar[key];
+				if (!result.hasOwnProperty(key)) {
+					result[key] = grammar[key];
+				}
 			}
 
 			try {
@@ -116,7 +123,7 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar) {
 		});
 
 	}, console.error);
-}
+};
 
 if (path.basename(process.argv[1]) === 'update-grammar.js') {
 	for (var i = 3; i < process.argv.length; i += 2) {

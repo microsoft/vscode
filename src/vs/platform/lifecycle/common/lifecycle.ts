@@ -21,6 +21,7 @@ export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleSe
 export interface ShutdownEvent {
 	veto(value: boolean | TPromise<boolean>): void;
 	reason: ShutdownReason;
+	payload?: object;
 }
 
 export enum ShutdownReason {
@@ -46,8 +47,9 @@ export enum StartupKind {
 
 export enum LifecyclePhase {
 	Starting = 1,
-	Running = 2,
-	ShuttingDown = 3
+	Restoring = 2,
+	Running = 3,
+	Eventually = 4
 }
 
 /**
@@ -69,9 +71,10 @@ export interface ILifecycleService {
 	readonly phase: LifecyclePhase;
 
 	/**
-	 * An event that fire when the lifecycle phase has changed
+	 * Returns a promise that resolves when a certain lifecycle phase
+	 * has started.
 	 */
-	readonly onDidChangePhase: Event<LifecyclePhase>;
+	when(phase: LifecyclePhase): Thenable<void>;
 
 	/**
 	 * Fired before shutdown happens. Allows listeners to veto against the
@@ -91,8 +94,39 @@ export interface ILifecycleService {
 export const NullLifecycleService: ILifecycleService = {
 	_serviceBrand: null,
 	phase: LifecyclePhase.Running,
+	when() { return Promise.resolve(); },
 	startupKind: StartupKind.NewWindow,
-	onDidChangePhase: Event.None,
 	onWillShutdown: Event.None,
 	onShutdown: Event.None
 };
+
+// Shared veto handling across main and renderer
+export function handleVetos(vetos: (boolean | TPromise<boolean>)[], onError: (error: Error) => void): TPromise<boolean /* veto */> {
+	if (vetos.length === 0) {
+		return TPromise.as(false);
+	}
+
+	const promises: TPromise<void>[] = [];
+	let lazyValue = false;
+
+	for (let valueOrPromise of vetos) {
+
+		// veto, done
+		if (valueOrPromise === true) {
+			return TPromise.as(true);
+		}
+
+		if (TPromise.is(valueOrPromise)) {
+			promises.push(valueOrPromise.then(value => {
+				if (value) {
+					lazyValue = true; // veto, done
+				}
+			}, err => {
+				onError(err); // error, treated like a veto, done
+				lazyValue = true;
+			}));
+		}
+	}
+
+	return TPromise.join(promises).then(() => lazyValue);
+}

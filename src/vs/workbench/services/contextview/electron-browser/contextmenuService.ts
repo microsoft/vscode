@@ -16,16 +16,23 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 import { remote, webFrame } from 'electron';
+import { unmnemonicLabel } from 'vs/base/common/labels';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class ContextMenuService implements IContextMenuService {
 
 	public _serviceBrand: any;
+	private _onDidContextMenu = new Emitter<void>();
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
+	}
+
+	public get onDidContextMenu(): Event<void> {
+		return this._onDidContextMenu.event;
 	}
 
 	public showContextMenu(delegate: IContextMenuDelegate): void {
@@ -46,7 +53,7 @@ export class ContextMenuService implements IContextMenuService {
 					y = elementPosition.top + elementPosition.height;
 				} else {
 					const pos = <{ x: number; y: number; }>anchor;
-					x = pos.x;
+					x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
 					y = pos.y;
 				}
 
@@ -54,7 +61,8 @@ export class ContextMenuService implements IContextMenuService {
 				x *= zoom;
 				y *= zoom;
 
-				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
+				menu.popup(remote.getCurrentWindow(), { x: Math.floor(x), y: Math.floor(y), positioningItem: delegate.autoSelectFirstItem ? 0 : void 0 });
+				this._onDidContextMenu.fire();
 				if (delegate.onHide) {
 					delegate.onHide(undefined);
 				}
@@ -72,13 +80,13 @@ export class ContextMenuService implements IContextMenuService {
 			} else if (e instanceof ContextSubMenu) {
 				const submenu = new remote.MenuItem({
 					submenu: this.createMenu(delegate, e.entries),
-					label: e.label
+					label: unmnemonicLabel(e.label)
 				});
 
 				menu.append(submenu);
 			} else {
-				const options: Electron.MenuItemOptions = {
-					label: e.label,
+				const options: Electron.MenuItemConstructorOptions = {
+					label: unmnemonicLabel(e.label),
 					checked: !!e.checked || !!e.radio,
 					type: !!e.checked ? 'checkbox' : !!e.radio ? 'radio' : void 0,
 					enabled: !!e.enabled,
@@ -110,6 +118,12 @@ export class ContextMenuService implements IContextMenuService {
 	}
 
 	private runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IEvent): void {
+		/* __GDPR__
+			"workbenchActionExecuted" : {
+				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;

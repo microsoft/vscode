@@ -14,13 +14,12 @@ import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ISaveOptions, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -31,6 +30,8 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IRevertOptions } from 'vs/platform/editor/common/editor';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -56,13 +57,14 @@ export abstract class TextFileService implements ITextFileService {
 	private configuredAutoSaveOnFocusChange: boolean;
 	private configuredAutoSaveOnWindowChange: boolean;
 
+	private autoSaveContext: IContextKey<string>;
+
 	private configuredHotExit: string;
 
 	constructor(
 		private lifecycleService: ILifecycleService,
 		private contextService: IWorkspaceContextService,
 		private configurationService: IConfigurationService,
-		private telemetryService: ITelemetryService,
 		protected fileService: IFileService,
 		private untitledEditorService: IUntitledEditorService,
 		private instantiationService: IInstantiationService,
@@ -70,7 +72,8 @@ export abstract class TextFileService implements ITextFileService {
 		protected environmentService: IEnvironmentService,
 		private backupFileService: IBackupFileService,
 		private windowsService: IWindowsService,
-		private historyService: IHistoryService
+		private historyService: IHistoryService,
+		contextKeyService: IContextKeyService
 	) {
 		this.toUnbind = [];
 
@@ -81,13 +84,12 @@ export abstract class TextFileService implements ITextFileService {
 		this.toUnbind.push(this._onFilesAssociationChange);
 
 		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
+		this.autoSaveContext = AutoSaveContext.bindTo(contextKeyService);
 
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 		this.currentFilesAssociationConfig = configuration && configuration.files && configuration.files.associations;
 
-		this.onConfigurationChange(configuration);
-
-		this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
+		this.onFilesConfigurationChange(configuration);
 
 		this.registerListeners();
 	}
@@ -98,9 +100,9 @@ export abstract class TextFileService implements ITextFileService {
 
 	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
 
-	abstract promptForPath(defaultPath?: string): string;
+	abstract promptForPath(defaultPath: string): TPromise<string>;
 
-	abstract confirmSave(resources?: URI[]): ConfirmResult;
+	abstract confirmSave(resources?: URI[]): TPromise<ConfirmResult>;
 
 	public get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> {
 		return this._onAutoSaveConfigurationChange.event;
@@ -116,8 +118,12 @@ export abstract class TextFileService implements ITextFileService {
 		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown(event.reason)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
-		// Configuration changes
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		// Files configuration changes
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('files')) {
+				this.onFilesConfigurationChange(this.configurationService.getValue<IFilesConfiguration>());
+			}
+		}));
 	}
 
 	private beforeShutdown(reason: ShutdownReason): boolean | TPromise<boolean> {
@@ -127,9 +133,10 @@ export abstract class TextFileService implements ITextFileService {
 		if (dirty.length) {
 
 			// If auto save is enabled, save all files and then check again for dirty files
+			// We DO NOT run any save participant if we are in the shutdown phase for performance reasons
 			let handleAutoSave: TPromise<URI[] /* remaining dirty resources */>;
 			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
-				handleAutoSave = this.saveAll(false /* files only */).then(() => this.getDirty());
+				handleAutoSave = this.saveAll(false /* files only */, { skipSaveParticipants: true }).then(() => this.getDirty());
 			} else {
 				handleAutoSave = TPromise.as(dirty);
 			}
@@ -151,7 +158,7 @@ export abstract class TextFileService implements ITextFileService {
 							return this.confirmBeforeShutdown();
 						}, errors => {
 							const firstError = errors[0];
-							this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files could not be backed up (Error: {0}), try saving your files to exit.", firstError.message));
+							this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", firstError.message));
 
 							return true; // veto, the backups failed
 						});
@@ -180,7 +187,7 @@ export abstract class TextFileService implements ITextFileService {
 			let doBackup: boolean;
 			switch (reason) {
 				case ShutdownReason.CLOSE:
-					if (this.contextService.hasWorkspace() && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
 					} else if (windowCount > 1 || platform.isMacintosh) {
 						doBackup = false; // do not backup if a window is closed that does not cause quitting of the application
@@ -198,7 +205,7 @@ export abstract class TextFileService implements ITextFileService {
 					break;
 
 				case ShutdownReason.LOAD:
-					if (this.contextService.hasWorkspace() && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
+					if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.configuredHotExit === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
 						doBackup = true; // backup if a folder is open and onExitAndWindowClose is configured
 					} else {
 						doBackup = false; // do not backup because we are switching contexts
@@ -209,9 +216,6 @@ export abstract class TextFileService implements ITextFileService {
 			if (!doBackup) {
 				return TPromise.as({ didBackup: false });
 			}
-
-			// Telemetry
-			this.telemetryService.publicLog('hotExit:triggered', { reason, windowCount, fileCount: dirtyToBackup.length });
 
 			// Backup
 			return this.backupAll(dirtyToBackup, textFileEditorModelManager).then(() => { return { didBackup: true }; });
@@ -255,30 +259,36 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
-		const confirm = this.confirmSave();
+		return this.confirmSave().then(confirm => {
 
-		// Save
-		if (confirm === ConfirmResult.SAVE) {
-			return this.saveAll(true /* includeUntitled */).then(result => {
-				if (result.results.some(r => !r.success)) {
-					return true; // veto if some saves failed
-				}
+			// Save
+			if (confirm === ConfirmResult.SAVE) {
+				return this.saveAll(true /* includeUntitled */, { skipSaveParticipants: true }).then(result => {
+					if (result.results.some(r => !r.success)) {
+						return true; // veto if some saves failed
+					}
+
+					return this.noVeto({ cleanUpBackups: true });
+				});
+			}
+
+			// Don't Save
+			else if (confirm === ConfirmResult.DONT_SAVE) {
+
+				// Make sure to revert untitled so that they do not restore
+				// see https://github.com/Microsoft/vscode/issues/29572
+				this.untitledEditorService.revertAll();
 
 				return this.noVeto({ cleanUpBackups: true });
-			});
-		}
+			}
 
-		// Don't Save
-		else if (confirm === ConfirmResult.DONT_SAVE) {
-			return this.noVeto({ cleanUpBackups: true });
-		}
+			// Cancel
+			else if (confirm === ConfirmResult.CANCEL) {
+				return true; // veto
+			}
 
-		// Cancel
-		else if (confirm === ConfirmResult.CANCEL) {
-			return true; // veto
-		}
-
-		return void 0;
+			return void 0;
+		});
 	}
 
 	private noVeto(options: { cleanUpBackups: boolean }): boolean | TPromise<boolean> {
@@ -297,10 +307,11 @@ export abstract class TextFileService implements ITextFileService {
 		return this.backupFileService.discardAllWorkspaceBackups();
 	}
 
-	protected onConfigurationChange(configuration: IFilesConfiguration): void {
+	protected onFilesConfigurationChange(configuration: IFilesConfiguration): void {
 		const wasAutoSaveEnabled = (this.getAutoSaveMode() !== AutoSaveMode.OFF);
 
 		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveConfiguration.OFF;
+		this.autoSaveContext.set(autoSaveMode);
 		switch (autoSaveMode) {
 			case AutoSaveConfiguration.AFTER_DELAY:
 				this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
@@ -383,12 +394,12 @@ export abstract class TextFileService implements ITextFileService {
 			}
 		}
 
-		return this.saveAll([resource]).then(result => result.results.length === 1 && result.results[0].success);
+		return this.saveAll([resource], options).then(result => result.results.length === 1 && result.results[0].success);
 	}
 
-	public saveAll(includeUntitled?: boolean, reason?: SaveReason): TPromise<ITextFileOperationResult>;
-	public saveAll(resources: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult>;
-	public saveAll(arg1?: any, reason?: SaveReason): TPromise<ITextFileOperationResult> {
+	public saveAll(includeUntitled?: boolean, options?: ISaveOptions): TPromise<ITextFileOperationResult>;
+	public saveAll(resources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult>;
+	public saveAll(arg1?: any, options?: ISaveOptions): TPromise<ITextFileOperationResult> {
 
 		// get all dirty
 		let toSave: URI[] = [];
@@ -402,20 +413,24 @@ export abstract class TextFileService implements ITextFileService {
 		const filesToSave: URI[] = [];
 		const untitledToSave: URI[] = [];
 		toSave.forEach(s => {
-			if (s.scheme === Schemas.file) {
-				filesToSave.push(s);
-			} else if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && s.scheme === UNTITLED_SCHEMA) {
+			// TODO@remote
+			// if (s.scheme === Schemas.file) {
+			// 	filesToSave.push(s);
+			// } else
+			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && s.scheme === UNTITLED_SCHEMA) {
 				untitledToSave.push(s);
+			} else {
+				filesToSave.push(s);
 			}
 		});
 
-		return this.doSaveAll(filesToSave, untitledToSave, reason);
+		return this.doSaveAll(filesToSave, untitledToSave, options);
 	}
 
-	private doSaveAll(fileResources: URI[], untitledResources: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult> {
+	private doSaveAll(fileResources: URI[], untitledResources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult> {
 
 		// Handle files first that can just be saved
-		return this.doSaveAllFiles(fileResources, reason).then(result => {
+		return this.doSaveAllFiles(fileResources, options).then(async result => {
 
 			// Preflight for untitled to handle cancellation from the dialog
 			const targetsForUntitled: URI[] = [];
@@ -431,7 +446,7 @@ export abstract class TextFileService implements ITextFileService {
 
 					// Otherwise ask user
 					else {
-						targetPath = this.promptForPath(this.suggestFileName(untitled));
+						targetPath = await this.promptForPath(this.suggestFileName(untitled));
 						if (!targetPath) {
 							return TPromise.as({
 								results: [...fileResources, ...untitledResources].map(r => {
@@ -467,10 +482,10 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
-	private doSaveAllFiles(resources?: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult> {
+	private doSaveAllFiles(resources?: URI[], options: ISaveOptions = Object.create(null)): TPromise<ITextFileOperationResult> {
 		const dirtyFileModels = this.getDirtyFileModels(Array.isArray(resources) ? resources : void 0 /* Save All */)
 			.filter(model => {
-				if (model.hasState(ModelState.CONFLICT) && (reason === SaveReason.AUTO || reason === SaveReason.FOCUS_CHANGE || reason === SaveReason.WINDOW_CHANGE)) {
+				if (model.hasState(ModelState.CONFLICT) && (options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)) {
 					return false; // if model is in save conflict, do not save unless save reason is explicit or not provided at all
 				}
 
@@ -485,7 +500,7 @@ export abstract class TextFileService implements ITextFileService {
 		});
 
 		return TPromise.join(dirtyFileModels.map(model => {
-			return model.save({ reason }).then(() => {
+			return model.save(options).then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult.get(model.getResource()).success = true;
 				}
@@ -518,35 +533,43 @@ export abstract class TextFileService implements ITextFileService {
 		return this.getFileModels(arg1).filter(model => model.isDirty());
 	}
 
-	public saveAs(resource: URI, target?: URI): TPromise<URI> {
+	public saveAs(resource: URI, target?: URI, options?: ISaveOptions): TPromise<URI> {
 
 		// Get to target resource
-		if (!target) {
+		let targetPromise: TPromise<URI>;
+		if (target) {
+			targetPromise = TPromise.wrap(target);
+		} else {
 			let dialogPath = resource.fsPath;
 			if (resource.scheme === UNTITLED_SCHEMA) {
 				dialogPath = this.suggestFileName(resource);
 			}
 
-			const pathRaw = this.promptForPath(dialogPath);
-			if (pathRaw) {
-				target = URI.file(pathRaw);
+			targetPromise = this.promptForPath(dialogPath).then(pathRaw => {
+				if (pathRaw) {
+					return URI.file(pathRaw);
+				}
+
+				return void 0;
+			});
+		}
+
+		return targetPromise.then(target => {
+			if (!target) {
+				return TPromise.as(null); // user canceled
 			}
-		}
 
-		if (!target) {
-			return TPromise.as(null); // user canceled
-		}
+			// Just save if target is same as models own resource
+			if (resource.toString() === target.toString()) {
+				return this.save(resource, options).then(() => resource);
+			}
 
-		// Just save if target is same as models own resource
-		if (resource.toString() === target.toString()) {
-			return this.save(resource).then(() => resource);
-		}
-
-		// Do it
-		return this.doSaveAs(resource, target);
+			// Do it
+			return this.doSaveAs(resource, target, options);
+		});
 	}
 
-	private doSaveAs(resource: URI, target?: URI): TPromise<URI> {
+	private doSaveAs(resource: URI, target?: URI, options?: ISaveOptions): TPromise<URI> {
 
 		// Retrieve text model from provided resource if any
 		let modelPromise: TPromise<ITextFileEditorModel | UntitledEditorModel> = TPromise.as(null);
@@ -556,11 +579,11 @@ export abstract class TextFileService implements ITextFileService {
 			modelPromise = this.untitledEditorService.loadOrCreate({ resource });
 		}
 
-		return modelPromise.then(model => {
+		return modelPromise.then<any>(model => {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {
-				return this.doSaveTextFileAs(model, resource, target);
+				return this.doSaveTextFileAs(model, resource, target, options);
 			}
 
 			// Otherwise we can only copy
@@ -576,7 +599,7 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
-	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
+	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI, options?: ISaveOptions): TPromise<void> {
 		let targetModelResolver: TPromise<ITextFileEditorModel>;
 
 		// Prefer an existing model if it is already loaded for the given target resource
@@ -599,12 +622,12 @@ export abstract class TextFileService implements ITextFileService {
 			targetModel.textEditorModel.setValue(sourceModel.getValue());
 
 			// save model
-			return targetModel.save();
+			return targetModel.save(options);
 		}, error => {
 
 			// binary model: delete the file and run the operation again
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
-				return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
+				return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target, options));
 			}
 
 			return TPromise.wrapError(error);
@@ -612,12 +635,19 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private suggestFileName(untitledResource: URI): string {
-		const root = this.historyService.getLastActiveWorkspaceRoot();
-		if (root) {
-			return URI.file(paths.join(root.fsPath, this.untitledEditorService.suggestFileName(untitledResource))).fsPath;
+		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource);
+
+		const lastActiveFile = this.historyService.getLastActiveFile();
+		if (lastActiveFile) {
+			return URI.file(paths.join(paths.dirname(lastActiveFile.fsPath), untitledFileName)).fsPath;
 		}
 
-		return this.untitledEditorService.suggestFileName(untitledResource);
+		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot('file');
+		if (lastActiveFolder) {
+			return URI.file(paths.join(lastActiveFolder.fsPath, untitledFileName)).fsPath;
+		}
+
+		return untitledFileName;
 	}
 
 	public revert(resource: URI, options?: IRevertOptions): TPromise<boolean> {

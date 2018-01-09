@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -57,7 +57,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve resource', function (done) {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: function (resource: URI): TPromise<IModel> {
+			provideTextContent: function (resource: URI): TPromise<ITextModel> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
 					let mode = accessor.modeService.getOrCreateMode('json');
@@ -71,9 +71,9 @@ suite('Workbench - TextModelResolverService', () => {
 		let resource = URI.from({ scheme: 'test', authority: null, path: 'thePath' });
 		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
 
-		input.resolve().then((model: ResourceEditorModel) => {
+		input.resolve().then(model => {
 			assert.ok(model);
-			assert.equal(model.getValue(), 'Hello Test');
+			assert.equal((model as ResourceEditorModel).getValue(), 'Hello Test');
 
 			let disposed = false;
 			once(model.onDispose)(() => {
@@ -133,7 +133,7 @@ suite('Workbench - TextModelResolverService', () => {
 		let waitForIt = new TPromise(c => resolveModel = c);
 
 		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: async (resource: URI): TPromise<IModel> => {
+			provideTextContent: async (resource: URI): TPromise<ITextModel> => {
 				await waitForIt;
 
 				let modelContent = 'Hello Test';

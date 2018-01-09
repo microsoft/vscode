@@ -3,35 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var fs = require('fs');
-var rimraf = require('rimraf');
+import * as fs from 'fs';
+import { dirname } from 'path';
 
-/**
- * Contains methods that are commonly used across test areas.
- */
-export class Util {
-	constructor() {
-		// noop
-	}
+export function nfcall<R>(fn: Function, ...args): Promise<R> {
+	return new Promise<R>((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+}
 
-	public removeFile(filePath: string): void {
+export async function mkdirp(path: string, mode?: number): Promise<boolean> {
+	const mkdir = async () => {
 		try {
-			fs.unlinkSync(`${filePath}`);
-		} catch (e) {
-			if (e.code !== 'ENOENT') {
-				throw e;
+			await nfcall(fs.mkdir, path, mode);
+		} catch (err) {
+			if (err.code === 'EEXIST') {
+				const stat = await nfcall<fs.Stats>(fs.stat, path);
+
+				if (stat.isDirectory) {
+					return;
+				}
+
+				throw new Error(`'${path}' exists and is not a directory.`);
 			}
+
+			throw err;
 		}
+	};
+
+	// is root?
+	if (path === dirname(path)) {
+		return true;
 	}
 
-	public rimraf(directory: string): Promise<any> {
-		return new Promise((res, rej) => {
-			rimraf(directory, (err) => {
-				if (err) {
-					rej(err);
-				}
-				res();
-			});
-		});
+	try {
+		await mkdir();
+	} catch (err) {
+		if (err.code !== 'ENOENT') {
+			throw err;
+		}
+
+		await mkdirp(dirname(path), mode);
+		await mkdir();
 	}
+
+	return true;
+}
+
+export function sanitize(name: string): string {
+	return name.replace(/[&*:\/]/g, '');
 }

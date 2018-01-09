@@ -45,7 +45,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?&lt;![\\-])#</string>
+			<string>(?&lt;![`\\-])#</string>
 			<key>end</key>
 			<string>$</string>
 			<key>name</key>
@@ -246,7 +246,7 @@
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>(?&lt;!\w)((?i:begin|break|catch|continue|data|define|do|dynamicparam|else|elseif|end|exit|finally|for|foreach(?!-object)|from|if|in|inlinescript|parallel|param|process|return|switch|throw|trap|try|until|using|var|where(?!=-object)|while)|%|\?)(?!\w)</string>
+			<string>(?&lt;!\w)((?i:begin|break|catch|continue|data|define|do|dynamicparam|else|elseif|end|exit|finally|for|foreach(?!-object)|from|if|in|inlinescript|parallel|param|process|return|switch|throw|trap|try|until|using|var|where(?!-object)|while)|%|\?)(?!\w)</string>
 			<key>name</key>
 			<string>keyword.control.powershell</string>
 		</dict>
@@ -423,6 +423,14 @@
 					<string>Builtin cmdlets with reserved verbs</string>
 					<key>match</key>
 					<string>(?&lt;!\w)(?i:foreach-object)(?!\w)</string>
+					<key>name</key>
+					<string>support.function.powershell</string>
+				</dict>
+				<dict>
+					<key>comment</key>
+					<string>Builtin cmdlets with reserved verbs</string>
+					<key>match</key>
+					<string>(?&lt;!\w)(?i:where-object)(?!\w)</string>
 					<key>name</key>
 					<string>support.function.powershell</string>
 				</dict>

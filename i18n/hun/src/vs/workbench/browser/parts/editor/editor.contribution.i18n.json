@@ -12,5 +12,6 @@
 	"groupTwoPicker": "A második csoportban található szerkesztőablakok megjelenítése",
 	"groupThreePicker": "A harmadik csoportban található szerkesztőablakok megjelenítése",
 	"allEditorsPicker": "Összes megnyitott szerkesztőablak megjelenítése",
-	"view": "Nézet"
+	"view": "Nézet",
+	"file": "Fájl"
 }

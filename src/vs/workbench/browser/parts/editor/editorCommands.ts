@@ -8,22 +8,37 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible } from 'vs/workbench/common/editor';
+import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible, IEditorContext, EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
+import { IEditor, Position, POSITIONS, Direction, IEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
-import { Action } from 'vs/base/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import URI from 'vs/base/common/uri';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
+
+export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
+export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
+export const CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID = 'workbench.action.closeEditorsToTheRight';
+export const CLOSE_EDITOR_COMMAND_ID = 'workbench.action.closeActiveEditor';
+export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOtherEditors';
+export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
+export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
+export const TOGGLE_DIFF_INLINE_MODE = 'toggle.diff.editorMode';
+
+export const NAVIGATE_IN_GROUP_ONE_PREFIX = 'edt one ';
+export const NAVIGATE_IN_GROUP_TWO_PREFIX = 'edt two ';
+export const NAVIGATE_IN_GROUP_THREE_PREFIX = 'edt three ';
+export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
 
 export function setup(): void {
 	registerActiveEditorMoveCommand();
 	registerDiffEditorCommands();
 	registerOpenEditorAtIndexCommands();
-	handleCommandDeprecations();
+	registerEditorCommands();
 }
 
 const isActiveEditorMoveArg = function (arg: ActiveEditorMoveArguments): boolean {
@@ -60,11 +75,7 @@ function registerActiveEditorMoveCommand(): void {
 			args: [
 				{
 					name: nls.localize('editorCommand.activeEditorMove.arg.name', "Active editor move argument"),
-					description: nls.localize('editorCommand.activeEditorMove.arg.description', `Argument Properties:
-						* 'to': String value providing where to move.
-						* 'by': String value providing the unit for move. By tab or by group.
-						* 'value': Number value providing how many positions or an absolute position to move.
-					`),
+					description: nls.localize('editorCommand.activeEditorMove.arg.description', "Argument Properties:\n\t* 'to': String value providing where to move.\n\t* 'by': String value providing the unit for move. By tab or by group.\n\t* 'value': Number value providing how many positions or an absolute position to move."),
 					constraint: isActiveEditorMoveArg
 				}
 			]
@@ -172,55 +183,22 @@ function registerDiffEditorCommands(): void {
 	}
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: '_workbench.printStacksModel',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-		handler(accessor: ServicesAccessor) {
-			console.log(`${accessor.get(IEditorGroupService).getStacksModel().toString()}\n\n`);
-		},
-		when: undefined,
-		primary: undefined
-	});
+		id: TOGGLE_DIFF_INLINE_MODE,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: void 0,
+		primary: void 0,
+		handler: (accessor) => {
+			const editorService = accessor.get(IWorkbenchEditorService);
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: '_workbench.validateStacksModel',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-		handler(accessor: ServicesAccessor) {
-			(<EditorStacksModel>accessor.get(IEditorGroupService).getStacksModel()).validate();
-		},
-		when: undefined,
-		primary: undefined
-	});
-}
-
-function handleCommandDeprecations(): void {
-	const mapDeprecatedCommands = {
-		'workbench.action.files.newFile': 'explorer.newFile',
-		'workbench.action.files.newFolder': 'explorer.newFolder'
-	};
-
-	Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {
-		const newCommandId = mapDeprecatedCommands[deprecatedCommandId];
-
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: deprecatedCommandId,
-			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-			handler(accessor: ServicesAccessor) {
-				const messageService = accessor.get(IMessageService);
-				const commandService = accessor.get(ICommandService);
-
-				messageService.show(Severity.Warning, {
-					message: nls.localize('commandDeprecated', "Command **{0}** has been removed. You can use **{1}** instead", deprecatedCommandId, newCommandId),
-					actions: [
-						new Action('openKeybindings', nls.localize('openKeybindings', "Configure Keyboard Shortcuts"), null, true, () => {
-							return commandService.executeCommand('workbench.action.openGlobalKeybindings');
-						}),
-						CloseAction
-					]
+			const editor = editorService.getActiveEditor();
+			if (editor instanceof TextDiffEditor) {
+				const control = editor.getControl();
+				const isInlineMode = !control.renderSideBySide;
+				control.updateOptions(<IDiffEditorOptions>{
+					renderSideBySide: isInlineMode
 				});
-			},
-			when: undefined,
-			primary: undefined
-		});
+			}
+		}
 	});
 }
 
@@ -272,4 +250,204 @@ function registerOpenEditorAtIndexCommands(): void {
 
 		return void 0;
 	}
+}
+
+function registerEditorCommands() {
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: void 0,
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
+		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+			const editorGroupService = accessor.get(IEditorGroupService);
+			const editorService = accessor.get(IWorkbenchEditorService);
+
+			const { position } = positionAndInput(editorGroupService, editorService, editorContext);
+
+			if (typeof position === 'number') {
+				return editorService.closeEditors(position, { unmodifiedOnly: true });
+			}
+
+			return TPromise.as(false);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: void 0,
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_W),
+		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+			const editorGroupService = accessor.get(IEditorGroupService);
+			const editorService = accessor.get(IWorkbenchEditorService);
+
+			const { position } = positionAndInput(editorGroupService, editorService, editorContext);
+
+			if (typeof position === 'number') {
+				return editorService.closeEditors(position);
+			}
+
+			return TPromise.as(false);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: CLOSE_EDITOR_COMMAND_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: void 0,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
+		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
+		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+			const editorGroupService = accessor.get(IEditorGroupService);
+			const editorService = accessor.get(IWorkbenchEditorService);
+
+			const position = editorContext ? editorGroupService.getStacksModel().positionOfGroup(editorContext.group) : null;
+
+			// Close Active Editor
+			if (typeof position !== 'number') {
+				const activeEditor = editorService.getActiveEditor();
+				if (activeEditor) {
+					return editorService.closeEditor(activeEditor.position, activeEditor.input);
+				}
+			}
+
+			let input = editorContext ? editorContext.editor : null;
+			if (!input) {
+
+				// Get Top Editor at Position
+				const visibleEditors = editorService.getVisibleEditors();
+				if (visibleEditors[position]) {
+					input = visibleEditors[position].input;
+				}
+			}
+
+			if (input) {
+				return editorService.closeEditor(position, input);
+			}
+
+			return TPromise.as(false);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: void 0,
+		primary: void 0,
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T },
+		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+			const editorGroupService = accessor.get(IEditorGroupService);
+			const editorService = accessor.get(IWorkbenchEditorService);
+
+			const { position, input } = positionAndInput(editorGroupService, editorService, editorContext);
+
+			if (typeof position === 'number' && input) {
+				return editorService.closeEditors(position, { except: input });
+			}
+
+			return TPromise.as(false);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: void 0,
+		primary: void 0,
+		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+			const editorGroupService = accessor.get(IEditorGroupService);
+			const editorService = accessor.get(IWorkbenchEditorService);
+
+			const { position, input } = positionAndInput(editorGroupService, editorService, editorContext);
+
+			if (typeof position === 'number' && input) {
+				return editorService.closeEditors(position, { except: input, direction: Direction.RIGHT });
+			}
+
+			return TPromise.as(false);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: KEEP_EDITOR_COMMAND_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: void 0,
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter),
+		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+			const editorGroupService = accessor.get(IEditorGroupService);
+			const editorService = accessor.get(IWorkbenchEditorService);
+
+			const { position, input } = positionAndInput(editorGroupService, editorService, editorContext);
+
+			if (typeof position === 'number' && input) {
+				return editorGroupService.pinEditor(position, input);
+			}
+
+			return TPromise.as(false);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: SHOW_EDITORS_IN_GROUP,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: void 0,
+		primary: void 0,
+		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+			const editorGroupService = accessor.get(IEditorGroupService);
+			const editorService = accessor.get(IWorkbenchEditorService);
+			const quickOpenService = accessor.get(IQuickOpenService);
+
+			const stacks = editorGroupService.getStacksModel();
+			const groupCount = stacks.groups.length;
+			if (groupCount <= 1) {
+				return quickOpenService.show(NAVIGATE_ALL_EDITORS_GROUP_PREFIX);
+			}
+
+			const { position } = positionAndInput(editorGroupService, editorService, editorContext);
+
+			switch (position) {
+				case Position.TWO:
+					return quickOpenService.show(NAVIGATE_IN_GROUP_TWO_PREFIX);
+				case Position.THREE:
+					return quickOpenService.show(NAVIGATE_IN_GROUP_THREE_PREFIX);
+			}
+
+			return quickOpenService.show(NAVIGATE_IN_GROUP_ONE_PREFIX);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: '_workbench.printStacksModel',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+		handler(accessor: ServicesAccessor) {
+			console.log(`${accessor.get(IEditorGroupService).getStacksModel().toString()}\n\n`);
+		},
+		when: void 0,
+		primary: void 0
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: '_workbench.validateStacksModel',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+		handler(accessor: ServicesAccessor) {
+			(<EditorStacksModel>accessor.get(IEditorGroupService).getStacksModel()).validate();
+		},
+		when: void 0,
+		primary: void 0
+	});
+}
+
+function positionAndInput(editorGroupService: IEditorGroupService, editorService: IWorkbenchEditorService, editorContext?: IEditorContext): { position: Position, input: IEditorInput } {
+	let position = editorContext ? editorGroupService.getStacksModel().positionOfGroup(editorContext.group) : null;
+	let input = editorContext ? editorContext.editor : null;
+
+	// If position or input are not passed in take the position and input of the active editor.
+	const active = editorService.getActiveEditor();
+	if (active) {
+		position = typeof position === 'number' ? position : active.position;
+		input = input ? input : <EditorInput>active.input;
+	}
+
+	return { position, input };
 }

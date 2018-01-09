@@ -17,4 +17,19 @@ export interface IClipboardService {
 	 * Writes text to the system clipboard.
 	 */
 	writeText(text: string): void;
+
+	/**
+	 * Reads the content of the clipboard in plain text
+	 */
+	readText(): string;
+
+	/**
+	 * Reads text from the system find pasteboard.
+	 */
+	readFindText(): string;
+
+	/**
+	 * Writes text to the system find pasteboard.
+	 */
+	writeFindText(text: string): void;
 }

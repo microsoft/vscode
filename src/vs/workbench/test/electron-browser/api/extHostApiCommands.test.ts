@@ -11,12 +11,10 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import { Model as EditorModel } from 'vs/editor/common/model/model';
-import { TestThreadService } from './testThreadService';
+import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
+import { TestRPCProtocol } from './testRPCProtocol';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
@@ -31,9 +29,13 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumen
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import 'vs/workbench/parts/search/electron-browser/search.contribution';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { ITextModel } from 'vs/editor/common/model';
 
 const defaultSelector = { scheme: 'far' };
-const model: EditorCommon.IModel = EditorModel.createFromString(
+const model: ITextModel = EditorModel.createFromString(
 	[
 		'This is the first line',
 		'This is the second line',
@@ -43,7 +45,7 @@ const model: EditorCommon.IModel = EditorModel.createFromString(
 	undefined,
 	URI.parse('far://testing/file.b'));
 
-let threadService: TestThreadService;
+let rpcProtocol: TestRPCProtocol;
 let extHost: ExtHostLanguageFeatures;
 let mainThread: MainThreadLanguageFeatures;
 let commands: ExtHostCommands;
@@ -57,83 +59,88 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		let instantiationService = new TestInstantiationService();
-		threadService = new TestThreadService();
-		instantiationService.stub(IHeapService, {
-			_serviceBrand: undefined,
-			trackRecursive(args) {
-				// nothing
-				return args;
-			}
-		});
-		instantiationService.stub(ICommandService, {
-			_serviceBrand: undefined,
-			executeCommand(id, args): any {
-				if (!CommandsRegistry.getCommands()[id]) {
-					return TPromise.wrapError(new Error(id + ' NOT known'));
+		// Use IInstantiationService to get typechecking when instantiating
+		let inst: IInstantiationService;
+		{
+			let instantiationService = new TestInstantiationService();
+			rpcProtocol = new TestRPCProtocol();
+			instantiationService.stub(IHeapService, {
+				_serviceBrand: undefined,
+				trackRecursive(args) {
+					// nothing
+					return args;
 				}
-				let { handler } = CommandsRegistry.getCommands()[id];
-				return TPromise.as(instantiationService.invokeFunction(handler, args));
-			}
-		});
-		instantiationService.stub(IMarkerService, new MarkerService());
-		instantiationService.stub(IThreadService, threadService);
-		instantiationService.stub(IModelService, <IModelService>{
-			_serviceBrand: IModelService,
-			getModel(): any { return model; },
-			createModel(): any { throw new Error(); },
-			updateModel(): any { throw new Error(); },
-			setMode(): any { throw new Error(); },
-			destroyModel(): any { throw new Error(); },
-			getModels(): any { throw new Error(); },
-			onModelAdded: undefined,
-			onModelModeChanged: undefined,
-			onModelRemoved: undefined,
-			getCreationOptions(): any { throw new Error(); }
-		});
+			});
+			instantiationService.stub(ICommandService, {
+				_serviceBrand: undefined,
+				executeCommand(id, args): any {
+					if (!CommandsRegistry.getCommands()[id]) {
+						return TPromise.wrapError(new Error(id + ' NOT known'));
+					}
+					let { handler } = CommandsRegistry.getCommands()[id];
+					return TPromise.as(instantiationService.invokeFunction(handler, args));
+				}
+			});
+			instantiationService.stub(IMarkerService, new MarkerService());
+			instantiationService.stub(IModelService, <IModelService>{
+				_serviceBrand: IModelService,
+				getModel(): any { return model; },
+				createModel(): any { throw new Error(); },
+				updateModel(): any { throw new Error(); },
+				setMode(): any { throw new Error(); },
+				destroyModel(): any { throw new Error(); },
+				getModels(): any { throw new Error(); },
+				onModelAdded: undefined,
+				onModelModeChanged: undefined,
+				onModelRemoved: undefined,
+				getCreationOptions(): any { throw new Error(); }
+			});
+			inst = instantiationService;
+		}
 
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(threadService);
+		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol);
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
 				versionId: model.getVersionId(),
 				modeId: model.getLanguageIdentifier().language,
-				url: model.uri,
+				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
 			}]
 		});
-		const extHostDocuments = new ExtHostDocuments(threadService, extHostDocumentsAndEditors);
-		threadService.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
+		const extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
+		rpcProtocol.set(ExtHostContext.ExtHostDocuments, extHostDocuments);
 
 		const heapService = new ExtHostHeapService();
 
-		commands = new ExtHostCommands(threadService, heapService);
-		threadService.set(ExtHostContext.ExtHostCommands, commands);
-		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
+		commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
+		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
+		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
 		ExtHostApiCommands.register(commands);
 
-		const diagnostics = new ExtHostDiagnostics(threadService);
-		threadService.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
+		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
+		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
-		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, extHostDocuments, commands, heapService, diagnostics);
+		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
-		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
+		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
 
-		threadService.sync().then(done, done);
+		rpcProtocol.sync().then(done, done);
 	});
 
 	suiteTeardown(() => {
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
+		mainThread.dispose();
 	});
 
 	teardown(function (done) {
 		while (disposables.length) {
 			disposables.pop().dispose();
 		}
-		threadService.sync()
+		rpcProtocol.sync()
 			.then(() => done(), err => done(err));
 	});
 
@@ -147,13 +154,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			commands.executeCommand('vscode.executeWorkspaceSymbolProvider', true)
 		];
 
-		// threadService.sync().then(() => {
 		TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
 			assert.equal(err.length, 4);
 			done();
 			return [];
 		});
-		// });
 	});
 
 	test('WorkspaceSymbols, back and forth', function (done) {
@@ -175,7 +180,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		threadService.sync().then(() => {
+		rpcProtocol.sync().then(() => {
 			commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
 
 				for (let info of value) {
@@ -189,6 +194,22 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}, done);
 	});
 
+	test('executeWorkspaceSymbolProvider should accept empty string, #39522', async function () {
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider({
+			provideWorkspaceSymbols(query) {
+				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar'))];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let symbols = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', '');
+		assert.equal(symbols.length, 1);
+
+		await rpcProtocol.sync();
+		symbols = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', '*');
+		assert.equal(symbols.length, 1);
+	});
 
 	// --- definition
 
@@ -200,13 +221,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			commands.executeCommand('vscode.executeDefinitionProvider', true, false)
 		];
 
-		// threadService.sync().then(() => {
 		TPromise.join(<any[]>promises).then(undefined, (err: any[]) => {
 			assert.equal(err.length, 4);
 			done();
 			return [];
 		});
-		// });
 	});
 
 	test('Definition, back and forth', function () {
@@ -226,7 +245,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Location[]>('vscode.executeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
 				assert.equal(values.length, 4);
 				for (let v of values) {
@@ -272,7 +291,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		threadService.sync().then(() => {
+		rpcProtocol.sync().then(() => {
 			commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
@@ -302,7 +321,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}, []));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
 
 				assert.ok(list instanceof types.CompletionList);
@@ -352,7 +371,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}, []));
 
-		threadService.sync().then(() => {
+		rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
 				assert.ok(list instanceof types.CompletionList);
 				assert.equal(list.isIncomplete, true);
@@ -364,13 +383,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	// --- quickfix
 
 	test('QuickFix, back and forth', function () {
-		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
-			provideCodeActions(): any {
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+			provideCodeActions(): vscode.Command[] {
 				return [{ command: 'testing', title: 'Title', arguments: [1, 2, true] }];
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Command[]>('vscode.executeCodeActionProvider', model.uri, new types.Range(0, 0, 1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -397,7 +416,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
@@ -419,7 +438,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			}
 		}));
 
-		return threadService.sync().then(() => {
+		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;

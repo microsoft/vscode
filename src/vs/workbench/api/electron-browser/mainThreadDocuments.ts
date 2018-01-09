@@ -4,24 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IExtHostContext } from '../node/extHost.protocol';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { ITextSource } from 'vs/editor/common/model/textSource';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class BoundModelReferenceCollection {
 
@@ -67,54 +63,44 @@ export class BoundModelReferenceCollection {
 	}
 }
 
-export class MainThreadDocuments extends MainThreadDocumentsShape {
+export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private _modelService: IModelService;
-	private _modeService: IModeService;
 	private _textModelResolverService: ITextModelService;
 	private _textFileService: ITextFileService;
-	private _codeEditorService: ICodeEditorService;
 	private _fileService: IFileService;
 	private _untitledEditorService: IUntitledEditorService;
-	private _editorGroupService: IEditorGroupService;
 
 	private _toDispose: IDisposable[];
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private _proxy: ExtHostDocumentsShape;
 	private _modelIsSynced: { [modelId: string]: boolean; };
-	private _resourceContentProvider: { [handle: number]: IDisposable };
 	private _modelReferenceCollection = new BoundModelReferenceCollection();
 
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
-		@IThreadService threadService: IThreadService,
+		extHostContext: IExtHostContext,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super();
 		this._modelService = modelService;
-		this._modeService = modeService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
-		this._codeEditorService = codeEditorService;
 		this._fileService = fileService;
 		this._untitledEditorService = untitledEditorService;
-		this._editorGroupService = editorGroupService;
 
-		this._proxy = threadService.get(ExtHostContext.ExtHostDocuments);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
 		this._modelIsSynced = {};
 
 		this._toDispose = [];
-		this._toDispose.push(this._modelReferenceCollection);
 		this._toDispose.push(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
 		this._toDispose.push(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
-		modelService.onModelModeChanged(this._onModelModeChanged, this, this._toDispose);
+		this._toDispose.push(this._modelReferenceCollection);
+		this._toDispose.push(modelService.onModelModeChanged(this._onModelModeChanged, this));
 
 		this._toDispose.push(textFileService.models.onModelSaved(e => {
 			if (this._shouldHandleFileEvent(e)) {
@@ -133,7 +119,6 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		}));
 
 		this._modelToDisposeMap = Object.create(null);
-		this._resourceContentProvider = Object.create(null);
 	}
 
 	public dispose(): void {
@@ -149,7 +134,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		return model && !model.isTooLargeForHavingARichMode();
 	}
 
-	private _onModelAdded(model: editorCommon.IModel): void {
+	private _onModelAdded(model: ITextModel): void {
 		// Same filter as in mainThreadEditorsTracker
 		if (model.isTooLargeForHavingARichMode()) {
 			// don't synchronize too large models
@@ -162,7 +147,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		});
 	}
 
-	private _onModelModeChanged(event: { model: editorCommon.IModel; oldModeId: string; }): void {
+	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
 		let { model, oldModeId } = event;
 		let modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {
@@ -183,12 +168,12 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 
 	// --- from extension host process
 
-	$trySaveDocument(uri: URI): TPromise<boolean> {
-		return this._textFileService.save(uri);
+	$trySaveDocument(uri: UriComponents): TPromise<boolean> {
+		return this._textFileService.save(URI.revive(uri));
 	}
 
-	$tryOpenDocument(uri: URI): TPromise<any> {
-
+	$tryOpenDocument(_uri: UriComponents): TPromise<any> {
+		const uri = URI.revive(_uri);
 		if (!uri.scheme || !(uri.fsPath || uri.authority)) {
 			return TPromise.wrapError(new Error(`Invalid uri. Scheme and authority or path must be set.`));
 		}
@@ -246,50 +231,5 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 
 			return resource;
 		});
-	}
-
-	// --- virtual document logic
-
-	$registerTextContentProvider(handle: number, scheme: string): void {
-		this._resourceContentProvider[handle] = this._textModelResolverService.registerTextModelContentProvider(scheme, {
-			provideTextContent: (uri: URI): TPromise<editorCommon.IModel> => {
-				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
-					if (typeof value === 'string') {
-						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
-						const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
-						return this._modelService.createModel(value, mode, uri);
-					}
-					return undefined;
-				});
-			}
-		});
-	}
-
-	$unregisterTextContentProvider(handle: number): void {
-		const registration = this._resourceContentProvider[handle];
-		if (registration) {
-			registration.dispose();
-			delete this._resourceContentProvider[handle];
-		}
-	}
-
-	$onVirtualDocumentChange(uri: URI, value: ITextSource): void {
-		const model = this._modelService.getModel(uri);
-		if (!model) {
-			return;
-		}
-
-		const raw: ITextSource = {
-			lines: value.lines,
-			length: value.length,
-			BOM: value.BOM,
-			EOL: value.EOL,
-			containsRTL: value.containsRTL,
-			isBasicASCII: value.isBasicASCII,
-		};
-
-		if (!model.equals(raw)) {
-			model.setValueFromTextSource(raw);
-		}
 	}
 }

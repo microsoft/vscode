@@ -6,8 +6,6 @@
 'use strict';
 
 import * as assert from 'assert';
-import { EditorModel } from 'vs/workbench/common/editor';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -17,12 +15,9 @@ import URI from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { TPromise } from "vs/base/common/winjs.base";
-import { IModel } from 'vs/editor/common/editorCommon';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-
-class MyEditorModel extends EditorModel { }
-class MyTextEditorModel extends BaseTextEditorModel { }
 
 class ServiceAccessor {
 	constructor(
@@ -45,7 +40,7 @@ suite('Workbench - EditorModel', () => {
 
 	test('TextDiffEditorModel', function (done) {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: function (resource: URI): TPromise<IModel> {
+			provideTextContent: function (resource: URI): TPromise<ITextModel> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
 					let mode = accessor.modeService.getOrCreateMode('json');

@@ -192,9 +192,30 @@ export enum Verbosity {
 	LONG
 }
 
+export interface IRevertOptions {
+
+	/**
+	 *  Forces to load the contents of the editor again even if the editor is not dirty.
+	 */
+	force?: boolean;
+
+	/**
+	 * A soft revert will clear dirty state of an editor but will not attempt to load it.
+	 */
+	soft?: boolean;
+}
+
 export interface IEditorInput extends IDisposable {
 
+	/**
+	 * Triggered when this input is disposed.
+	 */
 	onDispose: Event<void>;
+
+	/**
+	 * Returns the associated resource of this input.
+	 */
+	getResource(): URI;
 
 	/**
 	 * Returns the display name of this input.
@@ -204,7 +225,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display description of this input.
 	 */
-	getDescription(verbose?: boolean): string;
+	getDescription(verbosity?: Verbosity): string;
 
 	/**
 	 * Returns the display title of this input.
@@ -224,7 +245,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Reverts this input.
 	 */
-	revert(): TPromise<boolean>;
+	revert(options?: IRevertOptions): TPromise<boolean>;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -275,17 +296,19 @@ export interface IEditorOptions {
 	inactive?: boolean;
 }
 
+export interface ITextEditorSelection {
+	startLineNumber: number;
+	startColumn: number;
+	endLineNumber?: number;
+	endColumn?: number;
+}
+
 export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
 	 * Text editor selection.
 	 */
-	selection?: {
-		startLineNumber: number;
-		startColumn: number;
-		endLineNumber?: number;
-		endColumn?: number;
-	};
+	selection?: ITextEditorSelection;
 
 	/**
 	 * Text editor view state.

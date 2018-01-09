@@ -110,6 +110,7 @@
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number,
+.debug-viewlet .monaco-list .monaco-list-row.selected .line-number,
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .thread > .state > .label,
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .process > .state > .label {
 	background-color: #ffffff;
@@ -200,11 +201,18 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	padding-right: 0.8em;
+	display: flex;
 }
 
 .debug-viewlet .debug-call-stack .stack-frame.label {
 	text-align: center;
 	font-style: italic;
+}
+
+.debug-viewlet .debug-call-stack .stack-frame .label {
+	flex: 1;
+	flex-shrink: 0;
+	min-width: fit-content;
 }
 
 .debug-viewlet .debug-call-stack .stack-frame.subtle {
@@ -216,7 +224,10 @@
 }
 
 .debug-viewlet .debug-call-stack .stack-frame > .file {
-	float: right;
+	display: flex;
+	overflow: hidden;
+	flex-wrap: wrap;
+	justify-content: flex-end;
 }
 
 .debug-viewlet .debug-call-stack .stack-frame > .file > .line-number.unavailable {
@@ -225,6 +236,11 @@
 
 .debug-viewlet .debug-call-stack > .monaco-tree-row:not(.selected) .stack-frame > .file {
 	color: rgba(108, 108, 108, 0.8);
+}
+
+.debug-viewlet .debug-call-stack .stack-frame > .file > .file-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .vs-dark .debug-viewlet .debug-call-stack > .monaco-tree-row:not(.selected) .stack-frame > .file {
@@ -332,6 +348,10 @@
 
 /* Breakpoints */
 
+.debug-viewlet .debug-breakpoints .monaco-list-row {
+	padding-left: 20px;
+}
+
 .debug-viewlet .debug-breakpoints .breakpoint {
 	display: flex;
 	padding-right: 0.8em;
@@ -351,7 +371,6 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
-
 
 .debug-viewlet .debug-action.remove {
 	background: url('remove.svg') center center no-repeat;

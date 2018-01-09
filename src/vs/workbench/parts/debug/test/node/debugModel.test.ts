@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import { OutputElement, Model, Process, Expression, OutputNameValueElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
+import { SimpleReplElement, Model, Process, Expression, RawObjectReplElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import * as sinon from 'sinon';
 import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
 
@@ -150,9 +150,9 @@ suite('Debug - Model', () => {
 			threadId: threadId1,
 			stoppedDetails: {
 				reason: stoppedReason,
-				threadId: 1
+				threadId: 1,
+				allThreadsStopped: true
 			},
-			allThreadsStopped: true
 		});
 		const process = model.getProcesses().filter(p => p.getId() === rawSession.getId()).pop();
 
@@ -168,7 +168,7 @@ suite('Debug - Model', () => {
 		assert.equal(thread2.name, threadName2);
 		assert.equal(thread2.stopped, true);
 		assert.equal(thread2.getCallStack().length, 0);
-		assert.equal(thread2.stoppedDetails.reason, stoppedReason);
+		assert.equal(thread2.stoppedDetails.reason, undefined);
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter
@@ -241,9 +241,9 @@ suite('Debug - Model', () => {
 			threadId: stoppedThreadId,
 			stoppedDetails: {
 				reason: stoppedReason,
-				threadId: 1
-			},
-			allThreadsStopped: false
+				threadId: 1,
+				allThreadsStopped: false
+			}
 		});
 		const process = model.getProcesses().filter(p => p.getId() === rawSession.getId()).pop();
 
@@ -305,16 +305,15 @@ suite('Debug - Model', () => {
 		const process = new Process({ name: 'mockProcess', type: 'node', request: 'launch' }, rawSession);
 		const thread = new Thread(process, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: undefined, endColumn: undefined }, 0);
-		model.addWatchExpression(process, stackFrame, 'console').done();
-		model.addWatchExpression(process, stackFrame, 'console').done();
+		model.addWatchExpression(process, stackFrame, 'console');
+		model.addWatchExpression(process, stackFrame, 'console');
 		let watchExpressions = model.getWatchExpressions();
 		assertWatchExpressions(watchExpressions, 'console');
 
-		model.renameWatchExpression(process, stackFrame, watchExpressions[0].getId(), 'new_name').done();
-		model.renameWatchExpression(process, stackFrame, watchExpressions[1].getId(), 'new_name').done();
+		model.renameWatchExpression(process, stackFrame, watchExpressions[0].getId(), 'new_name');
+		model.renameWatchExpression(process, stackFrame, watchExpressions[1].getId(), 'new_name');
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
-		model.evaluateWatchExpressions(process, null);
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
 		model.addWatchExpression(process, stackFrame, 'mockExpression');
@@ -356,7 +355,7 @@ suite('Debug - Model', () => {
 		model.appendToRepl('third line', severity.Warning);
 		model.appendToRepl('fourth line', severity.Error);
 
-		let elements = <OutputElement[]>model.getReplElements();
+		let elements = <SimpleReplElement[]>model.getReplElements();
 		assert.equal(elements.length, 4);
 		assert.equal(elements[0].value, 'first line');
 		assert.equal(elements[0].severity, severity.Error);
@@ -368,14 +367,14 @@ suite('Debug - Model', () => {
 		assert.equal(elements[3].severity, severity.Error);
 
 		model.appendToRepl('1', severity.Warning);
-		elements = <OutputElement[]>model.getReplElements();
+		elements = <SimpleReplElement[]>model.getReplElements();
 		assert.equal(elements.length, 5);
 		assert.equal(elements[4].value, '1');
 		assert.equal(elements[4].severity, severity.Warning);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
-		model.appendToRepl(new OutputNameValueElement('fake', keyValueObject), null);
-		const element = <OutputNameValueElement>model.getReplElements()[5];
+		model.appendToRepl(new RawObjectReplElement('fake', keyValueObject), null);
+		const element = <RawObjectReplElement>model.getReplElements()[5];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
 

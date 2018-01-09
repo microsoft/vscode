@@ -18,7 +18,7 @@ var ts = require("typescript");
 var Lint = require("tslint");
 var minimatch = require("minimatch");
 var path_1 = require("path");
-var Rule = (function (_super) {
+var Rule = /** @class */ (function (_super) {
     __extends(Rule, _super);
     function Rule() {
         return _super !== null && _super.apply(this, arguments) || this;
@@ -36,7 +36,7 @@ var Rule = (function (_super) {
     return Rule;
 }(Lint.Rules.AbstractRule));
 exports.Rule = Rule;
-var ImportPatterns = (function (_super) {
+var ImportPatterns = /** @class */ (function (_super) {
     __extends(ImportPatterns, _super);
     function ImportPatterns(file, opts, _config) {
         var _this = _super.call(this, file, opts) || this;

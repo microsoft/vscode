@@ -6,6 +6,8 @@
 {
 	"noWorkspace": "Aucun dossier ouvert",
 	"explorerSection": "Section de l'Explorateur de fichiers",
-	"noWorkspaceHelp": "Vous n'avez pas encore ouvert de dossier.",
+	"noWorkspaceHelp": "Vous n’avez pas encore ajouté un dossier à l’espace de travail.",
+	"addFolder": "Ajouter un dossier",
+	"noFolderHelp": "Vous n'avez pas encore ouvert de dossier.",
 	"openFolder": "Ouvrir le dossier"
 }

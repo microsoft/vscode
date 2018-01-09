@@ -8,7 +8,7 @@
 	"error.invalidNumberFormat": "Formato de número inválido",
 	"error.propertyNameExpected": "Nome de propriedade esperado",
 	"error.valueExpected": "Valor esperado",
-	"error.colonExpected": "Dois-pontos esperados",
+	"error.colonExpected": "Dois-pontos esperado",
 	"error.commaExpected": "Vírgula esperada",
 	"error.closeBraceExpected": "Chave de fechamento esperada",
 	"error.closeBracketExpected": "Colchete de fechamento esperado",

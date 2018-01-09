@@ -7,12 +7,11 @@
 
 import assert = require('assert');
 import lifecycle = require('vs/base/common/lifecycle');
-import ee = require('vs/base/common/eventEmitter');
 import _ = require('vs/base/parts/tree/browser/tree');
 import WinJS = require('vs/base/common/winjs.base');
-import Events = require('vs/base/common/eventEmitter');
 import model = require('vs/base/parts/tree/browser/treeModel');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class FakeRenderer {
 
@@ -75,11 +74,11 @@ class EventCounter {
 		this._count = 0;
 	}
 
-	public listen(emitter: ee.IEventEmitter, event: string, fn: (e) => void = null): () => void {
-		let r = emitter.addListener(event, (e) => {
+	public listen<T>(event: Event<T>, fn: (e: T) => void = null): () => void {
+		let r = event(data => {
 			this._count++;
 			if (fn) {
-				fn(e);
+				fn(data);
 			}
 		});
 
@@ -204,11 +203,11 @@ suite('TreeModel', () => {
 
 	test('refresh() refreshes all', (done) => {
 		model.setInput(SAMPLE.AB).then(() => {
-			counter.listen(model, 'refreshing'); // 1
-			counter.listen(model, 'refreshed'); // 1
-			counter.listen(model, 'item:refresh'); // 4
-			counter.listen(model, 'item:childrenRefreshing'); // 1
-			counter.listen(model, 'item:childrenRefreshed'); // 1
+			counter.listen(model.onRefresh); // 1
+			counter.listen(model.onDidRefresh); // 1
+			counter.listen(model.onDidRefreshItem); // 4
+			counter.listen(model.onRefreshItemChildren); // 1
+			counter.listen(model.onDidRefreshItemChildren); // 1
 			return model.refresh(null);
 		}).done(() => {
 			assert.equal(counter.count, 8);
@@ -218,11 +217,11 @@ suite('TreeModel', () => {
 
 	test('refresh(root) refreshes all', (done) => {
 		model.setInput(SAMPLE.AB).then(() => {
-			counter.listen(model, 'refreshing'); // 1
-			counter.listen(model, 'refreshed'); // 1
-			counter.listen(model, 'item:refresh'); // 4
-			counter.listen(model, 'item:childrenRefreshing'); // 1
-			counter.listen(model, 'item:childrenRefreshed'); // 1
+			counter.listen(model.onRefresh); // 1
+			counter.listen(model.onDidRefresh); // 1
+			counter.listen(model.onDidRefreshItem); // 4
+			counter.listen(model.onRefreshItemChildren); // 1
+			counter.listen(model.onDidRefreshItemChildren); // 1
 			return model.refresh(SAMPLE.AB);
 		}).done(() => {
 			assert.equal(counter.count, 8);
@@ -232,11 +231,11 @@ suite('TreeModel', () => {
 
 	test('refresh(root, false) refreshes the root', (done) => {
 		model.setInput(SAMPLE.AB).then(() => {
-			counter.listen(model, 'refreshing'); // 1
-			counter.listen(model, 'refreshed'); // 1
-			counter.listen(model, 'item:refresh'); // 1
-			counter.listen(model, 'item:childrenRefreshing'); // 1
-			counter.listen(model, 'item:childrenRefreshed'); // 1
+			counter.listen(model.onRefresh); // 1
+			counter.listen(model.onDidRefresh); // 1
+			counter.listen(model.onDidRefreshItem); // 1
+			counter.listen(model.onRefreshItemChildren); // 1
+			counter.listen(model.onDidRefreshItemChildren); // 1
 			return model.refresh(SAMPLE.AB, false);
 		}).done(() => {
 			assert.equal(counter.count, 5);
@@ -246,11 +245,11 @@ suite('TreeModel', () => {
 
 	test('refresh(collapsed element) does not refresh descendants', (done) => {
 		model.setInput(SAMPLE.AB).then(() => {
-			counter.listen(model, 'refreshing'); // 1
-			counter.listen(model, 'refreshed'); // 1
-			counter.listen(model, 'item:refresh'); // 1
-			counter.listen(model, 'item:childrenRefreshing'); // 0
-			counter.listen(model, 'item:childrenRefreshed'); // 0
+			counter.listen(model.onRefresh); // 1
+			counter.listen(model.onDidRefresh); // 1
+			counter.listen(model.onDidRefreshItem); // 1
+			counter.listen(model.onRefreshItemChildren); // 0
+			counter.listen(model.onDidRefreshItemChildren); // 0
 			return model.refresh(SAMPLE.AB.children[0]);
 		}).done(() => {
 			assert.equal(counter.count, 3);
@@ -262,11 +261,11 @@ suite('TreeModel', () => {
 		model.setInput(SAMPLE.AB).then(() => {
 			model.expand(SAMPLE.AB.children[0]);
 
-			counter.listen(model, 'refreshing'); // 1
-			counter.listen(model, 'refreshed'); // 1
-			counter.listen(model, 'item:refresh'); // 3
-			counter.listen(model, 'item:childrenRefreshing'); // 1
-			counter.listen(model, 'item:childrenRefreshed'); // 1
+			counter.listen(model.onRefresh); // 1
+			counter.listen(model.onDidRefresh); // 1
+			counter.listen(model.onDidRefreshItem); // 3
+			counter.listen(model.onRefreshItemChildren); // 1
+			counter.listen(model.onDidRefreshItemChildren); // 1
 			return model.refresh(SAMPLE.AB.children[0]);
 		}).done(() => {
 			assert.equal(counter.count, 7);
@@ -278,14 +277,14 @@ suite('TreeModel', () => {
 		model.setInput(SAMPLE.AB).then(() => {
 			model.expand(SAMPLE.AB.children[0]);
 
-			counter.listen(model, 'refreshing'); // 1
-			counter.listen(model, 'refreshed'); // 1
-			counter.listen(model, 'item:refresh', (e) => { // 1
-				assert.equal(e.item.id, 'a');
+			counter.listen(model.onRefresh); // 1
+			counter.listen(model.onDidRefresh); // 1
+			counter.listen(model.onDidRefreshItem, item => { // 1
+				assert.equal(item.id, 'a');
 				counter.up();
 			});
-			counter.listen(model, 'item:childrenRefreshing'); // 1
-			counter.listen(model, 'item:childrenRefreshed'); // 1
+			counter.listen(model.onRefreshItemChildren); // 1
+			counter.listen(model.onDidRefreshItemChildren); // 1
 			return model.refresh(SAMPLE.AB.children[0], false);
 		}).done(() => {
 			assert.equal(counter.count, 6);
@@ -297,16 +296,16 @@ suite('TreeModel', () => {
 		model.setInput(SAMPLE.AB).then(() => {
 			model.expandAll(['a', 'c']);
 
-			counter.listen(model, 'item:refresh', (e) => {
-				switch (e.item.id) {
-					case 'ROOT': assert.equal(e.item.getDepth(), 0); break;
-					case 'a': assert.equal(e.item.getDepth(), 1); break;
-					case 'aa': assert.equal(e.item.getDepth(), 2); break;
-					case 'ab': assert.equal(e.item.getDepth(), 2); break;
-					case 'b': assert.equal(e.item.getDepth(), 1); break;
-					case 'c': assert.equal(e.item.getDepth(), 1); break;
-					case 'ca': assert.equal(e.item.getDepth(), 2); break;
-					case 'cb': assert.equal(e.item.getDepth(), 2); break;
+			counter.listen(model.onDidRefreshItem, item => {
+				switch (item.id) {
+					case 'ROOT': assert.equal(item.getDepth(), 0); break;
+					case 'a': assert.equal(item.getDepth(), 1); break;
+					case 'aa': assert.equal(item.getDepth(), 2); break;
+					case 'ab': assert.equal(item.getDepth(), 2); break;
+					case 'b': assert.equal(item.getDepth(), 1); break;
+					case 'c': assert.equal(item.getDepth(), 1); break;
+					case 'ca': assert.equal(item.getDepth(), 2); break;
+					case 'cb': assert.equal(item.getDepth(), 2); break;
 					default: return;
 				}
 				counter.up();
@@ -549,13 +548,13 @@ suite('TreeModel - Expansion', () => {
 
 	test('collapse, expand', (done) => {
 		model.setInput(SAMPLE.AB).done(() => {
-			counter.listen(model, 'item:expanding', (e) => {
+			counter.listen(model.onExpandItem, (e) => {
 				assert.equal(e.item.id, 'a');
 				var nav = model.getNavigator(e.item);
 				assert.equal(nav.next() && false, null);
 			});
 
-			counter.listen(model, 'item:expanded', (e) => {
+			counter.listen(model.onDidExpandItem, (e) => {
 				assert.equal(e.item.id, 'a');
 				var nav = model.getNavigator(e.item);
 				assert.equal(nav.next().id, 'aa');
@@ -636,6 +635,24 @@ suite('TreeModel - Expansion', () => {
 		});
 	});
 
+	test('collapseDeepestExpandedLevel', (done) => {
+		model.setInput(SAMPLE.DEEP2).done(() => {
+			model.expand(SAMPLE.DEEP2.children[0]).done(() => {
+				model.expand(SAMPLE.DEEP2.children[0].children[0]).done(() => {
+
+					assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
+					assert(model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
+
+					model.collapseDeepestExpandedLevel().done(() => {
+						assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
+						assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
+						done();
+					});
+				});
+			});
+		});
+	});
+
 	test('auto expand single child folders', (done) => {
 		model.setInput(SAMPLE.DEEP).done(() => {
 			model.expand(SAMPLE.DEEP.children[0]).done(() => {
@@ -658,12 +675,12 @@ suite('TreeModel - Expansion', () => {
 			assert.equal(nav.next().id, 'c');
 			assert.equal(nav.next() && false, null);
 
-			var f: () => void = counter.listen(model, 'item:childrenRefreshing', (e) => {
+			var f: () => void = counter.listen(model.onRefreshItemChildren, (e) => {
 				assert.equal(e.item.id, 'a');
 				f();
 			});
 
-			var g: () => void = counter.listen(model, 'item:childrenRefreshed', (e) => {
+			var g: () => void = counter.listen(model.onDidRefreshItemChildren, (e) => {
 				assert.equal(e.item.id, 'a');
 				g();
 			});
@@ -1121,13 +1138,18 @@ suite('TreeModel - Traits', () => {
 	});
 });
 
-class DynamicModel extends Events.EventEmitter implements _.IDataSource {
+class DynamicModel implements _.IDataSource {
 
 	private data: any;
 	public promiseFactory: { (): WinJS.Promise; };
 
+	private _onGetChildren = new Emitter<any>();
+	readonly onGetChildren: Event<any> = this._onGetChildren.event;
+
+	private _onDidGetChildren = new Emitter<any>();
+	readonly onDidGetChildren: Event<any> = this._onDidGetChildren.event;
+
 	constructor() {
-		super();
 		this.data = { root: [] };
 		this.promiseFactory = null;
 	}
@@ -1165,10 +1187,10 @@ class DynamicModel extends Events.EventEmitter implements _.IDataSource {
 	}
 
 	public getChildren(tree, element): WinJS.Promise {
-		this.emit('getChildren', element);
+		this._onGetChildren.fire(element);
 		var result = this.promiseFactory ? this.promiseFactory() : WinJS.TPromise.as(null);
 		return result.then(() => {
-			this.emit('gotChildren', element);
+			this._onDidGetChildren.fire(element);
 			return WinJS.TPromise.as(this.data[element]);
 		});
 	}
@@ -1209,8 +1231,8 @@ suite('TreeModel - Dynamic data model', () => {
 
 				var items = ['baby', 'son', 'daughter', 'father'];
 				var times = 0;
-				counter.listen(model, 'item:dispose', (e) => {
-					assert.equal(items[times++], e.item.id);
+				counter.listen(model.onDidDisposeItem, item => {
+					assert.equal(items[times++], item.id);
 				});
 
 				model.refresh().done(() => {
@@ -1321,7 +1343,7 @@ suite('TreeModel - Dynamic data model', () => {
 			model.collapse('father');
 
 			var times = 0;
-			var listener = dataModel.addListener('getChildren', (element) => {
+			var listener = dataModel.onGetChildren((element) => {
 				times++;
 				assert.equal(element, 'grandfather');
 			});
@@ -1330,7 +1352,7 @@ suite('TreeModel - Dynamic data model', () => {
 				assert.equal(times, 1);
 				listener.dispose();
 
-				listener = dataModel.addListener('getChildren', (element) => {
+				listener = dataModel.onGetChildren((element) => {
 					times++;
 					assert.equal(element, 'father');
 				});
@@ -1370,8 +1392,8 @@ suite('TreeModel - Dynamic data model', () => {
 
 			var getTimes = 0;
 			var gotTimes = 0;
-			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
-			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
+			var getListener = dataModel.onGetChildren((element) => { getTimes++; });
+			var gotListener = dataModel.onDidGetChildren((element) => { gotTimes++; });
 
 			var p1 = model.refresh('father');
 			assert.equal(getTimes, 1);
@@ -1415,20 +1437,18 @@ suite('TreeModel - Dynamic data model', () => {
 			assert.equal(nav.next() && false, null);
 
 			var refreshTimes = 0;
-			counter.listen(model, 'item:refresh', (e) => { refreshTimes++; });
+			counter.listen(model.onDidRefreshItem, (e) => { refreshTimes++; });
 
 			var getTimes = 0;
-			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
+			var getListener = dataModel.onGetChildren((element) => { getTimes++; });
 
 			var gotTimes = 0;
-			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
-
-			var p1, p2;
+			var gotListener = dataModel.onDidGetChildren((element) => { gotTimes++; });
 
 			var p1Completes = [];
-			dataModel.promiseFactory = () => { return new WinJS.Promise((c) => { p1Completes.push(c); }); };
+			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p1Completes.push(c); }); };
 
-			p1 = model.refresh('grandfather');
+			model.refresh('grandfather');
 
 			// just a single get
 			assert.equal(refreshTimes, 1); // (+1) grandfather
@@ -1444,8 +1464,8 @@ suite('TreeModel - Dynamic data model', () => {
 			assert.equal(gotTimes, 1);
 
 			var p2Complete;
-			dataModel.promiseFactory = () => { return new WinJS.Promise((c) => { p2Complete = c; }); };
-			p2 = model.refresh('father');
+			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p2Complete = c; }); };
+			var p2 = model.refresh('father');
 
 			// same situation still
 			assert.equal(refreshTimes, 3); // (+1) second father refresh
@@ -1498,21 +1518,20 @@ suite('TreeModel - Dynamic data model', () => {
 
 			var getTimes = 0;
 			var gotTimes = 0;
-			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
-			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
-
-			var p1, p2;
+			var getListener = dataModel.onGetChildren((element) => { getTimes++; });
+			var gotListener = dataModel.onDidGetChildren((element) => { gotTimes++; });
+			var p2;
 
 			var p1Complete;
-			dataModel.promiseFactory = () => { return new WinJS.Promise((c) => { p1Complete = c; }); };
+			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p1Complete = c; }); };
 
-			p1 = model.refresh('father');
+			model.refresh('father');
 
 			assert.equal(getTimes, 1);
 			assert.equal(gotTimes, 0);
 
 			var p2Completes = [];
-			dataModel.promiseFactory = () => { return new WinJS.Promise((c) => { p2Completes.push(c); }); };
+			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p2Completes.push(c); }); };
 			p2 = model.refresh('grandfather');
 
 			assert.equal(getTimes, 1);
@@ -1696,8 +1715,8 @@ suite('TreeModel - bugs', () => {
 		var getBartChildren = getGetBartChildren(0);
 
 		// item expanding should not exist!
-		counter.listen(model, 'item:expanding', () => { assert(false, 'should never receive item:expanding event'); });
-		counter.listen(model, 'item:expanded', () => { assert(false, 'should never receive item:expanded event'); });
+		counter.listen(model.onExpandItem, () => { assert(false, 'should never receive item:expanding event'); });
+		counter.listen(model.onDidExpandItem, () => { assert(false, 'should never receive item:expanded event'); });
 
 		model.setInput('root').then(() => {
 
@@ -1724,7 +1743,7 @@ suite('TreeModel - bugs', () => {
 		}).done(() => {
 
 			// teardown
-			while (listeners.length > 0) { listeners.pop()(); };
+			while (listeners.length > 0) { listeners.pop()(); }
 			listeners = null;
 			model.dispose();
 			model = null;

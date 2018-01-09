@@ -8,19 +8,6 @@
 import { IRange } from 'vs/editor/common/core/range';
 
 /**
- * @internal
- */
-export const TextModelEventType = {
-	ModelDispose: 'modelDispose',
-	ModelTokensChanged: 'modelTokensChanged',
-	ModelLanguageChanged: 'modelLanguageChanged',
-	ModelOptionsChanged: 'modelOptionsChanged',
-	ModelContentChanged: 'contentChanged',
-	ModelRawContentChanged2: 'rawContentChanged2',
-	ModelDecorationsChanged: 'decorationsChanged',
-};
-
-/**
  * An event describing that the current mode associated with a model has changed.
  */
 export interface IModelLanguageChangedEvent {
@@ -32,6 +19,12 @@ export interface IModelLanguageChangedEvent {
 	 * New language
 	 */
 	readonly newLanguage: string;
+}
+
+/**
+ * An event describing that the language configuration associated with a model has changed.
+ */
+export interface IModelLanguageConfigurationChangedEvent {
 }
 
 export interface IModelContentChange {
@@ -81,18 +74,6 @@ export interface IModelContentChangedEvent {
  * An event describing that model decorations have changed.
  */
 export interface IModelDecorationsChangedEvent {
-	/**
-	 * Lists of ids for added decorations.
-	 */
-	readonly addedDecorations: string[];
-	/**
-	 * Lists of ids for changed decorations.
-	 */
-	readonly changedDecorations: string[];
-	/**
-	 * List of ids for removed decorations.
-	 */
-	readonly removedDecorations: string[];
 }
 
 /**
@@ -195,9 +176,9 @@ export class ModelRawLinesInserted {
 	/**
 	 * The text that was inserted
 	 */
-	public readonly detail: string;
+	public readonly detail: string[];
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string) {
+	constructor(fromLineNumber: number, toLineNumber: number, detail: string[]) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
 		this.detail = detail;
@@ -253,4 +234,14 @@ export class ModelRawContentChangedEvent {
 		}
 		return false;
 	}
+}
+
+/**
+ * @internal
+ */
+export class InternalModelContentChangeEvent {
+	constructor(
+		public readonly rawContentChangedEvent: ModelRawContentChangedEvent,
+		public readonly contentChangedEvent: IModelContentChangedEvent,
+	) { }
 }

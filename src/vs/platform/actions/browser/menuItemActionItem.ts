@@ -15,16 +15,58 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { domEvent } from 'vs/base/browser/event';
 import { Emitter } from 'vs/base/common/event';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { memoize } from 'vs/base/common/decorators';
 
+class AltKeyEmitter extends Emitter<boolean> {
 
-export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+	private _subscriptions: IDisposable[] = [];
+	private _isPressed: boolean;
+
+	private constructor(contextMenuService: IContextMenuService) {
+		super();
+
+		this._subscriptions.push(domEvent(document.body, 'keydown')(e => this.isPressed = e.altKey));
+		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.isPressed = false));
+		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.isPressed = false));
+		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.isPressed = false));
+		// Workaround since we do not get any events while a context menu is shown
+		this._subscriptions.push(contextMenuService.onDidContextMenu(() => this.isPressed = false));
+	}
+
+	get isPressed(): boolean {
+		return this._isPressed;
+	}
+
+	set isPressed(value: boolean) {
+		this._isPressed = value;
+		this.fire(this._isPressed);
+	}
+
+	@memoize
+	static getInstance(contextMenuService: IContextMenuService) {
+		return new AltKeyEmitter(contextMenuService);
+	}
+
+	dispose() {
+		super.dispose();
+		this._subscriptions = dispose(this._subscriptions);
+	}
+}
+
+export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, contextMenuService: IContextMenuService, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	const groups = menu.getActions(options);
 	if (groups.length === 0) {
 		return;
 	}
+	const altKey = AltKeyEmitter.getInstance(contextMenuService);
 
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
+		if (altKey.isPressed) {
+			actions = actions.map(a => !!a.alt ? a.alt : a);
+		}
+
 		if (isPrimaryGroup(group)) {
 
 			const head = Array.isArray<IAction>(target) ? target : target.primary;
@@ -65,32 +107,12 @@ export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: 
 }
 
 
-export function createActionItem(action: IAction, keybindingService: IKeybindingService, messageService: IMessageService): ActionItem {
+export function createActionItem(action: IAction, keybindingService: IKeybindingService, messageService: IMessageService, contextMenuService: IContextMenuService): ActionItem {
 	if (action instanceof MenuItemAction) {
-		return new MenuItemActionItem(action, keybindingService, messageService);
+		return new MenuItemActionItem(action, keybindingService, messageService, contextMenuService);
 	}
 	return undefined;
 }
-
-
-const _altKey = new class extends Emitter<boolean> {
-
-	private _subscriptions: IDisposable[] = [];
-
-	constructor() {
-		super();
-
-		this._subscriptions.push(domEvent(document.body, 'keydown')(e => this.fire(e.altKey)));
-		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.fire(false)));
-		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.fire(false)));
-		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.fire(false)));
-	}
-
-	dispose() {
-		super.dispose();
-		this._subscriptions = dispose(this._subscriptions);
-	}
-};
 
 export class MenuItemActionItem extends ActionItem {
 
@@ -99,7 +121,8 @@ export class MenuItemActionItem extends ActionItem {
 	constructor(
 		action: MenuItemAction,
 		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMessageService protected _messageService: IMessageService
+		@IMessageService protected _messageService: IMessageService,
+		@IContextMenuService private _contextMenuService: IContextMenuService
 	) {
 		super(undefined, action, { icon: !!action.class, label: !action.class });
 	}
@@ -132,7 +155,7 @@ export class MenuItemActionItem extends ActionItem {
 			}
 		};
 
-		this._callOnDispose.push(_altKey.event(value => {
+		this._callOnDispose.push(AltKeyEmitter.getInstance(this._contextMenuService).event(value => {
 			altDown = value;
 			updateAltState();
 		}));

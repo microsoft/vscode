@@ -18,14 +18,15 @@ import * as paths from 'vs/base/common/paths';
 import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
 import * as glob from 'vs/base/common/glob';
-import { ILineMatch, ISearchLog } from 'vs/platform/search/common/search';
+import { ISearchLog } from 'vs/platform/search/common/search';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSearch } from './search';
+import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSearch, LineMatch, FileMatch } from './search';
 
 export class RipgrepEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
+	private killRgProcFn: Function;
 	private postProcessExclusions: glob.ParsedExpression;
 
 	private ripgrepParser: RipgrepParser;
@@ -33,6 +34,7 @@ export class RipgrepEngine {
 	private resultsHandledP: TPromise<any> = TPromise.wrap(null);
 
 	constructor(private config: IRawSearch) {
+		this.killRgProcFn = () => this.rgProc && this.rgProc.kill();
 	}
 
 	cancel(): void {
@@ -43,7 +45,8 @@ export class RipgrepEngine {
 
 	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
 	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: ISearchLog) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		if (!this.config.folderQueries.length) {
+		if (!this.config.folderQueries.length && !this.config.extraFiles.length) {
+			process.removeListener('exit', this.killRgProcFn);
 			done(null, {
 				limitHit: false,
 				stats: null
@@ -57,12 +60,11 @@ export class RipgrepEngine {
 		}
 
 		const cwd = platform.isWindows ? 'c:/' : '/';
-		process.nextTick(() => {
+		process.nextTick(() => { // Allow caller to register progress callback
 			const escapedArgs = rgArgs.globArgs
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
 
-			// Allow caller to register progress callback
 			const rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}\n`;
 			onMessage({ message: rgCmd });
 			if (rgArgs.siblingClauses) {
@@ -70,8 +72,9 @@ export class RipgrepEngine {
 			}
 		});
 		this.rgProc = cp.spawn(rgPath, rgArgs.globArgs, { cwd });
+		process.once('exit', this.killRgProcFn);
 
-		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd);
+		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd, this.config.extraFiles);
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
 				const handleResultP = (<TPromise<string>>this.postProcessExclusions(match.path, undefined, () => getSiblings(match.path)))
@@ -88,6 +91,7 @@ export class RipgrepEngine {
 		});
 		this.ripgrepParser.on('hitLimit', () => {
 			this.cancel();
+			process.removeListener('exit', this.killRgProcFn);
 			done(null, {
 				limitHit: true,
 				stats: null
@@ -116,7 +120,8 @@ export class RipgrepEngine {
 				if (!this.isDone) {
 					this.isDone = true;
 					let displayMsg: string;
-					if (stderr && !gotData && (displayMsg = this.rgErrorMsgForDisplay(stderr))) {
+					process.removeListener('exit', this.killRgProcFn);
+					if (stderr && !gotData && (displayMsg = rgErrorMsgForDisplay(stderr))) {
 						done(new Error(displayMsg), {
 							limitHit: false,
 							stats: null
@@ -131,57 +136,49 @@ export class RipgrepEngine {
 			});
 		});
 	}
+}
 
-	/**
-	 * Read the first line of stderr and return an error for display or undefined, based on a whitelist.
-	 * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
-	 * "failed" when a fatal error was produced.
-	 */
-	private rgErrorMsgForDisplay(msg: string): string | undefined {
-		const firstLine = msg.split('\n')[0];
-		if (firstLine.match(/^No files were searched, which means ripgrep/)) {
-			// Not really a useful message to show in the UI
-			return undefined;
-		}
+/**
+ * Read the first line of stderr and return an error for display or undefined, based on a whitelist.
+ * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
+ * "failed" when a fatal error was produced.
+ */
+export function rgErrorMsgForDisplay(msg: string): string | undefined {
+	const firstLine = msg.split('\n')[0];
 
-		// The error "No such file or directory" is returned for broken symlinks and also for bad search paths.
-		// Only show it if it's from a search path.
-		const reg = /^(\.\/.*): No such file or directory \(os error 2\)/;
-		const noSuchFileMatch = firstLine.match(reg);
-		if (noSuchFileMatch) {
-			const errorPath = noSuchFileMatch[1];
-			return this.config.searchPaths && this.config.searchPaths.indexOf(errorPath) >= 0 ? firstLine : undefined;
-		}
-
-		if (strings.startsWith(firstLine, 'Error parsing regex')) {
-			return firstLine;
-		}
-
-		if (strings.startsWith(firstLine, 'error parsing glob')) {
-			return firstLine;
-		}
-
-		return undefined;
+	if (strings.startsWith(firstLine, 'Error parsing regex')) {
+		return firstLine;
 	}
+
+	if (strings.startsWith(firstLine, 'error parsing glob') ||
+		strings.startsWith(firstLine, 'unsupported encoding')) {
+		// Uppercase first letter
+		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
+	}
+
+	return undefined;
 }
 
 export class RipgrepParser extends EventEmitter {
-	private static RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)(\r?)/;
-	private static FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
+	private static readonly RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)(\r?)/;
+	private static readonly FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
 
-	public static MATCH_START_MARKER = '\u001b[m\u001b[31m';
-	public static MATCH_END_MARKER = '\u001b[m';
+	public static readonly MATCH_START_MARKER = '\u001b[m\u001b[31m';
+	public static readonly MATCH_END_MARKER = '\u001b[m';
 
 	private fileMatch: FileMatch;
 	private remainder: string;
 	private isDone: boolean;
 	private stringDecoder: NodeStringDecoder;
+	private extraSearchFiles: string[];
 
 	private numResults = 0;
 
-	constructor(private maxResults: number, private rootFolder: string) {
+	constructor(private maxResults: number, private rootFolder: string, extraFiles?: string[]) {
 		super();
 		this.stringDecoder = new StringDecoder();
+
+		this.extraSearchFiles = extraFiles || [];
 	}
 
 	public cancel(): void {
@@ -235,15 +232,37 @@ export class RipgrepParser extends EventEmitter {
 					this.onResult();
 				}
 
-				this.fileMatch = new FileMatch(path.isAbsolute(r[1]) ? r[1] : path.join(this.rootFolder, r[1]));
+				this.fileMatch = this.getFileMatch(r[1]);
 			} else {
 				// Line is empty (or malformed)
 			}
 		}
 	}
 
+	private getFileMatch(relativeOrAbsolutePath: string): FileMatch {
+		const absPath = path.isAbsolute(relativeOrAbsolutePath) ?
+			relativeOrAbsolutePath :
+			path.join(this.rootFolder, relativeOrAbsolutePath);
+
+		return new FileMatch(absPath);
+	}
+
 	private handleMatchLine(outputLine: string, lineNum: number, text: string): void {
+		if (lineNum === 0) {
+			text = strings.stripUTF8BOM(text);
+		}
+
 		const lineMatch = new LineMatch(text, lineNum);
+		if (!this.fileMatch) {
+			// When searching a single file and no folderQueries, rg does not print the file line, so create it here
+			const singleFile = this.extraSearchFiles[0];
+			if (!singleFile) {
+				throw new Error('Got match line for unknown file');
+			}
+
+			this.fileMatch = this.getFileMatch(singleFile);
+		}
+
 		this.fileMatch.addMatch(lineMatch);
 
 		let lastMatchEndPos = 0;
@@ -309,85 +328,17 @@ export class RipgrepParser extends EventEmitter {
 	}
 }
 
-export class FileMatch implements ISerializedFileMatch {
-	path: string;
-	lineMatches: LineMatch[];
-
-	constructor(path: string) {
-		this.path = path;
-		this.lineMatches = [];
-	}
-
-	addMatch(lineMatch: LineMatch): void {
-		this.lineMatches.push(lineMatch);
-	}
-
-	isEmpty(): boolean {
-		return this.lineMatches.length === 0;
-	}
-
-	serialize(): ISerializedFileMatch {
-		let lineMatches: ILineMatch[] = [];
-		let numMatches = 0;
-
-		for (let i = 0; i < this.lineMatches.length; i++) {
-			numMatches += this.lineMatches[i].offsetAndLengths.length;
-			lineMatches.push(this.lineMatches[i].serialize());
-		}
-
-		return {
-			path: this.path,
-			lineMatches,
-			numMatches
-		};
-	}
-}
-
-export class LineMatch implements ILineMatch {
-	preview: string;
-	lineNumber: number;
-	offsetAndLengths: number[][];
-
-	constructor(preview: string, lineNumber: number) {
-		this.preview = preview.replace(/(\r|\n)*$/, '');
-		this.lineNumber = lineNumber;
-		this.offsetAndLengths = [];
-	}
-
-	getText(): string {
-		return this.preview;
-	}
-
-	getLineNumber(): number {
-		return this.lineNumber;
-	}
-
-	addMatch(offset: number, length: number): void {
-		this.offsetAndLengths.push([offset, length]);
-	}
-
-	serialize(): ILineMatch {
-		const result = {
-			preview: this.preview,
-			lineNumber: this.lineNumber,
-			offsetAndLengths: this.offsetAndLengths
-		};
-
-		return result;
-	}
-}
-
-interface IRgGlobResult {
+export interface IRgGlobResult {
 	globArgs: string[];
 	siblingClauses: glob.IExpression;
 }
 
-function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: glob.IExpression): IRgGlobResult {
+export function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: glob.IExpression, excludesToSkip?: Set<string>, absoluteGlobs = true): IRgGlobResult {
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
-		const totalExcludePattern = objects.assign({}, globalExclude || {}, folderQuery.excludePattern || {});
-		const result = globExprsToRgGlobs(totalExcludePattern, folderQuery.folder);
+		const totalExcludePattern = objects.assign({}, folderQuery.excludePattern || {}, globalExclude || {});
+		const result = globExprsToRgGlobs(totalExcludePattern, absoluteGlobs && folderQuery.folder, excludesToSkip);
 		globArgs.push(...result.globArgs);
 		if (result.siblingClauses) {
 			siblingClauses = objects.assign(siblingClauses, result.siblingClauses);
@@ -397,26 +348,43 @@ function foldersToRgExcludeGlobs(folderQueries: IFolderSearch[], globalExclude: 
 	return { globArgs, siblingClauses };
 }
 
-function foldersToIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression): string[] {
-	const globArgs = new Set<string>();
+export function foldersToIncludeGlobs(folderQueries: IFolderSearch[], globalInclude: glob.IExpression, absoluteGlobs = true): string[] {
+	const globArgs: string[] = [];
 	folderQueries.forEach(folderQuery => {
-		const result = globExprsToRgGlobs(globalInclude, folderQuery.folder);
-		result.globArgs.forEach(arg => globArgs.add(arg));
+		const totalIncludePattern = objects.assign({}, globalInclude || {}, folderQuery.includePattern || {});
+		const result = globExprsToRgGlobs(totalIncludePattern, absoluteGlobs && folderQuery.folder);
+		globArgs.push(...result.globArgs);
 	});
 
-	return (<any>Array).from(globArgs);
+	return globArgs;
 }
 
-function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlobResult {
+function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, excludesToSkip?: Set<string>): IRgGlobResult {
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = null;
 	Object.keys(patterns)
 		.forEach(key => {
+			if (excludesToSkip && excludesToSkip.has(key)) {
+				return;
+			}
+
+			if (!key) {
+				return;
+			}
+
 			const value = patterns[key];
-			key = getAbsoluteGlob(folder, key);
+			key = trimTrailingSlash(folder ? getAbsoluteGlob(folder, key) : key);
+
+			// glob.ts requires forward slashes, but a UNC path still must start with \\
+			// #38165 and #38151
+			if (strings.startsWith(key, '\\\\')) {
+				key = '\\\\' + key.substr(2).replace(/\\/g, '/');
+			} else {
+				key = key.replace(/\\/g, '/');
+			}
 
 			if (typeof value === 'boolean' && value) {
-				globArgs.push(key);
+				globArgs.push(fixDriveC(key));
 			} else if (value && value.when) {
 				if (!siblingClauses) {
 					siblingClauses = {};
@@ -436,31 +404,48 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder: string): IRgGlob
  * Exported for testing
  */
 export function getAbsoluteGlob(folder: string, key: string): string {
-	const absolutePathKey = paths.isAbsolute(key) ?
+	return paths.isAbsolute(key) ?
 		key :
 		path.join(folder, key);
+}
 
-	const root = paths.getRoot(folder);
+function trimTrailingSlash(str: string): string {
+	str = strings.rtrim(str, '\\');
+	return strings.rtrim(str, '/');
+}
+
+export function fixDriveC(path: string): string {
+	const root = paths.getRoot(path);
 	return root.toLowerCase() === 'c:/' ?
-		absolutePathKey.replace(/^c:[/\\]/i, '/') :
-		absolutePathKey;
+		path.replace(/^c:[/\\]/i, '/') :
+		path;
 }
 
 function getRgArgs(config: IRawSearch): IRgGlobResult {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
-	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
-
-	if (config.includePattern) {
-		// I don't think includePattern can have siblingClauses
-		foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
-			args.push('-g', globArg);
-		});
+	if (config.contentPattern.isSmartCase) {
+		args.push('--smart-case');
+	} else {
+		args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 	}
 
+	// includePattern can't have siblingClauses
+	foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
+		args.push('-g', globArg);
+	});
+
 	let siblingClauses: glob.IExpression;
-	const rgGlobs = foldersToRgExcludeGlobs(config.folderQueries, config.excludePattern);
+
+	// Find excludes that are exactly the same in all folderQueries - e.g. from user settings, and that start with `**`.
+	// To make the command shorter, don't resolve these against every folderQuery path - see #33189.
+	const universalExcludes = findUniversalExcludes(config.folderQueries);
+	const rgGlobs = foldersToRgExcludeGlobs(config.folderQueries, config.excludePattern, universalExcludes);
 	rgGlobs.globArgs
 		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
+	if (universalExcludes) {
+		universalExcludes
+			.forEach(exclude => args.push('-g', `!${trimTrailingSlash(exclude)}`));
+	}
 	siblingClauses = rgGlobs.siblingClauses;
 
 	if (config.maxFilesize) {
@@ -470,10 +455,14 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	if (config.disregardIgnoreFiles) {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
+	} else {
+		args.push('--no-ignore-parent');
 	}
 
 	// Follow symlinks
-	args.push('--follow');
+	if (!config.ignoreSymlinks) {
+		args.push('--follow');
+	}
 
 	// Set default encoding if only one folder is opened
 	if (config.folderQueries.length === 1 && config.folderQueries[0].fileEncoding && config.folderQueries[0].fileEncoding !== 'utf8') {
@@ -507,12 +496,7 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 		args.push(searchPatternAfterDoubleDashes);
 	}
 
-	if (config.searchPaths && config.searchPaths.length) {
-		args.push(...config.searchPaths);
-	} else {
-		args.push(...config.folderQueries.map(q => q.folder));
-	}
-
+	args.push(...config.folderQueries.map(q => q.folder));
 	args.push(...config.extraFiles);
 
 	return { globArgs: args, siblingClauses };
@@ -528,4 +512,25 @@ function getSiblings(file: string): TPromise<string[]> {
 			resolve(files);
 		});
 	});
+}
+
+function findUniversalExcludes(folderQueries: IFolderSearch[]): Set<string> {
+	if (folderQueries.length < 2) {
+		// Nothing to simplify
+		return null;
+	}
+
+	const firstFolder = folderQueries[0];
+	if (!firstFolder.excludePattern) {
+		return null;
+	}
+
+	const universalExcludes = new Set<string>();
+	Object.keys(firstFolder.excludePattern).forEach(key => {
+		if (strings.startsWith(key, '**') && folderQueries.every(q => q.excludePattern && q.excludePattern[key] === true)) {
+			universalExcludes.add(key);
+		}
+	});
+
+	return universalExcludes;
 }

@@ -5,32 +5,33 @@
 
 import * as vscode from 'vscode';
 import { Node } from 'EmmetNode';
-import { getNode, parse, validate } from './util';
+import { getNode, parseDocument, validate } from './util';
 
 export function mergeLines() {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate(false)) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
 
-	let rootNode = parse(editor.document);
+	const editor = vscode.window.activeTextEditor;
+
+	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}
 
-	editor.edit(editBuilder => {
+	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
-			let [rangeToReplace, textToReplaceWith] = getRangesToReplace(editor.document, selection, rootNode);
-			if (rangeToReplace && textToReplaceWith) {
-				editBuilder.replace(rangeToReplace, textToReplaceWith);
+			let textEdit = getRangesToReplace(editor.document, selection, rootNode!);
+			if (textEdit) {
+				editBuilder.replace(textEdit.range, textEdit.newText);
 			}
 		});
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): [vscode.Range, string] {
-	let startNodeToUpdate: Node;
-	let endNodeToUpdate: Node;
+function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.TextEdit | undefined {
+	let startNodeToUpdate: Node | null;
+	let endNodeToUpdate: Node | null;
 
 	if (selection.isEmpty) {
 		startNodeToUpdate = endNodeToUpdate = getNode(rootNode, selection.start);
@@ -39,12 +40,15 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 		endNodeToUpdate = getNode(rootNode, selection.end, true);
 	}
 
-	if (!startNodeToUpdate || !endNodeToUpdate) {
-		return [null, null];
+	if (!startNodeToUpdate || !endNodeToUpdate || startNodeToUpdate.start.line === endNodeToUpdate.end.line) {
+		return;
 	}
 
 	let rangeToReplace = new vscode.Range(startNodeToUpdate.start, endNodeToUpdate.end);
-	let textToReplaceWith = document.getText(rangeToReplace).replace(/\r\n|\n/g, '').replace(/>\s*</g, '><');
+	let textToReplaceWith = document.lineAt(startNodeToUpdate.start.line).text.substr(startNodeToUpdate.start.character);
+	for (let i = startNodeToUpdate.start.line + 1; i <= endNodeToUpdate.end.line; i++) {
+		textToReplaceWith += document.lineAt(i).text.trim();
+	}
 
-	return [rangeToReplace, textToReplaceWith];
+	return new vscode.TextEdit(rangeToReplace, textToReplaceWith);
 }

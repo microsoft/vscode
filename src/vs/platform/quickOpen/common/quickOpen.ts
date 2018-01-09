@@ -10,11 +10,16 @@ import Event from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAction } from "vs/base/common/actions";
+import { IAction } from 'vs/base/common/actions';
+import { FileKind } from 'vs/platform/files/common/files';
 
 export interface IFilePickOpenEntry extends IPickOpenEntry {
 	resource: uri;
-	isFolder?: boolean;
+	fileKind?: FileKind;
+}
+
+export interface IPickOpenAction extends IAction {
+	run(item: IPickOpenItem): TPromise<any>;
 }
 
 export interface IPickOpenEntry {
@@ -26,6 +31,15 @@ export interface IPickOpenEntry {
 	alwaysShow?: boolean;
 	run?: (context: IEntryRunContext) => void;
 	action?: IAction;
+	payload?: any;
+}
+
+export interface IPickOpenItem {
+	index: number;
+	remove: () => void;
+	getId: () => string;
+	getResource: () => uri;
+	getPayload: () => any;
 }
 
 export interface ISeparator {
@@ -109,6 +123,7 @@ export interface IInputOptions {
 export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	inputSelection?: { start: number; end: number; };
+	autoFocus?: IAutoFocus;
 }
 
 export const IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService');

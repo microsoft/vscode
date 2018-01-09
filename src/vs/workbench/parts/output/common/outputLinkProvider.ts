@@ -18,18 +18,16 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class OutputLinkProvider {
 
-	private static DISPOSE_WORKER_TIME = 3 * 60 * 1000; // dispose worker after 3 minutes of inactivity
+	private static readonly DISPOSE_WORKER_TIME = 3 * 60 * 1000; // dispose worker after 3 minutes of inactivity
 
 	private worker: MonacoWebWorker<OutputLinkComputer>;
 	private disposeWorkerScheduler: RunOnceScheduler;
 	private linkProviderRegistration: IDisposable;
-	private workspacesCount: number;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModelService private modelService: IModelService
 	) {
-		this.workspacesCount = 0;
 		this.disposeWorkerScheduler = new RunOnceScheduler(() => this.disposeWorker(), OutputLinkProvider.DISPOSE_WORKER_TIME);
 
 		this.registerListeners();
@@ -37,15 +35,14 @@ export class OutputLinkProvider {
 	}
 
 	private registerListeners(): void {
-		this.contextService.onDidChangeWorkspaceRoots(() => this.updateLinkProviderWorker());
+		this.contextService.onDidChangeWorkspaceFolders(() => this.updateLinkProviderWorker());
 	}
 
 	private updateLinkProviderWorker(): void {
 
-		// We have a workspace
-		if (this.contextService.hasWorkspace()) {
-
-			// Register link provider unless done already
+		// Setup link provider depending on folders being opened or not
+		const folders = this.contextService.getWorkspace().folders;
+		if (folders.length > 0) {
 			if (!this.linkProviderRegistration) {
 				this.linkProviderRegistration = LinkProviderRegistry.register({ language: OUTPUT_MODE_ID, scheme: '*' }, {
 					provideLinks: (model, token): Thenable<ILink[]> => {
@@ -53,26 +50,13 @@ export class OutputLinkProvider {
 					}
 				});
 			}
-
-			// Update link provider worker if workspace roots changed
-			const newWorkspacesCount = this.contextService.getWorkspace().roots.length;
-			if (this.workspacesCount !== newWorkspacesCount) {
-				this.workspacesCount = newWorkspacesCount;
-
-				// Next computer will trigger recompute
-				this.disposeWorker();
-				this.disposeWorkerScheduler.cancel();
-			}
+		} else {
+			this.linkProviderRegistration = dispose(this.linkProviderRegistration);
 		}
 
-		// Dispose link provider when no longer having a workspace
-		else if (this.linkProviderRegistration) {
-			this.workspacesCount = 0;
-			dispose(this.linkProviderRegistration);
-			this.linkProviderRegistration = void 0;
-			this.disposeWorker();
-			this.disposeWorkerScheduler.cancel();
-		}
+		// Dispose worker to recreate with folders on next provideLinks request
+		this.disposeWorker();
+		this.disposeWorkerScheduler.cancel();
 	}
 
 	private getOrCreateWorker(): MonacoWebWorker<OutputLinkComputer> {
@@ -80,7 +64,7 @@ export class OutputLinkProvider {
 
 		if (!this.worker) {
 			const createData: ICreateData = {
-				workspaceFolders: this.contextService.getWorkspace().roots.map(root => root.toString())
+				workspaceFolders: this.contextService.getWorkspace().folders.map(folder => folder.uri.toString())
 			};
 
 			this.worker = createWebWorker<OutputLinkComputer>(this.modelService, {

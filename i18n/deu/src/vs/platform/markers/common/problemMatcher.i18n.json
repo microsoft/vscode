@@ -56,7 +56,15 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Ein regulärer Ausdruck, der signalisiert, dass die Ausführung eines überwachten Tasks (ausgelöst durch die Dateiüberwachung) beginnt.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "Diese Eigenschaft ist veraltet. Verwenden Sie stattdessen die Überwachungseigenschaft.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Ein regulärer Ausdruck, der signalisiert, dass die Ausführung eines überwachten Tasks beendet wird.",
+	"NamedProblemMatcherSchema.name": "Der Name des Problemabgleichers, anhand dessen auf ihn verwiesen wird.",
+	"NamedProblemMatcherSchema.label": "Eine lesbare Bezeichnung für den Problemabgleicher.",
 	"ProblemMatcherExtPoint": "Trägt Problemabgleicher bei",
+	"msCompile": "Microsoft-Compilerprobleme",
 	"lessCompile": "LESS Probleme",
+	"gulp-tsc": "Gulp-TSC-Probleme",
+	"jshint": "JSHint-Probleme",
+	"jshint-stylish": "JSHint-Stilprobleme",
+	"eslint-compact": "ESLint-Komprimierungsprobleme",
+	"eslint-stylish": "ESLint-Stilprobleme",
 	"go": "Go Probleme"
 }

@@ -18,7 +18,7 @@ function updateGrammar(location) {
 }
 
 const extensions = [
-	// 'bat'   Grammar no longer available
+	'bat',
 	'clojure',
 	'coffeescript',
 	'cpp',
@@ -36,7 +36,7 @@ const extensions = [
 	'ini',
 	'java',
 	// 'javascript',  updated through JavaScript
-	// 'json', customized
+	'json',
 	'less',
 	'lua',
 	'make',
@@ -54,7 +54,7 @@ const extensions = [
 	'scss',
 	'shaderlab',
 	'shellscript',
-	// 'sql', customized, PRs pending
+	'sql',
 	'swift',
 	'typescript',
 	'vb',

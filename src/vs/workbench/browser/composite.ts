@@ -9,11 +9,11 @@ import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IComposite } from 'vs/workbench/common/composite';
 import { IEditorControl } from 'vs/platform/editor/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -26,10 +26,10 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
  * layout and focus call, but only one create and dispose call.
  */
 export abstract class Composite extends Component implements IComposite {
-	private _telemetryData: any = {};
+	private _onTitleAreaUpdate: Emitter<void>;
+
 	private visible: boolean;
 	private parent: Builder;
-	private _onTitleAreaUpdate: Emitter<void>;
 
 	protected actionRunner: IActionRunner;
 
@@ -99,31 +99,6 @@ export abstract class Composite extends Component implements IComposite {
 	 */
 	public setVisible(visible: boolean): TPromise<void> {
 		this.visible = visible;
-
-		// Reset telemetry data when composite becomes visible
-		if (visible) {
-			this._telemetryData = {};
-			this._telemetryData.startTime = new Date();
-
-			// Only submit telemetry data when not running from an integration test
-			if (this._telemetryService && this._telemetryService.publicLog) {
-				const eventName: string = 'compositeOpen';
-				this._telemetryService.publicLog(eventName, { composite: this.getId() });
-			}
-		}
-
-		// Send telemetry data when composite hides
-		else {
-			this._telemetryData.timeSpent = (Date.now() - this._telemetryData.startTime) / 1000;
-			delete this._telemetryData.startTime;
-
-			// Only submit telemetry data when not running from an integration test
-			if (this._telemetryService && this._telemetryService.publicLog) {
-				const eventName: string = 'compositeShown';
-				this._telemetryData.composite = this.getId();
-				this._telemetryService.publicLog(eventName, this._telemetryData);
-			}
-		}
 
 		return TPromise.as(null);
 	}
@@ -218,19 +193,26 @@ export abstract class Composite extends Component implements IComposite {
 /**
  * A composite descriptor is a leightweight descriptor of a composite in the workbench.
  */
-export abstract class CompositeDescriptor<T extends Composite> extends AsyncDescriptor<T> {
+export abstract class CompositeDescriptor<T extends Composite> {
 	public id: string;
 	public name: string;
 	public cssClass: string;
 	public order: number;
+	public keybindingId: string;
 
-	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number) {
-		super(moduleId, ctorName);
+	private ctor: IConstructorSignature0<T>;
 
+	constructor(ctor: IConstructorSignature0<T>, id: string, name: string, cssClass?: string, order?: number, keybindingId?: string, ) {
+		this.ctor = ctor;
 		this.id = id;
 		this.name = name;
 		this.cssClass = cssClass;
 		this.order = order;
+		this.keybindingId = keybindingId;
+	}
+
+	public instantiate(instantiationService: IInstantiationService): T {
+		return instantiationService.createInstance(this.ctor);
 	}
 }
 
@@ -255,10 +237,6 @@ export abstract class CompositeRegistry<T extends Composite> {
 
 	protected getComposites(): CompositeDescriptor<T>[] {
 		return this.composites.slice(0);
-	}
-
-	protected setComposites(compositesToSet: CompositeDescriptor<T>[]): void {
-		this.composites = compositesToSet;
 	}
 
 	private compositeById(id: string): CompositeDescriptor<T> {

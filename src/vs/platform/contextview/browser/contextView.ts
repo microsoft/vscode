@@ -8,6 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner, Action } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
+import Event from 'vs/base/common/event';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -24,7 +25,7 @@ export interface IContextViewDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; };
 	render(container: HTMLElement): IDisposable;
 	canRelayout?: boolean; // Default: true
-	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
+	onDOMEvent?(e: any, activeElement: HTMLElement): void;
 	onHide?(data?: any): void;
 }
 
@@ -33,6 +34,8 @@ export const IContextMenuService = createDecorator<IContextMenuService>('context
 export interface IContextMenuService {
 	_serviceBrand: any;
 	showContextMenu(delegate: IContextMenuDelegate): void;
+	// TODO@isidor these event should be removed once we get async context menus
+	onDidContextMenu: Event<void>;
 }
 
 export interface IEvent {
@@ -51,6 +54,7 @@ export interface IContextMenuDelegate {
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
 	actionRunner?: IActionRunner;
+	autoSelectFirstItem?: boolean;
 }
 
 export class ContextSubMenu extends Action {

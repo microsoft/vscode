@@ -51,6 +51,9 @@ var exitCode;
 // Allow any trailing data events to be sent before the exit event is sent.
 // See https://github.com/Tyriar/node-pty/issues/72
 function queueProcessExit() {
+	if (closeTimeout) {
+		clearTimeout(closeTimeout);
+	}
 	closeTimeout = setTimeout(function () {
 		ptyProcess.kill();
 		process.exit(exitCode);
@@ -77,7 +80,11 @@ process.on('message', function (message) {
 	if (message.event === 'input') {
 		ptyProcess.write(message.data);
 	} else if (message.event === 'resize') {
-		ptyProcess.resize(message.cols, message.rows);
+		// Ensure that cols and rows are always >= 1, this prevents a native
+		// exception in winpty.
+		ptyProcess.resize(Math.max(message.cols, 1), Math.max(message.rows, 1));
+	} else if (message.event === 'shutdown') {
+		queueProcessExit();
 	}
 });
 
@@ -101,12 +108,14 @@ function cleanEnv() {
 	var keys = [
 		'AMD_ENTRYPOINT',
 		'ELECTRON_RUN_AS_NODE',
+		'GOOGLE_API_KEY',
 		'PTYCWD',
 		'PTYPID',
 		'PTYSHELL',
 		'PTYCOLS',
 		'PTYROWS',
-		'PTYSHELLCMDLINE'
+		'PTYSHELLCMDLINE',
+		'VSCODE_LOGS'
 	];
 	keys.forEach(function (key) {
 		if (process.env[key]) {
@@ -116,6 +125,7 @@ function cleanEnv() {
 	var i = 0;
 	while (process.env['PTYSHELLARG' + i]) {
 		delete process.env['PTYSHELLARG' + i];
+		i++;
 	}
 }
 

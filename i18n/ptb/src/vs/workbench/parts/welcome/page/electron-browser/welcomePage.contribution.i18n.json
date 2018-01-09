@@ -8,6 +8,6 @@
 	"workbench.startupEditor.none": "Iniciar sem um editor.",
 	"workbench.startupEditor.welcomePage": "Abrir a página de boas-vindas (padrão).",
 	"workbench.startupEditor.newUntitledFile": "Abrir um novo arquivo sem título.",
-	"workbench.startupEditor": "Controla qual o editor que é mostrado na inicialização, se nenhum for restaurado a partir da sessão anterior. Selecione 'none' para iniciar sem um editor, 'welcomePage' para abrir a página de boas-vindas (padrão), 'newUntitledFile' para abrir um novo arquivo sem título (somente quando não estiver abrindo uma pasta).",
+	"workbench.startupEditor": "Controla qual editor é mostrado na inicialização, se nenhum for restaurado a partir da sessão anterior. Selecione 'none' para iniciar sem um editor, 'welcomePage' para abrir a página de boas-vindas (padrão), 'newUntitledFile' para abrir um novo arquivo sem título (apenas quando estiver abrindo um espaço de trabalho vazio).",
 	"help": "Ajuda"
 }

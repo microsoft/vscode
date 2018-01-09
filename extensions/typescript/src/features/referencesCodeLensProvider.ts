@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeLens, CancellationToken, TextDocument, Range, Location, ProviderResult, workspace } from 'vscode';
+import { CodeLens, CancellationToken, TextDocument, Range, Location, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
-import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens } from './baseCodeLensProvider';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens, CachedNavTreeResponse } from './baseCodeLensProvider';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
-		client: ITypescriptServiceClient,
-		private readonly language: string
+		client: ITypeScriptServiceClient,
+		private readonly language: string,
+		cachedResponse: CachedNavTreeResponse
 	) {
-		super(client);
+		super(client, cachedResponse);
 	}
 
 	public updateConfiguration(): void {
@@ -26,20 +28,16 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 		this.setEnabled(config.get('referencesCodeLens.enabled', false));
 	}
 
-	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
+	async provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
 		if (!this.client.apiVersion.has206Features()) {
 			return [];
 		}
 		return super.provideCodeLenses(document, token);
 	}
 
-	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
+	public resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		const args: Proto.FileLocationRequestArgs = {
-			file: codeLens.file,
-			line: codeLens.range.start.line + 1,
-			offset: codeLens.range.start.character + 1
-		};
+		const args = vsPositionToTsFileLocation(codeLens.file, codeLens.range.start);
 		return this.client.execute('references', args, token).then(response => {
 			if (!response || !response.body) {
 				throw codeLens;
@@ -47,13 +45,10 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 
 			const locations = response.body.refs
 				.map(reference =>
-					new Location(this.client.asUrl(reference.file),
-						new Range(
-							reference.start.line - 1, reference.start.offset - 1,
-							reference.end.line - 1, reference.end.offset - 1)))
+					new Location(this.client.asUrl(reference.file), tsTextSpanToVsRange(reference)))
 				.filter(location =>
 					// Exclude original definition from references
-					!(location.uri.fsPath === codeLens.document.fsPath &&
+					!(location.uri.toString() === codeLens.document.toString() &&
 						location.range.start.isEqual(codeLens.range.start)));
 
 			codeLens.command = {

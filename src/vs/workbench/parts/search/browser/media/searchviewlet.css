@@ -170,6 +170,7 @@
 	overflow: hidden;
 }
 
+.search-viewlet .foldermatch,
 .search-viewlet .filematch {
 	display: flex;
 	position: relative;
@@ -177,10 +178,12 @@
 	padding: 0;
 }
 
+.search-viewlet .foldermatch .monaco-icon-label,
 .search-viewlet .filematch .monaco-icon-label {
 	flex: 1;
 }
 
+.search-viewlet .foldermatch .directory,
 .search-viewlet .filematch .directory {
 	opacity: 0.7;
 	font-size: 0.9em;
@@ -266,8 +269,12 @@
 	margin-right: 12px;
 }
 
-.search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .monaco-count-badge,
-.search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .monaco-count-badge {
+.search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .filematch .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .foldermatch .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .linematch .monaco-count-badge {
 	display: none;
 }
 
@@ -312,23 +319,12 @@
 	background: url('pattern-dark.svg') center center no-repeat;
 }
 
-.vs .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles {
-	background: url('gitignore.svg') center center no-repeat;
-	background-size: 18px 18px;
-}
-
-.vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles,
-.hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles {
-	background: url('gitignore-dark.svg') center center no-repeat;
-	background-size: 18px 18px;
-}
-
-.vs .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludeSettings {
+.vs .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludesAndIgnoreFiles {
 	background: url('excludeSettings.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludeSettings,
-.hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludeSettings {
+.vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludesAndIgnoreFiles,
+.hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludesAndIgnoreFiles {
 	background: url('excludeSettings-dark.svg') center center no-repeat;
 }
 
@@ -382,6 +378,7 @@
 	opacity: .5;
 }
 
+.vs-dark .search-viewlet .foldermatch,
 .vs-dark .search-viewlet .filematch {
 	padding: 0;
 }
@@ -398,6 +395,7 @@
 
 /* High Contrast Theming */
 
+.hc-black .monaco-workbench .search-viewlet .foldermatch,
 .hc-black .monaco-workbench .search-viewlet .filematch,
 .hc-black .monaco-workbench .search-viewlet .linematch {
 	line-height: 20px;

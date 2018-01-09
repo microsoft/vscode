@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import Async = require('vs/base/common/async');
+import URI from 'vs/base/common/uri';
 
 suite('Async', () => {
 	test('Throttler - non async', function (done) {
@@ -134,7 +135,7 @@ suite('Async', () => {
 
 	test('Throttler - progress should work', function (done) {
 		let order = 0;
-		let factory = () => new Promise((c, e, p) => {
+		let factory = () => new TPromise((c, e, p) => {
 			TPromise.timeout(0).done(() => {
 				p(order++);
 				c(true);
@@ -306,7 +307,7 @@ suite('Async', () => {
 
 	test('Delayer - progress should work', function (done) {
 		let order = 0;
-		let factory = () => new Promise((c, e, p) => {
+		let factory = () => new TPromise((c, e, p) => {
 			TPromise.timeout(0).done(() => {
 				p(order++);
 				c(true);
@@ -331,7 +332,7 @@ suite('Async', () => {
 
 	test('ThrottledDelayer - progress should work', function (done) {
 		let order = 0;
-		let factory = () => new Promise((c, e, p) => {
+		let factory = () => new TPromise((c, e, p) => {
 			TPromise.timeout(0).done(() => {
 				p(order++);
 				c(true);
@@ -452,8 +453,15 @@ suite('Async', () => {
 		let asyncPromise = false;
 		let f2 = () => TPromise.timeout(10).then(() => asyncPromise = true);
 
+		assert.equal(queue.size, 0);
+
 		queue.queue(f1);
-		queue.queue(f2).then(() => {
+		assert.equal(queue.size, 0); // sync promise is already done
+
+		const p = queue.queue(f2);
+		assert.equal(queue.size, 1);
+		return p.then(() => {
+			assert.equal(queue.size, 1);
 			assert.ok(syncPromise);
 			assert.ok(asyncPromise);
 
@@ -464,7 +472,7 @@ suite('Async', () => {
 	test('Queue - order is kept', function (done) {
 		let queue = new Async.Queue();
 
-		let res = [];
+		let res: number[] = [];
 
 		let f1 = () => TPromise.as(true).then(() => res.push(1));
 		let f2 = () => TPromise.timeout(10).then(() => res.push(2));
@@ -490,7 +498,7 @@ suite('Async', () => {
 	test('Queue - errors bubble individually but not cause stop', function (done) {
 		let queue = new Async.Queue();
 
-		let res = [];
+		let res: number[] = [];
 		let error = false;
 
 		let f1 = () => TPromise.as(true).then(() => res.push(1));
@@ -517,7 +525,7 @@ suite('Async', () => {
 	test('Queue - order is kept (chained)', function (done) {
 		let queue = new Async.Queue();
 
-		let res = [];
+		let res: number[] = [];
 
 		let f1 = () => TPromise.as(true).then(() => res.push(1));
 		let f2 = () => TPromise.timeout(10).then(() => res.push(2));
@@ -552,7 +560,7 @@ suite('Async', () => {
 			done();
 		});
 
-		let res = [];
+		let res: number[] = [];
 
 		let f1 = () => TPromise.timeout(10).then(() => res.push(2));
 		let f2 = () => TPromise.timeout(20).then(() => res.push(4));
@@ -567,6 +575,49 @@ suite('Async', () => {
 			q2.then(() => {
 				assert.ok(!finished);
 			});
+		});
+	});
+
+	test('ResourceQueue - simple', function () {
+		let queue = new Async.ResourceQueue();
+
+		const r1Queue = queue.queueFor(URI.file('/some/path'));
+		const r2Queue = queue.queueFor(URI.file('/some/other/path'));
+
+		assert.ok(r1Queue);
+		assert.ok(r2Queue);
+		assert.equal(r1Queue, queue.queueFor(URI.file('/some/path'))); // same queue returned
+
+		let syncPromiseFactory = () => TPromise.as(true);
+
+		r1Queue.queue(syncPromiseFactory);
+
+		const r1Queue2 = queue.queueFor(URI.file('/some/path'));
+		assert.notEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
+	});
+
+	test('ThrottledEmitter', function () {
+		const emitter = new Async.ThrottledEmitter();
+
+		const fnThatEmitsEvent = () => {
+			emitter.fire();
+		};
+
+		const promiseFn = TPromise.timeout(0).then(() => {
+			fnThatEmitsEvent();
+			fnThatEmitsEvent();
+			fnThatEmitsEvent();
+		});
+
+		let count = 0;
+		emitter.event(() => {
+			count++;
+		});
+
+		emitter.throttle(promiseFn);
+
+		promiseFn.then(() => {
+			assert.equal(count, 1);
 		});
 	});
 });

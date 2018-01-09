@@ -6,9 +6,8 @@
 {
 	"showTriggerActions": "Atteindre le symbole dans l'espace de travail...",
 	"name": "Rechercher",
-	"showSearchViewlet": "Afficher la zone de recherche",
+	"search": "Rechercher",
 	"view": "Affichage",
-	"findInFiles": "Chercher dans les fichiers",
 	"openAnythingHandlerDescription": "Accéder au fichier",
 	"openSymbolDescriptionNormal": "Atteindre le symbole dans l'espace de travail",
 	"searchOutputChannelTitle": "Rechercher",
@@ -16,7 +15,8 @@
 	"exclude": "Configurez les modèles Glob pour exclure les fichiers et les dossiers des recherches. Hérite de tous les modèles Glob à partir du paramètre files.exclude.",
 	"exclude.boolean": "Modèle Glob auquel les chemins de fichiers doivent correspondre. Affectez la valeur true ou false pour activer ou désactiver le modèle.",
 	"exclude.when": "Vérification supplémentaire des frères d'un fichier correspondant. Utilisez $(basename) comme variable pour le nom de fichier correspondant.",
-	"useRipgrep": "Contrôle si ripgrep doit être utilisé dans la recherche de texte",
-	"useIgnoreFilesByDefault": "Indique s'il faut utiliser les fichiers .gitignore et .ignore par défaut en cas de recherche dans un nouvel espace de travail.",
-	"search.quickOpen.includeSymbols": "Configurez l'ajout des résultats d'une recherche de symboles globale dans le fichier de résultats pour Quick Open."
+	"useRipgrep": "Contrôle si ripgrep doit être utilisé dans la recherche de texte et de fichier",
+	"useIgnoreFiles": "Contrôle s'il faut utiliser les fichiers .gitignore et .ignore par défaut pendant la recherche de fichiers.",
+	"search.quickOpen.includeSymbols": "Configurez l'ajout des résultats d'une recherche de symboles globale dans le fichier de résultats pour Quick Open.",
+	"search.followSymlinks": "Détermine s’il faut suivre les liens symboliques lors de la recherche."
 }

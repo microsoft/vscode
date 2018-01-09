@@ -56,5 +56,15 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "規則運算式，指示監看的工作開始執行 (透過檔案監看觸發)。",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "此屬性即將淘汰。請改用關注的屬性。",
 	"LegacyProblemMatcherSchema.watchedEnd": "規則運算式，指示監看的工作結束執行。",
-	"ProblemMatcherExtPoint": "提供問題比對器"
+	"NamedProblemMatcherSchema.name": "用來參考其問題比對器的名稱。",
+	"NamedProblemMatcherSchema.label": "易讀的問題比對器標籤。",
+	"ProblemMatcherExtPoint": "提供問題比對器",
+	"msCompile": "Microsoft  編譯器問題 ",
+	"lessCompile": "較少的問題",
+	"gulp-tsc": "Gulp TSC 問題",
+	"jshint": "JSHint 問題",
+	"jshint-stylish": "JSHint 樣式問題",
+	"eslint-compact": "ESLint 壓縮問題",
+	"eslint-stylish": "ESLint 樣式問題",
+	"go": "前往問題"
 }

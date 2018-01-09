@@ -10,7 +10,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onLanguage:json"
+    "onLanguage:json",
+    "onLanguage:jsonc"
   ],
   "main": "./out/extension",
   "scripts": {
@@ -18,7 +19,7 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "^0.3.1",
+    "jsonc-parser": "^1.0.0",
     "vscode-nls": "^2.0.1"
   },
   "contributes": {
@@ -33,11 +34,19 @@
       },
       {
         "fileMatch": "vscode://defaultsettings/settings.json",
-        "url": "vscode://schemas/settings"
+        "url": "vscode://schemas/settings/default"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/settings.json",
-        "url": "vscode://schemas/settings"
+        "url": "vscode://schemas/settings/user"
+      },
+      {
+        "fileMatch": "%APP_WORKSPACES_HOME%/*/workspace.json",
+        "url": "vscode://schemas/workspaceConfig"
+      },
+      {
+        "fileMatch": "**/*.code-workspace",
+        "url": "vscode://schemas/workspaceConfig"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
@@ -45,7 +54,7 @@
       },
       {
         "fileMatch": "/.vscode/settings.json",
-        "url": "vscode://schemas/settings"
+        "url": "vscode://schemas/settings/folder"
       },
       {
         "fileMatch": "/.vscode/launch.json",
@@ -60,12 +69,16 @@
         "url": "vscode://schemas/snippets"
       },
       {
+        "fileMatch": "**/*.code-snippets",
+        "url": "vscode://schemas/global-snippets"
+      },
+      {
         "fileMatch": "/.vscode/extensions.json",
         "url": "vscode://schemas/extensions"
       }
     ]
   },
   "devDependencies": {
-    "@types/node": "^7.0.4"
+    "@types/node": "7.0.4"
   }
 }

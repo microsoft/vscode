@@ -6,6 +6,7 @@
 {
 	"newWindow": "Új ablak",
 	"newWindowDesc": "Nyit egy új ablakot",
-	"recentFolders": "Legutóbbi mappák",
-	"folderDesc": "{0} {1}"
+	"recentFolders": "Legutóbbi munkaterületek",
+	"folderDesc": "{0} {1}",
+	"codeWorkspace": "Code-munkaterület"
 }

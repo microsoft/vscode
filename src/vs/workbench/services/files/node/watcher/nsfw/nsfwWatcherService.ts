@@ -6,12 +6,14 @@
 import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
 import * as path from 'path';
+import * as platform from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
 import * as nsfw from 'nsfw';
 import { IWatcherService, IWatcherRequest } from 'vs/workbench/services/files/node/watcher/nsfw/watcher';
 import { TPromise, ProgressCallback, TValueCallback } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
+import { normalizeNFC } from 'vs/base/common/strings';
 
 const nsfwActionToRawChangeType: { [key: number]: number } = [];
 nsfwActionToRawChangeType[nsfw.actions.CREATED] = FileChangeType.ADDED;
@@ -30,7 +32,7 @@ interface IPathWatcher {
 }
 
 export class NsfwWatcherService implements IWatcherService {
-	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
+	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 
 	private _pathWatchers: { [watchPath: string]: IPathWatcher } = {};
 	private _watcherPromise: TPromise<void>;
@@ -93,6 +95,11 @@ export class NsfwWatcherService implements IWatcherService {
 			fileEventDelayer.trigger(() => {
 				const events = undeliveredFileEvents;
 				undeliveredFileEvents = [];
+
+				// Mac uses NFD unicode form on disk, but we want NFC
+				if (platform.isMacintosh) {
+					events.forEach(e => e.path = normalizeNFC(e.path));
+				}
 
 				// Broadcast to clients normalized
 				const res = watcher.normalize(events);

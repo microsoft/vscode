@@ -8,6 +8,7 @@
 	"notInstalled": "'{0}' eklentisi yüklü değil.",
 	"useId": "Eklentinin tam ID'sini, yayıncı da dahil olmak üzere kullandığınızdan emin olun, ör: {0}",
 	"successVsixInstall": "'{0}' eklentisi başarıyla yüklendi.",
+	"cancelVsixInstall": "'{0}' eklentisini yükleme işlemi iptal edildi.",
 	"alreadyInstalled": "'{0}' eklentisi zaten yüklü.",
 	"foundExtension": "'{0}' markette bulundu.",
 	"installing": "Yükleniyor...",

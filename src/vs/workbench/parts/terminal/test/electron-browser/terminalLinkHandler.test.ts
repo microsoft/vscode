@@ -8,8 +8,6 @@
 import * as assert from 'assert';
 import { Platform } from 'vs/base/common/platform';
 import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
-import URI from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
 import * as path from 'path';
 import * as sinon from 'sinon';
@@ -28,26 +26,10 @@ class TestXterm {
 	public setHypertextValidationCallback() { }
 }
 
-class TestURI extends URI {
-	constructor(private _fakePath: string) {
-		super();
-	};
-
-	get fsPath(): string {
-		return this._fakePath;
-	}
-}
-
 interface LinkFormatInfo {
 	urlFormat: string;
 	line?: string;
 	column?: string;
-}
-
-class TestWorkspace extends Workspace {
-	constructor(private basePath: string) {
-		super(basePath, basePath, [new TestURI(basePath)]);
-	}
 }
 
 suite('Workbench - TerminalLinkHandler', () => {
@@ -170,6 +152,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 				linkUrls.forEach(linkUrl => {
 					supportedLinkFormats.forEach(linkFormatInfo => {
+						// console.log('linkFormatInfo: ', linkFormatInfo);
 						testLink(
 							strings.format(linkFormatInfo.urlFormat, linkUrl, linkFormatInfo.line, linkFormatInfo.column),
 							linkUrl,
@@ -188,7 +171,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		test('Windows', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, 'C:\\base', null, null, null);
 
-			let stub = sinon.stub(path, 'join', function (arg1, arg2) {
+			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '\\' + arg2;
 			});
 			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base\\./src/file1');
@@ -201,7 +184,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		test('Linux', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, '/base', null, null, null);
 
-			let stub = sinon.stub(path, 'join', function (arg1, arg2) {
+			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '/' + arg2;
 			});
 

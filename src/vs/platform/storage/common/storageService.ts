@@ -13,7 +13,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 export interface IStorage {
 	length: number;
 	key(index: number): string;
-	clear(): void;
 	setItem(key: string, value: any): void;
 	getItem(key: string): string;
 	removeItem(key: string): void;
@@ -23,16 +22,17 @@ export class StorageService implements IStorageService {
 
 	public _serviceBrand: any;
 
-	private static COMMON_PREFIX = 'storage://';
-	private static GLOBAL_PREFIX = `${StorageService.COMMON_PREFIX}global/`;
-	private static WORKSPACE_PREFIX = `${StorageService.COMMON_PREFIX}workspace/`;
-	private static WORKSPACE_IDENTIFIER = 'workspaceIdentifier';
-	private static NO_WORKSPACE_IDENTIFIER = '__$noWorkspace__';
+	public static readonly COMMON_PREFIX = 'storage://';
+	public static readonly GLOBAL_PREFIX = `${StorageService.COMMON_PREFIX}global/`;
+	public static readonly WORKSPACE_PREFIX = `${StorageService.COMMON_PREFIX}workspace/`;
+	public static readonly WORKSPACE_IDENTIFIER = 'workspaceidentifier';
+	public static readonly NO_WORKSPACE_IDENTIFIER = '__$noWorkspace__';
 
-	private workspaceStorage: IStorage;
-	private globalStorage: IStorage;
+	private _workspaceStorage: IStorage;
+	private _globalStorage: IStorage;
 
 	private workspaceKey: string;
+	private _workspaceId: string;
 
 	constructor(
 		globalStorage: IStorage,
@@ -40,8 +40,18 @@ export class StorageService implements IStorageService {
 		workspaceId?: string,
 		legacyWorkspaceId?: number
 	) {
-		this.globalStorage = globalStorage;
-		this.workspaceStorage = workspaceStorage || globalStorage;
+		this._globalStorage = globalStorage;
+		this._workspaceStorage = workspaceStorage || globalStorage;
+
+		this.setWorkspaceId(workspaceId, legacyWorkspaceId);
+	}
+
+	public get workspaceId(): string {
+		return this._workspaceId;
+	}
+
+	public setWorkspaceId(workspaceId: string, legacyWorkspaceId?: number): void {
+		this._workspaceId = workspaceId;
 
 		// Calculate workspace storage key
 		this.workspaceKey = this.getWorkspaceKey(workspaceId);
@@ -51,6 +61,14 @@ export class StorageService implements IStorageService {
 		if (types.isNumber(legacyWorkspaceId)) {
 			this.cleanupWorkspaceScope(legacyWorkspaceId);
 		}
+	}
+
+	public get globalStorage(): IStorage {
+		return this._globalStorage;
+	}
+
+	public get workspaceStorage(): IStorage {
+		return this._workspaceStorage;
 	}
 
 	private getWorkspaceKey(id?: string): string {
@@ -77,10 +95,10 @@ export class StorageService implements IStorageService {
 		if (types.isNumber(id) && workspaceUid !== id) {
 			const keyPrefix = this.toStorageKey('', StorageScope.WORKSPACE);
 			const toDelete: string[] = [];
-			const length = this.workspaceStorage.length;
+			const length = this._workspaceStorage.length;
 
 			for (let i = 0; i < length; i++) {
-				const key = this.workspaceStorage.key(i);
+				const key = this._workspaceStorage.key(i);
 				if (key.indexOf(StorageService.WORKSPACE_PREFIX) < 0) {
 					continue; // ignore stored things that don't belong to storage service or are defined globally
 				}
@@ -93,7 +111,7 @@ export class StorageService implements IStorageService {
 
 			// Run the delete
 			toDelete.forEach((keyToDelete) => {
-				this.workspaceStorage.removeItem(keyToDelete);
+				this._workspaceStorage.removeItem(keyToDelete);
 			});
 		}
 
@@ -103,13 +121,8 @@ export class StorageService implements IStorageService {
 		}
 	}
 
-	public clear(): void {
-		this.globalStorage.clear();
-		this.workspaceStorage.clear();
-	}
-
 	public store(key: string, value: any, scope = StorageScope.GLOBAL): void {
-		const storage = (scope === StorageScope.GLOBAL) ? this.globalStorage : this.workspaceStorage;
+		const storage = (scope === StorageScope.GLOBAL) ? this._globalStorage : this._workspaceStorage;
 
 		if (types.isUndefinedOrNull(value)) {
 			this.remove(key, scope); // we cannot store null or undefined, in that case we remove the key
@@ -127,7 +140,7 @@ export class StorageService implements IStorageService {
 	}
 
 	public get(key: string, scope = StorageScope.GLOBAL, defaultValue?: any): string {
-		const storage = (scope === StorageScope.GLOBAL) ? this.globalStorage : this.workspaceStorage;
+		const storage = (scope === StorageScope.GLOBAL) ? this._globalStorage : this._workspaceStorage;
 
 		const value = storage.getItem(this.toStorageKey(key, scope));
 		if (types.isUndefinedOrNull(value)) {
@@ -135,25 +148,6 @@ export class StorageService implements IStorageService {
 		}
 
 		return value;
-	}
-
-	public remove(key: string, scope = StorageScope.GLOBAL): void {
-		const storage = (scope === StorageScope.GLOBAL) ? this.globalStorage : this.workspaceStorage;
-		const storageKey = this.toStorageKey(key, scope);
-
-		// Remove
-		storage.removeItem(storageKey);
-	}
-
-	public swap(key: string, valueA: any, valueB: any, scope = StorageScope.GLOBAL, defaultValue?: any): void {
-		const value = this.get(key, scope);
-		if (types.isUndefinedOrNull(value) && defaultValue) {
-			this.store(key, defaultValue, scope);
-		} else if (value === valueA.toString()) { // Convert to string because store is string based
-			this.store(key, valueB, scope);
-		} else {
-			this.store(key, valueA, scope);
-		}
 	}
 
 	public getInteger(key: string, scope = StorageScope.GLOBAL, defaultValue?: number): number {
@@ -178,6 +172,14 @@ export class StorageService implements IStorageService {
 		}
 
 		return value ? true : false;
+	}
+
+	public remove(key: string, scope = StorageScope.GLOBAL): void {
+		const storage = (scope === StorageScope.GLOBAL) ? this._globalStorage : this._workspaceStorage;
+		const storageKey = this.toStorageKey(key, scope);
+
+		// Remove
+		storage.removeItem(storageKey);
 	}
 
 	private toStorageKey(key: string, scope: StorageScope): string {
@@ -207,10 +209,6 @@ export class InMemoryLocalStorage implements IStorage {
 		}
 
 		return null;
-	}
-
-	public clear(): void {
-		this.store = {};
 	}
 
 	public setItem(key: string, value: any): void {

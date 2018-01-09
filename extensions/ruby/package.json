@@ -3,6 +3,9 @@
 	"version": "0.2.1",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/ruby.tmbundle Syntaxes/Ruby.plist ./syntaxes/ruby.tmLanguage.json"
+	  },
 	"contributes": {
 		"languages": [{
 			"id": "ruby",

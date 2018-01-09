@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as Objects from 'vs/base/common/objects';
@@ -12,15 +13,12 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as TaskSystem from 'vs/workbench/parts/tasks/common/tasks';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from 'vs/workbench/api/node/extHost.protocol';
+import { MainContext, MainThreadTaskShape, ExtHostTaskShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 import * as types from 'vs/workbench/api/node/extHostTypes';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 
-interface StringMap<V> {
-	[key: string]: V;
-}
 
 /*
 namespace ProblemPattern {
@@ -117,7 +115,7 @@ namespace FileLocation {
 			case types.FileLocationKind.Absolute:
 				return { kind: Problems.FileLocationKind.Absolute };
 			case types.FileLocationKind.Relative:
-				return { kind: Problems.FileLocationKind.Relative, prefix: '${workspaceRoot}' };
+				return { kind: Problems.FileLocationKind.Relative, prefix: '${workspaceFolder}' };
 		}
 		return { kind: Problems.FileLocationKind.Auto };
 	}
@@ -296,13 +294,13 @@ namespace ShellConfiguration {
 
 namespace Tasks {
 
-	export function from(tasks: vscode.Task[], extension: IExtensionDescription): TaskSystem.Task[] {
+	export function from(tasks: vscode.Task[], rootFolder: vscode.WorkspaceFolder, extension: IExtensionDescription): TaskSystem.Task[] {
 		if (tasks === void 0 || tasks === null) {
 			return [];
 		}
 		let result: TaskSystem.Task[] = [];
 		for (let task of tasks) {
-			let converted = fromSingle(task, extension);
+			let converted = fromSingle(task, rootFolder, extension);
 			if (converted) {
 				result.push(converted);
 			}
@@ -310,7 +308,7 @@ namespace Tasks {
 		return result;
 	}
 
-	function fromSingle(task: vscode.Task, extension: IExtensionDescription): TaskSystem.ContributedTask {
+	function fromSingle(task: vscode.Task, rootFolder: vscode.WorkspaceFolder, extension: IExtensionDescription): TaskSystem.ContributedTask {
 		if (typeof task.name !== 'string') {
 			return undefined;
 		}
@@ -327,11 +325,33 @@ namespace Tasks {
 			return undefined;
 		}
 		command.presentation = PresentationOptions.from(task.presentationOptions);
-		let source = {
+
+		let taskScope: types.TaskScope.Global | types.TaskScope.Workspace | vscode.WorkspaceFolder | undefined = task.scope;
+		let workspaceFolder: vscode.WorkspaceFolder | undefined;
+		let scope: TaskSystem.TaskScope;
+		// For backwards compatibility
+		if (taskScope === void 0) {
+			scope = TaskSystem.TaskScope.Folder;
+			workspaceFolder = rootFolder;
+		} else if (taskScope === types.TaskScope.Global) {
+			scope = TaskSystem.TaskScope.Global;
+		} else if (taskScope === types.TaskScope.Workspace) {
+			scope = TaskSystem.TaskScope.Workspace;
+		} else {
+			scope = TaskSystem.TaskScope.Folder;
+			workspaceFolder = taskScope;
+		}
+		let source: TaskSystem.ExtensionTaskSource = {
 			kind: TaskSystem.TaskSourceKind.Extension,
 			label: typeof task.source === 'string' ? task.source : extension.name,
-			detail: extension.id
+			extension: extension.id,
+			scope: scope,
+			workspaceFolder: undefined
 		};
+		// We can't transfer a workspace folder object from the extension host to main since they differ
+		// in shape and we don't have backwards converting function. So transfer the URI and resolve the
+		// workspace folder on the main side.
+		(source as any).__workspaceFolder = workspaceFolder ? workspaceFolder.uri as URI : undefined;
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		let key = (task as types.Task).definitionKey;
 		let kind = (task as types.Task).definition;
@@ -396,18 +416,19 @@ interface HandlerData {
 	extension: IExtensionDescription;
 }
 
-export class ExtHostTask extends ExtHostTaskShape {
+export class ExtHostTask implements ExtHostTaskShape {
 
 	private _proxy: MainThreadTaskShape;
+	private _extHostWorkspace: ExtHostWorkspace;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 
-	constructor(threadService: IThreadService) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadTask);
+	constructor(mainContext: IMainContext, extHostWorkspace: ExtHostWorkspace) {
+		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
+		this._extHostWorkspace = extHostWorkspace;
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
-	};
+	}
 
 	public registerTaskProvider(extension: IExtensionDescription, provider: vscode.TaskProvider): vscode.Disposable {
 		if (!provider) {
@@ -428,8 +449,9 @@ export class ExtHostTask extends ExtHostTaskShape {
 			return TPromise.wrapError<TaskSystem.TaskSet>(new Error('no handler found'));
 		}
 		return asWinJsPromise(token => handler.provider.provideTasks(token)).then(value => {
+			let workspaceFolders = this._extHostWorkspace.getWorkspaceFolders();
 			return {
-				tasks: Tasks.from(value, handler.extension),
+				tasks: Tasks.from(value, workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0] : undefined, handler.extension),
 				extension: handler.extension
 			};
 		});

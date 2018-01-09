@@ -8,6 +8,7 @@
 	"requirestring": "`{0}` プロパティは必須で、`string` 型でなければなりません",
 	"optstring": "`{0}` プロパティは省略するか、`string` 型にする必要があります",
 	"vscode.extension.contributes.keybindings.command": "キー バインドのトリガー時に実行するコマンドの識別子。",
+	"vscode.extension.contributes.keybindings.key": "キーまたはキー シーケンス (キーは + で区切り、シーケンスはスペースで区切る。例: Ctrl+O や Ctrl+L L のようにキーを同時に押す)。",
 	"vscode.extension.contributes.keybindings.mac": "Mac 固有のキーまたはキー シーケンス。",
 	"vscode.extension.contributes.keybindings.linux": "Linux 固有のキーまたはキー シーケンス。",
 	"vscode.extension.contributes.keybindings.win": "Windows 固有のキーまたはキー シーケンス。",
@@ -21,5 +22,5 @@
 	"keybindings.json.when": "キーがアクティブの場合の条件。",
 	"keybindings.json.args": "実行するコマンドに渡す引数。",
 	"keyboardConfigurationTitle": "キーボード",
-	"dispatch": "`keydown.code` (推奨) または `keydown.keyCode` のいずれかを使用するキー操作のディスパッチ ロジックを制御します。"
+	"dispatch": "`code` (推奨) または `keyCode` のいずれかを使用するキー操作のディスパッチ ロジックを制御します。"
 }

@@ -56,7 +56,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"t": "source.go punctuation.definition.imports.begin.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"t": "source.go punctuation.definition.imports.end.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -198,8 +198,19 @@
 		}
 	},
 	{
-		"c": "()",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"c": "(",
+		"t": "source.go punctuation.definition.begin.bracket.round.go",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.go punctuation.definition.end.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -221,7 +232,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.go punctuation.other.bracket.curly.go",
+		"t": "source.go punctuation.definition.begin.bracket.curly.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -518,7 +529,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"t": "source.go punctuation.definition.begin.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -606,7 +617,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"t": "source.go punctuation.definition.end.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -694,7 +705,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.go punctuation.other.bracket.curly.go",
+		"t": "source.go punctuation.definition.begin.bracket.curly.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -727,7 +738,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"t": "source.go punctuation.definition.begin.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -749,7 +760,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"t": "source.go punctuation.definition.end.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -771,7 +782,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.go punctuation.other.bracket.curly.go",
+		"t": "source.go punctuation.definition.end.bracket.curly.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -892,7 +903,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"t": "source.go punctuation.definition.begin.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -936,7 +947,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"t": "source.go punctuation.definition.end.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -980,7 +991,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"t": "source.go punctuation.definition.begin.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1090,7 +1101,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"t": "source.go punctuation.definition.begin.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1222,7 +1233,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"t": "source.go punctuation.definition.end.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1277,7 +1288,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.go punctuation.other.bracket.round.go",
+		"t": "source.go punctuation.definition.end.bracket.round.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1288,7 +1299,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.go punctuation.other.bracket.curly.go",
+		"t": "source.go punctuation.definition.end.bracket.curly.go",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

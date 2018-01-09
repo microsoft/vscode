@@ -8,6 +8,6 @@
 	"workbench.startupEditor.none": "Bir düzenleyici olmadan başlayın.",
 	"workbench.startupEditor.welcomePage": "Hoş Geldiniz sayfasını açın (varsayılan).",
 	"workbench.startupEditor.newUntitledFile": "Yeni bir isimsiz dosya açın.",
-	"workbench.startupEditor": "Önceki oturumdan hiçbiri düzenleyici geri yüklenmeyecekse, başlangıçta hangi düzenleyicinin gösterileceğini denetler. Bir düzenleyici olmadan başlamak için 'none', Hoş Geldiniz sayfasını açmak için 'welcomePage' (varsayılan), (sadece bir klasör açmadığınız zaman) yeni bir isimsiz dosya açmak için 'newUntitledFile'ı seçin.",
+	"workbench.startupEditor": "Önceki oturumdan hiçbiri düzenleyici geri yüklenmeyecekse, başlangıçta hangi düzenleyicinin gösterileceğini denetler. Bir düzenleyici olmadan başlamak için 'none', Hoş Geldiniz sayfasını açmak için 'welcomePage' (varsayılan), (sadece boş bir çalışma alanı açarken) yeni bir isimsiz dosya açmak için 'newUntitledFile'ı seçin.",
 	"help": "Yardım"
 }

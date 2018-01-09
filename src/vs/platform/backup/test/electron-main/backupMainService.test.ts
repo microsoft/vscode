@@ -19,62 +19,65 @@ import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainSe
 import { IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { LogMainService } from "vs/platform/log/common/log";
-import { IWorkspaceIdentifier } from "vs/platform/workspaces/common/workspaces";
-import { createHash } from "crypto";
-
-class TestBackupMainService extends BackupMainService {
-
-	constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
-		super(new EnvironmentService(parseArgs(process.argv), process.execPath), configService, new LogMainService(new EnvironmentService(parseArgs(process.argv), process.execPath)));
-
-		this.backupHome = backupHome;
-		this.workspacesJsonPath = backupWorkspacesPath;
-
-		// Force a reload with the new paths
-		this.loadSync();
-	}
-
-	public get backupsData(): IBackupWorkspacesFormat {
-		return this.backups;
-	}
-
-	public removeBackupPathSync(workspaceIdentifier: string | IWorkspaceIdentifier, target: (string | IWorkspaceIdentifier)[]): void {
-		return super.removeBackupPathSync(workspaceIdentifier, target);
-	}
-
-	public loadSync(): void {
-		super.loadSync();
-	}
-
-	public dedupeBackups(backups: IBackupWorkspacesFormat): IBackupWorkspacesFormat {
-		return super.dedupeBackups(backups);
-	}
-
-	public toBackupPath(workspacePath: string): string {
-		return path.join(this.backupHome, super.getFolderHash(workspacePath));
-	}
-
-	public getFolderHash(folderPath: string): string {
-		return super.getFolderHash(folderPath);
-	}
-}
-
-function toWorkspace(path: string): IWorkspaceIdentifier {
-	return {
-		id: createHash('md5').update(sanitizePath(path)).digest('hex'),
-		configPath: path
-	};
-}
-
-function sanitizePath(p: string): string {
-	return platform.isLinux ? p : p.toLowerCase();
-}
+import { ConsoleLogMainService } from 'vs/platform/log/common/log';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { createHash } from 'crypto';
+import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 
 suite('BackupMainService', () => {
-	const parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
+	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupservice');
 	const backupHome = path.join(parentDir, 'Backups');
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
+
+	const environmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
+
+	class TestBackupMainService extends BackupMainService {
+
+		constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
+			super(environmentService, configService, new ConsoleLogMainService(environmentService));
+
+			this.backupHome = backupHome;
+			this.workspacesJsonPath = backupWorkspacesPath;
+
+			// Force a reload with the new paths
+			this.loadSync();
+		}
+
+		public get backupsData(): IBackupWorkspacesFormat {
+			return this.backups;
+		}
+
+		public removeBackupPathSync(workspaceIdentifier: string | IWorkspaceIdentifier, target: (string | IWorkspaceIdentifier)[]): void {
+			return super.removeBackupPathSync(workspaceIdentifier, target);
+		}
+
+		public loadSync(): void {
+			super.loadSync();
+		}
+
+		public dedupeBackups(backups: IBackupWorkspacesFormat): IBackupWorkspacesFormat {
+			return super.dedupeBackups(backups);
+		}
+
+		public toBackupPath(workspacePath: string): string {
+			return path.join(this.backupHome, super.getFolderHash(workspacePath));
+		}
+
+		public getFolderHash(folderPath: string): string {
+			return super.getFolderHash(folderPath);
+		}
+	}
+
+	function toWorkspace(path: string): IWorkspaceIdentifier {
+		return {
+			id: createHash('md5').update(sanitizePath(path)).digest('hex'),
+			configPath: path
+		};
+	}
+
+	function sanitizePath(p: string): string {
+		return platform.isLinux ? p : p.toLowerCase();
+	}
 
 	const fooFile = Uri.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = Uri.file(platform.isWindows ? 'C:\\bar' : '/bar');
@@ -188,6 +191,48 @@ suite('BackupMainService', () => {
 		service.loadSync();
 		assert.equal(service.getWorkspaceBackups().length, 0);
 		assert.equal(service.getEmptyWindowBackupPaths().length, 1);
+
+		done();
+	});
+
+	test('service supports to migrate backup data from another location', done => {
+		const backupPathToMigrate = service.toBackupPath(fooFile.fsPath);
+		fs.mkdirSync(backupPathToMigrate);
+		fs.writeFileSync(path.join(backupPathToMigrate, 'backup.txt'), 'Some Data');
+		service.registerFolderBackupSync(backupPathToMigrate);
+
+		const workspaceBackupPath = service.registerWorkspaceBackupSync(toWorkspace(barFile.fsPath), backupPathToMigrate);
+
+		assert.ok(fs.existsSync(workspaceBackupPath));
+		assert.ok(fs.existsSync(path.join(workspaceBackupPath, 'backup.txt')));
+		assert.ok(!fs.existsSync(backupPathToMigrate));
+
+		const emptyBackups = service.getEmptyWindowBackupPaths();
+		assert.equal(0, emptyBackups.length);
+
+		done();
+	});
+
+	test('service backup migration makes sure to preserve existing backups', done => {
+		const backupPathToMigrate = service.toBackupPath(fooFile.fsPath);
+		fs.mkdirSync(backupPathToMigrate);
+		fs.writeFileSync(path.join(backupPathToMigrate, 'backup.txt'), 'Some Data');
+		service.registerFolderBackupSync(backupPathToMigrate);
+
+		const backupPathToPreserve = service.toBackupPath(barFile.fsPath);
+		fs.mkdirSync(backupPathToPreserve);
+		fs.writeFileSync(path.join(backupPathToPreserve, 'backup.txt'), 'Some Data');
+		service.registerFolderBackupSync(backupPathToPreserve);
+
+		const workspaceBackupPath = service.registerWorkspaceBackupSync(toWorkspace(barFile.fsPath), backupPathToMigrate);
+
+		assert.ok(fs.existsSync(workspaceBackupPath));
+		assert.ok(fs.existsSync(path.join(workspaceBackupPath, 'backup.txt')));
+		assert.ok(!fs.existsSync(backupPathToMigrate));
+
+		const emptyBackups = service.getEmptyWindowBackupPaths();
+		assert.equal(1, emptyBackups.length);
+		assert.equal(1, fs.readdirSync(path.join(backupHome, emptyBackups[0])).length);
 
 		done();
 	});
@@ -318,7 +363,8 @@ suite('BackupMainService', () => {
 			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);
 		});
 
-		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array', () => {
+		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array', function () {
+			this.timeout(5000);
 			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{}}');
 			service.loadSync();
 			assert.deepEqual(service.getEmptyWindowBackupPaths(), []);

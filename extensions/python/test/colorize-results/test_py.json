@@ -407,7 +407,29 @@
 		}
 	},
 	{
-		"c": "banana.size",
+		"c": "banana",
+		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.python punctuation.separator.period.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "size",
 		"t": "source.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2189,8 +2211,19 @@
 		}
 	},
 	{
-		"c": " g.",
+		"c": " g",
 		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4499,7 +4532,18 @@
 		}
 	},
 	{
-		"c": ".fn ",
+		"c": ".",
+		"t": "source.python punctuation.separator.period.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "fn ",
 		"t": "source.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -4554,7 +4598,18 @@
 		}
 	},
 	{
-		"c": ".memo ",
+		"c": ".",
+		"t": "source.python punctuation.separator.period.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "memo ",
 		"t": "source.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -4829,7 +4884,18 @@
 		}
 	},
 	{
-		"c": ".memo",
+		"c": ".",
+		"t": "source.python punctuation.separator.period.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "memo",
 		"t": "source.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -4874,7 +4940,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python",
+		"t": "source.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -4973,7 +5039,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python",
+		"t": "source.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5083,7 +5149,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python",
+		"t": "source.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5159,8 +5225,19 @@
 		}
 	},
 	{
-		"c": " re.",
+		"c": " re",
 		"t": "source.python",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -5217,8 +5294,8 @@
 		"c": "(",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.begin.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "support.other.parenthesis.regexp: #CE9178",
+			"light_plus": "support.other.parenthesis.regexp: #D16969",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -5228,8 +5305,8 @@
 		"c": "[",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp punctuation.character.set.begin.regexp constant.other.set.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "punctuation.character.set.begin.regexp: #CE9178",
+			"light_plus": "punctuation.character.set.begin.regexp: #D16969",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -5239,19 +5316,19 @@
 		"c": "0-9-",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp constant.character.set.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character.set.regexp: #D16969",
+			"light_plus": "constant.character.set.regexp: #811F3F",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
 		"c": "]",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp punctuation.character.set.end.regexp constant.other.set.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "punctuation.character.set.end.regexp: #CE9178",
+			"light_plus": "punctuation.character.set.end.regexp: #D16969",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -5261,8 +5338,8 @@
 		"c": "*",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
+			"dark_plus": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"light_plus": "keyword.operator.quantifier.regexp: #000000",
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4"
@@ -5272,8 +5349,8 @@
 		"c": ")",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.end.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "support.other.parenthesis.regexp: #CE9178",
+			"light_plus": "support.other.parenthesis.regexp: #D16969",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -5294,8 +5371,8 @@
 		"c": "*",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
+			"dark_plus": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"light_plus": "keyword.operator.quantifier.regexp: #000000",
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4"
@@ -5305,8 +5382,8 @@
 		"c": "(",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.begin.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "support.other.parenthesis.regexp: #CE9178",
+			"light_plus": "support.other.parenthesis.regexp: #D16969",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -5316,8 +5393,8 @@
 		"c": "[",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp punctuation.character.set.begin.regexp constant.other.set.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "punctuation.character.set.begin.regexp: #CE9178",
+			"light_plus": "punctuation.character.set.begin.regexp: #D16969",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -5327,19 +5404,19 @@
 		"c": "A-Za-z",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp constant.character.set.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character.set.regexp: #D16969",
+			"light_plus": "constant.character.set.regexp: #811F3F",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
 		"c": "]",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python meta.character.set.regexp punctuation.character.set.end.regexp constant.other.set.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "punctuation.character.set.end.regexp: #CE9178",
+			"light_plus": "punctuation.character.set.end.regexp: #D16969",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -5349,8 +5426,8 @@
 		"c": "+",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
+			"dark_plus": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"light_plus": "keyword.operator.quantifier.regexp: #000000",
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4"
@@ -5360,8 +5437,8 @@
 		"c": ")",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.end.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "support.other.parenthesis.regexp: #CE9178",
+			"light_plus": "support.other.parenthesis.regexp: #D16969",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -5393,8 +5470,8 @@
 		"c": "+",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
+			"dark_plus": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"light_plus": "keyword.operator.quantifier.regexp: #000000",
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4"
@@ -5404,8 +5481,8 @@
 		"c": "(",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.begin.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "support.other.parenthesis.regexp: #CE9178",
+			"light_plus": "support.other.parenthesis.regexp: #D16969",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -5426,8 +5503,8 @@
 		"c": "*",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python keyword.operator.quantifier.regexp",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
+			"dark_plus": "keyword.operator.quantifier.regexp: #D7BA7D",
+			"light_plus": "keyword.operator.quantifier.regexp: #000000",
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4"
@@ -5437,8 +5514,8 @@
 		"c": ")",
 		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.regexp.quoted.single.python support.other.parenthesis.regexp punctuation.parenthesis.end.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "support.other.parenthesis.regexp: #CE9178",
+			"light_plus": "support.other.parenthesis.regexp: #D16969",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -6427,8 +6504,8 @@
 		"c": "[",
 		"t": "source.python string.regexp.quoted.multi.python meta.character.set.regexp punctuation.character.set.begin.regexp constant.other.set.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "punctuation.character.set.begin.regexp: #CE9178",
+			"light_plus": "punctuation.character.set.begin.regexp: #D16969",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
 			"hc_black": "string.regexp: #D16969"
@@ -6438,11 +6515,11 @@
 		"c": "1,2)`` leads to",
 		"t": "source.python string.regexp.quoted.multi.python meta.character.set.regexp constant.character.set.regexp",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
+			"dark_plus": "constant.character.set.regexp: #D16969",
+			"light_plus": "constant.character.set.regexp: #811F3F",
 			"dark_vs": "string.regexp: #D16969",
 			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{

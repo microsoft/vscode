@@ -11,16 +11,15 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { escape } from 'vs/base/common/strings';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
-import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
-import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import { registerEditorAction, registerEditorContribution, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IGrammar, StackElement, IToken } from 'vscode-textmate';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
-import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType } from 'vs/editor/common/modes';
+import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
 import { findMatchingThemeRule } from 'vs/workbench/services/textMate/electron-browser/TMHelper';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -30,12 +29,11 @@ import Severity from 'vs/base/common/severity';
 import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 
-@editorContribution
 class InspectTMScopesController extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.inspectTMScopes';
+	private static readonly ID = 'editor.contrib.inspectTMScopes';
 
-	public static get(editor: ICommonCodeEditor): InspectTMScopesController {
+	public static get(editor: ICodeEditor): InspectTMScopesController {
 		return editor.getContribution<InspectTMScopesController>(InspectTMScopesController.ID);
 	}
 
@@ -101,7 +99,6 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 	}
 }
 
-@editorAction
 class InspectTMScopes extends EditorAction {
 
 	constructor() {
@@ -113,7 +110,7 @@ class InspectTMScopes extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = InspectTMScopesController.get(editor);
 		if (controller) {
 			controller.toggle();
@@ -173,7 +170,7 @@ function renderTokenText(tokenText: string): string {
 
 class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
-	private static _ID = 'editor.contrib.inspectTMScopesWidget';
+	private static readonly _ID = 'editor.contrib.inspectTMScopesWidget';
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public readonly allowEditorOverflow = true;
@@ -183,7 +180,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 	private readonly _modeService: IModeService;
 	private readonly _themeService: IWorkbenchThemeService;
 	private readonly _messageService: IMessageService;
-	private readonly _model: IModel;
+	private readonly _model: ITextModel;
 	private readonly _domNode: HTMLElement;
 	private readonly _grammar: TPromise<IGrammar>;
 
@@ -270,8 +267,8 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td>`;
 		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td>`;
 		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td>`;
-		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${metadata.foreground.toRGBAHex()}</td>`;
-		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata.background.toRGBAHex()}</td>`;
+		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.foreground)}</td>`;
+		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${Color.Format.CSS.formatHexA(metadata.background)}</td>`;
 		result += `</tbody></table>`;
 
 		let theme = this._themeService.getColorTheme();
@@ -375,6 +372,9 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		};
 	}
 }
+
+registerEditorContribution(InspectTMScopesController);
+registerEditorAction(InspectTMScopes);
 
 registerThemingParticipant((theme, collector) => {
 	let border = theme.getColor(editorHoverBorder);

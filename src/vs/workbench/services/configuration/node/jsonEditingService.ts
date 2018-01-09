@@ -13,7 +13,6 @@ import { setProperty } from 'vs/base/common/jsonEdit';
 import { Queue } from 'vs/base/common/async';
 import { Edit } from 'vs/base/common/jsonFormatter';
 import { IReference } from 'vs/base/common/lifecycle';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -21,6 +20,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IJSONEditingService, IJSONValue, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class JSONEditingService implements IJSONEditingService {
 
@@ -42,10 +42,11 @@ export class JSONEditingService implements IJSONEditingService {
 
 	private doWriteConfiguration(resource: URI, value: IJSONValue, save: boolean): TPromise<void> {
 		return this.resolveAndValidate(resource, save)
-			.then(reference => this.writeToBuffer(reference.object.textEditorModel, value));
+			.then(reference => this.writeToBuffer(reference.object.textEditorModel, value)
+				.then(() => reference.dispose()));
 	}
 
-	private writeToBuffer(model: editorCommon.IModel, value: IJSONValue): TPromise<any> {
+	private writeToBuffer(model: ITextModel, value: IJSONValue): TPromise<any> {
 		const edit = this.getEdits(model, value)[0];
 		if (this.applyEditsToBuffer(edit, model)) {
 			return this.textFileService.save(model.uri);
@@ -53,7 +54,7 @@ export class JSONEditingService implements IJSONEditingService {
 		return TPromise.as(null);
 	}
 
-	private applyEditsToBuffer(edit: Edit, model: editorCommon.IModel): boolean {
+	private applyEditsToBuffer(edit: Edit, model: ITextModel): boolean {
 		const startPosition = model.getPositionAt(edit.offset);
 		const endPosition = model.getPositionAt(edit.offset + edit.length);
 		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
@@ -66,7 +67,7 @@ export class JSONEditingService implements IJSONEditingService {
 		return false;
 	}
 
-	private getEdits(model: editorCommon.IModel, configurationValue: IJSONValue): Edit[] {
+	private getEdits(model: ITextModel, configurationValue: IJSONValue): Edit[] {
 		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const { key, value } = configurationValue;
@@ -92,7 +93,7 @@ export class JSONEditingService implements IJSONEditingService {
 			});
 	}
 
-	private hasParseErrors(model: editorCommon.IModel): boolean {
+	private hasParseErrors(model: ITextModel): boolean {
 		const parseErrors: json.ParseError[] = [];
 		json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
 		return parseErrors.length > 0;
@@ -125,10 +126,10 @@ export class JSONEditingService implements IJSONEditingService {
 			// User issues
 			case JSONEditingErrorCode.ERROR_INVALID_FILE: {
 				return nls.localize('errorInvalidFile', "Unable to write into the file. Please open the file to correct errors/warnings in the file and try again.");
-			};
+			}
 			case JSONEditingErrorCode.ERROR_FILE_DIRTY: {
 				return nls.localize('errorFileDirty', "Unable to write into the file because the file is dirty. Please save the file and try again.");
-			};
+			}
 		}
 	}
 }

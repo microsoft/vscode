@@ -12,6 +12,7 @@ const gulptslint = require('gulp-tslint');
 const gulpeslint = require('gulp-eslint');
 const tsfmt = require('typescript-formatter');
 const tslint = require('tslint');
+const vfs = require('vinyl-fs');
 
 /**
  * Hygiene works by creating cascading subsets of all our files and
@@ -36,6 +37,7 @@ const eolFilter = [
 	'!ThirdPartyNotices.txt',
 	'!LICENSE.txt',
 	'!extensions/**/out/**',
+	'!test/smoke/out/**',
 	'!**/node_modules/**',
 	'!**/fixtures/**',
 	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot}',
@@ -53,7 +55,9 @@ const indentationFilter = [
 	'!**/*.md',
 	'!**/*.ps1',
 	'!**/*.template',
+	'!**/*.yaml',
 	'!**/*.yml',
+	'!**/yarn.lock',
 	'!**/lib/**',
 	'!extensions/**/*.d.ts',
 	'!src/typings/**/*.d.ts',
@@ -61,11 +65,11 @@ const indentationFilter = [
 	'!**/*.d.ts.recipe',
 	'!test/assert.js',
 	'!**/package.json',
-	'!**/npm-shrinkwrap.json',
 	'!**/octicons/**',
 	'!**/vs/base/common/marked/raw.marked.js',
 	'!**/vs/base/common/winjs.base.raw.js',
 	'!**/vs/base/node/terminateProcess.sh',
+	'!**/vs/base/node/ps-win.ps1',
 	'!**/vs/nls.js',
 	'!**/vs/css.js',
 	'!**/vs/loader.js',
@@ -92,6 +96,7 @@ const copyrightFilter = [
 	'!**/*.opts',
 	'!**/*.disabled',
 	'!build/**/*.init',
+	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
 	'!extensions/markdown/media/tomorrow.css',
 	'!extensions/html/server/src/modes/typescript/*'
@@ -119,7 +124,8 @@ const tslintFilter = [
 	'!**/node_modules/**',
 	'!extensions/typescript/test/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
-	'!extensions/**/*.test.ts'
+	'!extensions/**/*.test.ts',
+	'!extensions/html/server/lib/jquery.d.ts'
 ];
 
 const copyrightHeader = [
@@ -129,19 +135,8 @@ const copyrightHeader = [
 	' *--------------------------------------------------------------------------------------------*/'
 ].join('\n');
 
-function reportFailures(failures) {
-	failures.forEach(failure => {
-		const name = failure.name || failure.fileName;
-		const position = failure.startPosition;
-		const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
-		const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
-
-		console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
-	});
-}
-
 gulp.task('eslint', () => {
-	return gulp.src(all, { base: '.' })
+	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(eslintFilter))
 		.pipe(gulpeslint('src/.eslintrc'))
 		.pipe(gulpeslint.formatEach('compact'))
@@ -149,12 +144,12 @@ gulp.task('eslint', () => {
 });
 
 gulp.task('tslint', () => {
-	const options = { summarizeFailureOutput: true };
+	const options = { emitError: true };
 
-	return gulp.src(all, { base: '.' })
+	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(tslintFilter))
 		.pipe(gulptslint({ rulesDirectory: 'build/lib/tslint' }))
-		.pipe(gulptslint.report(reportFailures, options));
+		.pipe(gulptslint.report(options));
 });
 
 const hygiene = exports.hygiene = (some, options) => {
@@ -216,6 +211,17 @@ const hygiene = exports.hygiene = (some, options) => {
 		});
 	});
 
+	function reportFailures(failures) {
+		failures.forEach(failure => {
+			const name = failure.name || failure.fileName;
+			const position = failure.startPosition;
+			const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
+			const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
+
+			console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
+		});
+	}
+
 	const tsl = es.through(function (file) {
 		const configuration = tslint.Configuration.findConfiguration(null, '.');
 		const options = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };
@@ -224,15 +230,15 @@ const hygiene = exports.hygiene = (some, options) => {
 		linter.lint(file.relative, contents, configuration.results);
 		const result = linter.getResult();
 
-		if (result.failureCount > 0) {
+		if (result.failures.length > 0) {
 			reportFailures(result.failures);
-			errorCount += result.failureCount;
+			errorCount += result.failures.length;
 		}
 
 		this.emit('data', file);
 	});
 
-	const result = gulp.src(some || all, { base: '.' })
+	const result = vfs.src(some || all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(f => !f.stat.isDirectory()))
 		.pipe(filter(eolFilter))
 		.pipe(options.skipEOL ? es.through() : eol)
@@ -252,8 +258,16 @@ const hygiene = exports.hygiene = (some, options) => {
 		.pipe(gulpeslint.formatEach('compact'))
 		.pipe(gulpeslint.failAfterError());
 
+	let count = 0;
 	return es.merge(typescript, javascript)
-		.pipe(es.through(null, function () {
+		.pipe(es.through(function (data) {
+			count++;
+			if (process.env['TRAVIS'] && count % 10 === 0) {
+				process.stdout.write('.');
+			}
+			this.emit('data', data);
+		}, function () {
+			process.stdout.write('\n');
 			if (errorCount > 0) {
 				this.emit('error', 'Hygiene failed with ' + errorCount + ' errors. Check \'build/gulpfile.hygiene.js\'.');
 			} else {
@@ -262,7 +276,7 @@ const hygiene = exports.hygiene = (some, options) => {
 		}));
 };
 
-gulp.task('hygiene', () => hygiene());
+gulp.task('hygiene', () => hygiene(''));
 
 // this allows us to run hygiene as a git pre-commit hook
 if (require.main === module) {
@@ -295,11 +309,13 @@ if (require.main === module) {
 				.split(/\r?\n/)
 				.filter(l => !!l);
 
-			hygiene(some, { skipEOL: skipEOL }).on('error', err => {
-				console.error();
-				console.error(err);
-				process.exit(1);
-			});
+			if (some.length > 0) {
+				hygiene(some, { skipEOL: skipEOL }).on('error', err => {
+					console.error();
+					console.error(err);
+					process.exit(1);
+				});
+			}
 		});
 	});
 }

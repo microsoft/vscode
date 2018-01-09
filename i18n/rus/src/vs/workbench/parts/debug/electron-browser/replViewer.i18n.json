@@ -8,5 +8,5 @@
 	"replVariableAriaLabel": "Переменная \"{0}\" имеет значение \"{1}\", read–eval–print loop, отладка",
 	"replExpressionAriaLabel": "Выражение \"{0}\" имеет значение \"{1}\", read–eval–print loop, отладка",
 	"replValueOutputAriaLabel": "{0}, read–eval–print loop, отладка",
-	"replKeyValueOutputAriaLabel": "Выходная переменная \"{0}\" имеет значение \"{1}\", read–eval–print loop, отладка"
+	"replRawObjectAriaLabel": "Переменная REPL \"{0}\" имеет значение \"{1}\", read–eval–print loop, отладка"
 }

@@ -56,5 +56,15 @@
 	"LegacyProblemMatcherSchema.watchedBegin": "Expression régulière signalant qu'une tâche faisant l'objet d'un suivi commence à s'exécuter via le suivi d'un fichier.",
 	"LegacyProblemMatcherSchema.watchedEnd.deprecated": "Cette propriété est déconseillée. Utilisez la propriété espion à la place.",
 	"LegacyProblemMatcherSchema.watchedEnd": "Expression régulière signalant qu'une tâche faisant l'objet d'un suivi a fini de s'exécuter.",
-	"ProblemMatcherExtPoint": "Contribue aux détecteurs de problèmes de correspondance"
+	"NamedProblemMatcherSchema.name": "Nom du détecteur de problèmes de correspondance utilisé comme référence.",
+	"NamedProblemMatcherSchema.label": "Étiquette contrôlable de visu du détecteur de problèmes de correspondance.",
+	"ProblemMatcherExtPoint": "Contribue aux détecteurs de problèmes de correspondance",
+	"msCompile": "Problèmes du compilateur Microsoft",
+	"lessCompile": "Moins de problèmes",
+	"gulp-tsc": "Problèmes liés à Gulp TSC",
+	"jshint": "Problèmes liés à JSHint",
+	"jshint-stylish": "Problèmes liés au formateur stylish de JSHint",
+	"eslint-compact": "Problèmes liés au formateur compact d'ESLint",
+	"eslint-stylish": "Problèmes liés au formateur stylish d'ESLint",
+	"go": "Problèmes liés à Go"
 }

@@ -9,22 +9,22 @@ import nls = require('vs/nls');
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
 export class ToggleActivityBarVisibilityAction extends Action {
 
-	public static ID = 'workbench.action.toggleActivityBarVisibility';
-	public static LABEL = nls.localize('toggleActivityBar', "Toggle Activity Bar Visibility");
+	public static readonly ID = 'workbench.action.toggleActivityBarVisibility';
+	public static readonly LABEL = nls.localize('toggleActivityBar', "Toggle Activity Bar Visibility");
 
-	private static activityBarVisibleKey = 'workbench.activityBar.visible';
+	private static readonly activityBarVisibleKey = 'workbench.activityBar.visible';
 
 	constructor(
 		id: string,
 		label: string,
 		@IPartService private partService: IPartService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
 
@@ -35,9 +35,7 @@ export class ToggleActivityBarVisibilityAction extends Action {
 		const visibility = this.partService.isVisible(Parts.ACTIVITYBAR_PART);
 		const newVisibilityValue = !visibility;
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleActivityBarVisibilityAction.activityBarVisibleKey, value: newVisibilityValue });
-
-		return TPromise.as(null);
+		return this.configurationService.updateValue(ToggleActivityBarVisibilityAction.activityBarVisibleKey, newVisibilityValue, ConfigurationTarget.USER);
 	}
 }
 

@@ -28,8 +28,8 @@ export class RequestService implements IRequestService {
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		this.configure(configurationService.getConfiguration<IHTTPConfiguration>());
-		configurationService.onDidUpdateConfiguration(() => this.configure(configurationService.getConfiguration()), this, this.disposables);
+		this.configure(configurationService.getValue<IHTTPConfiguration>());
+		configurationService.onDidChangeConfiguration(() => this.configure(configurationService.getValue()), this, this.disposables);
 	}
 
 	private configure(config: IHTTPConfiguration) {
@@ -38,10 +38,10 @@ export class RequestService implements IRequestService {
 		this.authorization = config.http && config.http.proxyAuthorization;
 	}
 
-	request(options: IRequestOptions, requestFn: IRequestFunction = request): TPromise<IRequestContext> {
+	async request(options: IRequestOptions, requestFn: IRequestFunction = request): TPromise<IRequestContext> {
 		const { proxyUrl, strictSSL } = this;
 
-		options.agent = options.agent || getProxyAgent(options.url, { proxyUrl, strictSSL });
+		options.agent = options.agent || await getProxyAgent(options.url, { proxyUrl, strictSSL });
 		options.strictSSL = strictSSL;
 
 		if (this.authorization) {

@@ -6,31 +6,51 @@
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { deepClone } from 'vs/base/common/objects';
 
-export interface ITelemetryExperiments {
-}
-
-const defaultExperiments: ITelemetryExperiments = {
-};
-
-export function loadExperiments(accessor?: ServicesAccessor): ITelemetryExperiments {
-
-	// shortcut since there are currently no experiments (should introduce separate service to load only once)
-	if (!accessor) {
-		return {};
+/* __GDPR__FRAGMENT__
+	"IExperiments" : {
+		"deployToAzureQuickLink" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
-
-	const storageService = accessor.get(IStorageService);
-	const configurationService = accessor.get(IConfigurationService);
-
-	let {
-	} = splitExperimentsRandomness(storageService);
-
-	return applyOverrides(defaultExperiments, configurationService);
+*/
+export interface IExperiments {
 }
 
-function applyOverrides(experiments: ITelemetryExperiments, configurationService: IConfigurationService): ITelemetryExperiments {
+export const IExperimentService = createDecorator<IExperimentService>('experimentService');
+
+export interface IExperimentService {
+
+	_serviceBrand: any;
+
+	getExperiments(): IExperiments;
+}
+
+export class ExperimentService implements IExperimentService {
+
+	_serviceBrand: any;
+
+	private experiments: IExperiments = {}; // Shortcut while there are no experiments.
+
+	constructor(
+		@IStorageService private storageService: IStorageService,
+		@IConfigurationService private configurationService: IConfigurationService,
+	) { }
+
+	getExperiments() {
+		if (!this.experiments) {
+			this.experiments = loadExperiments(this.storageService, this.configurationService);
+		}
+		return this.experiments;
+	}
+}
+
+function loadExperiments(storageService: IStorageService, configurationService: IConfigurationService): IExperiments {
+	const experiments = splitExperimentsRandomness(storageService);
+	return applyOverrides(experiments, configurationService);
+}
+
+function applyOverrides(experiments: IExperiments, configurationService: IConfigurationService): IExperiments {
 	const experimentsConfig = getExperimentsOverrides(configurationService);
 	Object.keys(experiments).forEach(key => {
 		if (key in experimentsConfig) {
@@ -40,14 +60,14 @@ function applyOverrides(experiments: ITelemetryExperiments, configurationService
 	return experiments;
 }
 
-function splitExperimentsRandomness(storageService: IStorageService): ITelemetryExperiments {
+function splitExperimentsRandomness(storageService: IStorageService): IExperiments {
 	const random1 = getExperimentsRandomness(storageService);
-	const [random2, /* showTaskDocumentation */] = splitRandom(random1);
-	const [random3, /* openUntitledFile */] = splitRandom(random2);
-	const [random4, /* mergeQuickLinks */] = splitRandom(random3);
-	// tslint:disable-next-line:no-unused-variable (https://github.com/Microsoft/TypeScript/issues/16628)
-	const [random5, /* enableWelcomePage */] = splitRandom(random4);
+	const [/* random2 */, /* ripgrepQuickSearch */] = splitRandom(random1);
+	// const [/* random3 */, /* deployToAzureQuickLink */] = splitRandom(random2);
+	// const [random4, /* mergeQuickLinks */] = splitRandom(random3);
+	// const [random5, /* enableWelcomePage */] = splitRandom(random4);
 	return {
+		// ripgrepQuickSearch,
 	};
 }
 
@@ -68,7 +88,6 @@ function splitRandom(random: number): [number, boolean] {
 	return [scaled - i, i === 1];
 }
 
-function getExperimentsOverrides(configurationService: IConfigurationService): ITelemetryExperiments {
-	const config: any = configurationService.getConfiguration('telemetry');
-	return config && config.experiments || {};
+function getExperimentsOverrides(configurationService: IConfigurationService): IExperiments {
+	return deepClone(configurationService.getValue<any>('experiments')) || {};
 }

@@ -14,29 +14,23 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { EditorInput, EditorOptions, toResource } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorViewState, IEditor, isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Scope } from 'vs/workbench/common/memento';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { getCodeEditor, getCodeOrDiffEditor } from 'vs/editor/browser/services/codeEditorService';
 import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
-
-interface ITextEditorViewState {
-	0?: IEditorViewState;
-	1?: IEditorViewState;
-	2?: IEditorViewState;
-}
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -60,13 +54,12 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IStorageService private storageService: IStorageService,
 		@ITextResourceConfigurationService private _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
-		@IModeService private modeService: IModeService,
-		@ITextFileService private textFileService: ITextFileService,
+		@ITextFileService private _textFileService: ITextFileService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService
 	) {
 		super(id, telemetryService, themeService);
 
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getConfiguration<IEditorConfiguration>(this.getResource()))));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
 	}
 
 	protected get instantiationService(): IInstantiationService {
@@ -75,6 +68,10 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	protected get configurationService(): ITextResourceConfigurationService {
 		return this._configurationService;
+	}
+
+	protected get textFileService(): ITextFileService {
+		return this._textFileService;
 	}
 
 	private handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
@@ -95,7 +92,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	protected computeConfiguration(configuration: IEditorConfiguration): IEditorOptions {
 
 		// Specific editor options always overwrite user configuration
-		const editorConfiguration: IEditorOptions = types.isObject(configuration.editor) ? objects.clone(configuration.editor) : Object.create(null);
+		const editorConfiguration: IEditorOptions = types.isObject(configuration.editor) ? objects.deepClone(configuration.editor) : Object.create(null);
 		objects.assign(editorConfiguration, this.getConfigurationOverrides());
 
 		// ARIA label
@@ -130,7 +127,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Editor for Text
 		this._editorContainer = parent;
-		this.editorControl = this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>(this.getResource())));
+		this.editorControl = this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getValue<IEditorConfiguration>(this.getResource())));
 
 		// Model & Language changes
 		const codeEditor = getCodeEditor(this);
@@ -140,9 +137,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 		}
 
 		// Application & Editor focus change to respect auto save settings
-		if (isCommonCodeEditor(this.editorControl)) {
+		if (isCodeEditor(this.editorControl)) {
 			this.toUnbind.push(this.editorControl.onDidBlurEditor(() => this.onEditorFocusLost()));
-		} else if (isCommonDiffEditor(this.editorControl)) {
+		} else if (isDiffEditor(this.editorControl)) {
 			this.toUnbind.push(this.editorControl.getOriginalEditor().onDidBlurEditor(() => this.onEditorFocusLost()));
 			this.toUnbind.push(this.editorControl.getModifiedEditor().onDidBlurEditor(() => this.onEditorFocusLost()));
 		}
@@ -169,7 +166,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
 		) {
 			if (this.textFileService.isDirty()) {
-				this.textFileService.saveAll(void 0, reason).done(null, errors.onUnexpectedError);
+				this.textFileService.saveAll(void 0, { reason }).done(null, errors.onUnexpectedError);
 			}
 		}
 	}
@@ -192,6 +189,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			// Update editor options after having set the input. We do this because there can be
 			// editor input specific options (e.g. an ARIA label depending on the input showing)
 			this.updateEditorConfiguration();
+			this._editorContainer.getHTMLElement().setAttribute('aria-label', this.computeAriaLabel());
 		});
 	}
 
@@ -232,48 +230,66 @@ export abstract class BaseTextEditor extends BaseEditor {
 	}
 
 	/**
-	 * Saves the text editor view state under the given key.
+	 * Saves the text editor view state for the given resource.
 	 */
-	protected saveTextEditorViewState(key: string): void {
+	protected saveTextEditorViewState(resource: URI): void {
+		const editor = getCodeOrDiffEditor(this).codeEditor;
+		if (!editor) {
+			return; // not supported for diff editors
+		}
+
+		const model = editor.getModel();
+		if (!model) {
+			return; // view state always needs a model
+		}
+
+		const modelUri = model.uri;
+		if (!modelUri) {
+			return; // model URI is needed to make sure we save the view state correctly
+		}
+
+		if (modelUri.toString() !== resource.toString()) {
+			return; // prevent saving view state for a model that is not the expected one
+		}
+
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		let textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+
+		let textEditorViewStateMemento: { [key: string]: { [position: number]: IEditorViewState } } = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (!textEditorViewStateMemento) {
 			textEditorViewStateMemento = Object.create(null);
 			memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY] = textEditorViewStateMemento;
 		}
 
-		const editorViewState = this.getControl().saveViewState();
-
-		let lastKnownViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+		let lastKnownViewState = textEditorViewStateMemento[resource.toString()];
 		if (!lastKnownViewState) {
 			lastKnownViewState = Object.create(null);
-			textEditorViewStateMemento[key] = lastKnownViewState;
+			textEditorViewStateMemento[resource.toString()] = lastKnownViewState;
 		}
 
 		if (typeof this.position === 'number') {
-			lastKnownViewState[this.position] = editorViewState;
+			lastKnownViewState[this.position] = editor.saveViewState();
 		}
 	}
 
 	/**
-	 * Clears the text editor view state under the given key.
+	 * Clears the text editor view state for the given resources.
 	 */
-	protected clearTextEditorViewState(keys: string[]): void {
+	protected clearTextEditorViewState(resources: URI[]): void {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		const textEditorViewStateMemento: { [key: string]: { [position: number]: IEditorViewState } } = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (textEditorViewStateMemento) {
-			keys.forEach(key => delete textEditorViewStateMemento[key]);
+			resources.forEach(resource => delete textEditorViewStateMemento[resource.toString()]);
 		}
 	}
 
 	/**
-	 * Loads the text editor view state for the given key and returns it.
+	 * Loads the text editor view state for the given resource and returns it.
 	 */
-	protected loadTextEditorViewState(key: string): IEditorViewState {
+	protected loadTextEditorViewState(resource: URI): IEditorViewState {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
-		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		const textEditorViewStateMemento: { [key: string]: { [position: number]: IEditorViewState } } = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (textEditorViewStateMemento) {
-			const viewState: ITextEditorViewState = textEditorViewStateMemento[key];
+			const viewState = textEditorViewStateMemento[resource.toString()];
 			if (viewState) {
 				return viewState[this.position];
 			}
@@ -282,7 +298,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return null;
 	}
 
-	private updateEditorConfiguration(configuration = this.configurationService.getConfiguration<IEditorConfiguration>(this.getResource())): void {
+	private updateEditorConfiguration(configuration = this.configurationService.getValue<IEditorConfiguration>(this.getResource())): void {
 		if (!this.editorControl) {
 			return;
 		}
@@ -313,7 +329,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		}
 
 		if (this.input) {
-			return toResource(this.input);
+			return this.input.getResource();
 		}
 
 		return null;
@@ -323,7 +339,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	public dispose(): void {
 		this.lastAppliedEditorOptions = void 0;
-		this.editorControl.destroy();
+		this.editorControl.dispose();
 
 		super.dispose();
 	}

@@ -5,7 +5,8 @@
 'use strict';
 
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { Position } from 'vs/editor/common/core/position';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 import * as strings from 'vs/base/common/strings';
 
 export interface ITextAreaWrapper {
@@ -30,27 +31,20 @@ export interface ITypeData {
 
 export class TextAreaState {
 
-	public static EMPTY = new TextAreaState('', 0, 0);
+	public static readonly EMPTY = new TextAreaState('', 0, 0, null, null);
 
 	public readonly value: string;
 	public readonly selectionStart: number;
 	public readonly selectionEnd: number;
+	public readonly selectionStartPosition: Position;
+	public readonly selectionEndPosition: Position;
 
-	constructor(value: string, selectionStart: number, selectionEnd: number) {
+	constructor(value: string, selectionStart: number, selectionEnd: number, selectionStartPosition: Position, selectionEndPosition: Position) {
 		this.value = value;
 		this.selectionStart = selectionStart;
 		this.selectionEnd = selectionEnd;
-	}
-
-	public equals(other: TextAreaState): boolean {
-		if (other instanceof TextAreaState) {
-			return (
-				this.value === other.value
-				&& this.selectionStart === other.selectionStart
-				&& this.selectionEnd === other.selectionEnd
-			);
-		}
-		return false;
+		this.selectionStartPosition = selectionStartPosition;
+		this.selectionEndPosition = selectionEndPosition;
 	}
 
 	public toString(): string {
@@ -58,11 +52,11 @@ export class TextAreaState {
 	}
 
 	public readFromTextArea(textArea: ITextAreaWrapper): TextAreaState {
-		return new TextAreaState(textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd());
+		return new TextAreaState(textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), null, null);
 	}
 
 	public collapseSelection(): TextAreaState {
-		return new TextAreaState(this.value, this.value.length, this.value.length);
+		return new TextAreaState(this.value, this.value.length, this.value.length, null, null);
 	}
 
 	public writeToTextArea(reason: string, textArea: ITextAreaWrapper, select: boolean): void {
@@ -73,8 +67,34 @@ export class TextAreaState {
 		}
 	}
 
+	public deduceEditorPosition(offset: number): [Position, number, number] {
+		if (offset <= this.selectionStart) {
+			const str = this.value.substring(offset, this.selectionStart);
+			return this._finishDeduceEditorPosition(this.selectionStartPosition, str, -1);
+		}
+		if (offset >= this.selectionEnd) {
+			const str = this.value.substring(this.selectionEnd, offset);
+			return this._finishDeduceEditorPosition(this.selectionEndPosition, str, 1);
+		}
+		const str1 = this.value.substring(this.selectionStart, offset);
+		if (str1.indexOf(String.fromCharCode(8230)) === -1) {
+			return this._finishDeduceEditorPosition(this.selectionStartPosition, str1, 1);
+		}
+		const str2 = this.value.substring(offset, this.selectionEnd);
+		return this._finishDeduceEditorPosition(this.selectionEndPosition, str2, -1);
+	}
+
+	private _finishDeduceEditorPosition(anchor: Position, deltaText: string, signum: number): [Position, number, number] {
+		let lineFeedCnt = 0;
+		let lastLineFeedIndex = -1;
+		while ((lastLineFeedIndex = deltaText.indexOf('\n', lastLineFeedIndex + 1)) !== -1) {
+			lineFeedCnt++;
+		}
+		return [anchor, signum * deltaText.length, lineFeedCnt];
+	}
+
 	public static selectedText(text: string): TextAreaState {
-		return new TextAreaState(text, 0, text.length);
+		return new TextAreaState(text, 0, text.length, null, null);
 	}
 
 	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
@@ -195,7 +215,7 @@ export class TextAreaState {
 }
 
 export class PagedScreenReaderStrategy {
-	private static _LINES_PER_PAGE = 10;
+	private static readonly _LINES_PER_PAGE = 10;
 
 	private static _getPageOfLine(lineNumber: number): number {
 		return Math.floor((lineNumber - 1) / PagedScreenReaderStrategy._LINES_PER_PAGE);
@@ -208,7 +228,7 @@ export class PagedScreenReaderStrategy {
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range): TextAreaState {
+	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range, trimLongText: boolean): TextAreaState {
 
 		let selectionStartPage = PagedScreenReaderStrategy._getPageOfLine(selection.startLineNumber);
 		let selectionStartPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionStartPage);
@@ -240,17 +260,19 @@ export class PagedScreenReaderStrategy {
 
 		// Chromium handles very poorly text even of a few thousand chars
 		// Cut text to avoid stalling the entire UI
-		const LIMIT_CHARS = 500;
-		if (pretext.length > LIMIT_CHARS) {
-			pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
-		}
-		if (posttext.length > LIMIT_CHARS) {
-			posttext = posttext.substring(0, LIMIT_CHARS);
-		}
-		if (text.length > 2 * LIMIT_CHARS) {
-			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
+		if (trimLongText) {
+			const LIMIT_CHARS = 500;
+			if (pretext.length > LIMIT_CHARS) {
+				pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
+			}
+			if (posttext.length > LIMIT_CHARS) {
+				posttext = posttext.substring(0, LIMIT_CHARS);
+			}
+			if (text.length > 2 * LIMIT_CHARS) {
+				text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
+			}
 		}
 
-		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length);
+		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, new Position(selection.startLineNumber, selection.startColumn), new Position(selection.endLineNumber, selection.endColumn));
 	}
 }
