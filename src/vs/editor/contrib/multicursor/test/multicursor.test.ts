@@ -10,8 +10,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, SelectHighlightsAction, AddSelectionToNextFindMatchAction } from 'vs/editor/contrib/multicursor/multicursor';
 import { Handler } from 'vs/editor/common/editorCommon';
-/* import { EndOfLineSequence } from 'vs/editor/common/model';
- */import { IStorageService } from 'vs/platform/storage/common/storage';
+import { EndOfLineSequence } from 'vs/editor/common/model';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
 
@@ -209,41 +209,41 @@ suite('Multicursor selection', () => {
 		});
 	});
 
-	/* 	test('issue #23541: Multiline Ctrl+D does not work in CRLF files', () => {
-			withTestCodeEditor([
-				'',
-				'qwe',
-				'rty',
-				'',
-				'qwe',
-				'',
-				'rty',
-				'qwe',
-				'rty'
-			], { serviceCollection: serviceCollection }, (editor, cursor) => {
+	test('issue #23541: Multiline Ctrl+D does not work in CRLF files', () => {
+		withTestCodeEditor([
+			'',
+			'qwe',
+			'rty',
+			'',
+			'qwe',
+			'',
+			'rty',
+			'qwe',
+			'rty'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
-				editor.getModel().setEOL(EndOfLineSequence.CRLF);
+			editor.getModel().setEOL(EndOfLineSequence.CRLF);
 
-				let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
-				let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
-				let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
+			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
+			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
-				editor.setSelection(new Selection(2, 1, 3, 4));
+			editor.setSelection(new Selection(2, 1, 3, 4));
 
-				addSelectionToNextFindMatch.run(null, editor);
-				assert.deepEqual(editor.getSelections().map(fromRange), [
-					[2, 1, 3, 4],
-					[8, 1, 9, 4]
-				]);
+			addSelectionToNextFindMatch.run(null, editor);
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[2, 1, 3, 4],
+				[8, 1, 9, 4]
+			]);
 
-				editor.trigger('test', 'removeSecondaryCursors', null);
+			editor.trigger('test', 'removeSecondaryCursors', null);
 
-				assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 3, 4]);
+			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 3, 4]);
 
-				multiCursorSelectController.dispose();
-				findController.dispose();
-			});
-		}); */
+			multiCursorSelectController.dispose();
+			findController.dispose();
+		});
+	});
 
 	function testMulticursor(text: string[], callback: (editor: TestCodeEditor, findController: CommonFindController) => void): void {
 		withTestCodeEditor(text, { serviceCollection: serviceCollection }, (editor, cursor) => {

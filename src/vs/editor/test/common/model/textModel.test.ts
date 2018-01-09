@@ -150,7 +150,7 @@ suite('TextModelData.fromString', () => {
 
 suite('Editor Model - TextModel', () => {
 
-	/* test('getValueLengthInRange', () => {
+	test('getValueLengthInRange', () => {
 
 		var m = TextModel.createFromString('My First Line\r\nMy Second Line\r\nMy Third Line');
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
@@ -177,7 +177,7 @@ suite('Editor Model - TextModel', () => {
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 3, 1)), 'y First Line\nMy Second Line\n'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\nMy Second Line\nMy Third Line'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\nMy Second Line\nMy Third Line'.length);
-	}); */
+	});
 
 	test('guess indentation 1', () => {
 

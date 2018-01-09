@@ -10,7 +10,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import {
 	ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged,
-	/* ModelRawLinesDeleted, ModelRawLinesInserted */
+	ModelRawLinesDeleted, ModelRawLinesInserted
 } from 'vs/editor/common/model/textModelEvents';
 import { TextModel } from 'vs/editor/common/model/textModel';
 
@@ -118,7 +118,7 @@ suite('Editor Model - Model', () => {
 		));
 	});
 
-	/* test('model insert text with one newline eventing', () => {
+	test('model insert text with one newline eventing', () => {
 		let e: ModelRawContentChangedEvent = null;
 		thisModel.onDidChangeRawContent((_e) => {
 			if (e !== null) {
@@ -137,7 +137,7 @@ suite('Editor Model - Model', () => {
 			false,
 			false
 		));
-	}); */
+	});
 
 
 	// --------- delete text
@@ -196,24 +196,24 @@ suite('Editor Model - Model', () => {
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
 	});
 
-	/* 	test('model delete text from one line eventing', () => {
-			let e: ModelRawContentChangedEvent = null;
-			thisModel.onDidChangeRawContent((_e) => {
-				if (e !== null) {
-					assert.fail();
-				}
-				e = _e;
-			});
-			thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
-			assert.deepEqual(e, new ModelRawContentChangedEvent(
-				[
-					new ModelRawLineChanged(1, 'y First Line'),
-				],
-				2,
-				false,
-				false
-			));
-		}); */
+	test('model delete text from one line eventing', () => {
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail();
+			}
+			e = _e;
+		});
+		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'y First Line'),
+			],
+			2,
+			false,
+			false
+		));
+	});
 
 	test('model delete all text from a line eventing', () => {
 		let e: ModelRawContentChangedEvent = null;
@@ -234,48 +234,48 @@ suite('Editor Model - Model', () => {
 		));
 	});
 
-	/* 	test('model delete text from two lines eventing', () => {
-			let e: ModelRawContentChangedEvent = null;
-			thisModel.onDidChangeRawContent((_e) => {
-				if (e !== null) {
-					assert.fail();
-				}
-				e = _e;
-			});
-			thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
-			assert.deepEqual(e, new ModelRawContentChangedEvent(
-				[
-					new ModelRawLineChanged(1, 'My '),
-					new ModelRawLineChanged(1, 'My Second Line'),
-					new ModelRawLinesDeleted(2, 2),
-				],
-				2,
-				false,
-				false
-			));
+	test('model delete text from two lines eventing', () => {
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail();
+			}
+			e = _e;
 		});
+		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'My '),
+				new ModelRawLineChanged(1, 'My Second Line'),
+				new ModelRawLinesDeleted(2, 2),
+			],
+			2,
+			false,
+			false
+		));
+	});
 
-		test('model delete text from many lines eventing', () => {
-			let e: ModelRawContentChangedEvent = null;
-			thisModel.onDidChangeRawContent((_e) => {
-				if (e !== null) {
-					assert.fail();
-				}
-				e = _e;
-			});
-			thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
-			assert.deepEqual(e, new ModelRawContentChangedEvent(
-				[
-					new ModelRawLineChanged(1, 'My '),
-					new ModelRawLineChanged(1, 'My Third Line'),
-					new ModelRawLinesDeleted(2, 3),
-				],
-				2,
-				false,
-				false
-			));
+	test('model delete text from many lines eventing', () => {
+		let e: ModelRawContentChangedEvent = null;
+		thisModel.onDidChangeRawContent((_e) => {
+			if (e !== null) {
+				assert.fail();
+			}
+			e = _e;
 		});
-	 */
+		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
+		assert.deepEqual(e, new ModelRawContentChangedEvent(
+			[
+				new ModelRawLineChanged(1, 'My '),
+				new ModelRawLineChanged(1, 'My Third Line'),
+				new ModelRawLinesDeleted(2, 3),
+			],
+			2,
+			false,
+			false
+		));
+	});
+
 	// --------- getValueInRange
 
 	test('getValueInRange', () => {
@@ -293,7 +293,7 @@ suite('Editor Model - Model', () => {
 
 	// --------- getValueLengthInRange
 
-	/* test('getValueLengthInRange', () => {
+	test('getValueLengthInRange', () => {
 		assert.equal(thisModel.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
 		assert.equal(thisModel.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
 		assert.equal(thisModel.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
@@ -304,7 +304,7 @@ suite('Editor Model - Model', () => {
 		assert.equal(thisModel.getValueLengthInRange(new Range(1, 1, 2, 17)), 'My First Line\n\t\tMy Second Line'.length);
 		assert.equal(thisModel.getValueLengthInRange(new Range(1, 1, 3, 1)), 'My First Line\n\t\tMy Second Line\n'.length);
 		assert.equal(thisModel.getValueLengthInRange(new Range(1, 1, 4, 1)), 'My First Line\n\t\tMy Second Line\n    Third Line\n'.length);
-	}); */
+	});
 
 	// --------- setValue
 	test('setValue eventing', () => {
