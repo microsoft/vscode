@@ -7,7 +7,7 @@
 import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 import { PieceTableTextBufferBuilder } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBufferBuilder';
 import { IIdentifiedSingleEditOperation, ITextBuffer } from 'vs/editor/common/model';
-import { randomEdits, createMockText, createMockBuffer } from 'vs/editor/test/common/model/benchmark/util';
+import { randomEdits, createMockText, createMockBuffer } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
 
 let modelBuildBenchmark = function (id: string, buffer: ITextBuffer, edits: IIdentifiedSingleEditOperation[]) {
 	console.time(id);

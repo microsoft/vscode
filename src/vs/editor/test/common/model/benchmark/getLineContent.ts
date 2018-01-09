@@ -7,7 +7,7 @@
 import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 import { PieceTableTextBufferBuilder } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBufferBuilder';
 import { ITextBuffer } from 'vs/editor/common/model';
-import { randomEdits, createMockBuffer, createMockText } from 'vs/editor/test/common/model/benchmark/util';
+import { randomEdits, createMockBuffer, createMockText } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
 
 let readLines = function (id: string, buffer: ITextBuffer) {
 	console.time(id);

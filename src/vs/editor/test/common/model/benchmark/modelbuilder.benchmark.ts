@@ -7,7 +7,7 @@
 import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 import { PieceTableTextBufferBuilder } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBufferBuilder';
 import { ITextBufferBuilder } from 'vs/editor/common/model';
-import { generateRandomChunkWithLF } from 'vs/editor/test/common/model/benchmark/util';
+import { generateRandomChunkWithLF } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
 
 let linesTextBufferBuilder = new LinesTextBufferBuilder();
 let pieceTableTextBufferBuilder = new PieceTableTextBufferBuilder();
