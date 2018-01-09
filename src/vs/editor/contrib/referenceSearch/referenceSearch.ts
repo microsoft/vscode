@@ -214,7 +214,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'openReferenceToSide',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
