@@ -97,6 +97,7 @@ import URI from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { domEvent } from 'vs/base/browser/event';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -331,7 +332,7 @@ export class Workbench implements IPartService {
 			// update lifecycle *after* triggering the editor restore
 			this.lifecycleService.phase = LifecyclePhase.Restoring;
 
-			return editorOpenPromise.then(editors => {
+			editorOpenPromise.then(editors => {
 				this.handleEditorBackground(); // make sure we show the proper background in the editor area
 
 				perf.mark('didRestoreEditors');
@@ -345,7 +346,7 @@ export class Workbench implements IPartService {
 						}
 					}
 				}
-			});
+			}).done(undefined, onUnexpectedError);
 		}));
 
 		// Restore Sidebar
