@@ -54,7 +54,7 @@ export async function uploadLogs(
 
 	const logsPath = await channel.call('get-logs-path', null);
 
-	if (await promptUserToConfirmLogUplod(logsPath)) {
+	if (await promptUserToConfirmLogUpload(logsPath)) {
 		const outZip = await zipLogs(logsPath);
 		const result = await postLogs(endpoint, logsPath, outZip);
 		console.log(localize('didUploadLogs', 'Uploaded logs ID: {0}', result.blob_id));
@@ -63,7 +63,7 @@ export async function uploadLogs(
 	}
 }
 
-async function promptUserToConfirmLogUplod(
+async function promptUserToConfirmLogUpload(
 	logsPath: string
 ): Promise<boolean> {
 	const rl = readline.createInterface({
