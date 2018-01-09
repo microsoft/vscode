@@ -5433,8 +5433,8 @@ declare module 'vscode' {
 		 * An event that is emitted when a [text document](#TextDocument) is disposed.
 		 *
 		 * To add an event listener when a visible text document is closed, use the [TextEditor](#TextEditor) events in the
-		 * [window](#_window) namespace. Note that this event is not emitted when a [text document]#TextDocument is closed
-		 * but remains open in another [visible text editor](#window.visibleTextEditors).
+		 * [window](#_window) namespace. Note that this event is not emitted when a [TextEditor](#TextEditor) is closed
+		 * but the document remains open in another [visible text editor](#window.visibleTextEditors).
 		 */
 		export const onDidCloseTextDocument: Event<TextDocument>;
 
