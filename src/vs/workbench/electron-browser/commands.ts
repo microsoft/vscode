@@ -274,10 +274,9 @@ export function registerCommands(): void {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: WorkbenchListFocusContextKey,
 		primary: KeyCode.Enter,
-		secondary: [KeyMod.CtrlCmd | KeyCode.Enter],
 		mac: {
 			primary: KeyCode.Enter,
-			secondary: [KeyMod.CtrlCmd | KeyCode.Enter, KeyMod.CtrlCmd | KeyCode.DownArrow]
+			secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
 		},
 		handler: (accessor) => {
 			const focused = accessor.get(IListService).lastFocusedList;
