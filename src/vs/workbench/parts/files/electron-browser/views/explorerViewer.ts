@@ -283,7 +283,6 @@ export class FileRenderer implements IRenderer {
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
-				// TODO@Isidor check the context
 				editableData.action.run({ value: inputBox.value });
 			}
 
