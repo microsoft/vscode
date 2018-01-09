@@ -42,7 +42,7 @@ import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/commo
 import Severity from 'vs/base/common/severity';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IMessage, InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -675,6 +675,8 @@ class ResourceGroupSplicer {
 
 export class RepositoryPanel extends ViewletPanel {
 
+	private static readonly COMMIT_MESSAGE_STORAGE_KEY = 'vs.scm.commit.message';
+
 	private cachedHeight: number | undefined = undefined;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
@@ -697,7 +699,8 @@ export class RepositoryPanel extends ViewletPanel {
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IConfigurationService protected configurationService: IConfigurationService
+		@IConfigurationService protected configurationService: IConfigurationService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(repository.provider.label, {}, keybindingService, contextMenuService);
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
@@ -813,7 +816,10 @@ export class RepositoryPanel extends ViewletPanel {
 		anyEvent<any>(onKeyUp, onMouseUp)(() => this.inputBox.validate(), null, this.disposables);
 
 		this.inputBox.value = this.repository.input.value;
-		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
+		this.inputBox.onDidChange(value => {
+			this.storageService.store(RepositoryPanel.COMMIT_MESSAGE_STORAGE_KEY, value, StorageScope.WORKSPACE);
+			this.repository.input.value = value;
+		}, null, this.disposables);
 		this.repository.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
 
 		updatePlaceholder();
@@ -958,11 +964,14 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	private updateInputBox(): void {
-		if (typeof this.repository.provider.commitTemplate === 'undefined') {
+		const commitTemplate = this.repository.provider.commitTemplate;
+
+		if (typeof commitTemplate !== 'undefined' && commitTemplate !== '') {
+			this.inputBox.value = this.repository.provider.commitTemplate;
 			return;
 		}
 
-		this.inputBox.value = this.repository.provider.commitTemplate;
+		this.inputBox.value = this.storageService.get(RepositoryPanel.COMMIT_MESSAGE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 	}
 
 	private onDidAcceptInput(): void {
