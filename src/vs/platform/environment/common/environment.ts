@@ -9,6 +9,7 @@ import { LogLevel } from 'vs/platform/log/common/log';
 export interface ParsedArgs {
 	[arg: string]: any;
 	_: string[];
+	_urls?: string[];
 	help?: boolean;
 	version?: boolean;
 	status?: boolean;
