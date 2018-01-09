@@ -233,7 +233,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			});
 		} else {	// OS X & Linux
 
-			const CMD = 'ps -ax -o pid=,ppid=,pcpu=,pmem=,command=';
+			const CMD = '/bin/ps -ax -o pid=,ppid=,pcpu=,pmem=,command=';
 			const PID_CMD = /^\s*([0-9]+)\s+([0-9]+)\s+([0-9]+\.[0-9]+)\s+([0-9]+\.[0-9]+)\s+(.+)$/;
 
 			exec(CMD, { maxBuffer: 1000 * 1024 }, (err, stdout, stderr) => {

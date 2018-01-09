@@ -278,6 +278,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 	const startAngle = '<';
 	const endAngle = '>';
 	const escape = '\\';
+	const question = '?';
 	const currentHtmlNode = <HtmlNode>currentNode;
 	let start = new vscode.Position(0, 0);
 
@@ -322,6 +323,10 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 		i--;
 		if (!foundSpace && /\s/.test(char)) {
 			foundSpace = true;
+			continue;
+		}
+		if (char === question && textToBackTrack[i] === startAngle) {
+			i--;
 			continue;
 		}
 		if (char !== startAngle && char !== endAngle) {

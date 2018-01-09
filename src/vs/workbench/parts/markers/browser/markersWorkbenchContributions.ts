@@ -21,7 +21,7 @@ export function registerContributions(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: Constants.MARKER_OPEN_SIDE_ACTION_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
 		when: ContextKeyExpr.and(Constants.MarkerFocusContextKey),
 		primary: KeyMod.CtrlCmd | KeyCode.Enter,
 		mac: {

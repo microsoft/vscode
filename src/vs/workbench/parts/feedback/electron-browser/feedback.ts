@@ -197,7 +197,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		const $buttons = $('div.form-buttons').appendTo($form);
 
-		const $hideButtonContainer = $('div.hide-button').appendTo($buttons);
+		const $hideButtonContainer = $('div.hide-button-container').appendTo($buttons);
 
 		this.hideButton = $('input.hide-button').type('checkbox').attr('checked', '').id('hide-button').appendTo($hideButtonContainer).getHTMLElement() as HTMLInputElement;
 

@@ -224,7 +224,7 @@ export class BaseDebugController extends DefaultController {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {
-					fillInActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions);
+					fillInActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
 					return actions;
 				}),
 				onHide: (wasCancelled?: boolean) => {

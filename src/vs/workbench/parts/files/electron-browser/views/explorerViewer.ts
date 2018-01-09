@@ -424,7 +424,7 @@ export class FileController extends DefaultController implements IDisposable {
 			getAnchor: () => anchor,
 			getActions: () => {
 				const actions = [];
-				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : undefined, shouldForwardArgs: true }, actions);
+				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : undefined, shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
 			onHide: (wasCancelled?: boolean) => {
