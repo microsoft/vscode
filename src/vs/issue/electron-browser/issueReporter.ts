@@ -7,8 +7,22 @@ import { shell } from 'electron';
 import { $ } from 'vs/base/browser/dom';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
+import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
+import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 
 interface IssueReporterState {
 	issueType?: number;
@@ -28,6 +42,8 @@ export function startup(configuration: IWindowConfiguration) {
 
 export class IssueReporter {
 	private issueService: IIssueService;
+	private environmentService: IEnvironmentService;
+	private telemetryService: ITelemetryService;
 	private state: IssueReporterState;
 
 	constructor(configuration: IWindowConfiguration) {
@@ -49,7 +65,7 @@ export class IssueReporter {
 			this.state.processInfo = processInfo;
 			this.state.workspaceInfo = workspaceInfo;
 
-			updateAllBlocks(this.state);
+			this.updateAllBlocks(this.state);
 
 			const submitButton = <HTMLButtonElement>document.getElementById('github-submit-btn');
 			submitButton.disabled = false;
@@ -57,12 +73,37 @@ export class IssueReporter {
 		});
 	}
 
-	initServices(configuration: IWindowConfiguration) {
+	// TODO: Properly dispose of services
+	initServices(configuration: IWindowConfiguration): void {
+		const serviceCollection = new ServiceCollection();
 		const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
 		this.issueService = new IssueChannelClient(mainProcessClient.getChannel('issue'));
+
+		const windowsChannel = mainProcessClient.getChannel('windows');
+		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
+		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
+
+		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
+			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));
+
+		const instantiationService = new InstantiationService(serviceCollection, true);
+		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
+			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
+			const appender = new TelemetryAppenderClient(channel);
+			const commonProperties = resolveCommonProperties(product.commit, pkg.version, configuration.machineId, this.environmentService.installSourcePath);
+			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
+			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
+
+			const telemetryService = instantiationService.createInstance(TelemetryService, config);
+			this.telemetryService = telemetryService;
+		} else {
+			this.telemetryService = NullTelemetryService;
+		}
+
+		console.log(this.telemetryService);
 	}
 
-	setEventHandlers() {
+	setEventHandlers(): void {
 		document.getElementById('issue-type').addEventListener('change', (event: Event) => {
 			this.state.issueType = parseInt((<HTMLInputElement>event.target).value);
 			this.render();
@@ -120,12 +161,12 @@ export class IssueReporter {
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
 	}
 
-	render() {
+	render(): void {
 		this.renderIssueType();
 		this.renderBlocks();
 	}
 
-	renderIssueType() {
+	private renderIssueType(): void {
 		const { issueType } = this.state;
 		const issueTypes = document.getElementById('issue-type').children;
 		issueTypes[0].className = issueType === 0 ? 'active' : '';
@@ -133,7 +174,7 @@ export class IssueReporter {
 		issueTypes[2].className = issueType === 2 ? 'active' : '';
 	}
 
-	renderBlocks() {
+	private renderBlocks(): void {
 		// Depending on Issue Type, we render different blocks and text
 		const { issueType } = this.state;
 		const systemBlock = document.querySelector('.block-system');
@@ -174,39 +215,46 @@ export class IssueReporter {
 		}
 	}
 
-	private validateInputs() {
-		let hasErrors = false;
-
-		const issueTitle = (<HTMLInputElement>document.getElementById('issue-title')).value;
-		if (!issueTitle) {
-			hasErrors = true;
-			show(document.getElementsByClassName('validation-error')[0]);
-			document.getElementById('issue-title').classList.add('invalid-input');
+	private validateInput(inputId: string): boolean {
+		const issueTitleElement = (<HTMLInputElement>document.getElementById(inputId));
+		if (!issueTitleElement.value) {
+			show(document.getElementById(`${inputId}-validation-error`));
+			issueTitleElement.classList.add('invalid-input');
+			return false;
+		} else {
+			hide(document.getElementById(`${inputId}-validation-error`));
+			issueTitleElement.classList.remove('invalid-input');
+			return true;
 		}
-
-		const description = (<HTMLInputElement>document.querySelector('.block-description .block-info-text textarea')).value;
-		if (!description) {
-			hasErrors = true;
-			show(document.getElementsByClassName('validation-error')[1]);
-			document.getElementById('description').classList.add('invalid-input');
-		}
-
-		return !hasErrors;
 	}
 
-	private getIssueTypeTitle() {
+	private validateInputs(): boolean {
+		return this.validateInput('issue-title') && this.validateInput('description');
+	}
+
+	private getIssueTypeTitle(): string {
 		if (this.state.issueType === 0) {
 			return 'Bug';
 		} else if (this.state.issueType === 1) {
-			return 'Performance Issue\n';
+			return 'Performance Issue';
 		} else {
 			return 'Feature Request';
 		}
 	}
 
-	private createIssue() {
+	private createIssue(): void {
 		if (!this.validateInputs()) {
+			// If inputs are invalid, set focus to the first one and add listeners on them
+			// to detect further changes
 			(<HTMLInputElement>document.getElementsByClassName('invalid-input')[0]).focus();
+
+			document.getElementById('issue-title').addEventListener('input', (event) => {
+				this.validateInput('issue-title');
+			});
+
+			document.getElementById('description').addEventListener('input', (event) => {
+				this.validateInput('description');
+			});
 			return;
 		}
 
@@ -239,7 +287,7 @@ ${this.getInfos()}
 		shell.openExternal(baseUrl + encodeURIComponent(issueBody));
 	}
 
-	private getInfos() {
+	private getInfos(): string {
 		let info = '';
 
 		if (this.state.includeSystemInfo) {
@@ -261,7 +309,7 @@ ${this.getInfos()}
 		return info;
 	}
 
-	private generateSystemInfoMd() {
+	private generateSystemInfoMd(): string {
 		let md = `<details>
 <summary>System Info</summary>
 
@@ -278,7 +326,7 @@ ${this.getInfos()}
 		return md;
 	}
 
-	private generateProcessInfoMd() {
+	private generateProcessInfoMd(): string {
 		let md = `<details>
 <summary>Process Info</summary>
 
@@ -295,7 +343,7 @@ ${this.getInfos()}
 		return md;
 	}
 
-	private generateWorkspaceInfoMd() {
+	private generateWorkspaceInfoMd(): string {
 		return `<details>
 <summary>Workspace Info</summary>
 
@@ -306,43 +354,43 @@ ${this.state.workspaceInfo};
 </details>
 `;
 	}
-}
 
-/**
- * Update blocks
- */
+	/**
+	 * Update blocks
+	 */
 
-function updateAllBlocks(state) {
-	updateVersionInfo(state);
-	updateSystemInfo(state);
-	updateProcessInfo(state);
-	updateWorkspaceInfo(state);
-}
+	private updateAllBlocks(state) {
+		this.updateVersionInfo(state);
+		this.updateSystemInfo(state);
+		this.updateProcessInfo(state);
+		this.updateWorkspaceInfo(state);
+	}
 
-const updateVersionInfo = (state: IssueReporterState) => {
-	const version = document.getElementById('vscode-version');
-	(<HTMLInputElement>version).value = state.versionInfo.vscodeVersion;
+	private updateVersionInfo = (state: IssueReporterState) => {
+		const version = document.getElementById('vscode-version');
+		(<HTMLInputElement>version).value = state.versionInfo.vscodeVersion;
 
-	const osversion = document.getElementById('os');
-	(<HTMLInputElement>osversion).value = state.versionInfo.os;
-};
+		const osversion = document.getElementById('os');
+		(<HTMLInputElement>osversion).value = state.versionInfo.os;
+	}
 
-const updateSystemInfo = (state) => {
-	const target = document.querySelector('.block-system .block-info');
-	let tableHtml = '';
-	Object.keys(state.systemInfo).forEach(k => {
-		tableHtml += `
+	private updateSystemInfo = (state) => {
+		const target = document.querySelector('.block-system .block-info');
+		let tableHtml = '';
+		Object.keys(state.systemInfo).forEach(k => {
+			tableHtml += `
 <tr>
 	<td>${k}</td>
 	<td>${state.systemInfo[k]}</td>
 </tr>`;
-	});
-	target.innerHTML = `<table>${tableHtml}</table>`;
-};
-const updateProcessInfo = (state) => {
-	const target = document.querySelector('.block-process .block-info');
+		});
+		target.innerHTML = `<table>${tableHtml}</table>`;
+	}
 
-	let tableHtml = `
+	private updateProcessInfo = (state) => {
+		const target = document.querySelector('.block-process .block-info');
+
+		let tableHtml = `
 <tr>
 	<th>pid</th>
 	<th>CPU %</th>
@@ -350,21 +398,24 @@ const updateProcessInfo = (state) => {
 	<th>Name</th>
 </tr>
 `;
-	state.processInfo.forEach(p => {
-		tableHtml += `
+		state.processInfo.forEach(p => {
+			tableHtml += `
 <tr>
 	<td>${p.pid}</td>
 	<td>${p.cpu}</td>
 	<td>${p.memory}</td>
 	<td>${p.name}</td>
 </tr>`;
-	});
-	target.innerHTML = `<table>${tableHtml}</table>`;
-};
+		});
+		target.innerHTML = `<table>${tableHtml}</table>`;
+	}
 
-const updateWorkspaceInfo = (state) => {
-	document.querySelector('.block-workspace .block-info code').textContent = '\n' + state.workspaceInfo;
-};
+	private updateWorkspaceInfo = (state) => {
+		document.querySelector('.block-workspace .block-info code').textContent = '\n' + state.workspaceInfo;
+	}
+}
+
+
 
 // helper functions
 

@@ -27,6 +27,7 @@ export class IssueService implements IIssueService {
 			height: 900
 		});
 		this._issueWindow.loadURL(this.getIssueReporterPath());
+		this._issueWindow.webContents.openDevTools();
 
 		return TPromise.as(null);
 	}

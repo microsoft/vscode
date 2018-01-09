@@ -7,7 +7,7 @@
 	box-sizing: border-box;
 }
 html {
-	font-family: 'Helvetica Neue', 'Helvetica', sans-serif;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	color: #CCCCCC;
 }
 
@@ -68,8 +68,8 @@ button:disabled {
 
 header {
 	position: relative;
-	background-color: #24292e;
-	color: rgba(255,255,255,0.75);
+	background-color: #333;
+	color: #ADADAD;
 	padding: 1em;
 	margin-bottom: 1em;
 }

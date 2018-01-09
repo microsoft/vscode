@@ -23,7 +23,7 @@
 
 			<div class="input-group">
 				<label for="issue-title">Issue Title <span class="required-input">*</span></label>
-				<div class="validation-error hidden">A title is required.</div>
+				<div id="issue-title-validation-error" class="validation-error hidden">A title is required.</div>
 				<input id="issue-title" type="text" required>
 				<small id="similar-issues">
 					<!-- To be dynamically filled -->
@@ -92,7 +92,7 @@
 								GitHub-flavored Markdown is supported.
 								After submitting, you will still be able to edit your issue.
 							</small>
-						<div class="validation-error hidden">A description is required.</div>
+						<div id="description-validation-error" class="validation-error hidden">A description is required.</div>
 						<textarea name="description" id="description" cols="100" rows="15" required></textarea>
 					</div>
 				</div>
