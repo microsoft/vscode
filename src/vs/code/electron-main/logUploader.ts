@@ -8,15 +8,15 @@
 import * as os from 'os';
 import * as cp from 'child_process';
 import * as fs from 'fs';
-import * as https from 'https';
 import * as path from 'path';
-import * as url from 'url';
 import * as readline from 'readline';
 
 import { localize } from 'vs/nls';
 import { ILaunchChannel } from 'vs/code/electron-main/launch';
 import { TPromise } from 'vs/base/common/winjs.base';
 import product from 'vs/platform/node/product';
+import { IRequestService } from 'vs/platform/request/node/request';
+import { IRequestContext } from 'vs/base/node/request';
 
 interface PostResult {
 	readonly blob_id: string;
@@ -24,27 +24,18 @@ interface PostResult {
 
 class Endpoint {
 	private constructor(
-		public readonly host: string,
-		public readonly path: string
+		public readonly url: string
 	) { }
 
 	public static getFromProduct(): Endpoint | undefined {
 		const logUploaderUrl = product.logUploaderUrl;
-		if (!logUploaderUrl) {
-			return undefined;
-		}
-
-		try {
-			const parsed = url.parse(logUploaderUrl);
-			return new Endpoint(parsed.host, parsed.path);
-		} catch {
-			return undefined;
-		}
+		return logUploaderUrl ? new Endpoint(logUploaderUrl) : undefined;
 	}
 }
 
 export async function uploadLogs(
-	channel: ILaunchChannel
+	channel: ILaunchChannel,
+	requestService: IRequestService
 ): TPromise<any> {
 	const endpoint = Endpoint.getFromProduct();
 	if (!endpoint) {
@@ -56,7 +47,7 @@ export async function uploadLogs(
 
 	if (await promptUserToConfirmLogUpload(logsPath)) {
 		const outZip = await zipLogs(logsPath);
-		const result = await postLogs(endpoint, logsPath, outZip);
+		const result = await postLogs(endpoint, outZip, requestService);
 		console.log(localize('didUploadLogs', 'Uploaded logs ID: {0}', result.blob_id));
 	} else {
 		console.log(localize('userDeniedUpload', 'Canceled upload'));
@@ -82,41 +73,33 @@ async function promptUserToConfirmLogUpload(
 			}));
 }
 
-function postLogs(
+async function postLogs(
 	endpoint: Endpoint,
-	logsPath: string,
-	outZip: string
+	outZip: string,
+	requestService: IRequestService
 ): TPromise<PostResult> {
-	return new TPromise((resolve, reject) => {
-		const req = https.request({
-			host: endpoint.host,
-			path: endpoint.path,
-			method: 'POST',
+	let result: IRequestContext;
+	try {
+		result = await requestService.request({
+			url: endpoint.url,
+			type: 'POST',
+			data: fs.createReadStream(outZip),
 			headers: {
 				'Content-Type': 'application/zip',
-				'Content-Length': fs.statSync(logsPath).size
+				'Content-Length': fs.statSync(outZip).size
 			}
-		}, res => {
-			const chunks: (Buffer)[] = [];
-			res.on('data', (chunk: Buffer) => {
-				chunks.push(chunk);
-			});
-			res.on('end', () => {
-				const body = Buffer.concat(chunks);
-				try {
-					resolve(JSON.parse(body.toString()));
-				} catch (e) {
-					console.log(localize('parseError', 'Error parsing response'));
-					reject(e);
-				}
-			});
-			res.on('error', (e) => {
-				console.log(localize('postError', 'Error posting logs: {0}', e));
-				reject(e);
-			});
 		});
-		fs.createReadStream(outZip).pipe(req);
-	});
+	} catch (e) {
+		console.log(localize('postError', 'Error posting logs: {0}', e));
+		throw e;
+	}
+
+	try {
+		return JSON.parse(result.stream.toString());
+	} catch (e) {
+		console.log(localize('parseError', 'Error parsing response'));
+		throw e;
+	}
 }
 
 function zipLogs(

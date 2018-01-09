@@ -104,6 +104,7 @@ class ExpectedError extends Error {
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
+	const requestService = accessor.get(IRequestService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
 		let promise = TPromise.wrap<void>(void 0);
@@ -176,7 +177,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// Skip this if we are running with --wait where it is expected that we wait for a while.
 					// Also skip when gathering diagnostics (--status) which can take a longer time.
 					let startupWarningDialogHandle: number;
-					if (!environmentService.wait && !environmentService.status && !environmentService['upload-logs']) {
+					if (!environmentService.wait && !environmentService.status && !environmentService.args['upload-logs']) {
 						startupWarningDialogHandle = setTimeout(() => {
 							showStartupWarningDialog(
 								localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", product.nameShort),
@@ -198,7 +199,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// Log uploader
 					if (environmentService.args['upload-logs']) {
 						return import('vs/code/electron-main/logUploader')
-							.then(logUploader => logUploader.uploadLogs(channel))
+							.then(logUploader => logUploader.uploadLogs(channel, requestService))
 							.then(() => TPromise.wrapError(new ExpectedError()));
 					}
 
