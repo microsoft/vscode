@@ -525,8 +525,9 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
 			if (this.activeChannel === channel) {
 				const channels = this.getChannels();
-				if (this._outputPanel && channels.length) {
-					this.showChannel(channels[0].id);
+				if (this.isPanelShown() && channels.length) {
+					this.doShowChannel(this.getChannel(channels[0].id), true);
+					this._onActiveOutputChannel.fire(channels[0].id);
 				} else {
 					this._onActiveOutputChannel.fire(void 0);
 				}

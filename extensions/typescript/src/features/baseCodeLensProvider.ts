@@ -8,6 +8,7 @@ import * as Proto from '../protocol';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange } from '../utils/convert';
+import { escapeRegExp } from '../utils/regexp';
 
 export class ReferencesCodeLens extends CodeLens {
 	constructor(
@@ -138,7 +139,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		const range = tsTextSpanToVsRange(span);
 		const text = document.getText(range);
 
-		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${(item.text || '').replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}(\\b|\\W)`, 'gm');
+		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${escapeRegExp(item.text || '')}(\\b|\\W)`, 'gm');
 		const match = identifierMatch.exec(text);
 		const prefixLength = match ? match.index + match[1].length : 0;
 		const startOffset = document.offsetAt(new Position(range.start.line, range.start.character)) + prefixLength;

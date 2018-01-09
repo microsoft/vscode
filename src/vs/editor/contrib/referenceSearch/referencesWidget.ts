@@ -42,6 +42,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import URI from 'vs/base/common/uri';
 import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { Location } from 'vs/editor/common/modes';
 
 class DecorationsManager implements IDisposable {
 
@@ -558,7 +559,7 @@ export interface LayoutData {
 export interface SelectionEvent {
 	kind: 'goto' | 'show' | 'side' | 'open';
 	source: 'editor' | 'tree' | 'title';
-	element: OneReference;
+	element: Location;
 }
 
 /**
@@ -783,11 +784,12 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.refresh(reference)));
 
 		// listen on editor
-		this._disposeOnNewModel.push(this._preview.onMouseDown((e) => {
-			if (e.event.detail === 2) {
+		this._disposeOnNewModel.push(this._preview.onMouseDown(e => {
+			const { event, target } = e;
+			if (event.detail === 2) {
 				this._onDidSelectReference.fire({
-					element: this._getFocusedReference(),
-					kind: (e.event.ctrlKey || e.event.metaKey) ? 'side' : 'open',
+					element: { uri: this._getFocusedReference().uri, range: target.range },
+					kind: (event.ctrlKey || event.metaKey) ? 'side' : 'open',
 					source: 'editor'
 				});
 			}

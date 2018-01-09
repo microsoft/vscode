@@ -421,14 +421,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			}, this.contextKeyService, this.listService, this.themeService);
 
 		// Bind context keys
-		const filesExplorerFocusedContextKey = FilesExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
-		const explorerFocusedContextKey = ExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
-
-		// Update context keys
-		this.disposables.push(this.explorerViewer.onFocusChange(focused => {
-			filesExplorerFocusedContextKey.set(focused);
-			explorerFocusedContextKey.set(focused);
-		}));
+		FilesExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
+		ExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
 
 		// Update Viewer based on File Change Events
 		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
