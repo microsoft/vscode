@@ -329,6 +329,7 @@ export class FileController extends DefaultController implements IDisposable {
 
 	private contributedContextMenu: IMenu;
 	private toDispose: IDisposable[];
+	private previousSelectionRangeStop: FileStat;
 
 	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
@@ -377,20 +378,39 @@ export class FileController extends DefaultController implements IDisposable {
 
 		// Set DOM focus
 		tree.DOMFocus();
+		if (stat instanceof NewStatPlaceholder) {
+			return true;
+		}
 
-		// Expand / Collapse
-		tree.toggleExpansion(stat, event.altKey);
+		if (event.ctrlKey || event.metaKey) {
+			const selection = tree.getSelection();
+			this.previousSelectionRangeStop = undefined;
+			if (selection.indexOf(stat) >= 0) {
+				tree.setSelection(selection.filter(s => s !== stat));
+			} else {
+				tree.setSelection(selection.concat(stat));
+			}
+			tree.setFocus(stat, payload);
+		}
 
 		// Allow to unselect
-		if (event.shiftKey && !(stat instanceof NewStatPlaceholder)) {
-			const selection = tree.getSelection();
-			if (selection && selection.length > 0 && selection[0] === stat) {
-				tree.clearSelection(payload);
+		else if (event.shiftKey) {
+			const focus = tree.getFocus();
+			if (focus) {
+				if (this.previousSelectionRangeStop) {
+					tree.deselectRange(stat, this.previousSelectionRangeStop);
+				}
+				tree.selectRange(focus, stat, payload);
+				this.previousSelectionRangeStop = stat;
 			}
 		}
 
 		// Select, Focus and open files
-		else if (!(stat instanceof NewStatPlaceholder)) {
+		else {
+			// Expand / Collapse
+			tree.toggleExpansion(stat, event.altKey);
+			this.previousSelectionRangeStop = undefined;
+
 			const preserveFocus = !isDoubleClick;
 			tree.setFocus(stat, payload);
 
