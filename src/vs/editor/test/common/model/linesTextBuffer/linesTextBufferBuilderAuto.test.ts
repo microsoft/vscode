@@ -21,11 +21,11 @@ suite('ModelBuilder Auto Tests', () => {
 
 });
 
-function getRandomInt(min: number, max: number): number {
+export function getRandomInt(min: number, max: number): number {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function getRandomEOLSequence(): string {
+export function getRandomEOLSequence(): string {
 	let rnd = getRandomInt(1, 3);
 	if (rnd === 1) {
 		return '\n';
@@ -36,7 +36,7 @@ function getRandomEOLSequence(): string {
 	return '\r\n';
 }
 
-function getRandomString(minLength: number, maxLength: number): string {
+export function getRandomString(minLength: number, maxLength: number): string {
 	let length = getRandomInt(minLength, maxLength);
 	let r = '';
 	for (let i = 0; i < length; i++) {
