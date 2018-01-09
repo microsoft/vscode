@@ -234,8 +234,6 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		const snapshot = [...this._resourceStates].sort(compareResourceStates);
 		const diffs = sortedDiff(this._resourceSnapshot, snapshot, compareResourceStates);
 
-		console.log(diffs);
-
 		const splices = diffs.map<ISplice<{ rawResource: SCMRawResource, handle: number }>>(diff => {
 			const toInsert = diff.toInsert.map(r => {
 				const handle = this._resourceHandlePool++;
