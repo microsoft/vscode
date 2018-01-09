@@ -40,7 +40,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { OpenEditorsGroupContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { OpenEditorsGroupContext, DirtyEditorContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
@@ -64,6 +64,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	private needsRefresh: boolean;
 	private resourceContext: ResourceContextKey;
 	private groupFocusedContext: IContextKey<boolean>;
+	private dirtyEditorFocusedContext: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -159,13 +160,16 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 		this.resourceContext = this.instantiationService.createInstance(ResourceContextKey);
 		this.groupFocusedContext = OpenEditorsGroupContext.bindTo(this.contextKeyService);
+		this.dirtyEditorFocusedContext = DirtyEditorContext.bindTo(this.contextKeyService);
 
 		this.disposables.push(this.list.onContextMenu(e => this.onListContextMenu(e)));
 		this.list.onFocusChange(e => {
 			this.resourceContext.reset();
 			this.groupFocusedContext.reset();
+			this.dirtyEditorFocusedContext.reset();
 			const element = e.elements.length ? e.elements[0] : undefined;
 			if (element instanceof OpenEditor) {
+				this.dirtyEditorFocusedContext.set(this.textFileService.isDirty(element.getResource()));
 				this.resourceContext.set(element.getResource());
 			} else if (!!element) {
 				this.groupFocusedContext.set(true);

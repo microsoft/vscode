@@ -66,6 +66,7 @@ export const SAVE_FILES_COMMAND_ID = 'workbench.command.files.saveFiles';
 export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
 
 export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
+export const DirtyEditorContext = new RawContextKey<boolean>('dirtyEditor', false);
 export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('resourceSelectedForCompare', false);
 
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
