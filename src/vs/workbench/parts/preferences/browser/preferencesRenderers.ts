@@ -462,8 +462,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 
 	public render(filterResult: IFilterResult) {
 		const hasSettings = !filterResult || filterResult.filteredGroups.length > 0;
-		const promptFuzzy = filterResult && !filterResult.metadata;
-		this.settingsHeaderWidget.toggleMessage(hasSettings, promptFuzzy);
+		this.settingsHeaderWidget.toggleMessage(hasSettings);
 	}
 }
 

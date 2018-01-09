@@ -101,32 +101,20 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 
 export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 
-	private linkElement: HTMLElement;
 	private _onClick = this._register(new Emitter<void>());
 	public onClick: Event<void> = this._onClick.event;
 
 	protected create() {
 		super.create();
 
-		this.linkElement = DOM.append(this.titleContainer, DOM.$('a.settings-header-natural-language-link'));
-		this.linkElement.textContent = localize('defaultSettingsFuzzyPrompt', "Try natural language search!");
-
-		this.onclick(this.linkElement, e => this._onClick.fire());
 		this.toggleMessage(true);
 	}
 
-	public toggleMessage(hasSettings: boolean, promptFuzzy = false): void {
+	public toggleMessage(hasSettings: boolean): void {
 		if (hasSettings) {
 			this.setMessage(localize('defaultSettings', "Place your settings in the right hand side editor to override."));
-			DOM.addClass(this.linkElement, 'hidden');
 		} else {
 			this.setMessage(localize('noSettingsFound', "No Settings Found."));
-
-			if (promptFuzzy) {
-				DOM.removeClass(this.linkElement, 'hidden');
-			} else {
-				DOM.addClass(this.linkElement, 'hidden');
-			}
 		}
 	}
 }
