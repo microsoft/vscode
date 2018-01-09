@@ -117,13 +117,10 @@ export class LaunchService implements ILaunchService {
 
 	private startOpenUrl(args: ParsedArgs): TPromise<void> {
 		const openUrlArg = args['open-url'] || [];
-		if (openUrlArg) {
+		if (openUrlArg && args._urls && args._urls.length) {
 			// --open-url must contain -- followed by the url(s)
-			// process.argv is used over args._ as args._ are resolved to file paths on disk at this point
-			const dashDashIndex = process.argv.indexOf('--');
-			for (let i = dashDashIndex + 1; i < process.argv.length; i++) {
-				this.urlService.open(process.argv[i]);
-			}
+			// process.argv is used over args._ as args._ are resolved to file paths at this point
+			args._urls.forEach(url => this.urlService.open(url));
 
 			return TPromise.as(null);
 		}
