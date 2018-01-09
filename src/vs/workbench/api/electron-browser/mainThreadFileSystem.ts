@@ -53,8 +53,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._provider.get(handle).$onFileSystemChange(changes);
 	}
 
-	$reportFileChunk(handle: number, data: UriComponents, chunk: number[]): void {
-		this._provider.get(handle).reportFileChunk(URI.revive(data), chunk);
+	$reportFileChunk(handle: number, session: number, chunk: number[]): void {
+		this._provider.get(handle).reportFileChunk(session, chunk);
 	}
 
 	// --- search
@@ -64,10 +64,22 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 }
 
+class FileReadOperation {
+
+	private static _idPool = 0;
+
+	constructor(
+		readonly progress: IProgress<Uint8Array>,
+		readonly id: number = ++FileReadOperation._idPool
+	) {
+		//
+	}
+}
+
 class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProvider {
 
 	private readonly _onDidChange = new Emitter<IFileChange[]>();
-	private readonly _reads = new Map<string, IProgress<Uint8Array>>();
+	private readonly _reads = new Map<number, FileReadOperation>();
 	private readonly _registrations: IDisposable[];
 
 	readonly onDidChange: Event<IFileChange[]> = this._onDidChange.event;
@@ -104,11 +116,12 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 		return this._proxy.$stat(this._handle, resource);
 	}
 	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number, any> {
-		this._reads.set(resource.toString(), progress);
-		return this._proxy.$read(this._handle, offset, count, resource);
+		const read = new FileReadOperation(progress);
+		this._reads.set(read.id, read);
+		return this._proxy.$read(this._handle, read.id, offset, count, resource);
 	}
-	reportFileChunk(resource: URI, chunk: number[]): void {
-		this._reads.get(resource.toString()).report(Buffer.from(chunk));
+	reportFileChunk(session: number, chunk: number[]): void {
+		this._reads.get(session).progress.report(Buffer.from(chunk));
 	}
 	write(resource: URI, content: Uint8Array): TPromise<void, any> {
 		return this._proxy.$write(this._handle, resource, [].slice.call(content));
@@ -143,7 +156,7 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 		const id = ++this._searchesIdPool;
 		const matches: IFileMatch[] = [];
 		return new PPromise((resolve, reject, report) => {
-			this._proxy.$fileFiles(this._handle, id, query.filePattern).then(() => {
+			this._proxy.$findFiles(this._handle, id, query.filePattern).then(() => {
 				this._searches.delete(id);
 				resolve({
 					results: matches,
