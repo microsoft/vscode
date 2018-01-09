@@ -37,6 +37,8 @@ import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_CO
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -125,7 +127,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IHistoryService private _historyService: IHistoryService,
 		@IThemeService private _themeService: IThemeService,
 		@IConfigurationResolverService private _configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private _workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private _workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -260,6 +263,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// Enable the winpty compatibility addon which will simulate wraparound mode
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/winptyCompat/winptyCompat'));
 		}
+		const accessibilitySupport = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		const font = this._configHelper.getFont(true);
 		this._xterm = new Terminal({
 			scrollback: this._configHelper.config.scrollback,
@@ -267,7 +271,9 @@ export class TerminalInstance implements ITerminalInstance {
 			fontFamily: font.fontFamily,
 			fontSize: font.fontSize,
 			lineHeight: font.lineHeight,
-			enableBold: this._configHelper.config.enableBold
+			enableBold: this._configHelper.config.enableBold,
+			bellStyle: this._configHelper.config.enableBell ? 'sound' : 'none',
+			screenReaderMode: accessibilitySupport === 'on'
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -326,6 +332,11 @@ export class TerminalInstance implements ITerminalInstance {
 
 				// If tab focus mode is on, tab is not passed to the terminal
 				if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
+					return false;
+				}
+				// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
+				// system
+				if (platform.isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
 					return false;
 				}
 
@@ -693,6 +704,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isExiting = true;
 		this._process = null;
 		let exitCodeMessage: string;
+
 		if (exitCode) {
 			exitCodeMessage = nls.localize('terminal.integrated.exitedWithCode', 'The terminal process terminated with exit code: {0}', exitCode);
 		}
@@ -744,7 +756,11 @@ export class TerminalInstance implements ITerminalInstance {
 					}
 					this._messageService.show(Severity.Error, nls.localize('terminal.integrated.launchFailed', 'The terminal process command `{0}{1}` failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
 				} else {
-					this._messageService.show(Severity.Error, exitCodeMessage);
+					if (this._configHelper.config.showExitAlert) {
+						this._messageService.show(Severity.Error, exitCodeMessage);
+					} else {
+						console.warn(exitCodeMessage);
+					}
 				}
 			}
 		}
@@ -832,8 +848,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	// TODO: This should be private/protected
-	// TODO: locale should not be optional
-	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string, cols?: number, rows?: number): IStringDictionary<string> {
+	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale: string, cols?: number, rows?: number): IStringDictionary<string> {
 		const env = { ...parentEnv };
 		if (shell.env) {
 			TerminalInstance.mergeEnvironments(env, shell.env);
@@ -949,6 +964,11 @@ export class TerminalInstance implements ITerminalInstance {
 		this._setCursorStyle(this._configHelper.config.cursorStyle);
 		this._setCommandsToSkipShell(this._configHelper.config.commandsToSkipShell);
 		this._setScrollback(this._configHelper.config.scrollback);
+		this._setEnableBell(this._configHelper.config.enableBell);
+	}
+
+	public updateAccessibilitySupport(isEnabled: boolean): void {
+		this._xterm.setOption('screenReaderMode', isEnabled);
 	}
 
 	private _setCursorBlink(blink: boolean): void {
@@ -973,6 +993,20 @@ export class TerminalInstance implements ITerminalInstance {
 	private _setScrollback(lineCount: number): void {
 		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
 			this._xterm.setOption('scrollback', lineCount);
+		}
+	}
+
+	private _setEnableBell(isEnabled: boolean): void {
+		if (this._xterm) {
+			if (this._xterm.getOption('bellStyle') === 'sound') {
+				if (!this._configHelper.config.enableBell) {
+					this._xterm.setOption('bellStyle', 'none');
+				}
+			} else {
+				if (this._configHelper.config.enableBell) {
+					this._xterm.setOption('bellStyle', 'sound');
+				}
+			}
 		}
 	}
 

@@ -20,18 +20,33 @@ export class ReferencesCodeLens extends CodeLens {
 }
 
 export class CachedNavTreeResponse {
-	response?: Promise<Proto.NavTreeResponse>;
-	version: number = -1;
-	document: string = '';
+	private response?: Promise<Proto.NavTreeResponse>;
+	private version: number = -1;
+	private document: string = '';
 
-	matches(document: TextDocument): boolean {
+	public execute(
+		document: TextDocument,
+		f: () => Promise<Proto.NavTreeResponse>
+	) {
+		if (this.matches(document)) {
+			return this.response;
+		}
+
+		return this.update(document, f());
+	}
+
+	private matches(document: TextDocument): boolean {
 		return this.version === document.version && this.document === document.uri.toString();
 	}
 
-	update(document: TextDocument, response: Promise<Proto.NavTreeResponse>) {
+	private update(
+		document: TextDocument,
+		response: Promise<Proto.NavTreeResponse>
+	): Promise<Proto.NavTreeResponse> {
 		this.response = response;
 		this.version = document.version;
 		this.document = document.uri.toString();
+		return response;
 	}
 }
 
@@ -64,12 +79,9 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		if (!filepath) {
 			return [];
 		}
-		try {
-			if (!this.cachedResponse.matches(document)) {
-				this.cachedResponse.update(document, this.client.execute('navtree', { file: filepath }, token));
-			}
 
-			const response = await this.cachedResponse.response;
+		try {
+			const response = await this.cachedResponse.execute(document, () => this.client.execute('navtree', { file: filepath }, token));
 			if (!response) {
 				return [];
 			}

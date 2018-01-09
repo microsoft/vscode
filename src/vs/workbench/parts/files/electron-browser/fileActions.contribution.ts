@@ -6,7 +6,7 @@
 
 import nls = require('vs/nls');
 import { Registry } from 'vs/platform/registry/common/platform';
-import { GlobalNewUntitledFileAction, ShowOpenedFileInNewWindow, CopyPathAction, GlobalRevealInOSAction, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, SaveAllAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { GlobalNewUntitledFileAction, ShowOpenedFileInNewWindow, CopyPathAction, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, SaveAllAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTION_CONTEXT } from 'vs/workbench/parts/files/electron-browser/saveErrorHandler';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -38,7 +38,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(ShowActiveFileInExplor
 registry.registerWorkbenchAction(new SyncActionDescriptor(CollapseExplorerView, CollapseExplorerView.ID, CollapseExplorerView.LABEL), 'File: Collapse Folders in Explorer', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(RefreshExplorerView, RefreshExplorerView.ID, RefreshExplorerView.LABEL), 'File: Refresh Explorer', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewUntitledFileAction, GlobalNewUntitledFileAction.ID, GlobalNewUntitledFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_N }), 'File: New Untitled File', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalRevealInOSAction, GlobalRevealInOSAction.ID, GlobalRevealInOSAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R) }), 'File: Reveal Active File', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowOpenedFileInNewWindow, ShowOpenedFileInNewWindow.ID, ShowOpenedFileInNewWindow.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_O) }), 'File: Open Active File in New Window', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CompareWithClipboardAction, CompareWithClipboardAction.ID, CompareWithClipboardAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_C) }), 'File: Compare Active File with Clipboard', category);
 
@@ -71,8 +70,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: moveFileToTrashHandler
 });
 
+const DELETE_FILE_ID = 'deleteFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'deleteFile',
+	id: DELETE_FILE_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
 	when: FilesExplorerFocusCondition,
 	primary: KeyMod.Shift | KeyCode.Delete,
@@ -96,7 +96,7 @@ const PASTE_FILE_ID = 'filesExplorer.paste';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: PASTE_FILE_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
-	when: FilesExplorerFocusCondition,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, FileCopiedContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 	handler: pasteFileHandler
 });
@@ -240,13 +240,13 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 
 const compareResourceCommand = {
 	id: COMPARE_RESOURCE_COMMAND_ID,
-	title: nls.localize('compareWithChosen', "Compare with Chosen")
+	title: nls.localize('compareWithSelected', "Compare with Selected")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 20,
 	command: compareResourceCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.IsFile, ResourceSelectedForCompareContext)
+	when: ContextKeyExpr.and(ResourceContextKey.HasResource, ResourceSelectedForCompareContext)
 });
 
 const selectForCompareCommand = {
@@ -257,7 +257,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 30,
 	command: selectForCompareCommand,
-	when: ResourceContextKey.IsFile
+	when: ResourceContextKey.HasResource
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -307,7 +307,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: NEW_FILE_COMMAND_ID,
 		title: NEW_FILE_LABEL
 	},
-	when: ContextKeyExpr.and(ExplorerFolderContext)
+	when: ExplorerFolderContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -317,7 +317,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: NEW_FOLDER_COMMAND_ID,
 		title: NEW_FOLDER_LABEL
 	},
-	when: ContextKeyExpr.and(ExplorerFolderContext)
+	when: ExplorerFolderContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -421,6 +421,10 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: {
 		id: MOVE_FILE_TO_TRASH_ID,
 		title: MOVE_FILE_TO_TRASH_LABEL
+	},
+	alt: {
+		id: DELETE_FILE_ID,
+		title: nls.localize('deleteFile', "Delete Permanently")
 	},
 	when: ExplorerRootContext.toNegated()
 });

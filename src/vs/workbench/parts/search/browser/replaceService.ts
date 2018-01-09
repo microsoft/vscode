@@ -20,7 +20,8 @@ import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService } from 'vs/platform/files/common/files';
 
@@ -43,7 +44,7 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 		this.textModelResolverService.registerTextModelContentProvider(network.Schemas.internal, this);
 	}
 
-	public provideTextContent(uri: URI): TPromise<IModel> {
+	public provideTextContent(uri: URI): TPromise<ITextModel> {
 		if (uri.fragment === REPLACE_PREVIEW) {
 			return this.instantiationService.createInstance(ReplacePreviewModel).resolve(uri);
 		}
@@ -62,7 +63,7 @@ class ReplacePreviewModel extends Disposable {
 		super();
 	}
 
-	resolve(replacePreviewUri: URI): TPromise<IModel> {
+	resolve(replacePreviewUri: URI): TPromise<ITextModel> {
 		const fileResource = toFileResource(replacePreviewUri);
 		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource().toString() === fileResource.toString())[0];
 		return this.textModelResolverService.createModelReference(fileResource).then(ref => {
@@ -79,7 +80,7 @@ class ReplacePreviewModel extends Disposable {
 		});
 	}
 
-	private update(sourceModel: IModel, replacePreviewModel: IModel, fileMatch: FileMatch, override: boolean = false): void {
+	private update(sourceModel: ITextModel, replacePreviewModel: ITextModel, fileMatch: FileMatch, override: boolean = false): void {
 		if (!sourceModel.isDisposed() && !replacePreviewModel.isDisposed()) {
 			this.replaceService.updateReplacePreview(fileMatch, override);
 		}

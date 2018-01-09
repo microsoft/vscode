@@ -10,7 +10,8 @@ import severity from 'vs/base/common/severity';
 import Event from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IModel as EditorIModel, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { Position } from 'vs/editor/common/core/position';
 import { ISuggestion } from 'vs/editor/common/modes';
@@ -520,9 +521,9 @@ export interface IDebugService {
 	addBreakpoints(uri: uri, rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
 
 	/**
-	 * Updates the breakpoints and notifies the debug adapter of breakpoint changes.
+	 * Updates the breakpoints.
 	 */
-	updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): TPromise<void>;
+	updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): void;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.

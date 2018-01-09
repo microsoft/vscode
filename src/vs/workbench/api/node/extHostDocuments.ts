@@ -13,7 +13,7 @@ import * as vscode from 'vscode';
 import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
+import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 

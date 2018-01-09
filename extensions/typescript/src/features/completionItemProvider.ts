@@ -21,38 +21,42 @@ import { CommandManager, Command } from '../utils/commandManager';
 const localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
-	public readonly source: string | undefined;
 	public readonly useCodeSnippet: boolean;
 
 	constructor(
 		public readonly position: Position,
 		public readonly document: TextDocument,
-		entry: Proto.CompletionEntry,
+		public readonly tsEntry: Proto.CompletionEntry,
 		enableDotCompletions: boolean,
 		useCodeSnippetsOnMethodSuggest: boolean
 	) {
-		super(entry.name);
-		this.source = entry.source;
+		super(tsEntry.name);
 
-		if (entry.isRecommended) {
+		if (tsEntry.isRecommended) {
 			// Make sure isRecommended property always comes first
 			// https://github.com/Microsoft/vscode/issues/40325
-			this.sortText = '\0' + entry.sortText;
-		} else if (entry.source) {
+			this.sortText = '\0' + tsEntry.sortText;
+		} else if (tsEntry.source) {
 			// De-prioritze auto-imports
 			// https://github.com/Microsoft/vscode/issues/40311
-			this.sortText = '\uffff' + entry.sortText;
+			this.sortText = '\uffff' + tsEntry.sortText;
 		} else {
-			this.sortText = entry.sortText;
+			this.sortText = tsEntry.sortText;
 		}
 
-		this.kind = MyCompletionItem.convertKind(entry.kind);
+		this.kind = MyCompletionItem.convertKind(tsEntry.kind);
 		this.position = position;
-		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, !useCodeSnippetsOnMethodSuggest, entry.kind);
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, !useCodeSnippetsOnMethodSuggest, tsEntry.kind);
 		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === CompletionItemKind.Function || this.kind === CompletionItemKind.Method);
 
-		if (entry.replacementSpan) {
-			this.range = tsTextSpanToVsRange(entry.replacementSpan);
+		if (tsEntry.replacementSpan) {
+			this.range = tsTextSpanToVsRange(tsEntry.replacementSpan);
+		}
+
+		if (tsEntry.kindModifiers.match(/\boptional\b/)) {
+			this.insertText = this.label;
+			this.filterText = this.label;
+			this.label += '?';
 		}
 	}
 
@@ -342,7 +346,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		const args: Proto.CompletionDetailsRequestArgs = {
 			...vsPositionToTsFileLocation(filepath, item.position),
 			entryNames: [
-				item.source ? { name: item.label, source: item.source } : item.label
+				item.tsEntry.source ? { name: item.tsEntry.name, source: item.tsEntry.source } : item.tsEntry.name
 			]
 		};
 

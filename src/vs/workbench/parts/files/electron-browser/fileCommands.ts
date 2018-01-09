@@ -14,11 +14,11 @@ import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource, IEditorContext } from 'vs/workbench/common/editor';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
-import { VIEWLET_ID, ExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, ExplorerFocusCondition, FileOnDiskContentProvider } from 'vs/workbench/parts/files/common/files';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -29,7 +29,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IResourceInput, Position } from 'vs/platform/editor/common/editor';
+import { IResourceInput, Position, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -37,6 +37,8 @@ import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 
 // Commands
 
@@ -243,7 +245,7 @@ CommandsRegistry.registerCommand({
 		const textFileService = accessor.get(ITextFileService);
 		const messageService = accessor.get(IMessageService);
 
-		if (!resource) {
+		if (!URI.isUri(resource)) {
 			resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		}
 
@@ -258,7 +260,7 @@ CommandsRegistry.registerCommand({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
 	when: ExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	mac: {
@@ -268,29 +270,52 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const listService = accessor.get(IListService);
 		const tree = listService.lastFocusedList;
+
+		let resourceOrEditor: URI | IEditorInput;
+		if (URI.isUri(resource)) {
+			resourceOrEditor = resource;
+		} else {
+			const focus = tree.getFocus();
+			if (focus instanceof FileStat && !focus.isDirectory) {
+				resourceOrEditor = focus.resource;
+			} else if (focus instanceof OpenEditor) {
+				resourceOrEditor = focus.editorInput;
+			}
+		}
+
 		// Remove highlight
 		if (tree instanceof Tree) {
 			tree.clearHighlight();
 		}
 
 		// Set side input
-		return editorService.openEditor({
-			resource,
-			options: {
-				preserveFocus: false
-			}
-		}, true);
+		if (URI.isUri(resourceOrEditor)) {
+			return editorService.openEditor({ resource: resourceOrEditor, options: { preserveFocus: false } }, true);
+		} else if (resourceOrEditor) {
+			return editorService.openEditor(resourceOrEditor, { preserveFocus: false }, true);
+		}
+
+		return TPromise.as(true);
 	}
 });
 
+const COMPARE_WITH_SAVED_SCHEMA = 'showModifications';
+let provider: FileOnDiskContentProvider;
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COMPARE_WITH_SAVED_COMMAND_ID,
 	when: undefined,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_D),
 	handler: (accessor, resource: URI) => {
+		if (!provider) {
+			const instantiationService = accessor.get(IInstantiationService);
+			const textModelService = accessor.get(ITextModelService);
+			provider = instantiationService.createInstance(FileOnDiskContentProvider);
+			textModelService.registerTextModelContentProvider(COMPARE_WITH_SAVED_SCHEMA, provider);
+		}
+
 		const editorService = accessor.get(IWorkbenchEditorService);
-		if (!resource) {
+		if (!URI.isUri(resource)) {
 			resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		}
 
@@ -298,7 +323,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = paths.basename(resource.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
-			return editorService.openEditor({ leftResource: URI.from({ scheme: 'showModifications', path: resource.fsPath }), rightResource: resource, label: editorLabel });
+			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: resource.fsPath }), rightResource: resource, label: editorLabel });
 		}
 
 		return TPromise.as(true);
@@ -344,29 +369,36 @@ CommandsRegistry.registerCommand({
 	}
 });
 
+const revealInOSHandler = (accessor: ServicesAccessor, resource: URI) => {
+	// Without resource, try to look at the active editor
+	if (!URI.isUri(resource)) {
+		const editorService = accessor.get(IWorkbenchEditorService);
+		resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+	}
+
+	if (resource) {
+		const windowsService = accessor.get(IWindowsService);
+		windowsService.showItemInFolder(paths.normalize(resource.fsPath, true));
+	} else {
+		const messageService = accessor.get(IMessageService);
+		messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
+	}
+};
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: ExplorerFocusCondition,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
+	when: undefined,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R),
+	secondary: [KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R],
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
 	},
-	handler: (accessor, resource: URI) => {
-		// Without resource, try to look at the active editor
-		if (!resource) {
-			const editorService = accessor.get(IWorkbenchEditorService);
-			resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-		}
-
-		if (resource) {
-			const windowsService = accessor.get(IWindowsService);
-			windowsService.showItemInFolder(paths.normalize(resource.fsPath, true));
-		} else {
-			const messageService = accessor.get(IMessageService);
-			messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
-		}
-	}
+	handler: revealInOSHandler
+});
+// TODO@isidor deprecated remove in february
+CommandsRegistry.registerCommand({
+	id: 'workbench.action.files.revealActiveFileInWindows',
+	handler: revealInOSHandler
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -379,7 +411,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COPY_PATH_COMMAND_ID,
 	handler: (accessor, resource: URI) => {
 		// Without resource, try to look at the active editor
-		if (!resource) {
+		if (!URI.isUri(resource)) {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const activeEditor = editorService.getActiveEditor();

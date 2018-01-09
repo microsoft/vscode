@@ -16,8 +16,8 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IExtHostContext } from '../node/extHost.protocol';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class BoundModelReferenceCollection {
 
@@ -134,7 +134,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		return model && !model.isTooLargeForHavingARichMode();
 	}
 
-	private _onModelAdded(model: editorCommon.IModel): void {
+	private _onModelAdded(model: ITextModel): void {
 		// Same filter as in mainThreadEditorsTracker
 		if (model.isTooLargeForHavingARichMode()) {
 			// don't synchronize too large models
@@ -147,7 +147,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		});
 	}
 
-	private _onModelModeChanged(event: { model: editorCommon.IModel; oldModeId: string; }): void {
+	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
 		let { model, oldModeId } = event;
 		let modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {

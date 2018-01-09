@@ -148,7 +148,9 @@ function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): st
 
 	output.push('CPU %\tMem MB\t   PID\tProcess');
 
-	formatProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
+	if (rootProcess) {
+		formatProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
+	}
 
 	return output.join('\n');
 }

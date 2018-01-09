@@ -12,7 +12,7 @@ import { IReference, Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, IGroupFilter, ISettingMatcher, ISettingMatch, ISearchResultGroup } from 'vs/workbench/parts/preferences/common/preferences';
@@ -108,7 +108,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 export class SettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
 	private _settingsGroups: ISettingsGroup[];
-	protected settingsModel: IModel;
+	protected settingsModel: ITextModel;
 
 	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
@@ -189,7 +189,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	}
 }
 
-function parse(model: IModel, isSettingsProperty: (currentProperty: string, previousParents: string[]) => boolean): ISettingsGroup[] {
+function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, previousParents: string[]) => boolean): ISettingsGroup[] {
 	const settings: ISetting[] = [];
 	let overrideSetting: ISetting = null;
 
@@ -583,7 +583,8 @@ export class DefaultSettings extends Disposable {
 }
 
 export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
-	private _model: IModel;
+
+	private _model: ITextModel;
 
 	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;

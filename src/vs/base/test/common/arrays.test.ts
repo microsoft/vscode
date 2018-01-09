@@ -293,6 +293,18 @@ suite('Arrays', () => {
 		assert.equal(b[0], 1);
 		assert.equal(b[1], 2);
 		assert.equal(b[2], 3);
+
+		let sparse = [];
+		sparse[0] = 1;
+		sparse[1] = 1;
+		sparse[17] = 1;
+		sparse[1000] = 1;
+		sparse[1001] = 1;
+
+		assert.equal(sparse.length, 1002);
+
+		sparse = coalesce(sparse);
+		assert.equal(sparse.length, 5);
 	});
 });
 

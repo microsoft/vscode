@@ -8,7 +8,7 @@
 import 'vs/css!./media/fileactions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { sequence, ITask, always } from 'vs/base/common/async';
 import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
@@ -38,10 +38,10 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult } from 'vs/platform/message/common/message';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
@@ -51,17 +51,10 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEvent } from 'vs/platform/contextview/browser/contextView';
 
 export interface IEditableData {
 	action: IAction;
 	validator: IInputValidator;
-}
-
-export interface IExplorerContext {
-	viewletState: IFileViewletState;
-	event?: IEvent;
-	stat: FileStat;
 }
 
 export interface IFileViewletState {
@@ -660,18 +653,6 @@ class BaseDeleteFileAction extends BaseFileAction {
 		// Remove highlight
 		if (this.tree) {
 			this.tree.clearHighlight();
-		}
-
-		// Read context
-		if (context) {
-			if (context.event) {
-				const bypassTrash = (isMacintosh && context.event.altKey) || (!isMacintosh && context.event.shiftKey);
-				if (bypassTrash) {
-					this.useTrash = false;
-				}
-			} else if (typeof context.useTrash === 'boolean') {
-				this.useTrash = context.useTrash;
-			}
 		}
 
 		let primaryButton: string;
@@ -1311,7 +1292,7 @@ export class ShowActiveFileInExplorer extends Action {
 	public run(): TPromise<any> {
 		const resource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true });
 		if (resource) {
-			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, { resource });
+			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
@@ -1395,24 +1376,6 @@ export class ShowOpenedFileInNewWindow extends Action {
 		}
 
 		return TPromise.as(true);
-	}
-}
-
-export class GlobalRevealInOSAction extends Action {
-
-	public static readonly ID = 'workbench.action.files.revealActiveFileInWindows';
-	public static readonly LABEL = isWindows ? nls.localize('revealActiveFileInWindows', "Reveal Active File in Windows Explorer") : (isMacintosh ? nls.localize('revealActiveFileInMac', "Reveal Active File in Finder") : nls.localize('openActiveFileContainer', "Open Containing Folder of Active File"));
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(REVEAL_IN_OS_COMMAND_ID);
 	}
 }
 
@@ -1552,7 +1515,7 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 		@IModelService private modelService: IModelService
 	) { }
 
-	provideTextContent(resource: URI): TPromise<IModel> {
+	provideTextContent(resource: URI): TPromise<ITextModel> {
 		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.getOrCreateMode('text/plain'), resource);
 
 		return TPromise.as(model);
@@ -1567,13 +1530,24 @@ if (!diag) {
 	});
 }
 
+interface IExplorerContext {
+	viewletState: IFileViewletState;
+	stat: FileStat;
+}
+
+function getContext(tree: ListWidget, viewletService: IViewletService): IExplorerContext {
+	// These commands can only be triggered when explorer viewlet is visible so get it using the active viewlet
+	return { stat: tree.getFocus(), viewletState: (<ExplorerViewlet>viewletService.getActiveViewlet()).getViewletState() };
+}
+
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
 // It should be the other way around, that actions call into commands.
 CommandsRegistry.registerCommand({
 	id: NEW_FILE_COMMAND_ID,
-	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
+	handler: (accessor) => {
 		const instantationService = accessor.get(IInstantiationService);
 		const listService = accessor.get(IListService);
+		const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 		const newFileAction = instantationService.createInstance(NewFileAction, listService.lastFocusedList, explorerContext.stat);
 
 		return newFileAction.run(explorerContext);
@@ -1582,69 +1556,56 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: NEW_FOLDER_COMMAND_ID,
-	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
+	handler: (accessor) => {
 		const instantationService = accessor.get(IInstantiationService);
 		const listService = accessor.get(IListService);
+		const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 		const newFolderAction = instantationService.createInstance(NewFolderAction, listService.lastFocusedList, explorerContext.stat);
 
 		return newFolderAction.run(explorerContext);
 	}
 });
 
-function getContext(tree: ListWidget, viewletService: IViewletService): IExplorerContext {
-	return { stat: tree.getFocus(), viewletState: (<ExplorerViewlet>viewletService.getActiveViewlet()).getViewletState() };
-}
-
-export const renameHandler = (accessor: ServicesAccessor, resource: URI, explorerContext: IExplorerContext) => {
+export const renameHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	if (!explorerContext) {
-		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-	}
+	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
 	const renameAction = instantationService.createInstance(TriggerRenameFileAction, listService.lastFocusedList, explorerContext.stat);
 	return renameAction.run(explorerContext);
 };
 
-export const moveFileToTrashHandler = (accessor, resource: URI, explorerContext: IExplorerContext) => {
+export const moveFileToTrashHandler = (accessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	if (!explorerContext) {
-		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-	}
+	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
 	const moveFileToTrashAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, explorerContext.stat, true);
 	return moveFileToTrashAction.run(explorerContext);
 };
 
-export const deleteFileHandler = (accessor, resource: URI, explorerContext: IExplorerContext) => {
+export const deleteFileHandler = (accessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	if (!explorerContext) {
-		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-	}
+	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
 	const deleteFileAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, explorerContext.stat, false);
 	return deleteFileAction.run(explorerContext);
 };
 
-export const copyFileHandler = (accessor, resource: URI, explorerContext: IExplorerContext) => {
+export const copyFileHandler = (accessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	if (!explorerContext) {
-		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-	}
+	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
 	const copyFileAction = instantationService.createInstance(CopyFileAction, listService.lastFocusedList, explorerContext.stat);
 	return copyFileAction.run();
 };
 
-export const pasteFileHandler = (accessor, resource: URI, explorerContext: IExplorerContext) => {
+export const pasteFileHandler = (accessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	if (!explorerContext) {
-		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-	}
+	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
 	const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
 	return pasteFileAction.run();

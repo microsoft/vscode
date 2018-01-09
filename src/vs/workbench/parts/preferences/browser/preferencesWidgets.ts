@@ -14,7 +14,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -33,6 +32,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
+import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -762,13 +762,13 @@ export class EditPreferenceWidget<T> extends Disposable {
 
 	show(line: number, hoverMessage: string, preferences: T[]): void {
 		this._preferences = preferences;
-		const newDecoration: editorCommon.IModelDeltaDecoration[] = [];
+		const newDecoration: IModelDeltaDecoration[] = [];
 		this._line = line;
 		newDecoration.push({
 			options: {
 				glyphMarginClassName: EditPreferenceWidget.GLYPH_MARGIN_CLASS_NAME,
 				glyphMarginHoverMessage: new MarkdownString().appendText(hoverMessage),
-				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			},
 			range: {
 				startLineNumber: line,

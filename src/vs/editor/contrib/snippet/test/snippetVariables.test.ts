@@ -10,16 +10,16 @@ import URI from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
 import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 suite('Snippet Variables Resolver', function () {
 
-	let model: Model;
+	let model: TextModel;
 	let resolver: VariableResolver;
 
 	setup(function () {
-		model = Model.createFromString([
+		model = TextModel.createFromString([
 			'this is line one',
 			'this is line two',
 			'    this is line three'
@@ -60,7 +60,7 @@ suite('Snippet Variables Resolver', function () {
 		}
 
 		resolver = new ModelBasedVariableResolver(
-			Model.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
+			TextModel.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME', 'ghi');
 		if (!isWindows) {
@@ -69,7 +69,7 @@ suite('Snippet Variables Resolver', function () {
 		}
 
 		resolver = new ModelBasedVariableResolver(
-			Model.createFromString('', undefined, undefined, URI.parse('mem:fff.ts'))
+			TextModel.createFromString('', undefined, undefined, URI.parse('mem:fff.ts'))
 		);
 		assertVariableResolve(resolver, 'TM_DIRECTORY', '');
 		assertVariableResolve(resolver, 'TM_FILEPATH', 'fff.ts');
@@ -120,17 +120,17 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'text');
 
 		resolver = new ModelBasedVariableResolver(
-			Model.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
+			TextModel.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'ghi');
 
 		resolver = new ModelBasedVariableResolver(
-			Model.createFromString('', undefined, undefined, URI.parse('mem:.git'))
+			TextModel.createFromString('', undefined, undefined, URI.parse('mem:.git'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', '.git');
 
 		resolver = new ModelBasedVariableResolver(
-			Model.createFromString('', undefined, undefined, URI.parse('mem:foo.'))
+			TextModel.createFromString('', undefined, undefined, URI.parse('mem:foo.'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'foo');
 	});

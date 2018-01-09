@@ -14,7 +14,6 @@ import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import Event, { Emitter } from 'vs/base/common/event';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
@@ -148,9 +147,6 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 }
 
 export class WorkbenchTree extends Tree {
-
-	private _onFocusChange = new Emitter<boolean>();
-	readonly onFocusChange: Event<boolean> = this._onFocusChange.event;
 
 	readonly contextKeyService: IContextKeyService;
 	private disposables: IDisposable[] = [];

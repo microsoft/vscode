@@ -30,7 +30,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { ITextBufferFactory } from 'vs/editor/common/model';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**
@@ -425,7 +425,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.doCreateTextModel(content.resource, content.value, backup);
 	}
 
-	private doUpdateTextModel(value: string | IRawTextSource): TPromise<TextFileEditorModel> {
+	private doUpdateTextModel(value: string | ITextBufferFactory): TPromise<TextFileEditorModel> {
 		diag('load() - updated text editor model', this.resource, new Date());
 
 		// Ensure we are not tracking a stale state
@@ -445,7 +445,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return TPromise.as<TextFileEditorModel>(this);
 	}
 
-	private doCreateTextModel(resource: URI, value: string | IRawTextSource, backup: URI): TPromise<TextFileEditorModel> {
+	private doCreateTextModel(resource: URI, value: string | ITextBufferFactory, backup: URI): TPromise<TextFileEditorModel> {
 		diag('load() - created text editor model', this.resource, new Date());
 
 		this.createTextEditorModelPromise = this.doLoadBackup(backup).then(backupContent => {

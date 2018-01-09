@@ -11,7 +11,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import product from 'vs/platform/node/product';
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -20,6 +19,9 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+
+export const FEEDBACK_VISIBLE_CONFIG = 'workbench.statusBar.feedback.visible';
 
 export interface IFeedback {
 	feedback: string;
@@ -43,35 +45,34 @@ enum FormEvent {
 }
 
 export class FeedbackDropdown extends Dropdown {
-	protected maxFeedbackCharacters: number;
+	private maxFeedbackCharacters: number;
 
-	protected feedback: string;
-	protected sentiment: number;
-	protected aliasEnabled: boolean;
-	protected isSendingFeedback: boolean;
-	protected autoHideTimeout: number;
+	private feedback: string;
+	private sentiment: number;
+	private isSendingFeedback: boolean;
+	private autoHideTimeout: number;
 
-	protected feedbackService: IFeedbackService;
+	private feedbackService: IFeedbackService;
 
-	protected feedbackForm: HTMLFormElement;
-	protected feedbackDescriptionInput: HTMLTextAreaElement;
-	protected smileyInput: Builder;
-	protected frownyInput: Builder;
-	protected sendButton: Builder;
-	protected remainingCharacterCount: Builder;
+	private feedbackForm: HTMLFormElement;
+	private feedbackDescriptionInput: HTMLTextAreaElement;
+	private smileyInput: Builder;
+	private frownyInput: Builder;
+	private sendButton: Builder;
+	private hideButton: HTMLInputElement;
+	private remainingCharacterCount: Builder;
 
-	protected requestFeatureLink: string;
-	protected reportIssueLink: string;
+	private requestFeatureLink: string;
 
 	private _isPure: boolean;
 
 	constructor(
 		container: HTMLElement,
 		options: IFeedbackDropdownOptions,
-		@ITelemetryService protected telemetryService: ITelemetryService,
 		@ICommandService private commandService: ICommandService,
-		@IIntegrityService protected integrityService: IIntegrityService,
-		@IThemeService private themeService: IThemeService
+		@IIntegrityService private integrityService: IIntegrityService,
+		@IThemeService private themeService: IThemeService,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
@@ -106,8 +107,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.sendButton = null;
 
-		this.reportIssueLink = product.reportIssueUrl;
-		this.requestFeatureLink = product.requestFeatureUrl;
+		this.requestFeatureLink = product.sendASmile.requestFeatureUrl;
 	}
 
 	protected renderContents(container: HTMLElement): IDisposable {
@@ -197,10 +197,17 @@ export class FeedbackDropdown extends Dropdown {
 
 		const $buttons = $('div.form-buttons').appendTo($form);
 
+		const $hideButtonContainer = $('div.hide-button-container').appendTo($buttons);
+
+		this.hideButton = $('input.hide-button').type('checkbox').attr('checked', '').id('hide-button').appendTo($hideButtonContainer).getHTMLElement() as HTMLInputElement;
+
+		$('label').attr('for', 'hide-button').text(nls.localize('showFeedback', "Show Feedback Smiley in Status Bar")).appendTo($hideButtonContainer);
+
 		this.sendButton = this.invoke($('input.send').type('submit').attr('disabled', '').value(nls.localize('tweet', "Tweet")).appendTo($buttons), () => {
 			if (this.isSendingFeedback) {
 				return;
 			}
+
 			this.onSubmit();
 		});
 
@@ -242,7 +249,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.feedbackDescriptionInput.value ? this.sendButton.removeAttribute('disabled') : this.sendButton.attr('disabled', '');
 	}
 
-	protected setSentiment(smile: boolean): void {
+	private setSentiment(smile: boolean): void {
 		if (smile) {
 			this.smileyInput.addClass('checked');
 			this.smileyInput.attr('aria-checked', 'true');
@@ -254,14 +261,16 @@ export class FeedbackDropdown extends Dropdown {
 			this.smileyInput.removeClass('checked');
 			this.smileyInput.attr('aria-checked', 'false');
 		}
+
 		this.sentiment = smile ? 1 : 0;
 		this.maxFeedbackCharacters = this.feedbackService.getCharacterLimit(this.sentiment);
 		this.updateCharCountText();
 		$(this.feedbackDescriptionInput).attr({ maxlength: this.maxFeedbackCharacters });
 	}
 
-	protected invoke(element: Builder, callback: () => void): Builder {
+	private invoke(element: Builder, callback: () => void): Builder {
 		element.on('click', callback);
+
 		element.on('keypress', (e) => {
 			if (e instanceof KeyboardEvent) {
 				const keyboardEvent = <KeyboardEvent>e;
@@ -270,6 +279,7 @@ export class FeedbackDropdown extends Dropdown {
 				}
 			}
 		});
+
 		return element;
 	}
 
@@ -281,6 +291,10 @@ export class FeedbackDropdown extends Dropdown {
 		if (this.autoHideTimeout) {
 			clearTimeout(this.autoHideTimeout);
 			this.autoHideTimeout = null;
+		}
+
+		if (!this.hideButton.checked) {
+			this.configurationService.updateValue(FEEDBACK_VISIBLE_CONFIG, false).done(null, errors.onUnexpectedError);
 		}
 
 		super.hide();
@@ -295,7 +309,7 @@ export class FeedbackDropdown extends Dropdown {
 		}
 	}
 
-	protected onSubmit(): void {
+	private onSubmit(): void {
 		if ((this.feedbackForm.checkValidity && !this.feedbackForm.checkValidity())) {
 			return;
 		}
@@ -338,13 +352,13 @@ export class FeedbackDropdown extends Dropdown {
 		}
 	}
 
-	protected resetForm(): void {
+	private resetForm(): void {
 		if (this.feedbackDescriptionInput) {
 			this.feedbackDescriptionInput.value = '';
 		}
+
 		this.sentiment = 1;
 		this.maxFeedbackCharacters = this.feedbackService.getCharacterLimit(this.sentiment);
-		this.aliasEnabled = false;
 	}
 }
 

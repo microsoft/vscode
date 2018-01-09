@@ -327,13 +327,11 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 
 // Explorer Controller
 export class FileController extends DefaultController implements IDisposable {
-	private state: FileViewletState;
 
 	private contributedContextMenu: IMenu;
 	private toDispose: IDisposable[];
 
-	constructor(state: FileViewletState,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMenuService menuService: IMenuService,
@@ -345,7 +343,6 @@ export class FileController extends DefaultController implements IDisposable {
 		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
 		this.toDispose.push(this.contributedContextMenu);
 
-		this.state = state;
 	}
 
 	public onLeftClick(tree: ITree, stat: FileStat | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
@@ -427,15 +424,8 @@ export class FileController extends DefaultController implements IDisposable {
 			getAnchor: () => anchor,
 			getActions: () => {
 				const actions = [];
-				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : undefined, shouldForwardArgs: true }, actions);
+				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : undefined, shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
-			},
-			getActionsContext: (event) => {
-				return {
-					viewletState: this.state,
-					stat,
-					event
-				};
 			},
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
@@ -671,10 +661,6 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private statToResource(stat: FileStat): URI {
-		if (stat.isRoot) {
-			return null; // Can not move root folder
-		}
-
 		if (stat.isDirectory) {
 			return URI.from({ scheme: 'folder', path: stat.resource.path }); // indicates that we are dragging a folder
 		}
@@ -754,6 +740,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			if (sources.some((source) => {
 				if (source instanceof NewStatPlaceholder) {
 					return true; // NewStatPlaceholders can not be moved
+				}
+
+				if (source.isRoot) {
+					return true; // Root folder can not be moved
 				}
 
 				if (source.resource.toString() === target.resource.toString()) {

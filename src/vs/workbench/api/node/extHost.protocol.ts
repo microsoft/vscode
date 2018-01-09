@@ -28,7 +28,6 @@ import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/pro
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import { ITextSource } from 'vs/editor/common/model/textSource';
 
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IConfig } from 'vs/workbench/parts/debug/common/debug';
@@ -40,7 +39,7 @@ import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/ext
 
 
 import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
+import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -53,6 +52,7 @@ import { IStat, IFileChange } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
+import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -147,7 +147,7 @@ export interface MainThreadDecorationsShape extends IDisposable {
 export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 	$registerTextContentProvider(handle: number, scheme: string): void;
 	$unregisterTextContentProvider(handle: number): void;
-	$onVirtualDocumentChange(uri: UriComponents, value: ITextSource): void;
+	$onVirtualDocumentChange(uri: UriComponents, value: string): void;
 }
 
 export interface MainThreadDocumentsShape extends IDisposable {
@@ -206,7 +206,7 @@ export interface IWorkspaceResourceEdit {
 	edits: {
 		range?: IRange;
 		newText: string;
-		newEol?: editorCommon.EndOfLineSequence;
+		newEol?: EndOfLineSequence;
 	}[];
 }
 
@@ -221,7 +221,7 @@ export interface MainThreadEditorsShape extends IDisposable {
 	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<void>;
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void>;
 	$trySetSelections(id: string, selections: ISelection[]): TPromise<void>;
-	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean>;
+	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean>;
 	$tryApplyWorkspaceEdit(workspaceResourceEdits: IWorkspaceResourceEdit[]): TPromise<boolean>;
 	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<boolean>;
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]>;
@@ -629,7 +629,7 @@ export interface WorkspaceEditDto {
 
 export interface CodeActionDto {
 	title: string;
-	edits?: WorkspaceEditDto;
+	edit?: WorkspaceEditDto;
 	diagnostics?: IMarkerData[];
 	command?: modes.Command;
 }
@@ -645,9 +645,9 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DocumentHighlight[]>;
 	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext): TPromise<LocationDto[]>;
 	$provideCodeActions(handle: number, resource: UriComponents, range: IRange): TPromise<CodeActionDto[]>;
-	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
-	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
-	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
+	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]>;
+	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]>;
+	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]>;
 	$provideWorkspaceSymbols(handle: number, search: string): TPromise<WorkspaceSymbolsDto>;
 	$resolveWorkspaceSymbol(handle: number, symbol: SymbolInformationDto): TPromise<SymbolInformationDto>;
 	$releaseWorkspaceSymbols(handle: number, id: number): void;

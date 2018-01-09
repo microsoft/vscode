@@ -642,7 +642,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			const { editor, position } = this.toTabContext(index);
-			if (!this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
+			if (!this.isTabActionBar(((e as GestureEvent).initialTarget || e.target || e.srcElement) as HTMLElement)) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
 

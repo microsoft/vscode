@@ -14,7 +14,6 @@ import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
 import glob = require('vs/base/common/glob');
 import { Action, IAction } from 'vs/base/common/actions';
-import { prepareActions } from 'vs/workbench/browser/actions';
 import { memoize } from 'vs/base/common/decorators';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
@@ -162,7 +161,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		this.tree = this.createViewer($(this.treeContainer));
 
 		if (this.toolbar) {
-			this.toolbar.setActions(prepareActions(this.getActions()), this.getSecondaryActions())();
+			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
 		}
 
 		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
@@ -183,12 +182,6 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		actions.push(this.instantiationService.createInstance(NewFolderAction, this.getViewer(), null));
 		actions.push(this.instantiationService.createInstance(RefreshViewExplorerAction, this, 'explorer-action refresh-explorer'));
 		actions.push(this.instantiationService.createInstance(CollapseAction, this.getViewer(), true, 'explorer-action collapse-explorer'));
-
-		// Set Order
-		for (let i = 0; i < actions.length; i++) {
-			const action = actions[i];
-			action.order = 10 * (i + 1);
-		}
 
 		return actions;
 	}
@@ -402,7 +395,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	public createViewer(container: Builder): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
-		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
+		const controller = this.instantiationService.createInstance(FileController);
 		this.disposables.push(controller);
 		const sorter = this.instantiationService.createInstance(FileSorter);
 		this.disposables.push(sorter);
@@ -428,14 +421,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			}, this.contextKeyService, this.listService, this.themeService);
 
 		// Bind context keys
-		const filesExplorerFocusedContextKey = FilesExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
-		const explorerFocusedContextKey = ExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
-
-		// Update context keys
-		this.disposables.push(this.explorerViewer.onFocusChange(focused => {
-			filesExplorerFocusedContextKey.set(focused);
-			explorerFocusedContextKey.set(focused);
-		}));
+		FilesExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
+		ExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
 
 		// Update Viewer based on File Change Events
 		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
@@ -443,8 +430,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		// Update resource context based on focused element
 		this.disposables.push(this.explorerViewer.onDidChangeFocus((e: { focus: FileStat }) => {
-			this.resourceContext.set(e.focus && e.focus.resource);
 			const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
+			const resource = e.focus ? e.focus.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
+			this.resourceContext.set(resource);
 			this.folderContext.set((isSingleFolder && !e.focus) || e.focus && e.focus.isDirectory);
 			this.rootContext.set(!e.focus || (e.focus && e.focus.isRoot));
 		}));
