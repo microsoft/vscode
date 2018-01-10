@@ -374,7 +374,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			return item;
 		}
 		const detail = details[0];
-		item.detail = Previewer.plain(detail.displayParts);
+		item.detail = detail.displayParts.length ? Previewer.plain(detail.displayParts) : undefined;
 		const documentation = new MarkdownString();
 		if (detail.source) {
 			let importPath = `'${Previewer.plain(detail.source)}'`;
