@@ -28,6 +28,7 @@ import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/wor
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvider, TreeViewItemHandleArg } from 'vs/workbench/common/views';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TreeView extends TreeViewsViewletPanel {
 
@@ -48,9 +49,10 @@ export class TreeView extends TreeViewsViewletPanel {
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
 		this.themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);

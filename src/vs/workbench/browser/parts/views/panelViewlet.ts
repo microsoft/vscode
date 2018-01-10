@@ -11,7 +11,7 @@ import { ColorIdentifier, contrastBorder } from 'vs/platform/theme/common/colorR
 import { attachStyler, IColorMapping, IThemable } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
 import { Dimension, Builder } from 'vs/base/browser/builder';
-import { append, $, trackFocus } from 'vs/base/browser/dom';
+import { append, $, trackFocus, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -25,6 +25,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -54,15 +55,19 @@ export abstract class ViewletPanel extends Panel {
 	protected actionRunner: IActionRunner;
 	protected toolbar: ToolBar;
 
+	private updateActionVisibilityPreferences: () => void = () => { };
+
 	constructor(
 		readonly title: string,
 		options: IViewletPanelOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
-		@IContextMenuService protected contextMenuService: IContextMenuService
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) {
 		super(options);
 
 		this.actionRunner = options.actionRunner;
+		this.configurationService.onDidChangeConfiguration(() => this.updateActionVisibilityPreferences());
 	}
 
 	render(container: HTMLElement): void {
@@ -75,6 +80,9 @@ export abstract class ViewletPanel extends Panel {
 
 	protected renderHeader(container: HTMLElement): void {
 		this.renderHeaderTitle(container);
+
+		this.updateActionVisibilityPreferences = () => toggleClass(container, 'actions-always-visible', this.shouldAlwaysShowActions());
+		this.updateActionVisibilityPreferences();
 
 		const actions = append(container, $('.actions'));
 		this.toolbar = new ToolBar(actions, this.contextMenuService, {
@@ -100,6 +108,10 @@ export abstract class ViewletPanel extends Panel {
 	protected updateActions(): void {
 		this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
 		this.toolbar.context = this.getActionsContext();
+	}
+
+	private shouldAlwaysShowActions(): boolean {
+		return this.configurationService.getValue<boolean>('workbench.panel.alwaysShowActions');
 	}
 
 	getActions(): IAction[] {

@@ -253,6 +253,11 @@ configurationRegistry.registerConfiguration({
 			'default': true,
 			'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
 		},
+		'workbench.panel.alwaysShowActions': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('panelActionVisibility', "Controls the visibility of side panel tree view actions. A panel's actions may either be always visible, or only visible when that panel is active.")
+		},
 		'workbench.fontAliasing': {
 			'type': 'string',
 			'enum': ['default', 'antialiased', 'none'],

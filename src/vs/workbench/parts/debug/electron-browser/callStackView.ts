@@ -29,6 +29,7 @@ import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listServic
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -51,8 +52,9 @@ export class CallStackView extends TreeViewsViewletPanel {
 		@IThemeService private themeService: IThemeService,
 		@IListService private listService: IListService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
 		this.settings = options.viewletSettings;
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes

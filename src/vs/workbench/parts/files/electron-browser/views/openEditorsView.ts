@@ -73,7 +73,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		@ITextFileService private textFileService: ITextFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService protected configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IListService private listService: IListService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -85,7 +85,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		super({
 			...(options as IViewOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService);
+		}, keybindingService, contextMenuService, configurationService);
 
 		this.model = editorGroupService.getStacksModel();
 

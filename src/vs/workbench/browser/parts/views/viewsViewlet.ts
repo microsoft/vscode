@@ -28,6 +28,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IPanelOptions } from 'vs/base/browser/ui/splitview/panelview';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -45,9 +46,10 @@ export abstract class ViewsViewletPanel extends ViewletPanel {
 	constructor(
 		options: IViewOptions,
 		protected keybindingService: IKeybindingService,
-		protected contextMenuService: IContextMenuService
+		protected contextMenuService: IContextMenuService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) {
-		super(options.name, options, keybindingService, contextMenuService);
+		super(options.name, options, keybindingService, contextMenuService, configurationService);
 
 		this.id = options.id;
 		this.name = options.name;
@@ -111,9 +113,10 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 	constructor(
 		options: IViewOptions,
 		protected keybindingService: IKeybindingService,
-		protected contextMenuService: IContextMenuService
+		protected contextMenuService: IContextMenuService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) {
-		super(options, keybindingService, contextMenuService);
+		super(options, keybindingService, contextMenuService, configurationService);
 
 		this.id = options.id;
 		this.name = options.name;

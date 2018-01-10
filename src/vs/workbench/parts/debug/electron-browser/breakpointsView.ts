@@ -33,6 +33,7 @@ import { ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/par
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -54,9 +55,10 @@ export class BreakpointsView extends ViewsViewletPanel {
 		@IThemeService private themeService: IThemeService,
 		@IEditorService private editorService: IEditorService,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) {
-		super(options, keybindingService, contextMenuService);
+		super(options, keybindingService, contextMenuService, configurationService);
 
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		this.settings = options.viewletSettings;

@@ -229,9 +229,10 @@ class MainPanel extends ViewletPanel {
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IListService private listService: IListService,
-		@IMenuService private menuService: IMenuService
+		@IMenuService private menuService: IMenuService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) {
-		super(localize('scm providers', "Source Control Providers"), {}, keybindingService, contextMenuService);
+		super(localize('scm providers', "Source Control Providers"), {}, keybindingService, contextMenuService, configurationService);
 		this.updateBodySize();
 	}
 
@@ -699,7 +700,7 @@ export class RepositoryPanel extends ViewletPanel {
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService protected configurationService: IConfigurationService
 	) {
-		super(repository.provider.label, {}, keybindingService, contextMenuService);
+		super(repository.provider.label, {}, keybindingService, contextMenuService, configurationService);
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
 	}
 
