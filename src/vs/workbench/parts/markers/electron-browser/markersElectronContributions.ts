@@ -76,7 +76,6 @@ interface IActionDescriptor {
 	// ICommandUI
 	title: string;
 	category?: string;
-	iconClass?: string;
 	f1?: boolean;
 
 	//
@@ -96,13 +95,13 @@ interface IActionDescriptor {
 
 function registerAction(desc: IActionDescriptor) {
 
-	const { id, handler, title, category, iconClass, menu, keybinding } = desc;
+	const { id, handler, title, category, menu, keybinding } = desc;
 
 	// 1) register as command
 	CommandsRegistry.registerCommand(id, handler);
 
 	// 2) menus
-	let command = { id, title, iconClass, category };
+	let command = { id, title, category };
 	if (menu) {
 		let { menuId, when, group } = menu;
 		MenuRegistry.appendMenuItem(menuId, {
