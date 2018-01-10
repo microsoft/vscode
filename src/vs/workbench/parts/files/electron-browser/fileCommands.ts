@@ -94,6 +94,17 @@ export function getResourceForCommand(resource: URI, listService: IListService, 
 	return toResource(editorService.getActiveEditorInput(), { supportSideBySide: true });
 }
 
+function getResourcesForCommand(resource: URI, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
+	const list = listService.lastFocusedList;
+	if (list && list.isDOMFocused()) {
+		if (list instanceof Tree) {
+			return list.getSelection().map(fs => fs.resource);
+		}
+	}
+
+	return [getResourceForCommand(resource, listService, editorService)];
+}
+
 function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
 	textFileService: ITextFileService, editorGroupService: IEditorGroupService): TPromise<any> {
 
@@ -402,10 +413,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	id: COPY_PATH_COMMAND_ID,
 	handler: (accessor, resource: URI) => {
-		resource = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
-		if (resource) {
+		const resources = getResourcesForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+		if (resources.length) {
 			const clipboardService = accessor.get(IClipboardService);
-			clipboardService.writeText(resource.scheme === 'file' ? labels.getPathLabel(resource) : resource.toString());
+			const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join('\n');
+			clipboardService.writeText(text);
 		} else {
 			const messageService = accessor.get(IMessageService);
 			messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
