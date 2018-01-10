@@ -23,6 +23,7 @@ import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 interface IssueReporterState {
 	issueType?: number;
@@ -40,13 +41,14 @@ export function startup(configuration: IWindowConfiguration) {
 	issueReporter.render();
 }
 
-export class IssueReporter {
+export class IssueReporter extends Disposable {
 	private issueService: IIssueService;
 	private environmentService: IEnvironmentService;
 	private telemetryService: ITelemetryService;
 	private state: IssueReporterState;
 
 	constructor(configuration: IWindowConfiguration) {
+		super();
 		this.state = {
 			issueType: 0,
 			includeSystemInfo: true,
@@ -95,6 +97,8 @@ export class IssueReporter {
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
+			this._register(telemetryService);
+
 			this.telemetryService = telemetryService;
 		} else {
 			this.telemetryService = NullTelemetryService;
@@ -192,7 +196,7 @@ export class IssueReporter {
 
 			descriptionTitle.innerHTML = 'Steps to reproduce <span class="required-input">*</span>';
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = 'Please explain how to reproduce the problem. What was expected and what actually happened?';
+			descriptionSubtitle.innerHTML = 'How did you encounter this problem? Clear steps to reproduce the problem help our investigation. What did you expect to happen and what actually happened?';
 		}
 		// 2 - Perf Issue
 		else if (issueType === 1) {
@@ -202,7 +206,7 @@ export class IssueReporter {
 
 			descriptionTitle.innerHTML = 'Steps to reproduce <span class="required-input">*</span>';
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = 'When does the performance issue occur?';
+			descriptionSubtitle.innerHTML = 'When did this performance issue happen? For examples, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.';
 		}
 		// 3 - Feature Request
 		else {

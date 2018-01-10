@@ -311,7 +311,7 @@ export class CodeApplication {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, machineId));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
-		services.set(IIssueService, new SyncDescriptor(IssueService));
+		services.set(IIssueService, new SyncDescriptor(IssueService, machineId));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {

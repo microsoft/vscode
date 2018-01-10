@@ -18,13 +18,15 @@ export class IssueService implements IIssueService {
 
 	constructor(
 		@ILaunchService private launchService: ILaunchService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		private machineId: string
 	) { }
 
 	openReporter(): TPromise<void> {
 		this._issueWindow = new BrowserWindow({
 			width: 800,
-			height: 900
+			height: 900,
+			title: 'Issue Reporter'
 		});
 		this._issueWindow.loadURL(this.getIssueReporterPath());
 		this._issueWindow.webContents.openDevTools();
@@ -50,7 +52,8 @@ export class IssueService implements IIssueService {
 		const config = {
 			appRoot: this.environmentService.appRoot,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
-			windowId: this._issueWindow.id
+			windowId: this._issueWindow.id,
+			machineId: this.machineId
 		};
 		return `${require.toUrl('vs/issue/electron-browser/index.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}

@@ -55,7 +55,7 @@ pre code {
 	color: #fff;
 }
 button:hover:enabled {
-	opacity: .5;
+	opacity: .8;
 	cursor: pointer;
 }
 button.active {
@@ -66,22 +66,16 @@ button:disabled {
 	cursor: auto;
 }
 
-header {
-	position: relative;
-	background-color: #333;
-	color: #ADADAD;
-	padding: 1em;
-	margin-bottom: 1em;
-}
-
 #issue-reporter {
 	max-width: 80vw;
 	margin-left: auto;
 	margin-right: auto;
+	margin-top: 2em;
 }
 #github-submit-btn {
 	float: right;
-	margin-top: 14px;
+	margin-top: 10px;
+	margin-bottom: 10px;
 	background-color: #fff
 }
 
@@ -125,4 +119,8 @@ input[type="checkbox"] {
 	margin-left: 1em;
 	width: auto;
 	display: inline-block;
+}
+
+a {
+	color: #CCCCCC
 }
