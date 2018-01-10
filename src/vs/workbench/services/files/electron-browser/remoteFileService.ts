@@ -39,27 +39,27 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 		etag: stat.mtime.toString(29) + stat.size.toString(31),
 	};
 
-	if (stat.type === FileType.File) {
-		// done
-		return TPromise.as(fileStat);
+	if (stat.type === FileType.Dir) {
+		fileStat.isDirectory = true;
+		fileStat.hasChildren = true;
 
-	} else {
-		// dir -> resolve
-		return provider.readdir(resource).then(entries => {
-			fileStat.isDirectory = true;
-			fileStat.hasChildren = entries.length > 0;
+		if (recurse && recurse([resource, stat])) {
+			// dir -> resolve
+			return provider.readdir(resource).then(entries => {
+				fileStat.isDirectory = true;
+				fileStat.hasChildren = entries.length > 0;
 
-			if (recurse && recurse([resource, stat])) {
 				// resolve children if requested
 				return TPromise.join(entries.map(stat => toIFileStat(provider, stat, recurse))).then(children => {
 					fileStat.children = children;
 					return fileStat;
 				});
-			} else {
-				return fileStat;
-			}
-		});
+			});
+		}
 	}
+
+	// file or (un-resolved) dir
+	return TPromise.as(fileStat);
 }
 
 export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], to: URI[]): TPromise<IFileStat> {
