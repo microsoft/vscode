@@ -327,7 +327,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: 'navigation',
 	order: 10,
 	command: openToSideCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo('file'), ExplorerFolderContext.toNegated())
+	when: ExplorerFolderContext.toNegated()
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -376,7 +376,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '5_cutcopypaste',
 	order: 30,
 	command: copyPathCommand,
-	when: ResourceContextKey.Scheme.isEqualTo('file')
+	when: ResourceContextKey.HasResource
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
