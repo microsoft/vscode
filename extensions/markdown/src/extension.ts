@@ -39,8 +39,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
-	commandManager.register(new commands.ShowPreviewCommand(cspArbiter, telemetryReporter));
-	commandManager.register(new commands.ShowPreviewToSideCommand(cspArbiter, telemetryReporter));
+	commandManager.register(new commands.ShowPreviewCommand(contentProvider, cspArbiter, telemetryReporter));
+	commandManager.register(new commands.ShowPreviewToSideCommand(contentProvider, cspArbiter, telemetryReporter));
 	commandManager.register(new commands.ShowSourceCommand());
 	commandManager.register(new commands.RefreshPreviewCommand(contentProvider));
 	commandManager.register(new commands.RevealLineCommand(logger));

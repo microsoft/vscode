@@ -336,4 +336,70 @@ declare module 'vscode' {
 		 */
 		logger: Logger;
 	}
+
+	/**
+	 * Content settings for a webview.
+	 */
+	export interface WebviewOptions {
+		/**
+		 * Should scripts be enabled in the webview?
+		 *
+		 * Defaults to false (scripts-disabled).
+		 */
+		enableScripts?: boolean;
+
+		/**
+		 * Should command uris be enabled?
+		 *
+		 * Defaults to false.
+		 */
+		enableCommandUris?: boolean;
+	}
+
+	/**
+	 *
+	 */
+	export interface Webview {
+		/**
+		 * Title of the webview.
+		 */
+		title: string;
+
+		/**
+		 * Contents of the webview.
+		 */
+		html: string;
+
+		/**
+		 * Content settings for the webview.
+		 */
+		options: WebviewOptions;
+
+		/**
+		 * Fixed when the webview posts a message.
+		 */
+		readonly onMessage: Event<any>;
+
+		/**
+		 * Post a message to the webview.
+		 *
+		 * @param message Body of the message.
+		 */
+		postMessage(message: any): Thenable<any>;
+	}
+
+	namespace window {
+		/**
+		 * Create and show a new webview.
+		 *
+		 * @param title Title of the webview
+		 * @param column Editor column to show the new webview in
+		 * @param options Webview options
+		 */
+		export function createWebview(
+			title: string,
+			column: ViewColumn,
+			options: WebviewOptions
+		): Webview;
+	}
 }
