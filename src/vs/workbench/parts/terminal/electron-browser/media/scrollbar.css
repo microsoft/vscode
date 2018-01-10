@@ -19,6 +19,7 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm-viewport::-webkit-scrollbar-thumb {
+	min-height: 35px;
 	background-color: inherit;
 }
 
