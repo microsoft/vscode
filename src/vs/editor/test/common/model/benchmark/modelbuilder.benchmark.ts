@@ -8,6 +8,7 @@ import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/l
 import { PieceTableTextBufferBuilder } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBufferBuilder';
 import { ITextBufferBuilder } from 'vs/editor/common/model';
 import { generateRandomChunkWithLF } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
+import { doBenchmark } from 'vs/editor/test/common/model/benchmark/benchmarkUtils';
 
 let linesTextBufferBuilder = new LinesTextBufferBuilder();
 let pieceTableTextBufferBuilder = new PieceTableTextBufferBuilder();
@@ -17,18 +18,17 @@ for (let i = 0; i < 100; i++) {
 	chunks.push(generateRandomChunkWithLF(16 * 1000, 64 * 1000));
 }
 
-let modelBuildBenchmark = function (id: string, builder: ITextBufferBuilder, chunkCnt: number) {
-	console.time(id);
-	for (let i = 0, len = Math.min(chunkCnt, chunks.length); i < len; i++) {
-		builder.acceptChunk(chunks[i]);
-	}
-	builder.finish();
-	console.timeEnd(id);
+let modelBuildBenchmark = function (id: string, builders: ITextBufferBuilder[], chunkCnt: number) {
+	doBenchmark(id, builders, builder => {
+		for (let i = 0, len = Math.min(chunkCnt, chunks.length); i < len; i++) {
+			builder.acceptChunk(chunks[i]);
+		}
+		builder.finish();
+	});
 };
 
-console.log('--- model builder ---');
-
-for (let i of [10, 100, 1000]) {
-	modelBuildBenchmark(`line text model builder ${i}`, linesTextBufferBuilder, i);
-	modelBuildBenchmark(`piece table model builder ${i}`, pieceTableTextBufferBuilder, i);
+console.log(`|model builder\t|line buffer\t|piece table\t|`);
+console.log('|---|---|---|');
+for (let i of [10, 100]) {
+	modelBuildBenchmark(`${i} random chunks`, [linesTextBufferBuilder, pieceTableTextBufferBuilder], i);
 }
