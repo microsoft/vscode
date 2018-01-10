@@ -106,25 +106,24 @@ export class LaunchService implements ILaunchService {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
 		// Check early for open-url which is handled in URL service
-		const openUrl = this.startOpenUrl(args);
-		if (openUrl) {
-			return openUrl;
+		if (this.shouldOpenUrl(args)) {
+			return TPromise.as(null);
 		}
 
 		// Otherwise handle in windows service
 		return this.startOpenWindow(args, userEnv);
 	}
 
-	private startOpenUrl(args: ParsedArgs): TPromise<void> {
+	private shouldOpenUrl(args: ParsedArgs): boolean {
 		if (args['open-url'] && args._urls && args._urls.length > 0) {
 			// --open-url must contain -- followed by the url(s)
 			// process.argv is used over args._ as args._ are resolved to file paths at this point
 			args._urls.forEach(url => this.urlService.open(url));
 
-			return TPromise.as(null);
+			return true;
 		}
 
-		return void 0;
+		return false;
 	}
 
 	private startOpenWindow(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
