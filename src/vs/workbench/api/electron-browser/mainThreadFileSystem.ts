@@ -19,7 +19,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
-	private readonly _toDispose: IDisposable[] = [];
 	private readonly _proxy: ExtHostFileSystemShape;
 	private readonly _provider = new Map<number, RemoteFileSystemProvider>();
 
@@ -33,7 +32,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	dispose(): void {
-		dispose(this._toDispose);
+		this._provider.forEach(value => dispose());
+		this._provider.clear();
 	}
 
 	$registerFileSystemProvider(handle: number, scheme: string): void {
