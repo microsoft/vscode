@@ -885,7 +885,7 @@ export class ImportFileAction extends BaseFileAction {
 }
 
 // Copy File/Folder
-let fileToCopy: FileStat;
+let filesToCopy: FileStat[];
 let fileCopiedContextKey: IContextKey<boolean>;
 
 class CopyFileAction extends BaseFileAction {
@@ -893,7 +893,7 @@ class CopyFileAction extends BaseFileAction {
 	private tree: ITree;
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		private elements: FileStat[],
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
@@ -902,7 +902,6 @@ class CopyFileAction extends BaseFileAction {
 		super('filesExplorer.copy', COPY_FILE_LABEL, fileService, messageService, textFileService);
 
 		this.tree = tree;
-		this.element = element;
 		if (!fileCopiedContextKey) {
 			fileCopiedContextKey = FileCopiedContext.bindTo(contextKeyService);
 		}
@@ -912,8 +911,8 @@ class CopyFileAction extends BaseFileAction {
 	public run(): TPromise<any> {
 
 		// Remember as file/folder to copy
-		fileToCopy = this.element;
-		fileCopiedContextKey.set(!!this.element);
+		filesToCopy = this.elements;
+		fileCopiedContextKey.set(!!filesToCopy.length);
 
 		// Remove highlight
 		if (this.tree) {
@@ -952,7 +951,7 @@ class PasteFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(): TPromise<any> {
+	public run(fileToCopy: FileStat): TPromise<any> {
 
 		const exists = fileToCopy.root.find(fileToCopy.resource);
 		if (!exists) {
@@ -1613,8 +1612,9 @@ export const copyFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
+	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
-	const copyFileAction = instantationService.createInstance(CopyFileAction, listService.lastFocusedList, explorerContext.stat);
+	const copyFileAction = instantationService.createInstance(CopyFileAction, listService.lastFocusedList, stats);
 	return copyFileAction.run();
 };
 
@@ -1623,6 +1623,8 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
-	const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
-	return pasteFileAction.run();
+	return TPromise.join(filesToCopy.map(toCopy => {
+		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
+		return pasteFileAction.run(toCopy);
+	}));
 };
