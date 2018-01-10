@@ -630,9 +630,8 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 	constructor(
 		private tree: ITree,
-		element: FileStat,
+		private elements: FileStat[],
 		private useTrash: boolean,
-		private retry: boolean,
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
@@ -641,8 +640,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, fileService, messageService, textFileService);
 
 		this.tree = tree;
-		this.element = element;
-		this.useTrash = useTrash && !paths.isUNC(element.resource.fsPath); // on UNC shares there is no trash
+		this.useTrash = useTrash && elements.every(e => !paths.isUNC(e.resource.fsPath)); // on UNC shares there is no trash
 
 		this._updateEnablement();
 	}
@@ -663,10 +661,12 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 		// Handle dirty
 		let confirmDirtyPromise: TPromise<boolean> = TPromise.as(true);
-		const dirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, this.element.resource, !isLinux /* ignorecase */));
+		const dirty = this.textFileService.getDirty().filter(d => this.elements.some(e => resources.isEqualOrParent(d, e.resource, !isLinux /* ignorecase */)));
 		if (dirty.length) {
 			let message: string;
-			if (this.element.isDirectory) {
+			if (this.elements.length > 1) {
+				message = nls.localize('dirtyMessageFilesDelete', "You are deleting files with unsaved changes. Do you want to continue?");
+			} else if (this.elements[0].isDirectory) {
 				if (dirty.length === 1) {
 					message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder with unsaved changes in 1 file. Do you want to continue?");
 				} else {
@@ -706,8 +706,11 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for moving to trash
 			else if (this.useTrash) {
+				const message = this.elements.length > 1 ? nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete '{0}' resources?", this.elements.length)
+					: this.elements[0].isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.elements[0].name)
+						: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.elements[0].name);
 				confirmDeletePromise = this.messageService.confirmWithCheckbox({
-					message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
+					message,
 					detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
 					primaryButton,
 					checkbox: {
@@ -719,8 +722,11 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for deleting permanently
 			else {
+				const message = this.elements.length > 1 ? nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete '{0}' resources?", this.elements.length)
+					: this.elements[0].isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.elements[0].name)
+						: nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.elements[0].name);
 				confirmDeletePromise = this.messageService.confirmWithCheckbox({
-					message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
+					message,
 					detail: nls.localize('irreversible', "This action is irreversible!"),
 					primaryButton,
 					type: 'warning'
@@ -743,12 +749,12 @@ class BaseDeleteFileAction extends BaseFileAction {
 					}
 
 					// Call function
-					const servicePromise = this.fileService.del(this.element.resource, this.useTrash).then(() => {
-						if (this.element.parent) {
-							this.tree.setFocus(this.element.parent); // move focus to parent
+					const servicePromise = TPromise.join(this.elements.map(e => this.fileService.del(e.resource, this.useTrash))).then(() => {
+						if (this.elements[0].parent) {
+							this.tree.setFocus(this.elements[0].parent); // move focus to parent
 						}
 					}, (error: any) => {
-						if (this.retry) {
+						if (this.elements.length === 1) {
 							// Allow to retry
 							let extraAction: Action;
 							if (this.useTrash) {
@@ -1584,13 +1590,9 @@ export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
+	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
-	if (explorerContext.selection.length > 1) {
-		const actions = explorerContext.selection.map(fs => instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, fs, true, false));
-		return sequence(actions.map(a => () => a.run()));
-	}
-
-	const moveFileToTrashAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, explorerContext.stat, true, true);
+	const moveFileToTrashAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, stats, true);
 	return moveFileToTrashAction.run();
 };
 
@@ -1598,13 +1600,9 @@ export const deleteFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
+	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
-	if (explorerContext.selection.length > 1) {
-		const actions = explorerContext.selection.map(fs => instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, fs, false, false));
-		return sequence(actions.map(a => () => a.run()));
-	}
-
-	const deleteFileAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, explorerContext.stat, false, true);
+	const deleteFileAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, stats, false);
 	return deleteFileAction.run();
 };
 
