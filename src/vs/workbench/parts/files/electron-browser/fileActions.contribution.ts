@@ -102,16 +102,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 // Editor Title Context Menu
-appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL);
-appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, CopyPathAction.LABEL);
-appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Side Bar"));
+appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, ResourceContextKey.Scheme.isEqualTo('file'));
+appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, CopyPathAction.LABEL, ResourceContextKey.IsFile);
+appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Side Bar"), ResourceContextKey.IsFile);
 
-function appendEditorTitleContextMenuItem(id: string, title: string): void {
+function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpr): void {
 
 	// Menu
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
 		command: { id, title },
-		when: ContextKeyExpr.equals('resourceScheme', 'file'),
+		when,
 		group: '2_files'
 	});
 }
