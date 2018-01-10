@@ -626,14 +626,13 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 	private static readonly CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 
-	private tree: ITree;
-	private useTrash: boolean;
 	private skipConfirm: boolean;
 
 	constructor(
-		tree: ITree,
+		private tree: ITree,
 		element: FileStat,
-		useTrash: boolean,
+		private useTrash: boolean,
+		private retry: boolean,
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
@@ -648,7 +647,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(): TPromise<any> {
 
 		// Remove highlight
 		if (this.tree) {
@@ -749,14 +748,15 @@ class BaseDeleteFileAction extends BaseFileAction {
 							this.tree.setFocus(this.element.parent); // move focus to parent
 						}
 					}, (error: any) => {
+						if (this.retry) {
+							// Allow to retry
+							let extraAction: Action;
+							if (this.useTrash) {
+								extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
+							}
 
-						// Allow to retry
-						let extraAction: Action;
-						if (this.useTrash) {
-							extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
+							this.onErrorWithRetry(error, () => this.run(), extraAction);
 						}
-
-						this.onErrorWithRetry(error, () => this.run(), extraAction);
 
 						// Focus back to tree
 						this.tree.DOMFocus();
@@ -1533,11 +1533,17 @@ if (!diag) {
 interface IExplorerContext {
 	viewletState: IFileViewletState;
 	stat: FileStat;
+	selection: FileStat[];
 }
 
-function getContext(tree: ListWidget, viewletService: IViewletService): IExplorerContext {
+function getContext(listWidget: ListWidget, viewletService: IViewletService): IExplorerContext {
 	// These commands can only be triggered when explorer viewlet is visible so get it using the active viewlet
-	return { stat: tree.getFocus(), viewletState: (<ExplorerViewlet>viewletService.getActiveViewlet()).getViewletState() };
+	const tree = <ITree>listWidget;
+	const stat = tree.getFocus();
+	const selection = tree.getSelection();
+
+	// Only respect the selection if user clicked inside it (focus belongs to it)
+	return { stat, selection: selection && selection.indexOf(stat) >= 0 ? selection : [], viewletState: (<ExplorerViewlet>viewletService.getActiveViewlet()).getViewletState() };
 }
 
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
@@ -1575,25 +1581,35 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 	return renameAction.run(explorerContext);
 };
 
-export const moveFileToTrashHandler = (accessor) => {
+export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
-	const moveFileToTrashAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, explorerContext.stat, true);
-	return moveFileToTrashAction.run(explorerContext);
+	if (explorerContext.selection.length > 1) {
+		const actions = explorerContext.selection.map(fs => instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, fs, true, false));
+		return sequence(actions.map(a => () => a.run()));
+	}
+
+	const moveFileToTrashAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, explorerContext.stat, true, true);
+	return moveFileToTrashAction.run();
 };
 
-export const deleteFileHandler = (accessor) => {
+export const deleteFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
-	const deleteFileAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, explorerContext.stat, false);
-	return deleteFileAction.run(explorerContext);
+	if (explorerContext.selection.length > 1) {
+		const actions = explorerContext.selection.map(fs => instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, fs, false, false));
+		return sequence(actions.map(a => () => a.run()));
+	}
+
+	const deleteFileAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, explorerContext.stat, false, true);
+	return deleteFileAction.run();
 };
 
-export const copyFileHandler = (accessor) => {
+export const copyFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
@@ -1602,7 +1618,7 @@ export const copyFileHandler = (accessor) => {
 	return copyFileAction.run();
 };
 
-export const pasteFileHandler = (accessor) => {
+export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
