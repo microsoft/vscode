@@ -39,6 +39,7 @@ import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
+import { sequence } from 'vs/base/common/async';
 
 // Commands
 
@@ -96,9 +97,10 @@ export function getResourceForCommand(resource: URI, listService: IListService, 
 
 function getResourcesForCommand(resource: URI, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
 	const list = listService.lastFocusedList;
-	if (list && list.isDOMFocused()) {
-		if (list instanceof Tree) {
-			return list.getSelection().map(fs => fs.resource);
+	if (list && list.isDOMFocused() && list instanceof Tree) {
+		const selection = list.getSelection();
+		if (selection && selection.length > 1) {
+			return selection.map(fs => fs.resource);
 		}
 	}
 
@@ -377,11 +379,11 @@ CommandsRegistry.registerCommand({
 
 const revealInOSHandler = (accessor: ServicesAccessor, resource: URI) => {
 	// Without resource, try to look at the active editor
-	resource = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+	const resources = getResourcesForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
 
-	if (resource) {
+	if (resources.length) {
 		const windowsService = accessor.get(IWindowsService);
-		windowsService.showItemInFolder(paths.normalize(resource.fsPath, true));
+		sequence(resources.map(r => () => windowsService.showItemInFolder(paths.normalize(r.fsPath, true))));
 	} else {
 		const messageService = accessor.get(IMessageService);
 		messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
