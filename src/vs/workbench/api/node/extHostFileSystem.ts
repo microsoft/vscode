@@ -48,10 +48,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	$stat(handle: number, resource: UriComponents): TPromise<IStat, any> {
 		return asWinJsPromise(token => this._provider.get(handle).stat(URI.revive(resource)));
 	}
-	$read(handle: number, offset: number, count: number, resource: UriComponents): TPromise<number> {
+	$read(handle: number, session: number, offset: number, count: number, resource: UriComponents): TPromise<number> {
 		const progress = {
 			report: chunk => {
-				this._proxy.$reportFileChunk(handle, resource, [].slice.call(chunk));
+				this._proxy.$reportFileChunk(handle, session, [].slice.call(chunk));
 			}
 		};
 		return asWinJsPromise(token => this._provider.get(handle).read(URI.revive(resource), offset, count, progress));
@@ -74,7 +74,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	$rmdir(handle: number, resource: UriComponents): TPromise<void, any> {
 		return asWinJsPromise(token => this._provider.get(handle).rmdir(URI.revive(resource)));
 	}
-	$fileFiles(handle: number, session: number, query: string): TPromise<void> {
+	$findFiles(handle: number, session: number, query: string): TPromise<void> {
 		const provider = this._provider.get(handle);
 		if (!provider.findFiles) {
 			return TPromise.as(undefined);

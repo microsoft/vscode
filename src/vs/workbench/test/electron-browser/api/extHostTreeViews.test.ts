@@ -111,24 +111,24 @@ suite('ExtHostTreeView', function () {
 		return testObject.$getElements('testStringTreeProvider')
 			.then(elements => {
 				const actuals = elements.map(e => e.handle);
-				assert.deepEqual(actuals, ['a', 'b']);
+				assert.deepEqual(actuals, ['0/0:a', '0/1:b']);
 				return TPromise.join([
-					testObject.$getChildren('testStringTreeProvider', 'a')
+					testObject.$getChildren('testStringTreeProvider', '0/0:a')
 						.then(children => {
 							const actuals = children.map(e => e.handle);
-							assert.deepEqual(actuals, ['aa', 'ab']);
+							assert.deepEqual(actuals, ['0/0:a/0:aa', '0/0:a/1:ab']);
 							return TPromise.join([
-								testObject.$getChildren('testStringTreeProvider', 'aa').then(children => assert.equal(children.length, 0)),
-								testObject.$getChildren('testStringTreeProvider', 'ab').then(children => assert.equal(children.length, 0))
+								testObject.$getChildren('testStringTreeProvider', '0/0:a/0:aa').then(children => assert.equal(children.length, 0)),
+								testObject.$getChildren('testStringTreeProvider', '0/0:a/1:ab').then(children => assert.equal(children.length, 0))
 							]);
 						}),
-					testObject.$getChildren('testStringTreeProvider', 'b')
+					testObject.$getChildren('testStringTreeProvider', '0/1:b')
 						.then(children => {
 							const actuals = children.map(e => e.handle);
-							assert.deepEqual(actuals, ['ba', 'bb']);
+							assert.deepEqual(actuals, ['0/1:b/0:ba', '0/1:b/1:bb']);
 							return TPromise.join([
-								testObject.$getChildren('testStringTreeProvider', 'ba').then(children => assert.equal(children.length, 0)),
-								testObject.$getChildren('testStringTreeProvider', 'bb').then(children => assert.equal(children.length, 0))
+								testObject.$getChildren('testStringTreeProvider', '0/1:b/0:ba').then(children => assert.equal(children.length, 0)),
+								testObject.$getChildren('testStringTreeProvider', '0/1:b/1:bb').then(children => assert.equal(children.length, 0))
 							]);
 						})
 				]);
@@ -213,7 +213,7 @@ suite('ExtHostTreeView', function () {
 		target.onRefresh.event(actuals => {
 			assert.deepEqual(['0/0:a'], Object.keys(actuals));
 			assert.deepEqual(removeUnsetKeys(actuals['0/0:a']), {
-				handle: '0/0:aa',
+				handle: '0/0:a',
 				label: 'aa',
 			});
 			done();

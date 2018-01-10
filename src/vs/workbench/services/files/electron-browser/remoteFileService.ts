@@ -233,6 +233,15 @@ export class RemoteFileService extends FileService {
 		return this._withProvider(resource).then(provider => {
 
 			return this.resolveFile(resource).then(fileStat => {
+
+				if (options.etag === fileStat.etag) {
+					throw new FileOperationError(
+						localize('fileNotModifiedError', "File not modified since"),
+						FileOperationResult.FILE_NOT_MODIFIED_SINCE,
+						options
+					);
+				}
+
 				const guessEncoding = options.autoGuessEncoding;
 				const count = maxBufferLen(options);
 				const chunks: Buffer[] = [];

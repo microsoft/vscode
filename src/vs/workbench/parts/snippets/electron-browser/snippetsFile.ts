@@ -141,7 +141,7 @@ export class SnippetFile {
 
 	constructor(
 		readonly filepath: string,
-		private readonly _defaultScope: string,
+		readonly defaultScopes: string[],
 		private readonly _extension: IExtensionDescription
 	) {
 		this.isGlobalSnippets = extname(filepath) === '.code-snippets';
@@ -149,7 +149,7 @@ export class SnippetFile {
 	}
 
 	select(selector: string, bucket: Snippet[]): void {
-		if (this.isGlobalSnippets) {
+		if (this.isGlobalSnippets || !this.isUserSnippets) {
 			this._scopeSelect(selector, bucket);
 		} else {
 			this._filepathSelect(selector, bucket);
@@ -229,8 +229,8 @@ export class SnippetFile {
 		}
 
 		let scopes: string[];
-		if (this._defaultScope) {
-			scopes = [this._defaultScope];
+		if (this.defaultScopes) {
+			scopes = this.defaultScopes;
 		} else if (typeof snippet.scope === 'string') {
 			scopes = snippet.scope.split(',').filter(s => !isFalsyOrWhitespace(s));
 		} else {

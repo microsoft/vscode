@@ -84,6 +84,7 @@ declare module 'vscode' {
 	}
 
 	// todo@joh discover files etc
+	// todo@joh CancellationToken everywhere
 	export interface FileSystemProvider {
 
 		readonly onDidChange?: Event<FileChange[]>;
@@ -98,6 +99,7 @@ declare module 'vscode' {
 
 		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
 
+		// todo@joh - have an option to create iff not exist
 		// todo@remote
 		// offset - byte offset to start
 		// count - number of bytes to write

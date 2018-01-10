@@ -371,7 +371,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 
 	$onDidAddFileSystemRoot(root: UriComponents): void;
 	$onFileSystemChange(handle: number, resource: IFileChange[]): void;
-	$reportFileChunk(handle: number, resource: UriComponents, chunk: number[] | null): void;
+	$reportFileChunk(handle: number, session: number, chunk: number[] | null): void;
 
 	$handleSearchProgress(handle: number, session: number, resource: UriComponents): void;
 }
@@ -535,14 +535,14 @@ export interface ExtHostWorkspaceShape {
 export interface ExtHostFileSystemShape {
 	$utimes(handle: number, resource: UriComponents, mtime: number, atime: number): TPromise<IStat>;
 	$stat(handle: number, resource: UriComponents): TPromise<IStat>;
-	$read(handle: number, offset: number, count: number, resource: UriComponents): TPromise<number>;
+	$read(handle: number, session: number, offset: number, count: number, resource: UriComponents): TPromise<number>;
 	$write(handle: number, resource: UriComponents, content: number[]): TPromise<void>;
 	$unlink(handle: number, resource: UriComponents): TPromise<void>;
 	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
 	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
 	$rmdir(handle: number, resource: UriComponents): TPromise<void>;
-	$fileFiles(handle: number, session: number, query: string): TPromise<void>;
+	$findFiles(handle: number, session: number, query: string): TPromise<void>;
 }
 
 export interface ExtHostExtensionServiceShape {

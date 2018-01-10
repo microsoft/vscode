@@ -5418,11 +5418,23 @@ declare module 'vscode' {
 
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) is opened.
+		 *
+		 * To add an event listener when a visible text document is opened, use the [TextEditor](#TextEditor) events in the
+		 * [window](#_window) namespace. Note that:
+		 *
+		 * - The event is emitted before the [document](#TextDocument) is updated in the
+		 * [active text editor](#window.activeTextEditor)
+		 * - When a [text document](#TextDocument) is already open (e.g.: open in another [visible text editor](#window.visibleTextEditors)) this event is not emitted
+		 *
 		 */
 		export const onDidOpenTextDocument: Event<TextDocument>;
 
 		/**
 		 * An event that is emitted when a [text document](#TextDocument) is disposed.
+		 *
+		 * To add an event listener when a visible text document is closed, use the [TextEditor](#TextEditor) events in the
+		 * [window](#_window) namespace. Note that this event is not emitted when a [TextEditor](#TextEditor) is closed
+		 * but the document remains open in another [visible text editor](#window.visibleTextEditors).
 		 */
 		export const onDidCloseTextDocument: Event<TextDocument>;
 

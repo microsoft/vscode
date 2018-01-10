@@ -35,7 +35,7 @@ export class FileService implements IFileService {
 	private static readonly NET_VERSION_ERROR = 'System.MissingMethodException';
 	private static readonly NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
 
-	private raw: IFileService;
+	private raw: NodeFileService;
 
 	private toUnbind: IDisposable[];
 
