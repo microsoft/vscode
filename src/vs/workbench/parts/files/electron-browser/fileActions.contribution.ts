@@ -187,7 +187,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
 	order: 40,
 	command: copyPathCommand,
-	when: ResourceContextKey.HasResource
+	when: ResourceContextKey.IsFile
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -334,7 +334,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: 'navigation',
 	order: 20,
 	command: revealInOsCommand,
-	when: ResourceContextKey.HasResource
+	when: ResourceContextKey.Scheme.isEqualTo('file')
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -376,7 +376,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '5_cutcopypaste',
 	order: 30,
 	command: copyPathCommand,
-	when: ResourceContextKey.HasResource
+	when: ResourceContextKey.IsFile
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -396,7 +396,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: OPEN_FOLDER_SETTINGS_COMMAND,
 		title: OPEN_FOLDER_SETTINGS_LABEL
 	},
-	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext)
+	when: ExplorerRootContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -406,7 +406,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: REMOVE_ROOT_FOLDER_COMMAND_ID,
 		title: REMOVE_ROOT_FOLDER_LABEL
 	},
-	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext)
+	when: ExplorerRootContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
