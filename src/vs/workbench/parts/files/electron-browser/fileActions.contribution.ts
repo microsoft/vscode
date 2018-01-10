@@ -187,7 +187,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
 	order: 40,
 	command: copyPathCommand,
-	when: ResourceContextKey.HasResource
+	when: ResourceContextKey.IsFile
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -334,7 +334,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: 'navigation',
 	order: 20,
 	command: revealInOsCommand,
-	when: ResourceContextKey.HasResource
+	when: ResourceContextKey.Scheme.isEqualTo('file')
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -376,7 +376,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '5_cutcopypaste',
 	order: 30,
 	command: copyPathCommand,
-	when: ResourceContextKey.HasResource
+	when: ResourceContextKey.IsFile
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
