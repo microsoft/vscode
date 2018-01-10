@@ -1100,7 +1100,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return res;
 	}
 
-	public openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<IEditor[]> {
+	public openEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[]): TPromise<IEditor[]>;
+	public openEditors(editors: { input: EditorInput, options?: EditorOptions }[], sideBySide?: boolean): TPromise<IEditor[]>;
+	public openEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[], sideBySide?: boolean): TPromise<IEditor[]> {
 		if (!editors.length) {
 			return TPromise.as<IEditor[]>([]);
 		}
@@ -1112,7 +1114,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		const ratio = this.editorGroupsControl.getRatio();
 
-		return this.doOpenEditors(editors, activePosition, ratio);
+		return this.doOpenEditors(editors, activePosition, ratio, sideBySide);
 	}
 
 	public hasEditorsToRestore(): boolean {
@@ -1143,7 +1145,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		return this._onEditorsChanged.throttle(this.doOpenEditors(editors, activePosition, editorState && editorState.ratio));
 	}
 
-	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[]): TPromise<IEditor[]> {
+	private doOpenEditors(editors: { input: EditorInput, position?: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[], sideBySide?: boolean): TPromise<IEditor[]> {
+
+		// Find position if not provided already from calling side
+		editors.forEach(editor => {
+			if (typeof editor.position !== 'number') {
+				editor.position = this.findPosition(editor.input, editor.options, sideBySide);
+			}
+		});
+
 		const positionOneEditors = editors.filter(e => e.position === Position.ONE);
 		const positionTwoEditors = editors.filter(e => e.position === Position.TWO);
 		const positionThreeEditors = editors.filter(e => e.position === Position.THREE);

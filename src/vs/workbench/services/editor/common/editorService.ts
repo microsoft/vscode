@@ -68,8 +68,10 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 * Similar to #openEditor() but allows to open multiple editors for different positions at the same time. If there are
 	 * more than one editor per position, only the first one will be active and the others stacked behind inactive.
 	 */
-	openEditors(editors: { input: IResourceInputType, position: Position }[]): TPromise<IEditor[]>;
-	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<IEditor[]>;
+	openEditors(editors: { input: IResourceInputType, position?: Position }[]): TPromise<IEditor[]>;
+	openEditors(editors: { input: IEditorInput, position?: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<IEditor[]>;
+	openEditors(editors: { input: IResourceInputType }[], sideBySide?: boolean): TPromise<IEditor[]>;
+	openEditors(editors: { input: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], sideBySide?: boolean): TPromise<IEditor[]>;
 
 	/**
 	 * Given a list of editors to replace, will look across all groups where this editor is open (active or hidden)
@@ -104,7 +106,8 @@ export interface IWorkbenchEditorService extends IEditorService {
 export interface IEditorPart {
 	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<IEditor>;
 	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, position?: Position): TPromise<IEditor>;
-	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<IEditor[]>;
+	openEditors(editors: { input: IEditorInput, position?: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<IEditor[]>;
+	openEditors(editors: { input: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], sideBySide?: boolean): TPromise<IEditor[]>;
 	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], position?: Position): TPromise<IEditor[]>;
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 	closeEditors(position: Position, filter?: { except?: IEditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void>;
@@ -208,7 +211,9 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public openEditors(editors: { input: IResourceInputType, position: Position }[]): TPromise<IEditor[]>;
 	public openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions }[]): TPromise<IEditor[]>;
-	public openEditors(editors: any[]): TPromise<IEditor[]> {
+	public openEditors(editors: { input: IResourceInputType }[], sideBySide?: boolean): TPromise<IEditor[]>;
+	public openEditors(editors: { input: IEditorInput, options?: IEditorOptions }[], sideBySide?: boolean): TPromise<IEditor[]>;
+	public openEditors(editors: any[], sideBySide?: boolean): TPromise<IEditor[]> {
 		const inputs = editors.map(editor => this.createInput(editor.input));
 		const typedInputs: { input: IEditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
 			const options = editors[index].input instanceof EditorInput ? this.toOptions(editors[index].options) : TextEditorOptions.from(editors[index].input);
@@ -220,7 +225,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			};
 		});
 
-		return this.editorPart.openEditors(typedInputs);
+		return this.editorPart.openEditors(typedInputs, sideBySide);
 	}
 
 	public replaceEditors(editors: { toReplace: IResourceInputType, replaceWith: IResourceInputType }[], position?: Position): TPromise<IEditor[]>;
