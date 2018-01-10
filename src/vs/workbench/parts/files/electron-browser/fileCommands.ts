@@ -39,6 +39,7 @@ import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
+import { sequence } from 'vs/base/common/async';
 
 // Commands
 
@@ -92,6 +93,18 @@ export function getResourceForCommand(resource: URI, listService: IListService, 
 	}
 
 	return toResource(editorService.getActiveEditorInput(), { supportSideBySide: true });
+}
+
+function getResourcesForCommand(resource: URI, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
+	const list = listService.lastFocusedList;
+	if (list && list.isDOMFocused() && list instanceof Tree) {
+		const selection = list.getSelection();
+		if (selection && selection.length > 1) {
+			return selection.map(fs => fs.resource);
+		}
+	}
+
+	return [getResourceForCommand(resource, listService, editorService)];
 }
 
 function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
@@ -366,11 +379,11 @@ CommandsRegistry.registerCommand({
 
 const revealInOSHandler = (accessor: ServicesAccessor, resource: URI) => {
 	// Without resource, try to look at the active editor
-	resource = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+	const resources = getResourcesForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
 
-	if (resource) {
+	if (resources.length) {
 		const windowsService = accessor.get(IWindowsService);
-		windowsService.showItemInFolder(paths.normalize(resource.fsPath, true));
+		sequence(resources.map(r => () => windowsService.showItemInFolder(paths.normalize(r.fsPath, true))));
 	} else {
 		const messageService = accessor.get(IMessageService);
 		messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
@@ -402,10 +415,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	id: COPY_PATH_COMMAND_ID,
 	handler: (accessor, resource: URI) => {
-		resource = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
-		if (resource) {
+		const resources = getResourcesForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+		if (resources.length) {
 			const clipboardService = accessor.get(IClipboardService);
-			clipboardService.writeText(resource.scheme === 'file' ? labels.getPathLabel(resource) : resource.toString());
+			const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join('\n');
+			clipboardService.writeText(text);
 		} else {
 			const messageService = accessor.get(IMessageService);
 			messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
