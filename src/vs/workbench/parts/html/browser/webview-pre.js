@@ -12,6 +12,7 @@
 	var firstLoad = true;
 	var loadTimeout;
 	var pendingMessages = [];
+	var enableWrappedPostMessage = false;
 
 	const initData = {
 		initialScrollProgress: undefined
@@ -125,6 +126,8 @@
 		// update iframe-contents
 		ipcRenderer.on('content', function (_event, data) {
 			const options = data.options;
+			enableWrappedPostMessage = options && options.enableWrappedPostMessage;
+
 			const text = data.contents.join('\n');
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
@@ -145,7 +148,7 @@
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
 
-			const vars = Object.keys(initData.styles).map(function (variable) {
+			const vars = Object.keys(initData.styles || {}).map(function (variable) {
 				return `--${variable}: ${initData.styles[variable]};`;
 			});
 			defaultStyles.innerHTML = `
@@ -312,9 +315,15 @@
 			initData.initialScrollProgress = progress;
 		});
 
-		// forward messages from the embedded iframe
+		// Forward messages from the embedded iframe
 		window.onmessage = function (message) {
-			ipcRenderer.sendToHost(message.data.command, message.data.data);
+			if (enableWrappedPostMessage) {
+				// Modern webview. Forward wrapped message
+				ipcRenderer.sendToHost('onmessage', message.data);
+			} else {
+				// Old school webview. Forward exact message
+				ipcRenderer.sendToHost(message.data.command, message.data.data);
+			}
 		};
 
 		// signal ready

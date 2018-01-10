@@ -437,7 +437,6 @@ declare module 'vscode' {
 	}
 
 	export namespace languages {
-
 		export interface RenameProvider2 extends RenameProvider {
 			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
 		}
@@ -487,5 +486,74 @@ declare module 'vscode' {
 		 * the validation provider simply by setting this property to a different function.
 		 */
 		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
+	}
+
+	/**
+	 * Content settings for a webview.
+	 */
+	export interface WebviewOptions {
+		/**
+		 * Should scripts be enabled in the webview?
+		 *
+		 * Defaults to false (scripts-disabled).
+		 */
+		readonly enableScripts?: boolean;
+
+		/**
+		 * Should command uris be enabled?
+		 *
+		 * Defaults to false.
+		 */
+		readonly enableCommandUris?: boolean;
+
+		/**
+		 * Should the webview be kept alive even when it is no longer visible?
+		 */
+		readonly keepAlive?: boolean;
+	}
+
+	/**
+	 * A webview is an editor with html content, like an iframe.
+	 */
+	export interface Webview {
+		/**
+		 * Title of the webview.
+		 */
+		title: string;
+
+		/**
+		 * Contents of the webview.
+		 */
+		html: string;
+
+		/**
+		 * Content settings for the webview.
+		 */
+		options: WebviewOptions;
+
+		/**
+		 * Fixed when the webview posts a message.
+		 */
+		readonly onMessage: Event<any>;
+
+		/**
+		 * Post a message to the webview.
+		 *
+		 * Messages are only develivered if the webview is visible.
+		 *
+		 * @param message Body of the message.
+		 */
+		postMessage(message: any): Thenable<any>;
+	}
+
+	namespace window {
+		/**
+		 * Create and show a new webview.
+		 *
+		 * @param title Title of the webview.
+		 * @param column Editor column to show the new webview in.
+		 * @param options Webview content options.
+		 */
+		export function createWebview(title: string, column: ViewColumn, options: WebviewOptions): Webview;
 	}
 }

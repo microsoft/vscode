@@ -2,6 +2,7 @@
 	"name": "vscode-markdown",
 	"displayName": "VS Code Markdown",
 	"description": "Markdown for VS Code",
+	"enableProposedApi": true,
 	"version": "0.2.0",
 	"publisher": "Microsoft",
 	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
