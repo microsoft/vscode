@@ -39,7 +39,7 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, IConfirmation, Severity, IConfirmationResult } from 'vs/platform/message/common/message';
+import { IMessageService, IConfirmation, Severity, IConfirmationResult, getConfirmMessage } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -717,23 +717,23 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
 		const sources: FileStat[] = data.getData();
-		let source: FileStat = null;
-		if (sources.length > 0) {
-			source = sources[0];
-		}
+		if (sources && sources.length) {
+			// When dragging folders, make sure to collapse them to free up some space
+			sources.forEach(s => {
+				if (s.isDirectory && tree.isExpanded(s)) {
+					tree.collapse(s, false);
+				}
+			});
 
-		// When dragging folders, make sure to collapse them to free up some space
-		if (source && source.isDirectory && tree.isExpanded(source)) {
-			tree.collapse(source, false);
-		}
+			// Apply some datatransfer types to allow for dragging the element outside of the application
+			// TODO@Isidor check this
+			if (sources.length === 1) {
+				if (!sources[0].isDirectory) {
+					originalEvent.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, sources[0].name, sources[0].resource.toString()].join(':'));
+				}
 
-		// Apply some datatransfer types to allow for dragging the element outside of the application
-		if (source) {
-			if (!source.isDirectory) {
-				originalEvent.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, source.name, source.resource.toString()].join(':'));
+				originalEvent.dataTransfer.setData(DataTransfers.TEXT, getPathLabel(sources[0].resource));
 			}
-
-			originalEvent.dataTransfer.setData(DataTransfers.TEXT, getPathLabel(source.resource));
 		}
 	}
 
@@ -884,7 +884,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): TPromise<void> {
-		const source: FileStat = data.getData()[0];
+		const sources: FileStat[] = data.getData();
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		let confirmPromise: TPromise<IConfirmationResult>;
@@ -893,7 +893,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
 			confirmPromise = this.messageService.confirmWithCheckbox({
-				message: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", source.name),
+				message: sources.length > 1 ? getConfirmMessage(nls.localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
+					: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
 				checkbox: {
 					label: nls.localize('doNotAskAgain', "Do not ask me again")
 				},
@@ -914,7 +915,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 			return updateConfirmSettingsPromise.then(() => {
 				if (confirmation.confirmed) {
-					return this.doHandleExplorerDrop(tree, data, source, target, isCopy);
+					return TPromise.join(sources.map(source => this.doHandleExplorerDrop(tree, data, source, target, isCopy))).then(() => void 0);
 				}
 
 				return TPromise.as(void 0);
