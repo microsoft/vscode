@@ -35,10 +35,9 @@ export abstract class AbstractSettingsModel extends EditorModel {
 		let filterResult: IFilterResult;
 		if (this._currentResultGroups.size > 0) {
 			this._removeDuplicateResults();
-			filterResult = this.update();
-		} else {
-			filterResult = null;
 		}
+
+		filterResult = this.update();
 
 		return filterResult;
 	}
@@ -156,6 +155,9 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 
 	protected update(): IFilterResult {
 		const resultGroups = map.values(this._currentResultGroups);
+		if (!resultGroups.length) {
+			return null;
+		}
 
 		// Transform resultGroups into IFilterResult - ISetting ranges are already correct here
 		const filteredSettings: ISetting[] = [];
@@ -414,7 +416,7 @@ export class DefaultSettings extends Disposable {
 		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
-		this._content = this.toContent(true, [mostCommonlyUsed], settingsGroups);
+		this._content = this.toContent(true, this._allSettingsGroups);
 		return this._content;
 	}
 
@@ -562,17 +564,14 @@ export class DefaultSettings extends Disposable {
 		return c1.order - c2.order;
 	}
 
-	private toContent(asArray: boolean, ...settingsGroups: ISettingsGroup[][]): string {
+	private toContent(asArray: boolean, settingsGroups: ISettingsGroup[]): string {
 		const builder = new SettingsContentBuilder();
 		if (asArray) {
 			builder.pushLine('[');
 		}
 		settingsGroups.forEach((settingsGroup, i) => {
-			builder.pushGroups(settingsGroup);
-
-			if (i !== settingsGroups.length - 1) {
-				builder.pushLine(',');
-			}
+			builder.pushGroup(settingsGroup);
+			builder.pushLine(',');
 		});
 		if (asArray) {
 			builder.pushLine(']');
@@ -588,8 +587,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
-
-	private _resultsGroupsStartLine = 0;
 
 	constructor(
 		private _uri: URI,
@@ -618,21 +615,22 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	protected update(): IFilterResult {
+		// Grab current result groups, only render non-empty groups
 		const resultGroups = map.values(this._currentResultGroups);
+		const nonEmptyResultGroups = resultGroups.filter(group => group.result.filterMatches.length);
 
-		if (!this._resultsGroupsStartLine) {
-			this._resultsGroupsStartLine = tail(this.settingsGroups).range.endLineNumber + 2;
-		}
+		const startLine = tail(this.settingsGroups).range.endLineNumber + 2;
+		const { settingsGroups: filteredGroups, matches } = this.writeResultGroups(nonEmptyResultGroups, startLine);
 
 		const groupWithMetadata = first(resultGroups, group => !!group.result.metadata);
-		const { settingsGroups: filteredGroups, matches } = this.writeResultGroups(resultGroups, this._resultsGroupsStartLine);
-
-		return <IFilterResult>{
-			allGroups: this.settingsGroups,
-			filteredGroups,
-			matches,
-			metadata: groupWithMetadata && groupWithMetadata.result.metadata
-		};
+		return resultGroups.length ?
+			<IFilterResult>{
+				allGroups: this.settingsGroups,
+				filteredGroups,
+				matches,
+				metadata: groupWithMetadata && groupWithMetadata.result.metadata
+			} :
+			null;
 	}
 
 	/**
@@ -644,6 +642,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 		const settingsGroups: ISettingsGroup[] = [];
 		const matches: IRange[] = [];
+		builder.pushLine(',');
 		groups.forEach(resultGroup => {
 			const settingsGroup = this.getGroup(resultGroup);
 			settingsGroups.push(settingsGroup);
@@ -681,8 +680,8 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			};
 		});
 
+		builder.pushGroup(settingsGroup);
 		builder.pushLine(',');
-		builder.pushGroups([settingsGroup]);
 
 		// builder has rewritten settings ranges, fix match ranges
 		const fixedMatches = flatten(
@@ -719,7 +718,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return null;
 	}
 
-	private getSettings(settings: ISetting[]): ISetting[] {
+	private copySettings(settings: ISetting[]): ISetting[] {
 		return settings.map(setting => {
 			return <ISetting>{
 				description: setting.description,
@@ -740,7 +739,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			titleRange: null,
 			sections: [
 				{
-					settings: this.getSettings(resultGroup.result.filterMatches.map(m => m.setting))
+					settings: this.copySettings(resultGroup.result.filterMatches.map(m => m.setting))
 				}
 			]
 		};
@@ -749,10 +748,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 class SettingsContentBuilder {
 	private _contentByLines: string[];
-
-	get lineCount(): number {
-		return this._contentByLines.length;
-	}
 
 	private get lineCountWithOffset(): number {
 		return this._contentByLines.length + this._rangeOffset;
@@ -774,14 +769,12 @@ class SettingsContentBuilder {
 		this._contentByLines.push(...lineText);
 	}
 
-	pushGroups(settingsGroups: ISettingsGroup[]): void {
-		let lastSetting: ISetting = null;
+	pushGroup(settingsGroups: ISettingsGroup): void {
 		this._contentByLines.push('{');
 		this._contentByLines.push('');
-		for (const group of settingsGroups) {
-			this._contentByLines.push('');
-			lastSetting = this.pushGroup(group);
-		}
+		this._contentByLines.push('');
+		const lastSetting = this._pushGroup(settingsGroups);
+
 		if (lastSetting) {
 			// Strip the comma from the last setting
 			const lineIdx = this.offsetIndexToIndex(lastSetting.range.endLineNumber);
@@ -792,7 +785,7 @@ class SettingsContentBuilder {
 		this._contentByLines.push('}');
 	}
 
-	private pushGroup(group: ISettingsGroup): ISetting {
+	private _pushGroup(group: ISettingsGroup): ISetting {
 		const indent = '  ';
 		let lastSetting: ISetting = null;
 		let groupStart = this.lineCountWithOffset + 1;

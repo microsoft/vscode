@@ -385,64 +385,48 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 	}
 
 	get hiddenAreas(): IRange[] {
-		const lastGroup = arrays.tail(this._settingsGroups);
+		// Opening square brace
 		const hiddenAreas = [
 			{
 				startLineNumber: 1,
 				startColumn: 1,
 				endLineNumber: 2,
 				endColumn: 1
-			},
-			// End of Commonly Used
-			{
-				startLineNumber: this._settingsGroups[0].range.endLineNumber + 1,
-				startColumn: this._settingsGroups[0].range.endLineNumber + 1,
-				endLineNumber: this._settingsGroups[0].range.endLineNumber + 4,
-				endColumn: this._settingsGroups[0].range.endLineNumber + 4
-			},
-			// End of the unfiltered groups
-			{
-				startLineNumber: lastGroup.range.endLineNumber + 1,
-				startColumn: 1,
-				endLineNumber: lastGroup.range.endLineNumber + 2,
-				endColumn: 1
 			}
 		];
 
-		if (this._result) {
-			this._result.filteredGroups.forEach((filteredGroup, i) => {
-				// Beginning of the filtered group
-				hiddenAreas.push({
-					startLineNumber: filteredGroup.range.startLineNumber - 4,
-					startColumn: 1,
-					endLineNumber: filteredGroup.range.startLineNumber - 3,
-					endColumn: 1
-				});
-
-				// Hide the braces at the end of the group
-				const hasNextGroup = !!this._result.filteredGroups[i + 1];
-				const isEmpty = !filteredGroup.sections[0].settings.length;
-				if (hasNextGroup) {
-					// Empty groups have fewer blank interior lines
-					const startLineNumber = isEmpty ? (filteredGroup.range.startLineNumber - 2) : (filteredGroup.range.endLineNumber + 1);
-					const endLineNumber = filteredGroup.range.endLineNumber + (isEmpty ? 1 : 4);
-					hiddenAreas.push({
-						startLineNumber,
-						startColumn: 1,
-						endLineNumber,
-						endColumn: 1
-					});
-				} else {
-					// Hide the closing ]
-					hiddenAreas.push({
-						startLineNumber: filteredGroup.range.endLineNumber + 1,
-						startColumn: 1,
-						endLineNumber: this.editor.getModel().getLineCount(),
-						endColumn: 1
-					});
-				}
+		const hideBraces = group => {
+			// Opening curly brace
+			hiddenAreas.push({
+				startLineNumber: group.range.startLineNumber - 3,
+				startColumn: 1,
+				endLineNumber: group.range.startLineNumber - 3,
+				endColumn: 1
 			});
+
+			// Closing curly brace
+			hiddenAreas.push({
+				startLineNumber: group.range.endLineNumber + 1,
+				startColumn: 1,
+				endLineNumber: group.range.endLineNumber + 4,
+				endColumn: 1
+			});
+		};
+
+		this._settingsGroups.forEach(hideBraces);
+		if (this._result) {
+			this._result.filteredGroups.forEach(hideBraces);
 		}
+
+		// Closing square brace
+		const lineCount = this.editor.getModel().getLineCount();
+		hiddenAreas.push({
+			startLineNumber: lineCount,
+			startColumn: 1,
+			endLineNumber: lineCount,
+			endColumn: 1
+		});
+
 
 		return hiddenAreas;
 	}
@@ -776,24 +760,16 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	}
 
 	private computeHiddenRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], model: ITextModel): IRange[] {
+		// Hide the contents of hidden groups
 		const notMatchesRanges: IRange[] = [];
 		if (filteredGroups) {
 			allSettingsGroups.forEach((group, i) => {
-				// Only the first two groups are wrapped in braces, and they have extra lines that need to be hidden
-				const startLineNumber = i < 2 ? group.range.startLineNumber - 2 : group.range.startLineNumber;
 				notMatchesRanges.push({
-					startLineNumber,
+					startLineNumber: group.range.startLineNumber - 1,
 					startColumn: group.range.startColumn,
-					endLineNumber: group.range.endLineNumber + 2,
+					endLineNumber: group.range.endLineNumber,
 					endColumn: group.range.endColumn
 				});
-			});
-		} else {
-			notMatchesRanges.push({
-				startLineNumber: allSettingsGroups[allSettingsGroups.length - 1].range.endLineNumber,
-				startColumn: 0,
-				endLineNumber: this.editor.getModel().getLineCount(),
-				endColumn: 0
 			});
 		}
 
