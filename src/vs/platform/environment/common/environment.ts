@@ -9,6 +9,7 @@ import { LogLevel } from 'vs/platform/log/common/log';
 export interface ParsedArgs {
 	[arg: string]: any;
 	_: string[];
+	_urls?: string[];
 	help?: boolean;
 	version?: boolean;
 	status?: boolean;
@@ -42,7 +43,7 @@ export interface ParsedArgs {
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
 	'enable-proposed-api'?: string | string[];
-	'open-url'?: string | string[];
+	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
 	'skip-release-notes'?: boolean;
 	'sticky-quickopen'?: boolean;

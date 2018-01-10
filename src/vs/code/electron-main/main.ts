@@ -66,7 +66,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IStateService, new SyncDescriptor(StateService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
+	services.set(IURLService, new SyncDescriptor(URLService, args['open-url'] ? args._urls : []));
 	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
 
 	return new InstantiationService(services, true);
