@@ -104,7 +104,8 @@ function getResourcesForCommand(resource: URI, listService: IListService, editor
 		}
 	}
 
-	return [getResourceForCommand(resource, listService, editorService)];
+	const result = getResourceForCommand(resource, listService, editorService);
+	return !!result ? [result] : [];
 }
 
 function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
@@ -293,7 +294,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const listService = accessor.get(IListService);
 		const tree = listService.lastFocusedList;
-		resource = getResourceForCommand(resource, listService, editorService);
+		const resources = getResourcesForCommand(resource, listService, editorService);
 
 		// Remove highlight
 		if (tree instanceof Tree) {
@@ -301,8 +302,16 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		// Set side input
-		if (URI.isUri(resource)) {
-			return editorService.openEditor({ resource, options: { preserveFocus: false } }, true);
+		if (resources.length) {
+			return editorService.openEditors(resources.map(resource => {
+				return {
+					input: {
+						resource,
+						options: { preserveFocus: false }
+					},
+					position: Position.THREE
+				};
+			}));
 		}
 
 		return TPromise.as(true);
