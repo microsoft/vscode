@@ -15,7 +15,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { MainThreadTextEditor } from './mainThreadEditor';
-import { ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions } from 'vs/workbench/api/node/extHost.protocol';
+import { ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions, IResourceFileEdit } from 'vs/workbench/api/node/extHost.protocol';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IExtHostContext, IWorkspaceResourceEdit } from '../node/extHost.protocol';
@@ -210,7 +210,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		return TPromise.as(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
 	}
 
-	$tryApplyWorkspaceEdit(workspaceResourceEdits: IWorkspaceResourceEdit[]): TPromise<boolean> {
+	$tryApplyWorkspaceEdit(workspaceResourceEdits: IWorkspaceResourceEdit[], resourceFileEdits?: IResourceFileEdit): TPromise<boolean> {
 
 		// First check if loaded models were not changed in the meantime
 		for (let i = 0, len = workspaceResourceEdits.length; i < len; i++) {
@@ -253,8 +253,17 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 			}
 		}
 
-		return bulkEdit(this._textModelResolverService, codeEditor, resourceEdits, this._fileService)
-			.then(() => true);
+		return bulkEdit(
+			this._textModelResolverService,
+			codeEditor,
+			resourceEdits,
+			this._fileService,
+			resourceFileEdits ? {
+				renamedResources: resourceFileEdits.renamedResources.map(entry => ({ from: URI.revive(entry.from), to: URI.revive(entry.to) })),
+				createdResources: resourceFileEdits.createdResources.map(entry => ({ uri: URI.revive(entry.uri), contents: entry.contents })),
+				deletedResources: resourceFileEdits.deletedResources.map(URI.revive)
+			} : undefined
+		).then(() => true);
 	}
 
 	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): TPromise<boolean> {

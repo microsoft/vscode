@@ -362,6 +362,19 @@ suite('ExtHostTypes', function () {
 
 	});
 
+	test('WorkspaceEdit should fail when editing deleted resource', () => {
+		const resource = URI.parse('file:///a.ts');
+
+		const edit = new types.WorkspaceEdit();
+		edit.deleteResource(resource);
+		try {
+			edit.insert(resource, new types.Position(0, 0), '');
+			assert.fail(false, 'Should disallow edit of deleted resource');
+		} catch {
+			// expected
+		}
+	});
+
 	test('DocumentLink', function () {
 		assert.throws(() => new types.DocumentLink(null, null));
 		assert.throws(() => new types.DocumentLink(new types.Range(1, 1, 1, 1), null));

@@ -18,6 +18,13 @@ import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation, ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IResourceRename, IResourceCreate } from 'vs/editor/common/modes';
+
+export interface IResourceFileEdit {
+	readonly renamedResources: { from: URI, to }[];
+	readonly createdResources: { uri: URI, contents: string }[];
+	readonly deletedResources: URI[];
+}
 
 export interface IResourceEdit {
 	resource: URI;
@@ -196,11 +203,23 @@ class BulkEditModel implements IDisposable {
 	private _sourceSelections: Selection[];
 	private _sourceModelTask: SourceModelEditTask;
 
-	constructor(textModelResolverService: ITextModelService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[], private progress: IProgressRunner = null) {
+	constructor(
+		textModelResolverService: ITextModelService,
+		sourceModel: URI,
+		sourceSelections: Selection[],
+		edits: IResourceEdit[],
+		private progress: IProgressRunner,
+		private renames: IResourceRename[],
+		private creates: IResourceCreate[],
+		private deletes: URI[],
+		private fileService: IFileService
+	) {
 		this._textModelResolverService = textModelResolverService;
 		this._sourceModel = sourceModel;
 		this._sourceSelections = sourceSelections;
 		this._sourceModelTask = null;
+
+		this._numberOfResourcesToModify += this.renames.length + this.deletes.length + this.creates.length;
 
 		for (let edit of edits) {
 			this._addEdit(edit);
@@ -216,7 +235,7 @@ class BulkEditModel implements IDisposable {
 		array.push(edit);
 	}
 
-	public prepare(): TPromise<BulkEditModel> {
+	public async prepare(): TPromise<BulkEditModel> {
 
 		if (this._tasks) {
 			throw new Error('illegal state - already prepared');
@@ -228,6 +247,15 @@ class BulkEditModel implements IDisposable {
 		if (this.progress) {
 			this.progress.total(this._numberOfResourcesToModify * 2);
 		}
+
+		await TPromise.join(this.renames.map(rename =>
+			this.fileService.moveFile(rename.from, rename.to)));
+
+		await TPromise.join(this.creates.map(create =>
+			this.fileService.createFile(create.uri, create.contents)));
+
+		await TPromise.join(this.deletes.map(uri =>
+			this.fileService.del(uri)));
 
 		forEach(this._edits, entry => {
 			const promise = this._textModelResolverService.createModelReference(URI.parse(entry.key)).then(ref => {
@@ -256,8 +284,9 @@ class BulkEditModel implements IDisposable {
 			promises.push(promise);
 		});
 
+		await TPromise.join(promises);
 
-		return TPromise.join(promises).then(_ => this);
+		return this;
 	}
 
 	public apply(): Selection {
@@ -284,20 +313,29 @@ class BulkEditModel implements IDisposable {
 export interface BulkEdit {
 	progress(progress: IProgressRunner): void;
 	add(edit: IResourceEdit[]): void;
+	addRename(edit: IResourceRename[]): void;
+	addCreate(edit: IResourceCreate[]): void;
+	addDelete(edit: URI[]): void;
 	finish(): TPromise<ISelection>;
 	ariaMessage(): string;
 }
 
-export function bulkEdit(textModelResolverService: ITextModelService, editor: ICodeEditor, edits: IResourceEdit[], fileService?: IFileService, progress: IProgressRunner = null): TPromise<any> {
+export function bulkEdit(textModelResolverService: ITextModelService, editor: ICodeEditor, edits: IResourceEdit[], fileService: IFileService, resourceFileEdits?: IResourceFileEdit): TPromise<any> {
 	let bulk = createBulkEdit(textModelResolverService, editor, fileService);
 	bulk.add(edits);
-	bulk.progress(progress);
+	bulk.addRename(resourceFileEdits.renamedResources);
+	bulk.addCreate(resourceFileEdits.createdResources);
+	bulk.addDelete(resourceFileEdits.deletedResources);
+	bulk.progress(null);
 	return bulk.finish();
 }
 
 export function createBulkEdit(textModelResolverService: ITextModelService, editor?: ICodeEditor, fileService?: IFileService): BulkEdit {
 
 	let all: IResourceEdit[] = [];
+	const renames: IResourceRename[] = [];
+	const creates: IResourceCreate[] = [];
+	const deletes: URI[] = [];
 	let recording = new ChangeRecorder(fileService).start();
 	let progressRunner: IProgressRunner;
 
@@ -307,6 +345,18 @@ export function createBulkEdit(textModelResolverService: ITextModelService, edit
 
 	function add(edits: IResourceEdit[]): void {
 		all.push(...edits);
+	}
+
+	function addRename(edits: IResourceRename[]): void {
+		renames.push(...edits);
+	}
+
+	function addCreate(edits: IResourceCreate[]): void {
+		creates.push(...edits);
+	}
+
+	function addDelete(edits: URI[]): void {
+		deletes.push(...edits);
 	}
 
 	function getConcurrentEdits() {
@@ -327,7 +377,7 @@ export function createBulkEdit(textModelResolverService: ITextModelService, edit
 
 	function finish(): TPromise<ISelection> {
 
-		if (all.length === 0) {
+		if (all.length === 0 && renames.length === 0 && creates.length === 0 && deletes.length === 0) {
 			return TPromise.as(undefined);
 		}
 
@@ -344,9 +394,9 @@ export function createBulkEdit(textModelResolverService: ITextModelService, edit
 			selections = editor.getSelections();
 		}
 
-		const model = new BulkEditModel(textModelResolverService, uri, selections, all, progressRunner);
+		const model = new BulkEditModel(textModelResolverService, uri, selections, all, progressRunner, renames, creates, deletes, fileService);
 
-		return model.prepare().then(_ => {
+		return model.prepare().then(async _ => {
 
 			let concurrentEdits = getConcurrentEdits();
 			if (concurrentEdits) {
@@ -355,7 +405,7 @@ export function createBulkEdit(textModelResolverService: ITextModelService, edit
 
 			recording.stop();
 
-			const result = model.apply();
+			const result = await model.apply();
 			model.dispose();
 			return result;
 		});
@@ -376,6 +426,9 @@ export function createBulkEdit(textModelResolverService: ITextModelService, edit
 	return {
 		progress,
 		add,
+		addRename,
+		addCreate,
+		addDelete,
 		finish,
 		ariaMessage
 	};

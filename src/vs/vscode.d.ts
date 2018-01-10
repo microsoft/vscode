@@ -2431,6 +2431,29 @@ declare module 'vscode' {
 		readonly size: number;
 
 		/**
+		 * Renames a given resource in the workspace.
+		 *
+		 * @param from Uri of current resource.
+		 * @param to Uri of renamed resource.
+		 */
+		renameResource(from: Uri, to: Uri): void;
+
+		/**
+		 * Create a new resource in the workspace.
+		 *
+		 * @param uri Uri of resource to create.
+		 * @param contents New file contents.
+		 */
+		createResource(uri: Uri, contents: String): void;
+
+		/**
+		 * Delete a given resource in the workspace.
+		 *
+		 * @param uri Uri of resource to delete.
+		 */
+		deleteResource(uri: Uri): void;
+
+		/**
 		 * Replace the given range with given text for the given resource.
 		 *
 		 * @param uri A resource identifier.
@@ -2485,6 +2508,21 @@ declare module 'vscode' {
 		 * @return An array of `[Uri, TextEdit[]]`-tuples.
 		 */
 		entries(): [Uri, TextEdit[]][];
+
+		/**
+		 * Get all resource rename edits.
+		 */
+		readonly renamedResources: { from: Uri, to: Uri }[];
+
+		/**
+		 * Get all resource create edits.
+		 */
+		readonly createdResources: { uri: Uri, contents: string }[];
+
+		/**
+		 * Get all resource delete edits.
+		 */
+		readonly deletedResources: Uri[];
 	}
 
 	/**

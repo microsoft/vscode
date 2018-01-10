@@ -494,7 +494,42 @@ export class TextEdit {
 export class WorkspaceEdit {
 
 	private _values: [URI, TextEdit[]][] = [];
+	private readonly _resourcesCreated: { uri: URI, contents: string }[] = [];
+	private readonly _resourcesDeleted: URI[] = [];
+	private readonly _resourcesRenamed: { from: URI, to: URI }[] = [];
 	private _index = new Map<string, number>();
+
+	private _validResources = new Set<URI>();
+	private _invalidResources = new Set<URI>();
+
+
+	createResource(uri: URI, contents: string): void {
+		if (this._invalidResources.has(uri)) {
+			throw illegalArgument('Cannot create already deleted resource');
+		}
+		this._resourcesCreated.push({ uri: uri, contents: contents });
+		this._validResources.add(uri);
+	}
+
+	deleteResource(uri: URI): void {
+		if (this._validResources.has(uri)) {
+			throw illegalArgument('Cannot delete newly created resource');
+		}
+		this._resourcesDeleted.push(uri);
+		this._invalidResources.add(uri);
+	}
+
+	renameResource(uri: URI, newUri: URI): void {
+		if (this._validResources.has(uri)) {
+			throw illegalArgument('Cannot delete newly created resource');
+		}
+		if (this._invalidResources.has(newUri)) {
+			throw illegalArgument('Cannot create already deleted resource');
+		}
+		this._resourcesRenamed.push({ from: uri, to: newUri });
+		this._invalidResources.add(uri);
+		this._validResources.add(newUri);
+	}
 
 	replace(uri: URI, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
@@ -519,6 +554,10 @@ export class WorkspaceEdit {
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
+		if (this._invalidResources.has(uri)) {
+			throw illegalArgument('Cannot modify already deleted resource');
+		}
+		this._validResources.add(uri);
 		const idx = this._index.get(uri.toString());
 		if (typeof idx === 'undefined') {
 			let newLen = this._values.push([uri, edits]);
@@ -537,8 +576,20 @@ export class WorkspaceEdit {
 		return this._values;
 	}
 
+	get createdResources(): { uri: URI, contents: string }[] {
+		return this._resourcesCreated;
+	}
+
+	get deletedResources(): URI[] {
+		return this._resourcesDeleted;
+	}
+
+	get renamedResources(): { from: URI, to: URI }[] {
+		return this._resourcesRenamed;
+	}
+
 	get size(): number {
-		return this._values.length;
+		return this._values.length + this._resourcesCreated.length + this._resourcesRenamed.length + this._resourcesDeleted.length;
 	}
 
 	toJSON(): any {

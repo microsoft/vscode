@@ -505,4 +505,18 @@ suite('workspace-namespace', () => {
 			return vscode.workspace.applyEdit(edit);
 		});
 	});
+
+
+	test('applyEdit should fail when editing deleted resource', async () => {
+		const resource = await createRandomFile();
+
+		let edit = new vscode.WorkspaceEdit();
+		edit.deleteResource(resource);
+		try {
+			edit.insert(resource, new vscode.Position(0, 0), '');
+			assert.fail(false, 'Should disallow edit of deleted resource');
+		} catch {
+			// noop
+		}
+	});
 });

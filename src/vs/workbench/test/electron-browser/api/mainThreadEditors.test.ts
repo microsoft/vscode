@@ -23,6 +23,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { TestFileService } from 'vs/workbench/test/workbenchTestServices';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IFileStat } from 'vs/platform/files/common/files';
 
 suite('MainThreadEditors', () => {
 
@@ -31,10 +34,35 @@ suite('MainThreadEditors', () => {
 	let modelService: IModelService;
 	let editors: MainThreadEditors;
 
+	const movedResources = new Map<URI, URI>();
+	const createdResources = new Map<URI, string>();
+	const deletedResources = new Set<URI>();
+
 	setup(() => {
 		const configService = new TestConfigurationService();
 		modelService = new ModelServiceImpl(null, configService);
 		const codeEditorService = new TestCodeEditorService();
+
+		movedResources.clear();
+		createdResources.clear();
+		deletedResources.clear();
+		const fileService = new TestFileService();
+
+		fileService.moveFile = async (from, target): TPromise<IFileStat> => {
+			assert(!movedResources.has(from));
+			movedResources.set(from, target);
+			return createMockFileStat(target);
+		};
+		fileService.createFile = async (uri, contents): TPromise<IFileStat> => {
+			assert(!createdResources.has(uri));
+			createdResources.set(uri, contents);
+			return createMockFileStat(uri);
+		};
+		fileService.del = async (uri): TPromise<void> => {
+			assert(!deletedResources.has(uri));
+			deletedResources.add(uri);
+		};
+
 		const textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
 			models = <any>{
@@ -69,7 +97,7 @@ suite('MainThreadEditors', () => {
 			workbenchEditorService,
 			codeEditorService,
 			null,
-			null,
+			fileService,
 			null,
 			null,
 			editorGroupService,
@@ -82,7 +110,7 @@ suite('MainThreadEditors', () => {
 			workbenchEditorService,
 			editorGroupService,
 			null,
-			null,
+			fileService,
 			modelService
 		);
 	});
@@ -107,4 +135,38 @@ suite('MainThreadEditors', () => {
 			assert.equal(result, false);
 		});
 	});
+
+	test(`applyWorkspaceEdit with only resource edit`, () => {
+		let model = modelService.createModel('something', null, resource);
+
+		let workspaceResourceEdit: IWorkspaceResourceEdit = {
+			resource: resource,
+			modelVersionId: model.getVersionId(),
+			edits: []
+		};
+
+		return editors.$tryApplyWorkspaceEdit([workspaceResourceEdit], {
+			renamedResources: [{ from: resource, to: resource }],
+			createdResources: [{ uri: resource, contents: 'foo' }],
+			deletedResources: [resource]
+		}).then((result) => {
+			assert.equal(result, true);
+			assert.equal(movedResources.get(resource), resource);
+			assert.equal(createdResources.get(resource), 'foo');
+			assert.equal(deletedResources.has(resource), true);
+		});
+	});
 });
+
+
+function createMockFileStat(target: URI): IFileStat {
+	return {
+		etag: '',
+		hasChildren: false,
+		isDirectory: false,
+		name: target.path,
+		mtime: 0,
+		resource: target
+	};
+}
+

@@ -228,7 +228,12 @@ export const TextEdit = {
 
 export namespace WorkspaceEdit {
 	export function from(value: vscode.WorkspaceEdit): modes.WorkspaceEdit {
-		const result: modes.WorkspaceEdit = { edits: [] };
+		const result: modes.WorkspaceEdit = {
+			edits: [],
+			renamedResources: value.renamedResources,
+			createdResources: value.createdResources,
+			deletedResources: value.deletedResources
+		};
 		for (let entry of value.entries()) {
 			let [uri, textEdits] = entry;
 			for (let textEdit of textEdits) {

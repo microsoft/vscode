@@ -821,8 +821,22 @@ export interface IResourceEdit {
 	range: IRange;
 	newText: string;
 }
+
+export interface IResourceRename {
+	readonly from: URI;
+	readonly to: URI;
+}
+
+export interface IResourceCreate {
+	readonly uri: URI;
+	readonly contents: string;
+}
+
 export interface WorkspaceEdit {
 	edits: IResourceEdit[];
+	renamedResources?: IResourceRename[];
+	createdResources?: IResourceCreate[];
+	deletedResources?: URI[];
 	rejectReason?: string;
 }
 export interface RenameProvider {

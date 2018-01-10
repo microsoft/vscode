@@ -4913,8 +4913,21 @@ declare module monaco.languages {
 		newText: string;
 	}
 
+	export interface IResourceRename {
+		readonly from: Uri;
+		readonly to: Uri;
+	}
+
+	export interface IResourceCreate {
+		readonly uri: Uri;
+		readonly contents: string;
+	}
+
 	export interface WorkspaceEdit {
 		edits: IResourceEdit[];
+		renamedResources?: IResourceRename[];
+		createdResources?: IResourceCreate[];
+		deletedResources?: Uri[];
 		rejectReason?: string;
 	}
 

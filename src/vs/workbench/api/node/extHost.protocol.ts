@@ -210,6 +210,12 @@ export interface IWorkspaceResourceEdit {
 	}[];
 }
 
+export interface IResourceFileEdit {
+	renamedResources: { from: UriComponents, to: UriComponents }[];
+	createdResources: { uri: UriComponents, contents: string }[];
+	deletedResources: UriComponents[];
+}
+
 export interface MainThreadEditorsShape extends IDisposable {
 	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): TPromise<string>;
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void;
@@ -222,7 +228,7 @@ export interface MainThreadEditorsShape extends IDisposable {
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void>;
 	$trySetSelections(id: string, selections: ISelection[]): TPromise<void>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean>;
-	$tryApplyWorkspaceEdit(workspaceResourceEdits: IWorkspaceResourceEdit[]): TPromise<boolean>;
+	$tryApplyWorkspaceEdit(workspaceResourceEdits: IWorkspaceResourceEdit[], resourceFileEdits?: IResourceFileEdit): TPromise<boolean>;
 	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<boolean>;
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]>;
 }
