@@ -37,7 +37,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult } from 'vs/platform/message/common/message';
+import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult, getConfirmMessage } from 'vs/platform/message/common/message';
 import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -706,7 +706,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for moving to trash
 			else if (this.useTrash) {
-				const message = this.elements.length > 1 ? nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete '{0}' resources?", this.elements.length)
+				const message = this.elements.length > 1 ? getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", this.elements.length), this.elements.map(e => e.resource))
 					: this.elements[0].isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.elements[0].name)
 						: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.elements[0].name);
 				confirmDeletePromise = this.messageService.confirmWithCheckbox({
@@ -722,7 +722,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for deleting permanently
 			else {
-				const message = this.elements.length > 1 ? nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete '{0}' resources?", this.elements.length)
+				const message = this.elements.length > 1 ? getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", this.elements.length), this.elements.map(e => e.resource))
 					: this.elements[0].isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.elements[0].name)
 						: nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.elements[0].name);
 				confirmDeletePromise = this.messageService.confirmWithCheckbox({
