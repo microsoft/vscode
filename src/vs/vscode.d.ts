@@ -4968,6 +4968,11 @@ declare module 'vscode' {
 		label: string;
 
 		/**
+		 * Optional id for the tree item.
+		 */
+		id?: string;
+
+		/**
 		 * The icon path for the tree item
 		 */
 		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
