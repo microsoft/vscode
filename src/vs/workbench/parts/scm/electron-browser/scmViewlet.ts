@@ -967,7 +967,7 @@ export class RepositoryPanel extends ViewletPanel {
 		const commitTemplate = this.repository.provider.commitTemplate;
 
 		if (typeof commitTemplate !== 'undefined' && commitTemplate !== '') {
-			this.inputBox.value = this.repository.provider.commitTemplate;
+			this.inputBox.value = commitTemplate;
 			return;
 		}
 
