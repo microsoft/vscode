@@ -241,13 +241,19 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): (IDragge
 
 			// Data Transfer: URL
 			else {
-				const rawURLData = e.dataTransfer.getData(DataTransfers.URL);
-				if (rawURLData) {
-					try {
-						resources.push({ resource: URI.parse(rawURLData), isExternal: false });
-					} catch (error) {
-						// Invalid URI
+				try {
+					const rawURLsData = e.dataTransfer.getData(DataTransfers.URLS);
+					if (rawURLsData) {
+						const uriStrArray: string[] = JSON.parse(rawURLsData);
+						resources.push(...uriStrArray.map(uriStr => ({ resource: URI.parse(uriStr), isExternal: false })));
+					} else {
+						const rawURLData = e.dataTransfer.getData(DataTransfers.URL);
+						if (rawURLData) {
+							resources.push({ resource: URI.parse(rawURLData), isExternal: false });
+						}
 					}
+				} catch (error) {
+					// Invalid URI
 				}
 			}
 		}
