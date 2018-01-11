@@ -459,6 +459,7 @@ export class FileController extends DefaultController implements IDisposable {
 		tree.setFocus(stat);
 
 		const anchor = { x: event.posx, y: event.posy };
+		const selection = tree.getSelection();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => {
@@ -470,7 +471,8 @@ export class FileController extends DefaultController implements IDisposable {
 				if (wasCancelled) {
 					tree.DOMFocus();
 				}
-			}
+			},
+			getActionsContext: () => selection ? selection.map((fs: FileStat) => fs.resource) : undefined
 		});
 
 		return true;
