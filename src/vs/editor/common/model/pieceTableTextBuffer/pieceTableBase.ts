@@ -242,7 +242,7 @@ export class PieceTableBase {
 	}
 
 	// #region Piece Table
-	insert(value: string, offset: number): void {
+	insert(offset: number, value: string): void {
 		// todo, validate value and offset.
 		if (this._root !== SENTINEL) {
 			let { node, remainder, nodeStartOffset } = this.nodeAt(offset);

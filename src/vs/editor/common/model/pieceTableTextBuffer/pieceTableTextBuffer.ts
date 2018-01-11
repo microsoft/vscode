@@ -367,7 +367,7 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 			if (text) {
 				// replacement
 				this.delete(op.rangeOffset, op.rangeLength);
-				this.insert(text, op.rangeOffset);
+				this.insert(op.rangeOffset, text);
 
 			} else {
 				// deletion
