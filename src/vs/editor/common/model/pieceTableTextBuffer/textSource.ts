@@ -12,10 +12,6 @@ import { DefaultEndOfLine } from 'vs/editor/common/model';
 export interface IRawPTBuffer {
 	text: string;
 	lineStarts: number[];
-	/**
-	 * lines count
-	 */
-	length: number;
 }
 
 /**
@@ -25,7 +21,8 @@ export interface IRawTextSource {
 	/**
 	 * The text split into lines.
 	 */
-	readonly lines: IRawPTBuffer;
+	readonly chunks: IRawPTBuffer[];
+	readonly lineFeedCnt: number;
 	/**
 	 * The BOM (leading character sequence of the file).
 	 */
@@ -51,7 +48,8 @@ export interface ITextSource {
 	/**
 	 * The text split into lines.
 	 */
-	readonly lines: IRawPTBuffer;
+	readonly chunks: IRawPTBuffer[];
+	readonly lineFeedCnt: number;
 	/**
 	 * The BOM (leading character sequence of the file).
 	 */
@@ -78,7 +76,8 @@ export class TextSource {
 	 * Otherwise returns '\n'. More lines end with '\n'.
 	 */
 	private static _getEOL(rawTextSource: IRawTextSource, defaultEOL: DefaultEndOfLine): '\r\n' | '\n' {
-		const lineFeedCnt = rawTextSource.lines.length - 1;
+		let lineFeedCnt = rawTextSource.lineFeedCnt;
+		// const lineFeedCnt = rawTextSource.lines.length - 1;
 		if (lineFeedCnt === 0) {
 			// This is an empty file or a file with precisely one line
 			return (defaultEOL === DefaultEndOfLine.LF ? '\n' : '\r\n');
@@ -93,7 +92,8 @@ export class TextSource {
 
 	public static fromRawTextSource(rawTextSource: IRawTextSource, defaultEOL: DefaultEndOfLine): ITextSource {
 		return {
-			lines: rawTextSource.lines,
+			chunks: rawTextSource.chunks,
+			lineFeedCnt: rawTextSource.lineFeedCnt,
 			BOM: rawTextSource.BOM,
 			EOL: this._getEOL(rawTextSource, defaultEOL),
 			containsRTL: rawTextSource.containsRTL,

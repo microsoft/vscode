@@ -20,7 +20,7 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 	private _mightContainNonBasicASCII: boolean;
 
 	constructor(textSource: ITextSource) {
-		super(textSource.lines.text, textSource.lines.lineStarts);
+		super(textSource.chunks);
 		this._BOM = textSource.BOM;
 		this._EOL = textSource.EOL;
 		this._mightContainNonBasicASCII = !textSource.isBasicASCII;
@@ -86,18 +86,18 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 
 		if (startPosition.node === endPosition.node) {
 			let node = startPosition.node;
-			let buffer = node.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+			let buffer = this._buffers[node.piece.bufferIndex];
 			return buffer.substring(node.piece.offset + startPosition.remainder, node.piece.offset + endPosition.remainder);
 		}
 
 
 		let x = startPosition.node;
-		let buffer = x.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+		let buffer = this._buffers[x.piece.bufferIndex];
 		let ret = buffer.substring(x.piece.offset + startPosition.remainder, x.piece.offset + x.piece.length);
 
 		x = x.next();
 		while (x !== SENTINEL) {
-			let buffer = x.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+			let buffer = this._buffers[x.piece.bufferIndex];
 
 			if (x === endPosition.node) {
 				ret += buffer.substring(x.piece.offset, x.piece.offset + endPosition.remainder);

@@ -6,6 +6,7 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { IRawPTBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/textSource';
 
 export const enum NodeColor {
 	Black = 0,
@@ -188,15 +189,15 @@ export interface BufferCursor {
 }
 
 export class Piece {
-	isOriginalBuffer: boolean;
+	bufferIndex: number;
 	offset: number;
 	length: number; // size of current piece
 
 	lineFeedCnt: number;
 	lineStarts: PrefixSumComputer;
 
-	constructor(isOriginalBuffer: boolean, offset: number, length: number, lineFeedCnt: number, lineLengthsVal: Uint32Array) {
-		this.isOriginalBuffer = isOriginalBuffer;
+	constructor(bufferIndex: number, offset: number, length: number, lineFeedCnt: number, lineLengthsVal: Uint32Array) {
+		this.bufferIndex = bufferIndex;
 		this.offset = offset;
 		this.length = length;
 		this.lineFeedCnt = lineFeedCnt;
@@ -211,34 +212,56 @@ export class Piece {
 }
 
 export class PieceTableBase {
-	protected _originalBuffer: string;
-	protected _changeBuffer: string;
+	protected _buffers: string[]; // 0 is change buffer, others are readonly original buffer.
 	protected _root: TreeNode;
 	protected _lineCnt: number;
 
-	constructor(originalBuffer: string, lineStarts?: number[]) {
-		this._originalBuffer = originalBuffer;
-		this._changeBuffer = '';
+	constructor(chunks: IRawPTBuffer[]) {
+		this._buffers = [
+			'',
+		];
 		this._root = SENTINEL;
 		this._lineCnt = 1;
 
-		if (this._originalBuffer.length > 0) {
-			let lineLengths: Uint32Array;
-			if (lineStarts) {
-				lineLengths = new Uint32Array(lineStarts.length);
-				for (let i = 1; i < lineStarts.length; i++) {
-					lineLengths[i - 1] = lineStarts[i] - lineStarts[i - 1];
+		let lastNode: TreeNode = null;
+		for (let i = 0, len = chunks.length; i < len; i++) {
+			if (chunks[i].text.length > 0) {
+				let lineLengths: Uint32Array;
+				if (chunks[i].lineStarts) {
+					lineLengths = new Uint32Array(chunks[i].lineStarts.length);
+					for (let j = 1; j < chunks[i].lineStarts.length; j++) {
+						lineLengths[j - 1] = chunks[i].lineStarts[j] - chunks[i].lineStarts[j - 1];
+					}
+					lineLengths[chunks[i].lineStarts.length - 1] = chunks[i].text.length - chunks[i].lineStarts[chunks[i].lineStarts.length - 1];
+				} else {
+					lineLengths = this.constructLineLengths(chunks[i].text);
 				}
 
-				lineLengths[lineStarts.length - 1] = this._originalBuffer.length - lineStarts[lineStarts.length - 1];
-			} else {
-				lineLengths = this.constructLineLengths(this._originalBuffer);
+				let piece = new Piece(i + 1, 0, chunks[i].text.length, lineLengths.length - 1, lineLengths);
+				this._buffers.push(chunks[i].text);
+				lastNode = this.rbInsertRight(lastNode, piece);
 			}
-
-			let piece = new Piece(true, 0, this._originalBuffer.length, lineLengths.length - 1, lineLengths);
-			this.rbInsertLeft(null, piece);
-			this._lineCnt = lineLengths.length;
 		}
+
+		this.computeLineCount();
+
+		// if (this._originalBuffer.length > 0) {
+		// 	let lineLengths: Uint32Array;
+		// 	if (lineStarts) {
+		// 		lineLengths = new Uint32Array(lineStarts.length);
+		// 		for (let i = 1; i < lineStarts.length; i++) {
+		// 			lineLengths[i - 1] = lineStarts[i] - lineStarts[i - 1];
+		// 		}
+
+		// 		lineLengths[lineStarts.length - 1] = this._originalBuffer.length - lineStarts[lineStarts.length - 1];
+		// 	} else {
+		// 		lineLengths = this.constructLineLengths(this._originalBuffer);
+		// 	}
+
+		// 	let piece = new Piece(true, 0, this._originalBuffer.length, lineLengths.length - 1, lineLengths);
+		// 	this.rbInsertLeft(null, piece);
+		// 	this._lineCnt = lineLengths.length;
+		// }
 	}
 
 	// #region Piece Table
@@ -248,7 +271,7 @@ export class PieceTableBase {
 			let { node, remainder, nodeStartOffset } = this.nodeAt(offset);
 			let insertPos = node.piece.lineStarts.getIndexOf(remainder);
 
-			if (!node.piece.isOriginalBuffer && (node.piece.offset + node.piece.length === this._changeBuffer.length) && (nodeStartOffset + node.piece.length === offset)) {
+			if (node.piece.bufferIndex === 0 && (node.piece.offset + node.piece.length === this._buffers[0].length) && (nodeStartOffset + node.piece.length === offset)) {
 				// append content to this node, we don't want to keep adding node when users simply type in sequence
 				this.appendToNode(node, value);
 			} else {
@@ -277,7 +300,7 @@ export class PieceTableBase {
 					// we are inserting into the middle of a node.
 					let nodesToDel = [];
 					let newRightPiece = new Piece(
-						node.piece.isOriginalBuffer,
+						node.piece.bufferIndex,
 						node.piece.offset + remainder,
 						node.piece.length - remainder,
 						node.piece.lineFeedCnt - insertPos.index,
@@ -421,10 +444,10 @@ export class PieceTableBase {
 	}
 
 	createNewPiece(text: string): Piece {
-		const startOffset = this._changeBuffer.length;
-		this._changeBuffer += text;
+		const startOffset = this._buffers[0].length;
+		this._buffers[0] += text;
 		const lineLengths = this.constructLineLengths(text);
-		return new Piece(false, startOffset, text.length, lineLengths.length - 1, lineLengths);
+		return new Piece(0, startOffset, text.length, lineLengths.length - 1, lineLengths);
 	}
 
 	getLineRawContent(lineNumber: number): string {
@@ -437,12 +460,12 @@ export class PieceTableBase {
 			} else if (x.lf_left + x.piece.lineFeedCnt > lineNumber - 1) {
 				let prevAccumualtedValue = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 2);
 				let accumualtedValue = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 1);
-				let buffer = x.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+				let buffer = this._buffers[x.piece.bufferIndex];
 
 				return buffer.substring(x.piece.offset + prevAccumualtedValue, x.piece.offset + accumualtedValue);
 			} else if (x.lf_left + x.piece.lineFeedCnt === lineNumber - 1) {
 				let prevAccumualtedValue = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 2);
-				let buffer = x.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+				let buffer = this._buffers[x.piece.bufferIndex];
 
 				ret = buffer.substring(x.piece.offset + prevAccumualtedValue, x.piece.offset + x.piece.length);
 				break;
@@ -455,7 +478,7 @@ export class PieceTableBase {
 		// search in order, to find the node contains end column
 		x = x.next();
 		while (x !== SENTINEL) {
-			let buffer = x.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+			let buffer = this._buffers[x.piece.bufferIndex];
 
 			if (x.piece.lineFeedCnt > 0) {
 				let accumualtedValue = x.piece.lineStarts.getAccumulatedValue(0);
@@ -541,7 +564,7 @@ export class PieceTableBase {
 		}
 
 		let newPiece: Piece = new Piece(
-			node.piece.isOriginalBuffer,
+			node.piece.bufferIndex,
 			endOffset + node.piece.offset,
 			newPieceLength,
 			oldLineLengthsVal.length - end.index - 1,
@@ -559,7 +582,7 @@ export class PieceTableBase {
 		}
 
 		let hitCRLF = this.startWithLF(value) && this.endWithCR(node);
-		this._changeBuffer += value;
+		this._buffers[0] += value;
 		node.piece.length += value.length;
 		const lineLengths = this.constructLineLengths(value);
 		let lineFeedCount = lineLengths.length - 1;
@@ -679,7 +702,7 @@ export class PieceTableBase {
 		if (node.piece.lineFeedCnt < 1) {
 			return -1;
 		}
-		let buffer = node.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+		let buffer = this._buffers[node.piece.bufferIndex];
 
 		return buffer.charCodeAt(node.piece.offset + offset);
 	}
@@ -701,7 +724,7 @@ export class PieceTableBase {
 	}
 
 	getNodeContent(node: TreeNode): string {
-		let buffer = node.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+		let buffer = this._buffers[node.piece.bufferIndex];
 		let currentContent = buffer.substr(node.piece.offset, node.piece.length);
 
 		return currentContent;
@@ -1220,7 +1243,7 @@ export class PieceTableBase {
 			return '';
 		}
 
-		let buffer = node.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+		let buffer = this._buffers[node.piece.bufferIndex];
 		let currentContent = buffer.substr(node.piece.offset, node.piece.length);
 
 		return this.getContentOfSubTree(node.left) + currentContent + this.getContentOfSubTree(node.right);
