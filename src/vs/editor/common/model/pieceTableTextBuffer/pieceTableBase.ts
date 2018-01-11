@@ -256,7 +256,7 @@ export class PieceTableBase {
 					// we are inserting content to the beginning of node
 					let nodesToDel = [];
 					if (this.endWithCR(value) && this.startWithLF(node)) {
-						// move `\n` forward
+						// move `\n` to new node.
 						value += '\n';
 						node.piece.offset++;
 						node.piece.length--;
@@ -274,6 +274,7 @@ export class PieceTableBase {
 					this.validateCRLFWithPrevNode(newNode);
 					this.deleteNodes(nodesToDel);
 				} else if (nodeStartOffset + node.piece.length > offset) {
+					// we are inserting into the middle of a node.
 					let nodesToDel = [];
 					let newRightPiece = new Piece(
 						node.piece.isOriginalBuffer,
@@ -299,7 +300,7 @@ export class PieceTableBase {
 						this.deletePrefixSumHead(newRightPiece.lineStarts, insertPos);
 					}
 
-					// reuse node
+					// reuse node for content before insertion point.
 					if (this.startWithLF(value)) {
 						let tailOfLeft = this.nodeCharCodeAt(node, remainder - 1);
 						if (tailOfLeft === 13 /** \r */) {
@@ -326,6 +327,7 @@ export class PieceTableBase {
 				} else {
 					// we are inserting to the right of this node.
 					if (this.adjustCarriageReturnFromNext(value, node)) {
+						// move \n to the new node.
 						value += '\n';
 					}
 
@@ -345,73 +347,71 @@ export class PieceTableBase {
 	}
 
 	delete(offset: number, cnt: number): void {
-		if (cnt <= 0) {
+		if (cnt <= 0 || this._root === SENTINEL) {
 			return;
 		}
 
-		if (this._root !== SENTINEL) {
-			let startPosition = this.nodeAt(offset);
-			let endPosition = this.nodeAt(offset + cnt);
-			let startNode = startPosition.node;
-			let endNode = endPosition.node;
-			let startSplitPos = startNode.piece.lineStarts.getIndexOf(startPosition.remainder);
+		let startPosition = this.nodeAt(offset);
+		let endPosition = this.nodeAt(offset + cnt);
+		let startNode = startPosition.node;
+		let endNode = endPosition.node;
+		let startSplitPos = startNode.piece.lineStarts.getIndexOf(startPosition.remainder);
 
-			if (startNode === endNode) {
-				// deletion falls into one node.
-				let endSplitPos = startNode.piece.lineStarts.getIndexOf(endPosition.remainder);
+		if (startNode === endNode) {
+			// deletion falls into one node.
+			let endSplitPos = startNode.piece.lineStarts.getIndexOf(endPosition.remainder);
 
-				if (startPosition.nodeStartOffset === offset) {
-					if (cnt === startNode.piece.length) { // delete node
-						let next = startNode.next();
-						this.rbDelete(startNode);
-						this.validateCRLFWithPrevNode(next);
-						this.computeLineCount();
-						return;
-					}
-					this.deleteNodeHead(startNode, endSplitPos);
-					this.validateCRLFWithPrevNode(startNode);
+			if (startPosition.nodeStartOffset === offset) {
+				if (cnt === startNode.piece.length) { // delete node
+					let next = startNode.next();
+					this.rbDelete(startNode);
+					this.validateCRLFWithPrevNode(next);
 					this.computeLineCount();
 					return;
 				}
-
-				if (startPosition.nodeStartOffset + startNode.piece.length === offset + cnt) {
-					this.deleteNodeTail(startNode, startSplitPos);
-					this.validateCRLFWithNextNode(startNode);
-					this.computeLineCount();
-					return;
-				}
-
-				// delete content in the middle, this node will be splitted to nodes
-				this.shrinkNode(startNode, startSplitPos, endSplitPos);
+				this.deleteNodeHead(startNode, endSplitPos);
+				this.validateCRLFWithPrevNode(startNode);
 				this.computeLineCount();
 				return;
 			}
 
-			let nodesToDel = [];
-			// update first touched node
-			this.deleteNodeTail(startNode, startSplitPos);
-			if (startNode.piece.length === 0) {
-				nodesToDel.push(startNode);
+			if (startPosition.nodeStartOffset + startNode.piece.length === offset + cnt) {
+				this.deleteNodeTail(startNode, startSplitPos);
+				this.validateCRLFWithNextNode(startNode);
+				this.computeLineCount();
+				return;
 			}
 
-			// update last touched node
-			let endSplitPos = endNode.piece.lineStarts.getIndexOf(endPosition.remainder);
-			this.deleteNodeHead(endNode, endSplitPos);
-			if (endNode.piece.length === 0) {
-				nodesToDel.push(endNode);
-			}
-
-			// delete nodes in between
-			let secondNode = startNode.next();
-			for (let node = secondNode; node !== SENTINEL && node !== endNode; node = node.next()) {
-				nodesToDel.push(node);
-			}
-
-			let prev = startNode.piece.length === 0 ? startNode.prev() : startNode;
-			this.deleteNodes(nodesToDel);
-			this.validateCRLFWithNextNode(prev);
+			// delete content in the middle, this node will be splitted to nodes
+			this.shrinkNode(startNode, startSplitPos, endSplitPos);
 			this.computeLineCount();
+			return;
 		}
+
+		let nodesToDel = [];
+		// update first touched node
+		this.deleteNodeTail(startNode, startSplitPos);
+		if (startNode.piece.length === 0) {
+			nodesToDel.push(startNode);
+		}
+
+		// update last touched node
+		let endSplitPos = endNode.piece.lineStarts.getIndexOf(endPosition.remainder);
+		this.deleteNodeHead(endNode, endSplitPos);
+		if (endNode.piece.length === 0) {
+			nodesToDel.push(endNode);
+		}
+
+		// delete nodes in between
+		let secondNode = startNode.next();
+		for (let node = secondNode; node !== SENTINEL && node !== endNode; node = node.next()) {
+			nodesToDel.push(node);
+		}
+
+		let prev = startNode.piece.length === 0 ? startNode.prev() : startNode;
+		this.deleteNodes(nodesToDel);
+		this.validateCRLFWithNextNode(prev);
+		this.computeLineCount();
 	}
 
 	deleteNodes(nodes: TreeNode[]): void {
@@ -1166,7 +1166,7 @@ export class PieceTableBase {
 	}
 
 	updateMetadata(x: TreeNode, delta: number, lineFeedCntDelta: number): void {
-		// node length change, we need to update the roots of all subtrees containing this node.
+		// node length change or line feed count change
 		while (x !== this._root && x !== SENTINEL) {
 			if (x.parent.left === x) {
 				x.parent.size_left += delta;
