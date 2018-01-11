@@ -247,7 +247,6 @@ export class PieceTableBase {
 		if (this._root !== SENTINEL) {
 			let { node, remainder, nodeStartOffset } = this.nodeAt(offset);
 			let insertPos = node.piece.lineStarts.getIndexOf(remainder);
-			const startOffset = this._changeBuffer.length;
 
 			if (!node.piece.isOriginalBuffer && (node.piece.offset + node.piece.length === this._changeBuffer.length) && (nodeStartOffset + node.piece.length === offset)) {
 				// append content to this node, we don't want to keep adding node when users simply type in sequence
@@ -270,9 +269,7 @@ export class PieceTableBase {
 						}
 					}
 
-					this._changeBuffer += value;
-					const lineLengths = this.constructLineLengths(value);
-					let newPiece: Piece = new Piece(false, startOffset, value.length, lineLengths.length - 1, lineLengths);
+					let newPiece = this.createNewPiece(value);
 					let newNode = this.rbInsertLeft(node, newPiece);
 					this.fixCRLFWithPrev(newNode);
 					this.deleteNodes(nodesToDel);
@@ -320,10 +317,7 @@ export class PieceTableBase {
 						this.deleteNodeTail(node, insertPos);
 					}
 
-					this._changeBuffer += value;
-					const lineLengths = this.constructLineLengths(value);
-					let newPiece: Piece = new Piece(false, startOffset, value.length, lineLengths.length - 1, lineLengths);
-
+					let newPiece = this.createNewPiece(value);
 					if (newRightPiece.length > 0) {
 						this.rbInsertRight(node, newRightPiece);
 					}
@@ -335,20 +329,14 @@ export class PieceTableBase {
 						value += '\n';
 					}
 
-					this._changeBuffer += value;
-					const lineLengths = this.constructLineLengths(value);
-					let newPiece: Piece = new Piece(false, startOffset, value.length, lineLengths.length - 1, lineLengths);
+					let newPiece = this.createNewPiece(value);
 					let newNode = this.rbInsertRight(node, newPiece);
 					this.fixCRLFWithPrev(newNode);
 				}
 			}
 		} else {
 			// insert new node
-			const startOffset = this._changeBuffer.length;
-			this._changeBuffer += value;
-			const lineLengths = this.constructLineLengths(value);
-			let piece = new Piece(false, startOffset, value.length, lineLengths.length - 1, lineLengths);
-
+			let piece = this.createNewPiece(value);
 			this.rbInsertLeft(null, piece);
 		}
 
@@ -432,6 +420,13 @@ export class PieceTableBase {
 		for (let i = 0; i < nodes.length; i++) {
 			this.rbDelete(nodes[i]);
 		}
+	}
+
+	createNewPiece(text: string): Piece {
+		const startOffset = this._changeBuffer.length;
+		this._changeBuffer += text;
+		const lineLengths = this.constructLineLengths(text);
+		return new Piece(false, startOffset, text.length, lineLengths.length - 1, lineLengths);
 	}
 
 	getLineRawContent(lineNumber: number): string {
@@ -795,11 +790,7 @@ export class PieceTableBase {
 		}
 
 		// create new piece which contains \r\n
-		let startOffset = this._changeBuffer.length;
-		this._changeBuffer += '\r\n';
-		const lineLengths = this.constructLineLengths('\r\n');
-		let lineFeedCount = lineLengths.length - 1;
-		let piece = new Piece(false, startOffset, 2, lineFeedCount, lineLengths);
+		let piece = this.createNewPiece('\r\n');
 		this.rbInsertRight(prev, piece);
 		// delete empty nodes
 
