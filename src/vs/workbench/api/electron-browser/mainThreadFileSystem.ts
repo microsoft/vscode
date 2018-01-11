@@ -59,8 +59,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	// --- search
 
-	$handleSearchProgress(handle: number, session: number, data: UriComponents): void {
-		this._provider.get(handle).handleSearchProgress(session, URI.revive(data));
+	$handleDidFindFile(handle: number, session: number, data: UriComponents): void {
+		this._provider.get(handle).hanelDidFindFile(session, URI.revive(data));
 	}
 }
 
@@ -155,7 +155,12 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
 		if (query.type === QueryType.Text) {
 			return PPromise.as<ISearchComplete>({ results: [], stats: undefined });
+		} else {
+			return this._findFiles(query);
 		}
+	}
+
+	private _findFiles(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
 		const id = ++this._searchesIdPool;
 		const matches: IFileMatch[] = [];
 		return new PPromise((resolve, reject, report) => {
@@ -175,7 +180,7 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 		});
 	}
 
-	handleSearchProgress(session: number, resource: URI): void {
+	hanelDidFindFile(session: number, resource: URI): void {
 		this._searches.get(session)(resource);
 	}
 }

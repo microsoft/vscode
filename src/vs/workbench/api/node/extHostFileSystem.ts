@@ -79,7 +79,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		if (!provider.findFiles) {
 			return TPromise.as(undefined);
 		}
-		const progress = { report: (uri) => this._proxy.$handleSearchProgress(handle, session, uri) };
+		const progress = { report: (uri) => this._proxy.$handleDidFindFile(handle, session, uri) };
 		return asWinJsPromise(token => provider.findFiles(query, progress, token));
 	}
 }

@@ -373,7 +373,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$onFileSystemChange(handle: number, resource: IFileChange[]): void;
 	$reportFileChunk(handle: number, session: number, chunk: number[] | null): void;
 
-	$handleSearchProgress(handle: number, session: number, resource: UriComponents): void;
+	$handleDidFindFile(handle: number, session: number, resource: UriComponents): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
