@@ -55,6 +55,7 @@ export abstract class ViewletPanel extends Panel {
 	protected actionRunner: IActionRunner;
 	protected toolbar: ToolBar;
 
+	// callback for when user changed settings and we need to re-render this panel
 	private updateActionVisibilityPreferences: () => void = () => { };
 
 	constructor(
@@ -81,6 +82,7 @@ export abstract class ViewletPanel extends Panel {
 	protected renderHeader(container: HTMLElement): void {
 		this.renderHeaderTitle(container);
 
+		// assign to the callback now when we have the panel's container HTMLelement in scope
 		this.updateActionVisibilityPreferences = () => toggleClass(container, 'actions-always-visible', this.shouldAlwaysShowActions());
 		this.updateActionVisibilityPreferences();
 
