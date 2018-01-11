@@ -9,8 +9,7 @@ import * as errors from 'vs/base/common/errors';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox } from 'vs/workbench/parts/selectBox/browser/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -20,6 +19,9 @@ import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/c
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
 
@@ -43,9 +45,11 @@ export class StartDebugActionItem implements IActionItem {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService,
 		@IContextViewService contextViewService: IContextViewService,
+		@IListService listService: IListService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1, contextViewService);
+		this.selectBox = new SelectBox([], -1, contextViewService, contextKeyService, listService, themeService);
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {
 			selectBackground: SIDE_BAR_BACKGROUND
 		}));

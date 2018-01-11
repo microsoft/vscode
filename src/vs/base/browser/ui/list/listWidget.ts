@@ -659,6 +659,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	private focus: Trait<T>;
 	private selection: Trait<T>;
+	private disabled: Trait<T>;
 	private eventBufferer = new EventBufferer();
 	private view: ListView<T>;
 	private spliceable: ISpliceable<T>;
@@ -714,6 +715,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const aria = new Aria();
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
+		this.disabled = new Trait('disabled');
 
 		mixin(options, defaultStyles, false);
 
@@ -830,7 +832,28 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (this.length === 0) { return; }
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] + n : 0;
-		this.setFocus(loop ? [index % this.length] : [Math.min(index, this.length - 1)]);
+
+		index = (loop ? index % this.length : Math.min(index, this.length - 1));
+
+		const adjustedIndex = this.ajustFocusForDisabled(index, 1);
+		this.setFocus([adjustedIndex]);
+	}
+
+	private ajustFocusForDisabled(optionIndex: number, adjDelta = 1): number {
+		const disabled = this.getDisabled();
+		if (!disabled.length) {
+			return optionIndex;
+		}
+
+		let adjOptionIndex = optionIndex;
+
+		for (let i = 0; i < this.length; i++) {
+			adjOptionIndex = (i * adjDelta + optionIndex) % this.length;
+			if (disabled.indexOf(adjOptionIndex) < 0) {
+				break;
+			}
+		}
+		return (adjOptionIndex);
 	}
 
 	focusPrevious(n = 1, loop = false): void {
@@ -838,7 +861,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] - n : 0;
 		if (loop && index < 0) { index = (this.length + (index % this.length)) % this.length; }
-		this.setFocus([Math.max(index, 0)]);
+
+		index = Math.max(index, 0);
+		const adjustedIndex = this.ajustFocusForDisabled(index, -1);
+		this.setFocus([adjustedIndex]);
 	}
 
 	focusNextPage(): void {
@@ -848,7 +874,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== lastPageElement) {
-			this.setFocus([lastPageIndex]);
+			const adjustedIndex = this.ajustFocusForDisabled(lastPageIndex, 1);
+			this.setFocus([adjustedIndex]);
 		} else {
 			const previousScrollTop = this.view.getScrollTop();
 			this.view.setScrollTop(previousScrollTop + this.view.renderHeight - this.view.elementHeight(lastPageIndex));
@@ -874,7 +901,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const currentlyFocusedElement = this.getFocusedElements()[0];
 
 		if (currentlyFocusedElement !== firstPageElement) {
-			this.setFocus([firstPageIndex]);
+			const adjustedIndex = this.ajustFocusForDisabled(firstPageIndex, -1);
+			this.setFocus([adjustedIndex]);
 		} else {
 			const previousScrollTop = scrollTop;
 			this.view.setScrollTop(scrollTop - this.view.renderHeight);
@@ -888,12 +916,15 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	focusLast(): void {
 		if (this.length === 0) { return; }
-		this.setFocus([this.length - 1]);
+		const adjustedIndex = this.ajustFocusForDisabled(this.length - 1, -1);
+		this.setFocus([adjustedIndex]);
 	}
 
 	focusFirst(): void {
 		if (this.length === 0) { return; }
-		this.setFocus([0]);
+		const adjustedIndex = this.ajustFocusForDisabled(0, 1);
+		this.setFocus([adjustedIndex]);
+
 	}
 
 	getFocus(): number[] {
@@ -946,6 +977,15 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	pin(indexes: number[]): void {
 		this._onPin.fire(indexes);
+	}
+
+	setDisabled(indexes: number[]): void {
+		indexes = indexes.sort(numericSort);
+		this.disabled.set(indexes);
+	}
+
+	getDisabled(): number[] {
+		return this.disabled.get();
 	}
 
 	style(styles: IListStyles): void {
