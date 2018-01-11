@@ -110,8 +110,9 @@
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty.close-button-right.sizing-shrink > .tab-close,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-right.sizing-shrink:hover > .tab-close {
-	overflow: visible; /* ...but still show the close button on hover and when dirty */
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-right.sizing-shrink:hover > .tab-close,
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-right.sizing-shrink > .tab-close {
+	overflow: visible; /* ...but still show the close button on hover, focus and when dirty */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off > .tab-close {
