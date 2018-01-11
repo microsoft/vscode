@@ -77,7 +77,7 @@ interface TreeNode {
 
 class ExtHostTreeView<T> extends Disposable {
 
-	private _itemHandlePool = 0;
+	private static ROOT_HANDLE = '0';
 	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
 	private nodes: Map<T, TreeNode> = new Map<T, TreeNode>();
 
@@ -103,10 +103,12 @@ class ExtHostTreeView<T> extends Disposable {
 				elements = coalesce(elements || []);
 				return TPromise.join(elements.map((element, index) => {
 					const node = this.nodes.get(element);
-					return this.resolveElement(element, node ? node.handle : `${++this._itemHandlePool}`, parentHandle)
+					const currentHandle = node && node.parentHandle === parentHandle ? node.handle : void 0;
+					return this.resolveElement(element, currentHandle ? currentHandle : index, parentHandle)
 						.then(treeItem => {
 							if (treeItem) {
-								if (!node) {
+								if (!currentHandle) {
+									// update the caches if current handle is not used
 									this.nodes.set(element, {
 										handle: treeItem.handle,
 										parentHandle,
@@ -137,27 +139,38 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	private resolveElement(element: T, handle: TreeItemHandle, parentHandle: TreeItemHandle): TPromise<ITreeItem> {
+	private resolveElement(element: T, handleOrIndex: TreeItemHandle | number, parentHandle: TreeItemHandle): TPromise<ITreeItem> {
 		return asWinJsPromise(() => this.dataProvider.getTreeItem(element))
-			.then(extTreeItem => this.massageTreeItem(element, extTreeItem, handle, parentHandle));
+			.then(extTreeItem => this.massageTreeItem(element, extTreeItem, handleOrIndex, parentHandle));
 	}
 
-	private massageTreeItem(element: T, extensionTreeItem: vscode.TreeItem, handle: TreeItemHandle, parentHandle: TreeItemHandle): ITreeItem {
+	private massageTreeItem(element: T, extensionTreeItem: vscode.TreeItem, handleOrIndex: TreeItemHandle | number, parentHandle: TreeItemHandle): ITreeItem {
 		if (!extensionTreeItem) {
 			return null;
 		}
 
 		const icon = this.getLightIconPath(extensionTreeItem);
+		const label = extensionTreeItem.label;
+		const handle = typeof handleOrIndex === 'number' ?
+			this.generateHandle(label, handleOrIndex, parentHandle) // create the handle
+			: handleOrIndex; // reuse the passed handle
+
 		return {
 			handle,
 			parentHandle,
-			label: extensionTreeItem.label,
+			label,
 			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command) : void 0,
 			contextValue: extensionTreeItem.contextValue,
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
 			collapsibleState: extensionTreeItem.collapsibleState
 		};
+	}
+
+	private generateHandle(label: string, index: number, parentHandle: TreeItemHandle): TreeItemHandle {
+		parentHandle = parentHandle ? parentHandle : ExtHostTreeView.ROOT_HANDLE;
+		label = label.indexOf('/') !== -1 ? label.replace('/', '//') : label;
+		return `${parentHandle}/${index}:${label}`;
 	}
 
 	private getLightIconPath(extensionTreeItem: vscode.TreeItem): string {
