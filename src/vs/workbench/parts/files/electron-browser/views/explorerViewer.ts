@@ -726,13 +726,14 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			});
 
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			// TODO@Isidor check this
 			if (sources.length === 1) {
 				if (!sources[0].isDirectory) {
 					originalEvent.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, sources[0].name, sources[0].resource.toString()].join(':'));
 				}
 
 				originalEvent.dataTransfer.setData(DataTransfers.TEXT, getPathLabel(sources[0].resource));
+			} else {
+				originalEvent.dataTransfer.setData(DataTransfers.URLS, JSON.stringify(sources.map(s => s.resource.toString())));
 			}
 		}
 	}
