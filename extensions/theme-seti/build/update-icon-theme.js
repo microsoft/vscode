@@ -5,13 +5,13 @@
 
 'use strict';
 
-var path = require('path');
-var fs = require('fs');
-var https = require('https');
-var url = require('url');
+let path = require('path');
+let fs = require('fs');
+let https = require('https');
+let url = require('url');
 
 function getCommitSha(repoId, repoPath) {
-	var commitInfo = 'https://api.github.com/repos/' + repoId + '/commits?path=' + repoPath;
+	let commitInfo = 'https://api.github.com/repos/' + repoId + '/commits?path=' + repoPath;
 	return download(commitInfo).then(function (content) {
 		try {
 			let lastCommit = JSON.parse(content)[0];
@@ -23,7 +23,7 @@ function getCommitSha(repoId, repoPath) {
 			return Promise.resolve(null);
 		}
 	}, function () {
-		console.err('Failed loading ' + commitInfo);
+		console.error('Failed loading ' + commitInfo);
 		return Promise.resolve(null);
 	});
 }
@@ -33,9 +33,9 @@ function download(source) {
 		return readFile(source);
 	}
 	return new Promise((c, e) => {
-		var _url = url.parse(source);
-		var options = { host: _url.host, port: _url.port, path: _url.path, headers: { 'User-Agent': 'NodeJS' }};
-		var content = '';
+		let _url = url.parse(source);
+		let options = { host: _url.host, port: _url.port, path: _url.path, headers: { 'User-Agent': 'NodeJS' }};
+		let content = '';
 		https.get(options, function (response) {
 			response.on('data', function (data) {
 				content += data.toString();
@@ -69,7 +69,7 @@ function downloadBinary(source, dest) {
 		https.get(source, function (response) {
 			switch(response.statusCode) {
 				case 200:
-					var file = fs.createWriteStream(dest);
+					let file = fs.createWriteStream(dest);
 					response.on('data', function(chunk){
 						file.write(chunk);
 					}).on('end', function(){
@@ -96,16 +96,16 @@ function downloadBinary(source, dest) {
 
 function copyFile(fileName, dest) {
 	return new Promise((c, e) => {
-		var cbCalled = false;
+		let cbCalled = false;
 		function handleError(err) {
 			if (!cbCalled) {
 				e(err);
 				cbCalled = true;
 			}
 		}
-		var rd = fs.createReadStream(fileName);
+		let rd = fs.createReadStream(fileName);
 		rd.on("error", handleError);
-		var wr = fs.createWriteStream(dest);
+		let wr = fs.createWriteStream(dest);
 		wr.on("error", handleError);
 		wr.on("close", function() {
 			if (!cbCalled) {
@@ -118,10 +118,10 @@ function copyFile(fileName, dest) {
 }
 
 function darkenColor(color) {
-	var res = '#';
-	for (var i = 1; i < 7; i+=2) {
-		var newVal = Math.round(parseInt('0x' + color.substr(i, 2), 16) * 0.9);
-		var hex = newVal.toString(16);
+	let res = '#';
+	for (let i = 1; i < 7; i+=2) {
+		let newVal = Math.round(parseInt('0x' + color.substr(i, 2), 16) * 0.9);
+		let hex = newVal.toString(16);
 		if (hex.length == 1) {
 			res += '0';
 		}
@@ -132,23 +132,23 @@ function darkenColor(color) {
 
 function getLanguageMappings() {
 	let langMappings = {};
-	var allExtensions = fs.readdirSync('..');
-	for (var i= 0; i < allExtensions.length; i++) {
+	let allExtensions = fs.readdirSync('..');
+	for (let i= 0; i < allExtensions.length; i++) {
 		let dirPath = path.join('..', allExtensions[i], 'package.json');
 		if (fs.existsSync(dirPath)) {
 			let content = fs.readFileSync(dirPath).toString();
 			let jsonContent = JSON.parse(content);
 			let languages = jsonContent.contributes && jsonContent.contributes.languages;
 			if (Array.isArray(languages)) {
-				for (var k = 0; k < languages.length; k++) {
-					var languageId = languages[k].id;
+				for (let k = 0; k < languages.length; k++) {
+					let languageId = languages[k].id;
 					if (languageId) {
-						var extensions = languages[k].extensions;
-						var mapping = {};
+						let extensions = languages[k].extensions;
+						let mapping = {};
 						if (Array.isArray(extensions)) {
 							mapping.extensions = extensions.map(function (e) { return e.substr(1).toLowerCase(); });
 						}
-						var filenames = languages[k].filenames;
+						let filenames = languages[k].filenames;
 						if (Array.isArray(filenames)) {
 							mapping.fileNames = filenames.map(function (f) { return f.toLowerCase(); });
 						}
@@ -161,43 +161,45 @@ function getLanguageMappings() {
 	return langMappings;
 }
 
-//var font = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti/seti.woff';
-var font = '../../../seti-ui/styles/_fonts/seti/seti.woff';
+//let font = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti/seti.woff';
+let font = '../../../seti-ui/styles/_fonts/seti/seti.woff';
 
 exports.copyFont = function() {
 	return downloadBinary(font, './icons/seti.woff');
 };
 
-//var fontMappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
-//var mappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/components/icons/mapping.less';
-//var colors = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
+//let fontMappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
+//let mappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/components/icons/mapping.less';
+//let colors = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
 
-var fontMappings = '../../../seti-ui/styles/_fonts/seti.less';
-var mappings = '../../../seti-ui/styles/components/icons/mapping.less';
-var colors = '../../../seti-ui/styles/ui-variables.less';
+let fontMappings = '../../../seti-ui/styles/_fonts/seti.less';
+let mappings = '../../../seti-ui/styles/components/icons/mapping.less';
+let colors = '../../../seti-ui/styles/ui-variables.less';
 
 exports.update = function () {
 
 	console.log('Reading from ' + fontMappings);
-	var def2Content = {};
-	var ext2Def = {};
-	var fileName2Def = {};
-	var def2ColorId = {};
-	var colorId2Value = {};
-	var lang2Def = {};
+	let def2Content = {};
+	let ext2Def = {};
+	let fileName2Def = {};
+	let def2ColorId = {};
+	let colorId2Value = {};
+	let lang2Def = {};
 
 	function writeFileIconContent(info) {
-		var iconDefinitions = {};
+		let iconDefinitions = {};
+		let allDefs = Object.keys(def2Content).sort();
 
-		for (var def in def2Content) {
-			var entry = { fontCharacter: def2Content[def] };
-			var colorId = def2ColorId[def];
+		for (let i = 0; i < allDefs.length; i++) {
+			let def = allDefs[i];
+			let entry = { fontCharacter: def2Content[def] };
+			let colorId = def2ColorId[def];
 			if (colorId) {
-				var colorValue = colorId2Value[colorId];
+				let colorValue = colorId2Value[colorId];
 				if (colorValue) {
 					entry.fontColor = colorValue;
 
-					var entryInverse = { fontCharacter: entry.fontCharacter, fontColor: darkenColor(colorValue) };
+					let entryInverse = { fontCharacter: entry.fontCharacter, fontColor: darkenColor(colorValue) };
 					iconDefinitions[def + '_light'] = entryInverse;
 				}
 			}
@@ -205,8 +207,8 @@ exports.update = function () {
 		}
 
 		function getInvertSet(input) {
-			var result = {};
-			for (var assoc in input) {
+			let result = {};
+			for (let assoc in input) {
 				let invertDef = input[assoc] + '_light';
 				if (iconDefinitions[invertDef]) {
 					result[assoc] = invertDef;
@@ -215,7 +217,7 @@ exports.update = function () {
 			return result;
 		}
 
-		var res = {
+		let res = {
 			information_for_contributors: [
 				'This file has been generated from data in https://github.com/jesseweed/seti-ui',
 				'- icon definitions: https://github.com/jesseweed/seti-ui/blob/master/styles/_fonts/seti.less',
@@ -246,40 +248,52 @@ exports.update = function () {
 			version: 'https://github.com/jesseweed/seti-ui/commit/' + info.commitSha,
 		};
 
-		var path = './icons/vs-seti-icon-theme.json';
+		let path = './icons/vs-seti-icon-theme.json';
 		fs.writeFileSync(path, JSON.stringify(res, null, '\t'));
 		console.log('written ' + path);
 	}
 
 
-	var match;
+	let match;
 
 	return download(fontMappings).then(function (content) {
-		var regex = /@([\w-]+):\s*'(\\E[0-9A-F]+)';/g;
+		let regex = /@([\w-]+):\s*'(\\E[0-9A-F]+)';/g;
+		let contents = {};
 		while ((match = regex.exec(content)) !== null) {
-			def2Content['_' + match[1]] = match[2];
+			contents[match[1]] = match[2];
 		}
 
 		return download(mappings).then(function (content) {
-			var regex2 = /\.icon-(?:set|partial)\('([\w-\.]+)',\s*'([\w-]+)',\s*(@[\w-]+)\)/g;
+			let regex2 = /\.icon-(?:set|partial)\('([\w-\.]+)',\s*'([\w-]+)',\s*(@[\w-]+)\)/g;
 			while ((match = regex2.exec(content)) !== null) {
 				let pattern = match[1];
 				let def = '_' + match[2];
 				let colorId = match[3];
+				let storedColorId = def2ColorId[def];
+				let i = 1;
+				while (storedColorId && colorId !== storedColorId) { // different colors for the same def?
+					def = `_${match[2]}_${i}`;
+					storedColorId = def2ColorId[def];
+					i++;
+				}
+				if (!def2ColorId[def]) {
+					def2ColorId[def] = colorId;
+					def2Content[def] = contents[match[2]];
+				}
+
 				if (pattern[0] === '.') {
 					ext2Def[pattern.substr(1).toLowerCase()] = def;
 				} else {
 					fileName2Def[pattern.toLowerCase()] = def;
 				}
-				def2ColorId[def] = colorId;
 			}
 			// replace extensions for languageId
-			var langMappings = getLanguageMappings();
-			for (var lang in langMappings) {
-				var mappings = langMappings[lang];
-				var exts = mappings.extensions || [];
-				var fileNames = mappings.fileNames || [];
-				var preferredDef = null;
+			let langMappings = getLanguageMappings();
+			for (let lang in langMappings) {
+				let mappings = langMappings[lang];
+				let exts = mappings.extensions || [];
+				let fileNames = mappings.fileNames || [];
+				let preferredDef = null;
 				// use the first file association for the preferred definition
 				for (let i1 = 0; i1 < exts.length && !preferredDef; i1++) {
 					preferredDef = ext2Def[exts[i1]];
@@ -307,7 +321,7 @@ exports.update = function () {
 
 
 			return download(colors).then(function (content) {
-				var regex3 = /(@[\w-]+):\s*(#[0-9a-z]+)/g;
+				let regex3 = /(@[\w-]+):\s*(#[0-9a-z]+)/g;
 				while ((match = regex3.exec(content)) !== null) {
 					colorId2Value[match[1]] =  match[2];
 				}
