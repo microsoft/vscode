@@ -118,7 +118,10 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number, any> {
 		const read = new FileReadOperation(progress);
 		this._reads.set(read.id, read);
-		return this._proxy.$read(this._handle, read.id, offset, count, resource);
+		return this._proxy.$read(this._handle, read.id, offset, count, resource).then(value => {
+			this._reads.delete(read.id);
+			return value;
+		});
 	}
 	reportFileChunk(session: number, chunk: number[]): void {
 		this._reads.get(session).progress.report(Buffer.from(chunk));
