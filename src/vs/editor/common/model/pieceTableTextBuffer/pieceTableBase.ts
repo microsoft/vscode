@@ -255,7 +255,7 @@ export class PieceTableBase {
 				if (nodeStartOffset === offset) {
 					// we are inserting content to the beginning of node
 					let nodesToDel = [];
-					if (value.charCodeAt(value.length - 1) === 13 /* \r */ && node !== SENTINEL && this.nodeCharCodeAt(node, 0) === 10 /* \n */) {
+					if (this.endWithCR(value) && this.startWithLF(node)) {
 						// move `\n` forward
 						value += '\n';
 						node.piece.offset++;
@@ -271,7 +271,7 @@ export class PieceTableBase {
 
 					let newPiece = this.createNewPiece(value);
 					let newNode = this.rbInsertLeft(node, newPiece);
-					this.fixCRLFWithPrev(newNode);
+					this.validateCRLFWithPrevNode(newNode);
 					this.deleteNodes(nodesToDel);
 				} else if (nodeStartOffset + node.piece.length > offset) {
 					let nodesToDel = [];
@@ -283,7 +283,7 @@ export class PieceTableBase {
 						node.piece.lineStarts.values
 					);
 
-					if (value.charCodeAt(value.length - 1) === 13 /** \r */) {
+					if (this.endWithCR(value)) {
 						let headOfRight = this.nodeCharCodeAt(node, remainder);
 
 						if (headOfRight === 10 /** \n */) {
@@ -300,7 +300,7 @@ export class PieceTableBase {
 					}
 
 					// reuse node
-					if (value.charCodeAt(0) === 10/** \n */) {
+					if (this.startWithLF(value)) {
 						let tailOfLeft = this.nodeCharCodeAt(node, remainder - 1);
 						if (tailOfLeft === 13 /** \r */) {
 							let previousPos = node.piece.lineStarts.getIndexOf(remainder - 1);
@@ -331,7 +331,7 @@ export class PieceTableBase {
 
 					let newPiece = this.createNewPiece(value);
 					let newNode = this.rbInsertRight(node, newPiece);
-					this.fixCRLFWithPrev(newNode);
+					this.validateCRLFWithPrevNode(newNode);
 				}
 			}
 		} else {
@@ -364,19 +364,19 @@ export class PieceTableBase {
 					if (cnt === startNode.piece.length) { // delete node
 						let next = startNode.next();
 						this.rbDelete(startNode);
-						this.fixCRLFWithPrev(next);
+						this.validateCRLFWithPrevNode(next);
 						this.computeLineCount();
 						return;
 					}
 					this.deleteNodeHead(startNode, endSplitPos);
-					this.fixCRLFWithPrev(startNode);
+					this.validateCRLFWithPrevNode(startNode);
 					this.computeLineCount();
 					return;
 				}
 
 				if (startPosition.nodeStartOffset + startNode.piece.length === offset + cnt) {
 					this.deleteNodeTail(startNode, startSplitPos);
-					this.fixCRLFWithNext(startNode);
+					this.validateCRLFWithNextNode(startNode);
 					this.computeLineCount();
 					return;
 				}
@@ -409,9 +409,7 @@ export class PieceTableBase {
 
 			let prev = startNode.piece.length === 0 ? startNode.prev() : startNode;
 			this.deleteNodes(nodesToDel);
-			if (prev !== SENTINEL) {
-				this.fixCRLFWithNext(prev);
-			}
+			this.validateCRLFWithNextNode(prev);
 			this.computeLineCount();
 		}
 	}
@@ -552,7 +550,7 @@ export class PieceTableBase {
 		newPiece.lineStarts.changeValue(0, newPiece.lineStarts.values[0] - end.remainder);
 
 		let newNode = this.rbInsertRight(node, newPiece);
-		this.fixCRLFWithPrev(newNode);
+		this.validateCRLFWithPrevNode(newNode);
 	}
 
 	appendToNode(node: TreeNode, value: string): void {
@@ -560,7 +558,7 @@ export class PieceTableBase {
 			value += '\n';
 		}
 
-		let hitCRLF = value.charCodeAt(0) === 10 && this.nodeCharCodeAt(node, node.piece.length - 1) === 13;
+		let hitCRLF = this.startWithLF(value) && this.endWithCR(node);
 		this._changeBuffer += value;
 		node.piece.length += value.length;
 		const lineLengths = this.constructLineLengths(value);
@@ -677,6 +675,15 @@ export class PieceTableBase {
 		return null;
 	}
 
+	nodeCharCodeAt(node: TreeNode, offset: number): number {
+		if (node.piece.lineFeedCnt < 1) {
+			return -1;
+		}
+		let buffer = node.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
+
+		return buffer.charCodeAt(node.piece.offset + offset);
+	}
+
 	offsetOfNode(node: TreeNode): number {
 		if (!node) {
 			return 0;
@@ -715,6 +722,35 @@ export class PieceTableBase {
 	// #endregion
 
 	// #region CRLF
+	startWithLF(val: string | TreeNode): boolean {
+		if (typeof val === 'string') {
+			return val.charCodeAt(0) === 10;
+		}
+
+		if (val === SENTINEL || val.piece.lineFeedCnt === 0) {
+			return false;
+		}
+
+		if (val.piece.lineStarts.getAccumulatedValue(0) !== 1 /* if it's \n, the first line is 1 char */) {
+			return false;
+		}
+
+		// charCodeAt is expensive when the buffer is large.
+		return this.nodeCharCodeAt(val, 0) === 10;
+	}
+
+	endWithCR(val: string | TreeNode): boolean {
+		if (typeof val === 'string') {
+			return val.charCodeAt(val.length - 1) === 13;
+		}
+
+		if (val === SENTINEL || val.piece.lineFeedCnt === 0) {
+			return false;
+		}
+
+		return this.nodeCharCodeAt(val, val.piece.length - 1) === 13;
+	}
+
 	hitTestCRLF(node: TreeNode, offset: number, position: PrefixSumIndexOfResult) {
 		if (node.piece.lineFeedCnt < 1) {
 			return false;
@@ -728,36 +764,19 @@ export class PieceTableBase {
 		return false;
 	}
 
-	fixCRLFWithPrev(nextNode: TreeNode) {
-		if (nextNode === SENTINEL || nextNode.piece.lineFeedCnt === 0) {
-			return;
-		}
-
-		if (nextNode.piece.lineStarts.getAccumulatedValue(0) !== 1 /* if it's \n, the first line is 1 char */) {
-			return;
-		}
-
-		if (this.nodeCharCodeAt(nextNode, 0) === 10 /* \n */) {
+	validateCRLFWithPrevNode(nextNode: TreeNode) {
+		if (this.startWithLF(nextNode)) {
 			let node = nextNode.prev();
-
-			if (node === SENTINEL || node.piece.lineFeedCnt === 0) {
-				return;
-			}
-
-			if (this.nodeCharCodeAt(node, node.piece.length - 1) === 13) {
+			if (this.endWithCR(node)) {
 				this.fixCRLF(node, nextNode);
 			}
 		}
 	}
 
-	fixCRLFWithNext(node: TreeNode) {
-		if (node === SENTINEL) {
-			return;
-		}
-
-		if (this.nodeCharCodeAt(node, node.piece.length - 1) === 13 /* \r */) {
+	validateCRLFWithNextNode(node: TreeNode) {
+		if (this.endWithCR(node)) {
 			let nextNode = node.next();
-			if (nextNode !== SENTINEL && this.nodeCharCodeAt(nextNode, 0) === 10 /* \n */) {
+			if (this.startWithLF(nextNode)) {
 				this.fixCRLF(node, nextNode);
 			}
 		}
@@ -800,39 +819,28 @@ export class PieceTableBase {
 	}
 
 	adjustCarriageReturnFromNext(value: string, node: TreeNode): boolean {
-		if (value.charCodeAt(value.length - 1) === 13) {
-			// inserted content ends with \r
+		if (this.endWithCR(value)) {
 			let nextNode = node.next();
-			if (nextNode !== SENTINEL) {
-				if (this.nodeCharCodeAt(nextNode, 0) === 10) {
-					// move `\n` forward
-					value += '\n';
+			if (this.startWithLF(nextNode)) {
+				// move `\n` forward
+				value += '\n';
 
-					if (nextNode.piece.length === 1) {
-						this.rbDelete(nextNode);
-					} else {
-						nextNode.piece.offset += 1;
-						nextNode.piece.length -= 1;
-						nextNode.piece.lineFeedCnt -= 1;
-						nextNode.piece.lineStarts.removeValues(0, 1); // remove the first line, which is empty.
-						this.updateMetadata(nextNode, -1, -1);
-					}
-					return true;
+				if (nextNode.piece.length === 1) {
+					this.rbDelete(nextNode);
+				} else {
+					nextNode.piece.offset += 1;
+					nextNode.piece.length -= 1;
+					nextNode.piece.lineFeedCnt -= 1;
+					nextNode.piece.lineStarts.removeValues(0, 1); // remove the first line, which is empty.
+					this.updateMetadata(nextNode, -1, -1);
 				}
+				return true;
 			}
 		}
 
 		return false;
 	}
 
-	nodeCharCodeAt(node: TreeNode, offset: number): number {
-		if (node.piece.lineFeedCnt < 1) {
-			return -1;
-		}
-		let buffer = node.piece.isOriginalBuffer ? this._originalBuffer : this._changeBuffer;
-
-		return buffer.charCodeAt(node.piece.offset + offset);
-	}
 	// #endregion
 
 	// #endregion
