@@ -3318,7 +3318,7 @@
 				<dict>
 					<key>begin</key>
 					<string>(?x)
-								(\*|_)(?=\S)								# Open
+							\b(\*|_)(?=\S)								# Open
 								(?=
 									(
 										&lt;[^&gt;]*+&gt;							# HTML tags
