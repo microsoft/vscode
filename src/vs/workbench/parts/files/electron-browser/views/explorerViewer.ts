@@ -735,7 +735,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 				originalEvent.dataTransfer.setData(DataTransfers.TEXT, getPathLabel(sources[0].resource));
 			} else {
-				originalEvent.dataTransfer.setData(DataTransfers.URLS, JSON.stringify(sources.map(s => s.resource.toString())));
+				originalEvent.dataTransfer.setData(DataTransfers.URLS, JSON.stringify(sources.filter(s => !s.isDirectory).map(s => s.resource.toString())));
 			}
 		}
 	}
