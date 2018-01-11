@@ -203,12 +203,6 @@ export class SuggestController implements IEditorContribution {
 		const editorColumn = this._editor.getPosition().column;
 		const columnDelta = editorColumn - position.column;
 
-		if (Array.isArray(suggestion.additionalTextEdits)) {
-			this._editor.pushUndoStop();
-			this._editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-			this._editor.pushUndoStop();
-		}
-
 		// remember this word for future invocations
 		this._memory.remember(this._editor.getModel().getLanguageIdentifier(), item);
 
@@ -222,6 +216,12 @@ export class SuggestController implements IEditorContribution {
 			suggestion.overwriteBefore + columnDelta,
 			suggestion.overwriteAfter
 		);
+
+		if (Array.isArray(suggestion.additionalTextEdits)) {
+			this._editor.pushUndoStop();
+			this._editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+			this._editor.pushUndoStop();
+		}
 
 		if (!suggestion.command) {
 			// done
