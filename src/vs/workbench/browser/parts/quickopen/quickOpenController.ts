@@ -71,6 +71,7 @@ interface IInternalPickOptions {
 	ignoreFocusLost?: boolean;
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	onDidType?: (value: string) => any;
+	onKeyDown?: (e: KeyboardEvent, value: string) => string;
 }
 
 export class QuickOpenController extends Component implements IQuickOpenService {
@@ -167,7 +168,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		if (this.pickOpenWidget && this.pickOpenWidget.isVisible()) {
 			this.pickOpenWidget.hide(HideReason.CANCELED);
 		}
-
 		const defaultMessage = options.prompt
 			? nls.localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", options.prompt)
 			: nls.localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
@@ -217,7 +217,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 							});
 						}
 					}
-				}
+				},
+				onKeyDown: options.handleKeyDown
 			}, token).then(resolve, reject);
 		};
 
@@ -461,6 +462,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 						this.pickOpenWidget.refresh(model, value ? { autoFocusFirstEntry: true } : autoFocus);
 					},
+					onKeyDown: (e: KeyboardEvent, value: string) => options.onKeyDown(e, value),
 					onShow: () => this.handleOnShow(true),
 					onHide: (reason: HideReason) => this.handleOnHide(true, reason)
 				};
