@@ -308,10 +308,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 					input: {
 						resource,
 						options: { preserveFocus: false }
-					},
-					position: Position.THREE
+					}
 				};
-			}));
+			}), true);
 		}
 
 		return TPromise.as(true);
