@@ -420,7 +420,7 @@ export class FileController extends DefaultController implements IDisposable {
 			tree.setSelection([stat], payload);
 
 			if (!stat.isDirectory) {
-				this.openEditor(stat, { preserveFocus, sideBySide: event && (event.ctrlKey || event.metaKey), pinned: isDoubleClick });
+				this.openEditor(stat, { preserveFocus, sideBySide: event && event.altKey, pinned: isDoubleClick });
 			}
 		}
 
