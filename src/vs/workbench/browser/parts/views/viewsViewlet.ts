@@ -347,16 +347,23 @@ export class ViewsViewlet extends PanelViewlet {
 		super.shutdown();
 	}
 
-	toggleViewVisibility(id: string, visible?: boolean): void {
+	toggleViewVisibility(id: string): void {
 		const view = this.getView(id);
 		let viewState = this.viewsStates.get(id);
 
-		if (!viewState || (visible === true && view) || (visible === false && !view)) {
+		if (!viewState) {
 			return;
 		}
 
 		viewState.isHidden = !!view;
-		this.updateViews();
+		this.updateViews()
+			.then(() => {
+				if (!viewState.isHidden) {
+					this.getView(id).focus();
+				} else {
+					this.focus();
+				}
+			});
 	}
 
 	private onViewsRegistered(views: IViewDescriptor[]): void {

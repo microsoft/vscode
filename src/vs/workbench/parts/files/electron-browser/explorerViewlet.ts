@@ -226,67 +226,6 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		return super.setVisible(visible);
 	}
 
-	public focus(): void {
-		const hasOpenedEditors = !!this.editorGroupService.getStacksModel().activeGroup;
-
-		let openEditorsView = this.getOpenEditorsView();
-		if (this.lastFocusedPanel && this.lastFocusedPanel.isExpanded() && this.hasSelectionOrFocus(this.lastFocusedPanel as ViewsViewletPanel)) {
-			if (this.lastFocusedPanel !== openEditorsView || hasOpenedEditors) {
-				this.lastFocusedPanel.focus();
-				return;
-			}
-		}
-
-		if (this.hasSelectionOrFocus(openEditorsView) && hasOpenedEditors) {
-			return openEditorsView.focus();
-		}
-
-		let explorerView = this.getExplorerView();
-		if (this.hasSelectionOrFocus(explorerView)) {
-			return explorerView.focus();
-		}
-
-		if (openEditorsView && openEditorsView.isExpanded() && hasOpenedEditors) {
-			return openEditorsView.focus(); // we have entries in the opened editors view to focus on
-		}
-
-		if (explorerView && explorerView.isExpanded()) {
-			return explorerView.focus();
-		}
-
-		let emptyView = this.getEmptyView();
-		if (emptyView && emptyView.isExpanded()) {
-			return emptyView.focusBody();
-		}
-
-		super.focus();
-	}
-
-	private hasSelectionOrFocus(view: ViewsViewletPanel): boolean {
-		if (!view) {
-			return false;
-		}
-
-		if (!view.isExpanded()) {
-			return false;
-		}
-
-		if (view instanceof ExplorerView) {
-			const viewer = view.getViewer();
-			if (!viewer) {
-				return false;
-			}
-
-			return !!viewer.getFocus() || (viewer.getSelection() && viewer.getSelection().length > 0);
-
-		}
-		if (view instanceof OpenEditorsView && !!view.getList()) {
-			return view.getList().isDOMFocused();
-		}
-
-		return false;
-	}
-
 	public getActionRunner(): IActionRunner {
 		if (!this.actionRunner) {
 			this.actionRunner = new ActionRunner(this.viewletState);

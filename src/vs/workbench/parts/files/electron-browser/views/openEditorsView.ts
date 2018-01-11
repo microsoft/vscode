@@ -216,6 +216,11 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		});
 	}
 
+	public focus(): void {
+		this.list.domFocus();
+		super.focus();
+	}
+
 	public getList(): WorkbenchList<OpenEditor | IEditorGroup> {
 		return this.list;
 	}

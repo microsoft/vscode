@@ -134,7 +134,7 @@ interface IViewletPanelItem {
 
 export class PanelViewlet extends Viewlet {
 
-	protected lastFocusedPanel: ViewletPanel | undefined;
+	private lastFocusedPanel: ViewletPanel | undefined;
 	private panelItems: IViewletPanelItem[] = [];
 	private panelview: PanelView;
 
@@ -195,7 +195,11 @@ export class PanelViewlet extends Viewlet {
 		if (this.lastFocusedPanel) {
 			this.lastFocusedPanel.focus();
 		} else if (this.panelItems.length > 0) {
-			this.panelItems[0].panel.focus();
+			for (const { panel } of this.panelItems) {
+				if (panel.isExpanded()) {
+					panel.focus();
+				}
+			}
 		}
 	}
 
@@ -213,8 +217,13 @@ export class PanelViewlet extends Viewlet {
 	addPanel(panel: ViewletPanel, size: number, index = this.panelItems.length - 1): void {
 		const disposables: IDisposable[] = [];
 		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel, null, disposables);
+		const onDidChange = panel.onDidChange(() => {
+			if (panel === this.lastFocusedPanel && !panel.isExpanded()) {
+				this.lastFocusedPanel = undefined;
+			}
+		}, null, disposables);
 		const styler = attachPanelStyler(panel, this.themeService);
-		const disposable = combinedDisposable([onDidFocus, styler]);
+		const disposable = combinedDisposable([onDidFocus, styler, onDidChange]);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
 		this.panelItems.splice(index, 0, panelItem);
