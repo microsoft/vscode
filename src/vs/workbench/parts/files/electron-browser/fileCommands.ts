@@ -49,6 +49,8 @@ export const REVEAL_IN_EXPLORER_COMMAND_ID = 'workbench.command.files.revealInEx
 export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
 export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
 export const SELECT_FOR_COMPARE_COMMAND_ID = 'workbench.files.command.selectForCompare';
+
+export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
 export const COMPARE_RESOURCE_COMMAND_ID = 'workbench.files.command.compareFiles';
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
 export const COPY_PATH_COMMAND_ID = 'copyFilePath';
@@ -364,6 +366,19 @@ CommandsRegistry.registerCommand({
 			resourceSelectedForCompareContext = ResourceSelectedForCompareContext.bindTo(accessor.get(IContextKeyService));
 		}
 		resourceSelectedForCompareContext.set(true);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: COMPARE_SELECTED_COMMAND_ID,
+	handler: (accessor, resource: URI) => {
+		const editorService = accessor.get(IWorkbenchEditorService);
+		const resources = getResourcesForCommand(resource, accessor.get(IListService), editorService);
+
+		return editorService.openEditor({
+			leftResource: resources[0],
+			rightResource: resources[1]
+		});
 	}
 });
 
