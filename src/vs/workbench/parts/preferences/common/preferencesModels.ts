@@ -32,28 +32,20 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			this._currentResultGroups.delete(id);
 		}
 
-		let filterResult: IFilterResult;
-		if (this._currentResultGroups.size > 0) {
-			this._removeDuplicateResults();
-		}
-
-		filterResult = this.update();
-
-		return filterResult;
+		this.removeDuplicateResults();
+		return this.update();
 	}
 
-	// Remove duplicates between local and remote results
-	// TODO simplify
-	private _removeDuplicateResults(): void {
-		const keys = map.keys(this._currentResultGroups);
-		if (keys.length > 1) {
-			const keySet = new Set<string>();
-			const firstGroup = this._currentResultGroups.get(keys[0]);
-			const secondGroup = this._currentResultGroups.get(keys[1]);
-
-			firstGroup.result.filterMatches.forEach(s => keySet.add(s.setting.key));
-			secondGroup.result.filterMatches = secondGroup.result.filterMatches.filter(s => !keySet.has(s.setting.key));
-		}
+	/**
+	 * Remove duplicates between result groups, preferring results in earlier groups
+	 */
+	private removeDuplicateResults(): void {
+		// Depends on order of map keys
+		const settingKeys = new Set<string>();
+		this._currentResultGroups.forEach((group, id) => {
+			group.result.filterMatches = group.result.filterMatches.filter(s => !settingKeys.has(s.setting.key));
+			group.result.filterMatches.forEach(s => settingKeys.add(s.setting.key));
+		});
 	}
 
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[] {
