@@ -76,7 +76,7 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -97,7 +97,6 @@ import URI from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { domEvent } from 'vs/base/browser/event';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
-import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -321,7 +320,6 @@ export class Workbench implements IPartService {
 		perf.mark('willRestoreEditors');
 		const restoredEditors: string[] = [];
 		restorePromises.push(this.resolveEditorsToOpen().then(inputs => {
-
 			let editorOpenPromise: TPromise<IEditor[]>;
 			if (inputs.length) {
 				editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
@@ -329,10 +327,7 @@ export class Workbench implements IPartService {
 				editorOpenPromise = this.editorPart.restoreEditors();
 			}
 
-			// update lifecycle *after* triggering the editor restore
-			this.lifecycleService.phase = LifecyclePhase.Restoring;
-
-			editorOpenPromise.then(editors => {
+			return editorOpenPromise.then(editors => {
 				this.handleEditorBackground(); // make sure we show the proper background in the editor area
 
 				perf.mark('didRestoreEditors');
@@ -346,7 +341,7 @@ export class Workbench implements IPartService {
 						}
 					}
 				}
-			}).done(undefined, onUnexpectedError);
+			});
 		}));
 
 		// Restore Sidebar

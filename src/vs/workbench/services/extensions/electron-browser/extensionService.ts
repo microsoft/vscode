@@ -119,9 +119,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionHostProcessCustomers = [];
 		this._extensionHostProcessProxy = null;
 
-		lifecycleService.when(LifecyclePhase.Running).then(() => {
+		lifecycleService.when(LifecyclePhase.Restoring).then(() => {
 			// delay extension host creation and extension scanning
-			// until after workbench is running
+			// until the workbench is restoring. we cannot defer the
+			// extension host more (LifecyclePhase.Running) because
+			// some editors require the extension host to restore
+			// and this would result in a deadlock
+			// see https://github.com/Microsoft/vscode/issues/41322
 			this._startExtensionHostProcess([]);
 			this._scanAndHandleExtensions();
 		});

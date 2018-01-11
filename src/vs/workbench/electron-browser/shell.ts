@@ -161,17 +161,7 @@ export class WorkbenchShell {
 		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection, this.lifecycleService);
-		try {
-			this.workbench.startup().done(startupInfos => this.onWorkbenchStarted(startupInfos, instantiationService));
-		} catch (error) {
-
-			// Log it
-			this.logService.error(toErrorMessage(error, true));
-
-			// Rethrow
-			throw error;
-		}
+		this.workbench = this.createWorkbench(instantiationService, serviceCollection, parent.getHTMLElement(), workbenchContainer.getHTMLElement());
 
 		// Window
 		this.workbench.getInstantiationService().createInstance(ElectronWindow, this.container);
@@ -188,26 +178,55 @@ export class WorkbenchShell {
 		return workbenchContainer;
 	}
 
-	private onWorkbenchStarted(info: IWorkbenchStartedInfo, instantiationService: IInstantiationService): void {
+	private createWorkbench(instantiationService: IInstantiationService, serviceCollection: ServiceCollection, parent: HTMLElement, workbenchContainer: HTMLElement): Workbench {
+		try {
+			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService);
 
-		// Startup Telemetry
-		this.logStartupTelemetry(info);
+			// Delay the "Restoring" phase for a bit to give our viewlet/editor/panels a faster startup
+			let restorePhaseTimeoutHandle = setTimeout(() => {
+				restorePhaseTimeoutHandle = void 0;
+				this.lifecycleService.phase = LifecyclePhase.Restoring;
+			}, 800);
 
-		// Set lifecycle phase to `Runnning` so that other contributions can now do something
-		this.lifecycleService.phase = LifecyclePhase.Running;
+			// Startup Workbench
+			workbench.startup().done(startupInfos => {
 
-		// Set lifecycle phase to `Runnning For A Bit` after a short delay
-		let timeoutHandle = setTimeout(() => {
-			timeoutHandle = void 0;
-			this.lifecycleService.phase = LifecyclePhase.Eventually;
-		}, 3000);
-		this.toUnbind.push({
-			dispose: () => {
-				if (timeoutHandle) {
-					clearTimeout(timeoutHandle);
+				// Set lifecycle phase to restoring if we started up fast enough and to
+				// make sure to trigger contributions on this phase if any
+				if (restorePhaseTimeoutHandle) {
+					clearTimeout(restorePhaseTimeoutHandle);
+					this.lifecycleService.phase = LifecyclePhase.Restoring;
 				}
-			}
-		});
+
+				// Set lifecycle phase to `Runnning` so that other contributions can now do something
+				this.lifecycleService.phase = LifecyclePhase.Running;
+
+				// Startup Telemetry
+				this.logStartupTelemetry(startupInfos);
+
+				// Set lifecycle phase to `Runnning For A Bit` after a short delay
+				let eventuallPhaseTimeoutHandle = setTimeout(() => {
+					eventuallPhaseTimeoutHandle = void 0;
+					this.lifecycleService.phase = LifecyclePhase.Eventually;
+				}, 3000);
+				this.toUnbind.push({
+					dispose: () => {
+						if (eventuallPhaseTimeoutHandle) {
+							clearTimeout(eventuallPhaseTimeoutHandle);
+						}
+					}
+				});
+			});
+
+			return workbench;
+		} catch (error) {
+
+			// Log it
+			this.logService.error(toErrorMessage(error, true));
+
+			// Rethrow
+			throw error;
+		}
 	}
 
 	private logStartupTelemetry(info: IWorkbenchStartedInfo): void {
