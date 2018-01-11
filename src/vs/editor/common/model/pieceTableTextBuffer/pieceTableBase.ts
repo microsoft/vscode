@@ -181,6 +181,10 @@ export interface BufferCursor {
 	 * remainer in current piece.
 	*/
 	remainder: number;
+	/**
+	 * node start offset in document.
+	 */
+	nodeStartOffset: number;
 }
 
 export class Piece {
@@ -241,35 +245,28 @@ export class PieceTableBase {
 	insert(value: string, offset: number): void {
 		// todo, validate value and offset.
 		if (this._root !== SENTINEL) {
-			let { node, remainder } = this.nodeAt(offset);
+			let { node, remainder, nodeStartOffset } = this.nodeAt(offset);
 			let insertPos = node.piece.lineStarts.getIndexOf(remainder);
-			let nodeOffsetInDocument = this.offsetOfNode(node);
 			const startOffset = this._changeBuffer.length;
 
-			if (!node.piece.isOriginalBuffer && (node.piece.offset + node.piece.length === this._changeBuffer.length) && (nodeOffsetInDocument + node.piece.length === offset)) {
+			if (!node.piece.isOriginalBuffer && (node.piece.offset + node.piece.length === this._changeBuffer.length) && (nodeStartOffset + node.piece.length === offset)) {
 				// append content to this node, we don't want to keep adding node when users simply type in sequence
-				// unless we want to make the structure immutable
 				this.appendToNode(node, value);
 			} else {
-				if (nodeOffsetInDocument === offset) {
+				if (nodeStartOffset === offset) {
 					// we are inserting content to the beginning of node
 					let nodesToDel = [];
-					if (value.charCodeAt(value.length - 1) === 13) {
-						// inserted content ends with \r
-						if (node !== SENTINEL) {
-							if (this.nodeCharCodeAt(node, 0) === 10) {
-								// move `\n` forward
-								value += '\n';
-								node.piece.offset++;
-								node.piece.length--;
-								node.piece.lineFeedCnt--;
-								node.piece.lineStarts.removeValues(0, 1); // remove the first line, which is empty.
-								this.updateMetadata(node, -1, -1);
+					if (value.charCodeAt(value.length - 1) === 13 /* \r */ && node !== SENTINEL && this.nodeCharCodeAt(node, 0) === 10 /* \n */) {
+						// move `\n` forward
+						value += '\n';
+						node.piece.offset++;
+						node.piece.length--;
+						node.piece.lineFeedCnt--;
+						node.piece.lineStarts.removeValues(0, 1);
+						this.updateMetadata(node, -1, -1);
 
-								if (node.piece.length === 0) {
-									nodesToDel.push(node);
-								}
-							}
+						if (node.piece.length === 0) {
+							nodesToDel.push(node);
 						}
 					}
 
@@ -278,24 +275,19 @@ export class PieceTableBase {
 					let newPiece: Piece = new Piece(false, startOffset, value.length, lineLengths.length - 1, lineLengths);
 					let newNode = this.rbInsertLeft(node, newPiece);
 					this.fixCRLFWithPrev(newNode);
-
-					for (let i = 0; i < nodesToDel.length; i++) {
-						this.rbDelete(nodesToDel[i]);
-					}
-				} else if (nodeOffsetInDocument + node.piece.length > offset) {
+					this.deleteNodes(nodesToDel);
+				} else if (nodeStartOffset + node.piece.length > offset) {
 					let nodesToDel = [];
-
-					// we need to split node. Create the new piece first as we are reading current node info before modifying it.
 					let newRightPiece = new Piece(
 						node.piece.isOriginalBuffer,
-						node.piece.offset + offset - nodeOffsetInDocument,
-						nodeOffsetInDocument + node.piece.length - offset,
+						node.piece.offset + remainder,
+						node.piece.length - remainder,
 						node.piece.lineFeedCnt - insertPos.index,
 						node.piece.lineStarts.values
 					);
 
 					if (value.charCodeAt(value.length - 1) === 13 /** \r */) {
-						let headOfRight = this.nodeCharCodeAt(node, offset - nodeOffsetInDocument);
+						let headOfRight = this.nodeCharCodeAt(node, remainder);
 
 						if (headOfRight === 10 /** \n */) {
 							newRightPiece.offset++;
@@ -312,7 +304,7 @@ export class PieceTableBase {
 
 					// reuse node
 					if (value.charCodeAt(0) === 10/** \n */) {
-						let tailOfLeft = this.nodeCharCodeAt(node, offset - nodeOffsetInDocument - 1);
+						let tailOfLeft = this.nodeCharCodeAt(node, remainder - 1);
 						if (tailOfLeft === 13 /** \r */) {
 							let previousPos = node.piece.lineStarts.getIndexOf(remainder - 1);
 							this.deleteNodeTail(node, previousPos);
@@ -336,9 +328,7 @@ export class PieceTableBase {
 						this.rbInsertRight(node, newRightPiece);
 					}
 					this.rbInsertRight(node, newPiece);
-					for (let i = 0; i < nodesToDel.length; i++) {
-						this.rbDelete(nodesToDel[i]);
-					}
+					this.deleteNodes(nodesToDel);
 				} else {
 					// we are inserting to the right of this node.
 					if (this.adjustCarriageReturnFromNext(value, node)) {
@@ -376,17 +366,14 @@ export class PieceTableBase {
 			let endPosition = this.nodeAt(offset + cnt);
 			let startNode = startPosition.node;
 			let endNode = endPosition.node;
-
-			let length = startNode.piece.length;
-			let startNodeOffsetInDocument = this.offsetOfNode(startNode);
-			let splitPos = startNode.piece.lineStarts.getIndexOf(offset - startNodeOffsetInDocument);
+			let startSplitPos = startNode.piece.lineStarts.getIndexOf(startPosition.remainder);
 
 			if (startNode === endNode) {
 				// deletion falls into one node.
-				let endSplitPos = startNode.piece.lineStarts.getIndexOf(offset - startNodeOffsetInDocument + cnt);
+				let endSplitPos = startNode.piece.lineStarts.getIndexOf(endPosition.remainder);
 
-				if (startNodeOffsetInDocument === offset) {
-					if (cnt === length) { // delete node
+				if (startPosition.nodeStartOffset === offset) {
+					if (cnt === startNode.piece.length) { // delete node
 						let next = startNode.next();
 						this.rbDelete(startNode);
 						this.fixCRLFWithPrev(next);
@@ -399,52 +386,51 @@ export class PieceTableBase {
 					return;
 				}
 
-				if (startNodeOffsetInDocument + length === offset + cnt) {
-					this.deleteNodeTail(startNode, splitPos);
+				if (startPosition.nodeStartOffset + startNode.piece.length === offset + cnt) {
+					this.deleteNodeTail(startNode, startSplitPos);
 					this.fixCRLFWithNext(startNode);
 					this.computeLineCount();
 					return;
 				}
 
 				// delete content in the middle, this node will be splitted to nodes
-				this.shrinkNode(startNode, splitPos, endSplitPos);
+				this.shrinkNode(startNode, startSplitPos, endSplitPos);
 				this.computeLineCount();
 				return;
 			}
 
-			// perform read operations before any write operation.
-			let endNodeOffsetInDocument = this.offsetOfNode(endNode);
-
-			// update first touched node
-			this.deleteNodeTail(startNode, splitPos);
 			let nodesToDel = [];
+			// update first touched node
+			this.deleteNodeTail(startNode, startSplitPos);
 			if (startNode.piece.length === 0) {
 				nodesToDel.push(startNode);
 			}
 
 			// update last touched node
-			let endSplitPos = endNode.piece.lineStarts.getIndexOf(offset - endNodeOffsetInDocument + cnt);
+			let endSplitPos = endNode.piece.lineStarts.getIndexOf(endPosition.remainder);
 			this.deleteNodeHead(endNode, endSplitPos);
-
 			if (endNode.piece.length === 0) {
 				nodesToDel.push(endNode);
 			}
 
+			// delete nodes in between
 			let secondNode = startNode.next();
 			for (let node = secondNode; node !== SENTINEL && node !== endNode; node = node.next()) {
 				nodesToDel.push(node);
 			}
 
 			let prev = startNode.piece.length === 0 ? startNode.prev() : startNode;
-
-			for (let i = 0; i < nodesToDel.length; i++) {
-				this.rbDelete(nodesToDel[i]);
-			}
-
+			this.deleteNodes(nodesToDel);
 			if (prev !== SENTINEL) {
 				this.fixCRLFWithNext(prev);
 			}
 			this.computeLineCount();
+		}
+	}
+
+	deleteNodes(nodes: TreeNode[]): void {
+		for (let i = 0; i < nodes.length; i++) {
+			this.rbDelete(nodes[i]);
 		}
 	}
 
@@ -605,17 +591,21 @@ export class PieceTableBase {
 
 	nodeAt(offset: number): BufferCursor {
 		let x = this._root;
+		let nodeStartOffset = 0;
 
 		while (x !== SENTINEL) {
 			if (x.size_left > offset) {
 				x = x.left;
 			} else if (x.size_left + x.piece.length >= offset) {
+				nodeStartOffset += x.size_left;
 				return {
 					node: x,
-					remainder: offset - x.size_left
+					remainder: offset - x.size_left,
+					nodeStartOffset
 				};
 			} else {
 				offset -= x.size_left + x.piece.length;
+				nodeStartOffset += x.size_left + x.piece.length;
 				x = x.right;
 			}
 		}
@@ -627,6 +617,7 @@ export class PieceTableBase {
 		let x = this._root;
 		let lineNumber = position.lineNumber;
 		let column = position.column;
+		let nodeStartOffset = 0;
 
 		while (x !== SENTINEL) {
 			if (x.left !== SENTINEL && x.lf_left >= lineNumber - 1) {
@@ -634,17 +625,20 @@ export class PieceTableBase {
 			} else if (x.lf_left + x.piece.lineFeedCnt > lineNumber - 1) {
 				let prevAccumualtedValue = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 2);
 				let accumualtedValue = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 1);
+				nodeStartOffset += x.size_left;
 
 				return {
 					node: x,
-					remainder: Math.min(prevAccumualtedValue + column - 1, accumualtedValue)
+					remainder: Math.min(prevAccumualtedValue + column - 1, accumualtedValue),
+					nodeStartOffset
 				};
 			} else if (x.lf_left + x.piece.lineFeedCnt === lineNumber - 1) {
 				let prevAccumualtedValue = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 2);
 				if (prevAccumualtedValue + column - 1 <= x.piece.length) {
 					return {
 						node: x,
-						remainder: prevAccumualtedValue + column - 1
+						remainder: prevAccumualtedValue + column - 1,
+						nodeStartOffset
 					};
 				} else {
 					column -= x.piece.length - prevAccumualtedValue;
@@ -652,6 +646,7 @@ export class PieceTableBase {
 				}
 			} else {
 				lineNumber -= x.lf_left + x.piece.lineFeedCnt;
+				nodeStartOffset += x.size_left + x.piece.length;
 				x = x.right;
 			}
 		}
@@ -662,15 +657,19 @@ export class PieceTableBase {
 
 			if (x.piece.lineFeedCnt > 0) {
 				let accumualtedValue = x.piece.lineStarts.getAccumulatedValue(0);
+				let nodeStartOffset = this.offsetOfNode(x);
 				return {
 					node: x,
-					remainder: Math.min(column - 1, accumualtedValue)
+					remainder: Math.min(column - 1, accumualtedValue),
+					nodeStartOffset
 				};
 			} else {
 				if (x.piece.length >= column - 1) {
+					let nodeStartOffset = this.offsetOfNode(x);
 					return {
 						node: x,
-						remainder: column - 1
+						remainder: column - 1,
+						nodeStartOffset
 					};
 				} else {
 					column -= x.piece.length;
