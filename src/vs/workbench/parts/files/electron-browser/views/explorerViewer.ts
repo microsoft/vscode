@@ -427,27 +427,6 @@ export class FileController extends DefaultController implements IDisposable {
 		return true;
 	}
 
-	public onKeyDown(tree: ITree, event: IKeyboardEvent): boolean {
-		if (event.shiftKey && (event.keyCode === KeyCode.DownArrow || event.keyCode === KeyCode.UpArrow)) {
-			const previousFocus = tree.getFocus();
-			if (event.keyCode === KeyCode.DownArrow) {
-				tree.focusNext();
-			} else {
-				tree.focusPrevious();
-			}
-
-			const focus = tree.getFocus();
-			const selection = tree.getSelection();
-			if (selection && selection.indexOf(focus) >= 0) {
-				tree.setSelection(selection.filter(s => s !== previousFocus));
-			} else {
-				tree.setSelection(selection.concat(focus));
-			}
-		}
-
-		return super.onKeyDown(tree, event);
-	}
-
 	public onContextMenu(tree: ITree, stat: FileStat | Model, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
