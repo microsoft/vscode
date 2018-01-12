@@ -93,9 +93,7 @@ export class ChunksTextBuffer implements ITextBuffer {
 		return this.getLineContent(lineNumber).charCodeAt(index);
 	}
 	getLineLength(lineNumber: number): number {
-		// TODO
-		let content = this.getLineContent(lineNumber);
-		return content.length;
+		return this._actual.getLineLength(lineNumber);
 	}
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number {
 		throw new Error('TODO');
@@ -126,11 +124,18 @@ class BufferNodes {
 
 class BufferCursor {
 	constructor(
-		public readonly offset,
-		public readonly leafIndex,
-		public readonly leafStartOffset,
-		public readonly leafStartNewLineCount
+		public offset: number,
+		public leafIndex: number,
+		public leafStartOffset: number,
+		public leafStartNewLineCount: number
 	) { }
+
+	public set(offset: number, leafIndex: number, leafStartOffset: number, leafStartNewLineCount: number) {
+		this.offset = offset;
+		this.leafIndex = leafIndex;
+		this.leafStartOffset = leafStartOffset;
+		this.leafStartNewLineCount = leafStartNewLineCount;
+	}
 }
 
 class OffsetLenEdit {
@@ -159,6 +164,39 @@ class LeafReplacement {
 		public readonly replacements: BufferPiece[]
 	) { }
 }
+
+const BUFFER_CURSOR_POOL_SIZE = 10;
+const BufferCursorPool = new class {
+	private _pool: BufferCursor[];
+	private _len: number;
+
+	constructor() {
+		this._pool = [];
+		for (let i = 0; i < BUFFER_CURSOR_POOL_SIZE; i++) {
+			this._pool[i] = new BufferCursor(0, 0, 0, 0);
+		}
+		this._len = this._pool.length;
+	}
+
+	public put(cursor: BufferCursor): void {
+		if (this._len > this._pool.length) {
+			// oh, well
+			return;
+		}
+		this._pool[this._len++] = cursor;
+	}
+
+	public take(): BufferCursor {
+		if (this._len === 0) {
+			// oh, well
+			console.log(`insufficient BufferCursor pool`);
+			return new BufferCursor(0, 0, 0, 0);
+		}
+		const result = this._pool[this._len - 1];
+		this._pool[this._len--] = null;
+		return result;
+	}
+};
 
 class Buffer {
 
@@ -232,9 +270,9 @@ class Buffer {
 		this._nodes.newLineCount[nodeIndex] = newLineCount;
 	}
 
-	public findOffset(offset: number): BufferCursor {
+	private _findOffset(offset: number, result: BufferCursor): boolean {
 		if (offset > this._nodes.length[1]) {
-			return null;
+			return false;
 		}
 
 		let it = 1;
@@ -276,12 +314,15 @@ class Buffer {
 		}
 		it = this.NODE_TO_LEAF_INDEX(it);
 
-		return new BufferCursor(offset, it, leafStartOffset, leafStartNewLineCount);
+		result.set(offset, it, leafStartOffset, leafStartNewLineCount);
+		return true;
 	}
 
-	private _findLineStart(lineIndex: number): BufferCursor {
+	private _findLineStart(lineNumber: number, result: BufferCursor): boolean {
+		let lineIndex = lineNumber - 1;
 		if (lineIndex < 0 || lineIndex > this._nodes.newLineCount[1]) {
-			return null;
+			result.set(0, 0, 0, 0);
+			return false;
 		}
 
 		let it = 1;
@@ -318,10 +359,11 @@ class Buffer {
 
 		const innerLineStartOffset = (lineIndex === 0 ? 0 : this._leafs[it].lineStartFor(lineIndex - 1));
 
-		return new BufferCursor(leafStartOffset + innerLineStartOffset, it, leafStartOffset, leafStartNewLineCount);
+		result.set(leafStartOffset + innerLineStartOffset, it, leafStartOffset, leafStartNewLineCount);
+		return true;
 	}
 
-	private _findLineEnd(start: BufferCursor, lineNumber: number): BufferCursor {
+	private _findLineEnd(start: BufferCursor, lineNumber: number, result: BufferCursor): void {
 		let innerLineIndex = lineNumber - 1 - start.leafStartNewLineCount;
 		const leafsCount = this._leafs.length;
 
@@ -333,13 +375,15 @@ class Buffer {
 
 			if (innerLineIndex < leaf.newLineCount()) {
 				const lineEndOffset = this._leafs[leafIndex].lineStartFor(innerLineIndex);
-				return new BufferCursor(leafStartOffset + lineEndOffset, leafIndex, leafStartOffset, leafStartNewLineCount);
+				result.set(leafStartOffset + lineEndOffset, leafIndex, leafStartOffset, leafStartNewLineCount);
+				return;
 			}
 
 			leafIndex++;
 
 			if (leafIndex >= leafsCount) {
-				return new BufferCursor(leafStartOffset + leaf.length(), leafIndex - 1, leafStartOffset, leafStartNewLineCount);
+				result.set(leafStartOffset + leaf.length(), leafIndex - 1, leafStartOffset, leafStartNewLineCount);
+				return;
 			}
 
 			leafStartOffset += leaf.length();
@@ -348,15 +392,13 @@ class Buffer {
 		}
 	}
 
-	public findLine(lineNumber: number): [BufferCursor, BufferCursor] {
-		const innerLineIndex = lineNumber - 1;
-		const start = this._findLineStart(innerLineIndex);
-		if (!start) {
-			return null;
+	private _findLine(lineNumber: number, start: BufferCursor, end: BufferCursor): boolean {
+		if (!this._findLineStart(lineNumber, start)) {
+			return false;
 		}
 
-		const end = this._findLineEnd(start, lineNumber);
-		return [start, end];
+		this._findLineEnd(start, lineNumber, end);
+		return true;
 	}
 
 	public getLineCount(): number {
@@ -364,12 +406,37 @@ class Buffer {
 	}
 
 	public getLineContent(lineNumber: number): string {
-		const r = this.findLine(lineNumber);
-		if (!r) {
+		const start = BufferCursorPool.take();
+		const end = BufferCursorPool.take();
+
+		if (!this._findLine(lineNumber, start, end)) {
+			BufferCursorPool.put(start);
+			BufferCursorPool.put(end);
 			throw new Error(`Line not found`);
 		}
-		const [start, end] = r;
-		return this.extractString(start, end.offset - start.offset);
+
+		const result = this.extractString(start, end.offset - start.offset);
+
+		BufferCursorPool.put(start);
+		BufferCursorPool.put(end);
+		return result;
+	}
+
+	public getLineLength(lineNumber: number): number {
+		const start = BufferCursorPool.take();
+		const end = BufferCursorPool.take();
+
+		if (!this._findLine(lineNumber, start, end)) {
+			BufferCursorPool.put(start);
+			BufferCursorPool.put(end);
+			throw new Error(`Line not found`);
+		}
+
+		const result = end.offset - start.offset;
+
+		BufferCursorPool.put(start);
+		BufferCursorPool.put(end);
+		return result;
 	}
 
 	public getLinesContent(): string[] {
@@ -435,11 +502,16 @@ class Buffer {
 	}
 
 	public getOffsetAt(lineNumber: number, column: number): number {
-		const start = this._findLineStart(lineNumber - 1);
-		if (!start) {
+		const start = BufferCursorPool.take();
+
+		if (!this._findLineStart(lineNumber, start)) {
+			BufferCursorPool.put(start);
 			throw new Error(`Line not found`);
 		}
-		return start.offset + column - 1;
+		const result = start.offset + column - 1;
+
+		BufferCursorPool.put(start);
+		return result;
 	}
 
 	//#region Editing
@@ -468,13 +540,13 @@ class Buffer {
 		edits = this._mergeAdjacentEdits(edits);
 
 		let result: InternalOffsetLenEdit[] = [];
-		let tmp: BufferCursor;
+		let tmp = new BufferCursor(0, 0, 0, 0);
 		for (let i = 0, len = edits.length; i < len; i++) {
 			const edit = edits[i];
 
 			let text = edit.text;
 
-			tmp = this.findOffset(edit.offset);
+			this._findOffset(edit.offset, tmp);
 			let startLeafIndex = tmp.leafIndex;
 			let startInnerOffset = tmp.offset - tmp.leafStartOffset;
 			if (startInnerOffset > 0) {
@@ -484,13 +556,13 @@ class Buffer {
 					// include the replacement of \r in the edit
 					text = '\r' + text;
 
-					tmp = this.findOffset(edit.offset - 1);
+					this._findOffset(edit.offset - 1, tmp);
 					startLeafIndex = tmp.leafIndex;
 					startInnerOffset = tmp.offset - tmp.leafStartOffset;
 				}
 			}
 
-			tmp = this.findOffset(edit.offset + edit.length);
+			this._findOffset(edit.offset + edit.length, tmp);
 			let endLeafIndex = tmp.leafIndex;
 			let endInnerOffset = tmp.offset - tmp.leafStartOffset;
 			const endLeaf = this._leafs[endLeafIndex];
@@ -500,7 +572,7 @@ class Buffer {
 					// include the replacement of \n in the edit
 					text = text + '\n';
 
-					tmp = this.findOffset(edit.offset + edit.length + 1);
+					this._findOffset(edit.offset + edit.length + 1, tmp);
 					endLeafIndex = tmp.leafIndex;
 					endInnerOffset = tmp.offset - tmp.leafStartOffset;
 				}
