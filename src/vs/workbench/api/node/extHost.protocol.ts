@@ -544,7 +544,7 @@ export interface ExtHostFileSystemShape {
 	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
 	$rmdir(handle: number, resource: UriComponents): TPromise<void>;
 	$findFiles(handle: number, session: number, query: string): TPromise<void>;
-	$findInFiles(handle: number, session: number, pattern: IPatternInfo): TPromise<void>;
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, include: string, exclude: string): TPromise<void>;
 }
 
 export interface ExtHostExtensionServiceShape {

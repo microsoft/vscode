@@ -173,7 +173,7 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 
 			const promise = query.type === QueryType.File
 				? this._proxy.$findFiles(this._handle, search.id, query.filePattern)
-				: this._proxy.$findInFiles(this._handle, search.id, query.contentPattern);
+				: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, undefined, undefined);
 
 			promise.then(() => {
 				this._searches.delete(search.id);

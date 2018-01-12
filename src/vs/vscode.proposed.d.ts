@@ -83,7 +83,14 @@ declare module 'vscode' {
 		type: FileType;
 	}
 
-	export interface FindMatch {
+	export interface TextSearchQuery {
+		pattern: string;
+		isRegex?: boolean;
+		isCaseSensitive?: boolean;
+		isWordMatch?: boolean;
+	}
+
+	export interface TextSearchResult {
 		uri: Uri;
 		range: Range;
 		preview: { leading: string, matching: string, trailing: string };
@@ -137,7 +144,8 @@ declare module 'vscode' {
 
 		// find files by names
 		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
-		findInFiles?(query: string, isRegex: boolean, progress: Progress<FindMatch>, token: CancellationToken): Thenable<void>;
+
+		provideTextSearchResults?(query: TextSearchQuery, include: GlobPattern, exclude: GlobPattern, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {

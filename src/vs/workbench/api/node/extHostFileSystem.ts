@@ -87,13 +87,13 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		};
 		return asWinJsPromise(token => provider.findFiles(query, progress, token));
 	}
-	$findInFiles(handle: number, session: number, pattern: IPatternInfo): TPromise<void> {
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, include: string, exclude: string): TPromise<void> {
 		const provider = this._provider.get(handle);
-		if (!provider.findInFiles) {
+		if (!provider.provideTextSearchResults) {
 			return TPromise.as(undefined);
 		}
 		const progress = {
-			report: (data: vscode.FindMatch) => {
+			report: (data: vscode.TextSearchResult) => {
 				this._proxy.$handleFindMatch(handle, session, [data.uri, {
 					lineNumber: 1 + data.range.start.line,
 					preview: data.preview.leading + data.preview.matching + data.preview.trailing,
@@ -101,6 +101,6 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 				}]);
 			}
 		};
-		return asWinJsPromise(token => provider.findInFiles(pattern.pattern, pattern.isRegExp, progress, token));
+		return asWinJsPromise(token => provider.provideTextSearchResults(pattern, include, exclude, progress, token));
 	}
 }
