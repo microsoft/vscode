@@ -83,6 +83,12 @@ declare module 'vscode' {
 		type: FileType;
 	}
 
+	export interface FindMatch {
+		uri: Uri;
+		range: Range;
+		preview: { leading: string, matching: string, trailing: string };
+	}
+
 	// todo@joh discover files etc
 	// todo@joh CancellationToken everywhere
 	export interface FileSystemProvider {
@@ -131,6 +137,7 @@ declare module 'vscode' {
 
 		// find files by names
 		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		findInFiles?(query: string, isRegex: boolean, progress: Progress<FindMatch>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {

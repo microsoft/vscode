@@ -12,9 +12,10 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { ISearchResultProvider, ISearchQuery, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchService } from 'vs/platform/search/common/search';
+import { ISearchResultProvider, ISearchQuery, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchService, ILineMatch } from 'vs/platform/search/common/search';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { values } from 'vs/base/common/map';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -59,8 +60,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	// --- search
 
-	$handleDidFindFile(handle: number, session: number, data: UriComponents): void {
-		this._provider.get(handle).hanelDidFindFile(session, URI.revive(data));
+	$handleFindMatch(handle: number, session, data: UriComponents | [UriComponents, ILineMatch]): void {
+		this._provider.get(handle).handleFindMatch(session, data);
 	}
 }
 
@@ -76,11 +77,25 @@ class FileReadOperation {
 	}
 }
 
+class SearchOperation {
+
+	private static _idPool = 0;
+
+	constructor(
+		readonly progress: (match: IFileMatch) => any,
+		readonly id: number = ++SearchOperation._idPool,
+		readonly matches = new Map<string, IFileMatch>()
+	) {
+		//
+	}
+}
+
 class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProvider {
 
 	private readonly _onDidChange = new Emitter<IFileChange[]>();
-	private readonly _reads = new Map<number, FileReadOperation>();
 	private readonly _registrations: IDisposable[];
+	private readonly _reads = new Map<number, FileReadOperation>();
+	private readonly _searches = new Map<number, SearchOperation>();
 
 	readonly onDidChange: Event<IFileChange[]> = this._onDidChange.event;
 
@@ -149,38 +164,44 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 
 	// --- search
 
-	private _searches = new Map<number, (resource: URI) => void>();
-	private _searchesIdPool = 0;
-
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
-		if (query.type === QueryType.Text) {
-			return PPromise.as<ISearchComplete>({ results: [], stats: undefined });
-		} else {
-			return this._findFiles(query);
-		}
-	}
 
-	private _findFiles(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
-		const id = ++this._searchesIdPool;
-		const matches: IFileMatch[] = [];
 		return new PPromise((resolve, reject, report) => {
-			this._proxy.$findFiles(this._handle, id, query.filePattern).then(() => {
-				this._searches.delete(id);
-				resolve({
-					results: matches,
-					stats: undefined
-				});
-			}, reject);
 
-			this._searches.set(id, resource => {
-				const match: IFileMatch = { resource };
-				matches.push(match);
-				report(match);
+			const search = new SearchOperation(report);
+			this._searches.set(search.id, search);
+
+			const promise = query.type === QueryType.File
+				? this._proxy.$findFiles(this._handle, search.id, query.filePattern)
+				: this._proxy.$findInFiles(this._handle, search.id, query.contentPattern);
+
+			promise.then(() => {
+				this._searches.delete(search.id);
+				resolve(({ results: values(search.matches), stats: undefined }));
+			}, err => {
+				this._searches.delete(search.id);
+				reject(err);
 			});
 		});
 	}
 
-	hanelDidFindFile(session: number, resource: URI): void {
-		this._searches.get(session)(resource);
+	handleFindMatch(session: number, dataOrUri: UriComponents | [UriComponents, ILineMatch]): void {
+		let resource: URI;
+		let match: ILineMatch;
+
+		if (Array.isArray(dataOrUri)) {
+			resource = URI.revive(dataOrUri[0]);
+			match = dataOrUri[1];
+		} else {
+			resource = URI.revive(dataOrUri);
+		}
+
+		const { matches } = this._searches.get(session);
+		if (!matches.has(resource.toString())) {
+			matches.set(resource.toString(), { resource, lineMatches: [] });
+		}
+		if (match) {
+			matches.get(resource.toString()).lineMatches.push(match);
+		}
 	}
 }

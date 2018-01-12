@@ -53,6 +53,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model';
+import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -373,7 +374,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$onFileSystemChange(handle: number, resource: IFileChange[]): void;
 	$reportFileChunk(handle: number, session: number, chunk: number[] | null): void;
 
-	$handleDidFindFile(handle: number, session: number, resource: UriComponents): void;
+	$handleFindMatch(handle: number, session, data: UriComponents | [UriComponents, ILineMatch]): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
@@ -543,6 +544,7 @@ export interface ExtHostFileSystemShape {
 	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
 	$rmdir(handle: number, resource: UriComponents): TPromise<void>;
 	$findFiles(handle: number, session: number, query: string): TPromise<void>;
+	$findInFiles(handle: number, session: number, pattern: IPatternInfo): TPromise<void>;
 }
 
 export interface ExtHostExtensionServiceShape {

@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import { IStat } from 'vs/platform/files/common/files';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
+import { IPatternInfo } from 'vs/platform/search/common/search';
 
 export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
@@ -79,7 +80,27 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		if (!provider.findFiles) {
 			return TPromise.as(undefined);
 		}
-		const progress = { report: (uri) => this._proxy.$handleDidFindFile(handle, session, uri) };
+		const progress = {
+			report: (uri) => {
+				this._proxy.$handleFindMatch(handle, session, uri);
+			}
+		};
 		return asWinJsPromise(token => provider.findFiles(query, progress, token));
+	}
+	$findInFiles(handle: number, session: number, pattern: IPatternInfo): TPromise<void> {
+		const provider = this._provider.get(handle);
+		if (!provider.findInFiles) {
+			return TPromise.as(undefined);
+		}
+		const progress = {
+			report: (data: vscode.FindMatch) => {
+				this._proxy.$handleFindMatch(handle, session, [data.uri, {
+					lineNumber: 1 + data.range.start.line,
+					preview: data.preview.leading + data.preview.matching + data.preview.trailing,
+					offsetAndLengths: [[data.preview.leading.length, data.preview.matching.length]]
+				}]);
+			}
+		};
+		return asWinJsPromise(token => provider.findInFiles(pattern.pattern, pattern.isRegExp, progress, token));
 	}
 }
