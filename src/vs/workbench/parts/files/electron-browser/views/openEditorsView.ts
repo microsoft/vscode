@@ -51,7 +51,6 @@ const $ = dom.$;
 export class OpenEditorsView extends ViewsViewletPanel {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
-	private static readonly DEFAULT_DYNAMIC_HEIGHT = true;
 	static readonly ID = 'workbench.explorer.openEditorsView';
 	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
@@ -381,22 +380,11 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS;
 		}
 
-		let dynamicHeight = this.configurationService.getValue<boolean>('explorer.openEditors.dynamicHeight');
-		if (typeof dynamicHeight !== 'boolean') {
-			dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT;
-		}
-
-		return this.computeMinExpandedBodySize(visibleOpenEditors, dynamicHeight);
+		return this.computeMinExpandedBodySize(visibleOpenEditors);
 	}
 
-	private computeMinExpandedBodySize(visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
-		let itemsToShow: number;
-		if (dynamicHeight) {
-			itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), this.elementCount);
-		} else {
-			itemsToShow = Math.max(visibleOpenEditors, 1);
-		}
-
+	private computeMinExpandedBodySize(visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS): number {
+		const itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), this.elementCount);
 		return itemsToShow * OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 

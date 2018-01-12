@@ -306,11 +306,6 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Set it to 0 to hide the pane."),
 			'default': 9
 		},
-		'explorer.openEditors.dynamicHeight': {
-			'type': 'boolean',
-			'description': nls.localize({ key: 'dynamicHeight', comment: ['Open is an adjective'] }, "Controls if the height of the open editors section should adapt dynamically to the number of elements or not."),
-			'default': true
-		},
 		'explorer.autoReveal': {
 			'type': 'boolean',
 			'description': nls.localize('autoReveal', "Controls if the explorer should automatically reveal and select files when opening them."),
