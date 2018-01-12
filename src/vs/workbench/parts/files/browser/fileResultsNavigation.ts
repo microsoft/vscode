@@ -66,7 +66,7 @@ export default class FileResultsNavigation extends Disposable {
 			editorOptions: {
 				preserveFocus,
 				pinned,
-				revealIfVisible: !sideBySide
+				revealIfVisible: true
 			},
 			sideBySide,
 			element: this.tree.getSelection()[0],

@@ -1404,8 +1404,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			return Position.ONE; // can only be ONE
 		}
 
+		// Ignore revealIfVisible/revealIfOpened option if we got instructed explicitly to
+		// * open at a specific index
+		// * open to the side
+		// * open in a specific group
+		const skipReveal = (options && options.index) || arg1 === true /* open to side */ || typeof arg1 === 'number' /* open specific group */;
+
 		// Respect option to reveal an editor if it is already visible
-		if (options && options.revealIfVisible) {
+		if (!skipReveal && options && options.revealIfVisible) {
 			const group = this.stacks.findGroup(input, true);
 			if (group) {
 				return this.stacks.positionOfGroup(group);
@@ -1413,8 +1419,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Respect option to reveal an editor if it is open (not necessarily visible)
-		const skipRevealIfOpen = (options && options.index) || arg1 === true /* open to side */ || typeof arg1 === 'number' /* open specific group */;
-		if (!skipRevealIfOpen && (this.revealIfOpen || (options && options.revealIfOpened))) {
+		if (!skipReveal && (this.revealIfOpen || (options && options.revealIfOpened))) {
 			const group = this.stacks.findGroup(input);
 			if (group) {
 				return this.stacks.positionOfGroup(group);
