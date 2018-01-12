@@ -485,7 +485,8 @@ class PreferencesRenderersController extends Disposable {
 	private _filterOrSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
-			return provider.searchModel(model)
+			const searchP = provider ? provider.searchModel(model) : TPromise.wrap(null);
+			return searchP
 				.then<ISearchResult>(null, err => {
 					if (isPromiseCanceledError(err)) {
 						return null;

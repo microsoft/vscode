@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter } from 'vs/base/common/event';
 import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider, IGroupFilter, ISettingMatcher, IScoredResults } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct, top } from 'vs/base/common/arrays';
@@ -28,16 +27,12 @@ export interface IEndpointDetails {
 export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
 	_serviceBrand: any;
 
-	private _onRemoteSearchEnablementChanged = new Emitter<boolean>();
-	public onRemoteSearchEnablementChanged: Event<boolean> = this._onRemoteSearchEnablementChanged.event;
-
 	constructor(
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
-		this._register(configurationService.onDidChangeConfiguration(() => this._onRemoteSearchEnablementChanged.fire(this.remoteSearchAllowed)));
 	}
 
 	private get remoteSearchAllowed(): boolean {
@@ -68,7 +63,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	}
 
 	getRemoteSearchProvider(filter: string): RemoteSearchProvider {
-		return this.instantiationService.createInstance(RemoteSearchProvider, filter, this.endpoint);
+		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, filter, this.endpoint);
 	}
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider {

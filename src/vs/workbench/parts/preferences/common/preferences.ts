@@ -176,7 +176,6 @@ export interface IPreferencesSearchService {
 	_serviceBrand: any;
 
 	endpoint: IEndpointDetails;
-	onRemoteSearchEnablementChanged: Event<boolean>;
 
 	getLocalSearchProvider(filter: string): ISearchProvider;
 	getRemoteSearchProvider(filter: string): ISearchProvider;
