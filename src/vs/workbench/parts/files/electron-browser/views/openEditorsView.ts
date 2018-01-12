@@ -185,7 +185,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 				const focused = this.list.getFocusedElements();
 				const element = focused.length ? focused[0] : undefined;
 				if (element instanceof OpenEditor) {
-					this.openEditor(element, { pinned: false, sideBySide: !!event.ctrlKey, preserveFocus: false });
+					this.openEditor(element, { pinned: false, sideBySide: !!event.altKey, preserveFocus: false });
 				}
 			}
 		}));
@@ -270,7 +270,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			const position = this.model.positionOfGroup(element.editorGroup);
 			this.editorService.closeEditor(position, element.editorInput).done(null, errors.onUnexpectedError);
 		} else {
-			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick, sideBySide: event.browserEvent.ctrlKey || event.browserEvent.metaKey });
+			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick, sideBySide: event.browserEvent.altKey });
 		}
 	}
 
