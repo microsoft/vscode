@@ -51,7 +51,7 @@ export class TerminalSupport {
 	private static isBusy(t: ITerminalInstance): boolean {
 		if ((platform.isMacintosh || platform.isLinux) && t.processId) {
 			const result = cp.spawnSync('/usr/bin/pgrep', ['-P', String(t.processId)]);
-			return !!result.stdout;
+			return result.stdout.toString().trim().length > 0;
 		}
 		return true;
 	}
