@@ -75,7 +75,7 @@ DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 	});
 });
 
-const OPEN_CONSOLE_COMMAND_ID = 'workbench.command.terminal.openNativeConsole';
+const OPEN_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: OPEN_CONSOLE_COMMAND_ID,
