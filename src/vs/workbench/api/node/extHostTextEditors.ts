@@ -121,7 +121,11 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			workspaceResourceEdits.push(workspaceResourceEdit);
 		}
 
-		return this._proxy.$tryApplyWorkspaceEdit(workspaceResourceEdits, edit);
+		return this._proxy.$tryApplyWorkspaceEdit(workspaceResourceEdits, {
+			createdResources: edit.createdResources,
+			renamedResources: edit.renamedResources,
+			deletedResources: edit.deletedResources
+		});
 	}
 
 	// --- called from main thread
