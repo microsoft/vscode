@@ -97,7 +97,7 @@ export function getResourceForCommand(resource: URI, listService: IListService, 
 	return toResource(editorService.getActiveEditorInput(), { supportSideBySide: true });
 }
 
-function getResourcesForCommand(resource: URI, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
+export function getResourcesForCommand(resource: URI, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
 	const list = listService.lastFocusedList;
 	if (list && list.isDOMFocused() && list instanceof Tree) {
 		const selection = list.getSelection();
