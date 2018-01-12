@@ -38,14 +38,13 @@ export class ChunksTextBuffer implements ITextBuffer {
 		return '';
 	}
 	getEOL(): string {
-		// TODO
-		return '\n';
+		return this._actual.getEOL();
 	}
 	getOffsetAt(lineNumber: number, column: number): number {
-		return this._actual.getOffsetAt(lineNumber, column);
+		return this._actual.convertPositionToOffset(lineNumber, column);
 	}
 	getPositionAt(offset: number): Position {
-		throw new Error('TODO');
+		return this._actual.convertOffsetToPosition(offset);
 	}
 	getRangeAt(offset: number, length: number): Range {
 		throw new Error('TODO');
@@ -582,16 +581,78 @@ class Buffer {
 		return true;
 	}
 
-	public getOffsetAt(lineNumber: number, column: number): number {
-		const offset = BufferCursorPool.take();
+	public convertPositionToOffset(lineNumber: number, column: number): number {
+		const r = BufferCursorPool.take();
 
-		if (!this._getOffsetAt(lineNumber, column, offset)) {
-			BufferCursorPool.put(offset);
+		if (!this._getOffsetAt(lineNumber, column, r)) {
+			BufferCursorPool.put(r);
 			throw new Error(`Position not found`);
 		}
 
-		BufferCursorPool.put(offset);
-		return offset.offset;
+		const result = r.offset;
+
+		BufferCursorPool.put(r);
+		return result;
+	}
+
+	/**
+	 * returns `lineNumber`
+	 */
+	private _findLineStartBeforeOffsetInLeaf(offset: number, leafIndex: number, leafStartOffset: number, leafStartNewLineCount: number, result: BufferCursor): number {
+		const leaf = this._leafs[leafIndex];
+		const lineStartIndex = leaf.findLineStartBeforeOffset(offset - leafStartOffset);
+		const lineStartOffset = leafStartOffset = leaf.lineStartFor(lineStartIndex);
+
+		result.set(lineStartOffset, leafIndex, leafStartOffset, leafStartNewLineCount);
+		return leafStartNewLineCount + lineStartIndex + 1;
+	}
+
+	/**
+	 * returns `lineNumber`.
+	 */
+	private _findLineStartBeforeOffset(offset: number, location: BufferCursor, result: BufferCursor): number {
+
+		let leafIndex = location.leafIndex;
+		let leafStartOffset = location.leafStartOffset;
+		let leafStartNewLineCount = location.leafStartNewLineCount;
+		while (true) {
+			const leaf = this._leafs[leafIndex];
+
+			if (leaf.newLineCount() > 1 && leaf.lineStartFor(0) + leafStartOffset >= offset) {
+				// must be in this leaf
+				return this._findLineStartBeforeOffsetInLeaf(offset, leafIndex, leafStartOffset, leafStartNewLineCount, result);
+			}
+
+			// continue looking in previous leaf
+			leafIndex--;
+
+			if (leafIndex < 0) {
+				result.set(0, 0, 0, 0);
+				return 1;
+			}
+
+			leafStartOffset -= this._leafs[leafIndex].length();
+			leafStartNewLineCount -= this._leafs[leafIndex].newLineCount();
+		}
+	}
+
+	public convertOffsetToPosition(offset: number): Position {
+		const r = BufferCursorPool.take();
+		const lineStart = BufferCursorPool.take();
+
+		if (!this._findOffset(offset, r)) {
+			BufferCursorPool.put(r);
+			BufferCursorPool.put(lineStart);
+			throw new Error(`Offset not found`);
+		}
+
+		const lineNumber = this._findLineStartBeforeOffset(offset, r, lineStart);
+		const column = offset - lineStart.offset + 1;
+
+		BufferCursorPool.put(r);
+		BufferCursorPool.put(lineStart);
+
+		return new Position(lineNumber, column);
 	}
 
 	public getValueInRange(range: Range): string {

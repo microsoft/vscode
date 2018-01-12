@@ -49,6 +49,23 @@ export class BufferPiece {
 		return this._str.substr(from, length);
 	}
 
+	public findLineStartBeforeOffset(offset: number): number {
+		if (this._lineStarts.length === 0 || offset < this._lineStarts[0]) {
+			return -1;
+		}
+
+		// TODO: implement binary search
+		for (let i = this._lineStarts.length - 1; i >= 0; i--) {
+			let lineStart = this._lineStarts[i];
+
+			if (lineStart <= offset) {
+				return i;
+			}
+		}
+
+		return -1;
+	}
+
 	public static deleteLastChar(target: BufferPiece): BufferPiece {
 		const targetCharsLength = target.length();
 		const targetLineStartsLength = target.newLineCount();
