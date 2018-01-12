@@ -450,7 +450,7 @@ export class FileController extends DefaultController implements IDisposable {
 					tree.DOMFocus();
 				}
 			},
-			getActionsContext: () => selection ? selection.map((fs: FileStat) => fs.resource) : undefined
+			getActionsContext: () => selection && selection.indexOf(stat) >= 0 ? selection.map((fs: FileStat) => fs.resource) : [stat]
 		});
 
 		return true;
