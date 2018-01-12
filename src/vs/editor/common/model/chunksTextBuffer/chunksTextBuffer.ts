@@ -13,25 +13,27 @@ import { Range } from 'vs/editor/common/core/range';
 export class ChunksTextBuffer implements ITextBuffer {
 
 	private _actual: Buffer;
+	private _mightContainRTL: boolean;
+	private _mightContainNonBasicASCII: boolean;
 
-	constructor(pieces: BufferPiece[], _averageChunkSize: number, eol: '\r\n' | '\n') {
+	constructor(pieces: BufferPiece[], _averageChunkSize: number, eol: '\r\n' | '\n', containsRTL: boolean, isBasicASCII: boolean) {
 		const averageChunkSize = Math.floor(Math.min(65536.0, Math.max(128.0, _averageChunkSize)));
 		const delta = Math.floor(averageChunkSize / 3);
 		const min = averageChunkSize - delta;
 		const max = 2 * min;
 		this._actual = new Buffer(pieces, min, max, eol);
+		this._mightContainRTL = containsRTL;
+		this._mightContainNonBasicASCII = !isBasicASCII;
 	}
 
 	equals(other: ITextBuffer): boolean {
 		throw new Error('TODO');
 	}
 	mightContainRTL(): boolean {
-		// TODO
-		return true;
+		return this._mightContainRTL;
 	}
 	mightContainNonBasicASCII(): boolean {
-		// TODO
-		return true;
+		return this._mightContainNonBasicASCII;
 	}
 	getBOM(): string {
 		// TODO
@@ -47,7 +49,7 @@ export class ChunksTextBuffer implements ITextBuffer {
 		return this._actual.convertOffsetToPosition(offset);
 	}
 	getRangeAt(offset: number, length: number): Range {
-		throw new Error('TODO');
+		return this._actual.convertOffsetLenToRange(offset, length);
 	}
 	getValueInRange(range: Range, eol: EndOfLinePreference): string {
 		if (range.isEmpty()) {
@@ -653,6 +655,32 @@ class Buffer {
 		BufferCursorPool.put(lineStart);
 
 		return new Position(lineNumber, column);
+	}
+
+	public convertOffsetLenToRange(offset: number, len: number): Range {
+		const r = BufferCursorPool.take();
+		const lineStart = BufferCursorPool.take();
+
+		if (!this._findOffset(offset, r)) {
+			BufferCursorPool.put(r);
+			BufferCursorPool.put(lineStart);
+			throw new Error(`Offset not found`);
+		}
+		const startLineNumber = this._findLineStartBeforeOffset(offset, r, lineStart);
+		const startColumn = offset - lineStart.offset + 1;
+
+		if (!this._findOffset(offset + len, r)) {
+			BufferCursorPool.put(r);
+			BufferCursorPool.put(lineStart);
+			throw new Error(`Offset not found`);
+		}
+		const endLineNumber = this._findLineStartBeforeOffset(offset + len, r, lineStart);
+		const endColumn = offset + len - lineStart.offset + 1;
+
+		BufferCursorPool.put(r);
+		BufferCursorPool.put(lineStart);
+
+		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 	}
 
 	public getValueInRange(range: Range): string {

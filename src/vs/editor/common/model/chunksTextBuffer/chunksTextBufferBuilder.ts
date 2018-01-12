@@ -16,7 +16,9 @@ export class TextBufferFactory implements ITextBufferFactory {
 		private readonly _pieces: BufferPiece[],
 		private readonly _averageChunkSize: number,
 		private readonly _totalCRCount: number,
-		private readonly _totalEOLCount: number
+		private readonly _totalEOLCount: number,
+		private readonly _containsRTL: boolean,
+		private readonly _isBasicASCII: boolean,
 	) {
 	}
 
