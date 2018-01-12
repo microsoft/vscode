@@ -328,7 +328,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: 'navigation',
 	order: 10,
 	command: openToSideCommand,
-	when: ExplorerFolderContext.toNegated()
+	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
