@@ -701,13 +701,23 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	public closeEditors(position: Position, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean } = Object.create(null)): TPromise<void> {
+	public closeEditors(position: Position, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void>;
+	public closeEditors(position: Position, editors: EditorInput[]): TPromise<void>;
+	public closeEditors(position: Position, filterOrEditors?: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean } | EditorInput[]): TPromise<void> {
 		const group = this.stacks.groupAt(position);
 		if (!group) {
 			return TPromise.wrap<void>(null);
 		}
 
-		let editorsToClose = group.getEditors(true /* in MRU order */);
+		let editorsToClose: EditorInput[];
+		let filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean };
+		if (Array.isArray(filterOrEditors)) {
+			editorsToClose = filterOrEditors;
+			filter = Object.create(null);
+		} else {
+			editorsToClose = group.getEditors(true /* in MRU order */);
+			filter = filterOrEditors || Object.create(null);
+		}
 
 		// Filter: unmodified only
 		if (filter.unmodifiedOnly) {

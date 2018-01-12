@@ -51,7 +51,9 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as([]);
 	}
 
-	public closeEditors(position: Position, filter?: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void> {
+	public closeEditors(position: Position, filter?: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void>;
+	public closeEditors(position: Position, editors?: EditorInput[]): TPromise<void>;
+	public closeEditors(position: Position, filterOrEditors: any): TPromise<void> {
 		return TPromise.as(null);
 	}
 

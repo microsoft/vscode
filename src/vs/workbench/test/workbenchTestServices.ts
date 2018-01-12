@@ -606,7 +606,9 @@ export class TestEditorService implements IWorkbenchEditorService {
 		return TPromise.as([]);
 	}
 
-	public closeEditors(position: Position, filter?: { except?: IEditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void> {
+	public closeEditors(position: Position, filter?: { except?: IEditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void>;
+	public closeEditors(position: Position, editors: IEditorInput[]): TPromise<void>;
+	public closeEditors(position: Position, filterOrEditors?: any): TPromise<void> {
 		return TPromise.as(null);
 	}
 
