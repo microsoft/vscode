@@ -4963,19 +4963,22 @@ declare module 'vscode' {
 
 	export class TreeItem {
 		/**
-		 * A human-readable string describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
+		 * A human-readable string describing this item. When `falsy`, it is derived from [uri](#TreeItem.uri).
 		 */
 		label?: string;
 
 		/**
-		 * The icon path for the tree item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
+		 * The icon path for the tree item. When `falsy`, it is derived from [uri](#TreeItem.uri).
 		 */
 		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
 
 		/**
 		 * The [uri](#Uri) of the resource representing this item.
+		 *
+		 * Will be used to derive the [label](#TreeItem.label), when it is not provided.
+		 * Will be used to derive the icon from current file icon theme, when [iconPath](#TreeItem.iconPath) is not provided.
 		 */
-		resourceUri?: Uri;
+		uri?: Uri;
 
 		/**
 		 * The [command](#Command) which should be run when the tree item is selected.
