@@ -231,7 +231,16 @@ export class RemoteFileService extends FileService {
 
 			return this.resolveFile(resource).then(fileStat => {
 
-				if (options.etag === fileStat.etag) {
+				if (fileStat.isDirectory) {
+					// todo@joh cannot copy a folder
+					// https://github.com/Microsoft/vscode/issues/41547
+					throw new FileOperationError(
+						localize('fileIsDirectoryError', "File is directory"),
+						FileOperationResult.FILE_IS_DIRECTORY,
+						options
+					);
+				}
+				if (fileStat.etag === options.etag) {
 					throw new FileOperationError(
 						localize('fileNotModifiedError', "File not modified since"),
 						FileOperationResult.FILE_NOT_MODIFIED_SINCE,
