@@ -65,7 +65,7 @@ export const SAVE_ALL_LABEL = nls.localize('saveAll', "Save All");
 
 export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.files.action.saveAllInGroup';
 
-export const SAVE_FILES_COMMAND_ID = 'workbench.command.files.saveFiles';
+export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
 export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
 
 export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);

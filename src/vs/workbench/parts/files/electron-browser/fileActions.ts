@@ -41,7 +41,7 @@ import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAct
 import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
@@ -1214,20 +1214,6 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 
 	protected includeUntitled(): boolean {
 		return true;
-	}
-}
-
-export class SaveFilesAction extends BaseSaveAllAction {
-
-	public static readonly ID = 'workbench.action.files.saveFiles';
-	public static readonly LABEL = SAVE_FILES_LABEL;
-
-	protected doRun(context: any): TPromise<any> {
-		return this.commandService.executeCommand(SAVE_FILES_COMMAND_ID, false);
-	}
-
-	protected includeUntitled(): boolean {
-		return false;
 	}
 }
 
