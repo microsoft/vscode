@@ -57,7 +57,10 @@
         telemetry: [],
         themes: [],
         typescript: [ mjbvz ],
-        workbench: [ bpasero ],
+        workbench: {
+            assignees: [bpasero],
+            assignLabel: false
+        },
         workbench-dnd: [ bpasero ],
         workbench-editors: [ bpasero ],
         workbench-electron: [ bpasero ],
