@@ -38,8 +38,9 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { sequence } from 'vs/base/common/async';
+import { getResourceForCommand, getResourcesForCommand } from 'vs/workbench/parts/files/browser/files';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 
 // Commands
 
@@ -72,43 +73,13 @@ export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedI
 export const DirtyEditorContext = new RawContextKey<boolean>('dirtyEditor', false);
 export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('resourceSelectedForCompare', false);
 
+export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'workbench.command.removeRootFolder';
+export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
+
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
 	const windowsService = accessor.get(IWindowsService);
 	windowsService.openWindow(paths, { forceNewWindow });
 };
-
-// Commands can get exeucted from a command pallete, from a context menu or from some list using a keybinding
-// To cover all these cases we need to properly compute the resource on which the command is being executed
-export function getResourceForCommand(resource: URI, listService: IListService, editorService: IWorkbenchEditorService): URI {
-	if (URI.isUri(resource)) {
-		return resource;
-	}
-
-	const list = listService.lastFocusedList;
-	if (list && list.isDOMFocused()) {
-		const focus = list.getFocus();
-		if (focus instanceof FileStat) {
-			return focus.resource;
-		} else if (focus instanceof OpenEditor) {
-			return focus.editorInput.getResource();
-		}
-	}
-
-	return toResource(editorService.getActiveEditorInput(), { supportSideBySide: true });
-}
-
-export function getResourcesForCommand(resource: URI, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
-	const list = listService.lastFocusedList;
-	if (list && list.isDOMFocused() && list instanceof Tree) {
-		const selection = list.getSelection();
-		if (selection && selection.length > 1) {
-			return selection.map(fs => fs.resource);
-		}
-	}
-
-	const result = getResourceForCommand(resource, listService, editorService);
-	return !!result ? [result] : [];
-}
 
 function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
 	textFileService: ITextFileService, editorGroupService: IEditorGroupService): TPromise<any> {
@@ -540,5 +511,20 @@ CommandsRegistry.registerCommand({
 	id: SAVE_FILES_COMMAND_ID,
 	handler: (accessor) => {
 		return saveAll(false, accessor.get(IWorkbenchEditorService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: REMOVE_ROOT_FOLDER_COMMAND_ID,
+	handler: (accessor, resource: URI) => {
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+		const contextService = accessor.get(IWorkspaceContextService);
+		const workspace = contextService.getWorkspace();
+		const resources = getResourcesForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService)).filter(r =>
+			// Need to verify resources are workspaces since multi selection can trigger this command on some non workspace resources
+			workspace.folders.some(f => f.uri.toString() === r.toString())
+		);
+
+		return workspaceEditingService.removeFolders(resources);
 	}
 });

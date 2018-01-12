@@ -25,7 +25,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { getResourceForCommand } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { getResourceForCommand } from 'vs/workbench/parts/files/browser/files';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);
