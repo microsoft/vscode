@@ -16,7 +16,7 @@ import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/c
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext } from 'vs/workbench/parts/files/common/files';
+import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerFocusedContext } from 'vs/workbench/parts/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { OPEN_FOLDER_SETTINGS_COMMAND, OPEN_FOLDER_SETTINGS_LABEL } from 'vs/workbench/parts/preferences/browser/preferencesActions';
@@ -135,13 +135,14 @@ function appendSaveConflictEditorTitleAction(id: string, title: string, iconClas
 
 // Menu registration - command palette
 
-function appendToCommandPalette(id: string, title: string, category: string): void {
+function appendToCommandPalette(id: string, title: string, category: string, when?: ContextKeyExpr): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id,
 			title,
 			category
-		}
+		},
+		when
 	});
 }
 appendToCommandPalette(COPY_PATH_COMMAND_ID, nls.localize('copyPathOfActive', "Copy Path of Active File"), category);
@@ -152,8 +153,8 @@ appendToCommandPalette(COMPARE_WITH_SAVED_COMMAND_ID, nls.localize('compareActiv
 appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, category);
 appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, category);
 appendToCommandPalette(CLOSE_EDITOR_COMMAND_ID, nls.localize('closeEditor', "Close Editor"), nls.localize('view', "View"));
-appendToCommandPalette(NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, category);
-appendToCommandPalette(NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, category);
+appendToCommandPalette(NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, category, ExplorerFocusedContext);
+appendToCommandPalette(NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, category, ExplorerFocusedContext);
 
 
 
