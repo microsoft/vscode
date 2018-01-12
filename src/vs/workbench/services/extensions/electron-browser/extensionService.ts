@@ -119,16 +119,36 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionHostProcessCustomers = [];
 		this._extensionHostProcessProxy = null;
 
+		this.startDelayed(lifecycleService);
+	}
+
+	private startDelayed(lifecycleService: ILifecycleService): void {
+		let started = false;
+		const startOnce = () => {
+			if (!started) {
+				started = true;
+
+				this._startExtensionHostProcess([]);
+				this._scanAndHandleExtensions();
+			}
+		};
+
+		// delay extension host creation and extension scanning
+		// until the workbench is restoring. we cannot defer the
+		// extension host more (LifecyclePhase.Running) because
+		// some editors require the extension host to restore
+		// and this would result in a deadlock
+		// see https://github.com/Microsoft/vscode/issues/41322
 		lifecycleService.when(LifecyclePhase.Restoring).then(() => {
-			// delay extension host creation and extension scanning
-			// until the workbench is restoring. we cannot defer the
-			// extension host more (LifecyclePhase.Running) because
-			// some editors require the extension host to restore
-			// and this would result in a deadlock
-			// see https://github.com/Microsoft/vscode/issues/41322
-			this._startExtensionHostProcess([]);
-			this._scanAndHandleExtensions();
+			// we add an additional delay of 800ms because the extension host
+			// starting is a potential expensive operation and we do no want
+			// to fight with editors, viewlets and panels restoring.
+			setTimeout(() => startOnce(), 800);
 		});
+
+		// if we are running before the 800ms delay, make sure to start
+		// the extension host right away though.
+		lifecycleService.when(LifecyclePhase.Running).then(() => startOnce());
 	}
 
 	public dispose(): void {

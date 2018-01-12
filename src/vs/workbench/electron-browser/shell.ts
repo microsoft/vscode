@@ -182,21 +182,11 @@ export class WorkbenchShell {
 		try {
 			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService);
 
-			// Delay the "Restoring" phase for a bit to give our viewlet/editor/panels a faster startup
-			let restorePhaseTimeoutHandle = setTimeout(() => {
-				restorePhaseTimeoutHandle = void 0;
-				this.lifecycleService.phase = LifecyclePhase.Restoring;
-			}, 800);
+			// Set lifecycle phase to `Restoring`
+			this.lifecycleService.phase = LifecyclePhase.Restoring;
 
 			// Startup Workbench
 			workbench.startup().done(startupInfos => {
-
-				// Set lifecycle phase to restoring if we started up fast enough and to
-				// make sure to trigger contributions on this phase if any
-				if (restorePhaseTimeoutHandle) {
-					clearTimeout(restorePhaseTimeoutHandle);
-					this.lifecycleService.phase = LifecyclePhase.Restoring;
-				}
 
 				// Set lifecycle phase to `Runnning` so that other contributions can now do something
 				this.lifecycleService.phase = LifecyclePhase.Running;
