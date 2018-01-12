@@ -12,7 +12,7 @@ import { IReference, Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
-import { ITextModel } from 'vs/editor/common/model';
+import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, IGroupFilter, ISettingMatcher, ISettingMatch, ISearchResultGroup } from 'vs/workbench/parts/preferences/common/preferences';
@@ -20,6 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { Selection } from 'vs/editor/common/core/selection';
 
 export abstract class AbstractSettingsModel extends EditorModel {
 
@@ -644,14 +645,19 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		// note: 1-indexed line numbers here
 		const groupContent = builder.getContent() + '\n';
 		const groupEndLine = this._model.getLineCount();
-		this._model.applyEdits([
-			{
-				text: groupContent,
-				forceMoveMarkers: false,
-				range: new Range(startLine, 1, groupEndLine, 1),
-				identifier: { major: 1, minor: 0 }
-			}
-		]);
+		const cursorPosition = new Selection(startLine, 1, startLine, 1);
+		const edit: IIdentifiedSingleEditOperation = {
+			text: groupContent,
+			forceMoveMarkers: true,
+			range: new Range(startLine, 1, groupEndLine, 1),
+			identifier: { major: 1, minor: 0 }
+		};
+
+		this._model.pushEditOperations([cursorPosition], [edit], () => [cursorPosition]);
+
+		// Force tokenization now - otherwise it may be slightly delayed, causing a flash of white text
+		const tokenizeTo = Math.min(startLine + 60, this._model.getLineCount());
+		this._model.forceTokenization(tokenizeTo);
 
 		return { matches, settingsGroups };
 	}
