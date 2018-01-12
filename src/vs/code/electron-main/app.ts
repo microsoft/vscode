@@ -42,6 +42,7 @@ import pkg from 'vs/platform/node/package';
 import { ProxyAuthHandler } from './auth';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { IHTTPConfiguration } from 'vs/platform/request/node/request';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
@@ -75,7 +76,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService configurationService: ConfigurationService,
+		@IConfigurationService private configurationService: ConfigurationService,
 		@IStateService private stateService: IStateService,
 		@IHistoryMainService private historyMainService: IHistoryMainService
 	) {
@@ -270,8 +271,11 @@ export class CodeApplication {
 			const appInstantiationService = this.initServices(machineId);
 
 			// Setup Auth Handler
-			const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-			this.toDispose.push(authHandler);
+			const config = this.configurationService.getValue<IHTTPConfiguration>();
+			if (config.http && !config.http.proxyAuthorization) {
+				const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
+				this.toDispose.push(authHandler);
+			}
 
 			// Open Windows
 			appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
