@@ -45,13 +45,13 @@ import { sequence } from 'vs/base/common/async';
 
 export const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 export const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
-export const REVEAL_IN_EXPLORER_COMMAND_ID = 'workbench.command.files.revealInExplorer';
+export const REVEAL_IN_EXPLORER_COMMAND_ID = 'revealInExplorer';
 export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
 export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
-export const SELECT_FOR_COMPARE_COMMAND_ID = 'workbench.files.command.selectForCompare';
+export const SELECT_FOR_COMPARE_COMMAND_ID = 'selectForCompare';
 
 export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
-export const COMPARE_RESOURCE_COMMAND_ID = 'workbench.files.command.compareFiles';
+export const COMPARE_RESOURCE_COMMAND_ID = 'compareFiles';
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
 export const COPY_PATH_COMMAND_ID = 'copyFilePath';
 
@@ -60,7 +60,7 @@ export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
 export const SAVE_FILE_COMMAND_ID = 'workbench.action.files.save';
 export const SAVE_FILE_LABEL = nls.localize('save', "Save");
 
-export const SAVE_ALL_COMMAND_ID = 'workbench.command.files.saveAll';
+export const SAVE_ALL_COMMAND_ID = 'saveAll';
 export const SAVE_ALL_LABEL = nls.localize('saveAll', "Save All");
 
 export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.files.action.saveAllInGroup';
