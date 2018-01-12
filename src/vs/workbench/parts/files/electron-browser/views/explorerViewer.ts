@@ -55,6 +55,7 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/workbench/browser/editor';
 import { relative } from 'path';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { distinctParents } from 'vs/base/common/resources';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -865,7 +866,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): TPromise<void> {
-		const sources: FileStat[] = data.getData();
+		const sources: FileStat[] = distinctParents(data.getData(), s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		let confirmPromise: TPromise<IConfirmationResult>;
