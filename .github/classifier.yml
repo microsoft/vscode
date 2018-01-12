@@ -6,7 +6,10 @@
         api: [],
         color-picker: [],
         css-less-sass: [],
-        debug: [ isidorn ],
+        debug: {
+            assignees: [ isidorn ],
+            assignLabel: false
+        },
         diff-editor: [],
         editor: [],
         editor-1000-limit: [],
@@ -31,7 +34,10 @@
         file-encoding: [ bpasero ],
         file-io: [ bpasero ],
         file-watcher: [ bpasero ],
-        file-explorer: [ isidorn ],
+        file-explorer: {
+            assignees: [ isidorn ],
+            assignLabel: false
+        },
         format: [],
         git: [ joaomoreno ],
         hot-exit: [ Tyriar ],
