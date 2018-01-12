@@ -76,26 +76,51 @@ export class ChunksTextBuffer implements ITextBuffer {
 	}
 
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
-
-		// TODO
-		return this.getValueInRange(range, eol).length;
+		if (range.isEmpty()) {
+			return 0;
+		}
+		const eolCount = range.endLineNumber - range.startLineNumber;
+		const result = this._actual.getValueLengthInRange(range);
+		switch (eol) {
+			case EndOfLinePreference.TextDefined:
+				return result;
+			case EndOfLinePreference.LF:
+				if (this.getEOL() === '\n') {
+					return result;
+				} else {
+					return result - eolCount; // \r\n => \n
+				}
+			case EndOfLinePreference.CRLF:
+				if (this.getEOL() === '\r\n') {
+					return result;
+				} else {
+					return result + eolCount; // \n => \r\n
+				}
+		}
+		return 0;
 	}
+
 	getLineCount(): number {
-		// TODO: perhaps cache?
 		return this._actual.getLineCount();
 	}
+
 	getLinesContent(): string[] {
 		return this._actual.getLinesContent();
 	}
+
 	getLineContent(lineNumber: number): string {
 		return this._actual.getLineContent(lineNumber);
 	}
+
 	getLineCharCode(lineNumber: number, index: number): number {
+		// TODO
 		return this.getLineContent(lineNumber).charCodeAt(index);
 	}
+
 	getLineLength(lineNumber: number): number {
 		return this._actual.getLineLength(lineNumber);
 	}
+
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number {
 		throw new Error('TODO');
 	}
@@ -586,6 +611,29 @@ class Buffer {
 		}
 
 		const result = this.extractString(start, end.offset - start.offset);
+
+		BufferCursorPool.put(start);
+		BufferCursorPool.put(end);
+		return result;
+	}
+
+	public getValueLengthInRange(range: Range): number {
+		const start = BufferCursorPool.take();
+		const end = BufferCursorPool.take();
+
+		if (!this._getOffsetAt(range.startLineNumber, range.startColumn, start)) {
+			BufferCursorPool.put(start);
+			BufferCursorPool.put(end);
+			throw new Error(`Line not found`);
+		}
+
+		if (!this._getOffsetAt(range.endLineNumber, range.endColumn, end)) {
+			BufferCursorPool.put(start);
+			BufferCursorPool.put(end);
+			throw new Error(`Line not found`);
+		}
+
+		const result = end.offset - start.offset;
 
 		BufferCursorPool.put(start);
 		BufferCursorPool.put(end);
