@@ -711,7 +711,6 @@ export class TestFileService implements IFileService {
 			encoding: 'utf8',
 			mtime: Date.now(),
 			isDirectory: false,
-			hasChildren: false,
 			name: paths.basename(resource.fsPath)
 		});
 	}
@@ -763,7 +762,6 @@ export class TestFileService implements IFileService {
 				encoding: 'utf8',
 				mtime: Date.now(),
 				isDirectory: false,
-				hasChildren: false,
 				name: paths.basename(resource.fsPath)
 			};
 		});

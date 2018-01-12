@@ -393,8 +393,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			mtime: content.mtime,
 			etag: content.etag,
 			isDirectory: false,
-			hasChildren: false,
-			children: void 0,
+			children: void 0
 		};
 		this.updateLastResolvedDiskStat(resolvedStat);
 

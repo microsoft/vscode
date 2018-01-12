@@ -787,8 +787,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			name: paths.basename(resource.fsPath),
 			mtime: 0,
 			etag: undefined,
-			isDirectory: true,
-			hasChildren: false
+			isDirectory: true
 		}, root);
 
 		if (targetsToResolve.every(t => t.root.resource.scheme === 'file')) {

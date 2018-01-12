@@ -31,7 +31,6 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
 		isDirectory: false,
-		hasChildren: false,
 		resource: resource,
 		name: basename(resource.path),
 		mtime: stat.mtime,
@@ -41,13 +40,11 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 
 	if (stat.type === FileType.Dir) {
 		fileStat.isDirectory = true;
-		fileStat.hasChildren = true;
 
 		if (recurse && recurse([resource, stat])) {
 			// dir -> resolve
 			return provider.readdir(resource).then(entries => {
 				fileStat.isDirectory = true;
-				fileStat.hasChildren = entries.length > 0;
 
 				// resolve children if requested
 				return TPromise.join(entries.map(stat => toIFileStat(provider, stat, recurse))).then(children => {

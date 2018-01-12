@@ -104,7 +104,6 @@ export class FileDataSource implements IDataSource {
 
 				return stat.children;
 			}, (e: any) => {
-				stat.hasChildren = false;
 				this.messageService.show(Severity.Error, e);
 
 				return []; // we could not resolve any children because of an error
