@@ -1589,7 +1589,7 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const listService = accessor.get(IListService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
-	return TPromise.join(filesToCopy.map(toCopy => {
+	return TPromise.join(distinctParents(filesToCopy, s => s.resource).map(toCopy => {
 		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
 		return pasteFileAction.run(toCopy);
 	}));
