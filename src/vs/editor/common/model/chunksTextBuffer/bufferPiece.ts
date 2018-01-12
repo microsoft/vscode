@@ -23,7 +23,7 @@ export class BufferPiece {
 	constructor(str: string, lineStarts: Uint32Array = null) {
 		this._str = str;
 		if (lineStarts === null) {
-			this._lineStarts = createUint32Array(createLineStarts(str));
+			this._lineStarts = createUint32Array(createLineStarts(str).lineStarts);
 		} else {
 			this._lineStarts = lineStarts;
 		}
@@ -192,18 +192,27 @@ function min(a: number, b: number): number {
 	return (a < b ? a : b);
 }
 
-function createUint32Array(arr: number[]): Uint32Array {
+export function createUint32Array(arr: number[]): Uint32Array {
 	let r = new Uint32Array(arr.length);
 	r.set(arr, 0);
 	return r;
 }
 
-function createLineStarts(str: string): number[] {
+export class LineStarts {
+	constructor(
+		public readonly lineStarts: number[],
+		public readonly carriageReturnCnt: number
+	) { }
+}
+
+export function createLineStarts(str: string): LineStarts {
 	let r: number[] = [], rLength = 0;
+	let carriageReturnCnt = 0;
 	for (let i = 0, len = str.length; i < len; i++) {
 		const chr = str.charCodeAt(i);
 
 		if (chr === CharCode.CarriageReturn) {
+			carriageReturnCnt++;
 			if (i + 1 < len && str.charCodeAt(i + 1) === CharCode.LineFeed) {
 				// \r\n... case
 				r[rLength++] = i + 2;
@@ -216,5 +225,5 @@ function createLineStarts(str: string): number[] {
 			r[rLength++] = i + 1;
 		}
 	}
-	return r;
+	return new LineStarts(r, carriageReturnCnt);
 }

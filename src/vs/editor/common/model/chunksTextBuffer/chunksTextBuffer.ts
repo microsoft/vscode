@@ -14,12 +14,12 @@ export class ChunksTextBuffer implements ITextBuffer {
 
 	private _actual: Buffer;
 
-	constructor(pieces: BufferPiece[], _averageChunkSize: number) {
+	constructor(pieces: BufferPiece[], _averageChunkSize: number, eol: '\r\n' | '\n') {
 		const averageChunkSize = Math.floor(Math.min(65536.0, Math.max(128.0, _averageChunkSize)));
 		const delta = Math.floor(averageChunkSize / 3);
 		const min = averageChunkSize - delta;
 		const max = 2 * min;
-		this._actual = new Buffer(pieces, min, max);
+		this._actual = new Buffer(pieces, min, max, eol);
 	}
 
 	equals(other: ITextBuffer): boolean {
@@ -204,13 +204,16 @@ class Buffer {
 	private _maxLeafLength: number;
 	private _idealLeafLength: number;
 
+	private _eol: '\r\n' | '\n';
+	private _eolLength: number;
+
 	private _leafs: BufferPiece[];
 	private _nodes: BufferNodes;
 	private _nodesCount: number;
 	private _leafsStart: number;
 	private _leafsEnd: number;
 
-	constructor(pieces: BufferPiece[], minLeafLength: number, maxLeafLength: number) {
+	constructor(pieces: BufferPiece[], minLeafLength: number, maxLeafLength: number, eol: '\r\n' | '\n') {
 		if (!(2 * minLeafLength >= maxLeafLength)) {
 			throw new Error(`assertion violation`);
 		}
@@ -219,6 +222,9 @@ class Buffer {
 		this._maxLeafLength = maxLeafLength;
 		this._idealLeafLength = (minLeafLength + maxLeafLength) >>> 1;
 
+		this._eol = eol;
+		this._eolLength = this._eol.length;
+
 		this._leafs = pieces;
 		this._nodes = null;
 		this._nodesCount = 0;
@@ -226,6 +232,10 @@ class Buffer {
 		this._leafsEnd = 0;
 
 		this._rebuildNodes();
+	}
+
+	public getEOL(): string {
+		return this._eol;
 	}
 
 	private _rebuildNodes() {
@@ -457,13 +467,7 @@ class Buffer {
 			let leafSubstrOffset = 0;
 			for (let newLineIndex = 0; newLineIndex < leafNewLineCount; newLineIndex++) {
 				const newLineStart = leaf.lineStartFor(newLineIndex);
-				let length = newLineStart - leafSubstrOffset - 1 /*-1 for EOL*/;
-
-				if (length > 0 && leaf.charCodeAt(leafSubstrOffset + length - 1) === CharCode.CarriageReturn) {
-					// \r\n case
-					length--;
-				}
-				currentLine += leaf.substr(leafSubstrOffset, length);
+				currentLine += leaf.substr(leafSubstrOffset, newLineStart - leafSubstrOffset - this._eolLength);
 				result[resultIndex++] = currentLine;
 
 				currentLine = '';
