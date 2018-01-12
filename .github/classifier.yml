@@ -3,7 +3,10 @@
     alwaysRequireAssignee: false,
     labelsRequiringAssignee: [ feature-request ],
     autoAssignees: {
-        api: [],
+        api: {
+            assignees: [ jrieken ],
+            assignLabel: false
+        },
         color-picker: [],
         css-less-sass: [],
         debug: {
@@ -56,9 +59,16 @@
         perf-profile: [],
         php: [ roblourens ],
         proxy: [],
+        remote: {
+            assignees: [ jrieken ],
+            assignLabel: false
+        },
         scm: [],
         search: [ roblourens ],
-        snippets: [ jrieken ],
+        snippets: {
+            assignees: [ jrieken ],
+            assignLabel: false
+        },
         tasks: [ dbaeumer ],
         telemetry: [],
         themes: [],
