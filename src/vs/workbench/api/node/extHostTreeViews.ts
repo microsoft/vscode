@@ -78,6 +78,7 @@ interface TreeNode {
 class ExtHostTreeView<T> extends Disposable {
 
 	private static LABEL_HANDLE_PREFIX = '0';
+	private static ID_HANDLE_PREFIX = '1';
 
 	private rootHandles: TreeItemHandle[] = [];
 	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
@@ -105,6 +106,9 @@ class ExtHostTreeView<T> extends Disposable {
 					asWinJsPromise(() => this.dataProvider.getTreeItem(element))
 						.then(extTreeItem => {
 							if (extTreeItem) {
+								if (typeof element === 'string' && this.elements.has(this.createHandle(element, extTreeItem))) {
+									throw new Error(localize('treeView.duplicateElement', 'Element {0} is already registered', element));
+								}
 								return { element, extTreeItem };
 							}
 							return null;
@@ -194,6 +198,10 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private createHandle(element: T, { label }: vscode.TreeItem, parentHandle?: TreeItemHandle): TreeItemHandle {
+		if (typeof element === 'string') {
+			return `${ExtHostTreeView.ID_HANDLE_PREFIX}/${element}`;
+		}
+
 		const prefix = parentHandle ? parentHandle : ExtHostTreeView.LABEL_HANDLE_PREFIX;
 		label = label.indexOf('/') !== -1 ? label.replace('/', '//') : label;
 		const existingHandle = this.nodes.has(element) ? this.nodes.get(element).handle : void 0;

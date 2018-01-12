@@ -111,24 +111,24 @@ suite('ExtHostTreeView', function () {
 		return testObject.$getElements('testStringTreeProvider')
 			.then(elements => {
 				const actuals = elements.map(e => e.handle);
-				assert.deepEqual(actuals, ['0/0:a', '0/0:b']);
+				assert.deepEqual(actuals, ['1/a', '1/b']);
 				return TPromise.join([
-					testObject.$getChildren('testStringTreeProvider', '0/0:a')
+					testObject.$getChildren('testStringTreeProvider', '1/a')
 						.then(children => {
 							const actuals = children.map(e => e.handle);
-							assert.deepEqual(actuals, ['0/0:a/0:aa', '0/0:a/0:ab']);
+							assert.deepEqual(actuals, ['1/aa', '1/ab']);
 							return TPromise.join([
-								testObject.$getChildren('testStringTreeProvider', '0/0:a/0:aa').then(children => assert.equal(children.length, 0)),
-								testObject.$getChildren('testStringTreeProvider', '0/0:a/0:ab').then(children => assert.equal(children.length, 0))
+								testObject.$getChildren('testStringTreeProvider', '1/aa').then(children => assert.equal(children.length, 0)),
+								testObject.$getChildren('testStringTreeProvider', '1/ab').then(children => assert.equal(children.length, 0))
 							]);
 						}),
-					testObject.$getChildren('testStringTreeProvider', '0/0:b')
+					testObject.$getChildren('testStringTreeProvider', '1/b')
 						.then(children => {
 							const actuals = children.map(e => e.handle);
-							assert.deepEqual(actuals, ['0/0:b/0:ba', '0/0:b/0:bb']);
+							assert.deepEqual(actuals, ['1/ba', '1/bb']);
 							return TPromise.join([
-								testObject.$getChildren('testStringTreeProvider', '0/0:b/0:ba').then(children => assert.equal(children.length, 0)),
-								testObject.$getChildren('testStringTreeProvider', '0/0:b/0:bb').then(children => assert.equal(children.length, 0))
+								testObject.$getChildren('testStringTreeProvider', '1/ba').then(children => assert.equal(children.length, 0)),
+								testObject.$getChildren('testStringTreeProvider', '1/bb').then(children => assert.equal(children.length, 0))
 							]);
 						})
 				]);
