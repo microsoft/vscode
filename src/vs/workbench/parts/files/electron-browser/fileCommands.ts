@@ -429,6 +429,18 @@ CommandsRegistry.registerCommand({
 	handler: revealInOSHandler
 });
 
+const copyPathHandler = (accessor, resource: URI) => {
+	const resources = getResourcesForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+	if (resources.length) {
+		const clipboardService = accessor.get(IClipboardService);
+		const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join('\n');
+		clipboardService.writeText(text);
+	} else {
+		const messageService = accessor.get(IMessageService);
+		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
+	}
+};
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ExplorerFocusCondition,
@@ -437,17 +449,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
 	},
 	id: COPY_PATH_COMMAND_ID,
-	handler: (accessor, resource: URI) => {
-		const resources = getResourcesForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
-		if (resources.length) {
-			const clipboardService = accessor.get(IClipboardService);
-			const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join('\n');
-			clipboardService.writeText(text);
-		} else {
-			const messageService = accessor.get(IMessageService);
-			messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
-		}
-	}
+	handler: copyPathHandler
+});
+
+// TODO@isidor deprecated remove in february
+CommandsRegistry.registerCommand({
+	id: 'workbench.action.files.copyPathOfActiveFile',
+	handler: copyPathHandler
 });
 
 CommandsRegistry.registerCommand({
