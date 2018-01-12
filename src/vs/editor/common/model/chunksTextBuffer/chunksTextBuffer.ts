@@ -1,0 +1,688 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+'use strict';
+
+import { CharCode } from 'vs/base/common/charCode';
+import { ITextBuffer, EndOfLinePreference, IIdentifiedSingleEditOperation, ApplyEditsResult } from 'vs/editor/common/model';
+import { BufferPiece, LeafOffsetLenEdit } from 'vs/editor/common/model/chunksTextBuffer/bufferPiece';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+
+export class ChunksTextBuffer implements ITextBuffer {
+
+	private _actual: Buffer;
+
+	constructor(pieces: BufferPiece[], _averageChunkSize: number) {
+		const averageChunkSize = Math.floor(Math.min(65536.0, Math.max(128.0, _averageChunkSize)));
+		const delta = Math.floor(averageChunkSize / 3);
+		const min = averageChunkSize - delta;
+		const max = 2 * min;
+		this._actual = new Buffer(pieces, min, max);
+	}
+
+	equals(other: ITextBuffer): boolean {
+		throw new Error('TODO');
+	}
+	mightContainRTL(): boolean {
+		// TODO
+		return true;
+	}
+	mightContainNonBasicASCII(): boolean {
+		// TODO
+		return true;
+	}
+	getBOM(): string {
+		// TODO
+		return '';
+	}
+	getEOL(): string {
+		// TODO
+		return '\n';
+	}
+	getOffsetAt(lineNumber: number, column: number): number {
+		return this._actual.getOffsetAt(lineNumber, column);
+	}
+	getPositionAt(offset: number): Position {
+		throw new Error('TODO');
+	}
+	getRangeAt(offset: number, length: number): Range {
+		throw new Error('TODO');
+	}
+	getValueInRange(range: Range, eol: EndOfLinePreference): string {
+		// TODO
+
+		if (range.isEmpty()) {
+			return '';
+		}
+
+		if (range.startLineNumber === range.endLineNumber) {
+			return this.getLineContent(range.startLineNumber).substring(range.startColumn - 1, range.endColumn - 1);
+		}
+
+		var lineEnding = '\n',//todo this._getEndOfLine(eol),
+			startLineIndex = range.startLineNumber - 1,
+			endLineIndex = range.endLineNumber - 1,
+			resultLines: string[] = [];
+
+		resultLines.push(this.getLineContent(startLineIndex + 1).substring(range.startColumn - 1));
+		for (var i = startLineIndex + 1; i < endLineIndex; i++) {
+			resultLines.push(this.getLineContent(i + 1));
+		}
+		resultLines.push(this.getLineContent(endLineIndex + 1).substring(0, range.endColumn - 1));
+
+		return resultLines.join(lineEnding);
+	}
+	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
+		// TODO
+		return this.getValueInRange(range, eol).length;
+	}
+	getLineCount(): number {
+		// TODO: perhaps cache?
+		return this._actual.getLineCount();
+	}
+	getLinesContent(): string[] {
+		return this._actual.getLinesContent();
+	}
+	getLineContent(lineNumber: number): string {
+		// TODO
+		return this._actual.getLineContent(lineNumber).replace(/\r?\n?/, '');
+	}
+	getLineCharCode(lineNumber: number, index: number): number {
+		return this.getLineContent(lineNumber).charCodeAt(index);
+	}
+	getLineLength(lineNumber: number): number {
+		// TODO
+		let content = this.getLineContent(lineNumber);
+		return content.length;
+	}
+	getLineFirstNonWhitespaceColumn(lineNumber: number): number {
+		throw new Error('TODO');
+	}
+	getLineLastNonWhitespaceColumn(lineNumber: number): number {
+		throw new Error('TODO');
+	}
+	setEOL(newEOL: string): void {
+		throw new Error('TODO');
+	}
+	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult {
+		throw new Error('TODO');
+	}
+}
+
+
+class BufferNodes {
+
+	public length: Uint32Array;
+	public newLineCount: Uint32Array;
+
+	constructor(count: number) {
+		this.length = new Uint32Array(count);
+		this.newLineCount = new Uint32Array(count);
+	}
+
+}
+
+class BufferCursor {
+	constructor(
+		public readonly offset,
+		public readonly leafIndex,
+		public readonly leafStartOffset,
+		public readonly leafStartNewLineCount
+	) { }
+}
+
+class OffsetLenEdit {
+	constructor(
+		public readonly initialIndex: number,
+		public readonly offset: number,
+		public length: number,
+		public text: string
+	) { }
+}
+
+class InternalOffsetLenEdit {
+	constructor(
+		public readonly startLeafIndex: number,
+		public readonly startInnerOffset: number,
+		public readonly endLeafIndex: number,
+		public readonly endInnerOffset: number,
+		public text: string
+	) { }
+}
+
+class LeafReplacement {
+	constructor(
+		public readonly startLeafIndex: number,
+		public readonly endLeafIndex: number,
+		public readonly replacements: BufferPiece[]
+	) { }
+}
+
+class Buffer {
+
+	private _minLeafLength: number;
+	private _maxLeafLength: number;
+	private _idealLeafLength: number;
+
+	private _leafs: BufferPiece[];
+	private _nodes: BufferNodes;
+	private _nodesCount: number;
+	private _leafsStart: number;
+	private _leafsEnd: number;
+
+	constructor(pieces: BufferPiece[], minLeafLength: number, maxLeafLength: number) {
+		if (!(2 * minLeafLength >= maxLeafLength)) {
+			throw new Error(`assertion violation`);
+		}
+
+		this._minLeafLength = minLeafLength;
+		this._maxLeafLength = maxLeafLength;
+		this._idealLeafLength = (minLeafLength + maxLeafLength) >>> 1;
+
+		this._leafs = pieces;
+		this._nodes = null;
+		this._nodesCount = 0;
+		this._leafsStart = 0;
+		this._leafsEnd = 0;
+
+		this._rebuildNodes();
+	}
+
+	private _rebuildNodes() {
+		const leafsCount = this._leafs.length;
+
+		this._nodesCount = (1 << log2(leafsCount));
+		this._leafsStart = this._nodesCount;
+		this._leafsEnd = this._leafsStart + leafsCount;
+
+		this._nodes = new BufferNodes(this._nodesCount);
+		for (let i = this._nodesCount - 1; i >= 1; i--) {
+			this._updateSingleNode(i);
+		}
+	}
+
+	private _updateSingleNode(nodeIndex: number): void {
+		const left = LEFT_CHILD(nodeIndex);
+		const right = RIGHT_CHILD(nodeIndex);
+
+		let length = 0;
+		let newLineCount = 0;
+
+		if (this.IS_NODE(left)) {
+			length += this._nodes.length[left];
+			newLineCount += this._nodes.newLineCount[left];
+		} else if (this.IS_LEAF(left)) {
+			const leaf = this._leafs[this.NODE_TO_LEAF_INDEX(left)];
+			length += leaf.length();
+			newLineCount += leaf.newLineCount();
+		}
+
+		if (this.IS_NODE(right)) {
+			length += this._nodes.length[right];
+			newLineCount += this._nodes.newLineCount[right];
+		} else if (this.IS_LEAF(right)) {
+			const leaf = this._leafs[this.NODE_TO_LEAF_INDEX(right)];
+			length += leaf.length();
+			newLineCount += leaf.newLineCount();
+		}
+
+		this._nodes.length[nodeIndex] = length;
+		this._nodes.newLineCount[nodeIndex] = newLineCount;
+	}
+
+	public findOffset(offset: number): BufferCursor {
+		if (offset > this._nodes.length[1]) {
+			return null;
+		}
+
+		let it = 1;
+		let searchOffset = offset;
+		let leafStartOffset = 0;
+		let leafStartNewLineCount = 0;
+		while (!this.IS_LEAF(it)) {
+			const left = LEFT_CHILD(it);
+			const right = RIGHT_CHILD(it);
+
+			let leftNewLineCount = 0;
+			let leftLength = 0;
+			if (this.IS_NODE(left)) {
+				leftNewLineCount = this._nodes.newLineCount[left];
+				leftLength = this._nodes.length[left];
+			} else if (this.IS_LEAF(left)) {
+				const leaf = this._leafs[this.NODE_TO_LEAF_INDEX(left)];
+				leftNewLineCount = leaf.newLineCount();
+				leftLength = leaf.length();
+			}
+
+			let rightLength = 0;
+			if (this.IS_NODE(right)) {
+				rightLength += this._nodes.length[right];
+			} else if (this.IS_LEAF(right)) {
+				rightLength += this._leafs[this.NODE_TO_LEAF_INDEX(right)].length();
+			}
+
+			if (searchOffset < leftLength || rightLength === 0) {
+				// go left
+				it = left;
+			} else {
+				// go right
+				searchOffset -= leftLength;
+				leafStartOffset += leftLength;
+				leafStartNewLineCount += leftNewLineCount;
+				it = right;
+			}
+		}
+		it = this.NODE_TO_LEAF_INDEX(it);
+
+		return new BufferCursor(offset, it, leafStartOffset, leafStartNewLineCount);
+	}
+
+	private _findLineStart(lineIndex: number): BufferCursor {
+		if (lineIndex < 0 || lineIndex > this._nodes.newLineCount[1]) {
+			return null;
+		}
+
+		let it = 1;
+		let leafStartOffset = 0;
+		let leafStartNewLineCount = 0;
+		while (!this.IS_LEAF(it)) {
+			const left = LEFT_CHILD(it);
+			const right = RIGHT_CHILD(it);
+
+			let leftNewLineCount = 0;
+			let leftLength = 0;
+			if (this.IS_NODE(left)) {
+				leftNewLineCount = this._nodes.newLineCount[left];
+				leftLength = this._nodes.length[left];
+			} else if (this.IS_LEAF(left)) {
+				const leaf = this._leafs[this.NODE_TO_LEAF_INDEX(left)];
+				leftNewLineCount = leaf.newLineCount();
+				leftLength = leaf.length();
+			}
+
+			if (lineIndex <= leftNewLineCount) {
+				// go left
+				it = left;
+				continue;
+			}
+
+			// go right
+			lineIndex -= leftNewLineCount;
+			leafStartOffset += leftLength;
+			leafStartNewLineCount += leftNewLineCount;
+			it = right;
+		}
+		it = this.NODE_TO_LEAF_INDEX(it);
+
+		const innerLineStartOffset = (lineIndex === 0 ? 0 : this._leafs[it].lineStartFor(lineIndex - 1));
+
+		return new BufferCursor(leafStartOffset + innerLineStartOffset, it, leafStartOffset, leafStartNewLineCount);
+	}
+
+	private _findLineEnd(start: BufferCursor, lineNumber: number): BufferCursor {
+		let innerLineIndex = lineNumber - 1 - start.leafStartNewLineCount;
+		const leafsCount = this._leafs.length;
+
+		let leafIndex = start.leafIndex;
+		let leafStartOffset = start.leafStartOffset;
+		let leafStartNewLineCount = start.leafStartNewLineCount;
+		while (true) {
+			const leaf = this._leafs[leafIndex];
+
+			if (innerLineIndex < leaf.newLineCount()) {
+				const lineEndOffset = this._leafs[leafIndex].lineStartFor(innerLineIndex);
+				return new BufferCursor(leafStartOffset + lineEndOffset, leafIndex, leafStartOffset, leafStartNewLineCount);
+			}
+
+			leafIndex++;
+
+			if (leafIndex >= leafsCount) {
+				return new BufferCursor(leafStartOffset + leaf.length(), leafIndex - 1, leafStartOffset, leafStartNewLineCount);
+			}
+
+			leafStartOffset += leaf.length();
+			leafStartNewLineCount += leaf.newLineCount();
+			innerLineIndex = 0;
+		}
+	}
+
+	public findLine(lineNumber: number): [BufferCursor, BufferCursor] {
+		const innerLineIndex = lineNumber - 1;
+		const start = this._findLineStart(innerLineIndex);
+		if (!start) {
+			return null;
+		}
+
+		const end = this._findLineEnd(start, lineNumber);
+		return [start, end];
+	}
+
+	public getLineCount(): number {
+		return this._nodes.newLineCount[1] + 1;
+	}
+
+	public getLineContent(lineNumber: number): string {
+		const r = this.findLine(lineNumber);
+		if (!r) {
+			throw new Error(`Line not found`);
+		}
+		const [start, end] = r;
+		return this.extractString(start, end.offset - start.offset);
+	}
+
+	public getLinesContent(): string[] {
+		let result: string[] = new Array<string>(this.getLineCount());
+		let resultIndex = 0;
+
+		let currentLine = '';
+		for (let leafIndex = 0, leafsCount = this._leafs.length; leafIndex < leafsCount; leafIndex++) {
+			const leaf = this._leafs[leafIndex];
+			const leafNewLineCount = leaf.newLineCount();
+
+			if (leafNewLineCount === 0) {
+				// special case => push entire leaf text
+				currentLine += leaf.text;
+				continue;
+			}
+
+			let leafSubstrOffset = 0;
+			for (let newLineIndex = 0; newLineIndex < leafNewLineCount; newLineIndex++) {
+				const newLineStart = leaf.lineStartFor(newLineIndex);
+				let length = newLineStart - leafSubstrOffset - 1 /*-1 for EOL*/;
+
+				if (length > 0 && leaf.charCodeAt(leafSubstrOffset + length - 1) === CharCode.CarriageReturn) {
+					// \r\n case
+					length--;
+				}
+				currentLine += leaf.substr(leafSubstrOffset, length);
+				result[resultIndex++] = currentLine;
+
+				currentLine = '';
+				leafSubstrOffset = newLineStart;
+			}
+			currentLine += leaf.substr(leafSubstrOffset, leaf.length());
+		}
+		result[resultIndex++] = currentLine;
+
+		return result;
+	}
+
+	public extractString(start: BufferCursor, len: number): string {
+		if (!(start.offset + len <= this._nodes.length[1])) {
+			throw new Error(`assertion violation`);
+		}
+
+		let innerLeafOffset = start.offset - start.leafStartOffset;
+		let leafIndex = start.leafIndex;
+		let res = '';
+		while (len > 0) {
+			const leaf = this._leafs[leafIndex];
+			const cnt = Math.min(len, leaf.length() - innerLeafOffset);
+			res += leaf.substr(innerLeafOffset, cnt);
+
+			len -= cnt;
+			innerLeafOffset = 0;
+
+			if (len === 0) {
+				break;
+			}
+
+			leafIndex++;
+		}
+		return res;
+	}
+
+	public getOffsetAt(lineNumber: number, column: number): number {
+		const start = this._findLineStart(lineNumber - 1);
+		if (!start) {
+			throw new Error(`Line not found`);
+		}
+		return start.offset + column - 1;
+	}
+
+	//#region Editing
+
+	private _mergeAdjacentEdits(edits: OffsetLenEdit[]): OffsetLenEdit[] {
+		// Check if we must merge adjacent edits
+		let merged: OffsetLenEdit[] = [], mergedLength = 0;
+		let prev = edits[0];
+		for (let i = 1, len = edits.length; i < len; i++) {
+			const curr = edits[i];
+			if (prev.offset + prev.length === curr.offset) {
+				// merge into `prev`
+				prev.length = prev.length + curr.length;
+				prev.text = prev.text + curr.text;
+			} else {
+				merged[mergedLength++] = prev;
+				prev = curr;
+			}
+		}
+		merged[mergedLength++] = prev;
+
+		return merged;
+	}
+
+	private _resolveEdits(edits: OffsetLenEdit[]): InternalOffsetLenEdit[] {
+		edits = this._mergeAdjacentEdits(edits);
+
+		let result: InternalOffsetLenEdit[] = [];
+		let tmp: BufferCursor;
+		for (let i = 0, len = edits.length; i < len; i++) {
+			const edit = edits[i];
+
+			let text = edit.text;
+
+			tmp = this.findOffset(edit.offset);
+			let startLeafIndex = tmp.leafIndex;
+			let startInnerOffset = tmp.offset - tmp.leafStartOffset;
+			if (startInnerOffset > 0) {
+				const startLeaf = this._leafs[startLeafIndex];
+				const charBefore = startLeaf.charCodeAt(startInnerOffset - 1);
+				if (charBefore === CharCode.CarriageReturn) {
+					// include the replacement of \r in the edit
+					text = '\r' + text;
+
+					tmp = this.findOffset(edit.offset - 1);
+					startLeafIndex = tmp.leafIndex;
+					startInnerOffset = tmp.offset - tmp.leafStartOffset;
+				}
+			}
+
+			tmp = this.findOffset(edit.offset + edit.length);
+			let endLeafIndex = tmp.leafIndex;
+			let endInnerOffset = tmp.offset - tmp.leafStartOffset;
+			const endLeaf = this._leafs[endLeafIndex];
+			if (endInnerOffset < endLeaf.length()) {
+				const charAfter = endLeaf.charCodeAt(endInnerOffset);
+				if (charAfter === CharCode.LineFeed) {
+					// include the replacement of \n in the edit
+					text = text + '\n';
+
+					tmp = this.findOffset(edit.offset + edit.length + 1);
+					endLeafIndex = tmp.leafIndex;
+					endInnerOffset = tmp.offset - tmp.leafStartOffset;
+				}
+			}
+
+			result[i] = new InternalOffsetLenEdit(
+				startLeafIndex, startInnerOffset,
+				endLeafIndex, endInnerOffset,
+				text
+			);
+		}
+
+		return result;
+	}
+
+	private _pushLeafReplacement(startLeafIndex: number, endLeafIndex: number, replacements: LeafReplacement[]): LeafReplacement {
+		const res = new LeafReplacement(startLeafIndex, endLeafIndex, []);
+		replacements.push(res);
+		return res;
+	}
+
+	private _flushLeafEdits(accumulatedLeafIndex: number, accumulatedLeafEdits: LeafOffsetLenEdit[], replacements: LeafReplacement[]): void {
+		if (accumulatedLeafEdits.length > 0) {
+			const rep = this._pushLeafReplacement(accumulatedLeafIndex, accumulatedLeafIndex, replacements);
+			BufferPiece.replaceOffsetLen(this._leafs[accumulatedLeafIndex], accumulatedLeafEdits, this._idealLeafLength, this._maxLeafLength, rep.replacements);
+		}
+		accumulatedLeafEdits.length = 0;
+	}
+
+	private _pushLeafEdits(start: number, length: number, text: string, accumulatedLeafEdits: LeafOffsetLenEdit[]): void {
+		if (length !== 0 || text.length !== 0) {
+			accumulatedLeafEdits.push(new LeafOffsetLenEdit(start, length, text));
+		}
+	}
+
+	private _appendLeaf(leaf: BufferPiece, leafs: BufferPiece[], prevLeaf: BufferPiece): BufferPiece {
+		if (prevLeaf === null) {
+			leafs.push(leaf);
+			prevLeaf = leaf;
+			return prevLeaf;
+		}
+
+		let prevLeafLength = prevLeaf.length();
+		let currLeafLength = leaf.length();
+
+		if ((prevLeafLength < this._minLeafLength || currLeafLength < this._minLeafLength) && prevLeafLength + currLeafLength <= this._maxLeafLength) {
+			const joinedLeaf = BufferPiece.join(prevLeaf, leaf);
+			leafs[leafs.length - 1] = joinedLeaf;
+			prevLeaf = joinedLeaf;
+			return prevLeaf;
+		}
+
+		const lastChar = prevLeaf.charCodeAt(prevLeafLength - 1);
+		const firstChar = leaf.charCodeAt(0);
+
+		if (
+			(lastChar >= 0xd800 && lastChar <= 0xdbff) || (lastChar === CharCode.CarriageReturn && firstChar === CharCode.LineFeed)
+		) {
+			const modifiedPrevLeaf = BufferPiece.deleteLastChar(prevLeaf);
+			leafs[leafs.length - 1] = modifiedPrevLeaf;
+
+			const modifiedLeaf = BufferPiece.insertFirstChar(leaf, lastChar);
+			leaf = modifiedLeaf;
+		}
+
+		leafs.push(leaf);
+		prevLeaf = leaf;
+		return prevLeaf;
+	}
+
+	public replaceOffsetLen(_edits: OffsetLenEdit[]): void {
+		const initialLeafLength = this._leafs.length;
+		const edits = this._resolveEdits(_edits);
+
+		let accumulatedLeafIndex = 0;
+		let accumulatedLeafEdits: LeafOffsetLenEdit[];
+		let replacements: LeafReplacement[];
+
+		for (let i = 0, len = edits.length; i < len; i++) {
+			const edit = edits[i];
+
+			const startLeafIndex = edit.startLeafIndex;
+			const endLeafIndex = edit.endLeafIndex;
+
+			if (startLeafIndex !== accumulatedLeafIndex) {
+				this._flushLeafEdits(accumulatedLeafIndex, accumulatedLeafEdits, replacements);
+				accumulatedLeafIndex = startLeafIndex;
+			}
+
+			const leafEditStart = edit.startInnerOffset;
+			const leafEditEnd = (startLeafIndex === endLeafIndex ? edit.endInnerOffset : this._leafs[startLeafIndex].length());
+			this._pushLeafEdits(leafEditStart, leafEditEnd - leafEditStart, edit.text, accumulatedLeafEdits);
+
+			if (startLeafIndex < endLeafIndex) {
+				this._flushLeafEdits(accumulatedLeafIndex, accumulatedLeafEdits, replacements);
+				accumulatedLeafIndex = endLeafIndex;
+
+				// delete leafs in the middle
+				if (startLeafIndex + 1 < endLeafIndex) {
+					this._pushLeafReplacement(startLeafIndex + 1, endLeafIndex - 1, replacements);
+				}
+
+				// delete on last leaf
+				const leafEditStart = 0;
+				const leafEditEnd = edit.endInnerOffset;
+				this._pushLeafEdits(leafEditStart, leafEditEnd - leafEditStart, '', accumulatedLeafEdits);
+			}
+		}
+		this._flushLeafEdits(accumulatedLeafIndex, accumulatedLeafEdits, replacements);
+
+		let leafs: BufferPiece[] = [];
+		let leafIndex = 0;
+		let prevLeaf: BufferPiece = null;
+
+		for (let i = 0, len = replacements.length; i < len; i++) {
+			const replaceStartLeafIndex = replacements[i].startLeafIndex;
+			const replaceEndLeafIndex = replacements[i].endLeafIndex;
+			const innerLeafs = replacements[i].replacements;
+
+			// add leafs to the left of this replace op.
+			while (leafIndex < replaceStartLeafIndex) {
+				prevLeaf = this._appendLeaf(this._leafs[leafIndex], leafs, prevLeaf);
+				leafIndex++;
+			}
+
+			// delete leafs that get replaced.
+			while (leafIndex <= replaceEndLeafIndex) {
+				leafIndex++;
+			}
+
+			// add new leafs.
+			for (let j = 0, lenJ = innerLeafs.length; j < lenJ; j++) {
+				prevLeaf = this._appendLeaf(innerLeafs[j], leafs, prevLeaf);
+			}
+		}
+
+		// add remaining leafs to the right of the last replacement.
+		while (leafIndex < initialLeafLength) {
+			prevLeaf = this._appendLeaf(this._leafs[leafIndex], leafs, prevLeaf);
+			leafIndex++;
+		}
+
+		if (leafs.length === 0) {
+			// don't leave behind an empty leafs array
+			leafs.push(new BufferPiece(''));
+		}
+
+		this._leafs = leafs;
+		this._rebuildNodes();
+	}
+
+	//#endregion
+
+	private IS_NODE(i: number): boolean {
+		return (i < this._nodesCount);
+	}
+	private IS_LEAF(i: number): boolean {
+		return (i >= this._leafsStart && i < this._leafsEnd);
+	}
+	private NODE_TO_LEAF_INDEX(i: number): number {
+		return (i - this._leafsStart);
+	}
+	// private LEAF_TO_NODE_INDEX(i: number): number {
+	// 	return (i + this._leafsStart);
+	// }
+}
+
+function log2(n: number): number {
+	let v = 1;
+	for (let pow = 1; ; pow++) {
+		v = v << 1;
+		if (v >= n) {
+			return pow;
+		}
+	}
+	// return -1;
+}
+
+function LEFT_CHILD(i: number): number {
+	return (i << 1);
+}
+
+function RIGHT_CHILD(i: number): number {
+	return (i << 1) + 1;
+}
