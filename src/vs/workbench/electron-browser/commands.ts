@@ -528,4 +528,12 @@ export function registerCommands(): void {
 			return void 0;
 		});
 	});
+
+	CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, path: string) {
+		const windowsService = accessor.get(IWindowsService);
+
+		return windowsService.removeFromRecentlyOpened([path]).then(() => {
+			return void 0;
+		});
+	});
 }
