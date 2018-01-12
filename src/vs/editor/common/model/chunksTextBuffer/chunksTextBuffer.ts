@@ -51,30 +51,32 @@ export class ChunksTextBuffer implements ITextBuffer {
 		throw new Error('TODO');
 	}
 	getValueInRange(range: Range, eol: EndOfLinePreference): string {
-		// TODO
-
 		if (range.isEmpty()) {
 			return '';
 		}
 
-		if (range.startLineNumber === range.endLineNumber) {
-			return this.getLineContent(range.startLineNumber).substring(range.startColumn - 1, range.endColumn - 1);
+		const text = this._actual.getValueInRange(range);
+		switch (eol) {
+			case EndOfLinePreference.TextDefined:
+				return text;
+			case EndOfLinePreference.LF:
+				if (this.getEOL() === '\n') {
+					return text;
+				} else {
+					return text.replace(/\r\n/g, '\n');
+				}
+			case EndOfLinePreference.CRLF:
+				if (this.getEOL() === '\r\n') {
+					return text;
+				} else {
+					return text.replace(/\n/g, '\r\n');
+				}
 		}
-
-		var lineEnding = '\n',//todo this._getEndOfLine(eol),
-			startLineIndex = range.startLineNumber - 1,
-			endLineIndex = range.endLineNumber - 1,
-			resultLines: string[] = [];
-
-		resultLines.push(this.getLineContent(startLineIndex + 1).substring(range.startColumn - 1));
-		for (var i = startLineIndex + 1; i < endLineIndex; i++) {
-			resultLines.push(this.getLineContent(i + 1));
-		}
-		resultLines.push(this.getLineContent(endLineIndex + 1).substring(0, range.endColumn - 1));
-
-		return resultLines.join(lineEnding);
+		return null;
 	}
+
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
+
 		// TODO
 		return this.getValueInRange(range, eol).length;
 	}
@@ -86,8 +88,7 @@ export class ChunksTextBuffer implements ITextBuffer {
 		return this._actual.getLinesContent();
 	}
 	getLineContent(lineNumber: number): string {
-		// TODO
-		return this._actual.getLineContent(lineNumber).replace(/\r?\n?/, '');
+		return this._actual.getLineContent(lineNumber);
 	}
 	getLineCharCode(lineNumber: number, index: number): number {
 		return this.getLineContent(lineNumber).charCodeAt(index);
@@ -328,6 +329,39 @@ class Buffer {
 		return true;
 	}
 
+	private _findOffsetCloseAfter(offset: number, start: BufferCursor, result: BufferCursor): boolean {
+		if (offset > this._nodes.length[1]) {
+			return false;
+		}
+
+		let innerOffset = offset - start.leafStartOffset;
+		const leafsCount = this._leafs.length;
+
+		let leafIndex = start.leafIndex;
+		let leafStartOffset = start.leafStartOffset;
+		let leafStartNewLineCount = start.leafStartNewLineCount;
+
+		while (true) {
+			const leaf = this._leafs[leafIndex];
+
+			if (innerOffset < leaf.length()) {
+				result.set(offset, leafIndex, leafStartOffset, leafStartNewLineCount);
+				return true;
+			}
+
+			leafIndex++;
+
+			if (leafIndex >= leafsCount) {
+				result.set(offset, leafIndex, leafStartOffset, leafStartNewLineCount);
+				return true;
+			}
+
+			leafStartOffset += leaf.length();
+			leafStartNewLineCount += leaf.newLineCount();
+			innerOffset -= leaf.length();
+		}
+	}
+
 	private _findLineStart(lineNumber: number, result: BufferCursor): boolean {
 		let lineIndex = lineNumber - 1;
 		if (lineIndex < 0 || lineIndex > this._nodes.newLineCount[1]) {
@@ -425,7 +459,7 @@ class Buffer {
 			throw new Error(`Line not found`);
 		}
 
-		const result = this.extractString(start, end.offset - start.offset);
+		const result = this.extractString(start, end.offset - start.offset - this._eolLength);
 
 		BufferCursorPool.put(start);
 		BufferCursorPool.put(end);
@@ -442,7 +476,7 @@ class Buffer {
 			throw new Error(`Line not found`);
 		}
 
-		const result = end.offset - start.offset;
+		const result = end.offset - start.offset - this._eolLength;
 
 		BufferCursorPool.put(start);
 		BufferCursorPool.put(end);
@@ -505,16 +539,56 @@ class Buffer {
 		return res;
 	}
 
-	public getOffsetAt(lineNumber: number, column: number): number {
-		const start = BufferCursorPool.take();
+	private _getOffsetAt(lineNumber: number, column: number, result: BufferCursor): boolean {
+		const lineStart = BufferCursorPool.take();
 
-		if (!this._findLineStart(lineNumber, start)) {
+		if (!this._findLineStart(lineNumber, lineStart)) {
+			BufferCursorPool.put(lineStart);
+			return false;
+		}
+
+		const startOffset = lineStart.offset + column - 1;
+		if (!this._findOffsetCloseAfter(startOffset, lineStart, result)) {
+			BufferCursorPool.put(lineStart);
+			return false;
+		}
+
+		BufferCursorPool.put(lineStart);
+		return true;
+	}
+
+	public getOffsetAt(lineNumber: number, column: number): number {
+		const offset = BufferCursorPool.take();
+
+		if (!this._getOffsetAt(lineNumber, column, offset)) {
+			BufferCursorPool.put(offset);
+			throw new Error(`Position not found`);
+		}
+
+		BufferCursorPool.put(offset);
+		return offset.offset;
+	}
+
+	public getValueInRange(range: Range): string {
+		const start = BufferCursorPool.take();
+		const end = BufferCursorPool.take();
+
+		if (!this._getOffsetAt(range.startLineNumber, range.startColumn, start)) {
 			BufferCursorPool.put(start);
+			BufferCursorPool.put(end);
 			throw new Error(`Line not found`);
 		}
-		const result = start.offset + column - 1;
+
+		if (!this._getOffsetAt(range.endLineNumber, range.endColumn, end)) {
+			BufferCursorPool.put(start);
+			BufferCursorPool.put(end);
+			throw new Error(`Line not found`);
+		}
+
+		const result = this.extractString(start, end.offset - start.offset);
 
 		BufferCursorPool.put(start);
+		BufferCursorPool.put(end);
 		return result;
 	}
 
@@ -545,6 +619,7 @@ class Buffer {
 
 		let result: InternalOffsetLenEdit[] = [];
 		let tmp = new BufferCursor(0, 0, 0, 0);
+		let tmp2 = new BufferCursor(0, 0, 0, 0);
 		for (let i = 0, len = edits.length; i < len; i++) {
 			const edit = edits[i];
 
@@ -560,9 +635,12 @@ class Buffer {
 					// include the replacement of \r in the edit
 					text = '\r' + text;
 
-					this._findOffset(edit.offset - 1, tmp);
-					startLeafIndex = tmp.leafIndex;
-					startInnerOffset = tmp.offset - tmp.leafStartOffset;
+					this._findOffsetCloseAfter(edit.offset - 1, tmp, tmp2);
+					startLeafIndex = tmp2.leafIndex;
+					startInnerOffset = tmp2.offset - tmp2.leafStartOffset;
+					// this._findOffset(edit.offset - 1, tmp);
+					// startLeafIndex = tmp.leafIndex;
+					// startInnerOffset = tmp.offset - tmp.leafStartOffset;
 				}
 			}
 
@@ -576,9 +654,12 @@ class Buffer {
 					// include the replacement of \n in the edit
 					text = text + '\n';
 
-					this._findOffset(edit.offset + edit.length + 1, tmp);
-					endLeafIndex = tmp.leafIndex;
-					endInnerOffset = tmp.offset - tmp.leafStartOffset;
+					this._findOffsetCloseAfter(edit.offset + edit.length + 1, tmp, tmp2);
+					startLeafIndex = tmp2.leafIndex;
+					startInnerOffset = tmp2.offset - tmp2.leafStartOffset;
+					// this._findOffset(edit.offset + edit.length + 1, tmp);
+					// endLeafIndex = tmp.leafIndex;
+					// endInnerOffset = tmp.offset - tmp.leafStartOffset;
 				}
 			}
 
