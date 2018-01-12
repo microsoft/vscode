@@ -30,7 +30,7 @@ export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFo
 	}
 
 	if (resource.scheme !== 'file' && resource.scheme !== 'untitled') {
-		return resource.authority + resource.path;
+		return resource.with({ query: null, fragment: null }).toString(false);
 	}
 
 	// return early if we can resolve a relative path label from the root
