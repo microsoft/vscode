@@ -47,9 +47,10 @@ import URI from 'vs/base/common/uri';
 import { relative } from 'path';
 import { dirname } from 'vs/base/common/resources';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { getResourceForCommand } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { getResourcesForCommand } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { distinct } from 'vs/base/common/arrays';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -192,16 +193,24 @@ CommandsRegistry.registerCommand({
 		const listService = accessor.get(IListService);
 		const viewletService = accessor.get(IViewletService);
 		const fileService = accessor.get(IFileService);
-		resource = getResourceForCommand(resource, listService, accessor.get(IWorkbenchEditorService));
+		const resources = getResourcesForCommand(resource, listService, accessor.get(IWorkbenchEditorService));
 
 		return viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
-			if (resource) {
-				fileService.resolveFile(resource).then(stat => {
-					return stat.isDirectory ? stat.resource : dirname(stat.resource);
-				}).then(resource =>
-					(viewlet as SearchViewlet).searchInFolder(resource, (from, to) => relative(from, to))
-					);
+			if (resources && resources.length) {
+				return fileService.resolveFiles(resources.map(resource => ({ resource }))).then(results => {
+					const folders: URI[] = [];
+
+					results.forEach(result => {
+						if (result.success) {
+							folders.push(result.stat.isDirectory ? result.stat.resource : dirname(result.stat.resource));
+						}
+					});
+
+					(viewlet as SearchViewlet).searchInFolders(distinct(folders, folder => folder.toString()), (from, to) => relative(from, to));
+				});
 			}
+
+			return void 0;
 		});
 	}
 });
@@ -212,7 +221,7 @@ CommandsRegistry.registerCommand({
 	handler: (accessor) => {
 		const viewletService = accessor.get(IViewletService);
 		return viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
-			(viewlet as SearchViewlet).searchInFolder(null, (from, to) => relative(from, to));
+			(viewlet as SearchViewlet).searchInFolders(null, (from, to) => relative(from, to));
 		});
 	}
 });
