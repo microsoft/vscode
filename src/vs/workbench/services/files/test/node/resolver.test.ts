@@ -125,7 +125,6 @@ suite('Stat Resolver', () => {
 			let deep = utils.getByName(other, 'deep');
 			if (isLinux) { // Linux has case sensitive file system
 				assert.ok(deep);
-				assert.ok(deep.children.length > 0);
 				assert.ok(!deep.children); // not resolved because we got instructed to resolve other/Deep with capital D
 			} else {
 				assert.ok(deep);
