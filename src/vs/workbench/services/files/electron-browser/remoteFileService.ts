@@ -471,10 +471,9 @@ export class RemoteFileService extends FileService {
 			: TPromise.as(null);
 
 		return prepare.then(() => {
-			// TODO@Joh This does only work for textfiles
-			// because the content turns things into a string
-			// and all binary data will be broken
-			return this.resolveContent(source).then(content => {
+			// todo@ben, can only copy text files
+			// https://github.com/Microsoft/vscode/issues/41543
+			return this.resolveContent(source, { acceptTextOnly: true }).then(content => {
 				return this._withProvider(target).then(provider => {
 					return this._doUpdateContent(provider, target, content.value, { encoding: content.encoding }).then(fileStat => {
 						this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));
