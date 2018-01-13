@@ -27,7 +27,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		const handle = this._handlePool++;
 		this._provider.set(handle, provider);
 		this._proxy.$registerFileSystemProvider(handle, scheme);
-		this._proxy.$onDidAddFileSystemRoot(<any>provider.root);
+		if (provider.root) {
+			// todo@remote
+			this._proxy.$onDidAddFileSystemRoot(provider.root);
+		}
 		let reg: IDisposable;
 		if (provider.onDidChange) {
 			reg = provider.onDidChange(event => this._proxy.$onFileSystemChange(handle, <any>event));

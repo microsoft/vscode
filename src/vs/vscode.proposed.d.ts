@@ -102,7 +102,8 @@ declare module 'vscode' {
 
 		readonly onDidChange?: Event<FileChange[]>;
 
-		readonly root: Uri;
+		// todo@joh - remove this
+		readonly root?: Uri;
 
 		// more...
 		//
@@ -149,7 +150,7 @@ declare module 'vscode' {
 	}
 
 	export namespace workspace {
-		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
 	}
 
 	export namespace window {
