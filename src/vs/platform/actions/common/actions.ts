@@ -23,8 +23,7 @@ export interface ICommandAction {
 	id: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
-	iconClass?: string;
-	iconPath?: string;
+	iconPath?: string | { light: string; dark: string; };
 	precondition?: ContextKeyExpr;
 }
 
@@ -180,7 +179,7 @@ export class MenuItemAction extends ExecuteCommandAction {
 		@ICommandService commandService: ICommandService
 	) {
 		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
-		this._cssClass = item.iconClass;
+		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this._options = options || {};
 

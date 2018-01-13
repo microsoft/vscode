@@ -4,12 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
-import { createCSSRule } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { join } from 'path';
-import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
@@ -281,33 +278,27 @@ namespace schema {
 
 ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>('commands', [], schema.commandsContribution).setHandler(extensions => {
 
-	const ids = new IdGenerator('contrib-cmd-icon-');
-
 	function handleCommand(userFriendlyCommand: schema.IUserFriendlyCommand, extension: IExtensionPointUser<any>) {
 
 		if (!schema.isValidCommand(userFriendlyCommand, extension.collector)) {
 			return;
 		}
 
-		let { icon, category, title, command } = userFriendlyCommand;
-		let iconClass: string;
-		let iconPath: string;
-		if (icon) {
-			iconClass = ids.nextId();
-			if (typeof icon === 'string') {
-				iconPath = join(extension.description.extensionFolderPath, icon);
-				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(iconPath).toString()}")`);
-			} else {
-				const light = join(extension.description.extensionFolderPath, icon.light);
-				const dark = join(extension.description.extensionFolderPath, icon.dark);
-				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(light).toString()}")`);
-				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${URI.file(dark).toString()}")`);
+		const { icon, category, title, command } = userFriendlyCommand;
 
-				iconPath = join(extension.description.extensionFolderPath, icon.dark);
+		let absoluteIcon: string | { light: string; dark: string; };
+		if (icon) {
+			if (typeof icon === 'string') {
+				absoluteIcon = join(extension.description.extensionFolderPath, icon);
+			} else {
+				absoluteIcon = {
+					dark: join(extension.description.extensionFolderPath, icon.dark),
+					light: join(extension.description.extensionFolderPath, icon.light)
+				};
 			}
 		}
 
-		if (MenuRegistry.addCommand({ id: command, title, category, iconClass, iconPath })) {
+		if (MenuRegistry.addCommand({ id: command, title, category, iconPath: absoluteIcon })) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
 	}

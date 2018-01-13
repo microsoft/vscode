@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./media/codeEditor';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -259,7 +258,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'editor.action.toggleWordWrap',
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
-		iconClass: 'toggle-word-wrap-action'
+		iconPath: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/WordWrap_16x.svg')).fsPath
 	},
 	group: 'navigation',
 	order: 1,
@@ -273,7 +272,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'editor.action.toggleWordWrap',
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
-		iconClass: 'toggle-word-wrap-action'
+		iconPath: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/WordWrap_16x.svg')).fsPath
 	},
 	group: 'navigation',
 	order: 1,

@@ -7,7 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IMenu, MenuItemAction, IMenuActionOptions } from 'vs/platform/actions/common/actions';
+import { IMenu, MenuItemAction, IMenuActionOptions, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IAction } from 'vs/base/common/actions';
@@ -17,6 +17,9 @@ import { domEvent } from 'vs/base/browser/event';
 import { Emitter } from 'vs/base/common/event';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { memoize } from 'vs/base/common/decorators';
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import { createCSSRule } from 'vs/base/browser/dom';
+import URI from 'vs/base/common/uri';
 
 class AltKeyEmitter extends Emitter<boolean> {
 
@@ -114,17 +117,22 @@ export function createActionItem(action: IAction, keybindingService: IKeybinding
 	return undefined;
 }
 
+const ids = new IdGenerator('menu-item-action-item-icon-');
+
 export class MenuItemActionItem extends ActionItem {
 
+	static readonly ICON_PATH_TO_CSS_RULES: Map<string /* path*/, string /* CSS rule */> = new Map<string, string>();
+
 	private _wantsAltCommand: boolean = false;
+	private _itemClassDispose: IDisposable;
 
 	constructor(
-		action: MenuItemAction,
+		private action: MenuItemAction,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService protected _messageService: IMessageService,
 		@IContextMenuService private _contextMenuService: IContextMenuService
 	) {
-		super(undefined, action, { icon: !!action.class, label: !action.class });
+		super(undefined, action, { icon: !!(action.class || action.item.iconPath), label: !action.class && !action.item.iconPath });
 	}
 
 	protected get _commandAction(): IAction {
@@ -141,6 +149,8 @@ export class MenuItemActionItem extends ActionItem {
 
 	render(container: HTMLElement): void {
 		super.render(container);
+
+		this._updateItemClass(this.action.item);
 
 		let mouseOver = false;
 		let altDown = false;
@@ -189,13 +199,41 @@ export class MenuItemActionItem extends ActionItem {
 
 	_updateClass(): void {
 		if (this.options.icon) {
-			const element = this.$e.getHTMLElement();
 			if (this._commandAction !== this._action) {
-				element.classList.remove(this._action.class);
+				this._updateItemClass(this.action.alt.item);
 			} else if ((<MenuItemAction>this._action).alt) {
-				element.classList.remove((<MenuItemAction>this._action).alt.class);
+				this._updateItemClass(this.action.item);
 			}
-			element.classList.add('icon', this._commandAction.class);
+		}
+	}
+
+	_updateItemClass(item: ICommandAction): void {
+		dispose(this._itemClassDispose);
+		this._itemClassDispose = undefined;
+
+		if (item.iconPath) {
+			let iconClass: string;
+			if (typeof item.iconPath === 'string') {
+				if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(item.iconPath)) {
+					iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(item.iconPath);
+				} else {
+					iconClass = ids.nextId();
+					createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath).toString()}")`);
+					MenuItemActionItem.ICON_PATH_TO_CSS_RULES.set(item.iconPath, iconClass);
+				}
+			} else {
+				if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(item.iconPath.dark)) {
+					iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(item.iconPath.dark);
+				} else {
+					iconClass = ids.nextId();
+					createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath.light).toString()}")`);
+					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath.dark).toString()}")`);
+					MenuItemActionItem.ICON_PATH_TO_CSS_RULES.set(item.iconPath.dark, iconClass);
+				}
+			}
+
+			this.$e.getHTMLElement().classList.add('icon', iconClass);
+			this._itemClassDispose = { dispose: () => this.$e.getHTMLElement().classList.remove('icon', iconClass) };
 		}
 	}
 }
