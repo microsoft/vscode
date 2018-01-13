@@ -98,6 +98,7 @@ declare module 'vscode' {
 
 	// todo@joh discover files etc
 	// todo@joh CancellationToken everywhere
+	// todo@joh add open/close calls?
 	export interface FileSystemProvider {
 
 		readonly onDidChange?: Event<FileChange[]>;
@@ -144,8 +145,8 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 
 		// find files by names
+		// todo@joh, move into its own provider
 		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
-
 		provideTextSearchResults?(query: TextSearchQuery, include: GlobPattern, exclude: GlobPattern, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 

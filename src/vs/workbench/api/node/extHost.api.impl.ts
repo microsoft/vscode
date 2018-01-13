@@ -616,7 +616,7 @@ export function createApiFactory(
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			RelativePattern: extHostTypes.RelativePattern,
 
-			// TODO@JOH,remote
+			// todo@remote
 			FileChangeType: <any>FileChangeType,
 			FileType: <any>FileType
 		};

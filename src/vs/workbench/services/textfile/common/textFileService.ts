@@ -413,10 +413,6 @@ export abstract class TextFileService implements ITextFileService {
 		const filesToSave: URI[] = [];
 		const untitledToSave: URI[] = [];
 		toSave.forEach(s => {
-			// TODO@remote
-			// if (s.scheme === Schemas.file) {
-			// 	filesToSave.push(s);
-			// } else
 			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && s.scheme === UNTITLED_SCHEMA) {
 				untitledToSave.push(s);
 			} else {
