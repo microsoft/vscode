@@ -8,6 +8,7 @@ import { Node, HtmlNode, Rule, Property } from 'EmmetNode';
 import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode } from './util';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
+const hexColorRegex = /^#\d+$/;
 
 interface ExpandAbbreviationInput {
 	syntax: string;
@@ -232,17 +233,18 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 		// Fix for https://github.com/Microsoft/vscode/issues/34162
 		// Other than sass, stylus, we can make use of the terminator tokens to validate position
 		if (syntax !== 'sass' && syntax !== 'stylus' && currentNode.type === 'property') {
+			const abbreviation = document.getText(new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character));
 			const propertyNode = <Property>currentNode;
 			if (propertyNode.terminatorToken
 				&& propertyNode.separator
 				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
 				&& position.isBeforeOrEqual(propertyNode.terminatorToken.start)) {
-				return false;
+				return hexColorRegex.test(abbreviation);
 			}
 			if (!propertyNode.terminatorToken
 				&& propertyNode.separator
 				&& position.isAfterOrEqual(propertyNode.separatorToken.end)) {
-				return false;
+				return hexColorRegex.test(abbreviation);
 			}
 		}
 

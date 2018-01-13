@@ -310,7 +310,7 @@
         "compile": "gulp compile-extension:emmet"
     },
     "devDependencies": {
-        "@types/node": "7.0.43",
+        "@types/node": "8.0.33",
         "vscode": "1.0.1"
     },
     "dependencies": {
