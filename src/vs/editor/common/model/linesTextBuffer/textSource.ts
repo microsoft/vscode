@@ -35,7 +35,7 @@ export interface IRawTextSource {
 
 export class TextSource {
 
-	/**
+	/**f
 	 * if text source is empty or with precisely one line, returns null. No end of line is detected.
 	 * if text source contains more lines ending with '\r\n', returns '\r\n'.
 	 * Otherwise returns '\n'. More lines end with '\n'.

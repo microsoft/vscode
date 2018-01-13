@@ -86,24 +86,26 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 
 		if (startPosition.node === endPosition.node) {
 			let node = startPosition.node;
-			let buffer = this._buffers[node.piece.bufferIndex];
-			return buffer.substring(node.piece.offset + startPosition.remainder, node.piece.offset + endPosition.remainder);
+			let buffer = this._buffers[node.piece.bufferIndex].buffer;
+			let startOffset = this.getStartOffset(node);
+			return buffer.substring(startOffset + startPosition.remainder, startOffset + endPosition.remainder);
 		}
 
-
 		let x = startPosition.node;
-		let buffer = this._buffers[x.piece.bufferIndex];
-		let ret = buffer.substring(x.piece.offset + startPosition.remainder, x.piece.offset + x.piece.length);
+		let buffer = this._buffers[x.piece.bufferIndex].buffer;
+		let startOffset = this.getStartOffset(x);
+		let ret = buffer.substring(startOffset + startPosition.remainder, startOffset + x.piece.length);
 
 		x = x.next();
 		while (x !== SENTINEL) {
-			let buffer = this._buffers[x.piece.bufferIndex];
+			let buffer = this._buffers[x.piece.bufferIndex].buffer;
+			let startOffset = this.getStartOffset(x);
 
 			if (x === endPosition.node) {
-				ret += buffer.substring(x.piece.offset, x.piece.offset + endPosition.remainder);
+				ret += buffer.substring(startOffset, startOffset + endPosition.remainder);
 				break;
 			} else {
-				ret += buffer.substr(x.piece.offset, x.piece.length);
+				ret += buffer.substr(startOffset, x.piece.length);
 			}
 
 			x = x.next();
@@ -127,7 +129,7 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 			} else if (x.lf_left + x.piece.lineFeedCnt + 1 >= lineNumber) {
 				leftLen += x.size_left;
 				// lineNumber >= 2
-				let accumualtedValInCurrentIndex = x.piece.lineStarts.getAccumulatedValue(lineNumber - x.lf_left - 2);
+				let accumualtedValInCurrentIndex = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
 				return leftLen += accumualtedValInCurrentIndex + column - 1;
 			} else {
 				lineNumber -= x.lf_left + x.piece.lineFeedCnt;
@@ -148,11 +150,10 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 		let originalOffset = offset;
 
 		while (x !== SENTINEL) {
-			// console.log('getPositionAt while loop');
 			if (x.size_left !== 0 && x.size_left >= offset) {
 				x = x.left;
 			} else if (x.size_left + x.piece.length >= offset) {
-				let out = x.piece.lineStarts.getIndexOf(offset - x.size_left);
+				let out = this.getIndexOf(x, offset - x.size_left);
 
 				lfCnt += x.lf_left + out.index;
 
