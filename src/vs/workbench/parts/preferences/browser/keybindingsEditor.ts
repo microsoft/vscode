@@ -26,7 +26,7 @@ import { SearchWidget } from 'vs/workbench/parts/preferences/browser/preferences
 import { DefineKeybindingWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import {
 	IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY,
-	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS
+	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -245,6 +245,11 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		return TPromise.as(null);
 	}
 
+	copyKeybindingCommand(keybinding: IKeybindingItemEntry): TPromise<any> {
+		this.clipboardService.writeText(keybinding.keybindingItem.command);
+		return TPromise.as(null);
+	}
+
 	search(filter: string): void {
 		this.searchWidget.focus();
 	}
@@ -456,6 +461,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				getAnchor: () => e.anchor,
 				getActions: () => TPromise.as([
 					this.createCopyAction(<IKeybindingItemEntry>e.element),
+					this.createCopyCommandAction(<IKeybindingItemEntry>e.element),
 					new Separator(),
 					this.createDefineAction(<IKeybindingItemEntry>e.element),
 					this.createRemoveAction(<IKeybindingItemEntry>e.element),
@@ -523,6 +529,15 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			enabled: true,
 			id: KEYBINDINGS_EDITOR_COMMAND_COPY,
 			run: () => this.copyKeybinding(keybindingItem)
+		};
+	}
+
+	private createCopyCommandAction(keybinding: IKeybindingItemEntry): IAction {
+		return <IAction>{
+			label: localize('copyCommandLabel', "Copy Command"),
+			enabled: true,
+			id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND,
+			run: () => this.copyKeybindingCommand(keybinding)
 		};
 	}
 
