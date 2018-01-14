@@ -32,7 +32,7 @@ export function resolveUpdateExtensionsPath() {
 	if (_currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
 		if (_currentExtensionsPath && !path.isAbsolute(_currentExtensionsPath)) {
-			vscode.window.showErrorMessage('The path provided in emmet.extensionsPath setting should be absoulte path');
+			vscode.window.showErrorMessage('The path provided in emmet.extensionsPath setting should be absolute path');
 			_emmetHelper.updateExtensionsPath();
 			return;
 		}
