@@ -541,22 +541,40 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}, 100 /* to prevent flashing, we accumulate visibility changes over a timeout of 100ms */);
 	}
 
-	private getSelectedText(): string {
+	private getSelectedText(): string | null {
 		const activeEditor = this.editorService.getActiveEditor();
-		const editorControl = activeEditor.getControl() as IEditor;
+
+		if (!activeEditor) {
+			return null;
+		}
+
+		const editorControl = activeEditor.getControl() as IEditor | null;
+
+		if (!editorControl) {
+			return null;
+		}
+
 		const selection = editorControl.getSelection();
 
-		let isSelection = selection ? (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn) : false;
+		if (!selection) {
+			return null;
+		}
 
-		if (!isSelection) {
-			return '';
+		const startPosition = selection.getStartPosition();
+		const endPosition = selection.getEndPosition();
+
+		let isSelection = startPosition.column !== endPosition.column;
+		let isMultiline = startPosition.lineNumber !== endPosition.lineNumber;
+
+		if (!isSelection || isMultiline) {
+			return null;
 		}
 
 		const model = editorControl.getModel();
 
 		if (!('getValueInRange' in model)) {
 			// not interested in any other type of model, but TextModel
-			return '';
+			return null;
 		}
 
 		let selectedText = (model as ITextModel).getValueInRange(selection);
