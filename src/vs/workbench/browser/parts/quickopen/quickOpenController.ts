@@ -590,9 +590,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			return false;
 		}
 
-		const prefillsPrefix = prefixes.indexOf(prefix) !== -1;
-
-		return prefillsPrefix;
+		return prefixes.indexOf(prefix) !== -1;
 	}
 
 	public show(prefix?: string, options?: IShowOptions): TPromise<void> {
