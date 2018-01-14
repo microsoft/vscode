@@ -55,7 +55,6 @@ import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
-import { selectBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/editor/common/editorCommon';
 
