@@ -238,7 +238,6 @@ configurationRegistry.registerConfiguration({
 			},
 			'default': [
 				null,
-				'',
 				'@',
 				'#'
 			],
