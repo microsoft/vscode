@@ -582,6 +582,19 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		return selectedText;
 	}
 
+	private shouldPrefill(prefix?: string): boolean {
+		const isTurnedOn = this.configurationService.getValue('workbench.quickOpen.prefillFromSelection') as string;
+		const prefixes = this.configurationService.getValue('workbench.quickOpen.prefillPrefixes') as string[];
+
+		if (!isTurnedOn) {
+			return false;
+		}
+
+		const prefillsPrefix = prefixes.indexOf(prefix) !== -1;
+
+		return prefillsPrefix;
+	}
+
 	public show(prefix?: string, options?: IShowOptions): TPromise<void> {
 		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
 		let inputSelection = options ? options.inputSelection : void 0;
@@ -629,8 +642,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 		const selectedText = this.getSelectedText();
 
-		if (!prefix && selectedText) {
-			prefix = selectedText;
+		if (selectedText && this.shouldPrefill(prefix)) {
+			prefix = (prefix || '') + selectedText;
 		}
 
 		// Show quick open with prefix or editor history
