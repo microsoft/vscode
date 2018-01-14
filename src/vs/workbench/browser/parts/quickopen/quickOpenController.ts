@@ -583,7 +583,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private shouldPrefill(prefix?: string): boolean {
-		const isTurnedOn = this.configurationService.getValue('workbench.quickOpen.prefillFromSelection') as string;
+		const isTurnedOn = this.configurationService.getValue('workbench.quickOpen.prefillFromSelection') as boolean;
 		const prefixes = this.configurationService.getValue('workbench.quickOpen.prefillPrefixes') as Array<string | null>;
 
 		if (!isTurnedOn) {
