@@ -55,6 +55,9 @@ import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { selectBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ITextModel } from 'vs/editor/common/model';
+import { IEditor } from 'vs/editor/common/editorCommon';
 
 const HELP_PREFIX = '?';
 
@@ -539,6 +542,29 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}, 100 /* to prevent flashing, we accumulate visibility changes over a timeout of 100ms */);
 	}
 
+	private getSelectedText(): string {
+		const activeEditor = this.editorService.getActiveEditor();
+		const editorControl = activeEditor.getControl() as IEditor;
+		const selection = editorControl.getSelection();
+
+		let isSelection = selection ? (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn) : false;
+
+		if (!isSelection) {
+			return '';
+		}
+
+		const model = editorControl.getModel();
+
+		if (!('getValueInRange' in model)) {
+			// not interested in any other type of model, but TextModel
+			return '';
+		}
+
+		let selectedText = (model as ITextModel).getValueInRange(selection);
+
+		return selectedText;
+	}
+
 	public show(prefix?: string, options?: IShowOptions): TPromise<void> {
 		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
 		let inputSelection = options ? options.inputSelection : void 0;
@@ -582,6 +608,12 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Layout
 		if (this.layoutDimensions) {
 			this.quickOpenWidget.layout(this.layoutDimensions);
+		}
+
+		const selectedText = this.getSelectedText();
+
+		if (!prefix && selectedText) {
+			prefix = selectedText;
 		}
 
 		// Show quick open with prefix or editor history
