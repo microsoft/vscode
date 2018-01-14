@@ -24,6 +24,7 @@ export function wrapWithAbbreviation(args: any) {
 	}
 
 	const editor = vscode.window.activeTextEditor;
+	let rootNode = parseDocument(editor.document, false);
 
 	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
 	if (!syntax) {
@@ -47,7 +48,13 @@ export function wrapWithAbbreviation(args: any) {
 		editor.selections.forEach(selection => {
 			let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
 			if (rangeToReplace.isEmpty) {
-				rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
+				let { active } = selection;
+				let currentNode = getNode(rootNode, active, true);
+				if (currentNode && (currentNode.start.line === active.line || currentNode.end.line === active.line)) {
+					rangeToReplace = new vscode.Range(currentNode.start, currentNode.end);
+				} else {
+					rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
+				}
 			}
 
 			const firstLineOfSelection = editor.document.lineAt(rangeToReplace.start).text.substr(rangeToReplace.start.character);
