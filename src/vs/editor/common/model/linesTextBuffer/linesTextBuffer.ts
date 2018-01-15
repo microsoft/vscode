@@ -9,7 +9,6 @@ import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
 
 export interface IValidatedEditOperation {
@@ -252,7 +251,7 @@ export class LinesTextBuffer implements ITextBuffer {
 
 	public applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult {
 		if (rawOperations.length === 0) {
-			return new ApplyEditsResult([], [], [], []);
+			return new ApplyEditsResult([], [], []);
 		}
 
 		let mightContainRTL = this._mightContainRTL;
@@ -341,7 +340,7 @@ export class LinesTextBuffer implements ITextBuffer {
 		this._mightContainRTL = mightContainRTL;
 		this._mightContainNonBasicASCII = mightContainNonBasicASCII;
 
-		const [rawContentChanges, contentChanges] = this._doApplyEdits(operations);
+		const contentChanges = this._doApplyEdits(operations);
 
 		let trimAutoWhitespaceLineNumbers: number[] = null;
 		if (recordTrimAutoWhitespace && newTrimAutoWhitespaceCandidates.length > 0) {
@@ -369,7 +368,6 @@ export class LinesTextBuffer implements ITextBuffer {
 
 		return new ApplyEditsResult(
 			reverseOperations,
-			rawContentChanges,
 			contentChanges,
 			trimAutoWhitespaceLineNumbers
 		);
@@ -451,18 +449,16 @@ export class LinesTextBuffer implements ITextBuffer {
 		};
 	}
 
-	private _setLineContent(lineNumber: number, content: string, rawContentChanges: ModelRawChange[]): void {
+	private _setLineContent(lineNumber: number, content: string): void {
 		this._lines[lineNumber - 1] = content;
 		this._lineStarts.changeValue(lineNumber - 1, content.length + this._EOL.length);
-		rawContentChanges.push(new ModelRawLineChanged(lineNumber, content));
 	}
 
-	private _doApplyEdits(operations: IValidatedEditOperation[]): [ModelRawChange[], IInternalModelContentChange[]] {
+	private _doApplyEdits(operations: IValidatedEditOperation[]): IInternalModelContentChange[] {
 
 		// Sort operations descending
 		operations.sort(LinesTextBuffer._sortOpsDescending);
 
-		let rawContentChanges: ModelRawChange[] = [];
 		let contentChanges: IInternalModelContentChange[] = [];
 
 		for (let i = 0, len = operations.length; i < len; i++) {
@@ -497,7 +493,7 @@ export class LinesTextBuffer implements ITextBuffer {
 					);
 				}
 
-				this._setLineContent(editLineNumber, editText, rawContentChanges);
+				this._setLineContent(editLineNumber, editText);
 			}
 
 			if (editingLinesCnt < deletingLinesCnt) {
@@ -507,12 +503,10 @@ export class LinesTextBuffer implements ITextBuffer {
 				const endLineRemains = this._lines[endLineNumber - 1].substring(endColumn - 1);
 
 				// Reconstruct first line
-				this._setLineContent(spliceStartLineNumber, this._lines[spliceStartLineNumber - 1] + endLineRemains, rawContentChanges);
+				this._setLineContent(spliceStartLineNumber, this._lines[spliceStartLineNumber - 1] + endLineRemains);
 
 				this._lines.splice(spliceStartLineNumber, endLineNumber - spliceStartLineNumber);
 				this._lineStarts.removeValues(spliceStartLineNumber, endLineNumber - spliceStartLineNumber);
-
-				rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber));
 			}
 
 			if (editingLinesCnt < insertingLinesCnt) {
@@ -527,7 +521,7 @@ export class LinesTextBuffer implements ITextBuffer {
 				// Split last line
 				const leftoverLine = this._lines[spliceLineNumber - 1].substring(spliceColumn - 1);
 
-				this._setLineContent(spliceLineNumber, this._lines[spliceLineNumber - 1].substring(0, spliceColumn - 1), rawContentChanges);
+				this._setLineContent(spliceLineNumber, this._lines[spliceLineNumber - 1].substring(0, spliceColumn - 1));
 
 				// Lines in the middle
 				let newLines: string[] = new Array<string>(insertingLinesCnt - editingLinesCnt);
@@ -540,8 +534,6 @@ export class LinesTextBuffer implements ITextBuffer {
 				newLinesLengths[newLines.length - 1] += leftoverLine.length;
 				this._lines = arrays.arrayInsert(this._lines, startLineNumber + editingLinesCnt, newLines);
 				this._lineStarts.insertValues(startLineNumber + editingLinesCnt, newLinesLengths);
-
-				rawContentChanges.push(new ModelRawLinesInserted(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLines));
 			}
 
 			const contentChangeRange = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
@@ -556,7 +548,7 @@ export class LinesTextBuffer implements ITextBuffer {
 			});
 		}
 
-		return [rawContentChanges, contentChanges];
+		return contentChanges;
 	}
 
 	/**
