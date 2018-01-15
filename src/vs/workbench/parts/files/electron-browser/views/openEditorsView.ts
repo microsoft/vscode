@@ -147,8 +147,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService, this.editorGroupService),
 			new OpenEditorRenderer(this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
 		], {
-				identityProvider: element => element instanceof OpenEditor ? element.getId() : element.id.toString(),
-				multipleSelectionSupport: false
+				keyboardSupport: false,
+				identityProvider: element => element instanceof OpenEditor ? element.getId() : element.id.toString()
 			}, this.contextKeyService, this.listService, this.themeService);
 
 		this.updateSize();
@@ -332,7 +332,6 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		if (this.model.activeGroup && this.model.activeGroup.activeEditor /* could be empty */) {
 			const index = this.getIndex(this.model.activeGroup, this.model.activeGroup.activeEditor);
 			this.list.setFocus([index]);
-			this.list.setSelection([index]);
 			this.list.reveal(index);
 		}
 	}
