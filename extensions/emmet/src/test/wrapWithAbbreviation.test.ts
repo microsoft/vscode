@@ -131,7 +131,63 @@ suite('Tests for Wrap with Abbreviations', () => {
 			editor.selections = [new Selection(2, 0, 2, 0)];
 			const promise = wrapWithAbbreviation({ abbreviation: 'li.hello|c' });
 			if (!promise) {
-				assert.equal(1, 2, 'Wrap returned udnefined instead of promise.');
+				assert.equal(1, 2, 'Wrap returned undefined instead of promise.');
+				return Promise.resolve();
+			}
+			return promise.then(() => {
+				assert.equal(editor.document.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Wrap with abbreviation entire node when cursor is on opening tag', () => {
+		const contents = `
+	<div class="nav main">
+		hello
+	</div>
+	`;
+		const expectedContents = `
+	<div>
+		<div class="nav main">
+			hello
+		</div>
+	</div>
+	`;
+
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [new Selection(1, 1, 1, 1)];
+			const promise = wrapWithAbbreviation({ abbreviation: 'div' });
+			if (!promise) {
+				assert.equal(1, 2, 'Wrap returned undefined instead of promise.');
+				return Promise.resolve();
+			}
+			return promise.then(() => {
+				assert.equal(editor.document.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Wrap with abbreviation entire node when cursor is on closing tag', () => {
+		const contents = `
+	<div class="nav main">
+		hello
+	</div>
+	`;
+		const expectedContents = `
+	<div>
+		<div class="nav main">
+			hello
+		</div>
+	</div>
+	`;
+
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [new Selection(3, 1, 3, 1)];
+			const promise = wrapWithAbbreviation({ abbreviation: 'div' });
+			if (!promise) {
+				assert.equal(1, 2, 'Wrap returned undefined instead of promise.');
 				return Promise.resolve();
 			}
 			return promise.then(() => {
@@ -160,7 +216,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 			editor.selections = [new Selection(2, 2, 3, 33)];
 			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*' });
 			if (!promise) {
-				assert.equal(1, 2, 'Wrap Individual Lines with Abbreviation returned udnefined.');
+				assert.equal(1, 2, 'Wrap Individual Lines with Abbreviation returned undefined.');
 				return Promise.resolve();
 			}
 			return promise.then(() => {
@@ -191,7 +247,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 			editor.selections = [new Selection(2, 2, 3, 33)];
 			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello*|c' });
 			if (!promise) {
-				assert.equal(1, 2, 'Wrap Individual Lines with Abbreviation returned udnefined.');
+				assert.equal(1, 2, 'Wrap Individual Lines with Abbreviation returned undefined.');
 				return Promise.resolve();
 			}
 			return promise.then(() => {
@@ -220,7 +276,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 			editor.selections = [new Selection(2, 3, 3, 16)];
 			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*|t' });
 			if (!promise) {
-				assert.equal(1, 2, 'Wrap Individual Lines with Abbreviation returned udnefined.');
+				assert.equal(1, 2, 'Wrap Individual Lines with Abbreviation returned undefined.');
 				return Promise.resolve();
 			}
 
@@ -238,7 +294,7 @@ function testWrapWithAbbreviation(selections: Selection[], abbreviation: string,
 		editor.selections = selections;
 		const promise = wrapWithAbbreviation({ abbreviation });
 		if (!promise) {
-			assert.equal(1, 2, 'Wrap  with Abbreviation returned udnefined.');
+			assert.equal(1, 2, 'Wrap  with Abbreviation returned undefined.');
 			return Promise.resolve();
 		}
 
