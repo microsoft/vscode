@@ -6,7 +6,7 @@
 
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
-import { ExtHostContext, MainContext, IExtHostContext, MainThreadFileSystemShape, ExtHostFileSystemShape } from '../node/extHost.protocol';
+import { ExtHostContext, MainContext, IExtHostContext, MainThreadFileSystemShape, ExtHostFileSystemShape, IFileChangeDto } from '../node/extHost.protocol';
 import { IFileService, IFileSystemProvider, IStat, IFileChange } from 'vs/platform/files/common/files';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -50,7 +50,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._workspaceEditingService.addFolders([{ uri: URI.revive(data) }], true).done(null, onUnexpectedError);
 	}
 
-	$onFileSystemChange(handle: number, changes: IFileChange[]): void {
+	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
 		this._provider.get(handle).$onFileSystemChange(changes);
 	}
 
@@ -118,8 +118,12 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 		this._onDidChange.dispose();
 	}
 
-	$onFileSystemChange(changes: IFileChange[]): void {
-		this._onDidChange.fire(changes);
+	$onFileSystemChange(changes: IFileChangeDto[]): void {
+		this._onDidChange.fire(changes.map(RemoteFileSystemProvider._createFileChange));
+	}
+
+	private static _createFileChange(dto: IFileChangeDto): IFileChange {
+		return { resource: URI.revive(dto.resource), type: dto.type };
 	}
 
 	// --- forwarding calls
