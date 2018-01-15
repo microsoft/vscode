@@ -1440,11 +1440,20 @@ export enum ProgressLocation {
 
 export class TreeItem {
 
+	label?: string;
+	resourceUri?: URI;
 	iconPath?: string | URI | { light: string | URI; dark: string | URI };
 	command?: vscode.Command;
 	contextValue?: string;
 
-	constructor(public label: string, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+	constructor(label: string, collapsibleState?: vscode.TreeItemCollapsibleState)
+	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState)
+	constructor(arg1: string | URI, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+		if (arg1 instanceof URI) {
+			this.resourceUri = arg1;
+		} else {
+			this.label = arg1;
+		}
 	}
 
 }
