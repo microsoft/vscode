@@ -729,7 +729,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// First check for specific position passed in
 		if (typeof positionOrEditors === 'number') {
-			return this.doCloseEditorsAtPosition(positionOrEditors, filterOrEditors).then(veto => void 0);
+			return this.doCloseEditorsAtPosition(positionOrEditors, filterOrEditors, true /* ignore if opened in other group */).then(veto => void 0);
 		}
 
 		// Otherwise close by positions starting from last to first
@@ -760,7 +760,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	private doCloseEditorsAtPosition(position: Position, filterOrEditors?: ICloseEditorsFilter | EditorInput[]): TPromise<boolean /* veto */> {
+	private doCloseEditorsAtPosition(position: Position, filterOrEditors?: ICloseEditorsFilter | EditorInput[], ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
 		const group = this.stacks.groupAt(position);
 		if (!group) {
 			return TPromise.wrap(false);
@@ -792,7 +792,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Check for dirty and veto
-		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; }), true /* ignore if opened in other group */).then(veto => {
+		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; }), ignoreIfOpenedInOtherGroup).then(veto => {
 			if (veto) {
 				return true;
 			}
