@@ -151,7 +151,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 export class WorkbenchTree extends Tree {
 
 	readonly contextKeyService: IContextKeyService;
-	private disposables: IDisposable[] = [];
+	protected disposables: IDisposable[] = [];
 	private listDoubleSelection: IContextKey<boolean>;
 
 	constructor(

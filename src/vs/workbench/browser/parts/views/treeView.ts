@@ -24,10 +24,15 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewsRegistry } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions, IViewOptions, TreeViewsViewletPanel, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvider, TreeViewItemHandleArg } from 'vs/workbench/common/views';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
+import URI from 'vs/base/common/uri';
+import { basename } from 'vs/base/common/paths';
+import { FileKind } from 'vs/platform/files/common/files';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 export class TreeView extends TreeViewsViewletPanel {
 
@@ -45,7 +50,7 @@ export class TreeView extends TreeViewsViewletPanel {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IListService private listService: IListService,
-		@IThemeService private themeService: IThemeService,
+		@IThemeService private themeService: IWorkbenchThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService
@@ -53,7 +58,7 @@ export class TreeView extends TreeViewsViewletPanel {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
-		this.themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
+		themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
 		if (options.expanded) {
 			this.activate();
 		}
@@ -87,7 +92,7 @@ export class TreeView extends TreeViewsViewletPanel {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.id);
 		const renderer = this.instantiationService.createInstance(TreeRenderer);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, this.menus);
-		const tree = new WorkbenchTree(
+		const tree = new FileIconThemableWorkbenchTree(
 			container.getHTMLElement(),
 			{ dataSource, renderer, controller },
 			{ keyboardSupport: false },
@@ -263,8 +268,9 @@ class TreeDataSource implements IDataSource {
 }
 
 interface ITreeExplorerTemplateData {
-	icon: Builder;
-	label: Builder;
+	label: HTMLElement;
+	resourceLabel: ResourceLabel;
+	icon: HTMLElement;
 }
 
 class TreeRenderer implements IRenderer {
@@ -272,7 +278,10 @@ class TreeRenderer implements IRenderer {
 	private static readonly ITEM_HEIGHT = 22;
 	private static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 
-	constructor( @IThemeService private themeService: IThemeService) {
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService
+	) {
 	}
 
 	public getHeight(tree: ITree, element: any): number {
@@ -284,33 +293,43 @@ class TreeRenderer implements IRenderer {
 	}
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): ITreeExplorerTemplateData {
-		const el = $(container);
-		const item = $('.custom-view-tree-node-item');
-		item.appendTo(el);
+		const el = DOM.append(container, DOM.$('.custom-view-tree-node-item'));
 
-		const icon = $('.custom-view-tree-node-item-icon').appendTo(item);
-		const label = $('.custom-view-tree-node-item-label').appendTo(item);
-		const link = $('a.label').appendTo(label);
+		const icon = DOM.append(el, DOM.$('.custom-view-tree-node-item-icon'));
+		const label = DOM.append(el, DOM.$('.custom-view-tree-node-item-label'));
+		const resourceLabelContainer = DOM.append(el, DOM.$('.custom-view-tree-node-item-resourceLabelContainer'));
+		const resourceLabel = this.instantiationService.createInstance(ResourceLabel, resourceLabelContainer, { supportHighlights: true });
 
-		return { label: link, icon };
+		return { label, resourceLabel, icon };
 	}
 
 	public renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
-		templateData.label.text(node.label).title(node.label);
-
+		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
+		const name = node.label || basename(resource.path);
 		const theme = this.themeService.getTheme();
 		const icon = theme.type === LIGHT ? node.icon : node.iconDark;
 
-		if (icon) {
-			templateData.icon.getHTMLElement().style.backgroundImage = `url('${icon}')`;
-			DOM.addClass(templateData.icon.getHTMLElement(), 'custom-view-tree-node-item-icon');
+		templateData.resourceLabel.clear();
+		templateData.label.textContent = '';
+		DOM.removeClass(templateData.label, 'custom-view-tree-node-item-label');
+		DOM.removeClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
+		DOM.removeClass(templateData.icon, 'custom-view-tree-node-item-icon');
+
+		if (resource && !icon) {
+			templateData.resourceLabel.setLabel({ name, resource }, { fileKind: node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE });
+			DOM.addClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 		} else {
-			templateData.icon.getHTMLElement().style.backgroundImage = '';
-			DOM.removeClass(templateData.icon.getHTMLElement(), 'custom-view-tree-node-item-icon');
+			templateData.label.textContent = name;
+			DOM.addClass(templateData.label, 'custom-view-tree-node-item-label');
+			templateData.icon.style.backgroundImage = `url('${icon}')`;
+			if (icon) {
+				DOM.addClass(templateData.icon, 'custom-view-tree-node-item-icon');
+			}
 		}
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
+		templateData.resourceLabel.dispose();
 	}
 }
 

@@ -6,6 +6,7 @@
 
 import { localize } from 'vs/nls';
 import * as vscode from 'vscode';
+import { basename } from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -189,6 +190,7 @@ class ExtHostTreeView<T> extends Disposable {
 			handle,
 			parentHandle,
 			label: extensionTreeItem.label,
+			resourceUri: extensionTreeItem.resourceUri,
 			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command) : void 0,
 			contextValue: extensionTreeItem.contextValue,
 			icon,
@@ -197,17 +199,18 @@ class ExtHostTreeView<T> extends Disposable {
 		};
 	}
 
-	private createHandle(element: T, { label }: vscode.TreeItem, parentHandle?: TreeItemHandle): TreeItemHandle {
+	private createHandle(element: T, { label, resourceUri }: vscode.TreeItem, parentHandle?: TreeItemHandle): TreeItemHandle {
 		if (typeof element === 'string') {
 			return `${ExtHostTreeView.ID_HANDLE_PREFIX}/${element}`;
 		}
 
 		const prefix = parentHandle ? parentHandle : ExtHostTreeView.LABEL_HANDLE_PREFIX;
-		label = label.indexOf('/') !== -1 ? label.replace('/', '//') : label;
+		let elementId = label ? label : basename(resourceUri.path);
+		elementId = elementId.indexOf('/') !== -1 ? elementId.replace('/', '//') : elementId;
 		const existingHandle = this.nodes.has(element) ? this.nodes.get(element).handle : void 0;
 
-		for (let labelCount = 0; labelCount <= this.getChildrenHandles(parentHandle).length; labelCount++) {
-			const handle = `${prefix}/${labelCount}:${label}`;
+		for (let counter = 0; counter <= this.getChildrenHandles(parentHandle).length; counter++) {
+			const handle = `${prefix}/${counter}:${elementId}`;
 			if (!this.elements.has(handle) || existingHandle === handle) {
 				return handle;
 			}

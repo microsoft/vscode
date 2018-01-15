@@ -27,7 +27,9 @@ import { IContextKeyService, IContextKeyChangeEvent } from 'vs/platform/contextk
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IPanelOptions } from 'vs/base/browser/ui/splitview/panelview';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -96,14 +98,12 @@ export abstract class ViewsViewletPanel extends ViewletPanel {
 
 }
 
-// TODO@isidor @sandeep remove this class
 export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 
 	readonly id: string;
 	readonly name: string;
 	protected treeContainer: HTMLElement;
 
-	// TODO@sandeep why is tree here? isn't this coming only from TreeView
 	protected tree: WorkbenchTree;
 	protected isDisposed: boolean;
 	private dragHandler: DelayedDragHandler;
@@ -720,5 +720,30 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 	protected loadViewsStates(): void {
 		const viewsStates = JSON.parse(this.storageService.get(this.viewletStateStorageId, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
 		Object.keys(viewsStates).forEach(id => this.viewsStates.set(id, <IViewState>viewsStates[id]));
+	}
+}
+
+export class FileIconThemableWorkbenchTree extends WorkbenchTree {
+
+	constructor(
+		container: HTMLElement,
+		configuration: ITreeConfiguration,
+		options: ITreeOptions,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IWorkbenchThemeService
+	) {
+		super(container, configuration, { ...options, ...{ showTwistie: false, twistiePixels: 12 } }, contextKeyService, listService, themeService);
+
+		DOM.addClass(container, 'file-icon-themable-tree');
+		DOM.addClass(container, 'show-file-icons');
+
+		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
+			DOM.toggleClass(container, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
+			DOM.toggleClass(container, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
+		};
+
+		this.disposables.push(themeService.onDidFileIconThemeChange(onFileIconThemeChange));
+		onFileIconThemeChange(themeService.getFileIconTheme());
 	}
 }

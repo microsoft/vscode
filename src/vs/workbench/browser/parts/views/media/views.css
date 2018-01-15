@@ -3,10 +3,70 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* File icon themeable tree style */
+.file-icon-themable-tree .monaco-tree-row .content {
+	display: flex;
+}
+
+.file-icon-themable-tree .monaco-tree-row .content::before {
+	background-size: 16px;
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+	padding-right: 6px;
+	width: 16px;
+	height: 22px;
+	display: inline-block;
+	vertical-align: top;
+	content: ' ';
+}
+
+.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before {
+	display: none;
+}
+
+.file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
+	background-image: url("expanded.svg");
+}
+
+.file-icon-themable-tree .monaco-tree-row.has-children .content::before {
+	display: inline-block;
+	background-image: url("collapsed.svg");
+}
+
+.vs-dark .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
+	background-image: url("expanded-dark.svg");
+}
+
+.vs-dark .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
+	background-image: url("collapsed-dark.svg");
+}
+
+.hc-black .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
+	background-image: url("expanded-hc.svg");
+}
+
+.hc-black .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
+	background-image: url("collapsed-hc.svg");
+}
+
+.file-icon-themable-tree.hide-arrows .monaco-tree-row .content::before {
+	display: none;
+}
+
 .custom-view-tree-node-item {
 	display: flex;
 	height: 22px;
 	line-height: 22px;
+}
+
+.custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel {
+	flex: 1;
+}
+
+.custom-view-tree-node-item > .custom-view-tree-node-item-label {
+	flex: 1;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
@@ -17,10 +77,4 @@
 	width: 16px;
 	height: 22px;
 	-webkit-font-smoothing: antialiased;
-}
-
-.custom-view-tree-node-item > .custom-view-tree-node-item-label {
-	flex: 1;
-	text-overflow: ellipsis;
-	overflow: hidden;
 }
