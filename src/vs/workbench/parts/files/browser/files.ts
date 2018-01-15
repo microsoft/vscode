@@ -11,6 +11,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { toResource } from 'vs/workbench/common/editor';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { List } from 'vs/base/browser/ui/list/listWidget';
 
 // Commands can get exeucted from a command pallete, from a context menu or from some list using a keybinding
 // To cover all these cases we need to properly compute the resource on which the command is being executed
@@ -25,7 +26,7 @@ export function getResourceForCommand(resource: URI, listService: IListService, 
 		if (focus instanceof FileStat) {
 			return focus.resource;
 		} else if (focus instanceof OpenEditor) {
-			return focus.editorInput.getResource();
+			return focus.getResource();
 		}
 	}
 
@@ -34,10 +35,21 @@ export function getResourceForCommand(resource: URI, listService: IListService, 
 
 export function getResourcesForCommand(resource: URI, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
 	const list = listService.lastFocusedList;
-	if (list && list.isDOMFocused() && list instanceof Tree) {
-		const selection = list.getSelection();
-		if (selection && selection.length > 1) {
-			return selection.map(fs => fs.resource);
+	if (list && list.isDOMFocused()) {
+
+		// Explorer
+		if (list instanceof Tree) {
+			const selection = list.getSelection();
+			if (selection && selection.length > 1) {
+				return selection.map(fs => fs.resource);
+			}
+		}
+		// Open editors view
+		if (list instanceof List) {
+			const selection = list.getSelectedElements();
+			if (selection && selection.length > 1) {
+				return selection.filter(s => s instanceof OpenEditor).map((oe: OpenEditor) => oe.getResource());
+			}
 		}
 	}
 
