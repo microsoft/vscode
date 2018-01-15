@@ -6,7 +6,7 @@
 
 import { dispose } from 'vs/base/common/lifecycle';
 import { join } from 'path';
-import { mkdirp, dirExists, realpath } from 'vs/base/node/pfs';
+import { mkdirp, dirExists, realpath, writeFile } from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
@@ -88,24 +88,32 @@ class ExtensionStoragePath {
 		return undefined;
 	}
 
-	private _getOrCreateWorkspaceStoragePath(): TPromise<string> {
+	private async _getOrCreateWorkspaceStoragePath(): TPromise<string> {
 		if (!this._workspace) {
 			return TPromise.as(undefined);
 		}
+
 		const storageName = this._workspace.id;
 		const storagePath = join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
 
-		return dirExists(storagePath).then(exists => {
-			if (exists) {
-				return storagePath;
-			}
+		const exists = await dirExists(storagePath);
 
-			return mkdirp(storagePath).then(success => {
-				return storagePath;
-			}, err => {
-				return undefined;
-			});
-		});
+		if (exists) {
+			return storagePath;
+		}
+
+		try {
+			await mkdirp(storagePath);
+			await writeFile(
+				join(storagePath, 'meta.json'),
+				JSON.stringify({ id: this._workspace.id })
+			);
+			return storagePath;
+
+		} catch (e) {
+			console.error(e);
+			return undefined;
+		}
 	}
 }
 
