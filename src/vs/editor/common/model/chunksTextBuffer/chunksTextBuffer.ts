@@ -1199,7 +1199,16 @@ class Buffer {
 		return prevLeaf;
 	}
 
+	private static _compareEdits(a: OffsetLenEdit, b: OffsetLenEdit): number {
+		if (a.offset === b.offset) {
+			return (a.initialIndex - b.initialIndex);
+		}
+		return a.offset - b.offset;
+	}
+
 	public replaceOffsetLen(_edits: OffsetLenEdit[]): void {
+		_edits.sort(Buffer._compareEdits);
+
 		const initialLeafLength = this._leafs.length;
 		const edits = this._resolveEdits(_edits);
 
