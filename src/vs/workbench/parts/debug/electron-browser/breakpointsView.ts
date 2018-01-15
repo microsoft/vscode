@@ -99,10 +99,10 @@ export class BreakpointsView extends ViewsViewletPanel {
 			}
 		}));
 		this.disposables.push(this.list.onMouseDblClick(e => {
-			handleBreakpointFocus(false, false, true);
+			handleBreakpointFocus(false, e.browserEvent.altKey, true);
 		}));
 		this.disposables.push(this.list.onMouseClick(e => {
-			handleBreakpointFocus(true, false, false);
+			handleBreakpointFocus(true, e.browserEvent.altKey, false);
 		}));
 
 		this.list.splice(0, this.list.length, this.elements);
