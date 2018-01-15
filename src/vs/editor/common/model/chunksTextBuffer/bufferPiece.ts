@@ -82,7 +82,7 @@ export class BufferPiece {
 		newLineStarts.set(targetLineStarts); // TODO: does this work correctly?
 
 		return new BufferPiece(
-			target._str.substring(0, targetCharsLength - 1),
+			target._str.substr(0, targetCharsLength - 1),
 			newLineStarts
 		);
 	}
@@ -139,7 +139,7 @@ export class BufferPiece {
 			return;
 		}
 
-		let pieces: string[];
+		let pieces: string[] = new Array<string>(2 * editsSize + 1);
 		let originalFromIndex = 0;
 		let piecesTextLength = 0;
 		for (let i = 0; i < editsSize; i++) {
@@ -155,7 +155,7 @@ export class BufferPiece {
 		}
 
 		// maintain the chars that survive to the right of the last edit
-		let text = target._str.substring(originalFromIndex, originalCharsLength - originalFromIndex);
+		let text = target._str.substr(originalFromIndex, originalCharsLength - originalFromIndex);
 		pieces[2 * editsSize] = text;
 		piecesTextLength += text.length;
 

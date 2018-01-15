@@ -45,7 +45,7 @@ export class TextBufferFactory implements ITextBufferFactory {
 			// TODO
 			console.warn(`mixed line endings not handled correctly at this time!`);
 		}
-		return new ChunksTextBuffer(this._pieces, this._averageChunkSize, this._getEOL(defaultEOL));
+		return new ChunksTextBuffer(this._pieces, this._averageChunkSize, this._getEOL(defaultEOL), this._containsRTL, this._isBasicASCII);
 	}
 
 	public getFirstLineText(lengthLimit: number): string {
@@ -98,7 +98,7 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 		const lastChar = chunk.charCodeAt(chunk.length - 1);
 		if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xd800 && lastChar <= 0xdbff)) {
 			// last character is \r or a high surrogate => keep it back
-			this._acceptChunk1(chunk.substring(0, chunk.length - 1), false);
+			this._acceptChunk1(chunk.substr(0, chunk.length - 1), false);
 			this._hasPreviousChar = true;
 			this._previousChar = lastChar;
 		} else {
@@ -139,7 +139,7 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 	public finish(): TextBufferFactory {
 		this._finish();
 		console.log(`${this.totalCRCount}, ${this.totalEOLCount}`);
-		return new TextBufferFactory(this._rawPieces, this._averageChunkSize, this.totalCRCount, this.totalEOLCount);
+		return new TextBufferFactory(this._rawPieces, this._averageChunkSize, this.totalCRCount, this.totalEOLCount, this.containsRTL, this.isBasicASCII);
 	}
 
 	private _finish(): void {
