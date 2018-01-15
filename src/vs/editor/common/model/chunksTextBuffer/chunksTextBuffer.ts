@@ -807,7 +807,13 @@ class Buffer {
 			throw new Error(`Line not found`);
 		}
 
-		const result = this.extractString(start, end.offset - start.offset - this._eolLength);
+		let result: string;
+		if (lineNumber === this.getLineCount()) {
+			// last line is not trailed by an eol
+			result = this.extractString(start, end.offset - start.offset);
+		} else {
+			result = this.extractString(start, end.offset - start.offset - this._eolLength);
+		}
 
 		BufferCursorPool.put(start);
 		BufferCursorPool.put(end);
