@@ -5080,7 +5080,7 @@ sprintf-js@~1.0.2:
 
 sqlite3@bpasero/node-sqlite3#vscode:
   version "3.1.13"
-  resolved "https://codeload.github.com/bpasero/node-sqlite3/tar.gz/69c9ff513fd33e074f6255b4fd817f7fd172ed7c"
+  resolved "https://codeload.github.com/bpasero/node-sqlite3/tar.gz/b4e25f4d35460d380241fbdce875344eddae9fc2"
   dependencies:
     nan "~2.8.0"
 
