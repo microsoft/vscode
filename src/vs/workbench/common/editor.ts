@@ -785,7 +785,7 @@ export interface IEditorGroup {
 
 export interface IEditorIdentifier {
 	group: IEditorGroup;
-	editor: IEditorInput;
+	editor?: IEditorInput;
 }
 
 export interface IEditorContext extends IEditorIdentifier {

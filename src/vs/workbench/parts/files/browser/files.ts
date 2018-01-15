@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
-import { toResource } from 'vs/workbench/common/editor';
+import { toResource, IEditorContext } from 'vs/workbench/common/editor';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 
@@ -33,10 +33,9 @@ export function getResourceForCommand(resource: URI, listService: IListService, 
 	return toResource(editorService.getActiveEditorInput(), { supportSideBySide: true });
 }
 
-export function getResourcesForCommand(resource: URI, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
+export function getMultiSelectedResources(resource: URI, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
 	const list = listService.lastFocusedList;
 	if (list && list.isDOMFocused()) {
-
 		// Explorer
 		if (list instanceof Tree) {
 			const selection = list.getSelection();
@@ -55,4 +54,15 @@ export function getResourcesForCommand(resource: URI, listService: IListService,
 
 	const result = getResourceForCommand(resource, listService, editorService);
 	return !!result ? [result] : [];
+}
+
+export function getMultiSelectedEditorContexts(listService: IListService): IEditorContext[] {
+	const list = listService.lastFocusedList;
+	if (list && list.isDOMFocused() && list instanceof List) {
+		return list.getSelectedElements().map(element =>
+			element instanceof OpenEditor ? { group: element.editorGroup, editor: element.editorInput } : { group: element }
+		);
+	}
+
+	return [];
 }
