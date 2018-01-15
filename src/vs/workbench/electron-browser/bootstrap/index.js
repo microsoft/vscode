@@ -143,14 +143,14 @@ function main() {
 	} else if (locale === 'zh-cn') {
 		locale = 'zh-Hans';
 	}
-	if (nlsConfig.location) {
+	if (nlsConfig._resolvedLanguagePackCoreLocation) {
 		let bundles = Object.create(null);
 		nlsConfig.loadBundle = function(bundle, language, cb) {
 			let result = bundles[bundle];
 			if (result) {
 				cb(result);
 			}
-			let bundleFile = path.join(nlsConfig.location, bundle.replace(/\//g, '!') + '.nls.' + language + '.json');
+			let bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.' + language + '.json');
 			readFile(bundleFile).then(function (content) {
 				let json = JSON.parse(content);
 				bundles[bundle] = json;

@@ -552,10 +552,12 @@ function importBundleJson(file, json, stream) {
         stream.emit('data', xlfFile);
     }
 }
+function importBundledExtensionJson(file, json, stream) {
+}
 // Keeps existing XLF instances and a state of how many files were already processed for faster file emission
 var extensions = Object.create(null);
 function importModuleOrPackageJson(file, json, projectName, stream, extensionName) {
-    if (ModuleJsonFormat.is(json) && json['keys'].length !== json['messages'].length) {
+    if (ModuleJsonFormat.is(json) && json.keys.length !== json.messages.length) {
         throw new Error("There is a mismatch between keys and messages in " + file.relative);
     }
     // Prepare the source path for <original/> attribute in XLF & extract messages from JSON

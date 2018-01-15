@@ -630,10 +630,14 @@ function importBundleJson(file: File, json: BundledFormat, stream: ThroughStream
 	}
 }
 
+function importBundledExtensionJson(file: File, json: BundledExtensionFormat, stream: ThroughStream): void {
+
+}
+
 // Keeps existing XLF instances and a state of how many files were already processed for faster file emission
 var extensions: Map<{ xlf: XLF, processed: number }> = Object.create(null);
 function importModuleOrPackageJson(file: File, json: ModuleJsonFormat | PackageJsonFormat, projectName: string, stream: ThroughStream, extensionName?: string): void {
-	if (ModuleJsonFormat.is(json) && json['keys'].length !== json['messages'].length) {
+	if (ModuleJsonFormat.is(json) && json.keys.length !== json.messages.length) {
 		throw new Error(`There is a mismatch between keys and messages in ${file.relative}`);
 	}
 

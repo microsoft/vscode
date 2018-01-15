@@ -192,14 +192,23 @@ function getNLSConfiguration(locale) {
 	// This is temporay to test language packs until we have them installed via an extension.
 	if (locale === 'lpTest') {
 		let commit = getCommit();
-		let cacheFolder = path.join(userData, 'CachedLanguagePacks', commit, locale);
-		return exists(cacheFolder).then((result) => {
-			if (result) {
-				return { locale: locale, availableLanguages: { '*': locale }, location: cacheFolder };
+		let cacheRoot = path.join(userData, 'CachedLanguagePacks');
+		let cacheFolder = path.join(cacheRoot, 'vscode', commit, locale, 'core');
+		return exists(cacheFolder).then((folderExists) => {
+			let result = {
+				locale: locale,
+				availableLanguages: { '*': locale },
+				_languagePackLocation: null,
+				_cacheRoot: cacheRoot,
+				_resolvedLanguagePackCoreLocation: cacheFolder,
+				_resolvedLanguagePackExtensionLocation: path.join(cacheRoot, 'vscode', commit, locale, 'extensions')
+			};
+			if (folderExists) {
+				return result;
 			} else {
 				return mkdirp(cacheFolder).then(() => {
 					return generateLanguagePack(locale, '', cacheFolder).then(() => {
-						return { locale: locale, availableLanguages: { '*': locale }, location: cacheFolder };
+						return result;
 					});
 				});
 			}
