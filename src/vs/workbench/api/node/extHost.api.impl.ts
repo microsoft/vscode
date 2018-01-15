@@ -51,7 +51,6 @@ import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtHostDialogs } from 'vs/workbench/api/node/extHostDialogs';
 import { ExtHostFileSystem } from 'vs/workbench/api/node/extHostFileSystem';
-import { FileChangeType, FileType } from 'vs/platform/files/common/files';
 import { ExtHostDecorations } from 'vs/workbench/api/node/extHostDecorations';
 import { toGlobPattern, toLanguageSelector } from 'vs/workbench/api/node/extHostTypeConverters';
 import { ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionActivator';
@@ -616,9 +615,8 @@ export function createApiFactory(
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			RelativePattern: extHostTypes.RelativePattern,
 
-			// todo@remote
-			FileChangeType: <any>FileChangeType,
-			FileType: <any>FileType
+			FileChangeType: extHostTypes.FileChangeType,
+			FileType: extHostTypes.FileType
 		};
 	};
 }

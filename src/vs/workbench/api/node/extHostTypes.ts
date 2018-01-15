@@ -1546,3 +1546,19 @@ export enum LogLevel {
 	Critical = 6,
 	Off = 7
 }
+
+//#region file api
+// todo@remote
+export enum FileChangeType {
+	Updated = 0,
+	Added = 1,
+	Deleted = 2
+}
+
+export enum FileType {
+	File = 0,
+	Dir = 1,
+	Symlink = 2
+}
+
+//#endregion
