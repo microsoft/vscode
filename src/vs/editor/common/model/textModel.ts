@@ -11,7 +11,7 @@ import { LanguageIdentifier, TokenizationRegistry, LanguageId } from 'vs/editor/
 import { EditStack } from 'vs/editor/common/model/editStack';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ModelRawContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelOptionsChangedEvent, IModelContentChangedEvent, InternalModelContentChangeEvent, ModelRawFlush, ModelRawEOLChanged } from 'vs/editor/common/model/textModelEvents';
+import { ModelRawContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelOptionsChangedEvent, IModelContentChangedEvent, InternalModelContentChangeEvent, ModelRawFlush, ModelRawEOLChanged, ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
@@ -1044,21 +1044,83 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
+	private static _eolCount(text: string): number {
+		let eolCount = 0;
+		for (let i = 0, len = text.length; i < len; i++) {
+			const chr = text.charCodeAt(i);
+
+			if (chr === CharCode.CarriageReturn) {
+				eolCount++;
+				if (i + 1 < len && text.charCodeAt(i + 1) === CharCode.LineFeed) {
+					// \r\n... case
+					i++; // skip \n
+				} else {
+					// \r... case
+				}
+			} else if (chr === CharCode.LineFeed) {
+				eolCount++;
+			}
+		}
+		return eolCount;
+	}
+
 	private _applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[]): model.IIdentifiedSingleEditOperation[] {
 		for (let i = 0, len = rawOperations.length; i < len; i++) {
 			rawOperations[i].range = this.validateRange(rawOperations[i].range);
 		}
+
+		const oldLineCount = this._buffer.getLineCount();
 		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace);
-		const rawContentChanges = result.rawChanges;
+		const newLineCount = this._buffer.getLineCount();
+
 		const contentChanges = result.changes;
 		this._trimAutoWhitespaceLines = result.trimAutoWhitespaceLineNumbers;
 
-		if (rawContentChanges.length !== 0 || contentChanges.length !== 0) {
+		if (contentChanges.length !== 0) {
+			let rawContentChanges: ModelRawChange[] = [];
+
+			let lineCount = oldLineCount;
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
-				const contentChange = contentChanges[i];
-				this._tokens.applyEdits(contentChange.range, contentChange.lines);
+				const change = contentChanges[i];
+				this._tokens.applyEdits(change.range, change.lines);
 				this._onDidChangeDecorations.fire();
-				this._decorationsTree.acceptReplace(contentChange.rangeOffset, contentChange.rangeLength, contentChange.text.length, contentChange.forceMoveMarkers);
+				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
+
+				const startLineNumber = change.range.startLineNumber;
+				const endLineNumber = change.range.endLineNumber;
+
+				const deletingLinesCnt = endLineNumber - startLineNumber;
+				const insertingLinesCnt = TextModel._eolCount(change.text);
+				const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
+
+				const changeLineCountDelta = (insertingLinesCnt - deletingLinesCnt);
+
+				for (let j = editingLinesCnt; j >= 0; j--) {
+					const editLineNumber = startLineNumber + j;
+					const currentEditLineNumber = newLineCount - lineCount - changeLineCountDelta + editLineNumber;
+					rawContentChanges.push(new ModelRawLineChanged(editLineNumber, this.getLineContent(currentEditLineNumber)));
+				}
+
+				if (editingLinesCnt < deletingLinesCnt) {
+					// Must delete some lines
+					const spliceStartLineNumber = startLineNumber + editingLinesCnt;
+					rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber));
+				}
+
+				if (editingLinesCnt < insertingLinesCnt) {
+					// Must insert some lines
+					const spliceLineNumber = startLineNumber + editingLinesCnt;
+					const cnt = insertingLinesCnt - editingLinesCnt;
+					const fromLineNumber = newLineCount - lineCount - cnt + spliceLineNumber + 1;
+					let newLines: string[] = [];
+					for (let i = 0; i < cnt; i++) {
+						let lineNumber = fromLineNumber + i;
+						newLines[lineNumber - fromLineNumber] = this.getLineContent(lineNumber);
+					}
+					rawContentChanges.push(new ModelRawLinesInserted(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLines));
+				}
+
+				lineCount += changeLineCountDelta;
 			}
 
 			this._increaseVersionId();
