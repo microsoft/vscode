@@ -6,7 +6,6 @@
 
 import * as nls from 'vs/nls';
 import * as env from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
