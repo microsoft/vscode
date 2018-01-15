@@ -73,6 +73,10 @@ interface IEditorReplacement extends EditorIdentifier {
 	options?: EditorOptions;
 }
 
+export type ICloseEditorsFilter = { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean };
+export type ICloseEditorsByFilterArgs = { positionOne?: ICloseEditorsFilter, positionTwo?: ICloseEditorsFilter, positionThree?: ICloseEditorsFilter };
+export type ICloseEditorsArgs = { positionOne?: EditorInput[], positionTwo?: EditorInput[], positionThree?: EditorInput[] };
+
 /**
  * The editor part is the container for editors in the workbench. Based on the editor input being opened, it asks the registered
  * editor for the given input to show the contents. The editor part supports up to 3 side-by-side editors.
@@ -710,16 +714,53 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.doCloseActiveEditor(group);
 	}
 
-	public closeEditors(position: Position, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void>;
+	public closeEditors(position: Position, filter?: ICloseEditorsFilter): TPromise<void>;
 	public closeEditors(position: Position, editors: EditorInput[]): TPromise<void>;
-	public closeEditors(position: Position, filterOrEditors?: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean } | EditorInput[]): TPromise<void> {
+	public closeEditors(editors: ICloseEditorsByFilterArgs): TPromise<void>;
+	public closeEditors(editors: ICloseEditorsArgs): TPromise<void>;
+	public closeEditors(positionOrEditors: Position | ICloseEditorsByFilterArgs | ICloseEditorsArgs, filterOrEditors?: ICloseEditorsFilter | EditorInput[]): TPromise<void> {
+
+		// First check for specific position passed in
+		if (typeof positionOrEditors === 'number') {
+			return this.doCloseEditorsAtPosition(positionOrEditors, filterOrEditors).then(veto => void 0);
+		}
+
+		// Otherwise close by positions starting from last to first
+		// to prevent issues when editor groups close and thus move
+		// other editors around that are still open.
+		let positionThreeClose = TPromise.as(false);
+		if (positionOrEditors.positionThree) {
+			positionThreeClose = this.doCloseEditorsAtPosition(Position.THREE, positionOrEditors.positionThree);
+		}
+
+		return positionThreeClose.then(veto => {
+			if (veto) {
+				return void 0; // return earlier when a veto is triggered by the user
+			}
+
+			let positionTwoClose = TPromise.as(false);
+			if (positionOrEditors.positionTwo) {
+				positionTwoClose = this.doCloseEditorsAtPosition(Position.TWO, positionOrEditors.positionTwo);
+			}
+
+			return positionTwoClose.then(veto => {
+				if (veto || !positionOrEditors.positionOne) {
+					return void 0; // return earlier when a veto is triggered by the user
+				}
+
+				return this.doCloseEditorsAtPosition(Position.ONE, positionOrEditors.positionOne).then(veto => void 0);
+			});
+		});
+	}
+
+	private doCloseEditorsAtPosition(position: Position, filterOrEditors?: ICloseEditorsFilter | EditorInput[]): TPromise<boolean /* veto */> {
 		const group = this.stacks.groupAt(position);
 		if (!group) {
-			return TPromise.wrap<void>(null);
+			return TPromise.wrap(false);
 		}
 
 		let editorsToClose: EditorInput[];
-		let filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean };
+		let filter: ICloseEditorsFilter;
 		if (Array.isArray(filterOrEditors)) {
 			editorsToClose = filterOrEditors;
 			filter = Object.create(null);
@@ -746,16 +787,20 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Check for dirty and veto
 		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; }), true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
-				return;
+				return true;
 			}
 
 			// Close without filter
 			if (Array.isArray(filterOrEditors)) {
-				return this.doCloseEditors(group, editorsToClose);
+				this.doCloseEditors(group, editorsToClose);
 			}
 
 			// Close with filter
-			return this.doCloseEditorsWithFilter(group, filter);
+			else {
+				this.doCloseEditorsWithFilter(group, filter);
+			}
+
+			return false;
 		});
 	}
 

@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import { Position, Direction, IEditor, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IEditor, IEditorInput } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
@@ -18,6 +18,7 @@ import { DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart }
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { ICloseEditorsFilter } from 'vs/workbench/browser/parts/editor/editorPart';
 
 let activeEditor: BaseEditor = {
 	getSelection: function () {
@@ -51,9 +52,11 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as([]);
 	}
 
-	public closeEditors(position: Position, filter?: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void>;
+	public closeEditors(position: Position, filter?: ICloseEditorsFilter): TPromise<void>;
 	public closeEditors(position: Position, editors?: EditorInput[]): TPromise<void>;
-	public closeEditors(position: Position, filterOrEditors: any): TPromise<void> {
+	public closeEditors(editors: { positionOne?: ICloseEditorsFilter, positionTwo?: ICloseEditorsFilter, positionThree?: ICloseEditorsFilter }): TPromise<void>;
+	public closeEditors(editors: { positionOne?: EditorInput[], positionTwo?: EditorInput[], positionThree?: EditorInput[] }): TPromise<void>;
+	public closeEditors(positionOrEditors: any, filterOrEditors?: any): TPromise<void> {
 		return TPromise.as(null);
 	}
 
