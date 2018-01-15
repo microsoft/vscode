@@ -241,7 +241,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		title: nls.localize('compareWithSaved', "Compare with Saved"),
 		precondition: DirtyEditorContext
 	},
-	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveContext.notEqualsTo('afterDelay'))
+	when: ContextKeyExpr.and(ResourceContextKey.IsFile, AutoSaveContext.notEqualsTo('afterDelay'), WorkbenchListDoubleSelection.toNegated())
 });
 
 const compareResourceCommand = {
@@ -252,7 +252,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 20,
 	command: compareResourceCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.HasResource, ResourceSelectedForCompareContext)
+	when: ContextKeyExpr.and(ResourceContextKey.IsFile, ResourceSelectedForCompareContext, WorkbenchListDoubleSelection.toNegated())
 });
 
 const selectForCompareCommand = {
@@ -263,7 +263,18 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 30,
 	command: selectForCompareCommand,
-	when: ResourceContextKey.HasResource
+	when: ContextKeyExpr.and(ResourceContextKey.IsFile, WorkbenchListDoubleSelection.toNegated())
+});
+
+const compareSelectedCommand = {
+	id: COMPARE_SELECTED_COMMAND_ID,
+	title: nls.localize('compareSelected', "Compare Selected")
+};
+MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+	group: '3_compare',
+	order: 30,
+	command: compareSelectedCommand,
+	when: ContextKeyExpr.and(ResourceContextKey.IsFile, WorkbenchListDoubleSelection)
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -357,10 +368,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '3_compare',
 	order: 30,
-	command: {
-		id: COMPARE_SELECTED_COMMAND_ID,
-		title: nls.localize('compareSelected', "Compare Selected")
-	},
+	command: compareSelectedCommand,
 	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.IsFile, WorkbenchListDoubleSelection)
 });
 
