@@ -122,8 +122,7 @@ export class PreferencesEditor extends BaseEditor {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
