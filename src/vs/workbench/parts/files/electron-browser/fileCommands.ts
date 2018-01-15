@@ -244,10 +244,10 @@ CommandsRegistry.registerCommand({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const textFileService = accessor.get(ITextFileService);
 		const messageService = accessor.get(IMessageService);
-		resource = getResourceForCommand(resource, accessor.get(IListService), editorService);
+		const resources = getResourcesForCommand(resource, accessor.get(IListService), editorService);
 
 		if (resource && resource.scheme !== 'untitled') {
-			return textFileService.revert(resource, { force: true }).then(null, error => {
+			return textFileService.revertAll(resources, { force: true }).then(null, error => {
 				messageService.show(Severity.Error, nls.localize('genericRevertError', "Failed to revert '{0}': {1}", basename(resource.fsPath), toErrorMessage(error, false)));
 			});
 		}
@@ -473,8 +473,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: SAVE_FILE_COMMAND_ID,
 	handler: (accessor, resource: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
-		resource = getResourceForCommand(resource, accessor.get(IListService), editorService);
-		return save(resource, false, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+		const resources = getResourcesForCommand(resource, accessor.get(IListService), editorService);
+		return TPromise.join(resources.map(r =>
+			save(r, false, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService))));
 	}
 });
 
