@@ -687,12 +687,19 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.textCompareEditorVisible.set(this.visibleEditors.some(e => e && e.isVisible() && e.getId() === TEXT_DIFF_EDITOR_ID));
 	}
 
-	public closeAllEditors(except?: Position): TPromise<void> {
+	public closeAllEditors(except?: Position): TPromise<void>;
+	public closeAllEditors(positions?: Position[]): TPromise<void>;
+	public closeAllEditors(exceptOrPositions?: Position | Position[]): TPromise<void> {
 		let groups = this.stacks.groups.reverse(); // start from the end to prevent layout to happen through rochade
 
 		// Remove position to exclude if we have any
-		if (typeof except === 'number') {
-			groups = groups.filter(group => this.stacks.positionOfGroup(group) !== except);
+		if (typeof exceptOrPositions === 'number') {
+			groups = groups.filter(group => this.stacks.positionOfGroup(group) !== exceptOrPositions);
+		}
+
+		// Remove positions that are not being asked for
+		else if (Array.isArray(exceptOrPositions)) {
+			groups = groups.filter(group => exceptOrPositions.indexOf(this.stacks.positionOfGroup(group)) >= 0);
 		}
 
 		// Check for dirty and veto
