@@ -66,6 +66,10 @@ export class BufferPiece {
 		return -1;
 	}
 
+	public static normalizeEOL(target: BufferPiece, eol: '\r\n' | '\n'): BufferPiece {
+		return new BufferPiece(target._str.replace(/\r\n|\r|\n/g, eol));
+	}
+
 	public static deleteLastChar(target: BufferPiece): BufferPiece {
 		const targetCharsLength = target.length();
 		const targetLineStartsLength = target.newLineCount();

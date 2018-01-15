@@ -41,11 +41,15 @@ export class TextBufferFactory implements ITextBufferFactory {
 	}
 
 	public create(defaultEOL: DefaultEndOfLine): ITextBuffer {
+		const eol = this._getEOL(defaultEOL);
+		let pieces = this._pieces;
 		if (this._totalCRCount > 0 && this._totalCRCount !== this._totalEOLCount) {
-			// TODO
-			console.warn(`mixed line endings not handled correctly at this time!`);
+			// Normalize pieces
+			for (let i = 0, len = pieces.length; i < len; i++) {
+				pieces[i] = BufferPiece.normalizeEOL(pieces[i], eol);
+			}
 		}
-		return new ChunksTextBuffer(this._pieces, this._averageChunkSize, this._getEOL(defaultEOL), this._containsRTL, this._isBasicASCII);
+		return new ChunksTextBuffer(pieces, this._averageChunkSize, eol, this._containsRTL, this._isBasicASCII);
 	}
 
 	public getFirstLineText(lengthLimit: number): string {
@@ -77,16 +81,6 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 		this.containsRTL = false;
 		this.isBasicASCII = true;
 	}
-
-	// private _updateCRCount(chunk: string): void {
-	// 	// Count how many \r are present in chunk to determine the majority EOL sequence
-	// 	let chunkCarriageReturnCnt = 0;
-	// 	let lastCarriageReturnIndex = -1;
-	// 	while ((lastCarriageReturnIndex = chunk.indexOf('\r', lastCarriageReturnIndex + 1)) !== -1) {
-	// 		chunkCarriageReturnCnt++;
-	// 	}
-	// 	this.totalCRCount += chunkCarriageReturnCnt;
-	// }
 
 	public acceptChunk(chunk: string): void {
 		if (chunk.length === 0) {
