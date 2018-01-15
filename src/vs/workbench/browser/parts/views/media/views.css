@@ -53,23 +53,24 @@
 	display: none;
 }
 
-.custom-view-tree-node-item {
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item {
 	display: flex;
 	height: 22px;
 	line-height: 22px;
-}
-
-.custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel {
 	flex: 1;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	flex-wrap: nowrap
 }
 
-.custom-view-tree-node-item > .custom-view-tree-node-item-label {
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel,
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-label {
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
-.custom-view-tree-node-item > .custom-view-tree-node-item-icon {
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
 	background-size: 16px;
 	background-position: left center;
 	background-repeat: no-repeat;
@@ -77,4 +78,21 @@
 	width: 16px;
 	height: 22px;
 	-webkit-font-smoothing: antialiased;
+}
+
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .actions {
+	display: none;
+}
+
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row:hover .custom-view-tree-node-item > .actions,
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.selected .custom-view-tree-node-item > .actions,
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.focused .custom-view-tree-node-item > .actions {
+	display: block;
+}
+
+.tree-explorer-viewlet-tree-view .monaco-tree .custom-view-tree-node-item > .actions .action-label {
+	width: 16px;
+	height: 100%;
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
 }
