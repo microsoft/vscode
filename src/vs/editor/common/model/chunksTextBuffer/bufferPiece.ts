@@ -222,29 +222,33 @@ export function createUint32Array(arr: number[]): Uint32Array {
 export class LineStarts {
 	constructor(
 		public readonly lineStarts: number[],
-		public readonly carriageReturnCnt: number
+		public readonly cr: number,
+		public readonly lf: number,
+		public readonly crlf: number
 	) { }
 }
 
 export function createLineStarts(str: string): LineStarts {
 	let r: number[] = [], rLength = 0;
-	let carriageReturnCnt = 0;
+	let cr = 0, lf = 0, crlf = 0;
 	for (let i = 0, len = str.length; i < len; i++) {
 		const chr = str.charCodeAt(i);
 
 		if (chr === CharCode.CarriageReturn) {
-			carriageReturnCnt++;
 			if (i + 1 < len && str.charCodeAt(i + 1) === CharCode.LineFeed) {
 				// \r\n... case
+				crlf++;
 				r[rLength++] = i + 2;
 				i++; // skip \n
 			} else {
+				cr++;
 				// \r... case
 				r[rLength++] = i + 1;
 			}
 		} else if (chr === CharCode.LineFeed) {
+			lf++;
 			r[rLength++] = i + 1;
 		}
 	}
-	return new LineStarts(r, carriageReturnCnt);
+	return new LineStarts(r, cr, lf, crlf);
 }

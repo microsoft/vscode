@@ -15,8 +15,9 @@ export class TextBufferFactory implements ITextBufferFactory {
 	constructor(
 		private readonly _pieces: BufferPiece[],
 		private readonly _averageChunkSize: number,
-		private readonly _totalCRCount: number,
-		private readonly _totalEOLCount: number,
+		private readonly _cr: number,
+		private readonly _lf: number,
+		private readonly _crlf: number,
 		private readonly _containsRTL: boolean,
 		private readonly _isBasicASCII: boolean,
 	) {
@@ -28,11 +29,13 @@ export class TextBufferFactory implements ITextBufferFactory {
 	 * Otherwise returns '\n'. More lines end with '\n'.
 	 */
 	private _getEOL(defaultEOL: DefaultEndOfLine): '\r\n' | '\n' {
-		if (this._totalEOLCount === 0) {
+		const totalEOLCount = this._cr + this._lf + this._crlf;
+		const totalCRCount = this._cr + this._crlf;
+		if (totalEOLCount === 0) {
 			// This is an empty file or a file with precisely one line
 			return (defaultEOL === DefaultEndOfLine.LF ? '\n' : '\r\n');
 		}
-		if (this._totalCRCount > this._totalEOLCount / 2) {
+		if (totalCRCount > totalEOLCount / 2) {
 			// More than half of the file contains \r\n ending lines
 			return '\r\n';
 		}
@@ -43,7 +46,11 @@ export class TextBufferFactory implements ITextBufferFactory {
 	public create(defaultEOL: DefaultEndOfLine): ITextBuffer {
 		const eol = this._getEOL(defaultEOL);
 		let pieces = this._pieces;
-		if (this._totalCRCount > 0 && this._totalCRCount !== this._totalEOLCount) {
+
+		if (
+			(eol === '\r\n' && (this._cr > 0 || this._lf > 0))
+			|| (eol === '\n' && (this._cr > 0 || this._crlf > 0))
+		) {
 			// Normalize pieces
 			for (let i = 0, len = pieces.length; i < len; i++) {
 				pieces[i] = BufferPiece.normalizeEOL(pieces[i], eol);
@@ -65,8 +72,9 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 	private _previousChar: number;
 	private _averageChunkSize: number;
 
-	private totalCRCount: number;
-	private totalEOLCount: number;
+	private cr: number;
+	private lf: number;
+	private crlf: number;
 	private containsRTL: boolean;
 	private isBasicASCII: boolean;
 
@@ -76,8 +84,9 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 		this._previousChar = 0;
 		this._averageChunkSize = 0;
 
-		this.totalCRCount = 0;
-		this.totalEOLCount = 0;
+		this.cr = 0;
+		this.lf = 0;
+		this.crlf = 0;
 		this.containsRTL = false;
 		this.isBasicASCII = true;
 	}
@@ -126,14 +135,14 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 		const lineStarts = createLineStarts(chunk);
 
 		this._rawPieces.push(new BufferPiece(chunk, createUint32Array(lineStarts.lineStarts)));
-		this.totalCRCount += lineStarts.carriageReturnCnt;
-		this.totalEOLCount += lineStarts.lineStarts.length;
+		this.cr += lineStarts.cr;
+		this.lf += lineStarts.lf;
+		this.crlf += lineStarts.crlf;
 	}
 
 	public finish(): TextBufferFactory {
 		this._finish();
-		console.log(`${this.totalCRCount}, ${this.totalEOLCount}`);
-		return new TextBufferFactory(this._rawPieces, this._averageChunkSize, this.totalCRCount, this.totalEOLCount, this.containsRTL, this.isBasicASCII);
+		return new TextBufferFactory(this._rawPieces, this._averageChunkSize, this.cr, this.lf, this.crlf, this.containsRTL, this.isBasicASCII);
 	}
 
 	private _finish(): void {
@@ -152,8 +161,7 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 			const newLastPiece = BufferPiece.join(lastPiece, tmp);
 			this._rawPieces[this._rawPieces.length - 1] = newLastPiece;
 			if (this._previousChar === CharCode.CarriageReturn) {
-				this.totalCRCount++;
-				this.totalEOLCount++;
+				this.cr++;
 			}
 		}
 	}
