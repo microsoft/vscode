@@ -52,6 +52,7 @@ import URI from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { getMachineId } from 'vs/base/node/id';
+import { join } from 'path';
 
 export class CodeApplication {
 
@@ -421,6 +422,38 @@ export class CodeApplication {
 
 		// Start shared process here
 		this.sharedProcess.spawn();
+
+		// sqlite
+		let now = Date.now();
+		var sqlite3: any = require.__$__nodeRequire('sqlite3');
+		console.log('require: ' + (Date.now() - now));
+
+		now = Date.now();
+
+		var db = new sqlite3.Database(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage'), sqlite3.OPEN_READONLY, function (error, success) {
+			console.log('db load: ' + (Date.now() - now));
+
+			if (error) {
+				console.error(error);
+				return;
+			} else {
+				console.log('success');
+			}
+
+			db.each('SELECT key, value FROM ItemTable', function (err, row) {
+				if (error) {
+					console.error(error);
+					return;
+				}
+
+				if (row.key.indexOf('/workspaceidentifier') >= 0) {
+					console.log(row.key + ': ' + row.value);
+				}
+			});
+
+
+			db.close();
+		});
 	}
 
 	private dispose(): void {

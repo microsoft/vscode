@@ -3738,7 +3738,7 @@ nan@^2.1.0:
   version "2.7.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.7.0.tgz#d95bf721ec877e08db276ed3fc6eb78f9083ad46"
 
-nan@^2.8.0:
+nan@^2.8.0, nan@~2.8.0:
   version "2.8.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.8.0.tgz#ed715f3fe9de02b57a5e6252d90a96675e1f085a"
 
@@ -5077,6 +5077,12 @@ split@0.3:
 sprintf-js@~1.0.2:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/sprintf-js/-/sprintf-js-1.0.3.tgz#04e6926f662895354f3dd015203633b857297e2c"
+
+sqlite3@bpasero/node-sqlite3#vscode:
+  version "3.1.13"
+  resolved "https://codeload.github.com/bpasero/node-sqlite3/tar.gz/69c9ff513fd33e074f6255b4fd817f7fd172ed7c"
+  dependencies:
+    nan "~2.8.0"
 
 sshpk@^1.7.0:
   version "1.13.1"
