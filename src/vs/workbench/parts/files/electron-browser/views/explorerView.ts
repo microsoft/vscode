@@ -603,7 +603,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			const added = e.getAdded();
 
 			// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
-			const ignoredPaths: { [fsPath: string]: boolean } = <{ [fsPath: string]: boolean }>{};
+			const ignoredPaths: { [resource: string]: boolean } = <{ [resource: string]: boolean }>{};
 			for (let i = 0; i < added.length; i++) {
 				const change = added[i];
 				if (!this.contextService.isInsideWorkspace(change.resource)) {
@@ -611,22 +611,22 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				}
 
 				// Find parent
-				const parent = paths.dirname(change.resource.fsPath);
+				const parent = resources.dirname(change.resource);
 
 				// Continue if parent was already determined as to be ignored
-				if (ignoredPaths[parent]) {
+				if (ignoredPaths[parent.toString()]) {
 					continue;
 				}
 
 				// Compute if parent is visible and added file not yet part of it
-				const parentStat = this.model.findClosest(URI.file(parent));
+				const parentStat = this.model.findClosest(parent);
 				if (parentStat && parentStat.isDirectoryResolved && !this.model.findClosest(change.resource)) {
 					return true;
 				}
 
 				// Keep track of path that can be ignored for faster lookup
 				if (!parentStat || !parentStat.isDirectoryResolved) {
-					ignoredPaths[parent] = true;
+					ignoredPaths[parent.toString()] = true;
 				}
 			}
 		}
