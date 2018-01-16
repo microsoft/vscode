@@ -39,7 +39,10 @@ export class ChunksTextBuffer implements ITextBuffer {
 	}
 
 	equals(other: ITextBuffer): boolean {
-		throw new Error('TODO');
+		if (!(other instanceof ChunksTextBuffer)) {
+			return false;
+		}
+		return this._actual.equals(other._actual);
 	}
 	mightContainRTL(): boolean {
 		return this._mightContainRTL;
@@ -585,6 +588,56 @@ class Buffer {
 		this._leafsEnd = 0;
 
 		this._rebuildNodes();
+	}
+
+	equals(other: Buffer): boolean {
+		return Buffer.equals(this, other);
+	}
+
+	private static equals(a: Buffer, b: Buffer): boolean {
+		const aLength = a.getLength();
+		const bLength = b.getLength();
+		if (aLength !== bLength) {
+			return false;
+		}
+		if (a.getLineCount() !== b.getLineCount()) {
+			return false;
+		}
+
+		let remaining = aLength;
+		let aLeafIndex = 0, aLeaf = a._leafs[aLeafIndex], aLeafLength = aLeaf.length(), aLeafRemaining = aLeafLength;
+		let bLeafIndex = 0, bLeaf = b._leafs[bLeafIndex], bLeafLength = bLeaf.length(), bLeafRemaining = bLeafLength;
+
+		while (remaining > 0) {
+			let consuming = Math.min(aLeafRemaining, bLeafRemaining);
+
+			let aStr = aLeaf.substr(aLeafLength - aLeafRemaining, consuming);
+			let bStr = bLeaf.substr(bLeafLength - bLeafRemaining, consuming);
+
+			if (aStr !== bStr) {
+				return false;
+			}
+
+			remaining -= consuming;
+			aLeafRemaining -= consuming;
+			bLeafRemaining -= consuming;
+
+			if (aLeafRemaining === 0) {
+				aLeafIndex++;
+				aLeaf = a._leafs[aLeafIndex];
+				aLeafLength = aLeaf.length();
+				aLeafRemaining = aLeafLength;
+			}
+
+			if (bLeafRemaining === 0) {
+				bLeafIndex++;
+				bLeaf = b._leafs[bLeafIndex];
+				bLeafLength = bLeaf.length();
+				bLeafRemaining = bLeafLength;
+			}
+		}
+
+		return true;
 	}
 
 	public getEOL(): string {
