@@ -22,7 +22,7 @@ import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/gro
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, NAVIGATE_IN_GROUP_ONE_PREFIX, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX, NAVIGATE_IN_GROUP_TWO_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_IN_GROUP_ONE_PREFIX, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX, NAVIGATE_IN_GROUP_TWO_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export class SplitEditorAction extends Action {
 
@@ -644,24 +644,6 @@ export class CloseAllEditorsAction extends Action {
 	}
 }
 
-export class CloseUnmodifiedEditorsInGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeUnmodifiedEditors';
-	public static readonly LABEL = nls.localize('closeUnmodifiedEditors', "Close Unmodified Editors in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		return this.commandService.executeCommand(CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, void 0, context);
-	}
-}
-
 export class CloseEditorsInOtherGroupsAction extends Action {
 
 	public static readonly ID = 'workbench.action.closeEditorsInOtherGroups';
@@ -690,24 +672,6 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 		}
 
 		return TPromise.as(false);
-	}
-}
-
-export class CloseEditorsInGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeEditorsInGroup';
-	public static readonly LABEL = nls.localize('closeEditorsInGroup', "Close All Editors in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		return this.commandService.executeCommand(CLOSE_EDITORS_IN_GROUP_COMMAND_ID, void 0, context);
 	}
 }
 

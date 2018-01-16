@@ -21,7 +21,7 @@ import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration 
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { CloseAllEditorsAction, CloseUnmodifiedEditorsInGroupAction, CloseEditorsInGroupAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseAllEditorsAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
@@ -453,15 +453,9 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 		editorGroupTemplate.name = dom.append(editorGroupTemplate.root, $('span.name'));
 		editorGroupTemplate.actionBar = new ActionBar(container);
 
-		const editorGroupActions = [
-			this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, SaveAllInGroupAction.LABEL),
-			this.instantiationService.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, CloseUnmodifiedEditorsInGroupAction.LABEL),
-			this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, CloseEditorsInGroupAction.LABEL)
-		];
-		editorGroupActions.forEach(a => {
-			const key = this.keybindingService.lookupKeybinding(a.id);
-			editorGroupTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? key.getLabel() : void 0 });
-		});
+		const saveAllInGroupAction = this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, SaveAllInGroupAction.LABEL);
+		const key = this.keybindingService.lookupKeybinding(saveAllInGroupAction.id);
+		editorGroupTemplate.actionBar.push(saveAllInGroupAction, { icon: true, label: false, keybinding: key ? key.getLabel() : void 0 });
 
 		editorGroupTemplate.toDispose = [];
 		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, (e: DragEvent) => {
