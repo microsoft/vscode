@@ -21,6 +21,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
+import { distinct } from 'vs/base/common/arrays';
 
 export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -264,14 +265,11 @@ function registerEditorCommands() {
 		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
+			const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
+			const positions = contexts.map(context => positionAndInput(editorGroupService, editorService, context).position);
 
-			const { position } = positionAndInput(editorGroupService, editorService, editorContext);
-
-			if (typeof position === 'number') {
-				return editorService.closeEditors(position, { unmodifiedOnly: true });
-			}
-
-			return TPromise.as(false);
+			return TPromise.join(distinct(positions.filter(p => typeof p === 'number'))
+				.map(position => editorService.closeEditors(position, { unmodifiedOnly: true })));
 		}
 	});
 
