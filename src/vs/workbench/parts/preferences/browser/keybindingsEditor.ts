@@ -246,6 +246,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	copyKeybindingCommand(keybinding: IKeybindingItemEntry): TPromise<any> {
+		this.selectEntry(keybinding);
+		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
 		this.clipboardService.writeText(keybinding.keybindingItem.command);
 		return TPromise.as(null);
 	}

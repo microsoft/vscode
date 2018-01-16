@@ -149,6 +149,7 @@ export interface IKeybindingsEditor extends IEditor {
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	copyKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 }
 
