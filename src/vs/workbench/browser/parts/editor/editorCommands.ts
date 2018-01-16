@@ -303,31 +303,36 @@ function registerEditorCommands() {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 
-			const position = editorContext ? editorGroupService.getStacksModel().positionOfGroup(editorContext.group) : null;
+			const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
+			const groups = distinct(contexts.map(context => context.group));
 
-			// Close Active Editor
-			if (typeof position !== 'number') {
-				const activeEditor = editorService.getActiveEditor();
-				if (activeEditor) {
-					return editorService.closeEditor(activeEditor.position, activeEditor.input);
-				}
-			}
+			const editorsToClose = new Map<Position, IEditorInput[]>();
+			groups.forEach(group => {
+				const position = editorGroupService.getStacksModel().positionOfGroup(group);
+				editorsToClose.set(position, contexts.map(c => {
+					if (group === c.group) {
+						let input = c ? c.editor : undefined;
+						if (!input) {
 
-			let input = editorContext ? editorContext.editor : null;
-			if (!input) {
+							// Get Top Editor at Position
+							const visibleEditors = editorService.getVisibleEditors();
+							if (visibleEditors[position]) {
+								input = visibleEditors[position].input;
+							}
+						}
 
-				// Get Top Editor at Position
-				const visibleEditors = editorService.getVisibleEditors();
-				if (visibleEditors[position]) {
-					input = visibleEditors[position].input;
-				}
-			}
+						return input;
+					}
 
-			if (input) {
-				return editorService.closeEditor(position, input);
-			}
+					return undefined;
+				}).filter(input => !!input));
+			});
 
-			return TPromise.as(false);
+			return editorService.closeEditors({
+				positionOne: editorsToClose.get(Position.ONE),
+				positionTwo: editorsToClose.get(Position.TWO),
+				positionThree: editorsToClose.get(Position.THREE)
+			});
 		}
 	});
 
@@ -340,14 +345,28 @@ function registerEditorCommands() {
 		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
+			const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
+			const groups = distinct(contexts.map(context => context.group));
+			const editorsToClose = new Map<Position, IEditorInput[]>();
 
-			const { position, input } = positionAndInput(editorGroupService, editorService, editorContext);
+			groups.forEach(group => {
+				const inputsToSkip = contexts.map(c => {
+					if (!!c.editor && c.group === group) {
+						return c.editor;
+					}
 
-			if (typeof position === 'number' && input) {
-				return editorService.closeEditors(position, { except: input });
-			}
+					return undefined;
+				}).filter(input => !!input);
 
-			return TPromise.as(false);
+				const toClose = group.getEditors().filter(input => inputsToSkip.indexOf(input) === -1);
+				editorsToClose.set(editorGroupService.getStacksModel().positionOfGroup(group), toClose);
+			});
+
+			return editorService.closeEditors({
+				positionOne: editorsToClose.get(Position.ONE),
+				positionTwo: editorsToClose.get(Position.TWO),
+				positionThree: editorsToClose.get(Position.THREE)
+			});
 		}
 	});
 
