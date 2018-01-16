@@ -307,6 +307,14 @@ function registerEditorCommands() {
 			const groups = distinct(contexts.map(context => context.group));
 
 			const editorsToClose = new Map<Position, IEditorInput[]>();
+
+			if (groups.length === 0) {
+				const activeEditor = editorService.getActiveEditor();
+				if (activeEditor) {
+					return editorService.closeEditor(activeEditor.position, activeEditor.input);
+				}
+			}
+
 			groups.forEach(group => {
 				const position = editorGroupService.getStacksModel().positionOfGroup(group);
 				editorsToClose.set(position, contexts.map(c => {
