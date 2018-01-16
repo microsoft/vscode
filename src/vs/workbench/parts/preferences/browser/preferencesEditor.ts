@@ -418,7 +418,7 @@ class PreferencesRenderersController extends Disposable {
 			this._defaultPreferencesRendererDisposables = dispose(this._defaultPreferencesRendererDisposables);
 
 			if (this._defaultPreferencesRenderer) {
-				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source, index }) => this._updatePreference(key, value, source, index, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
+				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source }) => this._updatePreference(key, value, source, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 				this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 				this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 			}
@@ -548,9 +548,9 @@ class PreferencesRenderersController extends Disposable {
 		}
 	}
 
-	private _updatePreference(key: string, value: any, source: ISetting, index: number, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
+	private _updatePreference(key: string, value: any, source: ISetting, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
 		if (preferencesRenderer) {
-			preferencesRenderer.updatePreference(key, value, source, index);
+			preferencesRenderer.updatePreference(key, value, source);
 		}
 	}
 

@@ -40,10 +40,10 @@ export interface IPreferencesRenderer<T> extends IDisposable {
 
 	onFocusPreference: Event<T>;
 	onClearFocusPreference: Event<T>;
-	onUpdatePreference?: Event<{ key: string, value: any, source: T, index: number }>;
+	onUpdatePreference?: Event<{ key: string, value: any, source: T }>;
 
 	render(): void;
-	updatePreference(key: string, value: any, source: T, index: number): void;
+	updatePreference(key: string, value: any, source: T): void;
 	focusPreference(setting: T): void;
 	clearFocus(setting: T): void;
 	filterPreferences(filterResult: IFilterResult): void;
@@ -75,7 +75,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.highlightMatchesRenderer = this._register(instantiationService.createInstance(HighlightMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, this.settingHighlighter));
-		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source, index }) => this.updatePreference(key, value, source, index, true)));
+		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source }) => this.updatePreference(key, value, source, true)));
 		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 
 		this.createHeader();
@@ -101,7 +101,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		}
 	}
 
-	public updatePreference(key: string, value: any, source: ISetting, index: number, fromEditableSettings?: boolean): void {
+	public updatePreference(key: string, value: any, source: IIndexedSetting, fromEditableSettings?: boolean): void {
 		const data = {
 			userConfigurationKeys: [key]
 		};
@@ -110,7 +110,8 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 			data['query'] = this.filterResult.query;
 			data['fuzzy'] = !!this.filterResult.metadata;
 			data['duration'] = this.filterResult.metadata && this.filterResult.metadata.duration;
-			data['index'] = index;
+			data['index'] = source.index;
+			data['groupId'] = source.groupId;
 			data['editableSide'] = !!fromEditableSettings;
 		}
 
@@ -249,8 +250,8 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private bracesHidingRenderer: BracesHidingRenderer;
 	private filterResult: IFilterResult;
 
-	private _onUpdatePreference: Emitter<{ key: string, value: any, source: ISetting, index: number }> = new Emitter<{ key: string, value: any, source: ISetting, index: number }>();
-	public readonly onUpdatePreference: Event<{ key: string, value: any, source: ISetting, index: number }> = this._onUpdatePreference.event;
+	private _onUpdatePreference: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
+	public readonly onUpdatePreference: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdatePreference.event;
 
 	private _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
@@ -828,8 +829,9 @@ export class HighlightMatchesRenderer extends Disposable {
 	}
 }
 
-interface IIndexedSetting extends ISetting {
+export interface IIndexedSetting extends ISetting {
 	index: number;
+	groupId: string;
 }
 
 class EditSettingRenderer extends Disposable {
@@ -841,8 +843,8 @@ class EditSettingRenderer extends Disposable {
 	public associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
-	private _onUpdateSetting: Emitter<{ key: string, value: any, source: ISetting, index: number }> = new Emitter<{ key: string, value: any, source: ISetting, index: number }>();
-	public readonly onUpdateSetting: Event<{ key: string, value: any, source: ISetting, index: number }> = this._onUpdateSetting.event;
+	private _onUpdateSetting: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
+	public readonly onUpdateSetting: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdateSetting.event;
 
 	constructor(private editor: ICodeEditor, private masterSettingsModel: ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
@@ -978,7 +980,7 @@ class EditSettingRenderer extends Disposable {
 		// index of setting, across all groups/sections
 		let index = 0;
 
-		const settings = [];
+		const settings: IIndexedSetting[] = [];
 		for (const group of this.settingsGroups) {
 			if (group.range.startLineNumber > lineNumber) {
 				break;
@@ -994,11 +996,11 @@ class EditSettingRenderer extends Disposable {
 								// Only one level because override settings cannot have override settings
 								for (const overrideSetting of setting.overrides) {
 									if (lineNumber >= overrideSetting.range.startLineNumber && lineNumber <= overrideSetting.range.endLineNumber) {
-										settings.push({ ...overrideSetting, index });
+										settings.push({ ...overrideSetting, index, groupId: group.id });
 									}
 								}
 							} else {
-								settings.push({ ...setting, index });
+								settings.push({ ...setting, index, groupId: group.id });
 							}
 						}
 
@@ -1069,7 +1071,7 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private updateSetting(key: string, value: any, source: IIndexedSetting): void {
-		this._onUpdateSetting.fire({ key, value, source, index: source.index });
+		this._onUpdateSetting.fire({ key, value, source });
 	}
 }
 
