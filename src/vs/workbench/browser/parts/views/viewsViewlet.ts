@@ -17,7 +17,7 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
+import { ViewsRegistry, ViewLocation, IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -259,7 +259,7 @@ export interface IViewState {
 	order: number;
 }
 
-export class ViewsViewlet extends PanelViewlet {
+export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 
 	private viewHeaderContextMenuListeners: IDisposable[] = [];
 	private viewletSettings: object;
@@ -322,6 +322,15 @@ export class ViewsViewlet extends PanelViewlet {
 			.then(() => TPromise.join(this.viewsViewletPanels.filter(view => view.isVisible() !== visible)
 				.map((view) => view.setVisible(visible))))
 			.then(() => void 0);
+	}
+
+	focusView(id: string): void {
+		this.focus();
+		const view = this.getView(id);
+		if (view) {
+			view.setExpanded(true);
+			view.focus();
+		}
 	}
 
 	layout(dimension: Dimension): void {
