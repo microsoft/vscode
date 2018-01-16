@@ -335,6 +335,12 @@ class SuggestionDetails {
 	}
 }
 
+export interface ISelectedSuggestion {
+	item: ICompletionItem;
+	index: number;
+	model: CompletionModel;
+}
+
 export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>, IDisposable {
 
 	private static ID: string = 'editor.widget.suggestWidget';
@@ -368,14 +374,14 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private showTimeout: TPromise<void>;
 	private toDispose: IDisposable[];
 
-	private onDidSelectEmitter = new Emitter<ICompletionItem>();
-	private onDidFocusEmitter = new Emitter<ICompletionItem>();
+	private onDidSelectEmitter = new Emitter<ISelectedSuggestion>();
+	private onDidFocusEmitter = new Emitter<ISelectedSuggestion>();
 	private onDidHideEmitter = new Emitter<this>();
 	private onDidShowEmitter = new Emitter<this>();
 
 
-	readonly onDidSelect: Event<ICompletionItem> = this.onDidSelectEmitter.event;
-	readonly onDidFocus: Event<ICompletionItem> = this.onDidFocusEmitter.event;
+	readonly onDidSelect: Event<ISelectedSuggestion> = this.onDidSelectEmitter.event;
+	readonly onDidFocus: Event<ISelectedSuggestion> = this.onDidFocusEmitter.event;
 	readonly onDidHide: Event<this> = this.onDidHideEmitter.event;
 	readonly onDidShow: Event<this> = this.onDidShowEmitter.event;
 
@@ -499,8 +505,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 
 		const item = e.elements[0];
+		const index = e.indexes[0];
 		item.resolve().then(() => {
-			this.onDidSelectEmitter.fire(item);
+			this.onDidSelectEmitter.fire({ item, index, model: this.completionModel });
 		});
 
 		alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.suggestion.label));
@@ -613,7 +620,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			.then(() => this.currentSuggestionDetails = null);
 
 		// emit an event
-		this.onDidFocusEmitter.fire(item);
+		this.onDidFocusEmitter.fire({ item, index, model: this.completionModel });
 	}
 
 	private setState(state: State): void {
@@ -838,12 +845,16 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 
-	getFocusedItem(): ICompletionItem {
+	getFocusedItem(): ISelectedSuggestion {
 		if (this.state !== State.Hidden
 			&& this.state !== State.Empty
 			&& this.state !== State.Loading) {
 
-			return this.list.getFocusedElements()[0];
+			return {
+				item: this.list.getFocusedElements()[0],
+				index: this.list.getFocus()[0],
+				model: this.completionModel
+			};
 		}
 		return undefined;
 	}

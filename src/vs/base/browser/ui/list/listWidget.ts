@@ -662,7 +662,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private eventBufferer = new EventBufferer();
 	private view: ListView<T>;
 	private spliceable: ISpliceable<T>;
-	private disposables: IDisposable[];
+	protected disposables: IDisposable[];
 	private styleElement: HTMLStyleElement;
 
 	@memoize get onFocusChange(): Event<IListEvent<T>> {

@@ -10,7 +10,7 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
@@ -42,12 +42,14 @@ export interface ILaunchService {
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void>;
 	getMainProcessId(): TPromise<number>;
 	getMainProcessInfo(): TPromise<IMainProcessInfo>;
+	getLogsPath(): TPromise<string>;
 }
 
 export interface ILaunchChannel extends IChannel {
 	call(command: 'start', arg: IStartArguments): TPromise<void>;
 	call(command: 'get-main-process-id', arg: null): TPromise<any>;
 	call(command: 'get-main-process-info', arg: null): TPromise<any>;
+	call(command: 'get-logs-path', arg: null): TPromise<string>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -66,6 +68,9 @@ export class LaunchChannel implements ILaunchChannel {
 
 			case 'get-main-process-info':
 				return this.service.getMainProcessInfo();
+
+			case 'get-logs-path':
+				return this.service.getLogsPath();
 		}
 
 		return undefined;
@@ -89,6 +94,10 @@ export class LaunchChannelClient implements ILaunchService {
 	public getMainProcessInfo(): TPromise<IMainProcessInfo> {
 		return this.channel.call('get-main-process-info', null);
 	}
+
+	public getLogsPath(): TPromise<string> {
+		return this.channel.call('get-logs-path', null);
+	}
 }
 
 export class LaunchService implements ILaunchService {
@@ -99,7 +108,8 @@ export class LaunchService implements ILaunchService {
 		@ILogService private logService: ILogService,
 		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@IURLService private urlService: IURLService,
-		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService
+		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) { }
 
 	public start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
@@ -177,6 +187,11 @@ export class LaunchService implements ILaunchService {
 				return this.getWindowInfo(window);
 			})
 		} as IMainProcessInfo);
+	}
+
+	public getLogsPath(): TPromise<string> {
+		this.logService.trace('Received request for logs path from other instance.');
+		return TPromise.as(this.environmentService.logsPath);
 	}
 
 	private getWindowInfo(window: ICodeWindow): IWindowInfo {

@@ -48,7 +48,7 @@ namespace schema {
 		} else if (isFalsyOrWhitespace(snippet.language) && !endsWith(snippet.path, '.code-snippets')) {
 			extension.collector.error(localize(
 				'invalid.language.0',
-				"When omitting the language, the value of `contribtes.{0}.path` must be a `.code-snippets`-file. Provided value: {1}",
+				"When omitting the language, the value of `contributes.{0}.path` must be a `.code-snippets`-file. Provided value: {1}",
 				extension.description.name, String(snippet.path)
 			));
 			return false;

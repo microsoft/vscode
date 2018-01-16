@@ -7,7 +7,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
-import { tail } from 'vs/base/common/arrays';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -42,13 +41,12 @@ export interface IPreferencesRenderer<T> extends IDisposable {
 	onFocusPreference: Event<T>;
 	onClearFocusPreference: Event<T>;
 	onUpdatePreference?: Event<{ key: string, value: any, source: T, index: number }>;
-	onTriggeredFuzzy?: Event<void>;
 
 	render(): void;
 	updatePreference(key: string, value: any, source: T, index: number): void;
-	filterPreferences(filterResult: IFilterResult, fuzzySearchAvailable: boolean): void;
 	focusPreference(setting: T): void;
 	clearFocus(setting: T): void;
+	filterPreferences(filterResult: IFilterResult): void;
 }
 
 export class UserSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
@@ -162,6 +160,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 			}
 			return null;
 		}
+
 		return this.preferencesModel.getPreference(key);
 	}
 
@@ -247,6 +246,8 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private hiddenAreasRenderer: HiddenAreasRenderer;
 	private editSettingActionRenderer: EditSettingRenderer;
 	private feedbackWidgetRenderer: FeedbackWidgetRenderer;
+	private bracesHidingRenderer: BracesHidingRenderer;
+	private filterResult: IFilterResult;
 
 	private _onUpdatePreference: Emitter<{ key: string, value: any, source: ISetting, index: number }> = new Emitter<{ key: string, value: any, source: ISetting, index: number }>();
 	public readonly onUpdatePreference: Event<{ key: string, value: any, source: ISetting, index: number }> = this._onUpdatePreference.event;
@@ -256,10 +257,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	private _onClearFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
-
-	public readonly onTriggeredFuzzy: Event<void>;
-
-	private filterResult: IFilterResult;
 
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
@@ -272,14 +269,12 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, this.settingHighlighter));
 		this.feedbackWidgetRenderer = this._register(instantiationService.createInstance(FeedbackWidgetRenderer, editor));
-		const parenthesisHidingRenderer = this._register(instantiationService.createInstance(StaticContentHidingRenderer, editor, preferencesModel));
-		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, parenthesisHidingRenderer]));
+		this.bracesHidingRenderer = this._register(instantiationService.createInstance(BracesHidingRenderer, editor, preferencesModel));
+		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, this.bracesHidingRenderer]));
 
 		this._register(this.editSettingActionRenderer.onUpdateSetting(e => this._onUpdatePreference.fire(e)));
 		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
 		this._register(preferencesModel.onDidChangeGroups(() => this.render()));
-
-		this.onTriggeredFuzzy = this.settingsHeaderRenderer.onClick;
 	}
 
 	public get associatedPreferencesModel(): IPreferencesEditorModel<ISetting> {
@@ -296,18 +291,20 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
 		this.feedbackWidgetRenderer.render(null);
 		this.settingHighlighter.clear(true);
+		this.bracesHidingRenderer.render(null, this.preferencesModel.settingsGroups);
 		this.settingsGroupTitleRenderer.showGroup(0);
 		this.hiddenAreasRenderer.render();
 	}
 
-	public filterPreferences(filterResult: IFilterResult, fuzzySearchAvailable: boolean): void {
+	public filterPreferences(filterResult: IFilterResult): void {
 		this.filterResult = filterResult;
 		if (filterResult) {
 			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
 			this.feedbackWidgetRenderer.render(filterResult);
-			this.settingsHeaderRenderer.render(filterResult, fuzzySearchAvailable);
+			this.settingsHeaderRenderer.render(filterResult);
 			this.settingHighlighter.clear(true);
+			this.bracesHidingRenderer.render(filterResult, this.preferencesModel.settingsGroups);
 			this.editSettingActionRenderer.render(filterResult.filteredGroups, this._associatedPreferencesModel);
 		} else {
 			this.settingHighlighter.clear(true);
@@ -316,6 +313,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 			this.settingsHeaderRenderer.render(null);
 			this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.showGroup(0);
+			this.bracesHidingRenderer.render(null, this.preferencesModel.settingsGroups);
 			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
 		}
 
@@ -372,45 +370,64 @@ export interface HiddenAreasProvider {
 	hiddenAreas: IRange[];
 }
 
-export class StaticContentHidingRenderer extends Disposable implements HiddenAreasProvider {
+export class BracesHidingRenderer extends Disposable implements HiddenAreasProvider {
+	private _result: IFilterResult;
+	private _settingsGroups: ISettingsGroup[];
 
-	constructor(private editor: ICodeEditor, private settingsEditorModel: ISettingsEditorModel
-	) {
+	constructor(private editor: ICodeEditor) {
 		super();
 	}
 
-	get hiddenAreas(): IRange[] {
-		const model = this.editor.getModel();
+	render(result: IFilterResult, settingsGroups: ISettingsGroup[]): void {
+		this._result = result;
+		this._settingsGroups = settingsGroups;
+	}
 
-		// Hide extra chars for "search results" and "commonly used" groups
-		const settingsGroups = this.settingsEditorModel.settingsGroups;
-		const lastGroup = tail(settingsGroups);
-		return [
+	get hiddenAreas(): IRange[] {
+		// Opening square brace
+		const hiddenAreas = [
 			{
 				startLineNumber: 1,
-				startColumn: model.getLineMinColumn(1),
+				startColumn: 1,
 				endLineNumber: 2,
-				endColumn: model.getLineMaxColumn(2)
-			},
-			{
-				startLineNumber: settingsGroups[0].range.endLineNumber + 1,
-				startColumn: model.getLineMinColumn(settingsGroups[0].range.endLineNumber + 1),
-				endLineNumber: settingsGroups[0].range.endLineNumber + 4,
-				endColumn: model.getLineMaxColumn(settingsGroups[0].range.endLineNumber + 4)
-			},
-			{
-				startLineNumber: lastGroup.range.endLineNumber + 1,
-				startColumn: model.getLineMinColumn(lastGroup.range.endLineNumber + 1),
-				endLineNumber: Math.min(model.getLineCount(), lastGroup.range.endLineNumber + 4),
-				endColumn: model.getLineMaxColumn(Math.min(model.getLineCount(), lastGroup.range.endLineNumber + 4))
-			},
-			{
-				startLineNumber: model.getLineCount() - 1,
-				startColumn: model.getLineMinColumn(model.getLineCount() - 1),
-				endLineNumber: model.getLineCount(),
-				endColumn: model.getLineMaxColumn(model.getLineCount())
+				endColumn: 1
 			}
 		];
+
+		const hideBraces = group => {
+			// Opening curly brace
+			hiddenAreas.push({
+				startLineNumber: group.range.startLineNumber - 3,
+				startColumn: 1,
+				endLineNumber: group.range.startLineNumber - 3,
+				endColumn: 1
+			});
+
+			// Closing curly brace
+			hiddenAreas.push({
+				startLineNumber: group.range.endLineNumber + 1,
+				startColumn: 1,
+				endLineNumber: group.range.endLineNumber + 4,
+				endColumn: 1
+			});
+		};
+
+		this._settingsGroups.forEach(hideBraces);
+		if (this._result) {
+			this._result.filteredGroups.forEach(hideBraces);
+		}
+
+		// Closing square brace
+		const lineCount = this.editor.getModel().getLineCount();
+		hiddenAreas.push({
+			startLineNumber: lineCount,
+			startColumn: 1,
+			endLineNumber: lineCount,
+			endColumn: 1
+		});
+
+
+		return hiddenAreas;
 	}
 
 }
@@ -426,10 +443,9 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 		this.onClick = this.settingsHeaderWidget.onClick;
 	}
 
-	public render(filterResult: IFilterResult, fuzzySearchAvailable = false) {
+	public render(filterResult: IFilterResult) {
 		const hasSettings = !filterResult || filterResult.filteredGroups.length > 0;
-		const promptFuzzy = fuzzySearchAvailable && filterResult && !filterResult.metadata;
-		this.settingsHeaderWidget.toggleMessage(hasSettings, promptFuzzy);
+		this.settingsHeaderWidget.toggleMessage(hasSettings);
 	}
 }
 
@@ -728,7 +744,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, result.matches.map(match => this.createDecoration(match, model)));
 			});
 		} else {
-			this.hiddenAreas = this.computeHiddenRanges(allSettingsGroups, allSettingsGroups, model);
+			this.hiddenAreas = this.computeHiddenRanges(null, allSettingsGroups, model);
 		}
 	}
 
@@ -739,65 +755,24 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: 'findMatch'
 			}
-
 		};
 	}
 
 	private computeHiddenRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], model: ITextModel): IRange[] {
+		// Hide the contents of hidden groups
 		const notMatchesRanges: IRange[] = [];
-		for (const group of allSettingsGroups) {
-			const filteredGroup = filteredGroups.filter(g => g.title === group.title)[0];
-			if (!filteredGroup || filteredGroup.sections.every(sect => sect.settings.length === 0)) {
+		if (filteredGroups) {
+			allSettingsGroups.forEach((group, i) => {
 				notMatchesRanges.push({
 					startLineNumber: group.range.startLineNumber - 1,
-					startColumn: model.getLineMinColumn(group.range.startLineNumber - 1),
+					startColumn: group.range.startColumn,
 					endLineNumber: group.range.endLineNumber,
-					endColumn: model.getLineMaxColumn(group.range.endLineNumber),
+					endColumn: group.range.endColumn
 				});
-			} else {
-				for (const section of group.sections) {
-					if (section.titleRange) {
-						if (!this.containsLine(section.titleRange.startLineNumber, filteredGroup)) {
-							notMatchesRanges.push(this.createCompleteRange(section.titleRange, model));
-						}
-					}
-					for (const setting of section.settings) {
-						if (!this.containsLine(setting.range.startLineNumber, filteredGroup)) {
-							notMatchesRanges.push(this.createCompleteRange(setting.range, model));
-						}
-					}
-				}
-			}
+			});
 		}
+
 		return notMatchesRanges;
-	}
-
-	private containsLine(lineNumber: number, settingsGroup: ISettingsGroup): boolean {
-		if (settingsGroup.titleRange && lineNumber >= settingsGroup.titleRange.startLineNumber && lineNumber <= settingsGroup.titleRange.endLineNumber) {
-			return true;
-		}
-
-		for (const section of settingsGroup.sections) {
-			if (section.titleRange && lineNumber >= section.titleRange.startLineNumber && lineNumber <= section.titleRange.endLineNumber) {
-				return true;
-			}
-
-			for (const setting of section.settings) {
-				if (lineNumber >= setting.range.startLineNumber && lineNumber <= setting.range.endLineNumber) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
-	private createCompleteRange(range: IRange, model: ITextModel): IRange {
-		return {
-			startLineNumber: range.startLineNumber,
-			startColumn: model.getLineMinColumn(range.startLineNumber),
-			endLineNumber: range.endLineNumber,
-			endColumn: model.getLineMaxColumn(range.endLineNumber)
-		};
 	}
 
 	public dispose() {
@@ -859,7 +834,7 @@ interface IIndexedSetting extends ISetting {
 
 class EditSettingRenderer extends Disposable {
 
-	private editPreferenceWidgetForCusorPosition: EditPreferenceWidget<IIndexedSetting>;
+	private editPreferenceWidgetForCursorPosition: EditPreferenceWidget<IIndexedSetting>;
 	private editPreferenceWidgetForMouseMove: EditPreferenceWidget<IIndexedSetting>;
 
 	private settingsGroups: ISettingsGroup[];
@@ -876,11 +851,11 @@ class EditSettingRenderer extends Disposable {
 	) {
 		super();
 
-		this.editPreferenceWidgetForCusorPosition = this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
-		this.editPreferenceWidgetForMouseMove = this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
+		this.editPreferenceWidgetForCursorPosition = <EditPreferenceWidget<IIndexedSetting>>this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
+		this.editPreferenceWidgetForMouseMove = <EditPreferenceWidget<IIndexedSetting>>this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
 		this.toggleEditPreferencesForMouseMoveDelayer = new Delayer<void>(75);
 
-		this._register(this.editPreferenceWidgetForCusorPosition.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForCusorPosition, e)));
+		this._register(this.editPreferenceWidgetForCursorPosition.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForCursorPosition, e)));
 		this._register(this.editPreferenceWidgetForMouseMove.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForMouseMove, e)));
 
 		this._register(this.editor.onDidChangeCursorPosition(positionChangeEvent => this.onPositionChanged(positionChangeEvent)));
@@ -889,14 +864,14 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	public render(settingsGroups: ISettingsGroup[], associatedPreferencesModel: IPreferencesEditorModel<ISetting>): void {
-		this.editPreferenceWidgetForCusorPosition.hide();
+		this.editPreferenceWidgetForCursorPosition.hide();
 		this.editPreferenceWidgetForMouseMove.hide();
 		this.settingsGroups = settingsGroups;
 		this.associatedPreferencesModel = associatedPreferencesModel;
 
 		const settings = this.getSettings(this.editor.getPosition().lineNumber);
 		if (settings.length) {
-			this.showEditPreferencesWidget(this.editPreferenceWidgetForCusorPosition, settings);
+			this.showEditPreferencesWidget(this.editPreferenceWidgetForCursorPosition, settings);
 		}
 	}
 
@@ -906,7 +881,7 @@ class EditSettingRenderer extends Disposable {
 
 	private onConfigurationChanged(): void {
 		if (!this.editor.getConfiguration().viewInfo.glyphMargin) {
-			this.editPreferenceWidgetForCusorPosition.hide();
+			this.editPreferenceWidgetForCursorPosition.hide();
 			this.editPreferenceWidgetForMouseMove.hide();
 		}
 	}
@@ -915,9 +890,9 @@ class EditSettingRenderer extends Disposable {
 		this.editPreferenceWidgetForMouseMove.hide();
 		const settings = this.getSettings(positionChangeEvent.position.lineNumber);
 		if (settings.length) {
-			this.showEditPreferencesWidget(this.editPreferenceWidgetForCusorPosition, settings);
+			this.showEditPreferencesWidget(this.editPreferenceWidgetForCursorPosition, settings);
 		} else {
-			this.editPreferenceWidgetForCusorPosition.hide();
+			this.editPreferenceWidgetForCursorPosition.hide();
 		}
 	}
 
@@ -937,8 +912,8 @@ class EditSettingRenderer extends Disposable {
 			if (this.editPreferenceWidgetForMouseMove.getLine() === line && this.editPreferenceWidgetForMouseMove.isVisible()) {
 				return this.editPreferenceWidgetForMouseMove;
 			}
-			if (this.editPreferenceWidgetForCusorPosition.getLine() === line && this.editPreferenceWidgetForCusorPosition.isVisible()) {
-				return this.editPreferenceWidgetForCusorPosition;
+			if (this.editPreferenceWidgetForCursorPosition.getLine() === line && this.editPreferenceWidgetForCursorPosition.isVisible()) {
+				return this.editPreferenceWidgetForCursorPosition;
 			}
 		}
 		return null;
@@ -957,7 +932,7 @@ class EditSettingRenderer extends Disposable {
 		const line = settings[0].valueRange.startLineNumber;
 		if (this.editor.getConfiguration().viewInfo.glyphMargin && this.marginFreeFromOtherDecorations(line)) {
 			editPreferencesWidget.show(line, nls.localize('editTtile', "Edit"), settings);
-			const editPreferenceWidgetToHide = editPreferencesWidget === this.editPreferenceWidgetForCusorPosition ? this.editPreferenceWidgetForMouseMove : this.editPreferenceWidgetForCusorPosition;
+			const editPreferenceWidgetToHide = editPreferencesWidget === this.editPreferenceWidgetForCursorPosition ? this.editPreferenceWidgetForMouseMove : this.editPreferenceWidgetForCursorPosition;
 			editPreferenceWidgetToHide.hide();
 		}
 	}

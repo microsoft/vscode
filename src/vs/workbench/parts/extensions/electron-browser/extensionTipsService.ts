@@ -80,9 +80,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	getAllRecommendationsWithReason(): { [id: string]: string; } {
 		let output: { [id: string]: string; } = Object.create(null);
-		Object.keys(this._fileBasedRecommendations).forEach(x => output[x.toLowerCase()] = localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened."));
 		this._allWorkspaceRecommendedExtensions.forEach(x => output[x.toLowerCase()] = localize('workspaceRecommendation', "This extension is recommended by users of the current workspace."));
-		forEach(this._exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", entry.value));
+		Object.keys(this._fileBasedRecommendations).forEach(x => output[x.toLowerCase()] = output[x.toLowerCase()] || localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened."));
+		forEach(this._exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = output[entry.key.toLowerCase()] || localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", entry.value));
 		return output;
 	}
 

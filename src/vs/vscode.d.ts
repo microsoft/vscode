@@ -261,7 +261,7 @@ declare module 'vscode' {
 		constructor(line: number, character: number);
 
 		/**
-		 * Check if `other` is before this position.
+		 * Check if this position is before `other`.
 		 *
 		 * @param other A position.
 		 * @return `true` if position is on a smaller line
@@ -270,7 +270,7 @@ declare module 'vscode' {
 		isBefore(other: Position): boolean;
 
 		/**
-		 * Check if `other` is before or equal to this position.
+		 * Check if this position is before or equal to `other`.
 		 *
 		 * @param other A position.
 		 * @return `true` if position is on a smaller line
@@ -279,7 +279,7 @@ declare module 'vscode' {
 		isBeforeOrEqual(other: Position): boolean;
 
 		/**
-		 * Check if `other` is after this position.
+		 * Check if this position is after `other`.
 		 *
 		 * @param other A position.
 		 * @return `true` if position is on a greater line
@@ -288,7 +288,7 @@ declare module 'vscode' {
 		isAfter(other: Position): boolean;
 
 		/**
-		 * Check if `other` is after or equal to this position.
+		 * Check if this position is after or equal to `other`.
 		 *
 		 * @param other A position.
 		 * @return `true` if position is on a greater line
@@ -297,7 +297,7 @@ declare module 'vscode' {
 		isAfterOrEqual(other: Position): boolean;
 
 		/**
-		 * Check if `other` equals this position.
+		 * Check if this position is equal to `other`.
 		 *
 		 * @param other A position.
 		 * @return `true` if the line and character of the given position are equal to
@@ -2912,7 +2912,7 @@ declare module 'vscode' {
 	export class CompletionList {
 
 		/**
-		 * This list it not complete. Further typing should result in recomputing
+		 * This list is not complete. Further typing should result in recomputing
 		 * this list.
 		 */
 		isIncomplete?: boolean;
@@ -2942,7 +2942,11 @@ declare module 'vscode' {
 		/**
 		 * Completion was triggered by a trigger character.
 		 */
-		TriggerCharacter = 1
+		TriggerCharacter = 1,
+		/**
+		 * Completion was re-triggered as current completion list is incomplete
+		 */
+		TriggerForIncompleteCompletions = 2
 	}
 
 	/**
@@ -4963,9 +4967,9 @@ declare module 'vscode' {
 
 	export class TreeItem {
 		/**
-		 * A human-readable string describing this item
+		 * A human-readable string describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
 		 */
-		label: string;
+		label?: string;
 
 		/**
 		 * Optional id for the tree item that has to be unique across tree. The id is used to preserve the selection and expansion state of the tree item.
@@ -4975,9 +4979,17 @@ declare module 'vscode' {
 		id?: string;
 
 		/**
-		 * The icon path for the tree item
+		 * The icon path for the tree item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
 		 */
 		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
+
+		/**
+		 * The [uri](#Uri) of the resource representing this item.
+		 *
+		 * Will be used to derive the [label](#TreeItem.label), when it is not provided.
+		 * Will be used to derive the icon from current file icon theme, when [iconPath](#TreeItem.iconPath) is not provided.
+		 */
+		resourceUri?: Uri;
 
 		/**
 		 * The [command](#Command) which should be run when the tree item is selected.
@@ -5014,6 +5026,12 @@ declare module 'vscode' {
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
 		constructor(label: string, collapsibleState?: TreeItemCollapsibleState);
+
+		/**
+		 * @param resourceUri The [uri](#Uri) of the resource representing this item.
+		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
+		 */
+		constructor(resourceUri: Uri, collapsibleState?: TreeItemCollapsibleState);
 	}
 
 	/**

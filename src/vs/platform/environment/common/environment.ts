@@ -47,6 +47,7 @@ export interface ParsedArgs {
 	'skip-getting-started'?: boolean;
 	'skip-release-notes'?: boolean;
 	'sticky-quickopen'?: boolean;
+	'disable-restore-windows'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
@@ -55,6 +56,7 @@ export interface ParsedArgs {
 	'skip-add-to-recently-opened'?: boolean;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
+	'upload-logs'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

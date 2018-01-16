@@ -56,13 +56,29 @@ export interface ISetting {
 	overrideOf?: ISetting;
 }
 
+export interface ISearchResult {
+	filterMatches: ISettingMatch[];
+	metadata?: IFilterMetadata;
+}
+
+export interface ISearchResultGroup {
+	id: string;
+	label: string;
+	result: ISearchResult;
+}
+
 export interface IFilterResult {
-	query: string;
+	query?: string;
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
-	fuzzySearchAvailable?: boolean;
 	metadata?: IFilterMetadata;
+}
+
+export interface ISettingMatch {
+	setting: ISetting;
+	matches: IRange[];
+	score: number;
 }
 
 export interface IScoredResults {
@@ -86,14 +102,14 @@ export interface IPreferencesEditorModel<T> {
 }
 
 export type IGroupFilter = (group: ISettingsGroup) => boolean;
-export type ISettingMatcher = (setting: ISetting) => IRange[];
+export type ISettingMatcher = (setting: ISetting) => { matches: IRange[], score: number };
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
-	groupsTerms: string[];
-	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher, mostRelevantSettings?: string[]): IFilterResult;
+	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
+	updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult;
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
@@ -159,15 +175,14 @@ export const IPreferencesSearchService = createDecorator<IPreferencesSearchServi
 export interface IPreferencesSearchService {
 	_serviceBrand: any;
 
-	remoteSearchAllowed: boolean;
 	endpoint: IEndpointDetails;
-	onRemoteSearchEnablementChanged: Event<boolean>;
 
-	startSearch(filter: string, remote: boolean): IPreferencesSearchModel;
+	getLocalSearchProvider(filter: string): ISearchProvider;
+	getRemoteSearchProvider(filter: string): ISearchProvider;
 }
 
-export interface IPreferencesSearchModel {
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult>;
+export interface ISearchProvider {
+	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult>;
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);

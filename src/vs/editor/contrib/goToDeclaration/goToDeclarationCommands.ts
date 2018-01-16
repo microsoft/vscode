@@ -151,7 +151,7 @@ export class DefinitionAction extends EditorAction {
 			resource: uri,
 			options: {
 				selection: Range.collapseToStart(range),
-				revealIfVisible: !sideBySide,
+				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true
 			}
 		}, sideBySide).then(editor => {

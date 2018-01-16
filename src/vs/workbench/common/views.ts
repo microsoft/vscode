@@ -6,6 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/modes';
+import { UriComponents } from 'vs/base/common/uri';
 
 export type TreeViewItemHandleArg = {
 	$treeViewId: string,
@@ -24,11 +25,13 @@ export interface ITreeItem {
 
 	parentHandle: string;
 
-	label: string;
+	label?: string;
 
 	icon?: string;
 
 	iconDark?: string;
+
+	resourceUri?: UriComponents;
 
 	contextValue?: string;
 
