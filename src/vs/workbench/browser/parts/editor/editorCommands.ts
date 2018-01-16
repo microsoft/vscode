@@ -281,11 +281,12 @@ function registerEditorCommands() {
 		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
+			const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
+			const positions = contexts.map(context => positionAndInput(editorGroupService, editorService, context).position);
+			const distinctPositions = distinct(positions.filter(p => typeof p === 'number'));
 
-			const { position } = positionAndInput(editorGroupService, editorService, editorContext);
-
-			if (typeof position === 'number') {
-				return editorService.closeEditors(position);
+			if (distinctPositions.length) {
+				return editorService.closeEditors(distinctPositions);
 			}
 
 			return TPromise.as(false);
