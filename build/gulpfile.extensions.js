@@ -59,7 +59,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const baseUrl = getBaseUrl(out);
 
 	function createPipeline(build, emitError) {
-		build = true;
 		const reporter = createReporter();
 
 		tsOptions.inlineSources = !!build;
