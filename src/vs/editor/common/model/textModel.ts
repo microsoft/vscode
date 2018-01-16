@@ -635,8 +635,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._buffer.getOffsetAt(position.lineNumber, position.column);
 	}
 
-	public getPositionAt(offset: number): Position {
+	public getPositionAt(rawOffset: number): Position {
 		this._assertNotDisposed();
+		let offset = (Math.min(this._buffer.getLength(), Math.max(0, rawOffset)));
 		return this._buffer.getPositionAt(offset);
 	}
 
