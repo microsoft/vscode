@@ -310,7 +310,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						const options = [
 							localize('install', 'Install'),
 							recommendationsAction.label,
-							localize('neverShowAgain', "Don't show again"),
+							localize('neverShowAgain', "Don't Show Again"),
 							localize('close', "Close")
 						];
 
@@ -395,7 +395,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				const options = [
 					installAllAction.label,
 					showAction.label,
-					localize('neverShowAgain', "Don't show again"),
+					localize('neverShowAgain', "Don't Show Again"),
 					localize('close', "Close")
 				];
 

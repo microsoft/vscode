@@ -1448,7 +1448,7 @@ export class CommandCenter {
 		if (shouldPrompt) {
 			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}'.", HEAD.upstream);
 			const yes = localize('ok', "OK");
-			const neverAgain = localize('never again', "OK, Never Show Again");
+			const neverAgain = localize('never again', "OK, Don't Show Again");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
 
 			if (pick === neverAgain) {
