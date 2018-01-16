@@ -45,8 +45,6 @@ input, textarea {
 	background-image: none;
 	background-clip: padding-box;
 	border: 1px solid #ced4da;
-	border-radius: .25rem;
-	transition: border-color ease-in-out .15s,box-shadow ease-in-out .15s;
 }
 textarea {
 	overflow: auto;
@@ -71,19 +69,14 @@ button {
 	white-space: nowrap;
 	vertical-align: middle;
 	user-select: none;
-	border: 1px solid transparent;
 	padding: .5rem 1rem;
 	font-size: 1rem;
-	border: 1px solid #ddd;
-	border-radius: .25rem;
 	background: none;
 	transition: all .2s ease-in-out;
 }
-button:focus {
-	outline: 0;
-}
 
-.form-control {
+select {
+	height: calc(2.25rem + 2px);
 	display: block;
 	width: 100%;
 	padding: 0.375rem 0.75rem;
@@ -93,16 +86,5 @@ button:focus {
 	background-color: #fff;
 	background-image: none;
 	background-clip: padding-box;
-	border: 1px solid #ced4da;
-	border-radius: 0.25rem;
-	transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
-}
-
-select.form-control {
-	height: calc(2.25rem + 2px);
-}
-
-select.form-control:focus::-ms-value {
-	color: #1e1e1e;
-	background-color: #cccccc;
+	border: none;
 }

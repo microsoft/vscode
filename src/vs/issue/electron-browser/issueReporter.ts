@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { shell } from 'electron';
+import { shell, ipcRenderer } from 'electron';
 import { $ } from 'vs/base/browser/dom';
-import { IIssueService } from 'vs/platform/issue/common/issue';
-import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -25,6 +23,7 @@ import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IssueReporterModel, IssueReporterData } from 'vs/issue/electron-browser/issueReporterModel';
+import { IssueReporterStyles } from 'vs/platform/issue/common/issue';
 
 export function startup(configuration: IWindowConfiguration) {
 	const issueReporter = new IssueReporter(configuration);
@@ -32,7 +31,6 @@ export function startup(configuration: IWindowConfiguration) {
 }
 
 export class IssueReporter extends Disposable {
-	private issueService: IIssueService;
 	private environmentService: IEnvironmentService;
 	private telemetryService: ITelemetryService;
 	private issueReporterModel: IssueReporterModel;
@@ -47,11 +45,11 @@ export class IssueReporter extends Disposable {
 			includeProcessInfo: true
 		});
 
-		this.initServices(configuration);
-		this.setEventHandlers();
+		ipcRenderer.on('issueStyleResponse', (event, styles: IssueReporterStyles) => {
+			this.applyStyles(styles);
+		});
 
-		// Fetch and display status data
-		this.issueService.getStatusInfo().then((info) => {
+		ipcRenderer.on('issueInfoResponse', (event, info) => {
 			this.issueReporterModel.update(info);
 
 			this.updateAllBlocks(this.issueReporterModel.getData());
@@ -60,13 +58,75 @@ export class IssueReporter extends Disposable {
 			submitButton.disabled = false;
 			submitButton.textContent = 'Preview on GitHub';
 		});
+
+		ipcRenderer.send('issueInfoRequest');
+		ipcRenderer.send('issueStyleRequest');
+
+		this.initServices(configuration);
+		this.setEventHandlers();
+	}
+
+	render(): void {
+		this.renderBlocks();
+	}
+
+	private applyStyles(styles: IssueReporterStyles) {
+		const styleTag = document.createElement('style');
+		const content: string[] = [];
+
+		if (styles.inputBackground) {
+			content.push(`input, textarea, select { background-color: ${styles.inputBackground}; }`);
+		}
+
+		if (styles.inputBorder) {
+			content.push(`input, textarea, select { border: 1px solid ${styles.inputBorder}; }`);
+		} else {
+			content.push(`input, textarea, select { border: none; }`);
+		}
+
+		if (styles.inputForeground) {
+			content.push(`input, textarea, select { color: ${styles.inputForeground}; }`);
+		}
+
+		if (styles.inputErrorBorder) {
+			content.push(`.invalid-input, .invalid-input:focus { border: 1px solid ${styles.inputErrorBorder}; }`);
+		}
+
+		if (styles.inputActiveBorder) {
+			content.push(`input:focus, textarea:focus, select:focus, summary:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
+		}
+
+		if (styles.textLinkColor) {
+			content.push(`a { color: ${styles.textLinkColor}; }`);
+		}
+
+		if (styles.buttonBackground) {
+			content.push(`button { background-color: ${styles.buttonBackground}; }`);
+		}
+
+		if (styles.buttonForeground) {
+			content.push(`button { color: ${styles.buttonForeground}; }`);
+		}
+
+		if (styles.buttonHoverBackground) {
+			content.push(`button:hover:enabled { background-color: ${styles.buttonHoverBackground}; }`);
+		}
+
+		if (styles.textLinkColor) {
+			content.push(`a { color: ${styles.textLinkColor}; }`);
+		}
+
+		styleTag.innerHTML = content.join('\n');
+		document.head.appendChild(styleTag);
+
+		document.body.style.backgroundColor = styles.backgroundColor;
+		document.body.style.color = styles.color;
 	}
 
 	// TODO: Properly dispose of services
-	initServices(configuration: IWindowConfiguration): void {
+	private initServices(configuration: IWindowConfiguration): void {
 		const serviceCollection = new ServiceCollection();
 		const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
-		this.issueService = new IssueChannelClient(mainProcessClient.getChannel('issue'));
 
 		const windowsChannel = mainProcessClient.getChannel('windows');
 		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
@@ -94,7 +154,7 @@ export class IssueReporter extends Disposable {
 		console.log(this.telemetryService);
 	}
 
-	setEventHandlers(): void {
+	private setEventHandlers(): void {
 		document.getElementById('issue-type').addEventListener('change', (event: Event) => {
 			this.issueReporterModel.update({ issueType: parseInt((<HTMLInputElement>event.target).value) });
 			this.render();
@@ -154,10 +214,6 @@ export class IssueReporter extends Disposable {
 		});
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
-	}
-
-	render(): void {
-		this.renderBlocks();
 	}
 
 	private renderBlocks(): void {
@@ -309,8 +365,6 @@ export class IssueReporter extends Disposable {
 		document.querySelector('.block-workspace .block-info code').textContent = '\n' + state.workspaceInfo;
 	}
 }
-
-
 
 // helper functions
 

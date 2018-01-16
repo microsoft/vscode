@@ -7,10 +7,10 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IIssueService } from './issue';
+import { IIssueService, IssueReporterStyles } from './issue';
 
 export interface IIssueChannel extends IChannel {
-	call(command: 'openIssueReporter'): TPromise<void>;
+	call(command: 'openIssueReporter', arg: IssueReporterStyles): TPromise<void>;
 	call(command: 'getStatusInfo'): TPromise<any>;
 	call(command: string, arg?: any): TPromise<any>;
 }
@@ -22,9 +22,7 @@ export class IssueChannel implements IIssueChannel {
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'openIssueReporter':
-				return this.service.openReporter();
-			case 'getStatusInfo':
-				return this.service.getStatusInfo();
+				return this.service.openReporter(arg);
 		}
 		return undefined;
 	}
@@ -36,11 +34,7 @@ export class IssueChannelClient implements IIssueService {
 
 	constructor(private channel: IIssueChannel) { }
 
-	openReporter(): TPromise<void> {
-		return this.channel.call('openIssueReporter');
-	}
-
-	getStatusInfo(): TPromise<any> {
-		return this.channel.call('getStatusInfo');
+	openReporter(theme: IssueReporterStyles): TPromise<void> {
+		return this.channel.call('openIssueReporter', theme);
 	}
 }

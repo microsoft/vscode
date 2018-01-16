@@ -45,21 +45,8 @@ pre code {
 	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
 }
 
-#issue-type button {
-	margin-right: 16px;
-}
-#github-submit-btn:hover:enabled,
-#github-submit-btn.active {
-	border: 1px solid #5cb85c;
-	background-color: #5cb85c;
-	color: #fff;
-}
 button:hover:enabled {
-	opacity: .8;
 	cursor: pointer;
-}
-button.active {
-	opacity: 1;
 }
 
 button:disabled {
@@ -72,11 +59,12 @@ button:disabled {
 	margin-right: auto;
 	margin-top: 2em;
 }
+
 #github-submit-btn {
 	float: right;
 	margin-top: 10px;
 	margin-bottom: 10px;
-	background-color: #fff
+
 }
 
 .two-col {
@@ -96,14 +84,6 @@ select, input, textarea {
 	margin-top: 10px;
 }
 
-.required-input {
-	color: red;
-}
-
-.invalid-input {
-	border: 1px solid red;
-}
-
 .validation-error {
 	font-size: 12px;
 	font-weight: bold;
@@ -121,6 +101,27 @@ input[type="checkbox"] {
 	display: inline-block;
 }
 
+/* Default styles, overwritten if a theme is provided */
+input, select, textarea {
+	background-color: #3c3c3c;
+	border: none;
+	color: #cccccc;
+}
+
 a {
-	color: #CCCCCC
+	color: #CCCCCC;
+}
+
+.invalid-input {
+	border: 1px solid #be1100;
+}
+
+.required-input {
+	color: #be1100;
+}
+
+button {
+	background-color: #007ACC;
+	color: #fff;
+	border: none;
 }

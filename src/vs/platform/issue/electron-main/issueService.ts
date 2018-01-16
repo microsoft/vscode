@@ -6,8 +6,8 @@
 'use strict';
 
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
-import { IIssueService } from 'vs/platform/issue/common/issue';
-import { BrowserWindow } from 'electron';
+import { IIssueService, IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import { BrowserWindow, ipcMain } from 'electron';
 import { ILaunchService } from 'vs/code/electron-main/launch';
 import { buildDiagnostics, DiagnosticInfo } from 'vs/code/electron-main/diagnostics';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -22,19 +22,33 @@ export class IssueService implements IIssueService {
 		private machineId: string
 	) { }
 
-	openReporter(): TPromise<void> {
+	openReporter(theme?: IssueReporterStyles): TPromise<void> {
+		ipcMain.on('issueInfoRequest', event => {
+			this.getStatusInfo().then(msg => {
+				event.sender.send('issueInfoResponse', msg);
+			});
+		});
+
+		// When launching from cli, no theme is provided. Match theme if passed from workbench.
+		if (theme) {
+			ipcMain.on('issueStyleRequest', event => {
+				event.sender.send('issueStyleResponse', theme);
+			});
+		}
+
 		this._issueWindow = new BrowserWindow({
 			width: 800,
 			height: 900,
 			title: 'Issue Reporter'
 		});
+
 		this._issueWindow.loadURL(this.getIssueReporterPath());
 		this._issueWindow.webContents.openDevTools();
 
 		return TPromise.as(null);
 	}
 
-	getStatusInfo(): TPromise<DiagnosticInfo> {
+	private getStatusInfo(): TPromise<DiagnosticInfo> {
 		return new Promise((resolve, reject) => {
 			this.launchService.getMainProcessInfo().then(info => {
 				buildDiagnostics(info)
