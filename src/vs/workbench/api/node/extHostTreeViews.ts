@@ -254,7 +254,10 @@ class ExtHostTreeView<T> extends Disposable {
 		// Update parent node
 		if (node) {
 			if (node.handle !== handle) {
+				// Remove the old handle from the system
+				this.elements.delete(node.handle);
 				childrenHandles[childrenHandles.indexOf(node.handle)] = handle;
+
 				this.clearChildren(element);
 			}
 		} else {
