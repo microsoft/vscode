@@ -176,10 +176,12 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			};
 		}
 
+		const groupWithMetadata = first(resultGroups, group => !!group.result.metadata);
 		return <IFilterResult>{
 			allGroups: this.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
-			matches
+			matches,
+			metadata: groupWithMetadata && groupWithMetadata.result.metadata
 		};
 	}
 }
