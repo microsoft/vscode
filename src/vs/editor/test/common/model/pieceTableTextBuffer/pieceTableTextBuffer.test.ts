@@ -1422,7 +1422,7 @@ suite('random is unsupervised', () => {
 
 	test('random chunks', () => {
 		let chunks = [];
-		for (let i = 0; i < 1; i++) {
+		for (let i = 0; i < 5; i++) {
 			chunks.push(randomStr(1000));
 		}
 

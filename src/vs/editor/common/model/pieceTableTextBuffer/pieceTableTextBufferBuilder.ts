@@ -9,6 +9,7 @@ import { ITextBufferBuilder, DefaultEndOfLine, ITextBufferFactory, ITextBuffer }
 import { TextSource, IRawTextSource } from 'vs/editor/common/model/pieceTableTextBuffer/textSource';
 import { PieceTableTextBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBuffer';
 import { StringBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableBase';
+import { CharCode } from 'vs/base/common/charCode';
 
 export class PieceTableTextBufferFactory implements ITextBufferFactory {
 
@@ -26,6 +27,7 @@ export class PieceTableTextBufferFactory implements ITextBufferFactory {
 }
 
 class PTBasedBuilder {
+	private leftoverEndsInCR: boolean;
 	private chunks: StringBuffer[];
 	private lineFeedCnt: number;
 	private BOM: string;
@@ -34,6 +36,7 @@ class PTBasedBuilder {
 	private _regex: RegExp;
 
 	constructor() {
+		this.leftoverEndsInCR = false;
 		this.chunks = [];
 		this.BOM = '';
 		this.chunkIndex = 0;
@@ -43,12 +46,27 @@ class PTBasedBuilder {
 	}
 
 	public acceptChunk(chunk: string): void {
+		if (chunk.length === 0) {
+			return;
+		}
+
 		let lineStarts = [0];
 		if (this.chunkIndex === 0) {
 			if (strings.startsWithUTF8BOM(chunk)) {
 				this.BOM = strings.UTF8_BOM_CHARACTER;
 				chunk = chunk.substr(1);
 			}
+		}
+
+		if (this.leftoverEndsInCR) {
+			chunk = '\r' + chunk;
+		}
+
+		if (chunk.charCodeAt(chunk.length - 1) === CharCode.CarriageReturn) {
+			this.leftoverEndsInCR = true;
+			chunk = chunk.substr(0, chunk.length - 1);
+		} else {
+			this.leftoverEndsInCR = false;
 		}
 
 		// Reset regex to search from the beginning
@@ -95,6 +113,14 @@ class PTBasedBuilder {
 		if (this.chunks.length === 0) {
 			this.chunks.push(new StringBuffer('', [0]));
 		}
+
+		if (this.leftoverEndsInCR) {
+			// we don't want need to create a new chunk for this standalone \r
+			let lastChunk = this.chunks[this.chunks.length - 1];
+			lastChunk.buffer += '\r';
+			lastChunk.lineStarts.push(lastChunk.buffer.length);
+		}
+
 		return new PieceTableTextBufferFactory({
 			chunks: this.chunks,
 			lineFeedCnt: this.lineFeedCnt,
