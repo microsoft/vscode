@@ -5,14 +5,7 @@
 'use strict';
 
 import { DefaultEndOfLine } from 'vs/editor/common/model';
-
-/**
- * Raw text buffer for Piece Table.
- */
-export interface IRawPTBuffer {
-	text: string;
-	lineStarts: number[];
-}
+import { StringBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableBase';
 
 /**
  * A processed string ready to be turned into an editor model.
@@ -21,7 +14,7 @@ export interface IRawTextSource {
 	/**
 	 * The text split into lines.
 	 */
-	readonly chunks: IRawPTBuffer[];
+	readonly chunks: StringBuffer[];
 	readonly lineFeedCnt: number;
 	/**
 	 * The BOM (leading character sequence of the file).
@@ -48,7 +41,7 @@ export interface ITextSource {
 	/**
 	 * The text split into lines.
 	 */
-	readonly chunks: IRawPTBuffer[];
+	readonly chunks: StringBuffer[];
 	readonly lineFeedCnt: number;
 	/**
 	 * The BOM (leading character sequence of the file).

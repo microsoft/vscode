@@ -6,8 +6,9 @@
 
 import * as strings from 'vs/base/common/strings';
 import { ITextBufferBuilder, DefaultEndOfLine, ITextBufferFactory, ITextBuffer } from 'vs/editor/common/model';
-import { TextSource, IRawTextSource, IRawPTBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/textSource';
+import { TextSource, IRawTextSource } from 'vs/editor/common/model/pieceTableTextBuffer/textSource';
 import { PieceTableTextBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBuffer';
+import { StringBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableBase';
 
 export class PieceTableTextBufferFactory implements ITextBufferFactory {
 
@@ -20,29 +21,24 @@ export class PieceTableTextBufferFactory implements ITextBufferFactory {
 	}
 
 	public getFirstLineText(lengthLimit: number): string {
-		return this.rawTextSource.chunks[0].text.substr(0, 100).split(/\r\n|\r|\n/)[0];
+		return this.rawTextSource.chunks[0].buffer.substr(0, 100).split(/\r\n|\r|\n/)[0];
 	}
 }
 
 class PTBasedBuilder {
-	private chunks: IRawPTBuffer[];
+	private chunks: StringBuffer[];
 	private lineFeedCnt: number;
-	// private lineStarts: number[];
-	// private text: string[];
 	private BOM: string;
 	private chunkIndex: number;
 	private totalCRCount: number;
 	private _regex: RegExp;
-	// private totalLength: number;
 
 	constructor() {
 		this.chunks = [];
 		this.BOM = '';
 		this.chunkIndex = 0;
-		// this.lineStarts = [0];
 		this.totalCRCount = 0;
 		this._regex = new RegExp(/\r\n|\r|\n/g);
-		// this.totalLength = 0;
 		this.lineFeedCnt = 0;
 	}
 
@@ -91,21 +87,13 @@ class PTBasedBuilder {
 			this.lineFeedCnt++;
 		} while (m);
 
-		// this.text.push(chunk);
-		this.chunks.push({
-			text: chunk,
-			lineStarts: lineStarts
-		});
-		// this.totalLength += chunk.length;
+		this.chunks.push(new StringBuffer(chunk, lineStarts));
 		this.chunkIndex++;
 	}
 
 	public finish(containsRTL: boolean, isBasicASCII: boolean): PieceTableTextBufferFactory {
 		if (this.chunks.length === 0) {
-			this.chunks.push({
-				text: '',
-				lineStarts: [0]
-			});
+			this.chunks.push(new StringBuffer('', [0]));
 		}
 		return new PieceTableTextBufferFactory({
 			chunks: this.chunks,

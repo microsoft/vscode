@@ -6,7 +6,6 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { IRawPTBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/textSource';
 
 export const enum NodeColor {
 	Black = 0,
@@ -271,7 +270,7 @@ export class PieceTableBase {
 	protected _root: TreeNode;
 	protected _lineCnt: number;
 
-	constructor(chunks: IRawPTBuffer[]) {
+	constructor(chunks: StringBuffer[]) {
 		this._buffers = [
 			new StringBuffer('', [0])
 		];
@@ -280,22 +279,19 @@ export class PieceTableBase {
 
 		let lastNode: TreeNode = null;
 		for (let i = 0, len = chunks.length; i < len; i++) {
-			if (chunks[i].text.length > 0) {
-				let lineStarts: number[];
-				if (chunks[i].lineStarts) {
-					lineStarts = chunks[i].lineStarts;
-				} else {
-					lineStarts = constructLineStarts(chunks[i].text);
+			if (chunks[i].buffer.length > 0) {
+				if (!chunks[i].lineStarts) {
+					chunks[i].lineStarts = constructLineStarts(chunks[i].buffer);
 				}
 
 				let piece = new OriginalPiece(
 					i + 1,
 					{ line: 0, column: 0 },
-					{ line: lineStarts.length - 1, column: chunks[i].text.length - lineStarts[lineStarts.length - 1] },
-					lineStarts.length - 1,
-					chunks[i].text.length
+					{ line: chunks[i].lineStarts.length - 1, column: chunks[i].buffer.length - chunks[i].lineStarts[chunks[i].lineStarts.length - 1] },
+					chunks[i].lineStarts.length - 1,
+					chunks[i].buffer.length
 				);
-				this._buffers.push(new StringBuffer(chunks[i].text, lineStarts));
+				this._buffers.push(chunks[i]);
 				lastNode = this.rbInsertRight(lastNode, piece);
 			}
 		}
