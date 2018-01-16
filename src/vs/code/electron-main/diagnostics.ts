@@ -228,7 +228,7 @@ function getProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): Proce
 	getProcessItem(mapPidToWindowTitle, processes, rootProcess, 0);
 
 	if (rootProcess) {
-		getProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
+		getProcessItem(mapPidToWindowTitle, processes, rootProcess, 0);
 	}
 
 	return processes;
