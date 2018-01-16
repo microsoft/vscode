@@ -110,23 +110,22 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 			return String(this._selection.positionLineNumber);
 
 		} else if (~['CURRENT_YEAR', 'CURRENT_YEAR_SHORT', 'CURRENT_MONTH', 'CURRENT_DATE', 'CURRENT_HOUR', 'CURRENT_MINUTE', 'CURRENT_SECOND'].indexOf(name)) {
-			const now = new Date();
 			const zeroPad = (n: string): string => n.length < 2 ? `0${n}` : n;
 
 			if (name === 'CURRENT_YEAR') {
-				return String(now.getFullYear());
+				return String(new Date().getFullYear());
 			} else if (name === 'CURRENT_YEAR_SHORT') {
-				return String(now.getFullYear()).slice(-2);
+				return String(new Date().getFullYear()).slice(-2);
 			} else if (name === 'CURRENT_MONTH') {
-				return zeroPad(String(now.getMonth().valueOf() + 1));
+				return zeroPad(String(new Date().getMonth().valueOf() + 1));
 			} else if (name === 'CURRENT_DATE') {
-				return zeroPad(String(now.getDate()));
+				return zeroPad(String(new Date().getDate()));
 			} else if (name === 'CURRENT_HOUR') {
-				return zeroPad(String(now.getHours()));
+				return zeroPad(String(new Date().getHours()));
 			} else if (name === 'CURRENT_MINUTE') {
-				return zeroPad(String(now.getMinutes()));
+				return zeroPad(String(new Date().getMinutes()));
 			} else if (name === 'CURRENT_SECOND') {
-				return zeroPad(String(now.getSeconds()));
+				return zeroPad(String(new Date().getSeconds()));
 			}
 		}
 		return undefined;
