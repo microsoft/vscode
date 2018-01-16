@@ -4968,11 +4968,9 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * Optional id for the tree item that has to be unique across tree. If not provided, an unique id is generated using the tree item's label.
+		 * Optional id for the tree item that has to be unique across tree. The id is used to preserve the selection and expansion state of the tree item.
 		 *
-		 * This is used by the view to preserve the selection and expansion state of the tree item.
-		 *
-		 * *Note:* With generated id, tree item's view state will be reset when label is changed.
+		 * If not provided, an id is generated using the tree item's label. **Note** that when labels change, ids will change and that selection and expansion state cannot be kept stable anymore.
 		 */
 		id?: string;
 
