@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
+import { isPromiseCanceledError, illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -79,32 +79,18 @@ export function rename(model: ITextModel, position: Position, newName: string): 
 	});
 }
 
-function resolveInitialRenameValue(model: IReadOnlyModel, position: Position): TPromise<RenameInitialValue> {
+function resolveInitialRenameValue(model: ITextModel, position: Position): TPromise<RenameInitialValue> {
 	const supports = RenameProviderRegistry.ordered(model);
-	let hasResult = false;
-
-	const factory = supports.map(support => {
-		return (): TPromise<RenameInitialValue> => {
-			if (!hasResult) {
-				return asWinJsPromise((token) => {
-					return support.resolveInitialRenameValue(model, position, token);
-				}).then(result => {
-					if (!result) {
-						return undefined;
-					} else {
-						return result;
-					}
-				}, err => {
-					onUnexpectedExternalError(err);
-					return TPromise.wrapError<RenameInitialValue>(new Error('provider failed'));
-				});
-			}
-			return undefined;
-		};
-	});
-
-	return sequence(factory).then((values): RenameInitialValue => values[0]);
-
+	return asWinJsPromise((token) =>
+			supports.length > 0
+				? supports[0].resolveInitialRenameValue(model, position, token) //Use first rename provider so that we always use the same for resolving the location and for the actual rename
+				: undefined
+		).then(result => {
+			return !result ? undefined : result;
+		}, err => {
+			onUnexpectedExternalError(err);
+			return TPromise.wrapError<RenameInitialValue>(new Error('provider failed'));
+		});
 }
 
 // ---  register actions and commands
