@@ -38,7 +38,7 @@ suite('ExtHostTreeView', function () {
 	let testObject: ExtHostTreeViews;
 	let target: RecordingShape;
 	let onDidChangeTreeNode: Emitter<{ key: string }>;
-	let onDidChangeTreeKey: Emitter<string>;
+	let onDidChangeTreeNodeWithId: Emitter<{ key: string }>;
 	let tree, labels, nodes;
 
 	setup(() => {
@@ -68,9 +68,9 @@ suite('ExtHostTreeView', function () {
 		target = new RecordingShape();
 		testObject = new ExtHostTreeViews(target, new ExtHostCommands(rpcProtocol, new ExtHostHeapService(), new NullLogService()));
 		onDidChangeTreeNode = new Emitter<{ key: string }>();
-		onDidChangeTreeKey = new Emitter<string>();
+		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
 		testObject.registerTreeDataProvider('testNodeTreeProvider', aNodeTreeDataProvider());
-		testObject.registerTreeDataProvider('testStringTreeProvider', aStringTreeDataProvider());
+		testObject.registerTreeDataProvider('testNodeWithIdTreeProvider', aNodeWithIdTreeDataProvider());
 
 		testObject.$getElements('testNodeTreeProvider').then(elements => {
 			for (const element of elements) {
@@ -107,31 +107,44 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
-	test('construct string tree', () => {
-		return testObject.$getElements('testStringTreeProvider')
+	test('construct id tree', () => {
+		return testObject.$getElements('testNodeWithIdTreeProvider')
 			.then(elements => {
 				const actuals = elements.map(e => e.handle);
 				assert.deepEqual(actuals, ['1/a', '1/b']);
 				return TPromise.join([
-					testObject.$getChildren('testStringTreeProvider', '1/a')
+					testObject.$getChildren('testNodeWithIdTreeProvider', '1/a')
 						.then(children => {
 							const actuals = children.map(e => e.handle);
 							assert.deepEqual(actuals, ['1/aa', '1/ab']);
 							return TPromise.join([
-								testObject.$getChildren('testStringTreeProvider', '1/aa').then(children => assert.equal(children.length, 0)),
-								testObject.$getChildren('testStringTreeProvider', '1/ab').then(children => assert.equal(children.length, 0))
+								testObject.$getChildren('testNodeWithIdTreeProvider', '1/aa').then(children => assert.equal(children.length, 0)),
+								testObject.$getChildren('testNodeWithIdTreeProvider', '1/ab').then(children => assert.equal(children.length, 0))
 							]);
 						}),
-					testObject.$getChildren('testStringTreeProvider', '1/b')
+					testObject.$getChildren('testNodeWithIdTreeProvider', '1/b')
 						.then(children => {
 							const actuals = children.map(e => e.handle);
 							assert.deepEqual(actuals, ['1/ba', '1/bb']);
 							return TPromise.join([
-								testObject.$getChildren('testStringTreeProvider', '1/ba').then(children => assert.equal(children.length, 0)),
-								testObject.$getChildren('testStringTreeProvider', '1/bb').then(children => assert.equal(children.length, 0))
+								testObject.$getChildren('testNodeWithIdTreeProvider', '1/ba').then(children => assert.equal(children.length, 0)),
+								testObject.$getChildren('testNodeWithIdTreeProvider', '1/bb').then(children => assert.equal(children.length, 0))
 							]);
 						})
 				]);
+			});
+	});
+
+	test('error is thrown if id is not unique', () => {
+		tree['a'] = {
+			'a': {}
+		};
+		return testObject.$getElements('testNodeWithIdTreeProvider')
+			.then(elements => {
+				const actuals = elements.map(e => e.handle);
+				assert.deepEqual(actuals, ['1/a', '1/b']);
+				return testObject.$getChildren('testNodeWithIdTreeProvider', '1/a')
+					.then(children => assert.fail('Should fail with duplicate id'), () => null);
 			});
 	});
 
@@ -359,15 +372,17 @@ suite('ExtHostTreeView', function () {
 		};
 	}
 
-	function aStringTreeDataProvider(): TreeDataProvider<string> {
+	function aNodeWithIdTreeDataProvider(): TreeDataProvider<{ key: string }> {
 		return {
-			getChildren: (element: string): string[] => {
-				return getChildren(element);
+			getChildren: (element: { key: string }): { key: string }[] => {
+				return getChildren(element ? element.key : undefined).map(key => getNode(key));
 			},
-			getTreeItem: (element: string): TreeItem => {
-				return getTreeItem(element);
+			getTreeItem: (element: { key: string }): TreeItem => {
+				const treeItem = getTreeItem(element.key);
+				treeItem.id = element.key;
+				return treeItem;
 			},
-			onDidChangeTreeData: onDidChangeTreeKey.event
+			onDidChangeTreeData: onDidChangeTreeNodeWithId.event
 		};
 	}
 

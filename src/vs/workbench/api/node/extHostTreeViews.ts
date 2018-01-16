@@ -107,8 +107,8 @@ class ExtHostTreeView<T> extends Disposable {
 					asWinJsPromise(() => this.dataProvider.getTreeItem(element))
 						.then(extTreeItem => {
 							if (extTreeItem) {
-								if (typeof element === 'string' && this.elements.has(this.createHandle(element, extTreeItem))) {
-									throw new Error(localize('treeView.duplicateElement', 'Element {0} is already registered', element));
+								if (extTreeItem.id && this.elements.has(this.createHandle(element, extTreeItem))) {
+									throw new Error(localize('treeView.duplicateElement', 'Element with id {0} is already registered', extTreeItem.id));
 								}
 								return { element, extTreeItem };
 							}
@@ -199,9 +199,9 @@ class ExtHostTreeView<T> extends Disposable {
 		};
 	}
 
-	private createHandle(element: T, { label, resourceUri }: vscode.TreeItem, parentHandle?: TreeItemHandle): TreeItemHandle {
-		if (typeof element === 'string') {
-			return `${ExtHostTreeView.ID_HANDLE_PREFIX}/${element}`;
+	private createHandle(element: T, { id, label, resourceUri }: vscode.TreeItem, parentHandle?: TreeItemHandle): TreeItemHandle {
+		if (id) {
+			return `${ExtHostTreeView.ID_HANDLE_PREFIX}/${id}`;
 		}
 
 		const prefix = parentHandle ? parentHandle : ExtHostTreeView.LABEL_HANDLE_PREFIX;
