@@ -13,5 +13,5 @@
 	"unfoldAllMarkerRegions.label": "すべての領域を展開",
 	"foldAllAction.label": "すべて折りたたみ",
 	"unfoldAllAction.label": "すべて展開",
-	"foldLevelAction.label": "折りたたみレベル {0}"
+	"foldLevelAction.label": "レベル {0} で折りたたむ"
 }

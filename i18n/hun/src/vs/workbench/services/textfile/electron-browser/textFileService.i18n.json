@@ -6,8 +6,6 @@
 {
 	"saveChangesMessage": "Szeretné menteni a(z) {0} fájlban elvégzett módosításokat?",
 	"saveChangesMessages": "Szeretné menteni a következő {0} fájlban elvégzett módosításokat?",
-	"moreFile": "...1 további fájl nincs megjelenítve",
-	"moreFiles": "...{0} további fájl nincs megjelenítve",
 	"saveAll": "Ö&&sszes mentése",
 	"save": "Menté&&s",
 	"dontSave": "&&Ne mentse",

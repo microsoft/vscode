@@ -27,6 +27,6 @@
 	"staged changes": "Alterações em Etapas",
 	"changes": "Alterações",
 	"ok": "OK",
-	"neveragain": "Nunca Mostrar Novamente",
+	"neveragain": "Não mostrar novamente",
 	"huge": "O repositório git em '{0}' tem muitas atualizações ativas, somente um subconjunto de funcionalidades do Git será habilitado."
 }

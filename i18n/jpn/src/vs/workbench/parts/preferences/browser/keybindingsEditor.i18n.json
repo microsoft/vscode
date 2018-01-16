@@ -31,6 +31,6 @@
 	"keybindingAriaLabel": "キー バインドは {0} です。",
 	"noKeybinding": "キー バインドが割り当てられていません。",
 	"sourceAriaLabel": "ソースは {0} です。",
-	"whenAriaLabel": "時間は {0} です。",
-	"noWhen": "時間コンテキストがありません。"
+	"whenAriaLabel": "タイミングは {0} です。",
+	"noWhen": "タイミングのコンテキストがありません。"
 }

@@ -12,6 +12,5 @@
 	"globalConsoleActionWin": "Открыть новую командную строку",
 	"globalConsoleActionMacLinux": "Открыть новый терминал",
 	"scopedConsoleActionWin": "Открыть в командной строке",
-	"scopedConsoleActionMacLinux": "Открыть в терминале",
-	"openFolderInIntegratedTerminal": "Открыть в терминале"
+	"scopedConsoleActionMacLinux": "Открыть в терминале"
 }

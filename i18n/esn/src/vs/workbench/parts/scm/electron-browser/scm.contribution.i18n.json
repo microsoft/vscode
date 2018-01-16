@@ -7,5 +7,6 @@
 	"toggleGitViewlet": "Mostrar GIT",
 	"source control": "Control de código fuente",
 	"toggleSCMViewlet": "Mostrar SCM",
-	"view": "Ver"
+	"view": "Ver",
+	"scmConfigurationTitle": "SCM"
 }

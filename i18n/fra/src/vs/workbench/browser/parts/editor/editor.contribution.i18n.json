@@ -13,5 +13,17 @@
 	"groupThreePicker": "Afficher les éditeurs du troisième groupe",
 	"allEditorsPicker": "Afficher tous les éditeurs ouverts",
 	"view": "Affichage",
-	"file": "Fichier"
+	"file": "Fichier",
+	"close": "Fermer",
+	"closeOthers": "Fermer les autres",
+	"closeRight": "Fermer à droite",
+	"closeAllUnmodified": "Fermer les éléments non modifiés",
+	"closeAll": "Tout fermer",
+	"keepOpen": "Garder ouvert",
+	"showOpenedEditors": "Afficher les éditeurs ouverts",
+	"keepEditor": "Conserver l'éditeur",
+	"closeEditorsInGroup": "Fermer tous les éditeurs du groupe",
+	"closeUnmodifiedEditors": "Fermer les éditeurs non modifiés du groupe",
+	"closeOtherEditors": "Fermer les autres éditeurs",
+	"closeRightEditors": "Fermer les éditeurs situés à droite"
 }

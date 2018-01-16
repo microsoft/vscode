@@ -7,5 +7,7 @@
 	"toggleGitViewlet": "顯示 Git",
 	"source control": "原始檔控制",
 	"toggleSCMViewlet": "顯示 SCM",
-	"view": "檢視"
+	"view": "檢視",
+	"alwaysShowProviders": "是否總是顯示原始檔控制提供者區段",
+	"inputCounter": "控制何時顯示輸入計數器"
 }
