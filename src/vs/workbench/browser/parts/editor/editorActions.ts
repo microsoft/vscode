@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
-import { EditorInput, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
+import { EditorInput, TextEditorOptions, EditorOptions, IEditorIdentifier, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -38,7 +38,7 @@ export class SplitEditorAction extends Action {
 		super(id, label, 'split-editor-action');
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorIdentifier): TPromise<any> {
 		let editorToSplit: IEditor;
 		if (context) {
 			editorToSplit = this.editorService.getVisibleEditors()[this.editorGroupService.getStacksModel().positionOfGroup(context.group)];
@@ -119,7 +119,7 @@ export class JoinTwoGroupsAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorIdentifier): TPromise<any> {
 
 		const editorStacksModel = this.editorGroupService.getStacksModel();
 
@@ -537,7 +537,7 @@ export class CloseEditorAction extends Action {
 		super(id, label, 'close-editor-action');
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorIdentifier): TPromise<any> {
 		return this.commandService.executeCommand(CLOSE_EDITOR_COMMAND_ID, void 0, context);
 	}
 }
@@ -589,7 +589,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorIdentifier): TPromise<any> {
 		const editor = getTarget(this.editorService, this.groupService, context);
 		if (editor) {
 			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: Direction.LEFT });
@@ -658,7 +658,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorIdentifier): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
@@ -689,7 +689,7 @@ export class MoveGroupLeftAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorIdentifier): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
@@ -723,7 +723,7 @@ export class MoveGroupRightAction extends Action {
 		super(id, label);
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	public run(context?: IEditorIdentifier): TPromise<any> {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
@@ -802,7 +802,7 @@ export class MaximizeGroupAction extends Action {
 	}
 }
 
-function getTarget(editorService: IWorkbenchEditorService, editorGroupService: IEditorGroupService, context?: IEditorContext): { input: IEditorInput, position: Position } {
+function getTarget(editorService: IWorkbenchEditorService, editorGroupService: IEditorGroupService, context?: IEditorIdentifier): { input: IEditorInput, position: Position } {
 	if (context) {
 		return { input: context.editor, position: editorGroupService.getStacksModel().positionOfGroup(context.group) };
 	}
