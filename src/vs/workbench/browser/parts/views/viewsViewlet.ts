@@ -324,12 +324,14 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			.then(() => void 0);
 	}
 
-	focusView(id: string): void {
+	openView(id: string): void {
 		this.focus();
 		const view = this.getView(id);
 		if (view) {
 			view.setExpanded(true);
 			view.focus();
+		} else {
+			this.toggleViewVisibility(id);
 		}
 	}
 
@@ -357,18 +359,16 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	}
 
 	toggleViewVisibility(id: string): void {
-		const view = this.getView(id);
 		let viewState = this.viewsStates.get(id);
-
 		if (!viewState) {
 			return;
 		}
 
-		viewState.isHidden = !!view;
+		viewState.isHidden = !!this.getView(id);
 		this.updateViews()
 			.then(() => {
 				if (!viewState.isHidden) {
-					this.getView(id).focus();
+					this.openView(id);
 				} else {
 					this.focus();
 				}

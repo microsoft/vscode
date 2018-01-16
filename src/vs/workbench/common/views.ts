@@ -154,7 +154,7 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 
 export interface IViewsViewlet extends IViewlet {
 
-	focusView(id: string): void;
+	openView(id: string): void;
 
 }
 
