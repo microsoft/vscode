@@ -151,8 +151,12 @@ export class ChunksTextBuffer implements ITextBuffer {
 	getLineLastNonWhitespaceColumn(lineNumber: number): number {
 		throw new Error('TODO');
 	}
-	setEOL(newEOL: string): void {
-		throw new Error('TODO');
+	setEOL(newEOL: '\r\n' | '\n'): void {
+		if (this.getEOL() === newEOL) {
+			// nothing to do...
+			return;
+		}
+		this._actual.setEOL(newEOL);
 	}
 
 	private static _sortOpsAscending(a: IValidatedEditOperation, b: IValidatedEditOperation): number {
@@ -1363,6 +1367,17 @@ class Buffer {
 
 		this._leafs = leafs;
 		this._rebuildNodes();
+	}
+
+	public setEOL(newEOL: '\r\n' | '\n'): void {
+		let leafs: BufferPiece[] = [];
+		for (let i = 0, len = this._leafs.length; i < len; i++) {
+			leafs[i] = BufferPiece.normalizeEOL(this._leafs[i], newEOL);
+		}
+		this._leafs = leafs;
+		this._rebuildNodes();
+		this._eol = newEOL;
+		this._eolLength = this._eol.length;
 	}
 
 	//#endregion

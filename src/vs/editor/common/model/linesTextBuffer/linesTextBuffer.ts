@@ -232,7 +232,7 @@ export class LinesTextBuffer implements ITextBuffer {
 
 	//#region Editing
 
-	public setEOL(newEOL: string): void {
+	public setEOL(newEOL: '\r\n' | '\n'): void {
 		this._EOL = newEOL;
 		this._constructLineStarts();
 	}
