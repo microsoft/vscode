@@ -606,17 +606,12 @@ export class TestEditorService implements IWorkbenchEditorService {
 		return TPromise.as([]);
 	}
 
+	public closeEditors(positions?: Position[]): TPromise<void>;
 	public closeEditors(position: Position, filter?: ICloseEditorsFilter): TPromise<void>;
 	public closeEditors(position: Position, editors: IEditorInput[]): TPromise<void>;
 	public closeEditors(editors: { positionOne?: ICloseEditorsFilter, positionTwo?: ICloseEditorsFilter, positionThree?: ICloseEditorsFilter }): TPromise<void>;
 	public closeEditors(editors: { positionOne?: IEditorInput[], positionTwo?: IEditorInput[], positionThree?: IEditorInput[] }): TPromise<void>;
 	public closeEditors(positionOrEditors: any, filterOrEditors?: any): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public closeAllEditors(except?: Position): TPromise<void>;
-	public closeAllEditors(positions?: Position[]): TPromise<void>;
-	public closeAllEditors(exceptOrPositions?: Position | Position[]): TPromise<void> {
 		return TPromise.as(null);
 	}
 

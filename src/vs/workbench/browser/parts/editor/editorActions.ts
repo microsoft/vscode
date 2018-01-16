@@ -15,7 +15,7 @@ import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry,
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, IEditor, Direction, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IEditor, Direction, IResourceInput, IEditorInput, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
@@ -617,7 +617,7 @@ export class CloseAllEditorsAction extends Action {
 
 		// Just close all if there are no or one dirty editor
 		if (this.textFileService.getDirty().length < 2) {
-			return this.editorService.closeAllEditors();
+			return this.editorService.closeEditors();
 		}
 
 		// Otherwise ask for combined confirmation
@@ -635,7 +635,7 @@ export class CloseAllEditorsAction extends Action {
 
 			return saveOrRevertPromise.then(success => {
 				if (success) {
-					return this.editorService.closeAllEditors();
+					return this.editorService.closeEditors();
 				}
 
 				return void 0;
@@ -686,7 +686,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 		}
 
 		if (typeof position === 'number') {
-			return this.editorService.closeAllEditors(position);
+			return this.editorService.closeEditors(POSITIONS.filter(p => p !== position));
 		}
 
 		return TPromise.as(false);

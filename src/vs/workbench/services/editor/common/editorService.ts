@@ -88,6 +88,12 @@ export interface IWorkbenchEditorService extends IEditorService {
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 
 	/**
+	 * Closes all editors of the provided groups, or all editors across all groups
+	 * if no position is provided.
+	 */
+	closeEditors(positions?: Position[]): TPromise<void>;
+
+	/**
 	 * Closes editors of a specific group at the provided position. If the optional editor is provided to exclude, it
 	 * will not be closed. The direction can be used in that case to control if all other editors should get closed,
 	 * or towards a specific direction.
@@ -110,16 +116,6 @@ export interface IWorkbenchEditorService extends IEditorService {
 	closeEditors(editors: { positionOne?: IEditorInput[], positionTwo?: IEditorInput[], positionThree?: IEditorInput[] }): TPromise<void>;
 
 	/**
-	 * Closes all editors across all groups. The optional position allows to keep one group alive.
-	 */
-	closeAllEditors(except?: Position): TPromise<void>;
-
-	/**
-	 * Closes all editors of the provided groups.
-	 */
-	closeAllEditors(positions: Position[]): TPromise<void>;
-
-	/**
 	 * Allows to resolve an untyped input to a workbench typed instanceof editor input
 	 */
 	createInput(input: IResourceInputType): IEditorInput;
@@ -131,13 +127,12 @@ export interface IEditorPart {
 	openEditors(editors: { input: IEditorInput, position?: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<IEditor[]>;
 	openEditors(editors: { input: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], sideBySide?: boolean): TPromise<IEditor[]>;
 	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], position?: Position): TPromise<IEditor[]>;
+	closeEditors(positions?: Position[]): TPromise<void>;
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 	closeEditors(position: Position, filter?: ICloseEditorsFilter): TPromise<void>;
 	closeEditors(position: Position, editors: IEditorInput[]): TPromise<void>;
 	closeEditors(editors: { positionOne?: ICloseEditorsFilter, positionTwo?: ICloseEditorsFilter, positionThree?: ICloseEditorsFilter }): TPromise<void>;
 	closeEditors(editors: { positionOne?: IEditorInput[], positionTwo?: IEditorInput[], positionThree?: IEditorInput[] }): TPromise<void>;
-	closeAllEditors(except?: Position): TPromise<void>;
-	closeAllEditors(positions?: Position[]): TPromise<void>;
 	getActiveEditor(): IEditor;
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): IEditorInput;
@@ -280,18 +275,13 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.closeEditor(position, input);
 	}
 
+	public closeEditors(positions?: Position[]): TPromise<void>;
 	public closeEditors(position: Position, filter?: ICloseEditorsFilter): TPromise<void>;
 	public closeEditors(position: Position, editors: IEditorInput[]): TPromise<void>;
 	public closeEditors(editors: { positionOne?: ICloseEditorsFilter, positionTwo?: ICloseEditorsFilter, positionThree?: ICloseEditorsFilter }): TPromise<void>;
 	public closeEditors(editors: { positionOne?: IEditorInput[], positionTwo?: IEditorInput[], positionThree?: IEditorInput[] }): TPromise<void>;
-	public closeEditors(positionOrEditors: any, filterOrEditors?: any): TPromise<void> {
-		return this.editorPart.closeEditors(positionOrEditors, filterOrEditors);
-	}
-
-	public closeAllEditors(except?: Position): TPromise<void>;
-	public closeAllEditors(positions?: Position[]): TPromise<void>;
-	public closeAllEditors(exceptOrPositions?: any): TPromise<void> {
-		return this.editorPart.closeAllEditors(exceptOrPositions);
+	public closeEditors(positionsOrEditors: any, filterOrEditors?: any): TPromise<void> {
+		return this.editorPart.closeEditors(positionsOrEditors, filterOrEditors);
 	}
 
 	public createInput(input: IEditorInput): EditorInput;

@@ -52,17 +52,12 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as([]);
 	}
 
+	public closeEditors(positions?: Position[]): TPromise<void>;
 	public closeEditors(position: Position, filter?: ICloseEditorsFilter): TPromise<void>;
 	public closeEditors(position: Position, editors?: EditorInput[]): TPromise<void>;
 	public closeEditors(editors: { positionOne?: ICloseEditorsFilter, positionTwo?: ICloseEditorsFilter, positionThree?: ICloseEditorsFilter }): TPromise<void>;
 	public closeEditors(editors: { positionOne?: EditorInput[], positionTwo?: EditorInput[], positionThree?: EditorInput[] }): TPromise<void>;
 	public closeEditors(positionOrEditors: any, filterOrEditors?: any): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public closeAllEditors(except?: Position): TPromise<void>;
-	public closeAllEditors(positions?: Position[]): TPromise<void>;
-	public closeAllEditors(exceptOrPositions?: Position | Position[]): TPromise<void> {
 		return TPromise.as(null);
 	}
 
