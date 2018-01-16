@@ -4972,6 +4972,13 @@ declare module 'vscode' {
 		label?: string;
 
 		/**
+		 * Optional id for the tree item that has to be unique across tree. The id is used to preserve the selection and expansion state of the tree item.
+		 *
+		 * If not provided, an id is generated using the tree item's label. **Note** that when labels change, ids will change and that selection and expansion state cannot be kept stable anymore.
+		 */
+		id?: string;
+
+		/**
 		 * The icon path for the tree item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
 		 */
 		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
