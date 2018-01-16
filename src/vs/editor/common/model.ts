@@ -1079,6 +1079,7 @@ export interface ITextBuffer {
 
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getLength(): number;
 	getLineCount(): number;
 	getLinesContent(): string[];
 	getLineContent(lineNumber: number): string;

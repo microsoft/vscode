@@ -116,6 +116,10 @@ export class ChunksTextBuffer implements ITextBuffer {
 		return 0;
 	}
 
+	public getLength(): number {
+		return this._actual.getLength();
+	}
+
 	getLineCount(): number {
 		return this._actual.getLineCount();
 	}
@@ -1014,12 +1018,12 @@ class Buffer {
 	public convertPositionToOffset(lineNumber: number, column: number): number {
 		const r = BufferCursorPool.take();
 
-		if (!this._getOffsetAt(lineNumber, column, r)) {
+		if (!this._findLineStart(lineNumber, r)) {
 			BufferCursorPool.put(r);
 			throw new Error(`Position not found`);
 		}
 
-		const result = r.offset;
+		const result = r.offset + column - 1;
 
 		BufferCursorPool.put(r);
 		return result;
@@ -1048,7 +1052,7 @@ class Buffer {
 		while (true) {
 			const leaf = this._leafs[leafIndex];
 
-			if (leaf.newLineCount() > 1 && leaf.lineStartFor(0) + leafStartOffset <= offset) {
+			if (leaf.newLineCount() >= 1 && leaf.lineStartFor(0) + leafStartOffset <= offset) {
 				// must be in this leaf
 				return this._findLineStartBeforeOffsetInLeaf(offset, leafIndex, leafStartOffset, leafStartNewLineCount, result);
 			}
@@ -1113,48 +1117,23 @@ class Buffer {
 
 	public getValueInRange(range: Range): string {
 		const start = BufferCursorPool.take();
-		const end = BufferCursorPool.take();
 
 		if (!this._getOffsetAt(range.startLineNumber, range.startColumn, start)) {
 			BufferCursorPool.put(start);
-			BufferCursorPool.put(end);
 			throw new Error(`Line not found`);
 		}
 
-		if (!this._getOffsetAt(range.endLineNumber, range.endColumn, end)) {
-			BufferCursorPool.put(start);
-			BufferCursorPool.put(end);
-			throw new Error(`Line not found`);
-		}
-
-		const result = this.extractString(start, end.offset - start.offset);
+		const endOffset = this.convertPositionToOffset(range.endLineNumber, range.endColumn);
+		const result = this.extractString(start, endOffset - start.offset);
 
 		BufferCursorPool.put(start);
-		BufferCursorPool.put(end);
 		return result;
 	}
 
 	public getValueLengthInRange(range: Range): number {
-		const start = BufferCursorPool.take();
-		const end = BufferCursorPool.take();
-
-		if (!this._getOffsetAt(range.startLineNumber, range.startColumn, start)) {
-			BufferCursorPool.put(start);
-			BufferCursorPool.put(end);
-			throw new Error(`Line not found`);
-		}
-
-		if (!this._getOffsetAt(range.endLineNumber, range.endColumn, end)) {
-			BufferCursorPool.put(start);
-			BufferCursorPool.put(end);
-			throw new Error(`Line not found`);
-		}
-
-		const result = end.offset - start.offset;
-
-		BufferCursorPool.put(start);
-		BufferCursorPool.put(end);
-		return result;
+		const startOffset = this.convertPositionToOffset(range.startLineNumber, range.startColumn);
+		const endOffset = this.convertPositionToOffset(range.endLineNumber, range.endColumn);
+		return endOffset - startOffset;
 	}
 
 	//#region Editing

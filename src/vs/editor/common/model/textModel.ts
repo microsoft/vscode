@@ -895,7 +895,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public modifyPosition(rawPosition: IPosition, offset: number): Position {
 		this._assertNotDisposed();
-		return this.getPositionAt(this.getOffsetAt(rawPosition) + offset);
+		let candidate = this.getOffsetAt(rawPosition) + offset;
+		return this.getPositionAt(Math.min(this._buffer.getLength(), Math.max(0, candidate)));
 	}
 
 	public getFullModelRange(): Range {
