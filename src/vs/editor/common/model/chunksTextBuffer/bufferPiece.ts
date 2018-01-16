@@ -23,7 +23,7 @@ export class BufferPiece {
 	constructor(str: string, lineStarts: Uint32Array = null) {
 		this._str = str;
 		if (lineStarts === null) {
-			this._lineStarts = createUint32Array(createLineStarts(str).lineStarts);
+			this._lineStarts = createLineStartsFast(str);
 		} else {
 			this._lineStarts = lineStarts;
 		}
@@ -235,16 +235,41 @@ export function createUint32Array(arr: number[]): Uint32Array {
 
 export class LineStarts {
 	constructor(
-		public readonly lineStarts: number[],
+		public readonly lineStarts: Uint32Array,
 		public readonly cr: number,
 		public readonly lf: number,
-		public readonly crlf: number
+		public readonly crlf: number,
+		public readonly isBasicASCII: boolean
 	) { }
 }
 
-export function createLineStarts(str: string): LineStarts {
+export function createLineStartsFast(str: string): Uint32Array {
 	let r: number[] = [], rLength = 0;
+	for (let i = 0, len = str.length; i < len; i++) {
+		const chr = str.charCodeAt(i);
+
+		if (chr === CharCode.CarriageReturn) {
+			if (i + 1 < len && str.charCodeAt(i + 1) === CharCode.LineFeed) {
+				// \r\n... case
+				r[rLength++] = i + 2;
+				i++; // skip \n
+			} else {
+				// \r... case
+				r[rLength++] = i + 1;
+			}
+		} else if (chr === CharCode.LineFeed) {
+			r[rLength++] = i + 1;
+		}
+	}
+	return createUint32Array(r);
+}
+
+export function createLineStarts(r: number[], str: string): LineStarts {
+	r.length = 0;
+
+	let rLength = 0;
 	let cr = 0, lf = 0, crlf = 0;
+	let isBasicASCII = true;
 	for (let i = 0, len = str.length; i < len; i++) {
 		const chr = str.charCodeAt(i);
 
@@ -262,7 +287,17 @@ export function createLineStarts(str: string): LineStarts {
 		} else if (chr === CharCode.LineFeed) {
 			lf++;
 			r[rLength++] = i + 1;
+		} else {
+			if (isBasicASCII) {
+				if (chr !== CharCode.Tab && (chr < 32 || chr > 126)) {
+					isBasicASCII = false;
+				}
+			}
 		}
 	}
-	return new LineStarts(r, cr, lf, crlf);
+
+	const result = new LineStarts(createUint32Array(r), cr, lf, crlf, isBasicASCII);
+	r.length = 0;
+
+	return result;
 }

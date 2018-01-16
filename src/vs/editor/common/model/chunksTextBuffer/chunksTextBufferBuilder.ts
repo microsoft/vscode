@@ -6,7 +6,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import { ITextBufferBuilder, ITextBufferFactory, ITextBuffer, DefaultEndOfLine } from 'vs/editor/common/model';
-import { BufferPiece, createLineStarts, createUint32Array } from 'vs/editor/common/model/chunksTextBuffer/bufferPiece';
+import { BufferPiece, createLineStarts } from 'vs/editor/common/model/chunksTextBuffer/bufferPiece';
 import { ChunksTextBuffer } from 'vs/editor/common/model/chunksTextBuffer/chunksTextBuffer';
 import { CharCode } from 'vs/base/common/charCode';
 
@@ -71,6 +71,7 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 	private _hasPreviousChar: boolean;
 	private _previousChar: number;
 	private _averageChunkSize: number;
+	private _tmpLineStarts: number[];
 
 	private cr: number;
 	private lf: number;
@@ -83,6 +84,7 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 		this._hasPreviousChar = false;
 		this._previousChar = 0;
 		this._averageChunkSize = 0;
+		this._tmpLineStarts = [];
 
 		this.cr = 0;
 		this.lf = 0;
@@ -109,13 +111,6 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 			this._hasPreviousChar = false;
 			this._previousChar = lastChar;
 		}
-
-		if (!this.containsRTL) {
-			this.containsRTL = strings.containsRTL(chunk);
-		}
-		if (this.isBasicASCII) {
-			this.isBasicASCII = strings.isBasicASCII(chunk);
-		}
 	}
 
 	private _acceptChunk1(chunk: string, allowEmptyStrings: boolean): void {
@@ -132,12 +127,20 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 	}
 
 	private _acceptChunk2(chunk: string): void {
-		const lineStarts = createLineStarts(chunk);
+		const lineStarts = createLineStarts(this._tmpLineStarts, chunk);
 
-		this._rawPieces.push(new BufferPiece(chunk, createUint32Array(lineStarts.lineStarts)));
+		this._rawPieces.push(new BufferPiece(chunk, lineStarts.lineStarts));
 		this.cr += lineStarts.cr;
 		this.lf += lineStarts.lf;
 		this.crlf += lineStarts.crlf;
+
+		if (this.isBasicASCII) {
+			this.isBasicASCII = lineStarts.isBasicASCII;
+		}
+		if (!this.isBasicASCII && !this.containsRTL) {
+			// No need to check if is basic ASCII
+			this.containsRTL = strings.containsRTL(chunk);
+		}
 	}
 
 	public finish(): TextBufferFactory {
