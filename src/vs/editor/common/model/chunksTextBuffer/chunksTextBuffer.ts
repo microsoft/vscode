@@ -135,7 +135,11 @@ export class ChunksTextBuffer implements ITextBuffer {
 	}
 
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number {
-		throw new Error('TODO');
+		const result = this._actual.getLineFirstNonWhitespaceIndex(lineNumber);
+		if (result === -1) {
+			return 0;
+		}
+		return result + 1;
 	}
 	getLineLastNonWhitespaceColumn(lineNumber: number): number {
 		throw new Error('TODO');
@@ -793,6 +797,10 @@ class Buffer {
 		return true;
 	}
 
+	public getLength(): number {
+		return this._nodes.length[1];
+	}
+
 	public getLineCount(): number {
 		return this._nodes.newLineCount[1] + 1;
 	}
@@ -841,6 +849,39 @@ class Buffer {
 		BufferCursorPool.put(start);
 		BufferCursorPool.put(end);
 		return result;
+	}
+
+	public getLineFirstNonWhitespaceIndex(lineNumber: number): number {
+		const start = BufferCursorPool.take();
+
+		if (!this._findLineStart(lineNumber, start)) {
+			BufferCursorPool.put(start);
+			throw new Error(`Line not found`);
+		}
+
+		let leafIndex = start.leafIndex;
+		let searchStartOffset = start.offset - start.leafStartOffset;
+		BufferCursorPool.put(start);
+
+		const leafsCount = this._leafs.length;
+		let totalDelta = 0;
+		while (true) {
+			const leaf = this._leafs[leafIndex];
+
+			const leafResult = leaf.findLineFirstNonWhitespaceIndexInLeaf(searchStartOffset);
+			if (leafResult !== -1) {
+				return (leafResult - searchStartOffset) + totalDelta;
+			}
+
+			leafIndex++;
+
+			if (leafIndex >= leafsCount) {
+				return -1;
+			}
+
+			totalDelta += (leaf.length() - searchStartOffset);
+			searchStartOffset = 0;
+		}
 	}
 
 	public getLinesContent(): string[] {
