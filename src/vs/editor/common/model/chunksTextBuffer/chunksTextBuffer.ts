@@ -978,10 +978,10 @@ class Buffer {
 	private _findLineStartBeforeOffsetInLeaf(offset: number, leafIndex: number, leafStartOffset: number, leafStartNewLineCount: number, result: BufferCursor): number {
 		const leaf = this._leafs[leafIndex];
 		const lineStartIndex = leaf.findLineStartBeforeOffset(offset - leafStartOffset);
-		const lineStartOffset = leafStartOffset = leaf.lineStartFor(lineStartIndex);
+		const lineStartOffset = leafStartOffset + leaf.lineStartFor(lineStartIndex);
 
 		result.set(lineStartOffset, leafIndex, leafStartOffset, leafStartNewLineCount);
-		return leafStartNewLineCount + lineStartIndex + 1;
+		return leafStartNewLineCount + lineStartIndex + 2;
 	}
 
 	/**
@@ -995,7 +995,7 @@ class Buffer {
 		while (true) {
 			const leaf = this._leafs[leafIndex];
 
-			if (leaf.newLineCount() > 1 && leaf.lineStartFor(0) + leafStartOffset >= offset) {
+			if (leaf.newLineCount() > 1 && leaf.lineStartFor(0) + leafStartOffset <= offset) {
 				// must be in this leaf
 				return this._findLineStartBeforeOffsetInLeaf(offset, leafIndex, leafStartOffset, leafStartNewLineCount, result);
 			}
