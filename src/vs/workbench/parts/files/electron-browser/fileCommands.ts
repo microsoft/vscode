@@ -41,6 +41,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { sequence } from 'vs/base/common/async';
 import { getResourceForCommand, getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 // Commands
 
@@ -488,18 +489,21 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
 	handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
 		let saveAllArg: any;
-		if (!editorContext) {
+		if (!contexts.length) {
 			saveAllArg = true;
 		} else {
 			const fileService = accessor.get(IFileService);
-			const editorGroup = editorContext.group;
-			saveAllArg = [];
-			editorGroup.getEditors().forEach(editor => {
-				const resource = toResource(editor, { supportSideBySide: true });
-				if (resource && (resource.scheme === 'untitled' || fileService.canHandleResource(resource))) {
-					saveAllArg.push(resource);
-				}
+			contexts.forEach(context => {
+				const editorGroup = context.group;
+				saveAllArg = [];
+				editorGroup.getEditors().forEach(editor => {
+					const resource = toResource(editor, { supportSideBySide: true });
+					if (resource && (resource.scheme === 'untitled' || fileService.canHandleResource(resource))) {
+						saveAllArg.push(resource);
+					}
+				});
 			});
 		}
 
