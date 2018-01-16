@@ -137,7 +137,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		};
 		return asWinJsPromise(token => provider.findFiles(query, progress, token));
 	}
-	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, include: string, exclude: string): TPromise<void> {
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, options: { includes: string[], excludes: string[] }): TPromise<void> {
 		const provider = this._provider.get(handle);
 		if (!provider.provideTextSearchResults) {
 			return TPromise.as(undefined);
@@ -151,6 +151,6 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 				}]);
 			}
 		};
-		return asWinJsPromise(token => provider.provideTextSearchResults(pattern, include, exclude, progress, token));
+		return asWinJsPromise(token => provider.provideTextSearchResults(pattern, options, progress, token));
 	}
 }
