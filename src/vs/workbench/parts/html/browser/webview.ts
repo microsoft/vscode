@@ -102,7 +102,7 @@ export default class Webview {
 
 				const contents = this._webview.getWebContents();
 				if (contents && !contents.isDestroyed()) {
-					registerFileProtocol(contents, 'vscode-webview-core-resource', this._environmentService.appRoot);
+					registerFileProtocol(contents, 'vscode-core-resource', this._environmentService.appRoot);
 				}
 			}));
 		}
