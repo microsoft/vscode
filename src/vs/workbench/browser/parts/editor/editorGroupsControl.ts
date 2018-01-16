@@ -36,6 +36,7 @@ import { Themable, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_T
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { EditorAreaDropHandler } from 'vs/workbench/browser/parts/editor/editorAreaDropHandler';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export enum Rochade {
 	NONE,
@@ -144,7 +145,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(themeService);
 
@@ -1518,6 +1520,14 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 				// Move to valid position if any
 				if (moveTo !== null) {
+					// TODO@Ben remove me after a while
+					/* __GDPR__
+						"editorGroupMoved" : {
+							"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"moveTo": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
+					this.telemetryService.publicLog('editorGroupMoved', { source: position, to: moveTo });
 					this.editorGroupService.moveGroup(position, moveTo);
 				}
 
