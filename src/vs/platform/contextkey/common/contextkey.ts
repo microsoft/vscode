@@ -366,7 +366,7 @@ export class ContextKeyGlobExpr implements ContextKeyExpr {
 	}
 
 	public evaluate(context: IContext): boolean {
-		return match(this.value, context.getValue(this.key))
+		return match(this.value, context.getValue(this.key));
 	}
 
 	public normalize(): ContextKeyExpr {
