@@ -5,7 +5,6 @@
 'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
-import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
 
 export const enum NodeColor {
 	Black = 0,
@@ -652,7 +651,7 @@ export class PieceTableBase {
 		return this.offsetInBuffer(node.piece.bufferIndex, node.piece.start);
 	}
 
-	getIndexOf(node: TreeNode, accumulatedValue: number): PrefixSumIndexOfResult {
+	getIndexOf(node: TreeNode, accumulatedValue: number): { index: number, remainder: number } {
 		let piece = node.piece;
 		let pos = this.positionInBuffer(node, accumulatedValue);
 		let lineCnt = pos.line - piece.start.line;
@@ -662,11 +661,11 @@ export class PieceTableBase {
 			let realLineCnt = this.getLineFeedCnt(node.piece.bufferIndex, piece.start, pos);
 			if (realLineCnt !== lineCnt) {
 				// aha yes, CRLF
-				return new PrefixSumIndexOfResult(realLineCnt, 0);
+				return { index: realLineCnt, remainder: 0 };
 			}
 		}
 
-		return new PrefixSumIndexOfResult(lineCnt, pos.column);
+		return { index: lineCnt, remainder: pos.column };
 	}
 
 	getAccumulatedValue(node: TreeNode, index: number) {
@@ -715,8 +714,7 @@ export class PieceTableBase {
 		let originalStartPos = piece.start;
 		let originalEndPos = piece.end;
 
-		// old piece
-		// originalStartPos, start
+		// old piece, originalStartPos, start
 		let oldLength = piece.length;
 		let oldLFCnt = piece.lineFeedCnt;
 		piece.end = start;
@@ -726,8 +724,7 @@ export class PieceTableBase {
 		piece.length = newLength;
 		this.updateMetadata(node, newLength - oldLength, newLFCnt - oldLFCnt);
 
-		// new right piece
-		// end, originalEndPos
+		// new right piece, end, originalEndPos
 		let newPiece = new Piece(
 			piece.bufferIndex,
 			end,
@@ -896,19 +893,6 @@ export class PieceTableBase {
 		let startOffset = this.offsetInBuffer(node.piece.bufferIndex, node.piece.start);
 		let endOffset = this.offsetInBuffer(node.piece.bufferIndex, node.piece.end);
 		return buffer.buffer.substring(startOffset, endOffset);
-
-	}
-
-	deletePrefixSumTail(prefixSum: PrefixSumComputer, position: PrefixSumIndexOfResult): void {
-		prefixSum.removeValues(position.index + 1, prefixSum.values.length - position.index - 1);
-		prefixSum.changeValue(position.index, position.remainder);
-	}
-
-	deletePrefixSumHead(prefixSum: PrefixSumComputer, position: PrefixSumIndexOfResult): void {
-		prefixSum.changeValue(position.index, prefixSum.values[position.index] - position.remainder);
-		if (position.index > 0) {
-			prefixSum.removeValues(0, position.index);
-		}
 	}
 
 	// #endregion
