@@ -17,6 +17,8 @@ import * as https from 'https';
 var util = require('gulp-util');
 var iconv = require('iconv-lite');
 
+const NUMBER_OF_CONCURRENT_DOWNLOADS = 1;
+
 function log(message: any, ...rest: any[]): void {
 	util.log(util.colors.green('[i18n]'), message, ...rest);
 }
@@ -270,6 +272,49 @@ export class XLF {
 			});
 		});
 	};
+}
+
+export interface ITask<T> {
+	(): T;
+}
+
+interface ILimitedTaskFactory<T> {
+	factory: ITask<Promise<T>>;
+	c: (value?: T | Thenable<T>) => void;
+	e: (error?: any) => void;
+}
+
+export class Limiter<T> {
+	private runningPromises: number;
+	private outstandingPromises: ILimitedTaskFactory<any>[];
+
+	constructor(private maxDegreeOfParalellism: number) {
+		this.outstandingPromises = [];
+		this.runningPromises = 0;
+	}
+
+	queue(factory: ITask<Promise<T>>): Promise<T> {
+		return new Promise<T>((c, e) => {
+			this.outstandingPromises.push({factory, c, e});
+			this.consume();
+		});
+	}
+
+	private consume(): void {
+		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+			const iLimitedTask = this.outstandingPromises.shift();
+			this.runningPromises++;
+
+			const promise = iLimitedTask.factory();
+			promise.then(iLimitedTask.c).catch(iLimitedTask.e);
+			promise.then(() => this.consumed()).catch(() => this.consumed());
+		}
+	}
+
+	private consumed(): void {
+		this.runningPromises--;
+		this.consume();
+	}
 }
 
 const iso639_3_to_2: Map<string> = {
@@ -927,9 +972,10 @@ export function pullXlfFiles(projectName: string, apiHostname: string, username:
 		callback();
 	});
 }
+const limiter = new Limiter<File>(NUMBER_OF_CONCURRENT_DOWNLOADS);
 
 function retrieveResource(language: string, resource: Resource, apiHostname, credentials): Promise<File> {
-	return new Promise<File>((resolve, reject) => {
+	return limiter.queue(() => new Promise<File>((resolve, reject) => {
 		const slug = resource.name.replace(/\//g, '_');
 		const project = resource.project;
 		const iso639 = language.toLowerCase();
@@ -937,6 +983,7 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 			hostname: apiHostname,
 			path: `/api/2/project/${project}/resource/${slug}/translation/${iso639}?file&mode=onlyreviewed`,
 			auth: credentials,
+			port: 443,
 			method: 'GET'
 		};
 
@@ -945,16 +992,18 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 			res.on('data', (chunk: Buffer) => xlfBuffer.push(chunk));
 			res.on('end', () => {
 				if (res.statusCode === 200) {
+					console.log('success: ' + options.path);
 					resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${iso639_2_to_3[language]}/${slug}.xlf` }));
 				}
 				reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
 			});
 		});
 		request.on('error', (err) => {
-			reject(`Failed to query resource ${slug} with the following error: ${err}`);
+			reject(`Failed to query resource ${slug} with the following error: ${err}. ${options.path}`);
 		});
 		request.end();
-	});
+		console.log('started: ' + options.path);
+	}));
 }
 
 export function prepareJsonFiles(): ThroughStream {
