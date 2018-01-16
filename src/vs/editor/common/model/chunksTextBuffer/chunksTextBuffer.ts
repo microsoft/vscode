@@ -1274,7 +1274,10 @@ class Buffer {
 
 	private static _compareEdits(a: OffsetLenEdit, b: OffsetLenEdit): number {
 		if (a.offset === b.offset) {
-			return (a.initialIndex - b.initialIndex);
+			if (a.length === b.length) {
+				return (a.initialIndex - b.initialIndex);
+			}
+			return (a.length - b.length);
 		}
 		return a.offset - b.offset;
 	}
