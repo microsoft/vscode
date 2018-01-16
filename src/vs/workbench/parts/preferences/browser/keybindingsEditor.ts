@@ -644,7 +644,6 @@ class KeybindingItemRenderer implements IRenderer<IKeybindingItemEntry, Keybindi
 	}
 
 	renderElement(keybindingEntry: IKeybindingItemEntry, index: number, template: KeybindingItemTemplate): void {
-		DOM.toggleClass(template.parent, 'even', index % 2 === 0);
 		template.actions.render(keybindingEntry);
 		template.command.render(keybindingEntry);
 		template.keybinding.render(keybindingEntry);

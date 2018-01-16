@@ -294,8 +294,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				data.elementDisposables = dispose(data.elementDisposables);
 
-				toggleClass(data.root, 'odd', index % 2 === 1);
-
 				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName;
 
 				const activationTimes = element.status.activationTimes;
