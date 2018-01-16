@@ -13,6 +13,13 @@ import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace } from 'v
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export const KnownSnippetVariableNames = Object.freeze({
+	'CURRENT_YEAR': true,
+	'CURRENT_YEAR_SHORT': true,
+	'CURRENT_MONTH': true,
+	'CURRENT_DATE': true,
+	'CURRENT_HOUR': true,
+	'CURRENT_MINUTE': true,
+	'CURRENT_SECOND': true,
 	'SELECTION': true,
 	'CLIPBOARD': true,
 	'TM_SELECTED_TEXT': true,
@@ -101,6 +108,26 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 		} else if (name === 'TM_LINE_NUMBER') {
 			return String(this._selection.positionLineNumber);
+
+		} else if (~['CURRENT_YEAR', 'CURRENT_YEAR_SHORT', 'CURRENT_MONTH', 'CURRENT_DATE', 'CURRENT_HOUR', 'CURRENT_MINUTE', 'CURRENT_SECOND'].indexOf(name)) {
+			const now = new Date();
+			const zeroPad = (n: string): string => n.length < 2 ? `0${n}` : n;
+
+			if (name === 'CURRENT_YEAR') {
+				return String(now.getFullYear());
+			} else if (name === 'CURRENT_YEAR_SHORT') {
+				return String(now.getFullYear()).slice(-2);
+			} else if (name === 'CURRENT_MONTH') {
+				return zeroPad(String(now.getMonth().valueOf() + 1));
+			} else if (name === 'CURRENT_DATE') {
+				return zeroPad(String(now.getDate()));
+			} else if (name === 'CURRENT_HOUR') {
+				return zeroPad(String(now.getHours()));
+			} else if (name === 'CURRENT_MINUTE') {
+				return zeroPad(String(now.getMinutes()));
+			} else if (name === 'CURRENT_SECOND') {
+				return zeroPad(String(now.getSeconds()));
+			}
 		}
 		return undefined;
 	}
