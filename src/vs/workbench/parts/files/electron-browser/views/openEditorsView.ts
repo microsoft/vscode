@@ -298,7 +298,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			getAnchor: () => e.anchor,
 			getActions: () => {
 				const actions = [];
-				fillInActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editorInput.getResource() : undefined }, actions, this.contextMenuService);
+				fillInActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editorInput.getResource() : {} }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
 			getActionsContext: () => element instanceof OpenEditor ? { group: element.editorGroup, editor: element.editorInput } : { group: element }
