@@ -473,6 +473,7 @@ function positionAndInput(editorGroupService: IEditorGroupService, editorService
 }
 
 export function getMultiSelectedEditorContexts(editorContext: IEditorIdentifier, listService: IListService): IEditorIdentifier[] {
+	// TODO@Isidor this method is not nice since it assumes it is working on open editors view and maps elements on top of that
 	const list = listService.lastFocusedList;
 	// Mapping for open editors view
 	const elementToContext = element => element && element.editorGroup && element.editorInput ? { group: element.editorGroup, editor: element.editorInput } : { group: element, editor: undefined };
