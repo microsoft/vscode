@@ -32,6 +32,8 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 	}
 
 	registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
+		// todo@remote
+		// check with scheme from fs-providers!
 		if (scheme === 'file' || scheme === 'untitled') {
 			throw new Error(`scheme '${scheme}' already registered`);
 		}
