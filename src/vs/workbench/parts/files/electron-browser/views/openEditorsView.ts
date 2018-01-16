@@ -143,9 +143,18 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		dom.addClass(container, 'show-file-icons');
 
 		const delegate = new OpenEditorsDelegate();
+		const getSelectedElements = () => {
+			const selected = this.list.getSelectedElements();
+			const focused = this.list.getFocusedElements();
+			if (focused.length && selected.indexOf(focused[0]) >= 0) {
+				return selected;
+			}
+
+			return focused;
+		};
 		this.list = new WorkbenchList<OpenEditor | IEditorGroup>(container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService, this.editorGroupService),
-			new OpenEditorRenderer(this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
+			new OpenEditorRenderer(getSelectedElements, this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
 		], {
 				keyboardSupport: false,
 				identityProvider: element => element instanceof OpenEditor ? element.getId() : element.id.toString()
@@ -459,7 +468,7 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 
 		editorGroupTemplate.toDispose = [];
 		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, (e: DragEvent) => {
-			if (OpenEditorRenderer.DRAGGED_OPEN_EDITOR) {
+			if (OpenEditorRenderer.DRAGGED_OPEN_EDITORS) {
 				dom.addClass(container, 'focused');
 			}
 		}));
@@ -468,10 +477,11 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 		}));
 		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, () => {
 			dom.removeClass(container, 'focused');
-			if (OpenEditorRenderer.DRAGGED_OPEN_EDITOR) {
+			if (OpenEditorRenderer.DRAGGED_OPEN_EDITORS) {
 				const model = this.editorGroupService.getStacksModel();
 				const positionOfTargetGroup = model.positionOfGroup(editorGroupTemplate.editorGroup);
-				this.editorGroupService.moveEditor(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorInput, model.positionOfGroup(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorGroup), positionOfTargetGroup, { preserveFocus: true });
+				OpenEditorRenderer.DRAGGED_OPEN_EDITORS.forEach(oe =>
+					this.editorGroupService.moveEditor(oe.editorInput, model.positionOfGroup(oe.editorGroup), positionOfTargetGroup, { preserveFocus: true }));
 				this.editorGroupService.activateGroup(positionOfTargetGroup);
 			}
 		}));
@@ -493,9 +503,10 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 
 class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateData> {
 	static readonly ID = 'openeditor';
-	public static DRAGGED_OPEN_EDITOR: OpenEditor;
+	public static DRAGGED_OPEN_EDITORS: OpenEditor[];
 
 	constructor(
+		private getSelectedElements: () => (OpenEditor | IEditorGroup)[],
 		private instantiationService: IInstantiationService,
 		private keybindingService: IKeybindingService,
 		private configurationService: IConfigurationService,
@@ -532,24 +543,26 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 			e.dataTransfer.setDragImage(dragImage, -10, -10);
 			setTimeout(() => document.body.removeChild(dragImage), 0);
 
-			OpenEditorRenderer.DRAGGED_OPEN_EDITOR = editorTemplate.openEditor;
+			const dragged = <OpenEditor[]>this.getSelectedElements().filter(e => e instanceof OpenEditor);
+			OpenEditorRenderer.DRAGGED_OPEN_EDITORS = dragged;
 
 			if (editorTemplate.openEditor && editorTemplate.openEditor.editorInput) {
-				const resource = editorTemplate.openEditor.editorInput.getResource();
-				if (resource) {
-					const resourceStr = resource.toString();
+				// enables dropping editor resource path into text controls
+				e.dataTransfer.setData(DataTransfers.TEXT, dragged.map(d => d.getResource()).map(resource => resource.scheme === 'file' ? getPathLabel(resource) : resource.toString()).join('\n'));
 
+				if (dragged.length === 1) {
+					const resource = dragged[0].getResource();
 					e.dataTransfer.setData(DataTransfers.URL, resource.toString()); // enables dropping editor into editor area
-					e.dataTransfer.setData(DataTransfers.TEXT, getPathLabel(resource)); // enables dropping editor resource path into text controls
-
 					if (resource.scheme === 'file') {
-						e.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, getBaseLabel(resource), resourceStr].join(':')); // enables support to drag an editor as file to desktop
+						e.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, getBaseLabel(resource), resource.toString()].join(':')); // enables support to drag an editor as file to desktop
 					}
+				} else {
+					e.dataTransfer.setData(DataTransfers.URLS, JSON.stringify(dragged.map(s => s.getResource().toString())));
 				}
 			}
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, () => {
-			if (OpenEditorRenderer.DRAGGED_OPEN_EDITOR) {
+			if (OpenEditorRenderer.DRAGGED_OPEN_EDITORS) {
 				dom.addClass(container, 'focused');
 			}
 		}));
@@ -558,18 +571,18 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, (e: DragEvent) => {
 			dom.removeClass(container, 'focused');
-			if (OpenEditorRenderer.DRAGGED_OPEN_EDITOR) {
+			if (OpenEditorRenderer.DRAGGED_OPEN_EDITORS) {
 				const model = this.editorGroupService.getStacksModel();
 				const positionOfTargetGroup = model.positionOfGroup(editorTemplate.openEditor.editorGroup);
 				const index = editorTemplate.openEditor.editorGroup.indexOf(editorTemplate.openEditor.editorInput);
 
-				this.editorGroupService.moveEditor(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorInput,
-					model.positionOfGroup(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorGroup), positionOfTargetGroup, { index, preserveFocus: true });
+				OpenEditorRenderer.DRAGGED_OPEN_EDITORS.forEach(oe =>
+					this.editorGroupService.moveEditor(oe.editorInput, model.positionOfGroup(oe.editorGroup), positionOfTargetGroup, { index, preserveFocus: true }));
 				this.editorGroupService.activateGroup(positionOfTargetGroup);
 			}
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_END, () => {
-			OpenEditorRenderer.DRAGGED_OPEN_EDITOR = undefined;
+			OpenEditorRenderer.DRAGGED_OPEN_EDITORS = undefined;
 		}));
 
 		return editorTemplate;
