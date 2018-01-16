@@ -19,6 +19,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { List } from 'vs/base/browser/ui/list/listWidget';
 
 export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -450,4 +452,25 @@ function positionAndInput(editorGroupService: IEditorGroupService, editorService
 	}
 
 	return { position, input };
+}
+
+export function getMultiSelectedEditorContexts(editorContext: IEditorContext, listService: IListService): IEditorContext[] {
+	const list = listService.lastFocusedList;
+	// Mapping for open editors view
+	const elementToContext = element => element && element.editorGroup && element.editorInput ? { group: element.editorGroup, editor: element.editorInput } : { group: element };
+
+	if (list instanceof List && list.isDOMFocused()) {
+		const selection = list.getSelectedElements();
+		const focus = list.getFocusedElements();
+		// Only respect selection if it contains focused element
+		if (focus.length && selection && selection.indexOf(focus[0]) >= 0) {
+			return list.getSelectedElements().map(elementToContext);
+		}
+
+		if (focus) {
+			return focus.map(elementToContext);
+		}
+	}
+
+	return !!editorContext ? [editorContext] : [];
 }
