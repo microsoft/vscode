@@ -475,7 +475,7 @@ function positionAndInput(editorGroupService: IEditorGroupService, editorService
 export function getMultiSelectedEditorContexts(editorContext: IEditorIdentifier, listService: IListService): IEditorIdentifier[] {
 	const list = listService.lastFocusedList;
 	// Mapping for open editors view
-	const elementToContext = element => element && element.editorGroup && element.editorInput ? { group: element.editorGroup, editor: element.editorInput } : { group: element };
+	const elementToContext = element => element && element.editorGroup && element.editorInput ? { group: element.editorGroup, editor: element.editorInput } : { group: element, editor: undefined };
 
 	if (list instanceof List && list.isDOMFocused()) {
 		const selection = list.getSelectedElements();

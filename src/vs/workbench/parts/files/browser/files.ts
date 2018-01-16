@@ -36,9 +36,9 @@ export function getResourceForCommand(resource: URI, listService: IListService, 
 export function getMultiSelectedResources(resource: URI, listService: IListService, editorService: IWorkbenchEditorService): URI[] {
 	const list = listService.lastFocusedList;
 	if (list && list.isDOMFocused()) {
-		const focus = list.getFocus();
 		// Explorer
 		if (list instanceof Tree) {
+			const focus = list.getFocus();
 			const selection = list.getSelection();
 			if (selection && selection.indexOf(focus) >= 0) {
 				return selection.map(fs => fs.resource);
@@ -46,8 +46,9 @@ export function getMultiSelectedResources(resource: URI, listService: IListServi
 		}
 		// Open editors view
 		if (list instanceof List) {
+			const focus = list.getFocusedElements();
 			const selection = list.getSelectedElements();
-			if (selection && selection.indexOf(focus) >= 0) {
+			if (selection && focus.length && selection.indexOf(focus[0]) >= 0) {
 				return selection.filter(s => s instanceof OpenEditor).map((oe: OpenEditor) => oe.getResource());
 			}
 		}
