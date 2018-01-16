@@ -613,23 +613,10 @@ class Buffer {
 		}
 
 		let remaining = aLength;
-		let aLeafIndex = 0, aLeaf = a._leafs[aLeafIndex], aLeafLength = aLeaf.length(), aLeafRemaining = aLeafLength;
-		let bLeafIndex = 0, bLeaf = b._leafs[bLeafIndex], bLeafLength = bLeaf.length(), bLeafRemaining = bLeafLength;
+		let aLeafIndex = -1, aLeaf = null, aLeafLength = 0, aLeafRemaining = 0;
+		let bLeafIndex = -1, bLeaf = null, bLeafLength = 0, bLeafRemaining = 0;
 
 		while (remaining > 0) {
-			let consuming = Math.min(aLeafRemaining, bLeafRemaining);
-
-			let aStr = aLeaf.substr(aLeafLength - aLeafRemaining, consuming);
-			let bStr = bLeaf.substr(bLeafLength - bLeafRemaining, consuming);
-
-			if (aStr !== bStr) {
-				return false;
-			}
-
-			remaining -= consuming;
-			aLeafRemaining -= consuming;
-			bLeafRemaining -= consuming;
-
 			if (aLeafRemaining === 0) {
 				aLeafIndex++;
 				aLeaf = a._leafs[aLeafIndex];
@@ -643,6 +630,19 @@ class Buffer {
 				bLeafLength = bLeaf.length();
 				bLeafRemaining = bLeafLength;
 			}
+
+			let consuming = Math.min(aLeafRemaining, bLeafRemaining);
+
+			let aStr = aLeaf.substr(aLeafLength - aLeafRemaining, consuming);
+			let bStr = bLeaf.substr(bLeafLength - bLeafRemaining, consuming);
+
+			if (aStr !== bStr) {
+				return false;
+			}
+
+			remaining -= consuming;
+			aLeafRemaining -= consuming;
+			bLeafRemaining -= consuming;
 		}
 
 		return true;
