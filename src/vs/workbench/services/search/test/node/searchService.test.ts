@@ -75,6 +75,8 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 	}
 }
 
+const testTimeout = 5000;
+
 suite('SearchService', () => {
 
 	const rawSearch: IRawSearch = {
@@ -94,6 +96,7 @@ suite('SearchService', () => {
 	};
 
 	test('Individual results', function () {
+		this.timeout(testTimeout);
 		let i = 5;
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
 		const service = new RawSearchService();
@@ -113,6 +116,7 @@ suite('SearchService', () => {
 	});
 
 	test('Batch results', function () {
+		this.timeout(testTimeout);
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
 		const service = new RawSearchService();
@@ -134,6 +138,7 @@ suite('SearchService', () => {
 	});
 
 	test('Collect batched results', function () {
+		this.timeout(testTimeout);
 		const uriPath = '/some/where';
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
@@ -151,6 +156,7 @@ suite('SearchService', () => {
 	});
 
 	test('Multi-root with include pattern and maxResults', function () {
+		this.timeout(testTimeout);
 		const service = new RawSearchService();
 
 		const query: IRawSearch = {
@@ -169,6 +175,7 @@ suite('SearchService', () => {
 	});
 
 	test('Multi-root with include pattern and exists', function () {
+		this.timeout(testTimeout);
 		const service = new RawSearchService();
 
 		const query: IRawSearch = {
@@ -188,6 +195,7 @@ suite('SearchService', () => {
 	});
 
 	test('Sorted results', function () {
+		this.timeout(testTimeout);
 		const paths = ['bab', 'bbc', 'abb'];
 		const matches: IRawFileMatch[] = paths.map(relativePath => ({
 			base: normalize('/some/where'),
@@ -217,6 +225,7 @@ suite('SearchService', () => {
 	});
 
 	test('Sorted result batches', function () {
+		this.timeout(testTimeout);
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- && rawMatch);
 		const service = new RawSearchService();
@@ -243,6 +252,7 @@ suite('SearchService', () => {
 	});
 
 	test('Cached results', function () {
+		this.timeout(testTimeout);
 		const paths = ['bcb', 'bbc', 'aab'];
 		const matches: IRawFileMatch[] = paths.map(relativePath => ({
 			base: normalize('/some/where'),
