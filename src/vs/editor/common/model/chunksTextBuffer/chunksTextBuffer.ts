@@ -757,7 +757,7 @@ class Buffer {
 		while (true) {
 			const leaf = this._leafs[leafIndex];
 
-			if (innerOffset < leaf.length()) {
+			if (innerOffset < leaf.length() || (innerOffset === leaf.length() && leafIndex + 1 === leafsCount)) {
 				result.set(offset, leafIndex, leafStartOffset, leafStartNewLineCount);
 				return true;
 			}
