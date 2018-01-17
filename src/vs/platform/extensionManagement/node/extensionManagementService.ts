@@ -45,6 +45,8 @@ const INSTALL_ERROR_GALLERY = 'gallery';
 const INSTALL_ERROR_LOCAL = 'local';
 const INSTALL_ERROR_EXTRACTING = 'extracting';
 const INSTALL_ERROR_DELETING = 'deleting';
+const INSTALL_ERROR_READING_EXTENSION_FROM_DISK = 'readingExtension';
+const INSTALL_ERROR_SAVING_METADATA = 'savingMetadata';
 const INSTALL_ERROR_UNKNOWN = 'unknown';
 
 export class ExtensionManagementError extends Error {
@@ -396,7 +398,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					() => {
 						this.logService.info(`Extracted extension to ${extensionPath}:`, id);
 						return TPromise.join([readManifest(extensionPath), pfs.readdir(extensionPath)])
-							.then(null, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_LOCAL)));
+							.then(null, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_READING_EXTENSION_FROM_DISK)));
 					},
 					e => TPromise.wrapError(new ExtensionManagementError(e.message, INSTALL_ERROR_EXTRACTING)))
 					.then(([{ manifest }, children]) => {
@@ -414,7 +416,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 							.then(() => {
 								this.logService.info(`Updated metadata of the extension:`, id);
 								return local;
-							}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_LOCAL)));
+							}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_SAVING_METADATA)));
 					});
 			}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
 	}
