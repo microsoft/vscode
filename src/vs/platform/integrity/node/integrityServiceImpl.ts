@@ -97,7 +97,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		);
 		const dontShowAgainAction = new Action(
 			'integrity.dontShowAgain',
-			nls.localize('integrity.dontShowAgain', "Don't show again"),
+			nls.localize('integrity.dontShowAgain', "Don't Show Again"),
 			null,
 			true,
 			() => {

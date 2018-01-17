@@ -314,7 +314,8 @@ export interface ISuggestResult {
  */
 export enum SuggestTriggerKind {
 	Invoke = 0,
-	TriggerCharacter = 1
+	TriggerCharacter = 1,
+	TriggerForIncompleteCompletions = 2
 }
 
 /**

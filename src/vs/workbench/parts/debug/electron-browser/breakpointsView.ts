@@ -97,14 +97,14 @@ export class BreakpointsView extends ViewsViewletPanel {
 		this.disposables.push(this.list.onKeyUp(e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter)) {
-				handleBreakpointFocus(false, event && (event.ctrlKey || event.metaKey), false);
+				handleBreakpointFocus(false, event && (event.ctrlKey || event.metaKey || event.altKey), false);
 			}
 		}));
 		this.disposables.push(this.list.onMouseDblClick(e => {
-			handleBreakpointFocus(false, false, true);
+			handleBreakpointFocus(false, e.browserEvent.altKey, true);
 		}));
 		this.disposables.push(this.list.onMouseClick(e => {
-			handleBreakpointFocus(true, false, false);
+			handleBreakpointFocus(true, e.browserEvent.altKey, false);
 		}));
 
 		this.list.splice(0, this.list.length, this.elements);

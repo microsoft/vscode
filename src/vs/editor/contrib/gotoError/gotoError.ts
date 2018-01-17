@@ -494,7 +494,7 @@ class NextMarkerAction extends MarkerNavigationAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.marker.next',
-			label: nls.localize('markerAction.next.label', "Go to Next Error or Warning"),
+			label: nls.localize('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)"),
 			alias: 'Go to Next Error or Warning',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
@@ -509,7 +509,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.marker.prev',
-			label: nls.localize('markerAction.previous.label', "Go to Previous Error or Warning"),
+			label: nls.localize('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)"),
 			alias: 'Go to Previous Error or Warning',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {

@@ -9,5 +9,6 @@
 	"cut": "Kivágás",
 	"copy": "Másolás",
 	"paste": "Beillesztés",
-	"selectAll": "Összes kijelölése"
+	"selectAll": "Összes kijelölése",
+	"runningAsRoot": "Nem ajánlott a {0} 'root'-két futtatása."
 }

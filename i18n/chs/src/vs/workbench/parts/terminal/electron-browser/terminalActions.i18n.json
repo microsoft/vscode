@@ -14,6 +14,8 @@
 	"workbench.action.terminal.deleteWordRight": "删除右侧的字符",
 	"workbench.action.terminal.new": "新建集成终端",
 	"workbench.action.terminal.new.short": "新的终端",
+	"workbench.action.terminal.newWorkspacePlaceholder": "选择当前工作目录新建终端",
+	"workbench.action.terminal.newInActiveWorkspace": "新建集成终端 (活动工作区)",
 	"workbench.action.terminal.focus": "聚焦于终端",
 	"workbench.action.terminal.focusNext": "聚焦于下一终端",
 	"workbench.action.terminal.focusPrevious": "聚焦于上一终端",

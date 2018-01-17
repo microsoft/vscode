@@ -21,7 +21,7 @@
 	"welcomePage.gitHubRepository": "GitHub リポジトリ",
 	"welcomePage.stackOverflow": "Stack Overflow",
 	"welcomePage.showOnStartup": "起動時にウェルカム ページを表示",
-	"welcomePage.customize": "カスタマイズする",
+	"welcomePage.customize": "カスタマイズ",
 	"welcomePage.installExtensionPacks": "ツールと言語",
 	"welcomePage.installExtensionPacksDescription": "{0} と {1} のサポートをインストールする ",
 	"welcomePage.moreExtensions": "その他",

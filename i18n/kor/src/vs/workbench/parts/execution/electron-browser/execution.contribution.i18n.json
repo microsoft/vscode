@@ -12,6 +12,5 @@
 	"globalConsoleActionWin": "새 명령 프롬프트 열기",
 	"globalConsoleActionMacLinux": "새 터미널 열기",
 	"scopedConsoleActionWin": "명령 프롬프트에서 열기",
-	"scopedConsoleActionMacLinux": "터미널에서 열기",
-	"openFolderInIntegratedTerminal": "터미널에서 열기"
+	"scopedConsoleActionMacLinux": "터미널에서 열기"
 }

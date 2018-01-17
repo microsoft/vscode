@@ -10,7 +10,5 @@
 	"editableEditorWithInputAriaLabel": "{0}。文字檔案比較編輯器。",
 	"editableEditorAriaLabel": "文字檔比較編輯器。",
 	"navigate.next.label": "下一個變更",
-	"navigate.prev.label": "上一個變更",
-	"inlineDiffLabel": "切換至內嵌檢視",
-	"sideBySideDiffLabel": "切換至並排檢視"
+	"navigate.prev.label": "上一個變更"
 }

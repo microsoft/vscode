@@ -54,6 +54,7 @@
 	"command.stashPopLatest": "弹出最新储藏",
 	"config.enabled": "是否启用 Git",
 	"config.path": "Git 可执行文件路径",
+	"config.autoRepositoryDetection": "是否自动检测存储库",
 	"config.autorefresh": "是否启用自动刷新",
 	"config.autofetch": "是否启用自动拉取",
 	"config.enableLongCommitWarning": "是否针对长段提交消息进行警告",
@@ -72,5 +73,6 @@
 	"colors.deleted": "已删除资源的颜色。",
 	"colors.untracked": "未跟踪资源的颜色。",
 	"colors.ignored": "已忽略资源的颜色。",
-	"colors.conflict": "存在冲突的资源的颜色。"
+	"colors.conflict": "存在冲突的资源的颜色。",
+	"colors.submodule": "子模块资源的颜色。"
 }

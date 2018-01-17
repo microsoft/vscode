@@ -10,7 +10,5 @@
 	"editableEditorWithInputAriaLabel": "{0}. Editor de comparación de archivos de texto.",
 	"editableEditorAriaLabel": "Editor de comparación de archivos de texto.",
 	"navigate.next.label": "Cambio siguiente",
-	"navigate.prev.label": "Cambio anterior",
-	"inlineDiffLabel": "Cambiar a vista alineada",
-	"sideBySideDiffLabel": "Cambiar a vista en paralelo"
+	"navigate.prev.label": "Cambio anterior"
 }

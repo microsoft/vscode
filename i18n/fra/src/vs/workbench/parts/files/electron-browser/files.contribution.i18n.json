@@ -36,8 +36,6 @@
 	"editorConfigurationTitle": "Éditeur",
 	"formatOnSave": "Met en forme un fichier au moment de l'enregistrement. Un formateur doit être disponible, le fichier ne doit pas être enregistré automatiquement, et l'éditeur ne doit pas être en cours d'arrêt.",
 	"explorerConfigurationTitle": "Explorateur de fichiers",
-	"openEditorsVisible": "Nombre d'éditeurs affichés dans le volet Éditeurs ouverts. Définissez la valeur 0 pour masquer le volet.",
-	"dynamicHeight": "Contrôle si la hauteur de la section des éditeurs ouverts doit s'adapter dynamiquement ou non au nombre d'éléments.",
 	"autoReveal": "Contrôle si l'Explorateur doit automatiquement afficher et sélectionner les fichiers à l'ouverture.",
 	"enableDragAndDrop": "Contrôle si l'explorateur doit autoriser le déplacement de fichiers et de dossiers par glisser-déplacer.",
 	"confirmDragAndDrop": "Contrôle si l’Explorateur doit demander confirmation lors du déplacement de fichiers ou de dossiers via glisser-déposer.",

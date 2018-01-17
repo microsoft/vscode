@@ -6,8 +6,6 @@
 {
 	"saveChangesMessage": "要儲存對 {0} 所做的變更嗎?",
 	"saveChangesMessages": "要儲存對下列 {0} 個檔案所做的變更嗎?",
-	"moreFile": "...另外 1 個檔案未顯示",
-	"moreFiles": "...另外 {0} 個檔案未顯示",
 	"saveAll": "全部儲存(&&S)",
 	"save": "儲存(&&S)",
 	"dontSave": "不要儲存(&&N)",

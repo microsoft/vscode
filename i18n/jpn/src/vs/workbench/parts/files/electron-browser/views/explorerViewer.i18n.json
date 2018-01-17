@@ -10,6 +10,7 @@
 	"dropFolder": "ワークスペースにフォルダーを追加しますか?",
 	"addFolders": "フォルダーの追加(&&A)",
 	"addFolder": "フォルダーの追加(&&A)",
+	"confirmMultiMove": "次の {0} 個のファイルを移動してもよろしいですか?",
 	"confirmMove": "'{0}' を移動しますか?",
 	"doNotAskAgain": "再度表示しない",
 	"moveButtonLabel": "移動(&&M)",

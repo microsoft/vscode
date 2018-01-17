@@ -6,11 +6,5 @@
 {
 	"openEditors": "Editor aperti",
 	"openEditosrSection": "Sezione Editor aperti",
-	"dirtyCounter": "{0} non salvati",
-	"saveAll": "Salva tutto",
-	"closeAllUnmodified": "Chiudi non modificati",
-	"closeAll": "Chiudi tutto",
-	"compareWithSaved": "Confronta con file salvato",
-	"close": "Chiudi",
-	"closeOthers": "Chiudi altri"
+	"dirtyCounter": "{0} non salvati"
 }

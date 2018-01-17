@@ -310,7 +310,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
 			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(_ => this.update()));
 
-			fillInActions(titleBarMenu, { arg: this.resourceContext.get() }, { primary, secondary }, this.contextMenuService);
+			fillInActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary }, this.contextMenuService);
 		}
 
 		return { primary, secondary };
@@ -328,15 +328,19 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		// Update Editor Actions Toolbar
 		let primaryEditorActions: IAction[] = [];
 		let secondaryEditorActions: IAction[] = [];
+
+		const editorActions = this.getEditorActions({ group, editor });
+
+		// Primary actions only for the active group
 		if (isActive) {
-			const editorActions = this.getEditorActions({ group, editor });
 			primaryEditorActions = prepareActions(editorActions.primary);
-			if (isActive && editor instanceof EditorInput && editor.supportsSplitEditor()) {
+			if (editor instanceof EditorInput && editor.supportsSplitEditor()) {
 				this.updateSplitActionEnablement();
 				primaryEditorActions.push(this.splitEditorAction);
 			}
-			secondaryEditorActions = prepareActions(editorActions.secondary);
 		}
+
+		secondaryEditorActions = prepareActions(editorActions.secondary);
 
 		const tabOptions = this.editorGroupService.getTabOptions();
 
