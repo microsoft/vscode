@@ -104,13 +104,6 @@ export abstract class SimpleFindWidget extends Widget {
 		this._domNode.classList.add('simple-find-part-wrapper');
 		this._domNode.appendChild(this._innerDomNode);
 
-		this.onkeyup(this._innerDomNode, e => {
-			if (e.equals(KeyCode.Escape)) {
-				this.hide();
-				e.preventDefault();
-				return;
-			}
-		});
 
 		this._focusTracker = this._register(dom.trackFocus(this._innerDomNode));
 		this._register(this._focusTracker.onDidFocus(this.onFocusTrackerFocus.bind(this)));
@@ -156,12 +149,12 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._domNode;
 	}
 
-	public reveal(initialInput?: string): void {
+	public reveal(initialInput?: string, focusFindInput = true): void {
 		if (initialInput) {
 			this._findInput.setValue(initialInput);
 		}
 
-		if (this._isVisible) {
+		if (this._isVisible && focusFindInput) {
 			this._findInput.select();
 			return;
 		}
@@ -176,7 +169,9 @@ export abstract class SimpleFindWidget extends Widget {
 			}
 			setTimeout(() => {
 				dom.removeClass(this._innerDomNode, 'noanimation');
-				this._findInput.select();
+				if (focusFindInput) {
+					this._findInput.select();
+				}
 			}, 200);
 		}, 0);
 	}

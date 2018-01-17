@@ -182,6 +182,14 @@ export class TerminalPanel extends Panel {
 		this._findWidget.hide();
 	}
 
+	public nextMatchFindWidget(): void {
+		this._findWidget.find(false);
+	}
+
+	public previousMatchFindWidget(): void {
+		this._findWidget.find(true);
+	}
+
 	public showNextFindTermFindWidget(): void {
 		this._findWidget.showNextFindTerm();
 	}

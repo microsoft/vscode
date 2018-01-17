@@ -718,6 +718,40 @@ export class HideTerminalFindWidgetAction extends Action {
 	}
 }
 
+export class NextMatchTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.findWidget.nextMatch';
+	public static LABEL = nls.localize('terminalFindNext', "Terminal: Find Next");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.nextMatchFindWidget());
+	}
+}
+
+export class PreviousMatchTerminalFindWidgetAction extends Action {
+
+	public static ID = 'workbench.action.terminal.findWidget.previousMatch';
+	public static LABEL = nls.localize('terminalFindPrevious', "Terminal: Find Previous");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(this.terminalService.previousMatchFindWidget());
+	}
+}
+
 export class ShowNextFindTermTerminalFindWidgetAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.findWidget.history.showNext';

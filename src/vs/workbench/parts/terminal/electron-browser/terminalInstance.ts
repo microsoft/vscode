@@ -114,6 +114,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleListener; }
 
 	public constructor(
+		private _terminalComponentsFocusContextKey: IContextKey<boolean>,
 		private _terminalFocusContextKey: IContextKey<boolean>,
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
@@ -376,16 +377,20 @@ export class TerminalInstance implements ITerminalInstance {
 
 			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
 				this._terminalFocusContextKey.set(true);
+				this._terminalComponentsFocusContextKey.set(true);
 			}));
 			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
 				this._terminalFocusContextKey.reset();
+				this._terminalComponentsFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
 			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
 				this._terminalFocusContextKey.set(true);
+				this._terminalComponentsFocusContextKey.set(true);
 			}));
 			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
 				this._terminalFocusContextKey.reset();
+				this._terminalComponentsFocusContextKey.reset();
 				this._refreshSelectionContextKey();
 			}));
 
@@ -454,6 +459,12 @@ export class TerminalInstance implements ITerminalInstance {
 	public notifyFindWidgetFocusChanged(isFocused: boolean): void {
 		const terminalFocused = !isFocused && (document.activeElement === this._xterm.textarea || document.activeElement === this._xterm.element);
 		this._terminalFocusContextKey.set(terminalFocused);
+
+		if (!isFocused && !(document.activeElement === this._xterm.textarea || document.activeElement === this._xterm.element)) {
+			this._terminalComponentsFocusContextKey.reset();
+		} else if (isFocused) {
+			this._terminalComponentsFocusContextKey.set(true);
+		}
 	}
 
 	public dispose(): void {

@@ -47,6 +47,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
 		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
+			this._terminalComponentsFocusContextKey,
 			this._terminalFocusContextKey,
 			this._configHelper,
 			this._terminalContainer,
@@ -69,7 +70,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return this.showPanel(false).then(() => {
 			let panel = this._panelService.getActivePanel() as TerminalPanel;
 			panel.focusFindWidget();
-			this._findWidgetVisible.set(true);
+			this._terminalComponentsFocusContextKey.set(true);
 		});
 	}
 
@@ -77,8 +78,21 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		const panel = this._panelService.getActivePanel() as TerminalPanel;
 		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
 			panel.hideFindWidget();
-			this._findWidgetVisible.reset();
 			panel.focus();
+		}
+	}
+
+	public nextMatchFindWidget(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.nextMatchFindWidget();
+		}
+	}
+
+	public previousMatchFindWidget(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.previousMatchFindWidget();
 		}
 	}
 
