@@ -495,9 +495,9 @@ CommandsRegistry.registerCommand({
 			saveAllArg = true;
 		} else {
 			const fileService = accessor.get(IFileService);
+			saveAllArg = [];
 			contexts.forEach(context => {
 				const editorGroup = context.group;
-				saveAllArg = [];
 				editorGroup.getEditors().forEach(editor => {
 					const resource = toResource(editor, { supportSideBySide: true });
 					if (resource && (resource.scheme === 'untitled' || fileService.canHandleResource(resource))) {
