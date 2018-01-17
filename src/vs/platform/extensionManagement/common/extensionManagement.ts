@@ -85,6 +85,11 @@ export interface IColor {
 	defaults: { light: string, dark: string, highContrast: string };
 }
 
+export interface ILocale {
+	locale: string;
+	path: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration;
@@ -98,7 +103,8 @@ export interface IExtensionContributions {
 	themes?: ITheme[];
 	iconThemes?: ITheme[];
 	views?: { [location: string]: IView[] };
-	colors: IColor[];
+	colors?: IColor[];
+	locales?: ILocale[];
 }
 
 export interface IExtensionManifest {
