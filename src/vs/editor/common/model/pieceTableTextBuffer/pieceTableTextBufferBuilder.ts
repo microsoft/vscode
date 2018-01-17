@@ -20,6 +20,7 @@ export class PieceTableTextBufferFactory implements ITextBufferFactory {
 		private readonly _crlf: number,
 		private readonly _containsRTL: boolean,
 		private readonly _isBasicASCII: boolean,
+		private readonly _normalizeEOL: boolean
 	) { }
 
 	private _getEOL(defaultEOL: DefaultEndOfLine): '\r\n' | '\n' {
@@ -41,9 +42,9 @@ export class PieceTableTextBufferFactory implements ITextBufferFactory {
 		const eol = this._getEOL(defaultEOL);
 		let chunks = this._chunks;
 
-		if (
-			(eol === '\r\n' && (this._cr > 0 || this._lf > 0))
-			|| (eol === '\n' && (this._cr > 0 || this._crlf > 0))
+		if (this._normalizeEOL &&
+			((eol === '\r\n' && (this._cr > 0 || this._lf > 0))
+				|| (eol === '\n' && (this._cr > 0 || this._crlf > 0)))
 		) {
 			// Normalize pieces
 			for (let i = 0, len = chunks.length; i < len; i++) {
@@ -145,7 +146,7 @@ export class PieceTableTextBufferBuilder implements ITextBufferBuilder {
 		}
 	}
 
-	public finish(): PieceTableTextBufferFactory {
+	public finish(normalizeEOL: boolean = true): PieceTableTextBufferFactory {
 		this._finish();
 		return new PieceTableTextBufferFactory(
 			this.chunks,
@@ -154,7 +155,8 @@ export class PieceTableTextBufferBuilder implements ITextBufferBuilder {
 			this.lf,
 			this.crlf,
 			this.containsRTL,
-			this.isBasicASCII
+			this.isBasicASCII,
+			normalizeEOL
 		);
 	}
 

@@ -292,7 +292,7 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 		this._mightContainRTL = mightContainRTL;
 		this._mightContainNonBasicASCII = mightContainNonBasicASCII;
 
-		const [rawContentChanges, contentChanges] = this._doApplyEdits(operations);
+		const contentChanges = this._doApplyEdits(operations);
 
 		let trimAutoWhitespaceLineNumbers: number[] = null;
 		if (recordTrimAutoWhitespace && newTrimAutoWhitespaceCandidates.length > 0) {
@@ -320,16 +320,14 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 
 		return new ApplyEditsResult(
 			reverseOperations,
-			rawContentChanges,
 			contentChanges,
 			trimAutoWhitespaceLineNumbers
 		);
 	}
 
-	private _doApplyEdits(operations: IValidatedEditOperation[]): [ModelRawChange[], IInternalModelContentChange[]] {
+	private _doApplyEdits(operations: IValidatedEditOperation[]): IInternalModelContentChange[] {
 		operations.sort(PieceTableTextBuffer._sortOpsDescending);
 
-		let rawContentChanges: ModelRawChange[] = [];
 		let contentChanges: IInternalModelContentChange[] = [];
 
 		// operations are from bottom to top
@@ -362,18 +360,6 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 				this.delete(op.rangeOffset, op.rangeLength);
 			}
 
-			for (let j = startLineNumber; j <= startLineNumber + editingLinesCnt; j++) {
-				rawContentChanges.push(
-					new ModelRawLineChanged(j, this.getLineContent(j))
-				);
-			}
-
-			if (editingLinesCnt < deletingLinesCnt) {
-				rawContentChanges.push(
-					new ModelRawLinesDeleted(startLineNumber + editingLinesCnt + 1, endLineNumber)
-				);
-			}
-
 			if (editingLinesCnt < insertingLinesCnt) {
 				let newLinesContent: string[] = [];
 				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
@@ -381,10 +367,6 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 				}
 
 				newLinesContent[newLinesContent.length - 1] = this.getLineContent(startLineNumber + insertingLinesCnt - 1);
-
-				rawContentChanges.push(
-					new ModelRawLinesInserted(startLineNumber + editingLinesCnt + 1, startLineNumber + insertingLinesCnt, newLinesContent)
-				);
 			}
 
 			const contentChangeRange = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
@@ -397,7 +379,7 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 				forceMoveMarkers: op.forceMoveMarkers
 			});
 		}
-		return [rawContentChanges, contentChanges];
+		return contentChanges;
 	}
 
 	public getValueLengthInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): number {

@@ -54,7 +54,7 @@ function resetSentinel(): void {
 	SENTINEL.parent = SENTINEL;
 }
 
-const lfRegex = new RegExp(/\r\n|\r|\n/g);
+// const lfRegex = new RegExp(/\r\n|\r|\n/g);
 
 export function createUint32Array(arr: number[]): Uint32Array {
 	let r = new Uint32Array(arr.length);

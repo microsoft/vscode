@@ -145,12 +145,12 @@ function testLineStarts(str: string, pieceTable: PieceTableTextBuffer) {
 	}
 }
 
-function createTextBuffer(val: string[]): PieceTableTextBuffer {
+function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTableTextBuffer {
 	let bufferBuilder = new PieceTableTextBufferBuilder();
 	for (let i = 0; i < val.length; i++) {
 		bufferBuilder.acceptChunk(val[i]);
 	}
-	let factory = bufferBuilder.finish();
+	let factory = bufferBuilder.finish(normalizeEOL);
 	return <PieceTableTextBuffer>factory.create(DefaultEndOfLine.LF);
 }
 
@@ -935,9 +935,9 @@ suite('get text in range', () => {
 	});
 });
 
-/* suite('CRLF', () => {
+suite('CRLF', () => {
 	test('delete CR in CRLF 1', () => {
-		let pieceTable = createTextBuffer(['']);
+		let pieceTable = createTextBuffer([''], false);
 		pieceTable.insert(0, 'a\r\nb');
 		pieceTable.delete(0, 2);
 
@@ -945,7 +945,7 @@ suite('get text in range', () => {
 	});
 
 	test('delete CR in CRLF 2', () => {
-		let pieceTable = createTextBuffer(['']);
+		let pieceTable = createTextBuffer([''], false);
 		pieceTable.insert(0, 'a\r\nb');
 		pieceTable.delete(2, 2);
 
@@ -954,7 +954,7 @@ suite('get text in range', () => {
 
 	test('random bug 1', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		let pieceTable = createTextBuffer([''], false);
 		pieceTable.insert(0, '\n\n\r\r');
 		str = str.substring(0, 0) + '\n\n\r\r' + str.substring(0);
 		pieceTable.insert(1, '\r\n\r\n');
@@ -969,7 +969,7 @@ suite('get text in range', () => {
 	});
 	test('random bug 2', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		let pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\n\r\n\r');
 		str = str.substring(0, 0) + '\n\r\n\r' + str.substring(0);
@@ -983,7 +983,7 @@ suite('get text in range', () => {
 	});
 	test('random bug 3', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		let pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\n\n\n\r');
 		str = str.substring(0, 0) + '\n\n\n\r' + str.substring(0);
@@ -1003,7 +1003,7 @@ suite('get text in range', () => {
 	});
 	test('random bug 4', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		let pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\n\n\n\n');
 		str = str.substring(0, 0) + '\n\n\n\n' + str.substring(0);
@@ -1020,7 +1020,7 @@ suite('get text in range', () => {
 	});
 	test('random bug 5', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		let pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\n\n\n\n');
 		str = str.substring(0, 0) + '\n\n\n\n' + str.substring(0);
@@ -1045,7 +1045,7 @@ suite('get text in range', () => {
 	});
 	test('random bug 6', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		let pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\n\r\r\n');
 		str = str.substring(0, 0) + '\n\r\r\n' + str.substring(0);
@@ -1068,7 +1068,7 @@ suite('get text in range', () => {
 	});
 	test('random bug 8', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		let pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\r\n\n\r');
 		str = str.substring(0, 0) + '\r\n\n\r' + str.substring(0);
@@ -1083,7 +1083,7 @@ suite('get text in range', () => {
 	});
 	test('random bug 7', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		let pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\r\r\n\n');
 		str = str.substring(0, 0) + '\r\r\n\n' + str.substring(0);
@@ -1098,7 +1098,7 @@ suite('get text in range', () => {
 
 	test('random bug 10', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		let pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, 'qneW');
 		str = str.substring(0, 0) + 'qneW' + str.substring(0);
@@ -1118,7 +1118,7 @@ suite('get text in range', () => {
 
 	test('random bug 9', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		let pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\n\n\n\n');
 		str = str.substring(0, 0) + '\n\n\n\n' + str.substring(0);
@@ -1139,7 +1139,7 @@ suite('get text in range', () => {
 
 suite('centralized lineStarts with CRLF', () => {
 	test('delete CR in CRLF 1', () => {
-		let pieceTable = createTextBuffer(['a\r\nb']);
+		let pieceTable = createTextBuffer(['a\r\nb'], false);
 		pieceTable.delete(2, 2);
 		assert.equal(pieceTable.getLineCount(), 2);
 	});
@@ -1152,7 +1152,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 1', () => {
 		let str = '\n\n\r\r';
-		let pieceTable = createTextBuffer(['\n\n\r\r']);
+		let pieceTable = createTextBuffer(['\n\n\r\r'], false);
 		pieceTable.insert(1, '\r\n\r\n');
 		str = str.substring(0, 1) + '\r\n\r\n' + str.substring(1);
 		pieceTable.delete(5, 3);
@@ -1165,7 +1165,7 @@ suite('centralized lineStarts with CRLF', () => {
 	});
 	test('random bug 2', () => {
 		let str = '\n\r\n\r';
-		let pieceTable = createTextBuffer(['\n\r\n\r']);
+		let pieceTable = createTextBuffer(['\n\r\n\r'], false);
 
 		pieceTable.insert(2, '\n\r\r\r');
 		str = str.substring(0, 2) + '\n\r\r\r' + str.substring(2);
@@ -1178,7 +1178,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 3', () => {
 		let str = '\n\n\n\r';
-		let pieceTable = createTextBuffer(['\n\n\n\r']);
+		let pieceTable = createTextBuffer(['\n\n\n\r'], false);
 
 		pieceTable.delete(2, 2);
 		str = str.substring(0, 2) + str.substring(2 + 2);
@@ -1197,7 +1197,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 4', () => {
 		let str = '\n\n\n\n';
-		let pieceTable = createTextBuffer(['\n\n\n\n']);
+		let pieceTable = createTextBuffer(['\n\n\n\n'], false);
 
 		pieceTable.delete(3, 1);
 		str = str.substring(0, 3) + str.substring(3 + 1);
@@ -1213,7 +1213,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 5', () => {
 		let str = '\n\n\n\n';
-		let pieceTable = createTextBuffer(['\n\n\n\n']);
+		let pieceTable = createTextBuffer(['\n\n\n\n'], false);
 
 		pieceTable.delete(3, 1);
 		str = str.substring(0, 3) + str.substring(3 + 1);
@@ -1237,7 +1237,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 6', () => {
 		let str = '\n\r\r\n';
-		let pieceTable = createTextBuffer(['\n\r\r\n']);
+		let pieceTable = createTextBuffer(['\n\r\r\n'], false);
 
 		pieceTable.insert(4, '\r\n\n\r');
 		str = str.substring(0, 4) + '\r\n\n\r' + str.substring(4);
@@ -1259,7 +1259,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 7', () => {
 		let str = '\r\n\n\r';
-		let pieceTable = createTextBuffer(['\r\n\n\r']);
+		let pieceTable = createTextBuffer(['\r\n\n\r'], false);
 
 		pieceTable.delete(1, 0);
 		str = str.substring(0, 1) + str.substring(1 + 0);
@@ -1273,7 +1273,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 8', () => {
 		let str = '\r\r\n\n';
-		let pieceTable = createTextBuffer(['\r\r\n\n']);
+		let pieceTable = createTextBuffer(['\r\r\n\n'], false);
 
 		pieceTable.insert(4, '\r\n\n\r');
 		str = str.substring(0, 4) + '\r\n\n\r' + str.substring(4);
@@ -1286,7 +1286,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 9', () => {
 		let str = 'qneW';
-		let pieceTable = createTextBuffer(['qneW']);
+		let pieceTable = createTextBuffer(['qneW'], false);
 
 		pieceTable.insert(0, 'YhIl');
 		str = str.substring(0, 0) + 'YhIl' + str.substring(0);
@@ -1304,7 +1304,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 10', () => {
 		let str = '\n\n\n\n';
-		let pieceTable = createTextBuffer(['\n\n\n\n']);
+		let pieceTable = createTextBuffer(['\n\n\n\n'], false);
 
 		pieceTable.insert(3, '\n\r\n\r');
 		str = str.substring(0, 3) + '\n\r\n\r' + str.substring(3);
@@ -1321,7 +1321,7 @@ suite('centralized lineStarts with CRLF', () => {
 	});
 
 	test('random chunk bug 1', () => {
-		let pieceTable = createTextBuffer(['\n\r\r\n\n\n\r\n\r']);
+		let pieceTable = createTextBuffer(['\n\r\r\n\n\n\r\n\r'], false);
 		let str = '\n\r\r\n\n\n\r\n\r';
 		pieceTable.delete(0, 2);
 		str = str.substring(0, 0) + str.substring(0 + 2);
@@ -1337,7 +1337,7 @@ suite('centralized lineStarts with CRLF', () => {
 	test('random chunk bug 2', () => {
 		let pieceTable = createTextBuffer([
 			'\n\r\n\n\n\r\n\r\n\r\r\n\n\n\r\r\n\r\n'
-		]);
+		], false);
 		let str = '\n\r\n\n\n\r\n\r\n\r\r\n\n\n\r\r\n\r\n';
 		pieceTable.insert(16, '\r\n\r\r');
 		str = str.substring(0, 16) + '\r\n\r\r' + str.substring(16);
@@ -1355,7 +1355,7 @@ suite('centralized lineStarts with CRLF', () => {
 	});
 
 	test('random chunk bug 3', () => {
-		let pieceTable = createTextBuffer(['\r\n\n\n\n\n\n\r\n']);
+		let pieceTable = createTextBuffer(['\r\n\n\n\n\n\n\r\n'], false);
 		let str = '\r\n\n\n\n\n\n\r\n';
 		pieceTable.insert(4, '\n\n\r\n\r\r\n\n\r');
 		str = str.substring(0, 4) + '\n\n\r\n\r\r\n\n\r' + str.substring(4);
@@ -1371,7 +1371,7 @@ suite('centralized lineStarts with CRLF', () => {
 	});
 
 	test('random chunk bug 4', () => {
-		let pieceTable = createTextBuffer(['\n\r\n\r']);
+		let pieceTable = createTextBuffer(['\n\r\n\r'], false);
 		let str = '\n\r\n\r';
 		pieceTable.insert(4, '\n\n\r\n');
 		str = str.substring(0, 4) + '\n\n\r\n' + str.substring(4);
@@ -1385,7 +1385,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 suite('test case from vscode', () => {
 	let str = 'line one\nline two';
-	let pieceTable = createTextBuffer([str]);
+	let pieceTable = createTextBuffer([str], false);
 
 	assert.deepEqual(pieceTable.getPositionAt(20), new Position(2, 9));
 });
@@ -1393,7 +1393,7 @@ suite('test case from vscode', () => {
 suite('random is unsupervised', () => {
 	test('random insert delete', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([str]);
+		let pieceTable = createTextBuffer([str], false);
 
 		for (let i = 0; i < 1000; i++) {
 			if (Math.random() < 0.6) {
@@ -1426,7 +1426,7 @@ suite('random is unsupervised', () => {
 			chunks.push(randomStr(1000));
 		}
 
-		let pieceTable = createTextBuffer(chunks);
+		let pieceTable = createTextBuffer(chunks, false);
 		let str = chunks.join('');
 
 		for (let i = 0; i < 1000; i++) {
@@ -1452,4 +1452,4 @@ suite('random is unsupervised', () => {
 		testLineStarts(str, pieceTable);
 		testLinesContent(str, pieceTable);
 	});
-}); */
+});
