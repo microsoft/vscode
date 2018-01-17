@@ -264,12 +264,22 @@ function registerEditorCommands() {
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
 		handler: (accessor, resource: URI, editorContext: IEditorIdentifier) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
+			const model = editorGroupService.getStacksModel();
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
-			const positions = contexts.map(context => positionAndInput(editorGroupService, editorService, context).position);
 
-			return TPromise.join(distinct(positions.filter(p => typeof p === 'number'))
-				.map(position => editorService.closeEditors(position, { unmodifiedOnly: true })));
+			let positionOne: { unmodifiedOnly: boolean } = undefined;
+			let positionTwo: { unmodifiedOnly: boolean } = undefined;
+			let positionThree: { unmodifiedOnly: boolean } = undefined;
+			contexts.forEach(c => {
+				switch (model.positionOfGroup(c.group)) {
+					case Position.ONE: positionOne = { unmodifiedOnly: true }; break;
+					case Position.TWO: positionTwo = { unmodifiedOnly: true }; break;
+					case Position.THREE: positionThree = { unmodifiedOnly: true }; break;
+				}
+			});
+
+			return editorService.closeEditors({ positionOne, positionTwo, positionThree });
 		}
 	});
 
