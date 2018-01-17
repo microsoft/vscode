@@ -17,9 +17,9 @@ export class IssueService implements IIssueService {
 	_issueWindow: BrowserWindow;
 
 	constructor(
-		@ILaunchService private launchService: ILaunchService,
+		private machineId: string,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		private machineId: string
+		@ILaunchService private launchService: ILaunchService
 	) { }
 
 	openReporter(theme?: IssueReporterStyles): TPromise<void> {
@@ -44,7 +44,6 @@ export class IssueService implements IIssueService {
 		});
 
 		this._issueWindow.loadURL(this.getIssueReporterPath());
-		this._issueWindow.webContents.openDevTools();
 
 		return TPromise.as(null);
 	}

@@ -74,6 +74,7 @@ const options: minimist.Opts = {
 		'new-window': 'n',
 		'reuse-window': 'r',
 		performance: 'p',
+		'issue': 'i',
 		'disable-extensions': 'disableExtensions',
 		'extensions-dir': 'extensionHomePath',
 		'debugPluginHost': 'inspect-extensions',

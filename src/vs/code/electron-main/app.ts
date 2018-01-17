@@ -359,7 +359,6 @@ export class CodeApplication {
 		const issueService = accessor.get(IIssueService);
 		const issueChannel = new IssueChannel(issueService);
 		this.electronIpcServer.registerChannel('issue', issueChannel);
-		// this.sharedProcessClient.done(client => client.registerChannel('issue', issueChannel));
 
 		const workspacesService = accessor.get(IWorkspacesMainService);
 		const workspacesChannel = appInstantiationService.createInstance(WorkspacesChannel, workspacesService);

@@ -105,6 +105,11 @@ input:disabled {
 	opacity: 0.6;
 }
 
+.list-title {
+	margin-top: 1em;
+	margin-left: 1em;
+}
+
 /* Default styles, overwritten if a theme is provided */
 input, select, textarea {
 	background-color: #3c3c3c;

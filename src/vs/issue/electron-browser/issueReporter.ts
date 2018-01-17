@@ -210,13 +210,13 @@ export class IssueReporter extends Disposable {
 				window.fetch(`https://api.github.com/search/issues?q=${query}&per_page=5`).then((response) => {
 					response.json().then(result => {
 						if (result.items.length) {
-							let issues = document.createElement('ul');
-							issues.id = 'issues-list';
+							const issues = $('ul');
+							const issuesText = $('div.list-title');
+							issuesText.textContent = 'Similar issues:';
 							addIssuesToList(issues, result.items);
+							similarIssues.appendChild(issuesText);
 							similarIssues.appendChild(issues);
 						}
-					}).catch((error) => {
-						console.log(error);
 					});
 				}).catch((error) => {
 					console.log(error);
@@ -313,7 +313,6 @@ export class IssueReporter extends Disposable {
 					"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
-
 			this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType });
 		}
 
