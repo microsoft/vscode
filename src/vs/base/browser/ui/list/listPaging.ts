@@ -166,6 +166,10 @@ export class PagedList<T> {
 		this.list.setSelection(indexes);
 	}
 
+	getSelection(): number[] {
+		return this.list.getSelection();
+	}
+
 	layout(height?: number): void {
 		this.list.layout(height);
 	}

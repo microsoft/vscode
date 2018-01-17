@@ -7,7 +7,7 @@ import * as interfaces from './interfaces';
 import { loadMessageBundle } from 'vscode-nls';
 const localize = loadMessageBundle();
 
-export default class MergeDectorator implements vscode.Disposable {
+export default class MergeDecorator implements vscode.Disposable {
 
 	private decorations: { [key: string]: vscode.TextEditorDecorationType } = {};
 

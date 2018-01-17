@@ -7,17 +7,11 @@
 	"openFile": "Ouvrir un fichier...",
 	"openFolder": "Ouvrir un dossier...",
 	"openFileFolder": "Ouvrir...",
-	"addFolderToWorkspace": "Ajouter un dossier à l'espace de travail...",
-	"add": "&&Ajouter",
-	"addFolderToWorkspaceTitle": "Ajouter un dossier à l'espace de travail",
 	"globalRemoveFolderFromWorkspace": "Supprimer le dossier d’espace de travail...",
-	"removeFolderFromWorkspace": "Supprimer le dossier de l'espace de travail",
-	"openFolderSettings": "Ouvrir le dossier Paramètres",
 	"saveWorkspaceAsAction": "Enregistrer l’espace de travail sous...",
 	"save": "&&Enregistrer",
 	"saveWorkspace": "Enregistrer l’espace de travail",
 	"openWorkspaceAction": "Ouvrir un espace de travail...",
 	"openWorkspaceConfigFile": "Ouvrir le Fichier de Configuration d’espace de travail",
-	"openFolderAsWorkspaceInNewWindow": "Ouvrir le dossier en tant qu'espace de travail dans une nouvelle fenêtre",
-	"workspaceFolderPickerPlaceholder": "Sélectionner le dossier de l’espace de travail"
+	"openFolderAsWorkspaceInNewWindow": "Ouvrir le dossier en tant qu'espace de travail dans une nouvelle fenêtre"
 }

@@ -14,7 +14,6 @@ import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import Event, { Emitter } from 'vs/base/common/event';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
@@ -75,6 +74,7 @@ export class ListService implements IListService {
 const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
 export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
 export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
+export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 
 export type Widget = List<any> | PagedList<any> | ITree;
 
@@ -92,7 +92,7 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
-	private disposable: IDisposable;
+	private listDoubleSelection: IContextKey<boolean>;
 
 	constructor(
 		container: HTMLElement,
@@ -105,16 +105,17 @@ export class WorkbenchList<T> extends List<T> {
 	) {
 		super(container, delegate, renderers, options);
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 
-		this.disposable = combinedDisposable([
+		this.disposables.push(combinedDisposable([
 			this.contextKeyService,
 			(listService as ListService).register(this),
 			attachListStyler(this, themeService)
-		]);
-	}
-
-	dispose(): void {
-		this.disposable.dispose();
+		]));
+		this.disposables.push(this.onSelectionChange(() => {
+			const selection = this.getSelection();
+			this.listDoubleSelection.set(selection && selection.length === 2);
+		}));
 	}
 }
 
@@ -149,11 +150,9 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 export class WorkbenchTree extends Tree {
 
-	private _onFocusChange = new Emitter<boolean>();
-	readonly onFocusChange: Event<boolean> = this._onFocusChange.event;
-
 	readonly contextKeyService: IContextKeyService;
-	private disposables: IDisposable[] = [];
+	protected disposables: IDisposable[] = [];
+	private listDoubleSelection: IContextKey<boolean>;
 
 	constructor(
 		container: HTMLElement,
@@ -166,12 +165,17 @@ export class WorkbenchTree extends Tree {
 		super(container, configuration, options);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 
 		this.disposables.push(
 			this.contextKeyService,
 			(listService as ListService).register(this),
 			attachListStyler(this, themeService)
 		);
+		this.disposables.push(this.onDidChangeSelection(() => {
+			const selection = this.getSelection();
+			this.listDoubleSelection.set(selection && selection.length === 2);
+		}));
 	}
 
 	dispose(): void {

@@ -1132,7 +1132,6 @@ export class StatResolver {
 		const fileStat: IFileStat = {
 			resource: this.resource,
 			isDirectory: this.isDirectory,
-			hasChildren: undefined,
 			name: this.name,
 			etag: this.etag,
 			size: this.size,
@@ -1161,7 +1160,6 @@ export class StatResolver {
 				// Load children
 				this.resolveChildren(this.resource.fsPath, absoluteTargetPaths, options && options.resolveSingleChildDescendants, children => {
 					children = arrays.coalesce(children); // we don't want those null children (could be permission denied when reading a child)
-					fileStat.hasChildren = children && children.length > 0;
 					fileStat.children = children || [];
 
 					c(fileStat);
@@ -1215,7 +1213,6 @@ export class StatResolver {
 						const childStat: IFileStat = {
 							resource: fileResource,
 							isDirectory: fileStat.isDirectory(),
-							hasChildren: childCount > 0,
 							name: file,
 							mtime: fileStat.mtime.getTime(),
 							etag: etag(fileStat),
@@ -1239,7 +1236,6 @@ export class StatResolver {
 						if (resolveFolderChildren) {
 							$this.resolveChildren(fileResource.fsPath, absoluteTargetPaths, resolveSingleChildDescendants, children => {
 								children = arrays.coalesce(children);  // we don't want those null children
-								childStat.hasChildren = children && children.length > 0;
 								childStat.children = children || [];
 
 								clb(null, childStat);

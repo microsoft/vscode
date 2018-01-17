@@ -36,8 +36,6 @@
 	"editorConfigurationTitle": "Szerkesztőablak",
 	"formatOnSave": "Fájlok formázása mentéskor. Az adott nyelvhez rendelkezésre kell állni formázónak, nem lehet beállítva automatikus mentés, és a szerkesztő nem állhat éppen lefelé.",
 	"explorerConfigurationTitle": "Fájlkezelő",
-	"openEditorsVisible": "A megnyitott szerkesztőablakok panelen megjelenített szerkesztőablakok száma. Állítsa 0-ra, ha el szeretné rejteni a panelt.",
-	"dynamicHeight": "Meghatározza, hogy a megnyitott szerkesztőablakok szakasz magassága automatikusan illeszkedjen a megnyitott elemek számához vagy sem.",
 	"autoReveal": "Meghatározza, hogy a fájlkezelőben automatikusan fel legyenek fedve és ki legyenek jelölve a fájlok, amikor megnyitják őket.",
 	"enableDragAndDrop": "Meghatározza, hogy a fájlkezelőben áthelyezhetők-e a fájlok és mappák húzással.",
 	"confirmDragAndDrop": "Meghatározza, hogy a fájlkezelő kérjen-e megerősítést fájlok és mappák húzással történő áthelyezése esetén.",

@@ -10,6 +10,7 @@
 	"fileTooLargeError": "Arquivo muito grande para abrir",
 	"fileNotFoundError": "Arquivo não encontrado ({0})",
 	"fileBinaryError": "Arquivo parece ser binário e não pode ser aberto como texto",
+	"filePermission": "Permissão negada ao escrever no arquivo ({0})",
 	"fileExists": "Arquivo a ser criado já existe ({0})",
 	"fileMoveConflict": "Não é possível mover/copiar. Arquivo já existe no destino.",
 	"unableToMoveCopyError": "Não é possível mover/copiar. Arquivo poderia substituir a pasta em que está contida.",

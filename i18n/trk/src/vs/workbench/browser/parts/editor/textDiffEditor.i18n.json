@@ -11,6 +11,5 @@
 	"editableEditorAriaLabel": "Metin dosyası karşılaştırma düzenleyicisi.",
 	"navigate.next.label": "Sonraki Değişiklik",
 	"navigate.prev.label": "Önceki Değişiklik",
-	"inlineDiffLabel": "Satır İçi Görünüme Geç",
-	"sideBySideDiffLabel": "Yan Yana Görünüme Geç"
+	"toggleIgnoreTrimWhitespace.label": "Kırpma Boşluğunu Yoksay"
 }

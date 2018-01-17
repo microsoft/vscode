@@ -35,7 +35,7 @@ export class FileService implements IFileService {
 	private static readonly NET_VERSION_ERROR = 'System.MissingMethodException';
 	private static readonly NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
 
-	private raw: IFileService;
+	private raw: NodeFileService;
 
 	private toUnbind: IDisposable[];
 
@@ -100,7 +100,7 @@ export class FileService implements IFileService {
 		// Forward to unexpected error handler
 		errors.onUnexpectedError(msg);
 
-		// Detect if we run < .NET Framework 4.5
+		// Detect if we run < .NET Framework 4.5 (TODO@ben remove with new watcher impl)
 		if (typeof msg === 'string' && msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
 			this.messageService.show(Severity.Warning, <IMessageWithAction>{
 				message: nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),

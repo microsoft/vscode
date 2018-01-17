@@ -11,16 +11,21 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 export class EditOperationsCommand implements editorCommon.ICommand {
 
-	static execute(editor: ICodeEditor, edits: TextEdit[]) {
+	static execute(editor: ICodeEditor, edits: TextEdit[], asCommand: boolean) {
 		const cmd = new EditOperationsCommand(edits, editor.getSelection());
 		if (typeof cmd._newEol === 'number') {
 			editor.getModel().setEOL(cmd._newEol);
 		}
 		editor.pushUndoStop();
-		editor.executeCommand('formatEditsCommand', cmd);
+		if (!asCommand) {
+			editor.executeEdits('formatEditsCommand', cmd._edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+		} else {
+			editor.executeCommand('formatEditsCommand', cmd);
+		}
 		editor.pushUndoStop();
 	}
 

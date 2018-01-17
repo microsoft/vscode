@@ -30,6 +30,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	//extensions suggestions
 	context.subscriptions.push(...registerExtensionsCompletions());
 
+	//locale suggestions
+	context.subscriptions.push(registerLocaleCompletionsInLanguageDocument());
+
 	// launch.json decorations
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
 	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
@@ -66,6 +69,44 @@ function registerSettingsCompletions(): vscode.Disposable {
 		}
 	});
 }
+
+function registerLocaleCompletionsInLanguageDocument(): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ pattern: '**/locale.json' }, {
+		provideCompletionItems(document, position, token) {
+			const location = getLocation(document.getText(), document.offsetAt(position));
+			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+			if (location.path[0] === 'locale') {
+				const extensionsContent = <IExtensionsContent>parse(document.getText());
+				return provideContributedLocalesProposals(range);
+			}
+			return [];
+		}
+	});
+}
+
+function provideContributedLocalesProposals(range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
+	const contributedLocales: string[] = [];
+	for (const extension of vscode.extensions.all) {
+		if (extension.packageJSON && extension.packageJSON['contributes'] && extension.packageJSON['contributes']['locales'] && extension.packageJSON['contributes']['locales'].length) {
+			const locales: { locale: string }[] = extension.packageJSON['contributes']['locales'];
+			for (const locale of locales) {
+				if (contributedLocales.indexOf(locale.locale) === -1) {
+					contributedLocales.push(locale.locale);
+				}
+			}
+		}
+	}
+	return contributedLocales.map(locale => {
+		const text = `"${locale}"`;
+		const item = new vscode.CompletionItem(text);
+		item.kind = vscode.CompletionItemKind.Value;
+		item.insertText = text;
+		item.range = range;
+		item.filterText = text;
+		return item;
+	});
+}
+
 
 interface IExtensionsContent {
 	recommendations: string[];

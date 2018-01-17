@@ -2539,6 +2539,10 @@ declare module monaco.editor {
 		 */
 		cursorStyle?: string;
 		/**
+		 * Control the width of the cursor when cursorStyle is set to 'line'
+		 */
+		lineCursorWidth?: number;
+		/**
 		 * Enable font ligatures.
 		 * Defaults to false.
 		 */
@@ -3003,6 +3007,7 @@ declare module monaco.editor {
 		readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 		readonly mouseWheelZoom: boolean;
 		readonly cursorStyle: TextEditorCursorStyle;
+		readonly lineCursorWidth: number;
 		readonly hideCursorInOverviewRuler: boolean;
 		readonly scrollBeyondLastLine: boolean;
 		readonly smoothScrolling: boolean;
@@ -4482,6 +4487,7 @@ declare module monaco.languages {
 	export enum SuggestTriggerKind {
 		Invoke = 0,
 		TriggerCharacter = 1,
+		TriggerForIncompleteCompletions = 2,
 	}
 
 	export interface CodeAction {

@@ -109,7 +109,7 @@ class WordWrapMigrationController extends Disposable implements IEditorContribut
 		);
 		const dontShowAgainAction = new Action(
 			'wordWrapMigration.dontShowAgain',
-			nls.localize('wordWrapMigration.dontShowAgain', "Don't show again"),
+			nls.localize('wordWrapMigration.dontShowAgain', "Don't Show Again"),
 			null,
 			true,
 			() => {

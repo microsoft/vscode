@@ -14,6 +14,8 @@
 	"workbench.action.terminal.deleteWordRight": "Jobbra lévő szó törlése",
 	"workbench.action.terminal.new": "Új integrált terminál létrehozása",
 	"workbench.action.terminal.new.short": "Új terminál",
+	"workbench.action.terminal.newWorkspacePlaceholder": "Az aktuális munkakönyvtár kiválasztása az új terminálhoz",
+	"workbench.action.terminal.newInActiveWorkspace": "Új integrált terminál létrehozása (az aktív munkaterületen)",
 	"workbench.action.terminal.focus": "Váltás a terminálra",
 	"workbench.action.terminal.focusNext": "Váltás a következő terminálra",
 	"workbench.action.terminal.focusPrevious": "Váltás az előző terminálra",

@@ -10,6 +10,7 @@
 .monaco-editor .cursors-layer > .cursor {
 	position: absolute;
 	cursor: text;
+	overflow: hidden;
 }
 .monaco-editor .cursors-layer > .cursor.secondary {
 	opacity: 0.6;

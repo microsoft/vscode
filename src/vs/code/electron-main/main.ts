@@ -42,16 +42,16 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { createLogService } from 'vs/platform/log/node/spdlogService';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
+import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 
-function createServices(args: ParsedArgs): IInstantiationService {
+function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(args, process.execPath);
-	const spdlogService = createLogService('main', environmentService);
 	const consoleLogService = new ConsoleLogMainService(environmentService);
-	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
+	const logService = new MultiplexLogService([consoleLogService, bufferLogService]);
 
 	process.once('exit', () => logService.dispose());
 
@@ -66,7 +66,7 @@ function createServices(args: ParsedArgs): IInstantiationService {
 	services.set(IStateService, new SyncDescriptor(StateService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
+	services.set(IURLService, new SyncDescriptor(URLService, args['open-url'] ? args._urls : []));
 	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
 
 	return new InstantiationService(services, true);
@@ -104,6 +104,7 @@ class ExpectedError extends Error {
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
+	const requestService = accessor.get(IRequestService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
 		let promise = TPromise.wrap<void>(void 0);
@@ -130,6 +131,12 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 			// Print --status usage info
 			if (environmentService.args.status) {
 				logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
+				throw new ExpectedError('Terminating...');
+			}
+
+			// Log uploader usage info
+			if (environmentService.args['upload-logs']) {
+				logService.warn('Warning: The --upload-logs argument can only be used if Code is already running. Please run it again after Code has started.');
 				throw new ExpectedError('Terminating...');
 			}
 
@@ -170,7 +177,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// Skip this if we are running with --wait where it is expected that we wait for a while.
 					// Also skip when gathering diagnostics (--status) which can take a longer time.
 					let startupWarningDialogHandle: number;
-					if (!environmentService.wait && !environmentService.status) {
+					if (!environmentService.wait && !environmentService.status && !environmentService.args['upload-logs']) {
 						startupWarningDialogHandle = setTimeout(() => {
 							showStartupWarningDialog(
 								localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", product.nameShort),
@@ -187,6 +194,13 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						return service.getMainProcessInfo().then(info => {
 							return printDiagnostics(info).then(() => TPromise.wrapError(new ExpectedError()));
 						});
+					}
+
+					// Log uploader
+					if (environmentService.args['upload-logs']) {
+						return import('vs/code/electron-main/logUploader')
+							.then(logUploader => logUploader.uploadLogs(channel, requestService))
+							.then(() => TPromise.wrapError(new ExpectedError()));
 					}
 
 					logService.trace('Sending env to running instance...');
@@ -284,7 +298,12 @@ function main() {
 		return;
 	}
 
-	const instantiationService = createServices(args);
+	// We need to buffer the spdlog logs until we are sure
+	// we are the only instance running, otherwise we'll have concurrent
+	// log file access on Windows
+	// https://github.com/Microsoft/vscode/issues/41218
+	const bufferLogService = new BufferLogService();
+	const instantiationService = createServices(args, bufferLogService);
 
 	return instantiationService.invokeFunction(accessor => {
 
@@ -300,7 +319,10 @@ function main() {
 		// Startup
 		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
 			.then(() => instantiationService.invokeFunction(setupIPC))
-			.then(mainIpcServer => instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup());
+			.then(mainIpcServer => {
+				bufferLogService.logger = createSpdLogService('main', environmentService);
+				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup();
+			});
 	}).done(null, err => instantiationService.invokeFunction(quit, err));
 }
 

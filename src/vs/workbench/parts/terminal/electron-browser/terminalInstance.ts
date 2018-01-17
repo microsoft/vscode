@@ -1123,6 +1123,15 @@ export class TerminalInstance implements ITerminalInstance {
 	private _updateTheme(theme?: ITheme): void {
 		this._xterm.setOption('theme', this._getXtermTheme(theme));
 	}
+
+	public enterNavigationMode(): void {
+		// Perform this asynchronously as entering navigation mode will override
+		// the key event handlers which seemed to mess with the keybindings
+		// system
+		setTimeout(() => {
+			this._xterm.enterNavigationMode();
+		}, 100);
+	}
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {

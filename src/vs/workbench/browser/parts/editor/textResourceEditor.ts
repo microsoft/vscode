@@ -107,7 +107,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 	protected restoreViewState(input: EditorInput) {
 		if (input instanceof UntitledEditorInput || input instanceof ResourceEditorInput) {
-			const viewState = this.loadTextEditorViewState(input.getResource().toString());
+			const viewState = this.loadTextEditorViewState(input.getResource());
 			if (viewState) {
 				this.getControl().restoreViewState(viewState);
 			}
@@ -177,20 +177,20 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 			return; // only enabled for untitled and resource inputs
 		}
 
-		const key = input.getResource().toString();
+		const resource = input.getResource();
 
 		// Clear view state if input is disposed
 		if (input.isDisposed()) {
-			super.clearTextEditorViewState([key]);
+			super.clearTextEditorViewState([resource]);
 		}
 
 		// Otherwise save it
 		else {
-			super.saveTextEditorViewState(key);
+			super.saveTextEditorViewState(resource);
 
 			// Make sure to clean up when the input gets disposed
 			once(input.onDispose)(() => {
-				super.clearTextEditorViewState([key]);
+				super.clearTextEditorViewState([resource]);
 			});
 		}
 	}

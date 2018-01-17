@@ -54,6 +54,7 @@
 	"command.stashPopLatest": "Legutóbbi stash visszaállítása",
 	"config.enabled": "Meghatározza, hogy a git engedélyezve van-e",
 	"config.path": "A git végrehajtható fájl elérési útja",
+	"config.autoRepositoryDetection": "Meghatározza, hogy a forráskódtárak automatikusan fel legyenek-e derítve",
 	"config.autorefresh": "Meghatározza, hogy engedélyezve van-e az automatikus frissítés",
 	"config.autofetch": "Meghatározza, hogy engedélyezve van-e az automatikus lekérés",
 	"config.enableLongCommitWarning": "Figyelmeztessen-e az alkalmazás hosszú beadási üzenet esetén",
@@ -72,5 +73,6 @@
 	"colors.deleted": "A törölt erőforrások színe.",
 	"colors.untracked": "A nem követett erőforrások színe.",
 	"colors.ignored": "A figyelmen kívül hagyott erőforrások színe.",
-	"colors.conflict": "A konfliktusos erőforrások színe."
+	"colors.conflict": "A konfliktusos erőforrások színe.",
+	"colors.submodule": "Az almodulokhoz tartozó erőforrások színe"
 }

@@ -23,6 +23,7 @@
 	"commandPalette": "命令選擇區...",
 	"settings": "設定",
 	"keyboardShortcuts": "鍵盤快速鍵(&&K)",
+	"userSnippets": "使用者程式碼片段",
 	"selectTheme.label": "色彩佈景主題",
 	"themes.selectIconTheme.label": "檔案圖示佈景主題",
 	"not available": "無可用更新",

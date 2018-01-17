@@ -14,7 +14,6 @@
 	"lineNumbers.on": "Los números de línea se muestran como un número absoluto.",
 	"lineNumbers.relative": "Los números de línea se muestran como distancia en líneas a la posición del cursor.",
 	"lineNumbers.interval": "Los números de línea se muestran cada 10 líneas.",
-	"lineNumbers": "Controla la visualización de números de línea. Los valores posibles son 'on', 'off' y 'relative'.",
 	"rulers": "Representar reglas verticales después de un cierto número de caracteres monoespacio. Usar multiples valores para multiples reglas. No se dibuja ninguna regla si la matriz esta vacía.",
 	"wordSeparators": "Caracteres que se usarán como separadores de palabras al realizar operaciones o navegaciones relacionadas con palabras.",
 	"tabSize": "El número de espacios a los que equivale una tabulación. Este valor se invalida según el contenido del archivo cuando `editor.detectIndentation` está activado.",

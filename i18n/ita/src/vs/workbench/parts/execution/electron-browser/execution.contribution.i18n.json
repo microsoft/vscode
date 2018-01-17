@@ -12,6 +12,5 @@
 	"globalConsoleActionWin": "Apri nuovo prompt dei comandi",
 	"globalConsoleActionMacLinux": "Apri nuovo terminale",
 	"scopedConsoleActionWin": "Apri nel prompt dei comandi",
-	"scopedConsoleActionMacLinux": "Apri nel terminale",
-	"openFolderInIntegratedTerminal": "Apri nel terminale"
+	"scopedConsoleActionMacLinux": "Apri nel terminale"
 }
