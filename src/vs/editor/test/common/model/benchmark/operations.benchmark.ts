@@ -5,7 +5,7 @@
 'use strict';
 
 import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
-import { PieceTableTextBufferBuilder } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBufferBuilder';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { ITextBuffer, IIdentifiedSingleEditOperation, EndOfLinePreference } from 'vs/editor/common/model';
 import { generateRandomEdits, createMockBuffer, createMockText, generateSequentialInserts } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
 import { Range } from 'vs/editor/common/core/range';
@@ -58,11 +58,11 @@ for (let i = 0, len = suites.length; i < len; i++) {
 	console.log('|---|---|---|');
 	for (let j of [10, 100, 1000]) {
 		let linesTextBuffer = createMockBuffer(text, new LinesTextBufferBuilder());
-		let pieceTableTextBuffer = createMockBuffer(text, new PieceTableTextBufferBuilder());
+		let pieceTreeTextBuffer = createMockBuffer(text, new PieceTreeTextBufferBuilder());
 		let edits = suites[i].generateEdits(text, j);
 
-		appyEditsBenchmark(`apply ${j} edits`, [linesTextBuffer, pieceTableTextBuffer], edits);
-		readLinesBenchmark(`getLineContent after ${j} edits`, [linesTextBuffer, pieceTableTextBuffer]);
-		getValueBenchmark(`save after ${j} edits`, [linesTextBuffer, pieceTableTextBuffer]);
+		appyEditsBenchmark(`apply ${j} edits`, [linesTextBuffer, pieceTreeTextBuffer], edits);
+		readLinesBenchmark(`getLineContent after ${j} edits`, [linesTextBuffer, pieceTreeTextBuffer]);
+		getValueBenchmark(`save after ${j} edits`, [linesTextBuffer, pieceTreeTextBuffer]);
 	}
 }

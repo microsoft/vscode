@@ -6,11 +6,11 @@
 
 import * as strings from 'vs/base/common/strings';
 import { ITextBufferBuilder, DefaultEndOfLine, ITextBufferFactory, ITextBuffer } from 'vs/editor/common/model';
-import { PieceTableTextBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBuffer';
-import { StringBuffer, createLineStarts, createLineStartsFast } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableBase';
+import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { StringBuffer, createLineStarts, createLineStartsFast } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { CharCode } from 'vs/base/common/charCode';
 
-export class PieceTableTextBufferFactory implements ITextBufferFactory {
+export class PieceTreeTextBufferFactory implements ITextBufferFactory {
 
 	constructor(
 		private readonly _chunks: StringBuffer[],
@@ -54,7 +54,7 @@ export class PieceTableTextBufferFactory implements ITextBufferFactory {
 			}
 		}
 
-		return new PieceTableTextBuffer(chunks, this._bom, eol, this._containsRTL, this._isBasicASCII);
+		return new PieceTreeTextBuffer(chunks, this._bom, eol, this._containsRTL, this._isBasicASCII);
 	}
 
 	public getFirstLineText(lengthLimit: number): string {
@@ -62,7 +62,7 @@ export class PieceTableTextBufferFactory implements ITextBufferFactory {
 	}
 }
 
-export class PieceTableTextBufferBuilder implements ITextBufferBuilder {
+export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 	private chunks: StringBuffer[];
 	private BOM: string;
 
@@ -146,9 +146,9 @@ export class PieceTableTextBufferBuilder implements ITextBufferBuilder {
 		}
 	}
 
-	public finish(normalizeEOL: boolean = true): PieceTableTextBufferFactory {
+	public finish(normalizeEOL: boolean = true): PieceTreeTextBufferFactory {
 		this._finish();
-		return new PieceTableTextBufferFactory(
+		return new PieceTreeTextBufferFactory(
 			this.chunks,
 			this.BOM,
 			this.cr,

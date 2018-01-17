@@ -8,10 +8,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
 import { IValidatedEditOperation } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
-import { PieceTableBase, SENTINEL, StringBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableBase';
+import { PieceTreeBase, SENTINEL, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
 
-export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer {
+export class PieceTreeTextBuffer extends PieceTreeBase implements ITextBuffer {
 	private _BOM: string;
 	private _EOL: string;
 	private _mightContainRTL: boolean;
@@ -38,6 +38,10 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 		return this._lineCnt;
 	}
 
+	public getLength(): number {
+		return this._length;
+	}
+
 	private _getEndOfLine(eol: EndOfLinePreference): string {
 		switch (eol) {
 			case EndOfLinePreference.LF:
@@ -61,7 +65,6 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 	}
 
 	public getValueInRange2(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): string {
-		// todo, validate range.
 		if (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
 			return '';
 		}
@@ -168,7 +171,7 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 	}
 
 	public equals(other: ITextBuffer): boolean {
-		if (!(other instanceof PieceTableTextBuffer)) {
+		if (!(other instanceof PieceTreeTextBuffer)) {
 			return false;
 		}
 		if (this._BOM !== other._BOM) {
@@ -236,7 +239,7 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 		}
 
 		// Sort operations ascending
-		operations.sort(PieceTableTextBuffer._sortOpsAscending);
+		operations.sort(PieceTreeTextBuffer._sortOpsAscending);
 
 		for (let i = 0, count = operations.length - 1; i < count; i++) {
 			let rangeEnd = operations[i].range.getEndPosition();
@@ -253,7 +256,7 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 		}
 
 		// Delta encode operations
-		let reverseRanges = PieceTableTextBuffer._getInverseEditRanges(operations);
+		let reverseRanges = PieceTreeTextBuffer._getInverseEditRanges(operations);
 		let newTrimAutoWhitespaceCandidates: { lineNumber: number, oldContent: string }[] = [];
 
 		for (let i = 0; i < operations.length; i++) {
@@ -325,7 +328,7 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 	}
 
 	private _doApplyEdits(operations: IValidatedEditOperation[]): IInternalModelContentChange[] {
-		operations.sort(PieceTableTextBuffer._sortOpsDescending);
+		operations.sort(PieceTreeTextBuffer._sortOpsDescending);
 
 		let contentChanges: IInternalModelContentChange[] = [];
 

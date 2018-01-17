@@ -34,14 +34,14 @@ import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelS
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringStream } from 'vs/platform/files/common/files';
 import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
-import { PieceTableTextBufferBuilder } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBufferBuilder';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 
 // Here is the master switch for the text buffer implementation:
-const USE_PIECE_TABLE_IMPLEMENTATION = true;
+const USE_PIECE_TREE_IMPLEMENTATION = true;
 
 function createTextBufferBuilder() {
-	if (USE_PIECE_TABLE_IMPLEMENTATION) {
-		return new PieceTableTextBufferBuilder();
+	if (USE_PIECE_TREE_IMPLEMENTATION) {
+		return new PieceTreeTextBufferBuilder();
 	}
 	return new LinesTextBufferBuilder();
 }

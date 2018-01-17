@@ -5,7 +5,7 @@
 'use strict';
 
 import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
-import { PieceTableTextBufferBuilder } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBufferBuilder';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { IIdentifiedSingleEditOperation, ITextBuffer } from 'vs/editor/common/model';
 import { createMockText, createMockBuffer, generateRandomReplaces } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
 import { doBenchmark } from 'vs/editor/test/common/model/benchmark/benchmarkUtils';
@@ -24,7 +24,7 @@ console.log(`\n|replace all\t|line buffer\t|piece table\t|`);
 console.log('|---|---|---|');
 for (let i of [10, 100, 500, 1000]) {
 	let linesTextBuffer = createMockBuffer(text, new LinesTextBufferBuilder());
-	let pieceTableTextBuffer = createMockBuffer(text, new PieceTableTextBufferBuilder());
+	let pieceTreeTextBuffer = createMockBuffer(text, new PieceTreeTextBufferBuilder());
 	let edits = generateRandomReplaces(text, i, 5, 10);
-	appyEditsBenchmark(`replace ${i} occurrences`, [linesTextBuffer, pieceTableTextBuffer], edits);
+	appyEditsBenchmark(`replace ${i} occurrences`, [linesTextBuffer, pieceTreeTextBuffer], edits);
 }

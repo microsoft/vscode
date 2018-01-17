@@ -266,11 +266,11 @@ export class StringBuffer {
 	}
 }
 
-export class PieceTableBase {
+export class PieceTreeBase {
 	root: TreeNode;
-
 	protected _buffers: StringBuffer[]; // 0 is change buffer, others are readonly original buffer.
 	protected _lineCnt: number;
+	protected _length: number;
 	private _lastChangeBufferPos: BufferCursor;
 
 	constructor(chunks: StringBuffer[]) {
@@ -284,6 +284,7 @@ export class PieceTableBase {
 		this._lastChangeBufferPos = { line: 0, column: 0 };
 		this.root = SENTINEL;
 		this._lineCnt = 1;
+		this._length = 0;
 
 		let lastNode: TreeNode = null;
 		for (let i = 0, len = chunks.length; i < len; i++) {
@@ -304,7 +305,7 @@ export class PieceTableBase {
 			}
 		}
 
-		this.computeLineCount();
+		this.computeBufferMetadata();
 
 	}
 
@@ -343,7 +344,6 @@ export class PieceTableBase {
 
 	// #region Piece Table
 	insert(offset: number, value: string): void {
-		// todo, validate value and offset.
 		if (this.root !== SENTINEL) {
 			let { node, remainder, nodeStartOffset } = this.nodeAt(offset);
 			let piece = node.piece;
@@ -356,7 +356,7 @@ export class PieceTableBase {
 			) {
 				// changed buffer
 				this.appendToNode(node, value);
-				this.computeLineCount();
+				this.computeBufferMetadata();
 				return;
 			}
 
@@ -419,7 +419,7 @@ export class PieceTableBase {
 		}
 
 		// todo, this is too brutal. Total line feed count should be updated the same way as lf_left.
-		this.computeLineCount();
+		this.computeBufferMetadata();
 	}
 
 	delete(offset: number, cnt: number): void {
@@ -441,25 +441,25 @@ export class PieceTableBase {
 					let next = startNode.next();
 					this.rbDelete(startNode);
 					this.validateCRLFWithPrevNode(next);
-					this.computeLineCount();
+					this.computeBufferMetadata();
 					return;
 				}
 				this.deleteNodeHead(startNode, endSplitPosInBuffer);
 				this.validateCRLFWithPrevNode(startNode);
-				this.computeLineCount();
+				this.computeBufferMetadata();
 				return;
 			}
 
 			if (startPosition.nodeStartOffset + startNode.piece.length === offset + cnt) {
 				this.deleteNodeTail(startNode, startSplitPosInBuffer);
 				this.validateCRLFWithNextNode(startNode);
-				this.computeLineCount();
+				this.computeBufferMetadata();
 				return;
 			}
 
 			// delete content in the middle, this node will be splitted to nodes
 			this.shrinkNode(startNode, startSplitPosInBuffer, endSplitPosInBuffer);
-			this.computeLineCount();
+			this.computeBufferMetadata();
 			return;
 		}
 
@@ -487,7 +487,7 @@ export class PieceTableBase {
 		let prev = startNode.piece.length === 0 ? startNode.prev() : startNode;
 		this.deleteNodes(nodesToDel);
 		this.validateCRLFWithNextNode(prev);
-		this.computeLineCount();
+		this.computeBufferMetadata();
 	}
 
 	insertContentToNodeLeft(value: string, node: TreeNode) {
@@ -503,7 +503,7 @@ export class PieceTableBase {
 			piece.length -= 1;
 
 			value += '\n';
-			this.updateMetadata(node, -1, -1);
+			this.updateTreeMetadata(node, -1, -1);
 
 			if (node.piece.length === 0) {
 				nodesToDel.push(node);
@@ -716,16 +716,20 @@ export class PieceTableBase {
 		return ret;
 	}
 
-	computeLineCount() {
+	computeBufferMetadata() {
 		let x = this.root;
 
-		let ret = 1;
+		let lfCnt = 1;
+		let len = 0;
+
 		while (x !== SENTINEL) {
-			ret += x.lf_left + x.piece.lineFeedCnt;
+			lfCnt += x.lf_left + x.piece.lineFeedCnt;
+			len += x.size_left + x.piece.length;
 			x = x.right;
 		}
 
-		this._lineCnt = ret;
+		this._lineCnt = lfCnt;
+		this._length = len;
 	}
 
 	// #region node operations
@@ -774,7 +778,7 @@ export class PieceTableBase {
 		let lf_delta = piece.lineFeedCnt - originalLFCnt;
 		let size_delta = newEndOffset - originalEndOffset;
 		piece.length += size_delta;
-		this.updateMetadata(node, size_delta, lf_delta);
+		this.updateTreeMetadata(node, size_delta, lf_delta);
 	}
 
 	deleteNodeHead(node: TreeNode, pos: BufferCursor) {
@@ -788,7 +792,7 @@ export class PieceTableBase {
 		let lf_delta = piece.lineFeedCnt - originalLFCnt;
 		let size_delta = originalStartOffset - newStartOffset;
 		piece.length += size_delta;
-		this.updateMetadata(node, size_delta, lf_delta);
+		this.updateTreeMetadata(node, size_delta, lf_delta);
 	}
 
 	shrinkNode(node: TreeNode, start: BufferCursor, end: BufferCursor) {
@@ -804,7 +808,7 @@ export class PieceTableBase {
 		let newLength = this.offsetInBuffer(piece.bufferIndex, start) - this.offsetInBuffer(piece.bufferIndex, originalStartPos);
 		let newLFCnt = piece.lineFeedCnt;
 		piece.length = newLength;
-		this.updateMetadata(node, newLength - oldLength, newLFCnt - oldLFCnt);
+		this.updateTreeMetadata(node, newLength - oldLength, newLFCnt - oldLFCnt);
 
 		// new right piece, end, originalEndPos
 		let newPiece = new Piece(
@@ -849,7 +853,7 @@ export class PieceTableBase {
 		node.piece.lineFeedCnt = newLineFeedCnt;
 		let lf_delta = newLineFeedCnt - oldLineFeedCnt;
 		this._lastChangeBufferPos = endPos;
-		this.updateMetadata(node, value.length, lf_delta);
+		this.updateTreeMetadata(node, value.length, lf_delta);
 	}
 
 	nodeAt(offset: number): NodePosition {
@@ -1051,7 +1055,7 @@ export class PieceTableBase {
 		prev.piece.length -= 1;
 		prev.piece.lineFeedCnt -= 1;
 
-		this.updateMetadata(prev, - 1, -1);
+		this.updateTreeMetadata(prev, - 1, -1);
 		if (prev.piece.length === 0) {
 			nodesToDel.push(prev);
 		}
@@ -1063,7 +1067,7 @@ export class PieceTableBase {
 		next.piece.lineFeedCnt = this.getLineFeedCnt(next.piece.bufferIndex, next.piece.start, next.piece.end); // @todo, we can optimize
 		// }
 
-		this.updateMetadata(next, - 1, -1);
+		this.updateTreeMetadata(next, - 1, -1);
 		if (next.piece.length === 0) {
 			nodesToDel.push(next);
 		}
@@ -1094,7 +1098,7 @@ export class PieceTableBase {
 					piece.start = newStart;
 					piece.length -= 1;
 					piece.lineFeedCnt = this.getLineFeedCnt(piece.bufferIndex, piece.start, piece.end); // @todo, we can optimize
-					this.updateMetadata(nextNode, -1, -1);
+					this.updateTreeMetadata(nextNode, -1, -1);
 				}
 				return true;
 			}
@@ -1274,7 +1278,7 @@ export class PieceTableBase {
 
 		if (y === z) {
 			x.parent = y.parent;
-			this.recomputeMetadata(x);
+			this.recomputeTreeMetadata(x);
 		} else {
 			if (y.parent === z) {
 				x.parent = y;
@@ -1283,7 +1287,7 @@ export class PieceTableBase {
 			}
 
 			// as we make changes to x's hierarchy, update size_left of subtree first
-			this.recomputeMetadata(x);
+			this.recomputeTreeMetadata(x);
 
 			y.left = z.left;
 			y.right = z.right;
@@ -1310,7 +1314,7 @@ export class PieceTableBase {
 			// we replace z with y, so in this sub tree, the length change is z.item.length
 			y.size_left = z.size_left;
 			y.lf_left = z.lf_left;
-			this.recomputeMetadata(y);
+			this.recomputeTreeMetadata(y);
 		}
 
 		z.detach();
@@ -1323,11 +1327,11 @@ export class PieceTableBase {
 				let lf_delta = newLFLeft - x.parent.lf_left;
 				x.parent.size_left = newSizeLeft;
 				x.parent.lf_left = newLFLeft;
-				this.updateMetadata(x.parent, delta, lf_delta);
+				this.updateTreeMetadata(x.parent, delta, lf_delta);
 			}
 		}
 
-		this.recomputeMetadata(x.parent);
+		this.recomputeTreeMetadata(x.parent);
 
 		if (yWasRed) {
 			resetSentinel();
@@ -1399,7 +1403,7 @@ export class PieceTableBase {
 	}
 
 	fixInsert(x: TreeNode) {
-		this.recomputeMetadata(x);
+		this.recomputeTreeMetadata(x);
 
 		while (x !== this.root && getNodeColor(x.parent) === NodeColor.Red) {
 			if (x.parent === x.parent.parent.left) {
@@ -1443,7 +1447,7 @@ export class PieceTableBase {
 		setNodeColor(this.root, NodeColor.Black);
 	}
 
-	updateMetadata(x: TreeNode, delta: number, lineFeedCntDelta: number): void {
+	updateTreeMetadata(x: TreeNode, delta: number, lineFeedCntDelta: number): void {
 		// node length change or line feed count change
 		while (x !== this.root && x !== SENTINEL) {
 			if (x.parent.left === x) {
@@ -1455,7 +1459,7 @@ export class PieceTableBase {
 		}
 	}
 
-	recomputeMetadata(x: TreeNode) {
+	recomputeTreeMetadata(x: TreeNode) {
 		let delta = 0;
 		let lf_delta = 0;
 		if (x === this.root) {

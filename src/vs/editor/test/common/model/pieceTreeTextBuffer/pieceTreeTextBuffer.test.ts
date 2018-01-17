@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import { PieceTableTextBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBuffer';
+import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { PieceTableTextBufferBuilder } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBufferBuilder';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { getNodeColor, SENTINEL, NodeColor, PieceTableBase, TreeNode } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableBase';
+import { getNodeColor, SENTINEL, NodeColor, PieceTreeBase, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -71,7 +71,7 @@ function trimLineFeed(text: string): string {
 
 //#region Assertion
 
-function testLinesContent(str: string, pieceTable: PieceTableTextBuffer) {
+function testLinesContent(str: string, pieceTable: PieceTreeTextBuffer) {
 	let lines = str.split(/\r\n|\r|\n/);
 	assert.equal(pieceTable.getLineCount(), lines.length);
 	assert.equal(pieceTable.getLinesRawContent(), str);
@@ -93,7 +93,7 @@ function testLinesContent(str: string, pieceTable: PieceTableTextBuffer) {
 	}
 }
 
-function testLineStarts(str: string, pieceTable: PieceTableTextBuffer) {
+function testLineStarts(str: string, pieceTable: PieceTreeTextBuffer) {
 	let lineStarts = [0];
 
 	// Reset regex to search from the beginning
@@ -148,16 +148,16 @@ function testLineStarts(str: string, pieceTable: PieceTableTextBuffer) {
 	}
 }
 
-function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTableTextBuffer {
-	let bufferBuilder = new PieceTableTextBufferBuilder();
+function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTreeTextBuffer {
+	let bufferBuilder = new PieceTreeTextBufferBuilder();
 	for (let i = 0; i < val.length; i++) {
 		bufferBuilder.acceptChunk(val[i]);
 	}
 	let factory = bufferBuilder.finish(normalizeEOL);
-	return <PieceTableTextBuffer>factory.create(DefaultEndOfLine.LF);
+	return <PieceTreeTextBuffer>factory.create(DefaultEndOfLine.LF);
 }
 
-function assertTreeInvariants(T: PieceTableBase): void {
+function assertTreeInvariants(T: PieceTreeBase): void {
 	assert(getNodeColor(SENTINEL) === NodeColor.Black);
 	assert(SENTINEL.parent === SENTINEL);
 	assert(SENTINEL.left === SENTINEL);
@@ -197,7 +197,7 @@ function assertValidNode(n: TreeNode): { size: number, lf_cnt: number } {
 	return { size: n.size_left + n.piece.length + actualRight.size, lf_cnt: n.lf_left + n.piece.lineFeedCnt + actualRight.lf_cnt };
 }
 
-function assertValidTree(T: PieceTableBase): void {
+function assertValidTree(T: PieceTreeBase): void {
 	if (T.root === SENTINEL) {
 		return;
 	}
