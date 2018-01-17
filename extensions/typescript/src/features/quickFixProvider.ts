@@ -65,7 +65,7 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 
 	public async provideCodeActions(
 		document: vscode.TextDocument,
-		range: vscode.Range,
+		_range: vscode.Range,
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.CodeAction[]> {
