@@ -47,6 +47,8 @@ export const TerminalCursorStyle = {
 	UNDERLINE: 'underline'
 };
 
+export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
+
 export interface ITerminalConfiguration {
 	shell: {
 		linux: string;
@@ -170,7 +172,6 @@ export interface ITerminalService {
 	showPreviousFindTermFindWidget(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	updateConfig(): void;
 	selectDefaultWindowsShell(): TPromise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
