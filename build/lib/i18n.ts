@@ -13,6 +13,7 @@ import * as Is from 'is';
 import * as xml2js from 'xml2js';
 import * as glob from 'glob';
 import * as https from 'https';
+import * as gulp from 'gulp';
 
 var util = require('gulp-util');
 var iconv = require('iconv-lite');
@@ -143,6 +144,25 @@ module ModuleJsonFormat {
 	}
 }
 
+interface BundledExtensionFormat {
+	type: string;
+	name: string;
+	rootPath: string;
+	content: {
+		[key: string]: {
+			messages: string[];
+			keys: (string | LocalizeInfo)[];
+		}
+	};
+}
+
+module BundledExtensionFormat {
+	export function is(value: any): value is BundledExtensionFormat {
+		let candidate = value as BundledExtensionFormat;
+		return Is.defined(candidate) && candidate.type === 'extensionBundle' && Is.string(candidate.name) && Is.string(candidate.rootPath) && Is.defined(candidate.content);
+	}
+}
+
 export class Line {
 	private buffer: string[] = [];
 
@@ -198,30 +218,31 @@ export class XLF {
 		return this.buffer.join('\r\n');
 	}
 
-	public addFile(original: string, keys: any[], messages: string[]) {
+	public addFile(original: string, keys: (string | LocalizeInfo)[], messages: string[]) {
+		if (keys.length !== messages.length) {
+			throw new Error(`Unmatching keys(${keys.length}) and messages(${messages.length}).`);
+		}
 		this.files[original] = [];
-		let existingKeys = [];
-
-		for (let key of keys) {
-			// Ignore duplicate keys because Transifex does not populate those with translated values.
-			if (existingKeys.indexOf(key) !== -1) {
+		let existingKeys = new Set<string>();
+		for (let i = 0; i < keys.length; i++) {
+			let key = keys[i];
+			let realKey: string;
+			let comment: string;
+			if (Is.string(key)) {
+				realKey = key;
+				comment = undefined;
+			} else if (LocalizeInfo.is(key)) {
+				realKey = key.key;
+				if (key.comment && key.comment.length > 0) {
+					comment = key.comment.map(comment => encodeEntities(comment)).join('\r\n');
+				}
+			}
+			if (!realKey || existingKeys.has(realKey)) {
 				continue;
 			}
-			existingKeys.push(key);
-
-			let message: string = encodeEntities(messages[keys.indexOf(key)]);
-			let comment: string = undefined;
-
-			// Check if the message contains description (if so, it becomes an object type in JSON)
-			if (Is.string(key)) {
-				this.files[original].push({ id: key, message: message, comment: comment });
-			} else {
-				if (key['comment'] && key['comment'].length > 0) {
-					comment = key['comment'].map(comment => encodeEntities(comment)).join('\r\n');
-				}
-
-				this.files[original].push({ id: key['key'], message: message, comment: comment });
-			}
+			existingKeys.add(realKey);
+			let message: string = encodeEntities(messages[i]);
+			this.files[original].push({ id: realKey, message: message, comment: comment });
 		}
 	}
 
@@ -547,31 +568,6 @@ export function processNlsFiles(opts: { fileHeader: string; languages: Language[
 	});
 }
 
-export function prepareXlfFiles(projectName?: string, extensionName?: string): ThroughStream {
-	return through(
-		function (file: File) {
-			if (!file.isBuffer()) {
-				throw new Error(`Failed to read component file: ${file.relative}`);
-			}
-
-			const extension = path.extname(file.path);
-			if (extension === '.json') {
-				const json = JSON.parse((<Buffer>file.contents).toString('utf8'));
-
-				if (BundledFormat.is(json)) {
-					importBundleJson(file, json, this);
-				} else if (PackageJsonFormat.is(json) || ModuleJsonFormat.is(json)) {
-					importModuleOrPackageJson(file, json, projectName, this, extensionName);
-				} else {
-					throw new Error(`JSON format cannot be deduced for ${file.relative}.`);
-				}
-			} else if (extension === '.isl') {
-				importIsl(file, this);
-			}
-		}
-	);
-}
-
 const editorProject: string = 'vscode-editor',
 	workbenchProject: string = 'vscode-workbench',
 	extensionsProject: string = 'vscode-extensions',
@@ -604,131 +600,178 @@ export function getResource(sourceFile: string): Resource {
 }
 
 
-function importBundleJson(file: File, json: BundledFormat, stream: ThroughStream): void {
-	let bundleXlfs: Map<XLF> = Object.create(null);
+export function createXlfFilesForCoreBundle(): ThroughStream {
+	return through(function (file: File) {
+		const basename = path.basename(file.path);
+		if (basename === 'nls.metadata.json') {
+			if (file.isBuffer()) {
+				const xlfs: Map<XLF> = Object.create(null);
+				const json: BundledFormat = JSON.parse((file.contents as Buffer).toString('utf8'));
+				for (let coreModule in json.keys) {
+					const projectResource = getResource(coreModule);
+					const resource = projectResource.name;
+					const project = projectResource.project;
 
-	for (let source in json.keys) {
-		const projectResource = getResource(source);
-		const resource = projectResource.name;
-		const project = projectResource.project;
-
-		const keys = json.keys[source];
-		const messages = json.messages[source];
-		if (keys.length !== messages.length) {
-			throw new Error(`There is a mismatch between keys and messages in ${file.relative}`);
-		}
-
-		let xlf = bundleXlfs[resource] ? bundleXlfs[resource] : bundleXlfs[resource] = new XLF(project);
-		xlf.addFile('src/' + source, keys, messages);
-	}
-
-	for (let resource in bundleXlfs) {
-		const newFilePath = `${bundleXlfs[resource].project}/${resource.replace(/\//g, '_')}.xlf`;
-		const xlfFile = new File({ path: newFilePath, contents: new Buffer(bundleXlfs[resource].toString(), 'utf-8') });
-		stream.emit('data', xlfFile);
-	}
-}
-
-//function importBundledExtensionJson(file: File, json: BundledExtensionFormat, stream: ThroughStream): void {
-
-//}
-
-// Keeps existing XLF instances and a state of how many files were already processed for faster file emission
-var extensions: Map<{ xlf: XLF, processed: number }> = Object.create(null);
-function importModuleOrPackageJson(file: File, json: ModuleJsonFormat | PackageJsonFormat, projectName: string, stream: ThroughStream, extensionName?: string): void {
-	if (ModuleJsonFormat.is(json) && json.keys.length !== json.messages.length) {
-		throw new Error(`There is a mismatch between keys and messages in ${file.relative}`);
-	}
-
-	// Prepare the source path for <original/> attribute in XLF & extract messages from JSON
-	const formattedSourcePath = file.relative.replace(/\\/g, '/');
-	const messages = Object.keys(json).map((key) => json[key].toString());
-
-	// Stores the amount of localization files to be transformed to XLF before the emission
-	let localizationFilesCount,
-		originalFilePath;
-	// If preparing XLF for external extension, then use different glob pattern and source path
-	if (extensionName) {
-		localizationFilesCount = glob.sync('**/*.nls.json').length;
-		originalFilePath = `${formattedSourcePath.substr(0, formattedSourcePath.length - '.nls.json'.length)}`;
-	} else {
-		// Used for vscode/extensions folder
-		extensionName = formattedSourcePath.split('/') [0];
-		localizationFilesCount = glob.sync(`./extensions/${extensionName}/**/*.nls.json`).length;
-		originalFilePath = `extensions/${formattedSourcePath.substr(0, formattedSourcePath.length - '.nls.json'.length)}`;
-	}
-
-	let extension = extensions[extensionName] ?
-		extensions[extensionName] : extensions[extensionName] = { xlf: new XLF(projectName), processed: 0 };
-
-	// .nls.json can come with empty array of keys and messages, check for it
-	if (ModuleJsonFormat.is(json) && json.keys.length !== 0) {
-		extension.xlf.addFile(originalFilePath, json.keys, json.messages);
-	} else if (PackageJsonFormat.is(json) && Object.keys(json).length !== 0) {
-		extension.xlf.addFile(originalFilePath, Object.keys(json), messages);
-	}
-
-	// Check if XLF is populated with file nodes to emit it
-	if (++extensions[extensionName].processed === localizationFilesCount) {
-		const newFilePath = path.join(projectName, extensionName + '.xlf');
-		const xlfFile = new File({ path: newFilePath, contents: new Buffer(extension.xlf.toString(), 'utf-8') });
-		stream.emit('data', xlfFile);
-	}
-}
-
-function importIsl(file: File, stream: ThroughStream) {
-	let projectName: string,
-		resourceFile: string;
-	if (path.basename(file.path) === 'Default.isl') {
-		projectName = setupProject;
-		resourceFile = 'setup_default.xlf';
-	} else {
-		projectName = workbenchProject;
-		resourceFile = 'setup_messages.xlf';
-	}
-
-	let xlf = new XLF(projectName),
-		keys: string[] = [],
-		messages: string[] = [];
-
-	let model = new TextModel(file.contents.toString());
-	let inMessageSection = false;
-	model.lines.forEach(line => {
-		if (line.length === 0) {
-			return;
-		}
-		let firstChar = line.charAt(0);
-		switch (firstChar) {
-			case ';':
-				// Comment line;
-				return;
-			case '[':
-				inMessageSection = '[Messages]' === line || '[CustomMessages]' === line;
-				return;
-		}
-		if (!inMessageSection) {
-			return;
-		}
-		let sections: string[] = line.split('=');
-		if (sections.length !== 2) {
-			throw new Error(`Badly formatted message found: ${line}`);
-		} else {
-			let key = sections[0];
-			let value = sections[1];
-			if (key.length > 0 && value.length > 0) {
-				keys.push(key);
-				messages.push(value);
+					const keys = json.keys[coreModule];
+					const messages = json.messages[coreModule];
+					if (keys.length !== messages.length) {
+						this.emit('error', `There is a mismatch between keys and messages in ${file.relative} for module ${coreModule}`);
+					} else {
+						let xlf = xlfs[resource];
+						if (!xlf) {
+							xlf = new XLF(project);
+							xlfs[resource] = xlf;
+						}
+						xlf.addFile(`src/${coreModule}`, keys, messages);
+					}
+				}
+				for (let resource in xlfs) {
+					const xlf = xlfs[resource];
+					const filePath = `${xlf.project}/${resource.replace(/\//g, '_')}.xlf`;
+					const xlfFile = new File({
+						path: filePath,
+						contents: new Buffer(xlf.toString(), 'utf8')
+					});
+					this.emit('data', xlfFile);
+				}
+ 			} else {
+				this.emit('error', new Error(`File ${file.relative} is not using a buffer content`));
 			}
+		} else {
+			this.emit('error', new Error(`File ${file.relative} is not a core meta data file.`));
 		}
 	});
+}
 
-	const originalPath = file.path.substring(file.cwd.length + 1, file.path.split('.') [0].length).replace(/\\/g, '/');
-	xlf.addFile(originalPath, keys, messages);
+export function createXlfFilesForExtensions(): ThroughStream {
+	let counter: number = 0;
+	let folderStreamEnded: boolean = false;
+	let folderStreamEndEmitted: boolean = false;
+	return through(function (extensionFolder: File) {
+		const folderStream = this;
+		const stat = fs.statSync(extensionFolder.path);
+		if (!stat.isDirectory()) {
+			return;
+		}
+		let extensionName = path.basename(extensionFolder.path);
+		if (extensionName === 'node_modules') {
+			return;
+		}
+		counter++;
+		let _xlf: XLF;
+		function getXlf() {
+			if (!_xlf) {
+				_xlf = new XLF(extensionsProject);
+			}
+			return _xlf;
+		}
+		gulp.src([`./extensions/${extensionName}/package.nls.json`, `./extensions/${extensionName}/out/nls.metadata.json`]).pipe(through(function (file: File) {
+			if (file.isBuffer()) {
+				const buffer: Buffer = file.contents as Buffer;
+				const basename = path.basename(file.path);
+				if (basename === 'package.nls.json') {
+					const json: PackageJsonFormat = JSON.parse(buffer.toString('utf8'));
+					const keys = Object.keys(json);
+					const messages = keys.map((key) => {
+						const value = json[key];
+						if (Is.string(value)) {
+							return value;
+						} else if (value) {
+							return value.message;
+						} else {
+							return `Unknown message for key: ${key}`;
+						}
+					});
+					getXlf().addFile(`extensions/${extensionName}/package`, keys, messages);
+				} else if (basename === 'nls.metadata.json') {
+					const json: BundledExtensionFormat = JSON.parse(buffer.toString('utf8'));
+					for (let file in json.content) {
+						const fileContent = json.content[file];
+						getXlf().addFile(`extensions/${extensionName}/${json.rootPath}/${file}`, fileContent.keys, fileContent.messages);
+					}
+				} else {
+					this.emit('error', new Error(`${file.path} is not a valid extension nls file`));
+				}
+			}
+		}, function() {
+			if (_xlf) {
+				let xlfFile = new File({
+					path: path.join(extensionsProject, extensionName + '.xlf'),
+					contents: new Buffer(_xlf.toString(), 'utf8')
+				});
+				folderStream.emit('data', xlfFile);
+			}
+			this.emit('end');
+			counter--;
+			if (counter === 0 && folderStreamEnded && !folderStreamEndEmitted) {
+				folderStreamEndEmitted = true;
+				folderStream.emit('end');
+			}
+		}));
+	}, function() {
+		folderStreamEnded = true;
+		if (counter === 0) {
+			folderStreamEndEmitted = true;
+			this.emit('end');
+		}
+	});
+}
 
-	// Emit only upon all ISL files combined into single XLF instance
-	const newFilePath = path.join(projectName, resourceFile);
-	const xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8') });
-	stream.emit('data', xlfFile);
+export function createXlfFilesForIsl(): ThroughStream {
+	return through(function (file: File) {
+		let projectName: string,
+			resourceFile: string;
+		if (path.basename(file.path) === 'Default.isl') {
+			projectName = setupProject;
+			resourceFile = 'setup_default.xlf';
+		} else {
+			projectName = workbenchProject;
+			resourceFile = 'setup_messages.xlf';
+		}
+
+		let xlf = new XLF(projectName),
+			keys: string[] = [],
+			messages: string[] = [];
+
+		let model = new TextModel(file.contents.toString());
+		let inMessageSection = false;
+		model.lines.forEach(line => {
+			if (line.length === 0) {
+				return;
+			}
+			let firstChar = line.charAt(0);
+			switch (firstChar) {
+				case ';':
+					// Comment line;
+					return;
+				case '[':
+					inMessageSection = '[Messages]' === line || '[CustomMessages]' === line;
+					return;
+			}
+			if (!inMessageSection) {
+				return;
+			}
+			let sections: string[] = line.split('=');
+			if (sections.length !== 2) {
+				throw new Error(`Badly formatted message found: ${line}`);
+			} else {
+				let key = sections[0];
+				let value = sections[1];
+				if (key.length > 0 && value.length > 0) {
+					keys.push(key);
+					messages.push(value);
+				}
+			}
+		});
+
+		const originalPath = file.path.substring(file.cwd.length + 1, file.path.split('.')[0].length).replace(/\\/g, '/');
+		xlf.addFile(originalPath, keys, messages);
+
+		// Emit only upon all ISL files combined into single XLF instance
+		const newFilePath = path.join(projectName, resourceFile);
+		const xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8') });
+		this.emit('data', xlfFile);
+	});
 }
 
 export function pushXlfFiles(apiHostname: string, username: string, password: string): ThroughStream {

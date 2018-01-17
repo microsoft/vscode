@@ -12,6 +12,7 @@ var Is = require("is");
 var xml2js = require("xml2js");
 var glob = require("glob");
 var https = require("https");
+var gulp = require("gulp");
 var util = require('gulp-util');
 var iconv = require('iconv-lite');
 var NUMBER_OF_CONCURRENT_DOWNLOADS = 1;
@@ -82,6 +83,14 @@ var ModuleJsonFormat;
     }
     ModuleJsonFormat.is = is;
 })(ModuleJsonFormat || (ModuleJsonFormat = {}));
+var BundledExtensionFormat;
+(function (BundledExtensionFormat) {
+    function is(value) {
+        var candidate = value;
+        return Is.defined(candidate) && candidate.type === 'extensionBundle' && Is.string(candidate.name) && Is.string(candidate.rootPath) && Is.defined(candidate.content);
+    }
+    BundledExtensionFormat.is = is;
+})(BundledExtensionFormat || (BundledExtensionFormat = {}));
 var Line = /** @class */ (function () {
     function Line(indent) {
         if (indent === void 0) { indent = 0; }
@@ -134,27 +143,31 @@ var XLF = /** @class */ (function () {
         return this.buffer.join('\r\n');
     };
     XLF.prototype.addFile = function (original, keys, messages) {
+        if (keys.length !== messages.length) {
+            throw new Error("Unmatching keys(" + keys.length + ") and messages(" + messages.length + ").");
+        }
         this.files[original] = [];
-        var existingKeys = [];
-        for (var _i = 0, keys_1 = keys; _i < keys_1.length; _i++) {
-            var key = keys_1[_i];
-            // Ignore duplicate keys because Transifex does not populate those with translated values.
-            if (existingKeys.indexOf(key) !== -1) {
+        var existingKeys = new Set();
+        for (var i = 0; i < keys.length; i++) {
+            var key = keys[i];
+            var realKey = void 0;
+            var comment = void 0;
+            if (Is.string(key)) {
+                realKey = key;
+                comment = undefined;
+            }
+            else if (LocalizeInfo.is(key)) {
+                realKey = key.key;
+                if (key.comment && key.comment.length > 0) {
+                    comment = key.comment.map(function (comment) { return encodeEntities(comment); }).join('\r\n');
+                }
+            }
+            if (!realKey || existingKeys.has(realKey)) {
                 continue;
             }
-            existingKeys.push(key);
-            var message = encodeEntities(messages[keys.indexOf(key)]);
-            var comment = undefined;
-            // Check if the message contains description (if so, it becomes an object type in JSON)
-            if (Is.string(key)) {
-                this.files[original].push({ id: key, message: message, comment: comment });
-            }
-            else {
-                if (key['comment'] && key['comment'].length > 0) {
-                    comment = key['comment'].map(function (comment) { return encodeEntities(comment); }).join('\r\n');
-                }
-                this.files[original].push({ id: key['key'], message: message, comment: comment });
-            }
+            existingKeys.add(realKey);
+            var message = encodeEntities(messages[i]);
+            this.files[original].push({ id: realKey, message: message, comment: comment });
         }
     };
     XLF.prototype.addStringItem = function (item) {
@@ -451,30 +464,6 @@ function processNlsFiles(opts) {
     });
 }
 exports.processNlsFiles = processNlsFiles;
-function prepareXlfFiles(projectName, extensionName) {
-    return event_stream_1.through(function (file) {
-        if (!file.isBuffer()) {
-            throw new Error("Failed to read component file: " + file.relative);
-        }
-        var extension = path.extname(file.path);
-        if (extension === '.json') {
-            var json = JSON.parse(file.contents.toString('utf8'));
-            if (BundledFormat.is(json)) {
-                importBundleJson(file, json, this);
-            }
-            else if (PackageJsonFormat.is(json) || ModuleJsonFormat.is(json)) {
-                importModuleOrPackageJson(file, json, projectName, this, extensionName);
-            }
-            else {
-                throw new Error("JSON format cannot be deduced for " + file.relative + ".");
-            }
-        }
-        else if (extension === '.isl') {
-            importIsl(file, this);
-        }
-    });
-}
-exports.prepareXlfFiles = prepareXlfFiles;
 var editorProject = 'vscode-editor', workbenchProject = 'vscode-workbench', extensionsProject = 'vscode-extensions', setupProject = 'vscode-setup';
 function getResource(sourceFile) {
     var resource;
@@ -507,115 +496,138 @@ function getResource(sourceFile) {
     throw new Error("Could not identify the XLF bundle for " + sourceFile);
 }
 exports.getResource = getResource;
-function importBundleJson(file, json, stream) {
-    var bundleXlfs = Object.create(null);
-    for (var source in json.keys) {
-        var projectResource = getResource(source);
-        var resource = projectResource.name;
-        var project = projectResource.project;
-        var keys = json.keys[source];
-        var messages = json.messages[source];
-        if (keys.length !== messages.length) {
-            throw new Error("There is a mismatch between keys and messages in " + file.relative);
-        }
-        var xlf = bundleXlfs[resource] ? bundleXlfs[resource] : bundleXlfs[resource] = new XLF(project);
-        xlf.addFile('src/' + source, keys, messages);
-    }
-    for (var resource in bundleXlfs) {
-        var newFilePath = bundleXlfs[resource].project + "/" + resource.replace(/\//g, '_') + ".xlf";
-        var xlfFile = new File({ path: newFilePath, contents: new Buffer(bundleXlfs[resource].toString(), 'utf-8') });
-        stream.emit('data', xlfFile);
-    }
-}
-//function importBundledExtensionJson(file: File, json: BundledExtensionFormat, stream: ThroughStream): void {
-//}
-// Keeps existing XLF instances and a state of how many files were already processed for faster file emission
-var extensions = Object.create(null);
-function importModuleOrPackageJson(file, json, projectName, stream, extensionName) {
-    if (ModuleJsonFormat.is(json) && json.keys.length !== json.messages.length) {
-        throw new Error("There is a mismatch between keys and messages in " + file.relative);
-    }
-    // Prepare the source path for <original/> attribute in XLF & extract messages from JSON
-    var formattedSourcePath = file.relative.replace(/\\/g, '/');
-    var messages = Object.keys(json).map(function (key) { return json[key].toString(); });
-    // Stores the amount of localization files to be transformed to XLF before the emission
-    var localizationFilesCount, originalFilePath;
-    // If preparing XLF for external extension, then use different glob pattern and source path
-    if (extensionName) {
-        localizationFilesCount = glob.sync('**/*.nls.json').length;
-        originalFilePath = "" + formattedSourcePath.substr(0, formattedSourcePath.length - '.nls.json'.length);
-    }
-    else {
-        // Used for vscode/extensions folder
-        extensionName = formattedSourcePath.split('/')[0];
-        localizationFilesCount = glob.sync("./extensions/" + extensionName + "/**/*.nls.json").length;
-        originalFilePath = "extensions/" + formattedSourcePath.substr(0, formattedSourcePath.length - '.nls.json'.length);
-    }
-    var extension = extensions[extensionName] ?
-        extensions[extensionName] : extensions[extensionName] = { xlf: new XLF(projectName), processed: 0 };
-    // .nls.json can come with empty array of keys and messages, check for it
-    if (ModuleJsonFormat.is(json) && json.keys.length !== 0) {
-        extension.xlf.addFile(originalFilePath, json.keys, json.messages);
-    }
-    else if (PackageJsonFormat.is(json) && Object.keys(json).length !== 0) {
-        extension.xlf.addFile(originalFilePath, Object.keys(json), messages);
-    }
-    // Check if XLF is populated with file nodes to emit it
-    if (++extensions[extensionName].processed === localizationFilesCount) {
-        var newFilePath = path.join(projectName, extensionName + '.xlf');
-        var xlfFile = new File({ path: newFilePath, contents: new Buffer(extension.xlf.toString(), 'utf-8') });
-        stream.emit('data', xlfFile);
-    }
-}
-function importIsl(file, stream) {
-    var projectName, resourceFile;
-    if (path.basename(file.path) === 'Default.isl') {
-        projectName = setupProject;
-        resourceFile = 'setup_default.xlf';
-    }
-    else {
-        projectName = workbenchProject;
-        resourceFile = 'setup_messages.xlf';
-    }
-    var xlf = new XLF(projectName), keys = [], messages = [];
-    var model = new TextModel(file.contents.toString());
-    var inMessageSection = false;
-    model.lines.forEach(function (line) {
-        if (line.length === 0) {
+
+
+function createXlfFilesForExtensions() {
+    var counter = 0;
+    var folderStreamEnded = false;
+    var folderStreamEndEmitted = false;
+    return event_stream_1.through(function (extensionFolder) {
+        var folderStream = this;
+        var stat = fs.statSync(extensionFolder.path);
+        if (!stat.isDirectory()) {
             return;
         }
-        var firstChar = line.charAt(0);
-        switch (firstChar) {
-            case ';':
-                // Comment line;
-                return;
-            case '[':
-                inMessageSection = '[Messages]' === line || '[CustomMessages]' === line;
-                return;
-        }
-        if (!inMessageSection) {
+        var extensionName = path.basename(extensionFolder.path);
+        if (extensionName === 'node_modules') {
             return;
         }
-        var sections = line.split('=');
-        if (sections.length !== 2) {
-            throw new Error("Badly formatted message found: " + line);
-        }
-        else {
-            var key = sections[0];
-            var value = sections[1];
-            if (key.length > 0 && value.length > 0) {
-                keys.push(key);
-                messages.push(value);
+        counter++;
+        var _xlf;
+        function getXlf() {
+            if (!_xlf) {
+                _xlf = new XLF(extensionsProject);
             }
+            return _xlf;
+        }
+        gulp.src(["./extensions/" + extensionName + "/package.nls.json", "./extensions/" + extensionName + "/out/nls.metadata.json"]).pipe(event_stream_1.through(function (file) {
+            if (file.isBuffer()) {
+                var buffer = file.contents;
+                var basename = path.basename(file.path);
+                if (basename === 'package.nls.json') {
+                    var json_1 = JSON.parse(buffer.toString('utf8'));
+                    var keys = Object.keys(json_1);
+                    var messages = keys.map(function (key) {
+                        var value = json_1[key];
+                        if (Is.string(value)) {
+                            return value;
+                        }
+                        else if (value) {
+                            return value.message;
+                        }
+                        else {
+                            return "Unknown message for key: " + key;
+                        }
+                    });
+                    getXlf().addFile("extensions/" + extensionName + "/package", keys, messages);
+                }
+                else if (basename === 'nls.metadata.json') {
+                    var json = JSON.parse(buffer.toString('utf8'));
+                    for (var file_1 in json.content) {
+                        var fileContent = json.content[file_1];
+                        getXlf().addFile("extensions/" + extensionName + "/" + json.rootPath + "/" + file_1, fileContent.keys, fileContent.messages);
+                    }
+                }
+                else {
+                    this.emit('error', new Error(file.path + " is not a valid extension nls file"));
+                }
+            }
+        }, function () {
+            if (_xlf) {
+                var xlfFile = new File({
+                    path: path.join(extensionsProject, extensionName + '.xlf'),
+                    contents: new Buffer(_xlf.toString(), 'utf8')
+                });
+                folderStream.emit('data', xlfFile);
+            }
+            this.emit('end');
+            counter--;
+            if (counter === 0 && folderStreamEnded && !folderStreamEndEmitted) {
+                folderStreamEndEmitted = true;
+                folderStream.emit('end');
+            }
+        }));
+    }, function () {
+        folderStreamEnded = true;
+        if (counter === 0) {
+            folderStreamEndEmitted = true;
+            this.emit('end');
         }
     });
-    var originalPath = file.path.substring(file.cwd.length + 1, file.path.split('.')[0].length).replace(/\\/g, '/');
-    xlf.addFile(originalPath, keys, messages);
-    // Emit only upon all ISL files combined into single XLF instance
-    var newFilePath = path.join(projectName, resourceFile);
-    var xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8') });
-    stream.emit('data', xlfFile);
 }
+exports.createXlfFilesForExtensions = createXlfFilesForExtensions;
+function createXlfFilesForIsl() {
+    return event_stream_1.through(function (file) {
+        var projectName, resourceFile;
+        if (path.basename(file.path) === 'Default.isl') {
+            projectName = setupProject;
+            resourceFile = 'setup_default.xlf';
+        }
+        else {
+            projectName = workbenchProject;
+            resourceFile = 'setup_messages.xlf';
+        }
+        var xlf = new XLF(projectName), keys = [], messages = [];
+        var model = new TextModel(file.contents.toString());
+        var inMessageSection = false;
+        model.lines.forEach(function (line) {
+            if (line.length === 0) {
+                return;
+            }
+            var firstChar = line.charAt(0);
+            switch (firstChar) {
+                case ';':
+                    // Comment line;
+                    return;
+                case '[':
+                    inMessageSection = '[Messages]' === line || '[CustomMessages]' === line;
+                    return;
+            }
+            if (!inMessageSection) {
+                return;
+            }
+            var sections = line.split('=');
+            if (sections.length !== 2) {
+                throw new Error("Badly formatted message found: " + line);
+            }
+            else {
+                var key = sections[0];
+                var value = sections[1];
+                if (key.length > 0 && value.length > 0) {
+                    keys.push(key);
+                    messages.push(value);
+                }
+            }
+        });
+        var originalPath = file.path.substring(file.cwd.length + 1, file.path.split('.')[0].length).replace(/\\/g, '/');
+        xlf.addFile(originalPath, keys, messages);
+        // Emit only upon all ISL files combined into single XLF instance
+        var newFilePath = path.join(projectName, resourceFile);
+        var xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8') });
+        this.emit('data', xlfFile);
+    });
+}
+exports.createXlfFilesForIsl = createXlfFilesForIsl;
 function pushXlfFiles(apiHostname, username, password) {
     var tryGetPromises = [];
     var updateCreatePromises = [];

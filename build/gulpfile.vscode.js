@@ -401,14 +401,26 @@ const apiToken = process.env.TRANSIFEX_API_TOKEN;
 
 gulp.task('vscode-translations-push', ['optimize-vscode'], function () {
 	const pathToMetadata = './out-vscode/nls.metadata.json';
-	const pathToExtensions = './extensions/**/*.nls.json';
+	const pathToExtensions = './extensions/*';
 	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
 
 	return es.merge(
-		gulp.src(pathToMetadata).pipe(i18n.prepareXlfFiles()),
-		gulp.src(pathToSetup).pipe(i18n.prepareXlfFiles()),
-		gulp.src(pathToExtensions).pipe(i18n.prepareXlfFiles('vscode-extensions'))
+		gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
+		gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
+		gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
 	).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
+});
+
+gulp.task('vscode-translations-push-test', function () {
+	const pathToMetadata = './out-vscode/nls.metadata.json';
+	const pathToExtensions = './extensions/*';
+	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
+
+	return es.merge(
+		gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
+		gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
+		gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
+	).pipe(vfs.dest('../vscode-transifex-input'));
 });
 
 gulp.task('vscode-translations-pull', function () {
