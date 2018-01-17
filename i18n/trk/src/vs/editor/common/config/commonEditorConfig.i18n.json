@@ -14,7 +14,7 @@
 	"lineNumbers.on": "Satır numaraları mutlak sayı olarak gösterilir.",
 	"lineNumbers.relative": "Satır numaraları imlecin konumuna olan uzaklık olarak gösterilir.",
 	"lineNumbers.interval": "Satır numaraları her 10 satırda bir gösterilir.",
-	"lineNumbers": "Satır numaralarının görüntülenmesini denetler. Olası değerler 'on', 'off' ve 'relative'dir.",
+	"lineNumbers": "Satır numaralarının görüntülenmesini denetler. Olası değerler 'on', 'off', 'relative' ve 'interval'dir.\n",
 	"rulers": "Belirli bir eşit genişlikli karakterlerden sonra dikey cetveller göster. Birden çok cetvel için birden çok değer kullanın. Dizi boş ise cetvel gösterilmez",
 	"wordSeparators": "Sözcüklerle ilgili gezinti veya işlem yaparken kelime ayırıcı olarak kullanılacak karakterler",
 	"tabSize": "Bir sekmenin eşit olduğu boşluk sayısı. Bu ayar, `editor.detectIndentation` açıkken dosya içeriğine bağlı olarak geçersiz kılınır.",

@@ -7,5 +7,9 @@
 	"toggleGitViewlet": "显示 Git",
 	"source control": "源代码管理",
 	"toggleSCMViewlet": "显示源代码管理",
-	"view": "查看"
+	"view": "查看",
+	"scmConfigurationTitle": "源代码管理",
+	"alwaysShowProviders": "是否总是显示源代码管理提供程序部分。",
+	"diffDecorations": "控制编辑器中差异的显示效果。",
+	"inputCounter": "控制何时显示输入计数。"
 }

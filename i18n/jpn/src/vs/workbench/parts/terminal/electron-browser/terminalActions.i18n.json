@@ -14,6 +14,8 @@
 	"workbench.action.terminal.deleteWordRight": "右の文字を削除",
 	"workbench.action.terminal.new": "新しい統合ターミナルの作成",
 	"workbench.action.terminal.new.short": "新しいターミナル",
+	"workbench.action.terminal.newWorkspacePlaceholder": "新しいターミナルの作業ディレクトリを選択してください",
+	"workbench.action.terminal.newInActiveWorkspace": "新しい統合ターミナルを作成 (アクティブなワークスペースに)",
 	"workbench.action.terminal.focus": "端末にフォーカス",
 	"workbench.action.terminal.focusNext": "次の端末にフォーカス",
 	"workbench.action.terminal.focusPrevious": "前のターミナルにフォーカス",

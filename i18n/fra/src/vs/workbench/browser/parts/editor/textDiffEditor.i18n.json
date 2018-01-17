@@ -10,7 +10,5 @@
 	"editableEditorWithInputAriaLabel": "{0}. Éditeur de comparaison de fichier texte.",
 	"editableEditorAriaLabel": "Éditeur de comparaison de fichier texte.",
 	"navigate.next.label": "Modification suivante",
-	"navigate.prev.label": "Modification précédente",
-	"inlineDiffLabel": "Passer au mode inline",
-	"sideBySideDiffLabel": "Passer au mode Côte à côte"
+	"navigate.prev.label": "Modification précédente"
 }
