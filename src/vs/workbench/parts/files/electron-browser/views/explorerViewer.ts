@@ -56,6 +56,7 @@ import { extractResources } from 'vs/workbench/browser/editor';
 import { relative } from 'path';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { distinctParents } from 'vs/base/common/resources';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -334,14 +335,12 @@ export class FileController extends DefaultController implements IDisposable {
 	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMenuService menuService: IMenuService,
+		@IMenuService private menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ });
 
 		this.toDispose = [];
-		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
-		this.toDispose.push(this.contributedContextMenu);
 	}
 
 	public onLeftClick(tree: ITree, stat: FileStat | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
@@ -427,7 +426,7 @@ export class FileController extends DefaultController implements IDisposable {
 		return true;
 	}
 
-	public onContextMenu(tree: ITree, stat: FileStat | Model, event: ContextMenuEvent): boolean {
+	public onContextMenu(tree: WorkbenchTree, stat: FileStat | Model, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
 		}
@@ -436,6 +435,11 @@ export class FileController extends DefaultController implements IDisposable {
 		event.stopPropagation();
 
 		tree.setFocus(stat);
+
+		if (!this.contributedContextMenu) {
+			this.contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, tree.contextKeyService);
+			this.toDispose.push(this.contributedContextMenu);
+		}
 
 		const anchor = { x: event.posx, y: event.posy };
 		const selection = tree.getSelection();

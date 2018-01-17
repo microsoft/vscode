@@ -79,7 +79,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService private themeService: IThemeService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMenuService menuService: IMenuService
+		@IMenuService private menuService: IMenuService
 	) {
 		super({
 			...(options as IViewOptions),
@@ -98,8 +98,6 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			}
 			this.needsRefresh = false;
 		}, this.structuralRefreshDelay);
-		this.contributedContextMenu = menuService.createMenu(MenuId.OpenEditorsContext, contextKeyService);
-		this.disposables.push(this.contributedContextMenu);
 
 		// update on model changes
 		this.disposables.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
@@ -159,6 +157,9 @@ export class OpenEditorsView extends ViewsViewletPanel {
 				keyboardSupport: false,
 				identityProvider: element => element instanceof OpenEditor ? element.getId() : element.id.toString()
 			}, this.contextKeyService, this.listService, this.themeService);
+
+		this.contributedContextMenu = this.menuService.createMenu(MenuId.OpenEditorsContext, this.list.contextKeyService);
+		this.disposables.push(this.contributedContextMenu);
 
 		this.updateSize();
 

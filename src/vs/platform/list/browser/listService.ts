@@ -104,8 +104,8 @@ export class WorkbenchList<T> extends List<T> {
 		@IThemeService themeService: IThemeService
 	) {
 		super(container, delegate, renderers, options);
-		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(contextKeyService);
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 
 		this.disposables.push(combinedDisposable([
 			this.contextKeyService,
@@ -164,8 +164,8 @@ export class WorkbenchTree extends Tree {
 	) {
 		super(container, configuration, options);
 
-		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(contextKeyService);
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 
 		this.disposables.push(
 			this.contextKeyService,
