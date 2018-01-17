@@ -20,6 +20,8 @@ steps:
     yarn
     .\node_modules\.bin\gulp electron
     .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
+    Get-Command npm
+    npm --version
     npm run compile
   name: build
 
