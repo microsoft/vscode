@@ -11,7 +11,6 @@
 	"noIconThemeDesc": "No file icons",
 	"iconThemeError": "File icon theme is unknown or not installed.",
 	"workbenchColors": "Überschreibt Farben aus dem derzeit ausgewählte Farbdesign.",
-	"editorColors": "Überschreibt Editorfarben und den Schriftschnitt aus dem momentan ausgewählten Farbdesign.",
 	"editorColors.comments": "Legt die Farben und Stile für Kommentare fest.",
 	"editorColors.strings": "Legt die Farben und Stile für Zeichenfolgenliterale fest.",
 	"editorColors.keywords": "Legt die Farben und Stile für Schlüsselwörter fest.",
@@ -19,5 +18,6 @@
 	"editorColors.types": "Legt die Farben und Stile für Typdeklarationen und Verweise fest.",
 	"editorColors.functions": "Legt die Farben und Stile für Funktionsdeklarationen und Verweise fest.",
 	"editorColors.variables": "Legt die Farben und Stile für Variablendeklarationen und Verweise fest.",
-	"editorColors.textMateRules": "Legt Farben und Stile mithilfe von Textmate-Designregeln fest (erweitert)."
+	"editorColors.textMateRules": "Legt Farben und Stile mithilfe von Textmate-Designregeln fest (erweitert).",
+	"editorColors": "Überschreibt Editorfarben und den Schriftschnitt aus dem momentan ausgewählten Farbdesign."
 }

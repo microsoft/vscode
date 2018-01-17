@@ -7,5 +7,9 @@
 	"toggleGitViewlet": "Git を表示",
 	"source control": "ソース管理",
 	"toggleSCMViewlet": "SCM を表示",
-	"view": "表示"
+	"view": "表示",
+	"scmConfigurationTitle": "SCM",
+	"alwaysShowProviders": "ソース管理プロバイダーのセクションを常に表示するかどうか。",
+	"diffDecorations": "エディターの差分デコレーターを制御します。",
+	"inputCounter": "入力文字のカウントをいつ表示するかを制御します。"
 }

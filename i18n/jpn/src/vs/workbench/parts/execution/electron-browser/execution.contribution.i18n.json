@@ -12,6 +12,5 @@
 	"globalConsoleActionWin": "新しいコマンド プロンプトを開く",
 	"globalConsoleActionMacLinux": "新しいターミナルを開く",
 	"scopedConsoleActionWin": "コマンド プロンプトで開く",
-	"scopedConsoleActionMacLinux": "ターミナルで開く",
-	"openFolderInIntegratedTerminal": "ターミナルで開く"
+	"scopedConsoleActionMacLinux": "ターミナルで開く"
 }
