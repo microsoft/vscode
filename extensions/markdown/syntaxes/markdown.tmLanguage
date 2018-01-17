@@ -3318,7 +3318,7 @@
 				<dict>
 					<key>begin</key>
 					<string>(?x)
-								(\*|_)(?=\S)								# Open
+								\b(\*|_)(?=\S)								# Open
 								(?=
 									(
 										&lt;[^&gt;]*+&gt;							# HTML tags
@@ -3356,7 +3356,7 @@
 									  | (?!(?&lt;=\S)\1).						# Everything besides
 																			# style closer
 									)++
-									(?&lt;=\S)\1								# Close
+									(?&lt;=\S)\1							# Close
 								)
 							</string>
 					<key>captures</key>
@@ -3368,7 +3368,7 @@
 						</dict>
 					</dict>
 					<key>end</key>
-					<string>(?&lt;=\S)(\1)((?!\1)|(?=\1\1))</string>
+					<string>(?&lt;=\S)(\1)((?!\1)|(?=\1\1))\b</string>
 					<key>name</key>
 					<string>markup.italic.markdown</string>
 					<key>patterns</key>
