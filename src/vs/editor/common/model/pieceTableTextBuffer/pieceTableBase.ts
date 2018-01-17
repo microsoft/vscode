@@ -273,6 +273,10 @@ export class PieceTableBase {
 	private _lastChangeBufferPos: BufferCursor;
 
 	constructor(chunks: StringBuffer[]) {
+		this.create(chunks);
+	}
+
+	create(chunks: StringBuffer[]) {
 		this._buffers = [
 			new StringBuffer('', [0])
 		];
@@ -300,6 +304,7 @@ export class PieceTableBase {
 		}
 
 		this.computeLineCount();
+
 	}
 
 	normalizeEOL(eol: '\r\n' | '\n') {
@@ -313,32 +318,18 @@ export class PieceTableBase {
 
 		this.iterate(this._root, (str) => {
 			let len = str.length;
-			if (tempChunkLen <= min) {
+			if (tempChunkLen <= min || tempChunkLen + len < max) {
 				tempChunk += str;
 				tempChunkLen += len;
 				return;
 			}
 
-			if (tempChunkLen > max) {
-				// flush anyways
-				let text = tempChunk.replace(/\r\n|\r|\n/g, eol);
-				chunks.push(new StringBuffer(text, createLineStartsFast(text)));
-				tempChunk = str;
-				tempChunkLen = len;
-				return;
-			}
-
-			// tempChunkLen > min
-			if (tempChunkLen + len < max) {
-				tempChunk += str;
-				tempChunkLen += len;
-			} else {
-				// flush tempChunk
-				let text = tempChunk.replace(/\r\n|\r|\n/g, eol);
-				chunks.push(new StringBuffer(text, createLineStartsFast(text)));
-				tempChunk = str;
-				tempChunkLen = len;
-			}
+			// flush anyways
+			let text = tempChunk.replace(/\r\n|\r|\n/g, eol);
+			chunks.push(new StringBuffer(text, createLineStartsFast(text)));
+			tempChunk = str;
+			tempChunkLen = len;
+			return;
 		});
 
 		if (tempChunkLen > 0) {
@@ -346,29 +337,7 @@ export class PieceTableBase {
 			chunks.push(new StringBuffer(text, createLineStartsFast(text)));
 		}
 
-		this._buffers = [
-			new StringBuffer('', [0])
-		];
-		this._lastChangeBufferPos = { line: 0, column: 0 };
-		this._root = SENTINEL;
-		this._lineCnt = 1;
-		let lastNode: TreeNode = null;
-
-		for (let i = 0, len = chunks.length; i < len; i++) {
-			if (chunks[i].buffer.length > 0) {
-				let piece = new Piece(
-					i + 1,
-					{ line: 0, column: 0 },
-					{ line: chunks[i].lineStarts.length - 1, column: chunks[i].buffer.length - chunks[i].lineStarts[chunks[i].lineStarts.length - 1] },
-					chunks[i].lineStarts.length - 1,
-					chunks[i].buffer.length
-				);
-				this._buffers.push(chunks[i]);
-				lastNode = this.rbInsertRight(lastNode, piece);
-			}
-		}
-
-		this.computeLineCount();
+		this.create(chunks);
 	}
 
 	// #region Piece Table
