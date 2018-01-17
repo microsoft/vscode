@@ -197,10 +197,6 @@
 		{
 			"name": "vs/workbench/services/decorations",
 			"project": "vscode-workbench"
-		},
-		{
-			"name": "setup_messages",
-			"project": "vscode-workbench"
 		}
 	]
 }

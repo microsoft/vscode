@@ -92,9 +92,28 @@ const BUNDLED_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
-var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
+const defaultLanguages /*: Language[] */ = [
+	{ id: 'zh-tw', iso639_3: 'cht', transifexId: 'zh-hant' },
+	{ id: 'zh-cn', iso639_3: 'chs', transifexId: 'zh-hans' },
+	{ id: 'ja', iso639_3: 'jpn' },
+	{ id: 'ko', iso639_3: 'kor' },
+	{ id: 'de', iso639_3: 'deu' },
+	{ id: 'fr', iso639_3: 'fra' },
+	{ id: 'es', iso639_3: 'esn' },
+	{ id: 'ru', iso639_3: 'rus' },
+	{ id: 'it', iso639_3: 'ita' }
+];
+
+// languages requested by the community to non-stable builds
+const insidersLanguages /*: Language[] */ = [
+	{ id: 'pt-br', iso639_3: 'ptb' },
+	{ id: 'hu', iso639_3: 'hun' },
+	{ id: 'tr', iso639_3: 'trk' }
+];
+
+var languages = defaultLanguages;
 if (process.env.VSCODE_QUALITY !== 'stable') {
-	languages = languages.concat(['ptb', 'hun', 'trk']); // Add languages requested by the community to non-stable builds
+	languages = languages.concat(insidersLanguages);
 }
 
 gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
@@ -105,7 +124,7 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	loaderConfig: common.loaderConfig(nodeModules),
 	header: BUNDLED_FILE_HEADER,
 	out: 'out-vscode',
-	languages: languages
+	languages: languages,
 }));
 
 
@@ -247,7 +266,7 @@ function packageTask(platform, arch, opts) {
 				// 	// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
 				.pipe(nlsFilter)
 				.pipe(buffer())
-				.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
+				.pipe(nlsDev.createAdditionalLanguageFiles(languages.map(l => l.iso639_3), path.join(__dirname, '..', 'i18n')))
 				.pipe(nlsFilter.restore);
 		}));
 
@@ -382,25 +401,21 @@ gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], p
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
 
 // Transifex Localizations
-const vscodeLanguages = [
-	'zh-hans',
-	'zh-hant',
-	'ja',
-	'ko',
-	'de',
-	'fr',
-	'es',
-	'ru',
-	'it',
-	'pt-br',
-	'hu',
-	'tr'
-];
-const setupDefaultLanguages = [
-	'zh-hans',
-	'zh-hant',
-	'ko'
-];
+
+const innoSetupConfig = {
+	'zh-cn': { codePage: 'CP936', defaultInfo: { name: 'Simplified Chinese', id: '$0804', } },
+	'zh-tw': { codePage: 'CP950', defaultInfo: { name: 'Traditional Chinese', id: '$0404' } },
+	'ko': { codePage: 'CP949', defaultInfo: { name: 'Korean', id: '$0412' } },
+	'ja': { codePage: 'CP932' },
+	'de': { codePage: 'CP1252' },
+	'fr': { codePage: 'CP1252' },
+	'es': { codePage: 'CP1252' },
+	'ru': { codePage: 'CP1251' },
+	'it': { codePage: 'CP1252' },
+	'pt-br': { codePage: 'CP1252' },
+	'hu': { codePage: 'CP1250' },
+	'tr': { codePage: 'CP1254' }
+};
 
 const apiHostname = process.env.TRANSIFEX_API_URL;
 const apiName = process.env.TRANSIFEX_API_NAME;
@@ -419,16 +434,23 @@ gulp.task('vscode-translations-push', ['optimize-vscode'], function () {
 });
 
 gulp.task('vscode-translations-pull', function () {
-	return es.merge(
-		i18n.pullXlfFiles('vscode-editor', apiHostname, apiName, apiToken, vscodeLanguages),
-		i18n.pullXlfFiles('vscode-workbench', apiHostname, apiName, apiToken, vscodeLanguages),
-		i18n.pullXlfFiles('vscode-extensions', apiHostname, apiName, apiToken, vscodeLanguages),
-		i18n.pullXlfFiles('vscode-setup', apiHostname, apiName, apiToken, setupDefaultLanguages)
-	).pipe(vfs.dest('../vscode-localization'));
+	[...defaultLanguages, ...insidersLanguages].forEach(language => {
+		i18n.pullBuildXlfFiles(apiHostname, apiName, apiToken, language).pipe(vfs.dest(`../vscode-localization/${language.id}/build`));
+
+		let includeDefault = !!innoSetupConfig[language.id].defaultInfo;
+		i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-localization/${language.id}/setup`));
+	});
 });
 
 gulp.task('vscode-translations-import', function () {
-	return gulp.src('../vscode-localization/**/*.xlf').pipe(i18n.prepareJsonFiles()).pipe(vfs.dest('./i18n'));
+	[...defaultLanguages, ...insidersLanguages].forEach(language => {
+		gulp.src(`../vscode-localization/${language.id}/build/*/*.xlf`)
+			.pipe(i18n.prepareI18nFiles(language))
+			.pipe(vfs.dest(`./i18n/${language.iso639_3}`));
+		gulp.src(`../vscode-localization/${language.id}/setup/*/*.xlf`)
+			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
+			.pipe(vfs.dest(`./build/win32/i18n`));
+	});
 });
 
 // Sourcemaps

@@ -163,7 +163,7 @@ export interface IOptimizeTaskOpts {
 	/**
 	 * (languages to process)
 	 */
-	languages: string[];
+	languages: i18n.Language[];
 }
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	const entryPoints = opts.entryPoints;

@@ -14,6 +14,7 @@ var glob = require("glob");
 var https = require("https");
 var util = require('gulp-util');
 var iconv = require('iconv-lite');
+var NUMBER_OF_CONCURRENT_DOWNLOADS = 1;
 function log(message) {
     var rest = [];
     for (var _i = 1; _i < arguments.length; _i++) {
@@ -168,20 +169,20 @@ var XLF = /** @class */ (function () {
             var files = [];
             parser.parseString(xlfString, function (err, result) {
                 if (err) {
-                    reject("Failed to parse XLIFF string. " + err);
+                    reject(new Error("XLF parsing error: Failed to parse XLIFF string. " + err));
                 }
                 var fileNodes = result['xliff']['file'];
                 if (!fileNodes) {
-                    reject('XLIFF file does not contain "xliff" or "file" node(s) required for parsing.');
+                    reject(new Error("XLF parsing error: XLIFF file does not contain \"xliff\" or \"file\" node(s) required for parsing."));
                 }
                 fileNodes.forEach(function (file) {
                     var originalFilePath = file.$.original;
                     if (!originalFilePath) {
-                        reject('XLIFF file node does not contain original attribute to determine the original location of the resource file.');
+                        reject(new Error("XLF parsing error: XLIFF file node does not contain original attribute to determine the original location of the resource file."));
                     }
                     var language = file.$['target-language'].toLowerCase();
                     if (!language) {
-                        reject('XLIFF file node does not contain target-language attribute to determine translated language.');
+                        reject(new Error("XLF parsing error: XLIFF file node does not contain target-language attribute to determine translated language."));
                     }
                     var messages = {};
                     var transUnits = file.body[0]['trans-unit'];
@@ -195,7 +196,7 @@ var XLF = /** @class */ (function () {
                             messages[key] = decodeEntities(val);
                         }
                         else {
-                            reject('XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.');
+                            reject(new Error("XLF parsing error: XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present."));
                         }
                     });
                     files.push({ messages: messages, originalFilePath: originalFilePath, language: language });
@@ -207,67 +208,39 @@ var XLF = /** @class */ (function () {
     return XLF;
 }());
 exports.XLF = XLF;
-var iso639_3_to_2 = {
-    'chs': 'zh-cn',
-    'cht': 'zh-tw',
-    'csy': 'cs-cz',
-    'deu': 'de',
-    'enu': 'en',
-    'esn': 'es',
-    'fra': 'fr',
-    'hun': 'hu',
-    'ita': 'it',
-    'jpn': 'ja',
-    'kor': 'ko',
-    'nld': 'nl',
-    'plk': 'pl',
-    'ptb': 'pt-br',
-    'ptg': 'pt',
-    'rus': 'ru',
-    'sve': 'sv-se',
-    'trk': 'tr'
-};
-/**
- * Used to map Transifex to VS Code language code representation.
- */
-var iso639_2_to_3 = {
-    'zh-hans': 'chs',
-    'zh-hant': 'cht',
-    'cs-cz': 'csy',
-    'de': 'deu',
-    'en': 'enu',
-    'es': 'esn',
-    'fr': 'fra',
-    'hu': 'hun',
-    'it': 'ita',
-    'ja': 'jpn',
-    'ko': 'kor',
-    'nl': 'nld',
-    'pl': 'plk',
-    'pt-br': 'ptb',
-    'pt': 'ptg',
-    'ru': 'rus',
-    'sv-se': 'sve',
-    'tr': 'trk'
-};
-function sortLanguages(directoryNames) {
-    return directoryNames.map(function (dirName) {
-        var lower = dirName.toLowerCase();
-        return {
-            name: lower,
-            iso639_2: iso639_3_to_2[lower]
-        };
-    }).sort(function (a, b) {
-        if (!a.iso639_2 && !b.iso639_2) {
-            return 0;
+var Limiter = /** @class */ (function () {
+    function Limiter(maxDegreeOfParalellism) {
+        this.maxDegreeOfParalellism = maxDegreeOfParalellism;
+        this.outstandingPromises = [];
+        this.runningPromises = 0;
+    }
+    Limiter.prototype.queue = function (factory) {
+        var _this = this;
+        return new Promise(function (c, e) {
+            _this.outstandingPromises.push({ factory: factory, c: c, e: e });
+            _this.consume();
+        });
+    };
+    Limiter.prototype.consume = function () {
+        var _this = this;
+        while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+            var iLimitedTask = this.outstandingPromises.shift();
+            this.runningPromises++;
+            var promise = iLimitedTask.factory();
+            promise.then(iLimitedTask.c).catch(iLimitedTask.e);
+            promise.then(function () { return _this.consumed(); }).catch(function () { return _this.consumed(); });
         }
-        if (!a.iso639_2) {
-            return -1;
-        }
-        if (!b.iso639_2) {
-            return 1;
-        }
-        return a.iso639_2 < b.iso639_2 ? -1 : (a.iso639_2 > b.iso639_2 ? 1 : 0);
+    };
+    Limiter.prototype.consumed = function () {
+        this.runningPromises--;
+        this.consume();
+    };
+    return Limiter;
+}());
+exports.Limiter = Limiter;
+function sortLanguages(languages) {
+    return languages.sort(function (a, b) {
+        return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
     });
 }
 function stripComments(content) {
@@ -364,23 +337,14 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
         });
     });
     var languageDirectory = path.join(__dirname, '..', '..', 'i18n');
-    var languageDirs;
-    if (languages) {
-        languageDirs = sortLanguages(languages);
-    }
-    else {
-        languageDirs = sortLanguages(fs.readdirSync(languageDirectory).filter(function (item) { return fs.statSync(path.join(languageDirectory, item)).isDirectory(); }));
-    }
-    languageDirs.forEach(function (language) {
-        if (!language.iso639_2) {
-            return;
-        }
+    var sortedLanguages = sortLanguages(languages);
+    sortedLanguages.forEach(function (language) {
         if (process.env['VSCODE_BUILD_VERBOSE']) {
-            log("Generating nls bundles for: " + language.iso639_2);
+            log("Generating nls bundles for: " + language.id);
         }
-        statistics[language.iso639_2] = 0;
+        statistics[language.id] = 0;
         var localizedModules = Object.create(null);
-        var cwd = path.join(languageDirectory, language.name, 'src');
+        var cwd = path.join(languageDirectory, language.iso639_3, 'src');
         modules.forEach(function (module) {
             var order = keysSection[module];
             var i18nFile = path.join(cwd, module) + '.i18n.json';
@@ -394,7 +358,7 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
                     log("No localized messages found for module " + module + ". Using default messages.");
                 }
                 messages = defaultMessages[module];
-                statistics[language.iso639_2] = statistics[language.iso639_2] + Object.keys(messages).length;
+                statistics[language.id] = statistics[language.id] + Object.keys(messages).length;
             }
             var localizedMessages = [];
             order.forEach(function (keyInfo) {
@@ -411,7 +375,7 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
                         log("No localized message found for key " + key + " in module " + module + ". Using default message.");
                     }
                     message = defaultMessages[module][key];
-                    statistics[language.iso639_2] = statistics[language.iso639_2] + 1;
+                    statistics[language.id] = statistics[language.id] + 1;
                 }
                 localizedMessages.push(message);
             });
@@ -421,7 +385,7 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
             var modules = bundleSection[bundle];
             var contents = [
                 fileHeader,
-                "define(\"" + bundle + ".nls." + language.iso639_2 + "\", {"
+                "define(\"" + bundle + ".nls." + language.id + "\", {"
             ];
             modules.forEach(function (module, index) {
                 contents.push("\t\"" + module + "\": [");
@@ -436,24 +400,17 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
                 contents.push(index < modules.length - 1 ? '\t],' : '\t]');
             });
             contents.push('});');
-            emitter.emit('data', new File({ path: bundle + '.nls.' + language.iso639_2 + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
+            emitter.emit('data', new File({ path: bundle + '.nls.' + language.id + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
         });
     });
     Object.keys(statistics).forEach(function (key) {
         var value = statistics[key];
         log(key + " has " + value + " untranslated strings.");
     });
-    languageDirs.forEach(function (dir) {
-        var language = dir.name;
-        var iso639_2 = iso639_3_to_2[language];
-        if (!iso639_2) {
-            log("\tCouldn't find iso639 2 mapping for language " + language + ". Using default language instead.");
-        }
-        else {
-            var stats = statistics[iso639_2];
-            if (Is.undef(stats)) {
-                log("\tNo translations found for language " + language + ". Using default language instead.");
-            }
+    sortedLanguages.forEach(function (language) {
+        var stats = statistics[language.id];
+        if (Is.undef(stats)) {
+            log("\tNo translations found for language " + language.id + ". Using default language instead.");
         }
     });
 }
@@ -769,40 +726,39 @@ function updateResource(project, slug, xlfFile, apiHostname, credentials) {
         request.end();
     });
 }
-function obtainProjectResources(projectName) {
-    var resources = [];
-    if (projectName === editorProject) {
-        var json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
-        resources = JSON.parse(json).editor;
-    }
-    else if (projectName === workbenchProject) {
-        var json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
-        resources = JSON.parse(json).workbench;
-    }
-    else if (projectName === extensionsProject) {
+// cache resources
+var _buildResources;
+function pullBuildXlfFiles(apiHostname, username, password, language) {
+    if (!_buildResources) {
+        _buildResources = [];
+        // editor and workbench
+        var json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
+        _buildResources.push.apply(_buildResources, json.editor);
+        _buildResources.push.apply(_buildResources, json.workbench);
+        // extensions
         var extensionsToLocalize = glob.sync('./extensions/**/*.nls.json').map(function (extension) { return extension.split('/')[2]; });
         var resourcesToPull_1 = [];
         extensionsToLocalize.forEach(function (extension) {
             if (resourcesToPull_1.indexOf(extension) === -1) {
                 resourcesToPull_1.push(extension);
-                resources.push({ name: extension, project: projectName });
+                _buildResources.push({ name: extension, project: 'vscode-extensions' });
             }
         });
     }
-    else if (projectName === setupProject) {
-        resources.push({ name: 'setup_default', project: setupProject });
-    }
-    return resources;
+    return pullXlfFiles(apiHostname, username, password, language, _buildResources);
 }
-function pullXlfFiles(projectName, apiHostname, username, password, languages, resources) {
-    if (!resources) {
-        resources = obtainProjectResources(projectName);
+exports.pullBuildXlfFiles = pullBuildXlfFiles;
+function pullSetupXlfFiles(apiHostname, username, password, language, includeDefault) {
+    var setupResources = [{ name: 'setup_messages', project: 'vscode-workbench' }];
+    if (includeDefault) {
+        setupResources.push({ name: 'setup_default', project: 'vscode-setup' });
     }
-    if (!resources) {
-        throw new Error('Transifex projects and resources must be defined to be able to pull translations from Transifex.');
-    }
+    return pullXlfFiles(apiHostname, username, password, language, setupResources);
+}
+exports.pullSetupXlfFiles = pullSetupXlfFiles;
+function pullXlfFiles(apiHostname, username, password, language, resources) {
     var credentials = username + ":" + password;
-    var expectedTranslationsCount = languages.length * resources.length;
+    var expectedTranslationsCount = resources.length;
     var translationsRetrieved = 0, called = false;
     return event_stream_1.readable(function (count, callback) {
         // Mark end of stream when all resources were retrieved
@@ -812,29 +768,27 @@ function pullXlfFiles(projectName, apiHostname, username, password, languages, r
         if (!called) {
             called = true;
             var stream_1 = this;
-            // Retrieve XLF files from main projects
-            languages.map(function (language) {
-                resources.map(function (resource) {
-                    retrieveResource(language, resource, apiHostname, credentials).then(function (file) {
-                        stream_1.emit('data', file);
-                        translationsRetrieved++;
-                    }).catch(function (error) { throw new Error(error); });
-                });
+            resources.map(function (resource) {
+                retrieveResource(language, resource, apiHostname, credentials).then(function (file) {
+                    stream_1.emit('data', file);
+                    translationsRetrieved++;
+                }).catch(function (error) { throw new Error(error); });
             });
         }
         callback();
     });
 }
-exports.pullXlfFiles = pullXlfFiles;
+var limiter = new Limiter(NUMBER_OF_CONCURRENT_DOWNLOADS);
 function retrieveResource(language, resource, apiHostname, credentials) {
-    return new Promise(function (resolve, reject) {
+    return limiter.queue(function () { return new Promise(function (resolve, reject) {
         var slug = resource.name.replace(/\//g, '_');
         var project = resource.project;
-        var iso639 = language.toLowerCase();
+        var iso639 = language.transifexId || language.id;
         var options = {
             hostname: apiHostname,
             path: "/api/2/project/" + project + "/resource/" + slug + "/translation/" + iso639 + "?file&mode=onlyreviewed",
             auth: credentials,
+            port: 443,
             method: 'GET'
         };
         var request = https.request(options, function (res) {
@@ -842,18 +796,20 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             res.on('data', function (chunk) { return xlfBuffer.push(chunk); });
             res.on('end', function () {
                 if (res.statusCode === 200) {
-                    resolve(new File({ contents: Buffer.concat(xlfBuffer), path: project + "/" + iso639_2_to_3[language] + "/" + slug + ".xlf" }));
+                    console.log('success: ' + options.path);
+                    resolve(new File({ contents: Buffer.concat(xlfBuffer), path: project + "/" + slug + ".xlf" }));
                 }
                 reject(slug + " in " + project + " returned no data. Response code: " + res.statusCode + ".");
             });
         });
         request.on('error', function (err) {
-            reject("Failed to query resource " + slug + " with the following error: " + err);
+            reject("Failed to query resource " + slug + " with the following error: " + err + ". " + options.path);
         });
         request.end();
-    });
+        console.log('started: ' + options.path);
+    }); });
 }
-function prepareJsonFiles() {
+function prepareI18nFiles(language) {
     var parsePromises = [];
     return event_stream_1.through(function (xlf) {
         var stream = this;
@@ -861,22 +817,9 @@ function prepareJsonFiles() {
         parsePromises.push(parsePromise);
         parsePromise.then(function (resolvedFiles) {
             resolvedFiles.forEach(function (file) {
-                var messages = file.messages, translatedFile;
-                // ISL file path always starts with 'build/'
-                if (/^build\//.test(file.originalFilePath)) {
-                    var defaultLanguages = { 'zh-hans': true, 'zh-hant': true, 'ko': true };
-                    if (path.basename(file.originalFilePath) === 'Default' && !defaultLanguages[file.language]) {
-                        return;
-                    }
-                    translatedFile = createIslFile('..', file.originalFilePath, messages, iso639_2_to_3[file.language]);
-                }
-                else {
-                    translatedFile = createI18nFile(iso639_2_to_3[file.language], file.originalFilePath, messages);
-                }
+                var translatedFile = createI18nFile(language, file.originalFilePath, file.messages);
                 stream.emit('data', translatedFile);
             });
-        }, function (rejectReason) {
-            throw new Error("XLF parsing error: " + rejectReason);
         });
     }, function () {
         var _this = this;
@@ -885,8 +828,8 @@ function prepareJsonFiles() {
             .catch(function (reason) { throw new Error(reason); });
     });
 }
-exports.prepareJsonFiles = prepareJsonFiles;
-function createI18nFile(base, originalFilePath, messages) {
+exports.prepareI18nFiles = prepareI18nFiles;
+function createI18nFile(language, originalFilePath, messages) {
     var content = [
         '/*---------------------------------------------------------------------------------------------',
         ' *  Copyright (c) Microsoft Corporation. All rights reserved.',
@@ -895,35 +838,34 @@ function createI18nFile(base, originalFilePath, messages) {
         '// Do not edit this file. It is machine generated.'
     ].join('\n') + '\n' + JSON.stringify(messages, null, '\t').replace(/\r\n/g, '\n');
     return new File({
-        path: path.join(base, originalFilePath + '.i18n.json'),
+        path: path.join(originalFilePath + '.i18n.json'),
         contents: new Buffer(content, 'utf8')
     });
 }
-var languageNames = {
-    'chs': 'Simplified Chinese',
-    'cht': 'Traditional Chinese',
-    'kor': 'Korean'
-};
-var languageIds = {
-    'chs': '$0804',
-    'cht': '$0404',
-    'kor': '$0412'
-};
-var encodings = {
-    'chs': 'CP936',
-    'cht': 'CP950',
-    'jpn': 'CP932',
-    'kor': 'CP949',
-    'deu': 'CP1252',
-    'fra': 'CP1252',
-    'esn': 'CP1252',
-    'rus': 'CP1251',
-    'ita': 'CP1252',
-    'ptb': 'CP1252',
-    'hun': 'CP1250',
-    'trk': 'CP1254'
-};
-function createIslFile(base, originalFilePath, messages, language) {
+function prepareIslFiles(language, innoSetupConfig) {
+    var parsePromises = [];
+    return event_stream_1.through(function (xlf) {
+        var stream = this;
+        var parsePromise = XLF.parse(xlf.contents.toString());
+        parsePromises.push(parsePromise);
+        parsePromise.then(function (resolvedFiles) {
+            resolvedFiles.forEach(function (file) {
+                if (path.basename(file.originalFilePath) === 'Default' && !innoSetupConfig.defaultInfo) {
+                    return;
+                }
+                var translatedFile = createIslFile(file.originalFilePath, file.messages, language, innoSetupConfig);
+                stream.emit('data', translatedFile);
+            });
+        });
+    }, function () {
+        var _this = this;
+        Promise.all(parsePromises)
+            .then(function () { _this.emit('end'); })
+            .catch(function (reason) { throw new Error(reason); });
+    });
+}
+exports.prepareIslFiles = prepareIslFiles;
+function createIslFile(originalFilePath, messages, language, innoSetup) {
     var content = [];
     var originalContent;
     if (path.basename(originalFilePath) === 'Default') {
@@ -937,7 +879,7 @@ function createIslFile(base, originalFilePath, messages, language) {
             var firstChar = line.charAt(0);
             if (firstChar === '[' || firstChar === ';') {
                 if (line === '; *** Inno Setup version 5.5.3+ English messages ***') {
-                    content.push("; *** Inno Setup version 5.5.3+ " + languageNames[language] + " messages ***");
+                    content.push("; *** Inno Setup version 5.5.3+ " + innoSetup.defaultInfo.name + " messages ***");
                 }
                 else {
                     content.push(line);
@@ -949,13 +891,13 @@ function createIslFile(base, originalFilePath, messages, language) {
                 var translated = line;
                 if (key) {
                     if (key === 'LanguageName') {
-                        translated = key + "=" + languageNames[language];
+                        translated = key + "=" + innoSetup.defaultInfo.name;
                     }
                     else if (key === 'LanguageID') {
-                        translated = key + "=" + languageIds[language];
+                        translated = key + "=" + innoSetup.defaultInfo.id;
                     }
                     else if (key === 'LanguageCodePage') {
-                        translated = key + "=" + encodings[language].substr(2);
+                        translated = key + "=" + innoSetup.codePage.substr(2);
                     }
                     else {
                         var translatedMessage = messages[key];
@@ -968,12 +910,11 @@ function createIslFile(base, originalFilePath, messages, language) {
             }
         }
     });
-    var tag = iso639_3_to_2[language];
     var basename = path.basename(originalFilePath);
-    var filePath = path.join(base, path.dirname(originalFilePath), basename) + "." + tag + ".isl";
+    var filePath = basename + "." + language.id + ".isl";
     return new File({
         path: filePath,
-        contents: iconv.encode(new Buffer(content.join('\r\n'), 'utf8'), encodings[language])
+        contents: iconv.encode(new Buffer(content.join('\r\n'), 'utf8'), innoSetup.codePage)
     });
 }
 function encodeEntities(value) {

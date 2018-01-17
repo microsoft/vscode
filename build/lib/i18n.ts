@@ -23,6 +23,20 @@ function log(message: any, ...rest: any[]): void {
 	util.log(util.colors.green('[i18n]'), message, ...rest);
 }
 
+export interface Language {
+	id: string; // laguage id, e.g. zh-tw, de
+	transifexId?: string; // language id used in transifex (optional), e.g zh-hant
+	iso639_3: string; // 3 letter id, e.g. chs
+}
+
+export interface InnoSetup {
+	codePage: string; //code page for encoding (http://www.jrsoftware.org/ishelp/index.php?topic=langoptionssection)
+	defaultInfo?: {
+		name: string; // inno setup language name
+		id: string; // locale identifier (https://msdn.microsoft.com/en-us/library/dd318693.aspx)
+	};
+}
+
 interface Map<V> {
 	[key: string]: V;
 }
@@ -57,7 +71,7 @@ module LocalizeInfo {
 }
 
 interface BundledFormat {
-	keys: Map<(string | LocalizeInfo)[]>;
+	keys: Map<(string | LocalizeInfo) []>;
 	messages: Map<string[]>;
 	bundles: Map<string[]>;
 }
@@ -98,7 +112,7 @@ module PackageJsonFormat {
 
 interface ModuleJsonFormat {
 	messages: string[];
-	keys: (string | LocalizeInfo)[];
+	keys: (string | LocalizeInfo) [];
 }
 
 module ModuleJsonFormat {
@@ -230,22 +244,22 @@ export class XLF {
 
 			parser.parseString(xlfString, function (err, result) {
 				if (err) {
-					reject(`Failed to parse XLIFF string. ${err}`);
+					reject(new Error(`XLF parsing error: Failed to parse XLIFF string. ${err}`));
 				}
 
 				const fileNodes: any[] = result['xliff']['file'];
 				if (!fileNodes) {
-					reject('XLIFF file does not contain "xliff" or "file" node(s) required for parsing.');
+					reject(new Error(`XLF parsing error: XLIFF file does not contain "xliff" or "file" node(s) required for parsing.`));
 				}
 
 				fileNodes.forEach((file) => {
 					const originalFilePath = file.$.original;
 					if (!originalFilePath) {
-						reject('XLIFF file node does not contain original attribute to determine the original location of the resource file.');
+						reject(new Error(`XLF parsing error: XLIFF file node does not contain original attribute to determine the original location of the resource file.`));
 					}
 					const language = file.$['target-language'].toLowerCase();
 					if (!language) {
-						reject('XLIFF file node does not contain target-language attribute to determine translated language.');
+						reject(new Error(`XLF parsing error: XLIFF file node does not contain target-language attribute to determine translated language.`));
 					}
 
 					let messages: Map<string> = {};
@@ -261,7 +275,7 @@ export class XLF {
 						if (key && val) {
 							messages[key] = decodeEntities(val);
 						} else {
-							reject('XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.');
+							reject(new Error(`XLF parsing error: XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.`));
 						}
 					});
 
@@ -295,7 +309,7 @@ export class Limiter<T> {
 
 	queue(factory: ITask<Promise<T>>): Promise<T> {
 		return new Promise<T>((c, e) => {
-			this.outstandingPromises.push({factory, c, e});
+			this.outstandingPromises.push({ factory, c, e });
 			this.consume();
 		});
 	}
@@ -317,74 +331,9 @@ export class Limiter<T> {
 	}
 }
 
-const iso639_3_to_2: Map<string> = {
-	'chs': 'zh-cn',
-	'cht': 'zh-tw',
-	'csy': 'cs-cz',
-	'deu': 'de',
-	'enu': 'en',
-	'esn': 'es',
-	'fra': 'fr',
-	'hun': 'hu',
-	'ita': 'it',
-	'jpn': 'ja',
-	'kor': 'ko',
-	'nld': 'nl',
-	'plk': 'pl',
-	'ptb': 'pt-br',
-	'ptg': 'pt',
-	'rus': 'ru',
-	'sve': 'sv-se',
-	'trk': 'tr'
-};
-
-/**
- * Used to map Transifex to VS Code language code representation.
- */
-const iso639_2_to_3: Map<string> = {
-	'zh-hans': 'chs',
-	'zh-hant': 'cht',
-	'cs-cz': 'csy',
-	'de': 'deu',
-	'en': 'enu',
-	'es': 'esn',
-	'fr': 'fra',
-	'hu': 'hun',
-	'it': 'ita',
-	'ja': 'jpn',
-	'ko': 'kor',
-	'nl': 'nld',
-	'pl': 'plk',
-	'pt-br': 'ptb',
-	'pt': 'ptg',
-	'ru': 'rus',
-	'sv-se': 'sve',
-	'tr': 'trk'
-};
-
-interface IDirectoryInfo {
-	name: string;
-	iso639_2: string;
-}
-
-function sortLanguages(directoryNames: string[]): IDirectoryInfo[] {
-	return directoryNames.map((dirName) => {
-		var lower = dirName.toLowerCase();
-		return {
-			name: lower,
-			iso639_2: iso639_3_to_2[lower]
-		};
-	}).sort((a: IDirectoryInfo, b: IDirectoryInfo): number => {
-		if (!a.iso639_2 && !b.iso639_2) {
-			return 0;
-		}
-		if (!a.iso639_2) {
-			return -1;
-		}
-		if (!b.iso639_2) {
-			return 1;
-		}
-		return a.iso639_2 < b.iso639_2 ? -1 : (a.iso639_2 > b.iso639_2 ? 1 : 0);
+function sortLanguages(languages: Language[]): Language[] {
+	return languages.sort((a: Language, b: Language): number => {
+		return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
 	});
 }
 
@@ -453,7 +402,7 @@ function escapeCharacters(value: string): string {
 	return result.join('');
 }
 
-function processCoreBundleFormat(fileHeader: string, languages: string[], json: BundledFormat, emitter: any) {
+function processCoreBundleFormat(fileHeader: string, languages: Language[], json: BundledFormat, emitter: any) {
 	let keysSection = json.keys;
 	let messageSection = json.messages;
 	let bundleSection = json.bundles;
@@ -483,24 +432,15 @@ function processCoreBundleFormat(fileHeader: string, languages: string[], json: 
 	});
 
 	let languageDirectory = path.join(__dirname, '..', '..', 'i18n');
-	let languageDirs;
-	if (languages) {
-		languageDirs = sortLanguages(languages);
-	} else {
-		languageDirs = sortLanguages(fs.readdirSync(languageDirectory).filter((item) => fs.statSync(path.join(languageDirectory, item)).isDirectory()));
-	}
-	languageDirs.forEach((language) => {
-		if (!language.iso639_2) {
-			return;
-		}
-
+	let sortedLanguages = sortLanguages(languages);
+	sortedLanguages.forEach((language) => {
 		if (process.env['VSCODE_BUILD_VERBOSE']) {
-			log(`Generating nls bundles for: ${language.iso639_2}`);
+			log(`Generating nls bundles for: ${language.id}`);
 		}
 
-		statistics[language.iso639_2] = 0;
+		statistics[language.id] = 0;
 		let localizedModules: Map<string[]> = Object.create(null);
-		let cwd = path.join(languageDirectory, language.name, 'src');
+		let cwd = path.join(languageDirectory, language.iso639_3, 'src');
 		modules.forEach((module) => {
 			let order = keysSection[module];
 			let i18nFile = path.join(cwd, module) + '.i18n.json';
@@ -513,7 +453,7 @@ function processCoreBundleFormat(fileHeader: string, languages: string[], json: 
 					log(`No localized messages found for module ${module}. Using default messages.`);
 				}
 				messages = defaultMessages[module];
-				statistics[language.iso639_2] = statistics[language.iso639_2] + Object.keys(messages).length;
+				statistics[language.id] = statistics[language.id] + Object.keys(messages).length;
 			}
 			let localizedMessages: string[] = [];
 			order.forEach((keyInfo) => {
@@ -529,7 +469,7 @@ function processCoreBundleFormat(fileHeader: string, languages: string[], json: 
 						log(`No localized message found for key ${key} in module ${module}. Using default message.`);
 					}
 					message = defaultMessages[module][key];
-					statistics[language.iso639_2] = statistics[language.iso639_2] + 1;
+					statistics[language.id] = statistics[language.id] + 1;
 				}
 				localizedMessages.push(message);
 			});
@@ -539,7 +479,7 @@ function processCoreBundleFormat(fileHeader: string, languages: string[], json: 
 			let modules = bundleSection[bundle];
 			let contents: string[] = [
 				fileHeader,
-				`define("${bundle}.nls.${language.iso639_2}", {`
+				`define("${bundle}.nls.${language.id}", {`
 			];
 			modules.forEach((module, index) => {
 				contents.push(`\t"${module}": [`);
@@ -554,28 +494,22 @@ function processCoreBundleFormat(fileHeader: string, languages: string[], json: 
 				contents.push(index < modules.length - 1 ? '\t],' : '\t]');
 			});
 			contents.push('});');
-			emitter.emit('data', new File({ path: bundle + '.nls.' + language.iso639_2 + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
+			emitter.emit('data', new File({ path: bundle + '.nls.' + language.id + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
 		});
 	});
 	Object.keys(statistics).forEach(key => {
 		let value = statistics[key];
 		log(`${key} has ${value} untranslated strings.`);
 	});
-	languageDirs.forEach(dir => {
-		const language = dir.name;
-		let iso639_2 = iso639_3_to_2[language];
-		if (!iso639_2) {
-			log(`\tCouldn't find iso639 2 mapping for language ${language}. Using default language instead.`);
-		} else {
-			let stats = statistics[iso639_2];
-			if (Is.undef(stats)) {
-				log(`\tNo translations found for language ${language}. Using default language instead.`);
-			}
+	sortedLanguages.forEach(language => {
+		let stats = statistics[language.id];
+		if (Is.undef(stats)) {
+			log(`\tNo translations found for language ${language.id}. Using default language instead.`);
 		}
 	});
 }
 
-export function processNlsFiles(opts: { fileHeader: string; languages: string[] }): ThroughStream {
+export function processNlsFiles(opts: { fileHeader: string; languages: Language[] }): ThroughStream {
 	return through(function (file: File) {
 		let fileName = path.basename(file.path);
 		if (fileName === 'nls.metadata.json') {
@@ -695,7 +629,7 @@ function importModuleOrPackageJson(file: File, json: ModuleJsonFormat | PackageJ
 		originalFilePath = `${formattedSourcePath.substr(0, formattedSourcePath.length - '.nls.json'.length)}`;
 	} else {
 		// Used for vscode/extensions folder
-		extensionName = formattedSourcePath.split('/')[0];
+		extensionName = formattedSourcePath.split('/') [0];
 		localizationFilesCount = glob.sync(`./extensions/${extensionName}/**/*.nls.json`).length;
 		originalFilePath = `extensions/${formattedSourcePath.substr(0, formattedSourcePath.length - '.nls.json'.length)}`;
 	}
@@ -764,7 +698,7 @@ function importIsl(file: File, stream: ThroughStream) {
 		}
 	});
 
-	const originalPath = file.path.substring(file.cwd.length + 1, file.path.split('.')[0].length).replace(/\\/g, '/');
+	const originalPath = file.path.substring(file.cwd.length + 1, file.path.split('.') [0].length).replace(/\\/g, '/');
 	xlf.addFile(originalPath, keys, messages);
 
 	// Emit only upon all ISL files combined into single XLF instance
@@ -910,42 +844,42 @@ function updateResource(project: string, slug: string, xlfFile: File, apiHostnam
 	});
 }
 
-function obtainProjectResources(projectName: string): Resource[] {
-	let resources: Resource[] = [];
+// cache resources
+let _buildResources: Resource[];
 
-	if (projectName === editorProject) {
-		const json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
-		resources = JSON.parse(json).editor;
-	} else if (projectName === workbenchProject) {
-		const json = fs.readFileSync('./build/lib/i18n.resources.json', 'utf8');
-		resources = JSON.parse(json).workbench;
-	} else if (projectName === extensionsProject) {
-		let extensionsToLocalize: string[] = glob.sync('./extensions/**/*.nls.json').map(extension => extension.split('/')[2]);
+export function pullBuildXlfFiles(apiHostname: string, username: string, password: string, language: Language): NodeJS.ReadableStream {
+	if (!_buildResources) {
+		_buildResources = [];
+		// editor and workbench
+		const json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
+		_buildResources.push(...json.editor);
+		_buildResources.push(...json.workbench);
+
+		// extensions
+		let extensionsToLocalize: string[] = glob.sync('./extensions/**/*.nls.json').map(extension => extension.split('/') [2]);
 		let resourcesToPull: string[] = [];
 
 		extensionsToLocalize.forEach(extension => {
 			if (resourcesToPull.indexOf(extension) === -1) { // remove duplicate elements returned by glob
 				resourcesToPull.push(extension);
-				resources.push({ name: extension, project: projectName });
+				_buildResources.push({ name: extension, project: 'vscode-extensions' });
 			}
 		});
-	} else if (projectName === setupProject) {
-		resources.push({ name: 'setup_default', project: setupProject });
 	}
-
-	return resources;
+	return pullXlfFiles(apiHostname, username, password, language, _buildResources);
 }
 
-export function pullXlfFiles(projectName: string, apiHostname: string, username: string, password: string, languages: string[], resources?: Resource[]): NodeJS.ReadableStream {
-	if (!resources) {
-		resources = obtainProjectResources(projectName);
+export function pullSetupXlfFiles(apiHostname: string, username: string, password: string, language: Language, includeDefault: boolean): NodeJS.ReadableStream {
+	let setupResources = [{ name: 'setup_messages', project: 'vscode-workbench' }];
+	if (includeDefault) {
+		setupResources.push({ name: 'setup_default', project: 'vscode-setup' });
 	}
-	if (!resources) {
-		throw new Error('Transifex projects and resources must be defined to be able to pull translations from Transifex.');
-	}
+	return pullXlfFiles(apiHostname, username, password, language, setupResources);
+}
 
+function pullXlfFiles(apiHostname: string, username: string, password: string, language: Language, resources: Resource[]): NodeJS.ReadableStream {
 	const credentials = `${username}:${password}`;
-	let expectedTranslationsCount = languages.length * resources.length;
+	let expectedTranslationsCount = resources.length;
 	let translationsRetrieved = 0, called = false;
 
 	return readable(function (count, callback) {
@@ -957,15 +891,11 @@ export function pullXlfFiles(projectName: string, apiHostname: string, username:
 		if (!called) {
 			called = true;
 			const stream = this;
-
-			// Retrieve XLF files from main projects
-			languages.map(function (language) {
-				resources.map(function (resource) {
-					retrieveResource(language, resource, apiHostname, credentials).then((file: File) => {
-						stream.emit('data', file);
-						translationsRetrieved++;
-					}).catch(error => { throw new Error(error); });
-				});
+			resources.map(function (resource) {
+				retrieveResource(language, resource, apiHostname, credentials).then((file: File) => {
+					stream.emit('data', file);
+					translationsRetrieved++;
+				}).catch(error => { throw new Error(error); });
 			});
 		}
 
@@ -974,11 +904,11 @@ export function pullXlfFiles(projectName: string, apiHostname: string, username:
 }
 const limiter = new Limiter<File>(NUMBER_OF_CONCURRENT_DOWNLOADS);
 
-function retrieveResource(language: string, resource: Resource, apiHostname, credentials): Promise<File> {
+function retrieveResource(language: Language, resource: Resource, apiHostname, credentials): Promise<File> {
 	return limiter.queue(() => new Promise<File>((resolve, reject) => {
 		const slug = resource.name.replace(/\//g, '_');
 		const project = resource.project;
-		const iso639 = language.toLowerCase();
+		const iso639 = language.transifexId || language.id;
 		const options = {
 			hostname: apiHostname,
 			path: `/api/2/project/${project}/resource/${slug}/translation/${iso639}?file&mode=onlyreviewed`,
@@ -993,7 +923,7 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 			res.on('end', () => {
 				if (res.statusCode === 200) {
 					console.log('success: ' + options.path);
-					resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${iso639_2_to_3[language]}/${slug}.xlf` }));
+					resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${slug}.xlf` }));
 				}
 				reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
 			});
@@ -1006,7 +936,7 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 	}));
 }
 
-export function prepareJsonFiles(): ThroughStream {
+export function prepareI18nFiles(language: Language): ThroughStream {
 	let parsePromises: Promise<ParsedXLF[]>[] = [];
 
 	return through(function (xlf: File) {
@@ -1014,27 +944,11 @@ export function prepareJsonFiles(): ThroughStream {
 		let parsePromise = XLF.parse(xlf.contents.toString());
 		parsePromises.push(parsePromise);
 		parsePromise.then(
-			function (resolvedFiles) {
+			resolvedFiles => {
 				resolvedFiles.forEach(file => {
-					let messages = file.messages, translatedFile;
-
-					// ISL file path always starts with 'build/'
-					if (/^build\//.test(file.originalFilePath)) {
-						const defaultLanguages = { 'zh-hans': true, 'zh-hant': true, 'ko': true };
-						if (path.basename(file.originalFilePath) === 'Default' && !defaultLanguages[file.language]) {
-							return;
-						}
-
-						translatedFile = createIslFile('..', file.originalFilePath, messages, iso639_2_to_3[file.language]);
-					} else {
-						translatedFile = createI18nFile(iso639_2_to_3[file.language], file.originalFilePath, messages);
-					}
-
+					let translatedFile = createI18nFile(language, file.originalFilePath, file.messages);
 					stream.emit('data', translatedFile);
 				});
-			},
-			function (rejectReason) {
-				throw new Error(`XLF parsing error: ${rejectReason}`);
 			}
 		);
 	}, function () {
@@ -1044,7 +958,7 @@ export function prepareJsonFiles(): ThroughStream {
 	});
 }
 
-function createI18nFile(base: string, originalFilePath: string, messages: Map<string>): File {
+function createI18nFile(language: Language, originalFilePath: string, messages: Map<string>): File {
 	let content = [
 		'/*---------------------------------------------------------------------------------------------',
 		' *  Copyright (c) Microsoft Corporation. All rights reserved.',
@@ -1054,40 +968,37 @@ function createI18nFile(base: string, originalFilePath: string, messages: Map<st
 	].join('\n') + '\n' + JSON.stringify(messages, null, '\t').replace(/\r\n/g, '\n');
 
 	return new File({
-		path: path.join(base, originalFilePath + '.i18n.json'),
+		path: path.join(originalFilePath + '.i18n.json'),
 		contents: new Buffer(content, 'utf8')
 	});
 }
 
+export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup): ThroughStream {
+	let parsePromises: Promise<ParsedXLF[]>[] = [];
 
-const languageNames: Map<string> = {
-	'chs': 'Simplified Chinese',
-	'cht': 'Traditional Chinese',
-	'kor': 'Korean'
-};
+	return through(function (xlf: File) {
+		let stream = this;
+		let parsePromise = XLF.parse(xlf.contents.toString());
+		parsePromises.push(parsePromise);
+		parsePromise.then(
+			resolvedFiles => {
+				resolvedFiles.forEach(file => {
+					if (path.basename(file.originalFilePath) === 'Default' && !innoSetupConfig.defaultInfo) {
+						return;
+					}
+					let translatedFile = createIslFile(file.originalFilePath, file.messages, language, innoSetupConfig);
+					stream.emit('data', translatedFile);
+				});
+			}
+		);
+	}, function () {
+		Promise.all(parsePromises)
+			.then(() => { this.emit('end'); })
+			.catch(reason => { throw new Error(reason); });
+	});
+}
 
-const languageIds: Map<string> = {
-	'chs': '$0804',
-	'cht': '$0404',
-	'kor': '$0412'
-};
-
-const encodings: Map<string> = {
-	'chs': 'CP936',
-	'cht': 'CP950',
-	'jpn': 'CP932',
-	'kor': 'CP949',
-	'deu': 'CP1252',
-	'fra': 'CP1252',
-	'esn': 'CP1252',
-	'rus': 'CP1251',
-	'ita': 'CP1252',
-    'ptb': 'CP1252',
-	'hun': 'CP1250',
-	'trk': 'CP1254'
-};
-
-function createIslFile(base: string, originalFilePath: string, messages: Map<string>, language: string): File {
+function createIslFile(originalFilePath: string, messages: Map<string>, language: Language, innoSetup: InnoSetup): File {
 	let content: string[] = [];
 	let originalContent: TextModel;
 	if (path.basename(originalFilePath) === 'Default') {
@@ -1095,13 +1006,12 @@ function createIslFile(base: string, originalFilePath: string, messages: Map<str
 	} else {
 		originalContent = new TextModel(fs.readFileSync(originalFilePath + '.en.isl', 'utf8'));
 	}
-
 	originalContent.lines.forEach(line => {
 		if (line.length > 0) {
 			let firstChar = line.charAt(0);
 			if (firstChar === '[' || firstChar === ';') {
 				if (line === '; *** Inno Setup version 5.5.3+ English messages ***') {
-					content.push(`; *** Inno Setup version 5.5.3+ ${languageNames[language]} messages ***`);
+					content.push(`; *** Inno Setup version 5.5.3+ ${innoSetup.defaultInfo.name} messages ***`);
 				} else {
 					content.push(line);
 				}
@@ -1111,11 +1021,11 @@ function createIslFile(base: string, originalFilePath: string, messages: Map<str
 				let translated = line;
 				if (key) {
 					if (key === 'LanguageName') {
-						translated = `${key}=${languageNames[language]}`;
+						translated = `${key}=${innoSetup.defaultInfo.name}`;
 					} else if (key === 'LanguageID') {
-						translated = `${key}=${languageIds[language]}`;
+						translated = `${key}=${innoSetup.defaultInfo.id}`;
 					} else if (key === 'LanguageCodePage') {
-						translated = `${key}=${encodings[language].substr(2)}`;
+						translated = `${key}=${innoSetup.codePage.substr(2)}`;
 					} else {
 						let translatedMessage = messages[key];
 						if (translatedMessage) {
@@ -1129,13 +1039,12 @@ function createIslFile(base: string, originalFilePath: string, messages: Map<str
 		}
 	});
 
-	const tag = iso639_3_to_2[language];
 	const basename = path.basename(originalFilePath);
-	const filePath = `${path.join(base, path.dirname(originalFilePath), basename)}.${tag}.isl`;
+	const filePath = `${basename}.${language.id}.isl`;
 
 	return new File({
 		path: filePath,
-		contents: iconv.encode(new Buffer(content.join('\r\n'), 'utf8'), encodings[language])
+		contents: iconv.encode(new Buffer(content.join('\r\n'), 'utf8'), innoSetup.codePage)
 	});
 }
 
