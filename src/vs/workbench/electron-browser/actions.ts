@@ -889,7 +889,8 @@ export class OpenIssueReporterAction extends Action {
 			inputErrorBorder: theme.getColor(inputValidationErrorBorder) && theme.getColor(inputValidationErrorBorder).toString(),
 			buttonBackground: theme.getColor(buttonBackground) && theme.getColor(buttonBackground).toString(),
 			buttonForeground: theme.getColor(buttonForeground) && theme.getColor(buttonForeground).toString(),
-			buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString()
+			buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString(),
+			zoomLevel: webFrame.getZoomLevel()
 		};
 		return this.issueService.openReporter(style).then(() => {
 			return TPromise.as(true);

@@ -39,7 +39,8 @@ export class IssueService implements IIssueService {
 		this._issueWindow = new BrowserWindow({
 			width: 800,
 			height: 900,
-			title: 'Issue Reporter'
+			title: 'Issue Reporter',
+			alwaysOnTop: true
 		});
 
 		this._issueWindow.loadURL(this.getIssueReporterPath());

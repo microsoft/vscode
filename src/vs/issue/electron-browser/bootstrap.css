@@ -44,6 +44,7 @@ input, textarea {
 	background-color: #fff;
 	background-image: none;
 	background-clip: padding-box;
+	border-radius: .25rem;
 	border: 1px solid #ced4da;
 }
 textarea {
@@ -71,6 +72,7 @@ button {
 	user-select: none;
 	padding: .5rem 1rem;
 	font-size: 1rem;
+	border-radius: .25rem;
 	background: none;
 	transition: all .2s ease-in-out;
 }
@@ -86,5 +88,6 @@ select {
 	background-color: #fff;
 	background-image: none;
 	background-clip: padding-box;
+	border-radius: 0.25rem;
 	border: none;
 }

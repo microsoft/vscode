@@ -12,14 +12,14 @@
 			<div class="input-group">
 				<label for="issue-type">This is a</label>
 				<select id="issue-type" class="form-control">
-					<option value="0">Bug report</option>
-					<option value="1">Performance issue</option>
-					<option value="2">Feature request</option>
+					<option value="0">Bug Report</option>
+					<option value="1">Performance Issue</option>
+					<option value="2">Feature Request</option>
 				</select>
 			</div>
 
 			<div class="input-group">
-				<label for="issue-title">Issue Title <span class="required-input">*</span></label>
+				<label for="issue-title">Title <span class="required-input">*</span></label>
 				<div id="issue-title-validation-error" class="validation-error hidden">Please enter a title.</div>
 				<input id="issue-title" type="text" required>
 				<small id="similar-issues">
@@ -29,12 +29,12 @@
 
 			<div class="input-group">
 				<div class="two-col">
-					<label for="vscode-version">Filing against VS Code version <span class="required-input">*</span></label>
-					<input id="vscode-version" type="text" readonly/>
+					<label for="vscode-version">VS Code version <span class="required-input">*</span></label>
+					<input id="vscode-version" type="text" disabled/>
 				</div>
 				<div class="two-col">
 					<label for="os">OS Version <span class="required-input">*</span></label>
-					<input id="os" type="text" readonly/>
+					<input id="os" type="text" disabled/>
 				</div>
 			</div>
 
@@ -43,7 +43,7 @@
 					<details>
 						<summary>My System Info
 							<input type="checkbox" id="includeSystemInfo" checked>
-								<label class="caption" for="includeSystemInfo">Send data</label>
+								<label class="caption" for="includeSystemInfo">Send this data</label>
 							</input>
 						</summary>
 						<div class="block-info">
@@ -53,9 +53,9 @@
 				</div>
 				<div class="block block-process">
 					<details>
-						<summary>Processes
+						<summary>Currently Running Processes
 							<input type="checkbox" id="includeProcessInfo" checked>
-								<label class="caption" for="includeProcessInfo">Send data</label>
+								<label class="caption" for="includeProcessInfo">Send this data</label>
 							</input>
 						</summary>
 						<div class="block-info">
@@ -67,7 +67,7 @@
 					<details>
 						<summary>My Workspace Stats
 							<input type="checkbox" id="includeWorkspaceInfo" checked>
-								<label class="caption" for="includeWorkspaceInfo">Send data</label>
+								<label class="caption" for="includeWorkspaceInfo">Send this data</label>
 							</input>
 						</summary>
 						<pre class="block-info">
@@ -86,8 +86,8 @@
 					</small>
 					<div class="block-info-text">
 						<small>
-								GitHub-flavored Markdown is supported.
-								After submitting, you will still be able to edit your issue.
+								We support GitHub-flavored Markdown.
+								After submitting, you will still be able to edit your issue on GitHub.
 							</small>
 						<div id="description-validation-error" class="validation-error hidden">Please enter a description.</div>
 						<textarea name="description" id="description" cols="100" rows="15" required></textarea>

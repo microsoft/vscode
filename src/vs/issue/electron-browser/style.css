@@ -101,6 +101,10 @@ input[type="checkbox"] {
 	display: inline-block;
 }
 
+input:disabled {
+	opacity: 0.6;
+}
+
 /* Default styles, overwritten if a theme is provided */
 input, select, textarea {
 	background-color: #3c3c3c;

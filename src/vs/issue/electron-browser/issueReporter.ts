@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { shell, ipcRenderer } from 'electron';
+import { shell, ipcRenderer, webFrame } from 'electron';
 import { $ } from 'vs/base/browser/dom';
-import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
-import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import * as browser from 'vs/base/browser/browser';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
+import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
-import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { IssueReporterModel, IssueReporterData } from 'vs/issue/electron-browser/issueReporterModel';
 import { IssueReporterStyles } from 'vs/platform/issue/common/issue';
 
@@ -46,6 +47,7 @@ export class IssueReporter extends Disposable {
 		});
 
 		ipcRenderer.on('issueStyleResponse', (event, styles: IssueReporterStyles) => {
+			this.applyZoom(styles.zoomLevel);
 			this.applyStyles(styles);
 		});
 
@@ -68,6 +70,15 @@ export class IssueReporter extends Disposable {
 
 	render(): void {
 		this.renderBlocks();
+	}
+
+	private applyZoom(zoomLevel: number) {
+		webFrame.setZoomLevel(zoomLevel);
+		browser.setZoomFactor(webFrame.getZoomFactor());
+		// See https://github.com/Microsoft/vscode/issues/26151
+		// Cannot be trusted because the webFrame might take some time
+		// until it really applies the new zoom level
+		browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 	}
 
 	private applyStyles(styles: IssueReporterStyles) {
@@ -93,7 +104,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputActiveBorder) {
-			content.push(`input:focus, textarea:focus, select:focus, summary:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
+			content.push(`input[type='text']:focus, textarea:focus, select:focus, summary:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
 		}
 
 		if (styles.textLinkColor) {
@@ -123,7 +134,6 @@ export class IssueReporter extends Disposable {
 		document.body.style.color = styles.color;
 	}
 
-	// TODO: Properly dispose of services
 	private initServices(configuration: IWindowConfiguration): void {
 		const serviceCollection = new ServiceCollection();
 		const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
@@ -150,8 +160,6 @@ export class IssueReporter extends Disposable {
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}
-
-		console.log(this.telemetryService);
 	}
 
 	private setEventHandlers(): void {
@@ -161,14 +169,17 @@ export class IssueReporter extends Disposable {
 		});
 
 		document.getElementById('includeSystemInfo').addEventListener('click', (event: Event) => {
+			event.stopPropagation();
 			this.issueReporterModel.update({ includeSystemInfo: !this.issueReporterModel.getData().includeSystemInfo });
 		});
 
 		document.getElementById('includeProcessInfo').addEventListener('click', (event: Event) => {
+			event.stopPropagation();
 			this.issueReporterModel.update({ includeProcessInfo: !this.issueReporterModel.getData().includeSystemInfo });
 		});
 
 		document.getElementById('includeWorkspaceInfo').addEventListener('click', (event: Event) => {
+			event.stopPropagation();
 			this.issueReporterModel.update({ includeWorkspaceInfo: !this.issueReporterModel.getData().includeWorkspaceInfo });
 		});
 
@@ -244,7 +255,7 @@ export class IssueReporter extends Disposable {
 
 			descriptionTitle.innerHTML = 'Steps to reproduce <span class="required-input">*</span>';
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = 'When did this performance issue happen? For examples, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.';
+			descriptionSubtitle.innerHTML = 'When did this performance issue happen? For example, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.';
 		}
 		// 3 - Feature Request
 		else {
@@ -296,13 +307,19 @@ export class IssueReporter extends Disposable {
 			return;
 		}
 
-		document.getElementById('github-submit-btn').classList.add('active');
+		if (this.telemetryService) {
+			/* __GDPR__
+				"issueReporterSubmit" : {
+					"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+
+			this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType });
+		}
+
 		const issueTitle = (<HTMLInputElement>document.getElementById('issue-title')).value;
 		const baseUrl = `https://github.com/microsoft/vscode/issues/new?title=${issueTitle}&body=`;
-
 		const issueBody = this.issueReporterModel.serialize();
-
-		document.getElementById('github-submit-btn').classList.remove('active');
 		shell.openExternal(baseUrl + encodeURIComponent(issueBody));
 	}
 

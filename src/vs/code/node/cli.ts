@@ -315,9 +315,7 @@ export async function main(argv: string[]): TPromise<any> {
 			options['stdio'] = 'ignore';
 		}
 
-		const childArgs = argv.slice(2);
-		childArgs.push('--inspect-brk=1237');
-		const child = spawn(process.execPath, childArgs, options);
+		const child = spawn(process.execPath, argv.slice(2), options);
 
 		if (args.wait && waitMarkerFilePath) {
 			return new TPromise<void>(c => {

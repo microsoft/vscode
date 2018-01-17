@@ -23,6 +23,7 @@ export interface IssueReporterStyles {
 	buttonBackground: string;
 	buttonForeground: string;
 	buttonHoverBackground: string;
+	zoomLevel: number;
 }
 
 export interface IIssueService {

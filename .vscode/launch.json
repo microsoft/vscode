@@ -49,7 +49,7 @@
 			"request": "attach",
 			"name": "Attach to CLI Process",
 			"protocol": "inspector",
-			"port": 1236,
+			"port": 5874,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -59,7 +59,7 @@
 			"request": "attach",
 			"name": "Attach to Main Process",
 			"protocol": "inspector",
-			"port": 1237,
+			"port": 5875,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
