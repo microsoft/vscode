@@ -15,12 +15,14 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	private _pieceTree: PieceTreeBase;
 	private _BOM: string;
 	private _EOL: string;
+	private _EOLLength: number;
 	private _mightContainRTL: boolean;
 	private _mightContainNonBasicASCII: boolean;
 
 	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, isBasicASCII: boolean) {
 		this._BOM = BOM;
 		this._EOL = eol;
+		this._EOLLength = this._EOL.length;
 		this._mightContainNonBasicASCII = !isBasicASCII;
 		this._mightContainRTL = containsRTL;
 		this._pieceTree = new PieceTreeBase(chunks);
@@ -35,12 +37,6 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			return false;
 		}
 		if (this._EOL !== other._EOL) {
-			return false;
-		}
-		if (this.getLength() !== other.getLength()) {
-			return false;
-		}
-		if (this.getLineCount() !== other.getLineCount()) {
 			return false;
 		}
 		return this._pieceTree.equal(other._pieceTree);
@@ -79,7 +75,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		}
 
 		const lineEnding = this._getEndOfLine(eol);
-		const text = this._pieceTree.getValueInRange(range, eol);
+		const text = this._pieceTree.getValueInRange(range);
 		return text.replace(/\r\n|\r|\n/g, lineEnding);
 	}
 
@@ -118,15 +114,19 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	}
 
 	public getLineLength(lineNumber: number): number {
-		return this._pieceTree.getLineLength(lineNumber);
+		if (lineNumber === this.getLineCount()) {
+			let startOffset = this.getOffsetAt(lineNumber, 1);
+			return this.getLength() - startOffset;
+		}
+		return this.getOffsetAt(lineNumber + 1, 1) - this.getOffsetAt(lineNumber, 1) - this._EOLLength;
 	}
 
 	public getLineMinColumn(lineNumber: number): number {
-		return this._pieceTree.getLineMinColumn(lineNumber);
+		return 1;
 	}
 
 	public getLineMaxColumn(lineNumber: number): number {
-		return this._pieceTree.getLineMaxColumn(lineNumber);
+		return this.getLineLength(lineNumber) + 1;
 	}
 
 	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
@@ -151,6 +151,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 
 	public setEOL(newEOL: '\r\n' | '\n'): void {
 		this._EOL = newEOL;
+		this._EOLLength = this._EOL.length;
 		this._pieceTree.normalizeEOL(newEOL);
 	}
 

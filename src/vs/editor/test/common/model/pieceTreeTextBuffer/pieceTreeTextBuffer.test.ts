@@ -1439,14 +1439,6 @@ suite('centralized lineStarts with CRLF', () => {
 	});
 });
 
-suite('test case from vscode', () => {
-	let str = 'line one\nline two';
-	let pieceTable = createTextBuffer([str], false);
-
-	assert.deepEqual(pieceTable.getPositionAt(20), new Position(2, 9));
-	assertTreeInvariants(pieceTable);
-});
-
 suite('random is unsupervised', () => {
 	test('random insert delete', () => {
 		let str = '';
@@ -1510,5 +1502,18 @@ suite('random is unsupervised', () => {
 		testLineStarts(str, pieceTable);
 		testLinesContent(str, pieceTable);
 		assertTreeInvariants(pieceTable);
+	});
+});
+
+suite('buffer api', () => {
+	test('equal', () => {
+		let a = createTextBuffer(['abc']);
+		let b = createTextBuffer(['ab', 'c']);
+		let c = createTextBuffer(['abd']);
+		let d = createTextBuffer(['abcd']);
+
+		assert(a.equal(b));
+		assert(!a.equal(c));
+		assert(!a.equal(d));
 	});
 });
