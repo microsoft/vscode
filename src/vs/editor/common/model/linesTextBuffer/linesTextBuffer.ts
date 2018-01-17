@@ -198,6 +198,10 @@ export class LinesTextBuffer implements ITextBuffer {
 		return this._lines.slice(0);
 	}
 
+	public getLength(): number {
+		return this._lineStarts.getTotalValue();
+	}
+
 	public getLineContent(lineNumber: number): string {
 		return this._lines[lineNumber - 1];
 	}
