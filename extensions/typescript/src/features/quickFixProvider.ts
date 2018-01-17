@@ -34,11 +34,9 @@ class SupportedCodeActionProvider {
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public async getSupportedActionsForContext(context: vscode.CodeActionContext): Promise<Set<number>> {
+	public async getFixableDiagnosticsForContext(context: vscode.CodeActionContext): Promise<vscode.Diagnostic[]> {
 		const supportedActions = await this.supportedCodeActions;
-		return new Set(context.diagnostics
-			.map(diagnostic => +diagnostic.code)
-			.filter(code => supportedActions.has(code)));
+		return context.diagnostics.filter(diagnostic => supportedActions.has(+diagnostic.code));
 	}
 
 	private get supportedCodeActions(): Thenable<Set<number>> {
@@ -80,23 +78,33 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 			return [];
 		}
 
-		const supportedActions = await this.supportedCodeActionProvider.getSupportedActionsForContext(context);
-		if (!supportedActions.size) {
+		const fixableDiagnostics = await this.supportedCodeActionProvider.getFixableDiagnosticsForContext(context);
+		if (!fixableDiagnostics.length) {
 			return [];
 		}
 
 		await this.formattingConfigurationManager.ensureFormatOptionsForDocument(document, token);
 
-		const args: Proto.CodeFixRequestArgs = {
-			...vsRangeToTsFileRange(file, range),
-			errorCodes: Array.from(supportedActions)
-		};
-		const response = await this.client.execute('getCodeFixes', args, token);
-		return (response.body || []).map(action => this.getCommandForAction(action));
+		const results: vscode.CodeAction[] = [];
+		for (const diagnostic of fixableDiagnostics) {
+			const args: Proto.CodeFixRequestArgs = {
+				...vsRangeToTsFileRange(file, diagnostic.range),
+				errorCodes: [+diagnostic.code]
+			};
+			const response = await this.client.execute('getCodeFixes', args, token);
+			if (response.body) {
+				results.push(...response.body.map(action => this.getCommandForAction(diagnostic, action)));
+			}
+		}
+		return results;
 	}
 
-	private getCommandForAction(tsAction: Proto.CodeAction): vscode.CodeAction {
+	private getCommandForAction(
+		diagnostic: vscode.Diagnostic,
+		tsAction: Proto.CodeAction
+	): vscode.CodeAction {
 		const codeAction = new vscode.CodeAction(tsAction.description, getEditForCodeAction(this.client, tsAction));
+		codeAction.diagnostics = [diagnostic];
 		if (tsAction.commands) {
 			codeAction.command = {
 				command: ApplyCodeActionCommand.ID,
