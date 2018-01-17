@@ -190,10 +190,6 @@ export class LinesTextBuffer implements ITextBuffer {
 		return endOffset - startOffset;
 	}
 
-	public getLength(): number {
-		return this._lineStarts.getTotalValue();
-	}
-
 	public getLineCount(): number {
 		return this._lines.length;
 	}
