@@ -102,7 +102,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'problems.decorations.enabled': {
 			'description': localize('markers.showOnFile', "Show Errors & Warnings on files and folder."),
 			'type': 'boolean',
-			'default': false
+			'default': true
 		}
 	}
 });

@@ -904,9 +904,12 @@ export class ReportIssueAction extends Action {
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
-			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
-- OS Version: ${osVersion}
-- Extensions: ${areExtensionsDisabled ? 'Extensions are disabled' : this.generateExtensionTable(extensions)}
+			`<ul>
+	<li>VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})</li>
+	<li>OS Version: ${osVersion}</li>
+	<li>${areExtensionsDisabled ? 'Extensions: Extensions are disabled' : this.generateExtensionTable(extensions)}</li>
+</ul>
+
 ---
 
 Steps to Reproduce:
@@ -932,7 +935,7 @@ Reproduces without extensions: Yes/No` : '')
 		extensions = nonThemes || [];
 
 		if (!extensions.length) {
-			return 'none' + themeExclusionStr;
+			return 'Extensions: none' + themeExclusionStr;
 		}
 
 		let tableHeader = `Extension|Author (truncated)|Version
@@ -941,13 +944,13 @@ Reproduces without extensions: Yes/No` : '')
 			return `${e.manifest.name}|${e.manifest.publisher.substr(0, 3)}|${e.manifest.version}`;
 		}).join('\n');
 
-		const extensionTable = `
+		const extensionTable = `<details><summary>Extensions (${extensions.length})</summary>
 
 ${tableHeader}
 ${table}
 ${themeExclusionStr}
 
-`;
+</details>`;
 
 		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
 		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers

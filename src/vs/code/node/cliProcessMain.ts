@@ -35,7 +35,7 @@ import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IStateService } from 'vs/platform/state/common/state';
 import { StateService } from 'vs/platform/state/node/stateService';
-import { createLogService } from 'vs/platform/log/node/spdlogService';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 
@@ -196,7 +196,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(argv, process.execPath);
-	const logService = createLogService('cli', environmentService);
+	const logService = createSpdLogService('cli', environmentService);
 	process.once('exit', () => logService.dispose());
 
 	logService.info('main', argv);

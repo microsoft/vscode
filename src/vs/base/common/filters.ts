@@ -341,6 +341,22 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }
 
+export function skipScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+	pattern = pattern.toLowerCase();
+	word = word.toLowerCase();
+
+	const matches: number[] = [];
+	let idx = 0;
+	for (let pos = 0; pos < pattern.length; ++pos) {
+		const thisIdx = word.indexOf(pattern.charAt(pos), idx);
+		if (thisIdx >= 0) {
+			matches.push(thisIdx);
+			idx = thisIdx + 1;
+		}
+	}
+	return [matches.length, matches];
+}
+
 //#region --- fuzzyScore ---
 
 export function createMatches(position: number[]): IMatch[] {

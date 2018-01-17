@@ -68,6 +68,8 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			this._document = {
 				get uri() { return data._uri; },
 				get fileName() { return data._uri.fsPath; },
+				// todo@remote
+				// documents from other fs-provider must not be untitled
 				get isUntitled() { return data._uri.scheme !== 'file'; },
 				get languageId() { return data._languageId; },
 				get version() { return data._versionId; },

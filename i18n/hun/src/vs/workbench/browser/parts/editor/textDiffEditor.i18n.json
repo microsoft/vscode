@@ -11,6 +11,5 @@
 	"editableEditorAriaLabel": "Szövegfájl-összehasonlító.",
 	"navigate.next.label": "Következő módosítás",
 	"navigate.prev.label": "Előző módosítás",
-	"inlineDiffLabel": "Váltás inline nézetre",
-	"sideBySideDiffLabel": "Váltás párhuzamos nézetre"
+	"toggleIgnoreTrimWhitespace.label": "Térközlevágás mellőzése"
 }

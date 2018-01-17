@@ -37,7 +37,7 @@ import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ipcRenderer } from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createSharedProcessContributions } from 'vs/code/electron-browser/sharedProcess/contrib/contributions';
-import { createLogService } from 'vs/platform/log/node/spdlogService';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export interface ISharedProcessConfiguration {
@@ -81,7 +81,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
-	const logService = createLogService('sharedprocess', environmentService);
+	const logService = createSpdLogService('sharedprocess', environmentService);
 	process.once('exit', () => logService.dispose());
 
 	logService.info('main', JSON.stringify(configuration));

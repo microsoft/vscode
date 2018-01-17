@@ -940,6 +940,9 @@ export abstract class CommonCodeEditor extends Disposable {
 
 			this.listenersToRemove.push(this.model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
 			this.listenersToRemove.push(this.model.onDidChangeLanguage((e) => {
+				if (!this.model) {
+					return;
+				}
 				this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
 				this._onDidChangeModelLanguage.fire(e);
 			}));

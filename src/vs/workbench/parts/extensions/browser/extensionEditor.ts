@@ -52,6 +52,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -62,13 +63,17 @@ export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED = new 
 /**  A context key that is set when the find widget find input in extension editor webview is not focused. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
-function renderBody(body: string): string {
+function renderBody(
+	body: string,
+	environmentService: IEnvironmentService
+): string {
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://' + environmentService.appRoot, 'vscode-core-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src file:; child-src 'none'; frame-src 'none';">
-				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-core-resource:; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${styleSheetPath}">
 			</head>
 			<body>
 				<a id="scroll-to-top" role="button" aria-label="scroll to top" href="#"><span class="icon"></span></a>
@@ -194,7 +199,9 @@ export class ExtensionEditor extends BaseEditor {
 		@IPartService private partService: IPartService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
 		this.disposables = [];
@@ -408,12 +415,12 @@ export class ExtensionEditor extends BaseEditor {
 	private openMarkdown(content: TPromise<string>, noContentCopy: string) {
 		return this.loadContents(() => content
 			.then(marked.parse)
-			.then(renderBody)
+			.then(content => renderBody(content, this.environmentService))
 			.then(removeEmbeddedSVGs)
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
-				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
-				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
+				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : {};
+				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.environmentService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions, false);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 

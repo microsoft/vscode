@@ -70,7 +70,7 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 .foo {
 	margin: a
 	margin: 10px;
-}		
+}
 		`;
 
 		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
@@ -82,6 +82,36 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 				if (completionPromise) {
 					assert.equal(1, 2, `Invalid completion at property value`);
 				}
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Allow hex color when typing property values when there is a property in the next line (CSS)', () => {
+		const testContent = `
+.foo {
+	margin: #12
+	margin: 10px;
+}
+		`;
+
+		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+			editor.selection = new Selection(2, 12, 2, 12);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), testContent.replace('#12', '#121212'));
+				const cancelSrc = new CancellationTokenSource();
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token);
+				if (!completionPromise) {
+					assert.fail('Completion promise wasnt returned');
+					return Promise.resolve();
+				}
+				completionPromise.then(result => {
+					if (!result || !result.items || !result.items.length) {
+						assert.fail('Completion promise came back empty');
+						return Promise.resolve();
+					}
+					assert.equal(result.items[0].label, '#121212');
+				});
 				return Promise.resolve();
 			});
 		});
@@ -109,11 +139,41 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 		});
 	});
 
+	test('Allow hex color when typing property values when there is a property in the previous line (CSS)', () => {
+		const testContent = `
+.foo {
+	margin: 10px;
+	margin: #12
+}
+		`;
+
+		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+			editor.selection = new Selection(3, 12, 3, 12);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), testContent.replace('#12', '#121212'));
+				const cancelSrc = new CancellationTokenSource();
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(3, 12), cancelSrc.token);
+				if (!completionPromise) {
+					assert.fail('Completion promise wasnt returned');
+					return Promise.resolve();
+				}
+				completionPromise.then(result => {
+					if (!result || !result.items || !result.items.length) {
+						assert.fail('Completion promise came back empty');
+						return Promise.resolve();
+					}
+					assert.equal(result.items[0].label, '#121212');
+				});
+				return Promise.resolve();
+			});
+		});
+	});
+
 	test('Skip when typing property values when it is the only property in the rule (CSS)', () => {
 		const testContent = `
 .foo {
 	margin: a
-}		
+}
 		`;
 
 		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
@@ -125,6 +185,35 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 				if (completionPromise) {
 					assert.equal(1, 2, `Invalid completion at property value`);
 				}
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Allow hex colors when typing property values when it is the only property in the rule (CSS)', () => {
+		const testContent = `
+.foo {
+	margin: #12
+}
+		`;
+
+		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+			editor.selection = new Selection(2, 12, 2, 12);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), testContent.replace('#12', '#121212'));
+				const cancelSrc = new CancellationTokenSource();
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token);
+				if (!completionPromise) {
+					assert.fail('Completion promise wasnt returned');
+					return Promise.resolve();
+				}
+				completionPromise.then(result => {
+					if (!result || !result.items || !result.items.length) {
+						assert.fail('Completion promise came back empty');
+						return Promise.resolve();
+					}
+					assert.equal(result.items[0].label, '#121212');
+				});
 				return Promise.resolve();
 			});
 		});

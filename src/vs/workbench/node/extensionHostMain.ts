@@ -21,7 +21,7 @@ import * as watchdog from 'native-watchdog';
 import * as glob from 'vs/base/common/glob';
 import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { createLogService } from 'vs/platform/log/node/spdlogService';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -92,7 +92,7 @@ export class ExtensionHostMain {
 		const rpcProtocol = new RPCProtocol(protocol);
 		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace);
 		const environmentService = new EnvironmentService(initData.args, initData.execPath);
-		this._logService = createLogService(`exthost${initData.windowId}`, environmentService);
+		this._logService = createSpdLogService(`exthost${initData.windowId}`, environmentService);
 		this.disposables.push(this._logService);
 
 		this._logService.info('extension host started');

@@ -12,6 +12,5 @@
 	"globalConsoleActionWin": "Abrir nuevo símbolo del sistema",
 	"globalConsoleActionMacLinux": "Abrir nuevo terminal",
 	"scopedConsoleActionWin": "Abrir en símbolo del sistema",
-	"scopedConsoleActionMacLinux": "Abrir en terminal",
-	"openFolderInIntegratedTerminal": "Abrir en terminal"
+	"scopedConsoleActionMacLinux": "Abrir en terminal"
 }

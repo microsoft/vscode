@@ -6,5 +6,7 @@
 {
 	"close": "Cerrar",
 	"later": "Más tarde",
-	"cancel": "Cancelar"
+	"cancel": "Cancelar",
+	"moreFile": "...1 archivo más que no se muestra",
+	"moreFiles": "...{0} archivos más que no se muestran"
 }

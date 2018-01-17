@@ -45,6 +45,8 @@ const INSTALL_ERROR_GALLERY = 'gallery';
 const INSTALL_ERROR_LOCAL = 'local';
 const INSTALL_ERROR_EXTRACTING = 'extracting';
 const INSTALL_ERROR_DELETING = 'deleting';
+const INSTALL_ERROR_READING_EXTENSION_FROM_DISK = 'readingExtension';
+const INSTALL_ERROR_SAVING_METADATA = 'savingMetadata';
 const INSTALL_ERROR_UNKNOWN = 'unknown';
 
 export class ExtensionManagementError extends Error {
@@ -155,7 +157,12 @@ export class ExtensionManagementService implements IExtensionManagementService {
 									.then(
 									metadata => this.installFromZipPath(identifier, zipPath, metadata, manifest),
 									error => this.installFromZipPath(identifier, zipPath, null, manifest))
-									.then(() => this.logService.info('Successfully installed the extension:', identifier.id), e => this.logService.error('Failed to install the extension:', identifier.id, e.message));
+									.then(
+									() => this.logService.info('Successfully installed the extension:', identifier.id),
+									e => {
+										this.logService.error('Failed to install the extension:', identifier.id, e.message);
+										return TPromise.wrapError(e);
+									});
 							}
 							return null;
 						}),
@@ -208,7 +215,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						.then(dependenciesToInstall => this.downloadAndInstallExtensions(metadata ? dependenciesToInstall.filter(d => d.identifier.uuid !== metadata.id) : dependenciesToInstall))
 						.then(() => local, error => {
 							this.uninstallExtension(local);
-							return TPromise.wrapError(error);
+							return TPromise.wrapError(new Error(nls.localize('errorInstallingDependencies', "Error while installing dependencies. {0}", error instanceof Error ? error.message : error)));
 						});
 				}
 				return local;
@@ -321,14 +328,18 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private getDependenciesToInstall(dependencies: string[]): TPromise<IGalleryExtension[]> {
 		if (dependencies.length) {
-			return this.galleryService.loadAllDependencies(dependencies.map(id => (<IExtensionIdentifier>{ id })))
-				.then(allDependencies => this.getInstalled()
-					.then(local => {
-						return allDependencies.filter(d => {
-							const extensionId = getLocalExtensionIdFromGallery(d, d.version);
-							return local.every(({ identifier }) => identifier.id !== extensionId);
-						});
-					}));
+			return this.getInstalled()
+				.then(installed => {
+					const uninstalledDeps = dependencies.filter(d => installed.every(i => getGalleryExtensionId(i.manifest.publisher, i.manifest.name) !== d));
+					if (uninstalledDeps.length) {
+						return this.galleryService.loadAllDependencies(uninstalledDeps.map(id => (<IExtensionIdentifier>{ id })))
+							.then(allDependencies => allDependencies.filter(d => {
+								const extensionId = getLocalExtensionIdFromGallery(d, d.version);
+								return installed.every(({ identifier }) => identifier.id !== extensionId);
+							}));
+					}
+					return [];
+				});
 		}
 		return TPromise.as([]);
 	}
@@ -387,7 +398,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					() => {
 						this.logService.info(`Extracted extension to ${extensionPath}:`, id);
 						return TPromise.join([readManifest(extensionPath), pfs.readdir(extensionPath)])
-							.then(null, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_LOCAL)));
+							.then(null, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_READING_EXTENSION_FROM_DISK)));
 					},
 					e => TPromise.wrapError(new ExtensionManagementError(e.message, INSTALL_ERROR_EXTRACTING)))
 					.then(([{ manifest }, children]) => {
@@ -405,7 +416,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 							.then(() => {
 								this.logService.info(`Updated metadata of the extension:`, id);
 								return local;
-							}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_LOCAL)));
+							}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_SAVING_METADATA)));
 					});
 			}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
 	}

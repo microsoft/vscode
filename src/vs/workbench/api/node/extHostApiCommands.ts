@@ -239,6 +239,15 @@ export class ExtHostApiCommands {
 					{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: v => v === void 0 || typeof v === 'number' || typeof v === 'object' }
 				]
 			});
+
+		this._register('vscode.removeFromRecentlyOpened', (path: string) => {
+			return this._commands.executeCommand('_workbench.removeFromRecentlyOpened', path);
+		}, {
+				description: 'Removes an entry with the given path from the recently opened list.',
+				args: [
+					{ name: 'path', description: 'Path to remove from recently opened.', constraint: value => typeof value === 'string' }
+				]
+			});
 	}
 
 	// --- command impl

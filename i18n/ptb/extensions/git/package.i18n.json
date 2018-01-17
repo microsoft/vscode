@@ -54,6 +54,7 @@
 	"command.stashPopLatest": "Pop mais recente Stash",
 	"config.enabled": "Se o git estiver habilitado",
 	"config.path": "Caminho para o executável do git",
+	"config.autoRepositoryDetection": "Se os repositórios devem ser detectados automaticamente",
 	"config.autorefresh": "Se a atualização automática estiver habilitada",
 	"config.autofetch": "Se a recuperação automática estiver habilitada",
 	"config.enableLongCommitWarning": "Se mensagens longas de confirmação devem ter aviso",
@@ -72,5 +73,6 @@
 	"colors.deleted": "Cor para recursos excluídos.",
 	"colors.untracked": "Cor para recursos não controlados.",
 	"colors.ignored": "Cor para recursos ignorados.",
-	"colors.conflict": "Cor para recursos com conflitos."
+	"colors.conflict": "Cor para recursos com conflitos.",
+	"colors.submodule": "Cor para recursos de sub-módulos."
 }

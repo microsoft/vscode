@@ -11,6 +11,5 @@
 	"editableEditorAriaLabel": "Textdateivergleichs-Editor",
 	"navigate.next.label": "Nächste Änderung",
 	"navigate.prev.label": "Vorherige Änderung",
-	"inlineDiffLabel": "Zur Inlineansicht wechseln",
-	"sideBySideDiffLabel": "Zur Parallelansicht wechseln"
+	"toggleIgnoreTrimWhitespace.label": "Keine Leerzeichen entfernen"
 }

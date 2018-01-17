@@ -52,6 +52,7 @@ import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -197,7 +198,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true });
 
@@ -271,7 +273,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._actionbarWidget.push([previous, next], { label: false, icon: true });
 
 		const actions: IAction[] = [];
-		fillInActions(this.menu, { shouldForwardArgs: true }, actions);
+		fillInActions(this.menu, { shouldForwardArgs: true }, actions, this.contextMenuService);
 		this._actionbarWidget.push(actions, { label: false, icon: true });
 	}
 
@@ -288,7 +290,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 			return undefined;
 		}
 
-		return new DiffMenuItemActionItem(action, this.keybindingService, this.messageService);
+		return new DiffMenuItemActionItem(action, this.keybindingService, this.messageService, this.contextMenuService);
 	}
 
 	protected _fillBody(container: HTMLElement): void {

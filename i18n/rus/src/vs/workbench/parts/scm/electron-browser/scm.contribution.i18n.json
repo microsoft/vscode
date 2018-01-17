@@ -7,5 +7,6 @@
 	"toggleGitViewlet": "Показать GIT",
 	"source control": "Система управления версиями",
 	"toggleSCMViewlet": "Показать SCM",
-	"view": "Просмотреть"
+	"view": "Просмотреть",
+	"scmConfigurationTitle": "SCM"
 }

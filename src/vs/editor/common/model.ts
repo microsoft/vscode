@@ -12,7 +12,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelContentChange, ModelRawChange } from 'vs/editor/common/model/textModelEvents';
+import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelContentChange } from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 /**
@@ -1079,6 +1079,7 @@ export interface ITextBuffer {
 
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getLength(): number;
 	getLineCount(): number;
 	getLinesContent(): string[];
 	getLineContent(lineNumber: number): string;
@@ -1087,7 +1088,7 @@ export interface ITextBuffer {
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 
-	setEOL(newEOL: string): void;
+	setEOL(newEOL: '\r\n' | '\n'): void;
 	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
 }
 
@@ -1098,7 +1099,6 @@ export class ApplyEditsResult {
 
 	constructor(
 		public readonly reverseEdits: IIdentifiedSingleEditOperation[],
-		public readonly rawChanges: ModelRawChange[],
 		public readonly changes: IInternalModelContentChange[],
 		public readonly trimAutoWhitespaceLineNumbers: number[]
 	) { }
