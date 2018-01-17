@@ -643,6 +643,11 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('selectionClipboard', "Controls if the Linux primary clipboard should be supported."),
 			'included': platform.isLinux
 		},
+		'editor.insertSpaceAfterComment': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('insertSpaceAfterComment', "Whether to insert space after comment character.")
+		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',
 			'default': true,

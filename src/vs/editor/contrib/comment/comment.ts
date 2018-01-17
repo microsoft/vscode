@@ -12,6 +12,7 @@ import { registerEditorAction, IActionOptions, EditorAction, ServicesAccessor } 
 import { BlockCommentCommand } from './blockCommentCommand';
 import { LineCommentCommand, Type } from './lineCommentCommand';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 abstract class CommentLineAction extends EditorAction {
 
@@ -33,7 +34,7 @@ abstract class CommentLineAction extends EditorAction {
 		var opts = model.getOptions();
 
 		for (var i = 0; i < selections.length; i++) {
-			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type));
+			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type, accessor.get(IConfigurationService)));
 		}
 
 		editor.pushUndoStop();
