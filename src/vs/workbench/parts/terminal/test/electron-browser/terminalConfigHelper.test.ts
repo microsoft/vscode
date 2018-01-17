@@ -6,25 +6,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IConfigurationService, getConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-
-class MockConfigurationService implements IConfigurationService {
-	public _serviceBrand: any;
-	public serviceId = IConfigurationService;
-	public constructor(private configuration: any = {}) { }
-	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspace: void 0, workspaceFolder: void 0 }; }
-	public keys() { return { default: [] as string[], user: [] as string[], workspace: [] as string[], workspaceFolder: [] as string[] }; }
-	public getValue(): any { return this.configuration; }
-	public updateValue(): TPromise<void> { return null; }
-	public getConfigurationData(): any { return null; }
-	public onDidChangeConfiguration() { return { dispose() { } }; }
-	public reloadConfiguration(): TPromise<void> { return null; }
-}
 
 suite('Workbench - TerminalConfigHelper', () => {
 	let fixture: HTMLElement;
