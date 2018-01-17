@@ -54,16 +54,22 @@ export class BufferPiece {
 			return -1;
 		}
 
-		// TODO: implement binary search
-		for (let i = this._lineStarts.length - 1; i >= 0; i--) {
-			let lineStart = this._lineStarts[i];
+		let low = 0, high = this._lineStarts.length - 1;
 
-			if (lineStart <= offset) {
-				return i;
+		while (low < high) {
+			let mid = low + Math.ceil((high - low) / 2);
+			let lineStart = this._lineStarts[mid];
+
+			if (offset === lineStart) {
+				return mid;
+			} else if (offset < lineStart) {
+				high = mid - 1;
+			} else {
+				low = mid;
 			}
 		}
 
-		return -1;
+		return low;
 	}
 
 	public findLineFirstNonWhitespaceIndex(searchStartOffset: number): number {
@@ -111,7 +117,7 @@ export class BufferPiece {
 		}
 
 		let newLineStarts = new Uint32Array(newLineStartsLength);
-		newLineStarts.set(targetLineStarts); // TODO: does this work correctly?
+		newLineStarts.set(targetLineStarts);
 
 		return new BufferPiece(
 			target._str.substr(0, targetCharsLength - 1),

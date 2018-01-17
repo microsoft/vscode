@@ -61,8 +61,13 @@ export class TextBufferFactory implements ITextBufferFactory {
 	}
 
 	public getFirstLineText(lengthLimit: number): string {
-		console.log(`TODO`);
-		return '';
+		const firstPiece = this._pieces[0];
+		if (firstPiece.newLineCount() === 0) {
+			return firstPiece.substr(0, lengthLimit);
+		}
+
+		const firstEOLOffset = firstPiece.lineStartFor(0);
+		return firstPiece.substr(0, Math.min(lengthLimit, firstEOLOffset));
 	}
 }
 
