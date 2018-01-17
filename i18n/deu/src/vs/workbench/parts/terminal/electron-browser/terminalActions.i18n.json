@@ -14,6 +14,8 @@
 	"workbench.action.terminal.deleteWordRight": "Wort rechts löschen",
 	"workbench.action.terminal.new": "Neues integriertes Terminal erstellen",
 	"workbench.action.terminal.new.short": "Neues Terminal",
+	"workbench.action.terminal.newWorkspacePlaceholder": "Aktuelles Arbeitsverzeichnis für neues Terminal auswählen",
+	"workbench.action.terminal.newInActiveWorkspace": "Neues integriertes Terminal erstellen (in aktivem Arbeitsbereich)",
 	"workbench.action.terminal.focus": "Fokus im Terminal",
 	"workbench.action.terminal.focusNext": "Fokus im nächsten Terminal",
 	"workbench.action.terminal.focusPrevious": "Fokus im vorherigen Terminal",

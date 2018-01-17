@@ -121,7 +121,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
-		const options = [nls.localize('customize', "Customize"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")];
+		const options = [nls.localize('customize', "Customize"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Don't Show Again")];
 		this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
 			switch (choice) {
 				case 0:

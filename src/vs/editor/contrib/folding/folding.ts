@@ -134,6 +134,7 @@ export class FoldingController implements IEditorContribution {
 
 		let model = this.editor.getModel();
 		if (!this._isEnabled || !model || model.isTooLargeForTokenization()) {
+			// huge files get no view model, so they cannot support hidden areas
 			return;
 		}
 

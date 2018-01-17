@@ -1079,6 +1079,7 @@ export interface ITextBuffer {
 
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getLength(): number;
 	getLineCount(): number;
 	getLinesContent(): string[];
 	getLineContent(lineNumber: number): string;
@@ -1087,7 +1088,7 @@ export interface ITextBuffer {
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 
-	setEOL(newEOL: string): void;
+	setEOL(newEOL: '\r\n' | '\n'): void;
 	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
 }
 

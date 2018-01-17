@@ -347,7 +347,8 @@ export namespace CompletionTriggerKind {
 		switch (kind) {
 			case modes.SuggestTriggerKind.TriggerCharacter:
 				return types.CompletionTriggerKind.TriggerCharacter;
-
+			case modes.SuggestTriggerKind.TriggerForIncompleteCompletions:
+				return types.CompletionTriggerKind.TriggerForIncompleteCompletions;
 			case modes.SuggestTriggerKind.Invoke:
 			default:
 				return types.CompletionTriggerKind.Invoke;

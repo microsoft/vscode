@@ -54,19 +54,6 @@ export class ShowProblemsPanelAction extends Action {
 	}
 }
 
-export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
-
-	public static ID: string = 'workbench.action.showErrorsWarnings';
-	public static readonly LABEL = Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL;
-
-	constructor(id: string, label: string,
-		@IPartService partService: IPartService,
-		@IPanelService panelService: IPanelService,
-	) {
-		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService);
-	}
-}
-
 export class CollapseAllAction extends TreeCollapseAction {
 
 	constructor(viewer: Tree.ITree, enabled: boolean) {

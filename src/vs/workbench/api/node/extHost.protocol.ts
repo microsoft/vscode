@@ -48,11 +48,12 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
-import { IStat, IFileChange } from 'vs/platform/files/common/files';
+import { IStat, FileChangeType } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model';
+import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -365,15 +366,20 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
 }
 
+export interface IFileChangeDto {
+	resource: UriComponents;
+	type: FileChangeType;
+}
+
 export interface MainThreadFileSystemShape extends IDisposable {
 	$registerFileSystemProvider(handle: number, scheme: string): void;
 	$unregisterFileSystemProvider(handle: number): void;
 
 	$onDidAddFileSystemRoot(root: UriComponents): void;
-	$onFileSystemChange(handle: number, resource: IFileChange[]): void;
-	$reportFileChunk(handle: number, resource: UriComponents, chunk: number[] | null): void;
+	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
+	$reportFileChunk(handle: number, session: number, chunk: number[] | null): void;
 
-	$handleSearchProgress(handle: number, session: number, resource: UriComponents): void;
+	$handleFindMatch(handle: number, session, data: UriComponents | [UriComponents, ILineMatch]): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {
@@ -535,14 +541,15 @@ export interface ExtHostWorkspaceShape {
 export interface ExtHostFileSystemShape {
 	$utimes(handle: number, resource: UriComponents, mtime: number, atime: number): TPromise<IStat>;
 	$stat(handle: number, resource: UriComponents): TPromise<IStat>;
-	$read(handle: number, offset: number, count: number, resource: UriComponents): TPromise<number>;
+	$read(handle: number, session: number, offset: number, count: number, resource: UriComponents): TPromise<number>;
 	$write(handle: number, resource: UriComponents, content: number[]): TPromise<void>;
 	$unlink(handle: number, resource: UriComponents): TPromise<void>;
 	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
 	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
 	$rmdir(handle: number, resource: UriComponents): TPromise<void>;
-	$fileFiles(handle: number, session: number, query: string): TPromise<void>;
+	$findFiles(handle: number, session: number, query: string): TPromise<void>;
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, options: { includes: string[], excludes: string[] }): TPromise<void>;
 }
 
 export interface ExtHostExtensionServiceShape {

@@ -6,11 +6,5 @@
 {
 	"openEditors": "Megnyitott szerkesztőablakok",
 	"openEditosrSection": "Megnyitott szerkesztőablakok szakasz",
-	"dirtyCounter": "{0} nincs mentve",
-	"saveAll": "Összes mentése",
-	"closeAllUnmodified": "Nem módosultak bezárása",
-	"closeAll": "Összes bezárása",
-	"compareWithSaved": "Összehasonlítás a mentett változattal",
-	"close": "Bezárás",
-	"closeOthers": "Többi bezárása"
+	"dirtyCounter": "{0} nincs mentve"
 }

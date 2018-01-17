@@ -76,7 +76,7 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -320,16 +320,12 @@ export class Workbench implements IPartService {
 		perf.mark('willRestoreEditors');
 		const restoredEditors: string[] = [];
 		restorePromises.push(this.resolveEditorsToOpen().then(inputs => {
-
 			let editorOpenPromise: TPromise<IEditor[]>;
 			if (inputs.length) {
 				editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
 			} else {
 				editorOpenPromise = this.editorPart.restoreEditors();
 			}
-
-			// update lifecycle *after* triggering the editor restore
-			this.lifecycleService.phase = LifecyclePhase.Restoring;
 
 			return editorOpenPromise.then(editors => {
 				this.handleEditorBackground(); // make sure we show the proper background in the editor area

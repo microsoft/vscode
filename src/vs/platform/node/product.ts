@@ -69,6 +69,7 @@ export interface IProductConfiguration {
 		'linux-x64': string;
 		'darwin': string;
 	};
+	logUploaderUrl: string;
 }
 
 export interface ISurveyData {

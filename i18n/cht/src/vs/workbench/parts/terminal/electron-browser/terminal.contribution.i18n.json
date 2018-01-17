@@ -14,6 +14,7 @@
 	"terminal.integrated.shell.windows": "終端機在 Windows 上使用的殼層路徑。使用隨附於 Windows 的殼層 (cmd、PowerShell 或 Bash on Ubuntu) 時。",
 	"terminal.integrated.shellArgs.windows": "在 Windows 終端機上時要使用的命令列引數。",
 	"terminal.integrated.rightClickCopyPaste": "如有設定，這會防止在終端機內按滑鼠右鍵時顯示操作功能表，而是在有選取項目時複製、沒有選取項目時貼上。",
+	"terminal.integrated.copyOnSelection": "當設定時，在終端機中選擇的文字將會被複製至剪貼簿",
 	"terminal.integrated.fontFamily": "控制終端機的字型家族，預設為 editor.fontFamily 的值。",
 	"terminal.integrated.fontSize": "控制終端機的字型大小 (以像素為單位)。",
 	"terminal.integrated.lineHeight": "控制終端機的行高，此數字會乘上終端機字型大小，以取得以像素為單位的實際行高。",

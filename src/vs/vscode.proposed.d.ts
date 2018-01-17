@@ -83,12 +83,33 @@ declare module 'vscode' {
 		type: FileType;
 	}
 
+	export interface TextSearchQuery {
+		pattern: string;
+		isRegex?: boolean;
+		isCaseSensitive?: boolean;
+		isWordMatch?: boolean;
+	}
+
+	export interface TextSearchOptions {
+		includes: GlobPattern[];
+		excludes: GlobPattern[];
+	}
+
+	export interface TextSearchResult {
+		uri: Uri;
+		range: Range;
+		preview: { leading: string, matching: string, trailing: string };
+	}
+
 	// todo@joh discover files etc
+	// todo@joh CancellationToken everywhere
+	// todo@joh add open/close calls?
 	export interface FileSystemProvider {
 
 		readonly onDidChange?: Event<FileChange[]>;
 
-		readonly root: Uri;
+		// todo@joh - remove this
+		readonly root?: Uri;
 
 		// more...
 		//
@@ -98,6 +119,7 @@ declare module 'vscode' {
 
 		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
 
+		// todo@joh - have an option to create iff not exist
 		// todo@remote
 		// offset - byte offset to start
 		// count - number of bytes to write
@@ -128,11 +150,13 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 
 		// find files by names
+		// todo@joh, move into its own provider
 		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
-		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
 	}
 
 	export namespace window {

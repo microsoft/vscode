@@ -410,12 +410,6 @@ export interface IFileStat extends IBaseStat {
 	isDirectory: boolean;
 
 	/**
-	 * Return {{true}} when this is a directory
-	 * that is not empty.
-	 */
-	hasChildren: boolean;
-
-	/**
 	 * The children of the file stat or undefined if none.
 	 */
 	children?: IFileStat[];

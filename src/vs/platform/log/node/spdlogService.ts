@@ -10,7 +10,7 @@ import { ILogService, LogLevel, NullLogService } from 'vs/platform/log/common/lo
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RotatingLogger, setAsyncMode } from 'spdlog';
 
-export function createLogService(processName: string, environmentService: IEnvironmentService, logsSubfolder?: string): ILogService {
+export function createSpdLogService(processName: string, environmentService: IEnvironmentService, logsSubfolder?: string): ILogService {
 	try {
 		setAsyncMode(8192, 2000);
 		const logsDirPath = logsSubfolder ? path.join(environmentService.logsPath, logsSubfolder) : environmentService.logsPath;

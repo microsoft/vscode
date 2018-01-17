@@ -198,6 +198,10 @@ export class LinesTextBuffer implements ITextBuffer {
 		return this._lines.slice(0);
 	}
 
+	public getLength(): number {
+		return this._lineStarts.getTotalValue();
+	}
+
 	public getLineContent(lineNumber: number): string {
 		return this._lines[lineNumber - 1];
 	}
@@ -228,7 +232,7 @@ export class LinesTextBuffer implements ITextBuffer {
 
 	//#region Editing
 
-	public setEOL(newEOL: string): void {
+	public setEOL(newEOL: '\r\n' | '\n'): void {
 		this._EOL = newEOL;
 		this._constructLineStarts();
 	}

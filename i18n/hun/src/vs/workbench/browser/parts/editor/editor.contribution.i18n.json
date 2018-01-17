@@ -13,5 +13,18 @@
 	"groupThreePicker": "A harmadik csoportban található szerkesztőablakok megjelenítése",
 	"allEditorsPicker": "Összes megnyitott szerkesztőablak megjelenítése",
 	"view": "Nézet",
-	"file": "Fájl"
+	"file": "Fájl",
+	"close": "Bezárás",
+	"closeOthers": "Többi bezárása",
+	"closeRight": "Jobbra lévők bezárása",
+	"closeAllUnmodified": "Nem módosultak bezárása",
+	"closeAll": "Összes bezárása",
+	"keepOpen": "Maradjon nyitva",
+	"toggleInlineView": "Sorok közötti nézet be- és kikapcsolása",
+	"showOpenedEditors": "Megnyitott szerkesztőablak megjelenítése",
+	"keepEditor": "Szerkesztőablak nyitva tartása",
+	"closeEditorsInGroup": "A csoportban lévő összes szerkesztőablak bezárása",
+	"closeUnmodifiedEditors": "Nem módosult szerkesztőablakok bezárása a csoportban",
+	"closeOtherEditors": "Többi szerkesztőablak bezárása",
+	"closeRightEditors": "Jobbra lévő szerkesztőablakok bezárása"
 }

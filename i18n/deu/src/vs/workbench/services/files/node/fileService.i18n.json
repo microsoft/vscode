@@ -10,6 +10,7 @@
 	"fileTooLargeError": "Die Datei ist zu groß, um sie zu öffnen.",
 	"fileNotFoundError": "Die Datei wurde nicht gefunden ({0}).",
 	"fileBinaryError": "Die Datei scheint eine Binärdatei zu sein und kann nicht als Text geöffnet werden.",
+	"filePermission": "Schreibzugriff auf Datei ({0}) verweigert",
 	"fileExists": "Die zu erstellende Datei ist bereits vorhanden ({0}). ",
 	"fileMoveConflict": "Verschieben/Kopieren kann nicht ausgeführt werden. Die Datei ist am Ziel bereits vorhanden.",
 	"unableToMoveCopyError": "Der Verschiebe-/Kopiervorgang kann nicht ausgeführt werden. Die Datei würde den Ordner ersetzen, in dem sie enthalten ist.",

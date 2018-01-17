@@ -72,5 +72,6 @@
 	"colors.deleted": "Farbe für gelöschten Ressourcen.",
 	"colors.untracked": "Farbe für nicht verfolgte Ressourcen.",
 	"colors.ignored": "Farbe für ignorierte Ressourcen.",
-	"colors.conflict": "Farbe für Ressourcen mit Konflikten."
+	"colors.conflict": "Farbe für Ressourcen mit Konflikten.",
+	"colors.submodule": "Farbe für Submodul-Ressourcen."
 }
