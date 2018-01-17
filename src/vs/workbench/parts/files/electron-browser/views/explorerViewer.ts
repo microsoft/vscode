@@ -280,16 +280,15 @@ export class FileRenderer implements IRenderer {
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
-		const done = once((commit: boolean) => {
+		const done = once((commit: boolean, blur: boolean) => {
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
 				editableData.action.run({ value: inputBox.value });
 			}
 
-			const restoreFocus = document.activeElement === inputBox.inputElement; // https://github.com/Microsoft/vscode/issues/20269
 			setTimeout(() => {
-				if (restoreFocus) {
+				if (!blur) { // https://github.com/Microsoft/vscode/issues/20269
 					tree.DOMFocus();
 				}
 				lifecycle.dispose(toDispose);
@@ -302,14 +301,14 @@ export class FileRenderer implements IRenderer {
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
-						done(true);
+						done(true, false);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false);
+					done(false, false);
 				}
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-				done(inputBox.isInputValid());
+				done(inputBox.isInputValid(), true);
 			}),
 			label,
 			styler
