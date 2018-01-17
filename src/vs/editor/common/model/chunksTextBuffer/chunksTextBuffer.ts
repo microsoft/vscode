@@ -134,8 +134,7 @@ export class ChunksTextBuffer implements ITextBuffer {
 	}
 
 	getLineCharCode(lineNumber: number, index: number): number {
-		// TODO
-		return this.getLineContent(lineNumber).charCodeAt(index);
+		return this._actual.getLineCharCode(lineNumber, index);
 	}
 
 	getLineLength(lineNumber: number): number {
@@ -891,6 +890,23 @@ class Buffer {
 
 		BufferCursorPool.put(start);
 		BufferCursorPool.put(end);
+		return result;
+	}
+
+	public getLineCharCode(lineNumber: number, index: number): number {
+		const start = BufferCursorPool.take();
+
+		if (!this._findLineStart(lineNumber, start)) {
+			BufferCursorPool.put(start);
+			throw new Error(`Line not found`);
+		}
+
+		const tmp = BufferCursorPool.take();
+		this._findOffsetCloseAfter(start.offset + index, start, tmp);
+		const result = this._leafs[tmp.leafIndex].charCodeAt(tmp.offset - tmp.leafStartNewLineCount);
+		BufferCursorPool.put(tmp);
+
+		BufferCursorPool.put(start);
 		return result;
 	}
 
