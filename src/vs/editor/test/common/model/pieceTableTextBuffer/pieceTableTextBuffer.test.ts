@@ -10,6 +10,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { PieceTableTextBufferBuilder } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableTextBufferBuilder';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { getNodeColor, SENTINEL, NodeColor, PieceTableBase, TreeNode } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableBase';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -67,6 +68,8 @@ function trimLineFeed(text: string): string {
 
 	return text;
 }
+
+//#region Assertion
 
 function testLinesContent(str: string, pieceTable: PieceTableTextBuffer) {
 	let lines = str.split(/\r\n|\r|\n/);
@@ -154,6 +157,57 @@ function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTab
 	return <PieceTableTextBuffer>factory.create(DefaultEndOfLine.LF);
 }
 
+function assertTreeInvariants(T: PieceTableBase): void {
+	assert(getNodeColor(SENTINEL) === NodeColor.Black);
+	assert(SENTINEL.parent === SENTINEL);
+	assert(SENTINEL.left === SENTINEL);
+	assert(SENTINEL.right === SENTINEL);
+	assert(SENTINEL.size_left === 0);
+	assert(SENTINEL.lf_left === 0);
+	assertValidTree(T);
+}
+
+function depth(n: TreeNode): number {
+	if (n === SENTINEL) {
+		// The leafs are black
+		return 1;
+	}
+	assert(depth(n.left) === depth(n.right));
+	return (getNodeColor(n) === NodeColor.Black ? 1 : 0) + depth(n.left);
+}
+
+function assertValidNode(n: TreeNode): { size: number, lf_cnt: number } {
+	if (n === SENTINEL) {
+		return { size: 0, lf_cnt: 0 };
+	}
+
+	let l = n.left;
+	let r = n.right;
+
+	if (getNodeColor(n) === NodeColor.Red) {
+		assert(getNodeColor(l) === NodeColor.Black);
+		assert(getNodeColor(r) === NodeColor.Black);
+	}
+
+	let actualLeft = assertValidNode(l);
+	assert(actualLeft.lf_cnt === n.lf_left);
+	assert(actualLeft.size === n.size_left);
+	let actualRight = assertValidNode(r);
+
+	return { size: n.size_left + n.piece.length + actualRight.size, lf_cnt: n.lf_left + n.piece.lineFeedCnt + actualRight.lf_cnt };
+}
+
+function assertValidTree(T: PieceTableBase): void {
+	if (T.root === SENTINEL) {
+		return;
+	}
+	assert(getNodeColor(T.root) === NodeColor.Black);
+	assert(depth(T.root.left) === depth(T.root.right));
+	assertValidNode(T.root);
+}
+
+//#endregion
+
 suite('inserts and deletes', () => {
 	test('basic insert/delete', () => {
 		let pieceTable = createTextBuffer([
@@ -170,6 +224,7 @@ suite('inserts and deletes', () => {
 			pieceTable.getLinesRawContent(),
 			'This is a document with some text.This is more text to insert at offset 34.'
 		);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('more inserts', () => {
@@ -183,6 +238,7 @@ suite('inserts and deletes', () => {
 		assert.equal(pt.getLinesRawContent(), 'BBBAAACCC');
 		pt.insert(5, 'DDD');
 		assert.equal(pt.getLinesRawContent(), 'BBBAADDDACCC');
+		assertTreeInvariants(pt);
 	});
 
 	test('more deletes', () => {
@@ -197,6 +253,7 @@ suite('inserts and deletes', () => {
 		assert.equal(pt.getLinesRawContent(), '12345');
 		pt.delete(0, 5);
 		assert.equal(pt.getLinesRawContent(), '');
+		assertTreeInvariants(pt);
 	});
 
 	test('random test 1', () => {
@@ -212,10 +269,10 @@ suite('inserts and deletes', () => {
 		str = str.substring(0, 38) + 'cyNcHxjNPPoehBJldLS ' + str.substring(38);
 		assert.equal(pieceTable.getLinesRawContent(), str);
 		pieceTable.insert(59, 'ejMx\nOTgWlbpeDExjOk ');
-		str =
-			str.substring(0, 59) + 'ejMx\nOTgWlbpeDExjOk ' + str.substring(59);
+		str = str.substring(0, 59) + 'ejMx\nOTgWlbpeDExjOk ' + str.substring(59);
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random test 2', () => {
@@ -233,6 +290,7 @@ suite('inserts and deletes', () => {
 		str = str.substring(0, 10) + 'Gbtp ' + str.substring(10);
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random test 3', () => {
@@ -281,6 +339,7 @@ suite('inserts and deletes', () => {
 		pieceTable.delete(0, 1);
 		str = str.substring(0, 0) + str.substring(0 + 1);
 		assert.equal(pieceTable.getLinesRawContent(), str);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random delete 2', () => {
@@ -306,6 +365,7 @@ suite('inserts and deletes', () => {
 		pieceTable.delete(3, 5);
 		str = str.substring(0, 3) + str.substring(3 + 5);
 		assert.equal(pieceTable.getLinesRawContent(), str);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random delete 3', () => {
@@ -338,6 +398,7 @@ suite('inserts and deletes', () => {
 		pieceTable.delete(3, 4);
 		str = str.substring(0, 3) + str.substring(3 + 4);
 		assert.equal(pieceTable.getLinesRawContent(), str);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random insert/delete \\r bug 1', () => {
@@ -363,6 +424,7 @@ suite('inserts and deletes', () => {
 		str = str.substring(0, 5) + '\n\na\r' + str.substring(5);
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random insert/delete \\r bug 2', () => {
@@ -390,6 +452,7 @@ suite('inserts and deletes', () => {
 		str = str.substring(0, 2) + 'a\ra\n' + str.substring(2);
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random insert/delete \\r bug 3', () => {
@@ -418,6 +481,7 @@ suite('inserts and deletes', () => {
 		str = str.substring(0, 21) + str.substring(21 + 3);
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random insert/delete \\r bug 4s', () => {
@@ -445,6 +509,7 @@ suite('inserts and deletes', () => {
 		str = str.substring(0, 3) + 'a\naa' + str.substring(3);
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
+		assertTreeInvariants(pieceTable);
 	});
 	test('random insert/delete \\r bug 5', () => {
 		let str = '';
@@ -471,6 +536,7 @@ suite('inserts and deletes', () => {
 		str = str.substring(0, 15) + '\n\r\r\r' + str.substring(15);
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
+		assertTreeInvariants(pieceTable);
 	});
 });
 
@@ -494,6 +560,7 @@ suite('prefix sum for line feed', () => {
 		assert.equal(pieceTable.getOffsetAt(3, 1), 4);
 		assert.equal(pieceTable.getOffsetAt(3, 2), 5);
 		assert.equal(pieceTable.getOffsetAt(4, 1), 6);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('append', () => {
@@ -503,6 +570,7 @@ suite('prefix sum for line feed', () => {
 		assert.equal(pieceTable.getLineCount(), 6);
 		assert.deepEqual(pieceTable.getPositionAt(9), new Position(4, 4));
 		assert.equal(pieceTable.getOffsetAt(1, 1), 0);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('insert', () => {
@@ -525,6 +593,7 @@ suite('prefix sum for line feed', () => {
 		assert.equal(pieceTable.getOffsetAt(6, 1), 12);
 		assert.equal(pieceTable.getOffsetAt(6, 2), 13);
 		assert.equal(pieceTable.getOffsetAt(6, 3), 14);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('delete', () => {
@@ -548,6 +617,7 @@ suite('prefix sum for line feed', () => {
 		assert.equal(pieceTable.getOffsetAt(6, 1), 11);
 		assert.equal(pieceTable.getOffsetAt(6, 2), 12);
 		assert.equal(pieceTable.getOffsetAt(6, 3), 13);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('add+delete 1', () => {
@@ -572,6 +642,7 @@ suite('prefix sum for line feed', () => {
 		assert.equal(pieceTable.getOffsetAt(6, 1), 11);
 		assert.equal(pieceTable.getOffsetAt(6, 2), 12);
 		assert.equal(pieceTable.getOffsetAt(6, 3), 13);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('insert random bug 1: prefixSumComputer.removeValues(start, cnt) cnt is 1 based.', () => {
@@ -587,22 +658,8 @@ suite('prefix sum for line feed', () => {
 			str.substring(0, 14) + 'X ZZ\nYZZYZXXY Y XY\n ' + str.substring(14);
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
-
-		let lineFeedIndex = -1;
-		let lineCnt = 1;
-		while ((lineFeedIndex = str.indexOf('\n', lineFeedIndex + 1)) !== -1) {
-			if (lineFeedIndex + 1 === str.length) {
-				// last line feed
-				break;
-			}
-
-			lineCnt += 1;
-			assert.deepEqual(
-				pieceTable.getPositionAt(lineFeedIndex + 1),
-				new Position(lineCnt, 1)
-			);
-			assert.equal(pieceTable.getOffsetAt(lineCnt, 1), lineFeedIndex + 1);
-		}
+		testLineStarts(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('insert random bug 2: prefixSumComputer initialize does not do deep copy of UInt32Array.', () => {
@@ -615,22 +672,8 @@ suite('prefix sum for line feed', () => {
 		str = str.substring(0, 3) + 'XXY \n\nY Y YYY  ZYXY ' + str.substring(3);
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
-
-		let lineFeedIndex = -1;
-		let lineCnt = 1;
-		while ((lineFeedIndex = str.indexOf('\n', lineFeedIndex + 1)) !== -1) {
-			if (lineFeedIndex + 1 === str.length) {
-				// last line feed
-				break;
-			}
-
-			lineCnt += 1;
-			assert.deepEqual(
-				pieceTable.getPositionAt(lineFeedIndex + 1),
-				new Position(lineCnt, 1)
-			);
-			assert.equal(pieceTable.getOffsetAt(lineCnt, 1), lineFeedIndex + 1);
-		}
+		testLineStarts(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('delete random bug 1: I forgot to update the lineFeedCnt when deletion is on one single piece.', () => {
@@ -657,22 +700,8 @@ suite('prefix sum for line feed', () => {
 		pieceTable.insert(33, 'acaa\nacb\n\naa\n\nc\n\n\n\n ');
 
 		let str = pieceTable.getLinesRawContent();
-		let lineFeedIndex = -1;
-		let lineCnt = 1;
-
-		while ((lineFeedIndex = str.indexOf('\n', lineFeedIndex + 1)) !== -1) {
-			if (lineFeedIndex + 1 === str.length) {
-				// last line feed
-				break;
-			}
-
-			lineCnt += 1;
-			assert.deepEqual(
-				pieceTable.getPositionAt(lineFeedIndex + 1),
-				new Position(lineCnt, 1)
-			);
-			assert.equal(pieceTable.getOffsetAt(lineCnt, 1), lineFeedIndex + 1);
-		}
+		testLineStarts(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('delete random bug rb tree 1', () => {
@@ -686,22 +715,8 @@ suite('prefix sum for line feed', () => {
 		str = str.substring(0, 0) + 'ZXYY\nX\nZ\n' + str.substring(0);
 		pieceTable.insert(10, '\nXY\nYXYXY');
 		str = str.substring(0, 10) + '\nXY\nYXYXY' + str.substring(10);
-		let lineFeedIndex = -1;
-		let lineCnt = 1;
-
-		while ((lineFeedIndex = str.indexOf('\n', lineFeedIndex + 1)) !== -1) {
-			if (lineFeedIndex + 1 === str.length) {
-				// last line feed
-				break;
-			}
-
-			lineCnt += 1;
-			assert.deepEqual(
-				pieceTable.getPositionAt(lineFeedIndex + 1),
-				new Position(lineCnt, 1)
-			);
-			assert.equal(pieceTable.getOffsetAt(lineCnt, 1), lineFeedIndex + 1);
-		}
+		testLineStarts(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('delete random bug rb tree 2', () => {
@@ -721,6 +736,7 @@ suite('prefix sum for line feed', () => {
 		str = str.substring(0, 0) + str.substring(0 + 4);
 
 		testLineStarts(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('delete random bug rb tree 3', () => {
@@ -748,6 +764,7 @@ suite('prefix sum for line feed', () => {
 		str = str.substring(0, 30) + str.substring(30 + 3);
 
 		testLineStarts(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 });
 
@@ -771,6 +788,7 @@ suite('offset 2 position', () => {
 		str = str.substring(0, 4) + 'S umSnYrqOmOAV\nEbZJ ' + str.substring(4);
 
 		testLineStarts(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 });
 
@@ -787,6 +805,7 @@ suite('get text in range', () => {
 		assert.equal(pieceTable.getValueInRange(new Range(4, 1, 4, 4)), 'dh\n');
 		assert.equal(pieceTable.getValueInRange(new Range(5, 1, 5, 3)), 'i\n');
 		assert.equal(pieceTable.getValueInRange(new Range(6, 1, 6, 3)), 'jk');
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random test value in range', () => {
@@ -805,6 +824,7 @@ suite('get text in range', () => {
 		str = str.substring(0, 12) + 'YYYX' + str.substring(12);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 	test('random test value in range exception', () => {
 		let str = '';
@@ -822,6 +842,7 @@ suite('get text in range', () => {
 		str = str.substring(0, 0) + str.substring(0 + 4);
 
 		pieceTable.getValueInRange(new Range(1, 1, 1, 1));
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random tests bug 1', () => {
@@ -842,6 +863,7 @@ suite('get text in range', () => {
 		pieceTable.insert(4, 'S umSnYrqOmOAV\nEbZJ ');
 		str = str.substring(0, 4) + 'S umSnYrqOmOAV\nEbZJ ' + str.substring(4);
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random tests bug 2', () => {
@@ -871,6 +893,7 @@ suite('get text in range', () => {
 			str.substring(0, 15) + 'KJCozaXTvkE\nxnqAeTz ' + str.substring(15);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('get line content', () => {
@@ -878,6 +901,7 @@ suite('get text in range', () => {
 		assert.equal(pieceTable.getLineRawContent(1), '1');
 		pieceTable.insert(1, '2');
 		assert.equal(pieceTable.getLineRawContent(1), '12');
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('get line content basic', () => {
@@ -886,6 +910,7 @@ suite('get text in range', () => {
 		assert.equal(pieceTable.getLineRawContent(2), '2\n');
 		assert.equal(pieceTable.getLineRawContent(3), '3\n');
 		assert.equal(pieceTable.getLineRawContent(4), '4');
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('get line content after inserts/deletes', () => {
@@ -900,6 +925,7 @@ suite('get text in range', () => {
 		assert.equal(pieceTable.getLineRawContent(4), 'dh\n');
 		assert.equal(pieceTable.getLineRawContent(5), 'i\n');
 		assert.equal(pieceTable.getLineRawContent(6), 'jk');
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random 1', () => {
@@ -914,6 +940,7 @@ suite('get text in range', () => {
 		str = str.substring(0, 5) + str.substring(5 + 1);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random 2', () => {
@@ -932,6 +959,7 @@ suite('get text in range', () => {
 			str.substring(0, 18) + 'vH\nNlvfqQJPm\nSFkhMc ' + str.substring(18);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 });
 
@@ -942,6 +970,7 @@ suite('CRLF', () => {
 		pieceTable.delete(0, 2);
 
 		assert.equal(pieceTable.getLineCount(), 2);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('delete CR in CRLF 2', () => {
@@ -950,6 +979,7 @@ suite('CRLF', () => {
 		pieceTable.delete(2, 2);
 
 		assert.equal(pieceTable.getLineCount(), 2);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 1', () => {
@@ -966,6 +996,7 @@ suite('CRLF', () => {
 
 		let lines = str.split(/\r\n|\r|\n/);
 		assert.equal(pieceTable.getLineCount(), lines.length);
+		assertTreeInvariants(pieceTable);
 	});
 	test('random bug 2', () => {
 		let str = '';
@@ -980,6 +1011,7 @@ suite('CRLF', () => {
 
 		let lines = str.split(/\r\n|\r|\n/);
 		assert.equal(pieceTable.getLineCount(), lines.length);
+		assertTreeInvariants(pieceTable);
 	});
 	test('random bug 3', () => {
 		let str = '';
@@ -1000,6 +1032,7 @@ suite('CRLF', () => {
 
 		let lines = str.split(/\r\n|\r|\n/);
 		assert.equal(pieceTable.getLineCount(), lines.length);
+		assertTreeInvariants(pieceTable);
 	});
 	test('random bug 4', () => {
 		let str = '';
@@ -1017,6 +1050,7 @@ suite('CRLF', () => {
 		str = str.substring(0, 5) + str.substring(5 + 3);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 	test('random bug 5', () => {
 		let str = '';
@@ -1042,6 +1076,7 @@ suite('CRLF', () => {
 		str = str.substring(0, 20) + '\n\n\r\n' + str.substring(20);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 	test('random bug 6', () => {
 		let str = '';
@@ -1065,6 +1100,7 @@ suite('CRLF', () => {
 		str = str.substring(0, 8) + str.substring(8 + 4);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 	test('random bug 8', () => {
 		let str = '';
@@ -1080,6 +1116,7 @@ suite('CRLF', () => {
 		str = str.substring(0, 7) + '\n\n\r\n' + str.substring(7);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 	test('random bug 7', () => {
 		let str = '';
@@ -1094,6 +1131,7 @@ suite('CRLF', () => {
 		pieceTable.insert(11, '\n\n\r\n');
 		str = str.substring(0, 11) + '\n\n\r\n' + str.substring(11);
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 10', () => {
@@ -1114,6 +1152,7 @@ suite('CRLF', () => {
 		str = str.substring(0, 9) + 'V\rSA' + str.substring(9);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 9', () => {
@@ -1134,6 +1173,7 @@ suite('CRLF', () => {
 		str = str.substring(0, 3) + '\n\n\r\r' + str.substring(3);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 });
 
@@ -1142,12 +1182,14 @@ suite('centralized lineStarts with CRLF', () => {
 		let pieceTable = createTextBuffer(['a\r\nb'], false);
 		pieceTable.delete(2, 2);
 		assert.equal(pieceTable.getLineCount(), 2);
+		assertTreeInvariants(pieceTable);
 	});
 	test('delete CR in CRLF 2', () => {
 		let pieceTable = createTextBuffer(['a\r\nb']);
 		pieceTable.delete(0, 2);
 
 		assert.equal(pieceTable.getLineCount(), 2);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 1', () => {
@@ -1162,6 +1204,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 		let lines = str.split(/\r\n|\r|\n/);
 		assert.equal(pieceTable.getLineCount(), lines.length);
+		assertTreeInvariants(pieceTable);
 	});
 	test('random bug 2', () => {
 		let str = '\n\r\n\r';
@@ -1174,6 +1217,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 		let lines = str.split(/\r\n|\r|\n/);
 		assert.equal(pieceTable.getLineCount(), lines.length);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 3', () => {
@@ -1193,6 +1237,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 		let lines = str.split(/\r\n|\r|\n/);
 		assert.equal(pieceTable.getLineCount(), lines.length);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 4', () => {
@@ -1209,6 +1254,7 @@ suite('centralized lineStarts with CRLF', () => {
 		str = str.substring(0, 5) + str.substring(5 + 3);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 5', () => {
@@ -1233,6 +1279,7 @@ suite('centralized lineStarts with CRLF', () => {
 		str = str.substring(0, 20) + '\n\n\r\n' + str.substring(20);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 6', () => {
@@ -1255,6 +1302,7 @@ suite('centralized lineStarts with CRLF', () => {
 		str = str.substring(0, 8) + str.substring(8 + 4);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 7', () => {
@@ -1269,6 +1317,7 @@ suite('centralized lineStarts with CRLF', () => {
 		str = str.substring(0, 7) + '\n\n\r\n' + str.substring(7);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 8', () => {
@@ -1282,6 +1331,7 @@ suite('centralized lineStarts with CRLF', () => {
 		pieceTable.insert(11, '\n\n\r\n');
 		str = str.substring(0, 11) + '\n\n\r\n' + str.substring(11);
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 9', () => {
@@ -1300,6 +1350,7 @@ suite('centralized lineStarts with CRLF', () => {
 		str = str.substring(0, 9) + 'V\rSA' + str.substring(9);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 10', () => {
@@ -1318,6 +1369,7 @@ suite('centralized lineStarts with CRLF', () => {
 		str = str.substring(0, 3) + '\n\n\r\r' + str.substring(3);
 
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random chunk bug 1', () => {
@@ -1332,6 +1384,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random chunk bug 2', () => {
@@ -1352,6 +1405,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random chunk bug 3', () => {
@@ -1368,6 +1422,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random chunk bug 4', () => {
@@ -1380,6 +1435,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 });
 
@@ -1388,6 +1444,7 @@ suite('test case from vscode', () => {
 	let pieceTable = createTextBuffer([str], false);
 
 	assert.deepEqual(pieceTable.getPositionAt(20), new Position(2, 9));
+	assertTreeInvariants(pieceTable);
 });
 
 suite('random is unsupervised', () => {
@@ -1418,6 +1475,7 @@ suite('random is unsupervised', () => {
 
 		testLineStarts(str, pieceTable);
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 
 	test('random chunks', () => {
@@ -1451,5 +1509,6 @@ suite('random is unsupervised', () => {
 		assert.equal(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
 		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
 	});
 });

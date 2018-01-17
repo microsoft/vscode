@@ -10,7 +10,6 @@ import * as strings from 'vs/base/common/strings';
 import { IValidatedEditOperation } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
 import { PieceTableBase, SENTINEL, StringBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableBase';
 import { IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
-import { ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 
 export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer {
 	private _BOM: string;
@@ -28,11 +27,11 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 
 	// #region TextBuffer
 	public getLinesContent(): string[] {
-		return this.getContentOfSubTree(this._root).split(/\r\n|\r|\n/);
+		return this.getContentOfSubTree(this.root).split(/\r\n|\r|\n/);
 	}
 
 	public getLinesContent2(): string {
-		return this.getContentOfSubTree(this._root);
+		return this.getContentOfSubTree(this.root);
 	}
 
 	public getLineCount(): number {
@@ -107,7 +106,7 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 	public getOffsetAt(lineNumber: number, column: number): number {
 		let leftLen = 0; // inorder
 
-		let x = this._root;
+		let x = this.root;
 
 		while (x !== SENTINEL) {
 			if (x.left !== SENTINEL && x.lf_left + 1 >= lineNumber) {
@@ -131,7 +130,7 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 		offset = Math.floor(offset);
 		offset = Math.max(0, offset);
 
-		let x = this._root;
+		let x = this.root;
 		let lfCnt = 0;
 		let originalOffset = offset;
 

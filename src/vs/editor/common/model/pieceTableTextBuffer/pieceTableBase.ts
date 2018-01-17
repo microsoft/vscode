@@ -12,7 +12,7 @@ export const enum NodeColor {
 	Red = 1,
 }
 
-function getNodeColor(node: TreeNode) {
+export function getNodeColor(node: TreeNode) {
 	return node.color;
 }
 
@@ -267,8 +267,9 @@ export class StringBuffer {
 }
 
 export class PieceTableBase {
+	root: TreeNode;
+
 	protected _buffers: StringBuffer[]; // 0 is change buffer, others are readonly original buffer.
-	protected _root: TreeNode;
 	protected _lineCnt: number;
 	private _lastChangeBufferPos: BufferCursor;
 
@@ -281,7 +282,7 @@ export class PieceTableBase {
 			new StringBuffer('', [0])
 		];
 		this._lastChangeBufferPos = { line: 0, column: 0 };
-		this._root = SENTINEL;
+		this.root = SENTINEL;
 		this._lineCnt = 1;
 
 		let lastNode: TreeNode = null;
@@ -316,7 +317,7 @@ export class PieceTableBase {
 		let tempChunkLen = 0;
 		let chunks: StringBuffer[] = [];
 
-		this.iterate(this._root, (str) => {
+		this.iterate(this.root, (str) => {
 			let len = str.length;
 			if (tempChunkLen <= min || tempChunkLen + len < max) {
 				tempChunk += str;
@@ -343,7 +344,7 @@ export class PieceTableBase {
 	// #region Piece Table
 	insert(offset: number, value: string): void {
 		// todo, validate value and offset.
-		if (this._root !== SENTINEL) {
+		if (this.root !== SENTINEL) {
 			let { node, remainder, nodeStartOffset } = this.nodeAt(offset);
 			let piece = node.piece;
 			let bufferIndex = piece.bufferIndex;
@@ -422,7 +423,7 @@ export class PieceTableBase {
 	}
 
 	delete(offset: number, cnt: number): void {
-		if (cnt <= 0 || this._root === SENTINEL) {
+		if (cnt <= 0 || this.root === SENTINEL) {
 			return;
 		}
 
@@ -664,11 +665,11 @@ export class PieceTableBase {
 	}
 
 	getLinesRawContent(): string {
-		return this.getContentOfSubTree(this._root);
+		return this.getContentOfSubTree(this.root);
 	}
 
 	getLineRawContent(lineNumber: number): string {
-		let x = this._root;
+		let x = this.root;
 
 		let ret = '';
 		while (x !== SENTINEL) {
@@ -716,7 +717,7 @@ export class PieceTableBase {
 	}
 
 	computeLineCount() {
-		let x = this._root;
+		let x = this.root;
 
 		let ret = 1;
 		while (x !== SENTINEL) {
@@ -852,7 +853,7 @@ export class PieceTableBase {
 	}
 
 	nodeAt(offset: number): NodePosition {
-		let x = this._root;
+		let x = this.root;
 		let nodeStartOffset = 0;
 
 		while (x !== SENTINEL) {
@@ -876,7 +877,7 @@ export class PieceTableBase {
 	}
 
 	nodeAt2(position: Position): NodePosition {
-		let x = this._root;
+		let x = this.root;
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 		let nodeStartOffset = 0;
@@ -958,7 +959,7 @@ export class PieceTableBase {
 			return 0;
 		}
 		let pos = node.size_left;
-		while (node !== this._root) {
+		while (node !== this.root) {
 			if (node.parent.right === node) {
 				pos += node.parent.size_left + node.parent.piece.length;
 			}
@@ -1137,7 +1138,7 @@ export class PieceTableBase {
 		}
 		y.parent = x.parent;
 		if (x.parent === SENTINEL) {
-			this._root = y;
+			this.root = y;
 		} else if (x.parent.left === x) {
 			x.parent.left = y;
 		} else {
@@ -1160,7 +1161,7 @@ export class PieceTableBase {
 		y.lf_left -= x.lf_left + (x.piece ? x.piece.lineFeedCnt : 0);
 
 		if (y.parent === SENTINEL) {
-			this._root = x;
+			this.root = x;
 		} else if (y === y.parent.right) {
 			y.parent.right = x;
 		} else {
@@ -1186,9 +1187,9 @@ export class PieceTableBase {
 		z.size_left = 0;
 		z.lf_left = 0;
 
-		let x = this._root;
+		let x = this.root;
 		if (x === SENTINEL) {
-			this._root = z;
+			this.root = z;
 			setNodeColor(z, NodeColor.Black);
 		} else if (node.right === SENTINEL) {
 			node.right = z;
@@ -1218,9 +1219,9 @@ export class PieceTableBase {
 		z.size_left = 0;
 		z.lf_left = 0;
 
-		let x = this._root;
+		let x = this.root;
 		if (x === SENTINEL) {
-			this._root = z;
+			this.root = z;
 			setNodeColor(z, NodeColor.Black);
 		} else if (node.left === SENTINEL) {
 			node.left = z;
@@ -1250,15 +1251,15 @@ export class PieceTableBase {
 			x = y.right;
 		}
 
-		if (y === this._root) {
-			this._root = x;
+		if (y === this.root) {
+			this.root = x;
 
 			// if x is null, we are removing the only node
 			setNodeColor(x, NodeColor.Black);
 
 			z.detach();
 			resetSentinel();
-			this._root.parent = SENTINEL;
+			this.root.parent = SENTINEL;
 
 			return;
 		}
@@ -1289,8 +1290,8 @@ export class PieceTableBase {
 			y.parent = z.parent;
 			setNodeColor(y, getNodeColor(z));
 
-			if (z === this._root) {
-				this._root = y;
+			if (z === this.root) {
+				this.root = y;
 			} else {
 				if (z === z.parent.left) {
 					z.parent.left = y;
@@ -1335,7 +1336,7 @@ export class PieceTableBase {
 
 		// RB-DELETE-FIXUP
 		let w: TreeNode;
-		while (x !== this._root && getNodeColor(x) === NodeColor.Black) {
+		while (x !== this.root && getNodeColor(x) === NodeColor.Black) {
 			if (x === x.parent.left) {
 				w = x.parent.right;
 
@@ -1361,7 +1362,7 @@ export class PieceTableBase {
 					setNodeColor(x.parent, NodeColor.Black);
 					setNodeColor(w.right, NodeColor.Black);
 					this.leftRotate(x.parent);
-					x = this._root;
+					x = this.root;
 				}
 			} else {
 				w = x.parent.left;
@@ -1389,7 +1390,7 @@ export class PieceTableBase {
 					setNodeColor(x.parent, NodeColor.Black);
 					setNodeColor(w.left, NodeColor.Black);
 					this.rightRotate(x.parent);
-					x = this._root;
+					x = this.root;
 				}
 			}
 		}
@@ -1400,7 +1401,7 @@ export class PieceTableBase {
 	fixInsert(x: TreeNode) {
 		this.recomputeMetadata(x);
 
-		while (x !== this._root && getNodeColor(x.parent) === NodeColor.Red) {
+		while (x !== this.root && getNodeColor(x.parent) === NodeColor.Red) {
 			if (x.parent === x.parent.parent.left) {
 				const y = x.parent.parent.right;
 
@@ -1439,12 +1440,12 @@ export class PieceTableBase {
 			}
 		}
 
-		setNodeColor(this._root, NodeColor.Black);
+		setNodeColor(this.root, NodeColor.Black);
 	}
 
 	updateMetadata(x: TreeNode, delta: number, lineFeedCntDelta: number): void {
 		// node length change or line feed count change
-		while (x !== this._root && x !== SENTINEL) {
+		while (x !== this.root && x !== SENTINEL) {
 			if (x.parent.left === x) {
 				x.parent.size_left += delta;
 				x.parent.lf_left += lineFeedCntDelta;
@@ -1457,17 +1458,17 @@ export class PieceTableBase {
 	recomputeMetadata(x: TreeNode) {
 		let delta = 0;
 		let lf_delta = 0;
-		if (x === this._root) {
+		if (x === this.root) {
 			return;
 		}
 
 		if (delta === 0) {
 			// go upwards till the node whose left subtree is changed.
-			while (x !== this._root && x === x.parent.right) {
+			while (x !== this.root && x === x.parent.right) {
 				x = x.parent;
 			}
 
-			if (x === this._root) {
+			if (x === this.root) {
 				// well, it means we add a node to the end (inorder)
 				return;
 			}
@@ -1482,7 +1483,7 @@ export class PieceTableBase {
 		}
 
 		// go upwards till root. O(logN)
-		while (x !== this._root && (delta !== 0 || lf_delta !== 0)) {
+		while (x !== this.root && (delta !== 0 || lf_delta !== 0)) {
 			if (x.parent.left === x) {
 				x.parent.size_left += delta;
 				x.parent.lf_left += lf_delta;
