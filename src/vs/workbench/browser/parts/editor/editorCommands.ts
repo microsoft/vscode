@@ -292,11 +292,14 @@ function registerEditorCommands() {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
-			const positions = contexts.map(context => positionAndInput(editorGroupService, editorService, context).position);
-			const distinctPositions = distinct(positions.filter(p => typeof p === 'number'));
+			const distinctGroups = distinct(contexts.map(c => c.group));
 
-			if (distinctPositions.length) {
-				return editorService.closeEditors(distinctPositions);
+			if (distinctGroups.length) {
+				return editorService.closeEditors(distinctGroups.map(g => editorGroupService.getStacksModel().positionOfGroup(g)));
+			}
+			const activeEditor = editorService.getActiveEditor();
+			if (activeEditor) {
+				return editorService.closeEditors(activeEditor.position);
 			}
 
 			return TPromise.as(false);
