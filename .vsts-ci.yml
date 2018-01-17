@@ -1,5 +1,5 @@
 queue:
-  name: Hosted VS 2017
+  name: Hosted VS2017
 
 variables:
   ELECTRON_RUN_AS_NODE: 1
