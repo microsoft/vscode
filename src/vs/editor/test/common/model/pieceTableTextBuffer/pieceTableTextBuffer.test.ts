@@ -935,7 +935,7 @@ suite('get text in range', () => {
 	});
 });
 
-suite('CRLF', () => {
+/* suite('CRLF', () => {
 	test('delete CR in CRLF 1', () => {
 		let pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, 'a\r\nb');
@@ -1452,4 +1452,4 @@ suite('random is unsupervised', () => {
 		testLineStarts(str, pieceTable);
 		testLinesContent(str, pieceTable);
 	});
-});
+}); */

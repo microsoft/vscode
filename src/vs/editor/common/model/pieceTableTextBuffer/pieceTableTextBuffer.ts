@@ -7,9 +7,8 @@
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
-import { ITextSource } from 'vs/editor/common/model/pieceTableTextBuffer/textSource';
 import { IValidatedEditOperation } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
-import { PieceTableBase, SENTINEL } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableBase';
+import { PieceTableBase, SENTINEL, StringBuffer } from 'vs/editor/common/model/pieceTableTextBuffer/pieceTableBase';
 import { IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
 import { ModelRawChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 
@@ -19,12 +18,12 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 	private _mightContainRTL: boolean;
 	private _mightContainNonBasicASCII: boolean;
 
-	constructor(textSource: ITextSource) {
-		super(textSource.chunks);
-		this._BOM = textSource.BOM;
-		this._EOL = textSource.EOL;
-		this._mightContainNonBasicASCII = !textSource.isBasicASCII;
-		this._mightContainRTL = textSource.containsRTL;
+	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, isBasicASCII: boolean) {
+		super(chunks);
+		this._BOM = BOM;
+		this._EOL = eol;
+		this._mightContainNonBasicASCII = !isBasicASCII;
+		this._mightContainRTL = containsRTL;
 	}
 
 	// #region TextBuffer
@@ -57,22 +56,9 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 			return '';
 		}
 
-		if (range.startLineNumber === range.endLineNumber) {
-			return this.getLineRawContent(range.startLineNumber).substring(range.startColumn - 1, range.endColumn - 1);
-		}
-
 		const lineEnding = this._getEndOfLine(eol);
-		const startLineIndex = range.startLineNumber - 1;
-		const endLineIndex = range.endLineNumber - 1;
-		let resultLines: string[] = [];
-
-		resultLines.push(this.getLineContent(startLineIndex + 1).substring(range.startColumn - 1));
-		for (let i = startLineIndex + 1; i < endLineIndex; i++) {
-			resultLines.push(this.getLineContent(i + 1));
-		}
-		resultLines.push(this.getLineContent(endLineIndex + 1).substring(0, range.endColumn - 1));
-
-		return resultLines.join(lineEnding);
+		const text = this.getValueInRange2(range, eol);
+		return text.replace(/\r\n|\r|\n/g, lineEnding);
 	}
 
 	public getValueInRange2(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): string {
@@ -214,8 +200,9 @@ export class PieceTableTextBuffer extends PieceTableBase implements ITextBuffer 
 		return this._EOL;
 	}
 
-	public setEOL(newEOL: string): void {
+	public setEOL(newEOL: '\r\n' | '\n'): void {
 		this._EOL = newEOL;
+		this.normalizeEOL(newEOL);
 	}
 
 	public applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult {

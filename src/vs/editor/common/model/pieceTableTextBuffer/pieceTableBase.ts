@@ -5,6 +5,7 @@
 'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
+import { CharCode } from 'vs/base/common/charCode';
 
 export const enum NodeColor {
 	Black = 0,
@@ -55,42 +56,84 @@ function resetSentinel(): void {
 
 const lfRegex = new RegExp(/\r\n|\r|\n/g);
 
-export function constructLineStarts(chunk: string): number[] {
-	let lineStarts = [0];
+export function createUint32Array(arr: number[]): Uint32Array {
+	let r = new Uint32Array(arr.length);
+	r.set(arr, 0);
+	return r;
+}
 
-	// Reset regex to search from the beginning
-	lfRegex.lastIndex = 0;
-	let prevMatchStartIndex = -1;
-	let prevMatchLength = 0;
+export class LineStarts {
+	constructor(
+		public readonly lineStarts: Uint32Array | number[],
+		public readonly cr: number,
+		public readonly lf: number,
+		public readonly crlf: number,
+		public readonly isBasicASCII: boolean
+	) { }
+}
 
-	let m: RegExpExecArray;
-	do {
-		if (prevMatchStartIndex + prevMatchLength === chunk.length) {
-			// Reached the end of the line
-			break;
+export function createLineStartsFast(str: string, readonly: boolean = true): Uint32Array | number[] {
+	let r: number[] = [0], rLength = 1;
+
+	for (let i = 0, len = str.length; i < len; i++) {
+		const chr = str.charCodeAt(i);
+
+		if (chr === CharCode.CarriageReturn) {
+			if (i + 1 < len && str.charCodeAt(i + 1) === CharCode.LineFeed) {
+				// \r\n... case
+				r[rLength++] = i + 2;
+				i++; // skip \n
+			} else {
+				// \r... case
+				r[rLength++] = i + 1;
+			}
+		} else if (chr === CharCode.LineFeed) {
+			r[rLength++] = i + 1;
 		}
+	}
+	if (readonly) {
+		return createUint32Array(r);
+	} else {
+		return r;
+	}
+}
 
-		m = lfRegex.exec(chunk);
-		if (!m) {
-			break;
+export function createLineStarts(r: number[], str: string): LineStarts {
+	r.length = 0;
+	r[0] = 0;
+	let rLength = 1;
+	let cr = 0, lf = 0, crlf = 0;
+	let isBasicASCII = true;
+	for (let i = 0, len = str.length; i < len; i++) {
+		const chr = str.charCodeAt(i);
+
+		if (chr === CharCode.CarriageReturn) {
+			if (i + 1 < len && str.charCodeAt(i + 1) === CharCode.LineFeed) {
+				// \r\n... case
+				crlf++;
+				r[rLength++] = i + 2;
+				i++; // skip \n
+			} else {
+				cr++;
+				// \r... case
+				r[rLength++] = i + 1;
+			}
+		} else if (chr === CharCode.LineFeed) {
+			lf++;
+			r[rLength++] = i + 1;
+		} else {
+			if (isBasicASCII) {
+				if (chr !== CharCode.Tab && (chr < 32 || chr > 126)) {
+					isBasicASCII = false;
+				}
+			}
 		}
+	}
 
-		const matchStartIndex = m.index;
-		const matchLength = m[0].length;
+	const result = new LineStarts(createUint32Array(r), cr, lf, crlf, isBasicASCII);
+	r.length = 0;
 
-		if (matchStartIndex === prevMatchStartIndex && matchLength === prevMatchLength) {
-			// Exit early if the regex matches the same range twice
-			break;
-		}
-
-		prevMatchStartIndex = matchStartIndex;
-		prevMatchLength = matchLength;
-
-		lineStarts.push(matchStartIndex + matchLength);
-
-	} while (m);
-
-	return lineStarts;
+	return result;
 }
 
 export class TreeNode {
@@ -215,9 +258,9 @@ export class Piece {
 
 export class StringBuffer {
 	buffer: string;
-	lineStarts: number[];
+	lineStarts: number[] | Uint32Array;
 
-	constructor(buffer: string, lineStarts: number[]) {
+	constructor(buffer: string, lineStarts: number[] | Uint32Array) {
 		this.buffer = buffer;
 		this.lineStarts = lineStarts;
 	}
@@ -241,9 +284,78 @@ export class PieceTableBase {
 		for (let i = 0, len = chunks.length; i < len; i++) {
 			if (chunks[i].buffer.length > 0) {
 				if (!chunks[i].lineStarts) {
-					chunks[i].lineStarts = constructLineStarts(chunks[i].buffer);
+					chunks[i].lineStarts = createLineStartsFast(chunks[i].buffer);
 				}
 
+				let piece = new Piece(
+					i + 1,
+					{ line: 0, column: 0 },
+					{ line: chunks[i].lineStarts.length - 1, column: chunks[i].buffer.length - chunks[i].lineStarts[chunks[i].lineStarts.length - 1] },
+					chunks[i].lineStarts.length - 1,
+					chunks[i].buffer.length
+				);
+				this._buffers.push(chunks[i]);
+				lastNode = this.rbInsertRight(lastNode, piece);
+			}
+		}
+
+		this.computeLineCount();
+	}
+
+	normalizeEOL(eol: '\r\n' | '\n') {
+		let averageBufferSize = 65536;
+		let min = averageBufferSize - Math.floor(averageBufferSize / 3);
+		let max = min * 2;
+
+		let tempChunk = '';
+		let tempChunkLen = 0;
+		let chunks: StringBuffer[] = [];
+
+		this.iterate(this._root, (str) => {
+			let len = str.length;
+			if (tempChunkLen <= min) {
+				tempChunk += str;
+				tempChunkLen += len;
+				return;
+			}
+
+			if (tempChunkLen > max) {
+				// flush anyways
+				let text = tempChunk.replace(/\r\n|\r|\n/g, eol);
+				chunks.push(new StringBuffer(text, createLineStartsFast(text)));
+				tempChunk = str;
+				tempChunkLen = len;
+				return;
+			}
+
+			// tempChunkLen > min
+			if (tempChunkLen + len < max) {
+				tempChunk += str;
+				tempChunkLen += len;
+			} else {
+				// flush tempChunk
+				let text = tempChunk.replace(/\r\n|\r|\n/g, eol);
+				chunks.push(new StringBuffer(text, createLineStartsFast(text)));
+				tempChunk = str;
+				tempChunkLen = len;
+			}
+		});
+
+		if (tempChunkLen > 0) {
+			let text = tempChunk.replace(/\r\n|\r|\n/g, eol);
+			chunks.push(new StringBuffer(text, createLineStartsFast(text)));
+		}
+
+		this._buffers = [
+			new StringBuffer('', [0])
+		];
+		this._lastChangeBufferPos = { line: 0, column: 0 };
+		this._root = SENTINEL;
+		this._lineCnt = 1;
+		let lastNode: TreeNode = null;
+
+		for (let i = 0, len = chunks.length; i < len; i++) {
+			if (chunks[i].buffer.length > 0) {
 				let piece = new Piece(
 					i + 1,
 					{ line: 0, column: 0 },
@@ -542,7 +654,7 @@ export class PieceTableBase {
 
 	createNewPiece(text: string): Piece {
 		let startOffset = this._buffers[0].buffer.length;
-		const lineStarts = constructLineStarts(text);
+		const lineStarts = createLineStartsFast(text, false);
 
 		let start = this._lastChangeBufferPos;
 		if (this._buffers[0].lineStarts[this._buffers[0].lineStarts.length - 1] === startOffset
@@ -556,14 +668,14 @@ export class PieceTableBase {
 			for (let i = 0; i < lineStarts.length; i++) {
 				lineStarts[i] += startOffset + 1;
 			}
-			this._buffers[0].lineStarts.push(...lineStarts.slice(1));
+			(<number[]>this._buffers[0].lineStarts).push(...<number[]>lineStarts.slice(1));
 			this._buffers[0].buffer += '_' + text;
 			startOffset += 1;
 		} else {
 			for (let i = 0; i < lineStarts.length; i++) {
 				lineStarts[i] += startOffset;
 			}
-			this._buffers[0].lineStarts.push(...lineStarts.slice(1));
+			(<number[]>this._buffers[0].lineStarts).push(...<number[]>lineStarts.slice(1));
 			this._buffers[0].buffer += text;
 		}
 
@@ -745,17 +857,17 @@ export class PieceTableBase {
 		let hitCRLF = this.startWithLF(value) && this.endWithCR(node);
 		const startOffset = this._buffers[0].buffer.length;
 		this._buffers[0].buffer += value;
-		const lineStarts = constructLineStarts(value);
+		const lineStarts = createLineStartsFast(value, false);
 		for (let i = 0; i < lineStarts.length; i++) {
 			lineStarts[i] += startOffset;
 		}
 		if (hitCRLF) {
 			let prevStartOffset = this._buffers[0].lineStarts[this._buffers[0].lineStarts.length - 2];
-			this._buffers[0].lineStarts.pop();
+			(<number[]>this._buffers[0].lineStarts).pop();
 			// _lastChangeBufferPos is already wrong
 			this._lastChangeBufferPos = { line: this._lastChangeBufferPos.line - 1, column: startOffset - prevStartOffset };
 		}
-		this._buffers[0].lineStarts.push(...lineStarts.slice(1));
+		(<number[]>this._buffers[0].lineStarts).push(...<number[]>lineStarts.slice(1));
 		const endOffset = this._buffers[0].buffer.length;
 		let endIndex = this._buffers[0].lineStarts.length - 1;
 		let endColumn = endOffset - this._buffers[0].lineStarts[endIndex];
@@ -1026,6 +1138,22 @@ export class PieceTableBase {
 	// #endregion
 
 	// #region Red Black Tree
+	iterate(node: TreeNode, callback: (str: string) => void): void {
+		if (node === SENTINEL) {
+			callback('');
+			return;
+		}
+
+		this.iterate(node.left, callback);
+		let buffer = this._buffers[node.piece.bufferIndex];
+		let currentContent;
+		let piece = node.piece;
+		let startOffset = this.offsetInBuffer(piece.bufferIndex, piece.start);
+		let endOffset = this.offsetInBuffer(piece.bufferIndex, piece.end);
+		currentContent = buffer.buffer.substring(startOffset, endOffset);
+		callback(currentContent);
+		this.iterate(node.right, callback);
+	}
 
 	leftRotate(x: TreeNode) {
 		let y = x.right;
@@ -1396,30 +1524,13 @@ export class PieceTableBase {
 	}
 
 	getContentOfSubTree(node: TreeNode): string {
-		if (node === SENTINEL) {
-			return '';
-		}
+		let str = '';
 
-		let buffer = this._buffers[node.piece.bufferIndex];
-		let currentContent;
-		let piece = node.piece;
-		let startOffset = this.offsetInBuffer(piece.bufferIndex, piece.start);
-		let endOffset = this.offsetInBuffer(piece.bufferIndex, piece.end);
-		currentContent = buffer.buffer.substring(startOffset, endOffset);
+		this.iterate(node, (newStr) => {
+			str += newStr;
+		});
 
-		return this.getContentOfSubTree(node.left) + currentContent + this.getContentOfSubTree(node.right);
-	}
-
-	constructLineLengths(chunk: string): Uint32Array {
-		let lineStarts = constructLineStarts(chunk);
-		const lineLengths = new Uint32Array(lineStarts.length);
-		for (let i = 1; i < lineStarts.length; i++) {
-			lineLengths[i - 1] = lineStarts[i] - lineStarts[i - 1];
-		}
-
-		lineLengths[lineStarts.length - 1] = chunk.length - lineStarts[lineStarts.length - 1];
-
-		return lineLengths;
+		return str;
 	}
 	// #endregion
 }

@@ -494,6 +494,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public isDominatedByLongLines(): boolean {
 		this._assertNotDisposed();
+		if (this.isTooLargeForTokenization()) {
+			// Cannot word wrap huge files anyways, so it doesn't really matter
+			return false;
+		}
+
 		let smallLineCharCount = 0;
 		let longLineCharCount = 0;
 

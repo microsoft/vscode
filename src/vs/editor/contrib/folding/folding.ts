@@ -133,7 +133,7 @@ export class FoldingController implements IEditorContribution {
 		this.localToDispose = dispose(this.localToDispose);
 
 		let model = this.editor.getModel();
-		if (!this._isEnabled || !model) {
+		if (!this._isEnabled || !model || model.isTooLargeForTokenization()) {
 			return;
 		}
 
