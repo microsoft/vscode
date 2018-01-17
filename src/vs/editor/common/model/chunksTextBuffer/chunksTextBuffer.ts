@@ -24,11 +24,13 @@ export interface IValidatedEditOperation {
 
 export class ChunksTextBuffer implements ITextBuffer {
 
+	private _BOM: string;
 	private _actual: Buffer;
 	private _mightContainRTL: boolean;
 	private _mightContainNonBasicASCII: boolean;
 
-	constructor(pieces: BufferPiece[], _averageChunkSize: number, eol: '\r\n' | '\n', containsRTL: boolean, isBasicASCII: boolean) {
+	constructor(pieces: BufferPiece[], _averageChunkSize: number, BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, isBasicASCII: boolean) {
+		this._BOM = BOM;
 		const averageChunkSize = Math.floor(Math.min(65536.0, Math.max(128.0, _averageChunkSize)));
 		const delta = Math.floor(averageChunkSize / 3);
 		const min = averageChunkSize - delta;
@@ -51,8 +53,7 @@ export class ChunksTextBuffer implements ITextBuffer {
 		return this._mightContainNonBasicASCII;
 	}
 	getBOM(): string {
-		// TODO
-		return '';
+		return this._BOM;
 	}
 	getEOL(): string {
 		return this._actual.getEOL();

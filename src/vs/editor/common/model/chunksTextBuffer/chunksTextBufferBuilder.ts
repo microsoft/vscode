@@ -15,6 +15,7 @@ export class TextBufferFactory implements ITextBufferFactory {
 	constructor(
 		private readonly _pieces: BufferPiece[],
 		private readonly _averageChunkSize: number,
+		private readonly _BOM: string,
 		private readonly _cr: number,
 		private readonly _lf: number,
 		private readonly _crlf: number,
@@ -56,7 +57,7 @@ export class TextBufferFactory implements ITextBufferFactory {
 				pieces[i] = BufferPiece.normalizeEOL(pieces[i], eol);
 			}
 		}
-		return new ChunksTextBuffer(pieces, this._averageChunkSize, eol, this._containsRTL, this._isBasicASCII);
+		return new ChunksTextBuffer(pieces, this._averageChunkSize, this._BOM, eol, this._containsRTL, this._isBasicASCII);
 	}
 
 	public getFirstLineText(lengthLimit: number): string {
@@ -73,6 +74,7 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 	private _averageChunkSize: number;
 	private _tmpLineStarts: number[];
 
+	private BOM: string;
 	private cr: number;
 	private lf: number;
 	private crlf: number;
@@ -86,6 +88,7 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 		this._averageChunkSize = 0;
 		this._tmpLineStarts = [];
 
+		this.BOM = '';
 		this.cr = 0;
 		this.lf = 0;
 		this.crlf = 0;
@@ -96,6 +99,13 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 	public acceptChunk(chunk: string): void {
 		if (chunk.length === 0) {
 			return;
+		}
+
+		if (this._rawPieces.length === 0) {
+			if (strings.startsWithUTF8BOM(chunk)) {
+				this.BOM = strings.UTF8_BOM_CHARACTER;
+				chunk = chunk.substr(1);
+			}
 		}
 
 		this._averageChunkSize = (this._averageChunkSize * this._rawPieces.length + chunk.length) / (this._rawPieces.length + 1);
@@ -145,7 +155,7 @@ export class ChunksTextBufferBuilder implements ITextBufferBuilder {
 
 	public finish(): TextBufferFactory {
 		this._finish();
-		return new TextBufferFactory(this._rawPieces, this._averageChunkSize, this.cr, this.lf, this.crlf, this.containsRTL, this.isBasicASCII);
+		return new TextBufferFactory(this._rawPieces, this._averageChunkSize, this.BOM, this.cr, this.lf, this.crlf, this.containsRTL, this.isBasicASCII);
 	}
 
 	private _finish(): void {
