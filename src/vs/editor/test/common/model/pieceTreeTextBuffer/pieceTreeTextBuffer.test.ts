@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { getNodeColor, SENTINEL, NodeColor, PieceTreeBase, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
+import { PieceTreeBase, getNodeColor, SENTINEL, NodeColor, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
+import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -71,7 +71,7 @@ function trimLineFeed(text: string): string {
 
 //#region Assertion
 
-function testLinesContent(str: string, pieceTable: PieceTreeTextBuffer) {
+function testLinesContent(str: string, pieceTable: PieceTreeBase) {
 	let lines = str.split(/\r\n|\r|\n/);
 	assert.equal(pieceTable.getLineCount(), lines.length);
 	assert.equal(pieceTable.getLinesRawContent(), str);
@@ -93,7 +93,7 @@ function testLinesContent(str: string, pieceTable: PieceTreeTextBuffer) {
 	}
 }
 
-function testLineStarts(str: string, pieceTable: PieceTreeTextBuffer) {
+function testLineStarts(str: string, pieceTable: PieceTreeBase) {
 	let lineStarts = [0];
 
 	// Reset regex to search from the beginning
@@ -148,13 +148,13 @@ function testLineStarts(str: string, pieceTable: PieceTreeTextBuffer) {
 	}
 }
 
-function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTreeTextBuffer {
+function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTreeBase {
 	let bufferBuilder = new PieceTreeTextBufferBuilder();
 	for (let i = 0; i < val.length; i++) {
 		bufferBuilder.acceptChunk(val[i]);
 	}
 	let factory = bufferBuilder.finish(normalizeEOL);
-	return <PieceTreeTextBuffer>factory.create(DefaultEndOfLine.LF);
+	return (<PieceTreeTextBuffer>factory.create(DefaultEndOfLine.LF)).getPieceTree();
 }
 
 function assertTreeInvariants(T: PieceTreeBase): void {

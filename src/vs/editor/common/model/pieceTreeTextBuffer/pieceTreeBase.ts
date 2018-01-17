@@ -6,6 +6,9 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
+import { EndOfLinePreference } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
+import * as strings from 'vs/base/common/strings';
 
 export const enum NodeColor {
 	Black = 0,
@@ -341,6 +344,166 @@ export class PieceTreeBase {
 
 		this.create(chunks);
 	}
+
+	// #region Buffer API
+	public equal(other: PieceTreeBase): boolean {
+		if (this.getLinesRawContent() !== other.getLinesRawContent()) {
+			return false;
+		}
+		return true;
+	}
+
+	public getOffsetAt(lineNumber: number, column: number): number {
+		let leftLen = 0; // inorder
+
+		let x = this.root;
+
+		while (x !== SENTINEL) {
+			if (x.left !== SENTINEL && x.lf_left + 1 >= lineNumber) {
+				x = x.left;
+			} else if (x.lf_left + x.piece.lineFeedCnt + 1 >= lineNumber) {
+				leftLen += x.size_left;
+				// lineNumber >= 2
+				let accumualtedValInCurrentIndex = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
+				return leftLen += accumualtedValInCurrentIndex + column - 1;
+			} else {
+				lineNumber -= x.lf_left + x.piece.lineFeedCnt;
+				leftLen += x.size_left + x.piece.length;
+				x = x.right;
+			}
+		}
+
+		return leftLen;
+	}
+
+	public getPositionAt(offset: number): Position {
+		offset = Math.floor(offset);
+		offset = Math.max(0, offset);
+
+		let x = this.root;
+		let lfCnt = 0;
+		let originalOffset = offset;
+
+		while (x !== SENTINEL) {
+			if (x.size_left !== 0 && x.size_left >= offset) {
+				x = x.left;
+			} else if (x.size_left + x.piece.length >= offset) {
+				let out = this.getIndexOf(x, offset - x.size_left);
+
+				lfCnt += x.lf_left + out.index;
+
+				if (out.index === 0) {
+					let lineStartOffset = this.getOffsetAt(lfCnt + 1, 1);
+					let column = originalOffset - lineStartOffset;
+					return new Position(lfCnt + 1, column + 1);
+				}
+
+				return new Position(lfCnt + 1, out.remainder + 1);
+			} else {
+				offset -= x.size_left + x.piece.length;
+				lfCnt += x.lf_left + x.piece.lineFeedCnt;
+
+				if (x.right === SENTINEL) {
+					// last node
+					let lineStartOffset = this.getOffsetAt(lfCnt + 1, 1);
+					let column = originalOffset - offset - lineStartOffset;
+					return new Position(lfCnt + 1, column + 1);
+				} else {
+					x = x.right;
+				}
+			}
+		}
+
+		return new Position(1, 1);
+	}
+
+	public getValueInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): string {
+		if (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
+			return '';
+		}
+
+		let startPosition = this.nodeAt2(new Position(range.startLineNumber, range.startColumn));
+		let endPosition = this.nodeAt2(new Position(range.endLineNumber, range.endColumn));
+
+		if (startPosition.node === endPosition.node) {
+			let node = startPosition.node;
+			let buffer = this._buffers[node.piece.bufferIndex].buffer;
+			let startOffset = this.getStartOffset(node);
+			return buffer.substring(startOffset + startPosition.remainder, startOffset + endPosition.remainder);
+		}
+
+		let x = startPosition.node;
+		let buffer = this._buffers[x.piece.bufferIndex].buffer;
+		let startOffset = this.getStartOffset(x);
+		let ret = buffer.substring(startOffset + startPosition.remainder, startOffset + x.piece.length);
+
+		x = x.next();
+		while (x !== SENTINEL) {
+			let buffer = this._buffers[x.piece.bufferIndex].buffer;
+			let startOffset = this.getStartOffset(x);
+
+			if (x === endPosition.node) {
+				ret += buffer.substring(startOffset, startOffset + endPosition.remainder);
+				break;
+			} else {
+				ret += buffer.substr(startOffset, x.piece.length);
+			}
+
+			x = x.next();
+		}
+
+		return ret;
+	}
+
+	public getLinesContent(): string[] {
+		return this.getContentOfSubTree(this.root).split(/\r\n|\r|\n/);
+	}
+
+	public getLength(): number {
+		return this._length;
+	}
+
+	public getLineCount(): number {
+		return this._lineCnt;
+	}
+
+	public getLineContent(lineNumber): string {
+		return this.getLineRawContent(lineNumber).replace(/(\r\n|\r|\n)$/, '');
+	}
+
+	public getLineCharCode(lineNumber: number, index: number): number {
+		return this.getLineContent(lineNumber).charCodeAt(index);
+	}
+
+	public getLineLength(lineNumber: number): number {
+		return this.getLineContent(lineNumber).length;
+	}
+
+	public getLineMinColumn(lineNumber: number): number {
+		return 1;
+	}
+
+	public getLineMaxColumn(lineNumber: number): number {
+		return this.getLineLength(lineNumber) + 1;
+	}
+
+	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
+		const result = strings.firstNonWhitespaceIndex(this.getLineContent(lineNumber));
+		if (result === -1) {
+			return 0;
+		}
+		return result + 1;
+	}
+
+	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
+		const result = strings.lastNonWhitespaceIndex(this.getLineContent(lineNumber));
+		if (result === -1) {
+			return 0;
+		}
+		return result + 2;
+	}
+
+	// #endregion
 
 	// #region Piece Table
 	insert(offset: number, value: string): void {
