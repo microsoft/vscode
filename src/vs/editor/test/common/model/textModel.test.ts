@@ -763,6 +763,66 @@ suite('Editor Model - TextModel', () => {
 
 		model.dispose();
 	});
+
+	test('getLineFirstNonWhitespaceColumn', () => {
+		let model = TextModel.createFromString([
+			'asd',
+			' asd',
+			'\tasd',
+			'  asd',
+			'\t\tasd',
+			' ',
+			'  ',
+			'\t',
+			'\t\t',
+			'  \tasd',
+			'',
+			''
+		].join('\n'));
+
+		assert.equal(model.getLineFirstNonWhitespaceColumn(1), 1, '1');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(2), 2, '2');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(3), 2, '3');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(4), 3, '4');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(5), 3, '5');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(6), 0, '6');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(7), 0, '7');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(8), 0, '8');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(9), 0, '9');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(10), 4, '10');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(11), 0, '11');
+		assert.equal(model.getLineFirstNonWhitespaceColumn(12), 0, '12');
+	});
+
+	test('getLineLastNonWhitespaceColumn', () => {
+		let model = TextModel.createFromString([
+			'asd',
+			'asd ',
+			'asd\t',
+			'asd  ',
+			'asd\t\t',
+			' ',
+			'  ',
+			'\t',
+			'\t\t',
+			'asd  \t',
+			'',
+			''
+		].join('\n'));
+
+		assert.equal(model.getLineLastNonWhitespaceColumn(1), 4, '1');
+		assert.equal(model.getLineLastNonWhitespaceColumn(2), 4, '2');
+		assert.equal(model.getLineLastNonWhitespaceColumn(3), 4, '3');
+		assert.equal(model.getLineLastNonWhitespaceColumn(4), 4, '4');
+		assert.equal(model.getLineLastNonWhitespaceColumn(5), 4, '5');
+		assert.equal(model.getLineLastNonWhitespaceColumn(6), 0, '6');
+		assert.equal(model.getLineLastNonWhitespaceColumn(7), 0, '7');
+		assert.equal(model.getLineLastNonWhitespaceColumn(8), 0, '8');
+		assert.equal(model.getLineLastNonWhitespaceColumn(9), 0, '9');
+		assert.equal(model.getLineLastNonWhitespaceColumn(10), 4, '10');
+		assert.equal(model.getLineLastNonWhitespaceColumn(11), 0, '11');
+		assert.equal(model.getLineLastNonWhitespaceColumn(12), 0, '12');
+	});
 });
 
 suite('TextModel.mightContainRTL', () => {
