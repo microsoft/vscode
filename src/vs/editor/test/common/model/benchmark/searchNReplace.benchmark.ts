@@ -12,9 +12,7 @@ import { doBenchmark } from 'vs/editor/test/common/model/benchmark/benchmarkUtil
 
 let appyEditsBenchmark = function (id: string, buffers: ITextBuffer[], edits: IIdentifiedSingleEditOperation[]) {
 	doBenchmark(id, buffers, buffer => {
-		for (let i = 0, len = edits.length; i < len; i++) {
-			buffer.applyEdits([edits[i]], false);
-		}
+		buffer.applyEdits(edits, false);
 	});
 };
 

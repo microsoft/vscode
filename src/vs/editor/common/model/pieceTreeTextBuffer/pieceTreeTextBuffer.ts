@@ -130,11 +130,19 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	}
 
 	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
-		return this._pieceTree.getLineFirstNonWhitespaceColumn(lineNumber);
+		const result = strings.firstNonWhitespaceIndex(this.getLineContent(lineNumber));
+		if (result === -1) {
+			return 0;
+		}
+		return result + 1;
 	}
 
 	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
-		return this._pieceTree.getLineLastNonWhitespaceColumn(lineNumber);
+		const result = strings.lastNonWhitespaceIndex(this.getLineContent(lineNumber));
+		if (result === -1) {
+			return 0;
+		}
+		return result + 2;
 	}
 
 	private _getEndOfLine(eol: EndOfLinePreference): string {
@@ -200,7 +208,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		}
 
 		if (canReduceOperations) {
-			// operations = this._reduceOperations(operations);
+			operations = this._reduceOperations(operations);
 		}
 
 		// Delta encode operations
@@ -273,6 +281,82 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			contentChanges,
 			trimAutoWhitespaceLineNumbers
 		);
+	}
+
+	/**
+ * Transform operations such that they represent the same logic edit,
+ * but that they also do not cause OOM crashes.
+ */
+	private _reduceOperations(operations: IValidatedEditOperation[]): IValidatedEditOperation[] {
+		if (operations.length < 1000) {
+			// We know from empirical testing that a thousand edits work fine regardless of their shape.
+			return operations;
+		}
+
+		// At one point, due to how events are emitted and how each operation is handled,
+		// some operations can trigger a high ammount of temporary string allocations,
+		// that will immediately get edited again.
+		// e.g. a formatter inserting ridiculous ammounts of \n on a model with a single line
+		// Therefore, the strategy is to collapse all the operations into a huge single edit operation
+		return [this._toSingleEditOperation(operations)];
+	}
+
+	_toSingleEditOperation(operations: IValidatedEditOperation[]): IValidatedEditOperation {
+		let forceMoveMarkers = false,
+			firstEditRange = operations[0].range,
+			lastEditRange = operations[operations.length - 1].range,
+			entireEditRange = new Range(firstEditRange.startLineNumber, firstEditRange.startColumn, lastEditRange.endLineNumber, lastEditRange.endColumn),
+			lastEndLineNumber = firstEditRange.startLineNumber,
+			lastEndColumn = firstEditRange.startColumn,
+			result: string[] = [];
+
+		for (let i = 0, len = operations.length; i < len; i++) {
+			let operation = operations[i],
+				range = operation.range;
+
+			forceMoveMarkers = forceMoveMarkers || operation.forceMoveMarkers;
+
+			// (1) -- Push old text
+			for (let lineNumber = lastEndLineNumber; lineNumber < range.startLineNumber; lineNumber++) {
+				if (lineNumber === lastEndLineNumber) {
+					result.push(this.getLineContent(lineNumber).substring(lastEndColumn - 1));
+				} else {
+					result.push('\n');
+					result.push(this.getLineContent(lineNumber));
+				}
+			}
+
+			if (range.startLineNumber === lastEndLineNumber) {
+				result.push(this.getLineContent(range.startLineNumber).substring(lastEndColumn - 1, range.startColumn - 1));
+			} else {
+				result.push('\n');
+				result.push(this.getLineContent(range.startLineNumber).substring(0, range.startColumn - 1));
+			}
+
+			// (2) -- Push new text
+			if (operation.lines) {
+				for (let j = 0, lenJ = operation.lines.length; j < lenJ; j++) {
+					if (j !== 0) {
+						result.push('\n');
+					}
+					result.push(operation.lines[j]);
+				}
+			}
+
+			lastEndLineNumber = operation.range.endLineNumber;
+			lastEndColumn = operation.range.endColumn;
+		}
+
+		return {
+			sortIndex: 0,
+			identifier: operations[0].identifier,
+			range: entireEditRange,
+			rangeOffset: this.getOffsetAt(entireEditRange.startLineNumber, entireEditRange.startColumn),
+			rangeLength: this.getValueLengthInRange(entireEditRange, EndOfLinePreference.TextDefined),
+			lines: result.join('').split('\n'),
+			forceMoveMarkers: forceMoveMarkers,
+			isAutoWhitespaceEdit: false
+		};
 	}
 
 	private _doApplyEdits(operations: IValidatedEditOperation[]): IInternalModelContentChange[] {

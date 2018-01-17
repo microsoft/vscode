@@ -7,7 +7,6 @@
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import { Range } from 'vs/editor/common/core/range';
-import * as strings from 'vs/base/common/strings';
 
 export const enum NodeColor {
 	Black = 0,
@@ -497,22 +496,6 @@ export class PieceTreeBase {
 		return buffer.buffer.charCodeAt(targetOffset);
 	}
 
-	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
-		const result = strings.firstNonWhitespaceIndex(this.getLineContent(lineNumber));
-		if (result === -1) {
-			return 0;
-		}
-		return result + 1;
-	}
-
-	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
-		const result = strings.lastNonWhitespaceIndex(this.getLineContent(lineNumber));
-		if (result === -1) {
-			return 0;
-		}
-		return result + 2;
-	}
-
 	// #endregion
 
 	// #region Piece Table
@@ -775,7 +758,6 @@ export class PieceTreeBase {
 
 	offsetInBuffer(bufferIndex: number, cursor: BufferCursor): number {
 		let lineStarts = this._buffers[bufferIndex].lineStarts;
-
 		return lineStarts[cursor.line] + cursor.column;
 	}
 
@@ -896,10 +878,6 @@ export class PieceTreeBase {
 	}
 
 	// #region node operations
-	getStartOffset(node: TreeNode) {
-		return this.offsetInBuffer(node.piece.bufferIndex, node.piece.start);
-	}
-
 	getIndexOf(node: TreeNode, accumulatedValue: number): { index: number, remainder: number } {
 		let piece = node.piece;
 		let pos = this.positionInBuffer(node, accumulatedValue);

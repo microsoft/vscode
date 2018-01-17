@@ -67,7 +67,7 @@ export function generateSequentialInserts(str: string, editCnt: number): IIdenti
 			text = '\n';
 			lines.push('');
 		} else {
-			text = getRandomString(50, 100);
+			text = getRandomString(5, 10);
 			lines[line - 1] += text;
 		}
 
@@ -100,6 +100,7 @@ export function generateRandomReplaces(str: string, editCnt: number, searchStrin
 			text: replaceString,
 			range: new Range(line, startColumn, line, endColumn)
 		});
+		previousChunksLength = endLine;
 	}
 
 	return ops;
