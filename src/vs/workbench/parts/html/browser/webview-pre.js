@@ -264,7 +264,7 @@
 					contentWindow.addEventListener('scroll', handleInnerScroll);
 
 					pendingMessages.forEach(function (data) {
-						contentWindow.postMessage(data, document.location.origin);
+						contentWindow.postMessage(data, '*');
 					});
 					pendingMessages = [];
 				}
@@ -303,7 +303,7 @@
 			} else {
 				const target = getActiveFrame();
 				if (target) {
-					target.contentWindow.postMessage(data, document.location.origin);
+					target.contentWindow.postMessage(data, '*');
 				}
 			}
 		});

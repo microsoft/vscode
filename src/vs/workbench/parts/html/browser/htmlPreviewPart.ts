@@ -25,6 +25,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import Webview, { WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { WebviewEditor } from './webviewEditor';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 
 /**
@@ -46,13 +47,14 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ITextModelService private textModelResolverService: ITextModelService,
 		@IThemeService themeService: IThemeService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IPartService private partService: IPartService,
 		@IStorageService storageService: IStorageService,
-		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IPartService private readonly partService: IPartService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
@@ -84,7 +86,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 				webviewOptions = this.input.options;
 			}
 
-			this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, this.findInputFocusContextKey, webviewOptions);
+			this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._environmentService, this._contextViewService, this.contextKey, this.findInputFocusContextKey, webviewOptions, true);
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;

@@ -25,7 +25,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { Context as SuggestContext } from './suggest';
 import { SuggestModel, State } from './suggestModel';
 import { ICompletionItem } from './completionModel';
-import { SuggestWidget } from './suggestWidget';
+import { SuggestWidget, ISelectedSuggestion } from './suggestWidget';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
 
@@ -34,9 +34,9 @@ class AcceptOnCharacterOracle {
 	private _disposables: IDisposable[] = [];
 
 	private _activeAcceptCharacters = new Set<string>();
-	private _activeItem: ICompletionItem;
+	private _activeItem: ISelectedSuggestion;
 
-	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (item: ICompletionItem) => any) {
+	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (selected: ISelectedSuggestion) => any) {
 
 		this._disposables.push(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
 		this._disposables.push(widget.onDidFocus(this._onItem, this));
@@ -52,14 +52,14 @@ class AcceptOnCharacterOracle {
 		}));
 	}
 
-	private _onItem(item: ICompletionItem): void {
-		if (!item || isFalsyOrEmpty(item.suggestion.commitCharacters)) {
+	private _onItem(selected: ISelectedSuggestion): void {
+		if (!selected || isFalsyOrEmpty(selected.item.suggestion.commitCharacters)) {
 			this.reset();
 			return;
 		}
-		this._activeItem = item;
+		this._activeItem = selected;
 		this._activeAcceptCharacters.clear();
-		for (const ch of item.suggestion.commitCharacters) {
+		for (const ch of selected.item.suggestion.commitCharacters) {
 			if (ch.length > 0) {
 				this._activeAcceptCharacters.add(ch[0]);
 			}
@@ -148,7 +148,7 @@ export class SuggestController implements IEditorContribution {
 		);
 
 		let makesTextEdit = SuggestContext.MakesTextEdit.bindTo(this._contextKeyService);
-		this._toDispose.push(this._widget.onDidFocus(item => {
+		this._toDispose.push(this._widget.onDidFocus(({ item }) => {
 
 			const position = this._editor.getPosition();
 			const startColumn = item.position.column - item.suggestion.overwriteBefore;
@@ -193,13 +193,13 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	protected _onDidSelectItem(item: ICompletionItem): void {
-		if (!item) {
+	protected _onDidSelectItem(event: ISelectedSuggestion): void {
+		if (!event.item) {
 			this._model.cancel();
 			return;
 		}
 
-		const { suggestion, position } = item;
+		const { suggestion, position } = event.item;
 		const editorColumn = this._editor.getPosition().column;
 		const columnDelta = editorColumn - position.column;
 
@@ -209,8 +209,12 @@ export class SuggestController implements IEditorContribution {
 			this._editor.pushUndoStop();
 		}
 
-		// remember this word for future invocations
-		this._memory.remember(this._editor.getModel().getLanguageIdentifier(), item);
+		// remember this suggestion for future invocations
+		// when it wasn't the first suggestion but from the group
+		// of top suggestions (cons -> const, console, constructor)
+		if (event.model.items[0].score === event.item.score) {
+			this._memory.remember(this._editor.getModel().getLanguageIdentifier(), event.item);
+		}
 
 		let { insertText } = suggestion;
 		if (suggestion.snippetType !== 'textmate') {
@@ -237,7 +241,7 @@ export class SuggestController implements IEditorContribution {
 			this._model.cancel();
 		}
 
-		this._alertCompletionItem(item);
+		this._alertCompletionItem(event.item);
 	}
 
 	private _alertCompletionItem({ suggestion }: ICompletionItem): void {

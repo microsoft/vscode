@@ -40,6 +40,5 @@
 	"menuId.invalid": "`{0}` 不是有效的功能表識別碼",
 	"missing.command": "功能表項目參考了 'commands' 區段中未定義的命令 `{0}`。",
 	"missing.altCommand": "功能表項目參考了 'commands' 區段中未定義的替代命令 `{0}`。",
-	"dupe.command": "功能表項目參考了與預設相同的命令和替代命令",
-	"nosupport.altCommand": "很抱歉，目前只有 [編輯器/標題] 功能表的 [導覽] 群組支援替代命令"
+	"dupe.command": "功能表項目參考了與預設相同的命令和替代命令"
 }

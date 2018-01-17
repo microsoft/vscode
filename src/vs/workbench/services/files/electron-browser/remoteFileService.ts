@@ -31,7 +31,6 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
 		isDirectory: false,
-		hasChildren: false,
 		resource: resource,
 		name: basename(resource.path),
 		mtime: stat.mtime,
@@ -41,13 +40,11 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 
 	if (stat.type === FileType.Dir) {
 		fileStat.isDirectory = true;
-		fileStat.hasChildren = true;
 
 		if (recurse && recurse([resource, stat])) {
 			// dir -> resolve
 			return provider.readdir(resource).then(entries => {
 				fileStat.isDirectory = true;
-				fileStat.hasChildren = entries.length > 0;
 
 				// resolve children if requested
 				return TPromise.join(entries.map(stat => toIFileStat(provider, stat, recurse))).then(children => {
@@ -234,7 +231,16 @@ export class RemoteFileService extends FileService {
 
 			return this.resolveFile(resource).then(fileStat => {
 
-				if (options.etag === fileStat.etag) {
+				if (fileStat.isDirectory) {
+					// todo@joh cannot copy a folder
+					// https://github.com/Microsoft/vscode/issues/41547
+					throw new FileOperationError(
+						localize('fileIsDirectoryError', "File is directory"),
+						FileOperationResult.FILE_IS_DIRECTORY,
+						options
+					);
+				}
+				if (fileStat.etag === options.etag) {
 					throw new FileOperationError(
 						localize('fileNotModifiedError', "File not modified since"),
 						FileOperationResult.FILE_NOT_MODIFIED_SINCE,
@@ -474,10 +480,9 @@ export class RemoteFileService extends FileService {
 			: TPromise.as(null);
 
 		return prepare.then(() => {
-			// TODO@Joh This does only work for textfiles
-			// because the content turns things into a string
-			// and all binary data will be broken
-			return this.resolveContent(source).then(content => {
+			// todo@ben, can only copy text files
+			// https://github.com/Microsoft/vscode/issues/41543
+			return this.resolveContent(source, { acceptTextOnly: true }).then(content => {
 				return this._withProvider(target).then(provider => {
 					return this._doUpdateContent(provider, target, content.value, { encoding: content.encoding }).then(fileStat => {
 						this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));

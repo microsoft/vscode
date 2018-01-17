@@ -158,7 +158,7 @@ export class MarkersPanel extends Panel {
 					selection: marker.range,
 					preserveFocus,
 					pinned,
-					revealIfVisible: !sideByside
+					revealIfVisible: true
 				},
 			}, sideByside).done(editor => {
 				if (editor && preserveFocus) {
@@ -233,7 +233,7 @@ export class MarkersPanel extends Panel {
 
 		const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree, { openOnFocus: true }));
 		this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {
-			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.editorOptions.pinned, options.sideBySide);
+			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 		}));
 	}
 

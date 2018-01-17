@@ -198,6 +198,7 @@ export class PanelViewlet extends Viewlet {
 			for (const { panel } of this.panelItems) {
 				if (panel.isExpanded()) {
 					panel.focus();
+					return;
 				}
 			}
 		}

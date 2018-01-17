@@ -40,6 +40,5 @@
 	"menuId.invalid": "'{0}' est un identificateur de menu non valide",
 	"missing.command": "L'élément de menu fait référence à une commande '{0}' qui n'est pas définie dans la section 'commands'.",
 	"missing.altCommand": "L'élément de menu fait référence à une commande alt '{0}' qui n'est pas définie dans la section 'commands'.",
-	"dupe.command": "L'élément de menu fait référence à la même commande que la commande par défaut et la commande alt",
-	"nosupport.altCommand": "Actuellement, seul le groupe 'navigation' du menu 'editor/title' prend en charge les commandes alt"
+	"dupe.command": "L'élément de menu fait référence à la même commande que la commande par défaut et la commande alt"
 }

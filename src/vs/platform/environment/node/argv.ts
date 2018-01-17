@@ -52,6 +52,7 @@ const options: minimist.Opts = {
 		'skip-getting-started',
 		'skip-release-notes',
 		'sticky-quickopen',
+		'disable-restore-windows',
 		'disable-telemetry',
 		'disable-updates',
 		'disable-crash-reporter',

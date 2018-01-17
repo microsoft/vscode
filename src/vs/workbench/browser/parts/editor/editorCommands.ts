@@ -8,7 +8,7 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible, IEditorContext, EditorInput } from 'vs/workbench/common/editor';
+import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible, EditorInput, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor, Position, POSITIONS, Direction, IEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -19,6 +19,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { List } from 'vs/base/browser/ui/list/listWidget';
+import { distinct } from 'vs/base/common/arrays';
 
 export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -259,17 +262,24 @@ function registerEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
-		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+		handler: (accessor, resource: URI, editorContext: IEditorIdentifier) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
+			const model = editorGroupService.getStacksModel();
 			const editorService = accessor.get(IWorkbenchEditorService);
+			const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
 
-			const { position } = positionAndInput(editorGroupService, editorService, editorContext);
+			let positionOne: { unmodifiedOnly: boolean } = undefined;
+			let positionTwo: { unmodifiedOnly: boolean } = undefined;
+			let positionThree: { unmodifiedOnly: boolean } = undefined;
+			contexts.forEach(c => {
+				switch (model.positionOfGroup(c.group)) {
+					case Position.ONE: positionOne = { unmodifiedOnly: true }; break;
+					case Position.TWO: positionTwo = { unmodifiedOnly: true }; break;
+					case Position.THREE: positionThree = { unmodifiedOnly: true }; break;
+				}
+			});
 
-			if (typeof position === 'number') {
-				return editorService.closeEditors(position, { unmodifiedOnly: true });
-			}
-
-			return TPromise.as(false);
+			return editorService.closeEditors({ positionOne, positionTwo, positionThree });
 		}
 	});
 
@@ -278,14 +288,15 @@ function registerEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_W),
-		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+		handler: (accessor, resource: URI, editorContext: IEditorIdentifier) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
+			const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
+			const positions = contexts.map(context => positionAndInput(editorGroupService, editorService, context).position);
+			const distinctPositions = distinct(positions.filter(p => typeof p === 'number'));
 
-			const { position } = positionAndInput(editorGroupService, editorService, editorContext);
-
-			if (typeof position === 'number') {
-				return editorService.closeEditors(position);
+			if (distinctPositions.length) {
+				return editorService.closeEditors(distinctPositions);
 			}
 
 			return TPromise.as(false);
@@ -298,35 +309,50 @@ function registerEditorCommands() {
 		when: void 0,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
-		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+		handler: (accessor, resource: URI, editorContext: IEditorIdentifier) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 
-			const position = editorContext ? editorGroupService.getStacksModel().positionOfGroup(editorContext.group) : null;
+			const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
+			const groups = distinct(contexts.map(context => context.group));
 
-			// Close Active Editor
-			if (typeof position !== 'number') {
+			const editorsToClose = new Map<Position, IEditorInput[]>();
+
+			groups.forEach(group => {
+				const position = editorGroupService.getStacksModel().positionOfGroup(group);
+				if (position >= 0) {
+					editorsToClose.set(position, contexts.map(c => {
+						if (group === c.group) {
+							let input = c ? c.editor : undefined;
+							if (!input) {
+
+								// Get Top Editor at Position
+								const visibleEditors = editorService.getVisibleEditors();
+								if (visibleEditors[position]) {
+									input = visibleEditors[position].input;
+								}
+							}
+
+							return input;
+						}
+
+						return undefined;
+					}).filter(input => !!input));
+				}
+			});
+
+			if (editorsToClose.size === 0) {
 				const activeEditor = editorService.getActiveEditor();
 				if (activeEditor) {
 					return editorService.closeEditor(activeEditor.position, activeEditor.input);
 				}
 			}
 
-			let input = editorContext ? editorContext.editor : null;
-			if (!input) {
-
-				// Get Top Editor at Position
-				const visibleEditors = editorService.getVisibleEditors();
-				if (visibleEditors[position]) {
-					input = visibleEditors[position].input;
-				}
-			}
-
-			if (input) {
-				return editorService.closeEditor(position, input);
-			}
-
-			return TPromise.as(false);
+			return editorService.closeEditors({
+				positionOne: editorsToClose.get(Position.ONE),
+				positionTwo: editorsToClose.get(Position.TWO),
+				positionThree: editorsToClose.get(Position.THREE)
+			});
 		}
 	});
 
@@ -336,17 +362,31 @@ function registerEditorCommands() {
 		when: void 0,
 		primary: void 0,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T },
-		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+		handler: (accessor, resource: URI, editorContext: IEditorIdentifier) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
+			const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
+			const groups = distinct(contexts.map(context => context.group));
+			const editorsToClose = new Map<Position, IEditorInput[]>();
 
-			const { position, input } = positionAndInput(editorGroupService, editorService, editorContext);
+			groups.forEach(group => {
+				const inputsToSkip = contexts.map(c => {
+					if (!!c.editor && c.group === group) {
+						return c.editor;
+					}
 
-			if (typeof position === 'number' && input) {
-				return editorService.closeEditors(position, { except: input });
-			}
+					return undefined;
+				}).filter(input => !!input);
 
-			return TPromise.as(false);
+				const toClose = group.getEditors().filter(input => inputsToSkip.indexOf(input) === -1);
+				editorsToClose.set(editorGroupService.getStacksModel().positionOfGroup(group), toClose);
+			});
+
+			return editorService.closeEditors({
+				positionOne: editorsToClose.get(Position.ONE),
+				positionTwo: editorsToClose.get(Position.TWO),
+				positionThree: editorsToClose.get(Position.THREE)
+			});
 		}
 	});
 
@@ -355,7 +395,7 @@ function registerEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: void 0,
-		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+		handler: (accessor, resource: URI, editorContext: IEditorIdentifier) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 
@@ -374,7 +414,7 @@ function registerEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter),
-		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+		handler: (accessor, resource: URI, editorContext: IEditorIdentifier) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 
@@ -393,7 +433,7 @@ function registerEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: void 0,
-		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+		handler: (accessor, resource: URI, editorContext: IEditorIdentifier) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const quickOpenService = accessor.get(IQuickOpenService);
@@ -438,7 +478,7 @@ function registerEditorCommands() {
 	});
 }
 
-function positionAndInput(editorGroupService: IEditorGroupService, editorService: IWorkbenchEditorService, editorContext?: IEditorContext): { position: Position, input: IEditorInput } {
+function positionAndInput(editorGroupService: IEditorGroupService, editorService: IWorkbenchEditorService, editorContext?: IEditorIdentifier): { position: Position, input: IEditorInput } {
 	let position = editorContext ? editorGroupService.getStacksModel().positionOfGroup(editorContext.group) : null;
 	let input = editorContext ? editorContext.editor : null;
 
@@ -450,4 +490,26 @@ function positionAndInput(editorGroupService: IEditorGroupService, editorService
 	}
 
 	return { position, input };
+}
+
+export function getMultiSelectedEditorContexts(editorContext: IEditorIdentifier, listService: IListService): IEditorIdentifier[] {
+	// TODO@Isidor this method is not nice since it assumes it is working on open editors view and maps elements on top of that
+	const list = listService.lastFocusedList;
+	// Mapping for open editors view
+	const elementToContext = element => element && element.editorGroup && element.editorInput ? { group: element.editorGroup, editor: element.editorInput } : { group: element, editor: undefined };
+
+	if (list instanceof List && list.isDOMFocused()) {
+		const selection = list.getSelectedElements();
+		const focus = list.getFocusedElements();
+		// Only respect selection if it contains focused element
+		if (focus.length && selection && selection.indexOf(focus[0]) >= 0) {
+			return list.getSelectedElements().map(elementToContext);
+		}
+
+		if (focus) {
+			return focus.map(elementToContext);
+		}
+	}
+
+	return !!editorContext ? [editorContext] : [];
 }

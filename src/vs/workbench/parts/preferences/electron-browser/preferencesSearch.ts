@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
-import Event, { Emitter } from 'vs/base/common/event';
-import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, IPreferencesSearchModel } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider, IGroupFilter, ISettingMatcher, IScoredResults } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
-import { distinct } from 'vs/base/common/arrays';
+import { distinct, top } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -20,7 +18,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -30,19 +27,15 @@ export interface IEndpointDetails {
 export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
 	_serviceBrand: any;
 
-	private _onRemoteSearchEnablementChanged = new Emitter<boolean>();
-	public onRemoteSearchEnablementChanged: Event<boolean> = this._onRemoteSearchEnablementChanged.event;
-
 	constructor(
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
-		this._register(configurationService.onDidChangeConfiguration(() => this._onRemoteSearchEnablementChanged.fire(this.remoteSearchAllowed)));
 	}
 
-	get remoteSearchAllowed(): boolean {
+	private get remoteSearchAllowed(): boolean {
 		if (this.environmentService.appQuality === 'stable') {
 			return false;
 		}
@@ -69,76 +62,60 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		}
 	}
 
-	startSearch(filter: string, remote: boolean): PreferencesSearchModel {
-		return this.instantiationService.createInstance(PreferencesSearchModel, this, filter, remote);
+	getRemoteSearchProvider(filter: string): RemoteSearchProvider {
+		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, filter, this.endpoint);
+	}
+
+	getLocalSearchProvider(filter: string): LocalSearchProvider {
+		return this.instantiationService.createInstance(LocalSearchProvider, filter);
 	}
 }
 
-export class PreferencesSearchModel implements IPreferencesSearchModel {
-	private _localProvider: LocalSearchProvider;
-	private _remoteProvider: RemoteSearchProvider;
-
-	constructor(
-		private provider: IPreferencesSearchService, private filter: string, remote: boolean,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ITelemetryService private telemetryService: ITelemetryService
-	) {
-		this._localProvider = new LocalSearchProvider(filter);
-
-		if (remote && filter) {
-			this._remoteProvider = instantiationService.createInstance(RemoteSearchProvider, filter, this.provider.endpoint);
-		}
-	}
-
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
-		if (!this.filter) {
-			return TPromise.wrap(null);
-		}
-
-		if (this._remoteProvider) {
-			return this._remoteProvider.filterPreferences(preferencesModel).then(null, err => {
-				const message = errors.getErrorMessage(err);
-
-				if (message.toLowerCase() !== 'canceled') {
-					/* __GDPR__
-						"defaultSettings.searchError" : {
-							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('defaultSettings.searchError', { message });
-				}
-
-				return this._localProvider.filterPreferences(preferencesModel);
-			});
-		} else {
-			return this._localProvider.filterPreferences(preferencesModel);
-		}
-	}
-}
-
-class LocalSearchProvider {
+export class LocalSearchProvider implements ISearchProvider {
 	private _filter: string;
 
 	constructor(filter: string) {
 		this._filter = filter;
 	}
 
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
-		const regex = strings.createRegExp(this._filter, false, { global: true });
+	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
+		if (!this._filter) {
+			return TPromise.wrap(null);
+		}
 
-		const groupFilter = (group: ISettingsGroup) => {
-			return regex.test(group.title);
-		};
-
+		let score = 1000; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
-			return new SettingMatches(this._filter, setting, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			const matches = new SettingMatches(this._filter, setting, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			return matches && matches.length ?
+				{
+					matches,
+					score: score--
+				} :
+				null;
 		};
 
-		return TPromise.wrap(preferencesModel.filterSettings(this._filter, groupFilter, settingMatcher));
+		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
+		return TPromise.wrap({
+			filterMatches
+		});
+	}
+
+	private getGroupFilter(filter: string): IGroupFilter {
+		if (strings.startsWith(filter, '@')) {
+			const groupId = filter.replace(/^@/, '');
+			return (group: ISettingsGroup) => {
+				return group.id.toLowerCase() === groupId.toLowerCase();
+			};
+		} else {
+			const regex = strings.createRegExp(this._filter, false, { global: true });
+			return (group: ISettingsGroup) => {
+				return regex.test(group.title);
+			};
+		}
 	}
 }
 
-class RemoteSearchProvider {
+export class RemoteSearchProvider implements ISearchProvider {
 	private _filter: string;
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
@@ -147,23 +124,26 @@ class RemoteSearchProvider {
 		@IRequestService private requestService: IRequestService
 	) {
 		this._filter = filter;
-		this._remoteSearchP = filter ? this.getSettingsFromBing(filter, endpoint) : TPromise.wrap(null);
+
+		// @queries are always handled by local filter
+		this._remoteSearchP = filter && !strings.startsWith(filter, '@') ?
+			this.getSettingsFromBing(filter, endpoint) :
+			TPromise.wrap(null);
 	}
 
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
+	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
 		return this._remoteSearchP.then(remoteResult => {
 			if (remoteResult) {
-				let sortedNames = Object.keys(remoteResult.scoredResults).sort((a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a]);
-				if (sortedNames.length) {
-					const highScore = remoteResult.scoredResults[sortedNames[0]];
-					const minScore = highScore / 5;
-					sortedNames = sortedNames.filter(name => remoteResult.scoredResults[name] >= minScore);
-				}
+				const highScoreKey = top(Object.keys(remoteResult.scoredResults), (a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a], 1)[0];
+				const highScore = highScoreKey ? remoteResult.scoredResults[highScoreKey] : 0;
+				const minScore = highScore / 5;
 
-				const settingMatcher = this.getRemoteSettingMatcher(sortedNames, preferencesModel);
-				const result = preferencesModel.filterSettings(this._filter, group => null, settingMatcher, sortedNames);
-				result.metadata = remoteResult;
-				return result;
+				const settingMatcher = this.getRemoteSettingMatcher(remoteResult.scoredResults, minScore, preferencesModel);
+				const filterMatches = preferencesModel.filterSettings(this._filter, group => null, settingMatcher);
+				return <ISearchResult>{
+					filterMatches,
+					metadata: remoteResult
+				};
 			} else {
 				return null;
 			}
@@ -218,19 +198,15 @@ class RemoteSearchProvider {
 		return TPromise.as(p as any);
 	}
 
-	private getRemoteSettingMatcher(names: string[], preferencesModel: ISettingsEditorModel): any {
-		const resultSet = new Set();
-		names.forEach(name => resultSet.add(name));
-
+	private getRemoteSettingMatcher(scoredResults: IScoredResults, minScore: number, preferencesModel: ISettingsEditorModel): ISettingMatcher {
 		return (setting: ISetting) => {
-			if (resultSet.has(setting.key)) {
+			const score = scoredResults[setting.key];
+			if (typeof score === 'number' && score >= minScore) {
 				const settingMatches = new SettingMatches(this._filter, setting, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
-				if (settingMatches.length) {
-					return settingMatches;
-				}
+				return { matches: settingMatches, score: scoredResults[setting.key] };
 			}
 
-			return [];
+			return null;
 		};
 	}
 }

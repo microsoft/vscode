@@ -29,14 +29,19 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 
-function renderBody(body: string, css: string): string {
+function renderBody(
+	body: string,
+	css: string,
+	environmentService: IEnvironmentService
+): string {
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://' + environmentService.appRoot, 'vscode-core-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<base href="https://code.visualstudio.com/raw/">
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src file: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
-				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-core-resource: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${styleSheetPath}">
 				<style>${css}</style>
 			</head>
 			<body>${body}</body>
@@ -52,14 +57,14 @@ export class ReleaseNotesEditor extends WebviewEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IThemeService protected themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IOpenerService private openerService: IOpenerService,
 		@IModeService private modeService: IModeService,
 		@IPartService private partService: IPartService,
-		@IStorageService storageService: IStorageService,
-		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextViewService private _contextViewService: IContextViewService
 	) {
 		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
@@ -99,8 +104,8 @@ export class ReleaseNotesEditor extends WebviewEditor {
 
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = generateTokensCSSForColorMap(colorMap);
-		const body = renderBody(marked(text, { renderer }), css);
-		this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, this.findInputFocusContextKey);
+		const body = renderBody(marked(text, { renderer }), css, this.environmentService);
+		this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.environmentService, this._contextViewService, this.contextKey, this.findInputFocusContextKey, {}, false);
 		if (this.input && this.input instanceof ReleaseNotesInput) {
 			const state = this.loadViewState(this.input.version);
 			if (state) {
