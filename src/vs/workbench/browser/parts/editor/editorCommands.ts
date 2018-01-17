@@ -318,33 +318,35 @@ function registerEditorCommands() {
 
 			const editorsToClose = new Map<Position, IEditorInput[]>();
 
-			if (groups.length === 0) {
+			groups.forEach(group => {
+				const position = editorGroupService.getStacksModel().positionOfGroup(group);
+				if (position >= 0) {
+					editorsToClose.set(position, contexts.map(c => {
+						if (group === c.group) {
+							let input = c ? c.editor : undefined;
+							if (!input) {
+
+								// Get Top Editor at Position
+								const visibleEditors = editorService.getVisibleEditors();
+								if (visibleEditors[position]) {
+									input = visibleEditors[position].input;
+								}
+							}
+
+							return input;
+						}
+
+						return undefined;
+					}).filter(input => !!input));
+				}
+			});
+
+			if (editorsToClose.size === 0) {
 				const activeEditor = editorService.getActiveEditor();
 				if (activeEditor) {
 					return editorService.closeEditor(activeEditor.position, activeEditor.input);
 				}
 			}
-
-			groups.forEach(group => {
-				const position = editorGroupService.getStacksModel().positionOfGroup(group);
-				editorsToClose.set(position, contexts.map(c => {
-					if (group === c.group) {
-						let input = c ? c.editor : undefined;
-						if (!input) {
-
-							// Get Top Editor at Position
-							const visibleEditors = editorService.getVisibleEditors();
-							if (visibleEditors[position]) {
-								input = visibleEditors[position].input;
-							}
-						}
-
-						return input;
-					}
-
-					return undefined;
-				}).filter(input => !!input));
-			});
 
 			return editorService.closeEditors({
 				positionOne: editorsToClose.get(Position.ONE),
