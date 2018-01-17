@@ -146,7 +146,8 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 							title: info.description,
 							command: SelectRefactorCommand.ID,
 							arguments: [document, file, info, range]
-						}
+						},
+						scope: vscode.CodeActionScope.Refactor
 					});
 				} else {
 					for (const action of info.actions) {
@@ -156,7 +157,8 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 								title: action.description,
 								command: ApplyRefactoringCommand.ID,
 								arguments: [document, file, info.name, action.name, range]
-							}
+							},
+							scope: vscode.CodeActionScope.Refactor
 						});
 					}
 				}

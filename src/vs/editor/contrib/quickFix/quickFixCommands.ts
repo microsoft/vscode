@@ -19,7 +19,7 @@ import { registerEditorAction, registerEditorContribution, ServicesAccessor, Edi
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { QuickFixContextMenu } from './quickFixWidget';
 import { LightBulbWidget } from './lightBulbWidget';
-import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
+import { QuickFixModel, QuickFixComputeEvent, CodeActionScope } from './quickFixModel';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CodeAction } from 'vs/editor/common/modes';
 import { createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
@@ -72,7 +72,6 @@ export class QuickFixController implements IEditorContribution {
 	private _onQuickFixEvent(e: QuickFixComputeEvent): void {
 		if (e && e.type === 'manual') {
 			this._quickFixContextMenu.show(e.fixes, e.position);
-
 		} else if (e && e.fixes) {
 			// auto magically triggered
 			// * update an existing list of code actions
@@ -95,8 +94,8 @@ export class QuickFixController implements IEditorContribution {
 		this._quickFixContextMenu.show(this._lightBulbWidget.model.fixes, coords);
 	}
 
-	public triggerFromEditorSelection(): void {
-		this._model.trigger('manual');
+	public triggerFromEditorSelection(scope?: CodeActionScope): void {
+		this._model.trigger('manual', scope);
 	}
 
 	private _updateLightBulbTitle(): void {
@@ -140,10 +139,10 @@ export class QuickFixAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args?: any[]): void {
 		let controller = QuickFixController.get(editor);
 		if (controller) {
-			controller.triggerFromEditorSelection();
+			controller.triggerFromEditorSelection(args && typeof args[0] === 'string' ? new CodeActionScope(args[0]) : undefined);
 		}
 	}
 }

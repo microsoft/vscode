@@ -343,6 +343,7 @@ export interface CodeAction {
 	command?: Command;
 	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
+	scope?: string;
 }
 
 /**

@@ -419,6 +419,9 @@ export class ExtHostApiCommands {
 						codeAction.title,
 						typeConverters.WorkspaceEdit.to(codeAction.edit)
 					);
+					if (codeAction.scope) {
+						ret.scope = new types.CodeActionScope(codeAction.scope);
+					}
 					return ret;
 				}
 			});

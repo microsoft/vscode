@@ -15,6 +15,20 @@ import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
 import { Position } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { startsWith } from 'vs/base/common/strings';
+
+export class CodeActionScope {
+	private static readonly sep = '.';
+
+	constructor(
+		public readonly value: string
+	) { }
+
+	public matches(other: CodeActionScope): boolean {
+		return this.value === other.value || (startsWith(this.value, other.value) && other.value[this.value + 1] === CodeActionScope.sep);
+	}
+}
+
 
 export class QuickFixOracle {
 
@@ -36,12 +50,12 @@ export class QuickFixOracle {
 		this._disposables = dispose(this._disposables);
 	}
 
-	trigger(type: 'manual' | 'auto'): void {
+	trigger(type: 'manual' | 'auto', scope?: CodeActionScope): void {
 		let rangeOrSelection = this._getRangeOfMarker() || this._getRangeOfSelectionUnlessWhitespaceEnclosed();
 		if (!rangeOrSelection && type === 'manual') {
 			rangeOrSelection = this._editor.getSelection();
 		}
-		this._createEventAndSignalChange(type, rangeOrSelection);
+		this._createEventAndSignalChange(type, rangeOrSelection, scope);
 	}
 
 	private _onMarkerChanges(resources: URI[]): void {
@@ -98,27 +112,34 @@ export class QuickFixOracle {
 		return selection;
 	}
 
-	private _createEventAndSignalChange(type: 'auto' | 'manual', rangeOrSelection: Range | Selection): void {
+	private _createEventAndSignalChange(type: 'auto' | 'manual', rangeOrSelection: Range | Selection, scope?: CodeActionScope): void {
 		if (!rangeOrSelection) {
 			// cancel
 			this._signalChange({
 				type,
 				range: undefined,
 				position: undefined,
-				fixes: undefined
+				fixes: undefined,
+				scope
 			});
 		} else {
 			// actual
 			const model = this._editor.getModel();
 			const range = model.validateRange(rangeOrSelection);
 			const position = rangeOrSelection instanceof Selection ? rangeOrSelection.getPosition() : rangeOrSelection.getStartPosition();
-			const fixes = getCodeActions(model, range);
+			const fixes = getCodeActions(model, range).then(actions => {
+				if (!scope) {
+					return actions;
+				}
+				return actions.filter(action => action.scope && new CodeActionScope(action.scope).matches(scope));
+			});
 
 			this._signalChange({
 				type,
 				range,
 				position,
-				fixes
+				fixes,
+				scope
 			});
 		}
 	}
@@ -129,6 +150,7 @@ export interface QuickFixComputeEvent {
 	range: Range;
 	position: Position;
 	fixes: TPromise<CodeAction[]>;
+	scope?: CodeActionScope;
 }
 
 export class QuickFixModel {
@@ -176,9 +198,9 @@ export class QuickFixModel {
 		}
 	}
 
-	trigger(type: 'auto' | 'manual'): void {
+	trigger(type: 'auto' | 'manual', scope?: CodeActionScope): void {
 		if (this._quickFixOracle) {
-			this._quickFixOracle.trigger(type);
+			this._quickFixOracle.trigger(type, scope);
 		}
 	}
 }

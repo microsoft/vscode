@@ -1812,6 +1812,22 @@ declare module 'vscode' {
 	 */
 	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
 
+	export class CodeActionScope {
+		public static readonly Empty: CodeActionScope;
+		public static readonly Refactor: CodeActionScope;
+		public static readonly RefactorExtract: CodeActionScope;
+		public static readonly RefactorInline: CodeActionScope;
+
+		private constructor(value: string);
+
+		readonly value?: string;
+
+		public add(parts: string): CodeActionScope;
+
+		public matches(other: CodeActionScope): boolean;
+
+	}
+
 	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
@@ -1821,6 +1837,8 @@ declare module 'vscode' {
 		 * An array of diagnostics.
 		 */
 		readonly diagnostics: Diagnostic[];
+
+		readonly requestedScope?: CodeActionScope;
 	}
 
 	/**
@@ -1852,6 +1870,13 @@ declare module 'vscode' {
 		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
 		 */
 		command?: Command;
+
+		/**
+		 * Scope of the code action.
+		 *
+		 * Used to filter code actions.
+		 */
+		readonly scope?: CodeActionScope;
 
 		/**
 		 * Creates a new code action.

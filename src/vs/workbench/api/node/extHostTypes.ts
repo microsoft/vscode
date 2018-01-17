@@ -12,6 +12,7 @@ import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { relative } from 'path';
+import { startsWith } from 'vs/base/common/strings';
 
 export class Disposable {
 
@@ -818,11 +819,36 @@ export class CodeAction {
 
 	dianostics?: Diagnostic[];
 
+	scope?: CodeActionScope;
+
 	constructor(title: string, edit?: WorkspaceEdit) {
 		this.title = title;
 		this.edit = edit;
 	}
 }
+
+
+export class CodeActionScope {
+	private static readonly sep = '.';
+
+	public static readonly Empty = new CodeActionScope('');
+	public static readonly Refactor = new CodeActionScope('refactor');
+	public static readonly RefactorExtract = CodeActionScope.Refactor.add('extract');
+	public static readonly RefactorInline = CodeActionScope.Refactor.add('inline');
+
+	constructor(
+		public readonly value: string
+	) { }
+
+	public add(scopes: string): CodeActionScope {
+		return new CodeActionScope(this.value + CodeActionScope.sep + scopes);
+	}
+
+	public matches(other: CodeActionScope): boolean {
+		return this.value === other.value || (startsWith(this.value, other.value) && other.value[this.value + 1] === CodeActionScope.sep);
+	}
+}
+
 
 export class CodeLens {
 

@@ -556,6 +556,7 @@ export function createApiFactory(
 			Breakpoint: extHostTypes.Breakpoint,
 			CancellationTokenSource: CancellationTokenSource,
 			CodeAction: extHostTypes.CodeAction,
+			CodeActionScope: extHostTypes.CodeActionScope,
 			CodeLens: extHostTypes.CodeLens,
 			Color: extHostTypes.Color,
 			ColorPresentation: extHostTypes.ColorPresentation,
