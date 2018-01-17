@@ -149,7 +149,11 @@ export class ChunksTextBuffer implements ITextBuffer {
 		return result + 1;
 	}
 	getLineLastNonWhitespaceColumn(lineNumber: number): number {
-		throw new Error('TODO');
+		const result = this._actual.getLineLastNonWhitespaceIndex(lineNumber);
+		if (result === -1) {
+			return 0;
+		}
+		return result + 1;
 	}
 	setEOL(newEOL: '\r\n' | '\n'): void {
 		if (this.getEOL() === newEOL) {
@@ -929,7 +933,11 @@ class Buffer {
 		while (true) {
 			const leaf = this._leafs[leafIndex];
 
-			const leafResult = leaf.findLineFirstNonWhitespaceIndexInLeaf(searchStartOffset);
+			const leafResult = leaf.findLineFirstNonWhitespaceIndex(searchStartOffset);
+			if (leafResult === -2) {
+				// reached EOL
+				return -1;
+			}
 			if (leafResult !== -1) {
 				return (leafResult - searchStartOffset) + totalDelta;
 			}
@@ -942,6 +950,52 @@ class Buffer {
 
 			totalDelta += (leaf.length() - searchStartOffset);
 			searchStartOffset = 0;
+		}
+	}
+
+	public getLineLastNonWhitespaceIndex(lineNumber: number): number {
+		const start = BufferCursorPool.take();
+		const end = BufferCursorPool.take();
+
+		if (!this._findLineStart(lineNumber, start)) {
+			BufferCursorPool.put(start);
+			BufferCursorPool.put(end);
+			throw new Error(`Line not found`);
+		}
+
+		this._findLineEnd(start, lineNumber, end);
+
+		const startOffset = start.offset;
+		const endOffset = end.offset;
+		let leafIndex = end.leafIndex;
+		let searchStartOffset = end.offset - end.leafStartOffset - this._eolLength;
+
+		BufferCursorPool.put(start);
+		BufferCursorPool.put(end);
+
+		let totalDelta = 0;
+		while (true) {
+			const leaf = this._leafs[leafIndex];
+
+			const leafResult = leaf.findLineLastNonWhitespaceIndex(searchStartOffset);
+			if (leafResult === -2) {
+				// reached EOL
+				return -1;
+			}
+			if (leafResult !== -1) {
+				const delta = (searchStartOffset - 1 - leafResult);
+				const absoluteOffset = (endOffset - this._eolLength) - delta - totalDelta;
+				return absoluteOffset - startOffset;
+			}
+
+			leafIndex--;
+
+			if (leafIndex < 0) {
+				return -1;
+			}
+
+			totalDelta += searchStartOffset;
+			searchStartOffset = leaf.length();
 		}
 	}
 

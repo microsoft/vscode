@@ -66,12 +66,26 @@ export class BufferPiece {
 		return -1;
 	}
 
-	public findLineFirstNonWhitespaceIndexInLeaf(searchStartOffset: number): number {
+	public findLineFirstNonWhitespaceIndex(searchStartOffset: number): number {
 		for (let i = searchStartOffset, len = this._str.length; i < len; i++) {
 			const chCode = this._str.charCodeAt(i);
 			if (chCode === CharCode.CarriageReturn || chCode === CharCode.LineFeed) {
 				// Reached EOL
-				return -1;
+				return -2;
+			}
+			if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	public findLineLastNonWhitespaceIndex(searchStartOffset: number): number {
+		for (let i = searchStartOffset - 1; i >= 0; i--) {
+			const chCode = this._str.charCodeAt(i);
+			if (chCode === CharCode.CarriageReturn || chCode === CharCode.LineFeed) {
+				// Reached EOL
+				return -2;
 			}
 			if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
 				return i;
