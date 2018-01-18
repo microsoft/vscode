@@ -19,7 +19,8 @@ import { registerEditorAction, registerEditorContribution, ServicesAccessor, Edi
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { QuickFixContextMenu } from './quickFixWidget';
 import { LightBulbWidget } from './lightBulbWidget';
-import { QuickFixModel, QuickFixComputeEvent, CodeActionScope } from './quickFixModel';
+import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
+import { CodeActionScope } from './codeActionScope';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CodeAction } from 'vs/editor/common/modes';
 import { createBulkEdit } from 'vs/editor/browser/services/bulkEdit';

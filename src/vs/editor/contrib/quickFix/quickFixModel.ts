@@ -13,22 +13,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
+import { CodeActionScope } from './codeActionScope';
 import { Position } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { startsWith } from 'vs/base/common/strings';
-
-export class CodeActionScope {
-	private static readonly sep = '.';
-
-	constructor(
-		public readonly value: string
-	) { }
-
-	public contains(other: CodeActionScope): boolean {
-		return this.value === other.value || startsWith(other.value, this.value + CodeActionScope.sep);
-	}
-}
-
 
 export class QuickFixOracle {
 
@@ -127,12 +114,7 @@ export class QuickFixOracle {
 			const model = this._editor.getModel();
 			const range = model.validateRange(rangeOrSelection);
 			const position = rangeOrSelection instanceof Selection ? rangeOrSelection.getPosition() : rangeOrSelection.getStartPosition();
-			const fixes = getCodeActions(model, range).then(actions => {
-				if (!scope) {
-					return actions;
-				}
-				return actions.filter(action => action.scope && scope.contains(new CodeActionScope(action.scope)));
-			});
+			const fixes = getCodeActions(model, range, scope);
 
 			this._signalChange({
 				type,

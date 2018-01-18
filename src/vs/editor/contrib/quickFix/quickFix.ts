@@ -14,15 +14,16 @@ import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/error
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { CodeActionScope } from './codeActionScope';
 
-export function getCodeActions(model: ITextModel, range: Range): TPromise<CodeAction[]> {
+export function getCodeActions(model: ITextModel, range: Range, scope?: CodeActionScope): TPromise<CodeAction[]> {
 
 	const allResults: CodeAction[] = [];
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
 		return asWinJsPromise(token => support.provideCodeActions(model, range, token)).then(result => {
 			if (Array.isArray(result)) {
 				for (const quickFix of result) {
-					if (quickFix) {
+					if (quickFix && (!scope || quickFix.scope && scope.contains(quickFix.scope))) {
 						allResults.push(quickFix);
 					}
 				}
