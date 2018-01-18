@@ -32,14 +32,24 @@ export function getRandomString(minLength: number, maxLength: number): string {
 	return r;
 }
 
-export function generateRandomEdits(str: string, editCnt: number): IIdentifiedSingleEditOperation[] {
-	let lines = str.split(/\r\n|\r|\n/);
+export function generateRandomEdits(chunks: string[], editCnt: number): IIdentifiedSingleEditOperation[] {
+	let lines = [];
+	for (let i = 0; i < chunks.length; i++) {
+		let newLines = chunks[i].split(/\r\n|\r|\n/);
+		if (lines.length === 0) {
+			lines.push(...newLines);
+		} else {
+			newLines[0] = lines[lines.length - 1] + newLines[0];
+			lines.splice(lines.length - 1, 1, ...newLines);
+		}
+	}
+
 	let ops: IIdentifiedSingleEditOperation[] = [];
 
 	for (let i = 0; i < editCnt; i++) {
 		let line = getRandomInt(1, lines.length);
-		let startColumn = getRandomInt(1, lines[line - 1].length + 1);
-		let endColumn = getRandomInt(startColumn, lines[line - 1].length + 1);
+		let startColumn = getRandomInt(1, Math.max(lines[line - 1].length, 1));
+		let endColumn = getRandomInt(startColumn, Math.max(lines[line - 1].length, startColumn));
 		let text: string = '';
 		if (Math.random() < .5) {
 			text = getRandomString(5, 10);
@@ -55,8 +65,18 @@ export function generateRandomEdits(str: string, editCnt: number): IIdentifiedSi
 	return ops;
 }
 
-export function generateSequentialInserts(str: string, editCnt: number): IIdentifiedSingleEditOperation[] {
-	let lines = str.split(/\r\n|\r|\n/);
+export function generateSequentialInserts(chunks: string[], editCnt: number): IIdentifiedSingleEditOperation[] {
+	let lines = [];
+	for (let i = 0; i < chunks.length; i++) {
+		let newLines = chunks[i].split(/\r\n|\r|\n/);
+		if (lines.length === 0) {
+			lines.push(...newLines);
+		} else {
+			newLines[0] = lines[lines.length - 1] + newLines[0];
+			lines.splice(lines.length - 1, 1, ...newLines);
+		}
+	}
+
 	let ops: IIdentifiedSingleEditOperation[] = [];
 
 	for (let i = 0; i < editCnt; i++) {
@@ -67,7 +87,7 @@ export function generateSequentialInserts(str: string, editCnt: number): IIdenti
 			text = '\n';
 			lines.push('');
 		} else {
-			text = getRandomString(5, 10);
+			text = getRandomString(1, 2);
 			lines[line - 1] += text;
 		}
 
@@ -80,8 +100,18 @@ export function generateSequentialInserts(str: string, editCnt: number): IIdenti
 	return ops;
 }
 
-export function generateRandomReplaces(str: string, editCnt: number, searchStringLen: number, replaceStringLen: number): IIdentifiedSingleEditOperation[] {
-	let lines = str.split(/\r\n|\r|\n/);
+export function generateRandomReplaces(chunks: string[], editCnt: number, searchStringLen: number, replaceStringLen: number): IIdentifiedSingleEditOperation[] {
+	let lines = [];
+	for (let i = 0; i < chunks.length; i++) {
+		let newLines = chunks[i].split(/\r\n|\r|\n/);
+		if (lines.length === 0) {
+			lines.push(...newLines);
+		} else {
+			newLines[0] = lines[lines.length - 1] + newLines[0];
+			lines.splice(lines.length - 1, 1, ...newLines);
+		}
+	}
+
 	let ops: IIdentifiedSingleEditOperation[] = [];
 	let chunkSize = Math.max(1, Math.floor(lines.length / editCnt));
 	let chunkCnt = Math.floor(lines.length / chunkSize);
