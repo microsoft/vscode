@@ -841,7 +841,7 @@ export class CodeActionScope {
 	) { }
 
 	public add(scopes: string): CodeActionScope {
-		return new CodeActionScope(this.value + CodeActionScope.sep + scopes);
+		return new CodeActionScope(this.value ? this.value + CodeActionScope.sep + scopes : scopes);
 	}
 
 	public contains(other: CodeActionScope): boolean {
