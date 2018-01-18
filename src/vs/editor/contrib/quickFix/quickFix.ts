@@ -20,7 +20,7 @@ export function getCodeActions(model: ITextModel, range: Range, scope?: CodeActi
 
 	const allResults: CodeAction[] = [];
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
-		return asWinJsPromise(token => support.provideCodeActions(model, range, { scope: scope ? scope.value : undefined }, token)).then(result => {
+		return asWinJsPromise(token => support.provideCodeActions(model, range, { requestedScope: scope ? scope.value : undefined }, token)).then(result => {
 			if (Array.isArray(result)) {
 				for (const quickFix of result) {
 					if (quickFix) {

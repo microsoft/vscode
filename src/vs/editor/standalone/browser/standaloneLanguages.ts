@@ -333,7 +333,7 @@ export function registerCodeActionProvider(languageId: string, provider: CodeAct
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
-			return provider.provideCodeActions(model, range, { markers, scope: context.scope }, token);
+			return provider.provideCodeActions(model, range, { markers, scope: context.requestedScope }, token);
 		}
 	});
 }
