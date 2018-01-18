@@ -57,15 +57,20 @@ function resetSentinel(): void {
 
 // const lfRegex = new RegExp(/\r\n|\r|\n/g);
 
-export function createUint32Array(arr: number[]): Uint32Array {
-	let r = new Uint32Array(arr.length);
+export function createUintArray(arr: number[]): Uint32Array | Uint16Array {
+	let r;
+	if (arr[arr.length - 1] < 65536) {
+		r = new Uint16Array(arr.length);
+	} else {
+		r = new Uint32Array(arr.length);
+	}
 	r.set(arr, 0);
 	return r;
 }
 
 export class LineStarts {
 	constructor(
-		public readonly lineStarts: Uint32Array | number[],
+		public readonly lineStarts: Uint32Array | Uint16Array | number[],
 		public readonly cr: number,
 		public readonly lf: number,
 		public readonly crlf: number,
@@ -93,7 +98,7 @@ export function createLineStartsFast(str: string, readonly: boolean = true): Uin
 		}
 	}
 	if (readonly) {
-		return createUint32Array(r);
+		return createUintArray(r);
 	} else {
 		return r;
 	}
@@ -130,8 +135,7 @@ export function createLineStarts(r: number[], str: string): LineStarts {
 			}
 		}
 	}
-
-	const result = new LineStarts(createUint32Array(r), cr, lf, crlf, isBasicASCII);
+	const result = new LineStarts(createUintArray(r), cr, lf, crlf, isBasicASCII);
 	r.length = 0;
 
 	return result;
@@ -259,9 +263,9 @@ export class Piece {
 
 export class StringBuffer {
 	buffer: string;
-	lineStarts: number[] | Uint32Array;
+	lineStarts: Uint32Array | Uint16Array | number[];
 
-	constructor(buffer: string, lineStarts: number[] | Uint32Array) {
+	constructor(buffer: string, lineStarts: Uint32Array | Uint16Array | number[]) {
 		this.buffer = buffer;
 		this.lineStarts = lineStarts;
 	}
