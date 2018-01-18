@@ -715,7 +715,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private doSetEnablement(extension: IExtension, enablementState: EnablementState): TPromise<boolean> {
-		return this.extensionEnablementService.setEnablement(extension, enablementState);
+		return this.extensionEnablementService.setEnablement(extension.local, enablementState);
 	}
 
 	get allowedBadgeProviders(): string[] {

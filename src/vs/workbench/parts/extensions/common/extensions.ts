@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import Event from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -51,6 +51,7 @@ export interface IExtension {
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
 	getChangelog(): TPromise<string>;
+	local?: ILocalExtension;
 }
 
 export interface IExtensionDependencies {
