@@ -1815,7 +1815,7 @@ declare module 'vscode' {
 	/**
 	 * Scope of a code action.
 	 *
-	 * Specifies the type of a code action. Scopes are
+	 * Specifies the type of a code action. A scope is a hierarchical list of identifiers separated by `.`, e.g. `"refactoring.extract.function"`.
 	 */
 	export class CodeActionScope {
 		/**
@@ -1849,8 +1849,6 @@ declare module 'vscode' {
 		 * Create a new scope by appending a more specific selector to the current scope.
 		 *
 		 * Does not modify the current scope object.
-		 *
-		 * TODO: Should we allow `add('a.b.c')` or require `add('a').add('b').add('c')`?
 		 */
 		public add(parts: string): CodeActionScope;
 
@@ -1879,7 +1877,7 @@ declare module 'vscode' {
 		 *
 		 * Actions not within this scope are filtered out before being shown by the lightbulb.
 		 */
-		readonly requestedScope?: CodeActionScope;
+		readonly requestedScope: CodeActionScope;
 	}
 
 	/**

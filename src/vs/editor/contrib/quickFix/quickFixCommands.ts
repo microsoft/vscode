@@ -20,7 +20,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { QuickFixContextMenu } from './quickFixWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
-import { CodeActionScope } from './codeActionScope';
+import { CodeActionScope, CodeActionTrigger } from './codeActionScope';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CodeAction } from 'vs/editor/common/modes';
 import { createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
@@ -71,11 +71,11 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _onQuickFixEvent(e: QuickFixComputeEvent): void {
-		if (e && e.scope) {
+		if (e && e.trigger) {
 			// Triggered for specific scope
-			// Apply if we only have one action, otherwise show menu
+			// Apply if we only have one action or requested autoApply, otherwise show menu
 			e.fixes.then(fixes => {
-				if (fixes.length === 1) {
+				if (e.trigger.autoApply !== false && (fixes.length === 1 || fixes.length >= 1 && e.trigger.autoApply)) {
 					this._onApplyCodeAction(fixes[0]);
 				} else {
 					this._quickFixContextMenu.show(e.fixes, e.position);
@@ -112,8 +112,8 @@ export class QuickFixController implements IEditorContribution {
 		this._model.trigger('manual');
 	}
 
-	public tryPerformFromEditorSelection(scope: CodeActionScope): void {
-		this._model.trigger('manual', scope);
+	public triggerCodeActionFromEditorSelection(trigger: CodeActionTrigger): void {
+		this._model.trigger('manual', trigger);
 	}
 
 	private _updateLightBulbTitle(): void {
@@ -165,6 +165,10 @@ export class QuickFixAction extends EditorAction {
 	}
 }
 
+interface CodeActionCommandOptions {
+	autoApply?: boolean;
+}
+
 export class CodeActionCommand extends EditorCommand {
 
 	static readonly Id = 'editor.action.codeAction';
@@ -179,7 +183,12 @@ export class CodeActionCommand extends EditorCommand {
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any) {
 		let controller = QuickFixController.get(editor);
 		if (controller) {
-			controller.tryPerformFromEditorSelection(args && typeof args[0] === 'string' ? new CodeActionScope(args[0]) : new CodeActionScope(''));
+			const scope = args && typeof args[0] === 'string' ? new CodeActionScope(args[0]) : CodeActionScope.Empty;
+			const argsSettings: CodeActionCommandOptions = (args && args[1]) || {};
+			controller.triggerCodeActionFromEditorSelection({
+				scope,
+				autoApply: argsSettings.autoApply
+			});
 		}
 	}
 }
