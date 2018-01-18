@@ -37,7 +37,7 @@ import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/l
 import { ChunksTextBufferBuilder } from 'vs/editor/common/model/chunksTextBuffer/chunksTextBufferBuilder';
 
 // Here is the master switch for the text buffer implementation:
-const USE_CHUNKS_TEXT_BUFFER = true;
+const USE_CHUNKS_TEXT_BUFFER = false;
 function createTextBufferBuilder() {
 	if (USE_CHUNKS_TEXT_BUFFER) {
 		return new ChunksTextBufferBuilder();

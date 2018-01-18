@@ -891,16 +891,18 @@ suite('TextModel.createSnapshot', () => {
 		let snapshot = model.createSnapshot();
 		let actual = '';
 
-		// 70999 length => 2 read calls are necessary
+		// 70999 length => at most 2 read calls are necessary
 		let tmp1 = snapshot.read();
 		assert.ok(tmp1);
 		actual += tmp1;
 
 		let tmp2 = snapshot.read();
-		assert.ok(tmp2);
-		actual += tmp2;
-
-		assert.equal(snapshot.read(), null);
+		if (tmp2 === null) {
+			// all good
+		} else {
+			actual += tmp2;
+			assert.equal(snapshot.read(), null);
+		}
 
 		assert.equal(actual, text);
 

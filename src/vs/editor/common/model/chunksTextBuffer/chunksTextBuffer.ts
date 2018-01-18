@@ -10,6 +10,7 @@ import { BufferPiece, LeafOffsetLenEdit } from 'vs/editor/common/model/chunksTex
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as strings from 'vs/base/common/strings';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -90,6 +91,10 @@ export class ChunksTextBuffer implements ITextBuffer {
 				}
 		}
 		return null;
+	}
+
+	public createSnapshot(preserveBOM: boolean): ITextSnapshot {
+		return this._actual.createSnapshot(preserveBOM ? this._BOM : '');
 	}
 
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
@@ -565,6 +570,37 @@ const BufferCursorPool = new class {
 		return result;
 	}
 };
+
+class BufferSnapshot implements ITextSnapshot {
+
+	private readonly _pieces: BufferPiece[];
+	private readonly _piecesLength: number;
+	private readonly _BOM: string;
+	private _piecesIndex: number;
+
+	constructor(pieces: BufferPiece[], BOM: string) {
+		this._pieces = pieces;
+		this._piecesLength = this._pieces.length;
+		this._BOM = BOM;
+		this._piecesIndex = 0;
+	}
+
+	public read(): string {
+		if (this._piecesIndex >= this._piecesLength) {
+			return null;
+		}
+
+		let result: string = null;
+		if (this._piecesIndex === 0) {
+			result = this._BOM + this._pieces[this._piecesIndex].text;
+		} else {
+			result = this._pieces[this._piecesIndex].text;
+		}
+
+		this._piecesIndex++;
+		return result;
+	}
+}
 
 class Buffer {
 
@@ -1203,6 +1239,10 @@ class Buffer {
 
 		BufferCursorPool.put(start);
 		return result;
+	}
+
+	public createSnapshot(BOM: string): ITextSnapshot {
+		return new BufferSnapshot(this._leafs, BOM);
 	}
 
 	public getValueLengthInRange(range: Range): number {
