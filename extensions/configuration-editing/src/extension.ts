@@ -6,7 +6,7 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import { getLocation, visit, parse } from 'jsonc-parser';
+import { getLocation, visit, parse, ParseError, ParseErrorCode } from 'jsonc-parser';
 import * as path from 'path';
 import { SettingsDocument } from './settingsDocumentHelper';
 import * as nls from 'vscode-nls';
@@ -44,6 +44,31 @@ export function activate(context: vscode.ExtensionContext): void {
 		}
 	}, null, context.subscriptions));
 	updateLaunchJsonDecorations(vscode.window.activeTextEditor);
+
+	vscode.workspace.onWillSaveTextDocument(e => {
+		if (!e.document.fileName.endsWith('settings.json')) {
+			return;
+		}
+
+		const text = e.document.getText();
+		const errors: ParseError[] = [];
+		parse(text, errors);
+		const edit = new vscode.WorkspaceEdit();
+		errors.forEach(parseError => {
+			if (parseError.error === ParseErrorCode.CommaExpected) {
+				const errorPosition = e.document.positionAt(parseError.offset);
+				let fixLine = errorPosition.line - 1;
+				while (e.document.lineAt(fixLine).isEmptyOrWhitespace && fixLine >= 1) {
+					fixLine--;
+				}
+
+				const fixPosition = new vscode.Position(fixLine, e.document.lineAt(fixLine).text.length);
+				edit.insert(e.document.uri, fixPosition, ',');
+			}
+		});
+
+		vscode.workspace.applyEdit(edit);
+	});
 }
 
 function registerKeybindingsCompletions(): vscode.Disposable {
