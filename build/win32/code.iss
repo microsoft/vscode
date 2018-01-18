@@ -18,7 +18,7 @@ OutputDir={#OutputDir}
 OutputBaseFilename=VSCodeSetup
 Compression=lzma
 SolidCompression=yes
-AppMutex={#AppMutex}
+AppMutex={code:GetAppMutex}
 SetupMutex={#AppMutex}setup
 WizardImageFile={#RepoDir}\resources\win32\inno-big.bmp
 WizardSmallImageFile={#RepoDir}\resources\win32\inno-small.bmp
@@ -47,11 +47,15 @@ Name: "simplifiedChinese"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.zh
 Name: "traditionalChinese"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.zh-tw.isl,{#RepoDir}\build\win32\i18n\messages.zh-tw.isl" {#LocalizedLanguageFile("cht")}
 
 [InstallDelete]
-Type: filesandordirs; Name: {app}\resources\app\out
-Type: filesandordirs; Name: {app}\resources\app\plugins
-Type: filesandordirs; Name: {app}\resources\app\extensions
-Type: filesandordirs; Name: {app}\resources\app\node_modules
-Type: files; Name: {app}\resources\app\Credits_45.0.2454.85.html
+Type: filesandordirs; Name: "{app}\resources\app\out"
+Type: filesandordirs; Name: "{app}\resources\app\plugins"
+Type: filesandordirs; Name: "{app}\resources\app\extensions"
+Type: filesandordirs; Name: "{app}\resources\app\node_modules"
+Type: files; Name: "{app}\resources\app\Credits_45.0.2454.85.html"
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\_"
+Type: filesandordirs; Name: "{app}\old"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
@@ -63,7 +67,8 @@ Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Other}"
 Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{cm:Other}"; Check: WizardSilent
 
 [Files]
-Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#RepoDir}\build\win32\inno_updater.exe"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; AppUserModelID: "{#AppUserId}"
@@ -953,6 +958,51 @@ end;
 function WizardNotSilent(): Boolean;
 begin
   Result := not WizardSilent();
+end;
+
+// Updates
+function IsUpdate(): Boolean;
+begin
+  Result := ExpandConstant('{param:update|false}') = 'true';
+end;
+
+function GetAppMutex(Value: string): string;
+begin
+  if IsUpdate() then
+    Result := ''
+  else
+    Result := '{#AppMutex}';
+end;
+
+function GetDestDir(Value: string): string;
+begin
+  if IsUpdate() then
+    Result := ExpandConstant('{app}\_')
+  else
+    Result := ExpandConstant('{app}');
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  UpdateResultCode: Integer;
+begin
+  if (CurStep = ssPostInstall) and (ExpandConstant('{param:update|false}') = 'true') then
+  begin
+    CreateMutex('{#AppMutex}-ready');
+
+    while (CheckForMutexes('{#AppMutex}')) do
+    begin
+      Log('Application is still running, waiting');
+      Sleep(1000);
+    end;
+
+    Sleep(1000);
+
+    if Exec(ExpandConstant('{app}\inno_updater.exe'), ExpandConstant('--apply-update _ "{app}\unins000.dat"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode) then
+      Log('Update applied successfully!')
+    else
+      Log('Failed to apply update!');
+  end;
 end;
 
 // http://stackoverflow.com/a/23838239/261019
