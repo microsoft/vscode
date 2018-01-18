@@ -345,7 +345,7 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
         defaultMessages[module] = messageMap;
         keys.map(function (key, i) {
             total++;
-            if (Is.string(key)) {
+            if (typeof key === 'string') {
                 messageMap[key] = messages[i];
             }
             else {
@@ -381,7 +381,7 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
             var localizedMessages = [];
             order.forEach(function (keyInfo) {
                 var key = null;
-                if (Is.string(keyInfo)) {
+                if (typeof keyInfo === 'string') {
                     key = keyInfo;
                 }
                 else {
@@ -862,6 +862,58 @@ function createI18nFile(originalFilePath, messages) {
         contents: new Buffer(content, 'utf8')
     });
 }
+function prepareI18nPackFiles() {
+    var parsePromises = [];
+    var mainPack = {};
+    var extensionsPacks = {};
+    return event_stream_1.through(function (xlf) {
+        var stream = this;
+        var parsePromise = XLF.parse(xlf.contents.toString());
+        parsePromises.push(parsePromise);
+        parsePromise.then(function (resolvedFiles) {
+            resolvedFiles.forEach(function (file) {
+                var path = file.originalFilePath;
+                console.log(path);
+                var firstSlash = path.indexOf('/');
+                var firstSegment = path.substr(0, firstSlash);
+                if (firstSegment === 'src') {
+                    mainPack[path.substr(firstSlash + 1)] = file.messages;
+                }
+                else if (firstSegment === 'extensions') {
+                    var secondSlash = path.indexOf('/', firstSlash + 1);
+                    var secondSegment = path.substring(firstSlash + 1, secondSlash);
+                    if (secondSegment) {
+                        var extPack = extensionsPacks[secondSegment];
+                        if (!extPack) {
+                            extPack = extensionsPacks[secondSegment] = {};
+                        }
+                        extPack[path.substr(secondSlash + 1)] = file.messages;
+                    }
+                    else {
+                        console.log('Unknown second segment ' + path);
+                    }
+                }
+                else {
+                    console.log('Unknown first segment ' + path);
+                }
+            });
+        });
+    }, function () {
+        var _this = this;
+        Promise.all(parsePromises)
+            .then(function () {
+            var translatedMainFile = createI18nFile('./main', mainPack);
+            _this.emit('data', translatedMainFile);
+            for (var extension in extensionsPacks) {
+                var translatedExtFile = createI18nFile("./extensions/" + extension, extensionsPacks[extension]);
+                _this.emit('data', translatedExtFile);
+            }
+            _this.emit('end');
+        })
+            .catch(function (reason) { throw new Error(reason); });
+    });
+}
+exports.prepareI18nPackFiles = prepareI18nPackFiles;
 function prepareIslFiles(language, innoSetupConfig) {
     var parsePromises = [];
     return event_stream_1.through(function (xlf) {

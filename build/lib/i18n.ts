@@ -442,7 +442,7 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 		defaultMessages[module] = messageMap;
 		keys.map((key, i) => {
 			total++;
-			if (Is.string(key)) {
+			if (typeof key === 'string') {
 				messageMap[key] = messages[i];
 			} else {
 				messageMap[key.key] = messages[i];
@@ -478,7 +478,7 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 			let localizedMessages: string[] = [];
 			order.forEach((keyInfo) => {
 				let key: string = null;
-				if (Is.string(keyInfo)) {
+				if (typeof keyInfo === 'string') {
 					key = keyInfo;
 				} else {
 					key = keyInfo.key;
@@ -982,7 +982,7 @@ export function prepareI18nFiles(): ThroughStream {
 	});
 }
 
-function createI18nFile(originalFilePath: string, messages: Map<string>): File {
+function createI18nFile(originalFilePath: string, messages: any): File {
 	let content = [
 		'/*---------------------------------------------------------------------------------------------',
 		' *  Copyright (c) Microsoft Corporation. All rights reserved.',
@@ -994,6 +994,59 @@ function createI18nFile(originalFilePath: string, messages: Map<string>): File {
 	return new File({
 		path: path.join(originalFilePath + '.i18n.json'),
 		contents: new Buffer(content, 'utf8')
+	});
+}
+
+interface I18nPack {
+	[path: string]: Map<string>;
+}
+
+export function prepareI18nPackFiles() {
+	let parsePromises: Promise<ParsedXLF[]>[] = [];
+	let mainPack : I18nPack = {};
+	let extensionsPacks : Map<I18nPack> = {};
+	return through(function (xlf: File) {
+		let stream = this;
+		let parsePromise = XLF.parse(xlf.contents.toString());
+		parsePromises.push(parsePromise);
+		parsePromise.then(
+			resolvedFiles => {
+				resolvedFiles.forEach(file => {
+					const path = file.originalFilePath;
+					console.log(path);
+					const firstSlash = path.indexOf('/');
+					const firstSegment = path.substr(0, firstSlash);
+					if (firstSegment === 'src') {
+						mainPack[path.substr(firstSlash + 1)] = file.messages;
+					} else if (firstSegment === 'extensions') {
+						const secondSlash = path.indexOf('/', firstSlash + 1);
+						const secondSegment = path.substring(firstSlash + 1, secondSlash);
+						if (secondSegment) {
+							let extPack = extensionsPacks[secondSegment];
+							if (!extPack) {
+								extPack = extensionsPacks[secondSegment] = {};
+							}
+							extPack[path.substr(secondSlash + 1)] = file.messages;
+						} else {
+							console.log('Unknown second segment ' + path);
+						}
+					} else {
+						console.log('Unknown first segment ' + path);
+					}
+				});
+			}
+		);
+	}, function () {
+		Promise.all(parsePromises)
+			.then(() => {
+				const translatedMainFile = createI18nFile('./main', mainPack);
+				this.emit('data', translatedMainFile);
+				for (let extension in extensionsPacks) {
+					const translatedExtFile = createI18nFile(`./extensions/${extension}`, extensionsPacks[extension]);
+					this.emit('data', translatedExtFile);
+				}
+				this.emit('end'); })
+			.catch(reason => { throw new Error(reason); });
 	});
 }
 
