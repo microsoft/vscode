@@ -39,6 +39,8 @@ interface IExtensionsContent {
 
 const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
+const choiceNever = localize('neverShowAgain', "Don't show again");
+const choiceClose = localize('close', "Close");
 
 export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
@@ -65,7 +67,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -73,7 +75,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
-		lifecycleService.when(LifecyclePhase.Eventually).then(() => {
+		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 			this._suggestFileBasedRecommendations();
 		});
 
@@ -264,8 +266,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _suggest(model: ITextModel): void {
 		const uri = model.uri;
 		let hasSuggestion = false;
-		let mimeTypes = guessMimeTypes(uri.fsPath);
-		let fileExtension = paths.extname(uri.fsPath);
 
 		if (!uri || uri.scheme !== Schemas.file) {
 			return;
@@ -292,14 +292,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			);
 
 			const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
-			const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
-			let recommendationsToSuggest = Object.keys(product.extensionImportantTips || [])
-				.filter(id => importantRecommendationsIgnoreList.indexOf(id) === -1 && match(product.extensionImportantTips[id]['pattern'], uri.fsPath));
-			if (config.ignoreRecommendations || !recommendationsToSuggest.length) {
+			if (config.ignoreRecommendations) {
 				return;
 			}
 
-			this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
+			const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
+			let recommendationsToSuggest = Object.keys(product.extensionImportantTips || [])
+				.filter(id => importantRecommendationsIgnoreList.indexOf(id) === -1 && match(product.extensionImportantTips[id]['pattern'], uri.fsPath));
+
+			const importantTipsPromise = recommendationsToSuggest.length === 0 ? TPromise.as(null) : this.extensionsService.getInstalled(LocalExtensionType.User).then(local => {
 				recommendationsToSuggest = recommendationsToSuggest.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id));
 				if (!recommendationsToSuggest.length) {
 					return;
@@ -321,8 +322,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				const options = [
 					localize('install', 'Install'),
 					recommendationsAction.label,
-					localize('neverShowAgain', "Don't Show Again"),
-					localize('close', "Close")
+					choiceNever,
+					choiceClose
 				];
 
 				this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
@@ -377,28 +378,51 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					*/
 					this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: name });
 				});
+			});
 
-
+			importantTipsPromise.then(() => {
 				const fileExtensionSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get
-					('extensionsAssistant/fileExtensionsSuggestion', StorageScope.GLOBAL, '[]'));
+					('extensionsAssistant/fileExtensionsSuggestionIgnore', StorageScope.GLOBAL, '[]'));
+				let mimeTypes = guessMimeTypes(uri.fsPath);
+				let fileExtension = paths.extname(uri.fsPath);
+				if (fileExtension) {
+					fileExtension = fileExtension.substr(1); // Strip the dot
+				}
 
-				if (!hasSuggestion &&
-					fileExtension &&
-					fileExtensionSuggestionIgnoreList.indexOf(fileExtension) === -1 &&
-					mimeTypes.length === 1 &&
-					mimeTypes[0] === MIME_UNKNOWN) {
+				if (hasSuggestion ||
+					!fileExtension ||
+					mimeTypes.length !== 1 ||
+					mimeTypes[0] !== MIME_UNKNOWN ||
+					fileExtensionSuggestionIgnoreList.indexOf(fileExtension) > -1
+				) {
+					return;
+				}
 
-					let message = localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", fileExtension);
+				const keywords = this.getKeywordsForExtension(fileExtension);
+				this._galleryService.query({ text: `tag:"__ext_${fileExtension}" ${keywords.map(tag => `tag:"${tag}"`)}` }).then(pager => {
+					if (!pager || !pager.firstPage || !pager.firstPage.length) {
+						return;
+					}
+
+					// Suggest the search only once as this is not a strong recommendation
+					fileExtensionSuggestionIgnoreList.push(fileExtension);
+					this.storageService.store(
+						'extensionsAssistant/fileExtensionsSuggestionIgnore',
+						JSON.stringify(fileExtensionSuggestionIgnoreList),
+						StorageScope.GLOBAL
+					);
+
+
+					const message = localize('showLanguageExtensions', "The Marketplace has extensions that can help with '.{0}' files", fileExtension);
 
 					const searchMarketplaceAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, fileExtension);
 
 					const options = [
-						localize('ok', "OK"),
-						localize('neverShowAgain', "Don't show again"),
-						localize('close', "Close")
+						localize('searchMarketplace', "Search Marketplace"),
+						choiceClose
 					];
 
-					this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+					this.choiceService.choose(Severity.Info, message, options, 1).done(choice => {
 						switch (choice) {
 							case 0:
 								/* __GDPR__
@@ -408,24 +432,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									}
 								*/
 								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension: fileExtension });
-								return searchMarketplaceAction.run();
+								searchMarketplaceAction.run();
+								break;
 							case 1:
-								fileExtensionSuggestionIgnoreList.push(fileExtension);
-								this.storageService.store(
-									'extensionsAssistant/fileExtensionsSuggestion',
-									JSON.stringify(fileExtensionSuggestionIgnoreList),
-									StorageScope.GLOBAL
-								);
-								/* __GDPR__
-									"fileExtensionSuggestion:popup" : {
-										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-									}
-								*/
-								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'neverShowAgain', fileExtension: fileExtension });
-
-								return this.ignoreExtensionRecommendations();
-							case 2:
 								/* __GDPR__
 									"fileExtensionSuggestion:popup" : {
 										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -433,7 +442,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									}
 								*/
 								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'close', fileExtension: fileExtension });
-
+								break;
 						}
 					}, () => {
 						/* __GDPR__
@@ -444,7 +453,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						*/
 						this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'cancelled', fileExtension: fileExtension });
 					});
-				}
+				});
 			});
 		});
 	}
@@ -473,8 +482,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				const options = [
 					installAllAction.label,
 					showAction.label,
-					localize('neverShowAgain', "Don't Show Again"),
-					localize('close', "Close")
+					choiceNever,
+					choiceClose
 				];
 
 				return this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
