@@ -237,7 +237,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 				const languageTag = languageName ? ` tag:"${languageName}"` : '';
 
 				// Construct a rich query
-				return `tag:"__ext_${ext}"${keywords.map(tag => ` tag:${tag}`)}${languageTag}`;
+				return `tag:"__ext_${ext}" ${keywords.map(tag => `tag:"${tag}"`).join(' ')}${languageTag}`;
 			});
 
 			if (names.length) {
