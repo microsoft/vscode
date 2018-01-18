@@ -23,8 +23,10 @@ export function getCodeActions(model: ITextModel, range: Range, scope?: CodeActi
 		return asWinJsPromise(token => support.provideCodeActions(model, range, { scope: scope ? scope.value : undefined }, token)).then(result => {
 			if (Array.isArray(result)) {
 				for (const quickFix of result) {
-					if (quickFix && (!scope || quickFix.scope && scope.contains(quickFix.scope))) {
-						allResults.push(quickFix);
+					if (quickFix) {
+						if (!scope || (quickFix.scope && scope.contains(quickFix.scope))) {
+							allResults.push(quickFix);
+						}
 					}
 				}
 			}

@@ -350,7 +350,7 @@ export interface CodeAction {
  * @internal
  */
 export interface CodeActionContext {
-	scope?: string;
+	scope: string | undefined;
 }
 
 /**
