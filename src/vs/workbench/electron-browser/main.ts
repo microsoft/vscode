@@ -31,7 +31,7 @@ import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/commo
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
+import { StorageService, inMemoryLocalStorageInstance, IStorage } from 'vs/platform/storage/common/storageService';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { webFrame } from 'electron';
 import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
@@ -82,7 +82,6 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return createAndInitializeWorkspaceService(configuration, environmentService).then(workspaceService => {
-
 		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, workspaceService.getWorkbenchState() === WorkbenchState.EMPTY);
 		const storageService = createStorageService(workspaceService, environmentService);
 
@@ -185,7 +184,16 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 	}
 
 	const disableStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests!
-	const storage = disableStorage ? inMemoryLocalStorageInstance : window.localStorage;
+
+	let storage: IStorage;
+	if (disableStorage) {
+		storage = inMemoryLocalStorageInstance;
+	} else {
+		// TODO@Ben remove me after a while
+		perf.mark('willAccessLocalStorage');
+		storage = window.localStorage;
+		perf.mark('didAccessLocalStorage');
+	}
 
 	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);
 }

@@ -32,7 +32,7 @@ import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IStringStream } from 'vs/platform/files/common/files';
+import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
 import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
 import { ChunksTextBufferBuilder } from 'vs/editor/common/model/chunksTextBuffer/chunksTextBufferBuilder';
 
@@ -100,6 +100,48 @@ function singleLetter(result: number): string {
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
+
+class TextModelSnapshot implements ITextSnapshot {
+
+	private readonly _source: ITextSnapshot;
+	private _eos: boolean;
+
+	constructor(source: ITextSnapshot) {
+		this._source = source;
+		this._eos = false;
+	}
+
+	public read(): string {
+		if (this._eos) {
+			return null;
+		}
+
+		let result: string[] = [], resultCnt = 0, resultLength = 0;
+
+		do {
+			let tmp = this._source.read();
+
+			if (tmp === null) {
+				// end-of-stream
+				this._eos = true;
+				if (resultCnt === 0) {
+					return null;
+				} else {
+					return result.join('');
+				}
+			}
+
+			if (tmp.length > 0) {
+				result[resultCnt++] = tmp;
+				resultLength += tmp.length;
+			}
+
+			if (resultLength >= 64 * 1024) {
+				return result.join('');
+			}
+		} while (true);
+	}
+}
 
 export class TextModel extends Disposable implements model.ITextModel {
 
@@ -668,6 +710,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 
 		return fullModelValue;
+	}
+
+	public createSnapshot(preserveBOM: boolean = false): ITextSnapshot {
+		return new TextModelSnapshot(this._buffer.createSnapshot(preserveBOM));
 	}
 
 	public getValueLength(eol?: model.EndOfLinePreference, preserveBOM: boolean = false): number {

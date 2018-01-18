@@ -35,6 +35,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -345,7 +346,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private windowService: IWindowService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@IProgressService2 private progressService: IProgressService2
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -536,7 +538,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	install(extension: string | IExtension): TPromise<void> {
 		if (typeof extension === 'string') {
-			return this.extensionService.install(extension);
+			return this.progressService.withProgress({
+				location: ProgressLocation.Window,
+				title: nls.localize('installingExtension', 'Installing extension from VSIX...'),
+				tooltip: `${extension}`
+			}, () => this.extensionService.install(extension));
 		}
 
 		if (!(extension instanceof Extension)) {
@@ -743,25 +749,25 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private onDidInstallExtension(event: DidInstallExtensionEvent): void {
 		const { local, zipPath, error, gallery } = event;
-		const installing = gallery ? this.installing.filter(e => areSameExtensions(e.extension, gallery.identifier))[0] : null;
-		const extension: Extension = installing ? installing.extension : zipPath ? new Extension(this.galleryService, this.stateProvider, null, null, this.telemetryService) : null;
+		const installingExtension = gallery ? this.installing.filter(e => areSameExtensions(e.extension, gallery.identifier))[0] : null;
+		const extension: Extension = installingExtension ? installingExtension.extension : zipPath ? new Extension(this.galleryService, this.stateProvider, null, null, this.telemetryService) : null;
 		if (extension) {
-			this.installing = installing ? this.installing.filter(e => e !== installing) : this.installing;
+			this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
 
 			if (error) {
 				if (extension.gallery) {
 					// Updating extension can be only a gallery extension
 					const installed = this.installed.filter(e => e.id === extension.id)[0];
-					if (installed && installing) {
-						installing.operation = Operation.Updating;
+					if (installed && installingExtension) {
+						installingExtension.operation = Operation.Updating;
 					}
 				}
 			} else {
 				extension.local = local;
 				const installed = this.installed.filter(e => e.id === extension.id)[0];
 				if (installed) {
-					if (installing) {
-						installing.operation = Operation.Updating;
+					if (installingExtension) {
+						installingExtension.operation = Operation.Updating;
 					}
 					installed.local = local;
 				} else {
@@ -770,7 +776,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			}
 			if (extension.gallery) {
 				// Report telemetry only for gallery extensions
-				this.reportTelemetry(installing, error);
+				this.reportTelemetry(installingExtension, error);
 			}
 		}
 		this._onChange.fire();

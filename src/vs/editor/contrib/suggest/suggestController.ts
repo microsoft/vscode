@@ -194,7 +194,7 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	protected _onDidSelectItem(event: ISelectedSuggestion): void {
-		if (!event.item) {
+		if (!event || !event.item) {
 			this._model.cancel();
 			return;
 		}
