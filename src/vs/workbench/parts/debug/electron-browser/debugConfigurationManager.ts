@@ -33,6 +33,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawAdapter[]>('debuggers', [], {
@@ -147,14 +148,12 @@ const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtens
 });
 
 // debug general schema
-
-export const schemaId = 'vscode://schemas/launch';
 const defaultCompound: ICompound = { name: 'Compound', configurations: [] };
 const schema: IJSONSchema = {
-	id: schemaId,
+	id: launchSchemaId,
 	type: 'object',
 	title: nls.localize('app.launch.json.title', "Launch"),
-	required: ['version', 'configurations'],
+	required: [],
 	default: { version: '0.2.0', configurations: [], compounds: [] },
 	properties: {
 		version: {
@@ -201,7 +200,7 @@ const schema: IJSONSchema = {
 };
 
 const jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
-jsonRegistry.registerSchema(schemaId, schema);
+jsonRegistry.registerSchema(launchSchemaId, schema);
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
 
