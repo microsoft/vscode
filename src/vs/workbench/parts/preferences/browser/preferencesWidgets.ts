@@ -492,6 +492,24 @@ export class SettingsTargetsWidget extends Widget {
 		}
 	}
 
+	public setResultCount(settingsTarget: SettingsTarget, count: number): void {
+		if (settingsTarget === ConfigurationTarget.WORKSPACE) {
+			let label = localize('workspaceSettings', "Workspace Settings");
+			if (count) {
+				label += ` (${count})`;
+			}
+
+			this.workspaceSettings.label = label;
+		} else if (settingsTarget === ConfigurationTarget.USER) {
+			let label = localize('userSettings', "User Settings");
+			if (count) {
+				label += ` (${count})`;
+			}
+
+			this.userSettings.label = label;
+		}
+	}
+
 	private onWorkbenchStateChanged(): void {
 		this.folderSettings.folder = null;
 		this.update();

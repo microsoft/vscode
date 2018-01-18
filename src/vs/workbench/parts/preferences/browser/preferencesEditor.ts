@@ -117,7 +117,6 @@ export class PreferencesEditor extends BaseEditor {
 
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -152,7 +151,7 @@ export class PreferencesEditor extends BaseEditor {
 		this._register(this.sideBySidePreferencesWidget.onFocus(() => this.lastFocusedWidget = this.sideBySidePreferencesWidget));
 		this._register(this.sideBySidePreferencesWidget.onDidSettingsTargetChange(target => this.switchSettings(target)));
 
-		this.preferencesRenderers = this._register(new PreferencesRenderersController(this.preferencesSearchService, this.telemetryService));
+		this.preferencesRenderers = this._register(this.instantiationService.createInstance(PreferencesRenderersController));
 
 		this._register(this.preferencesRenderers.onDidFilterResultsCountChange(count => this.showSearchResultsMessage(count)));
 	}
@@ -279,17 +278,19 @@ export class PreferencesEditor extends BaseEditor {
 		});
 	}
 
-	private showSearchResultsMessage(count: number): void {
-		if (this.searchWidget.getValue()) {
-			if (count === 0) {
-				this.searchWidget.showMessage(nls.localize('noSettingsFound', "No Results"), count);
-			} else if (count === 1) {
-				this.searchWidget.showMessage(nls.localize('oneSettingFound', "1 Setting matched"), count);
+	private showSearchResultsMessage(count: IPreferencesCount): void {
+		if (count.target) {
+			this.sideBySidePreferencesWidget.setResultCount(count.target, count.count);
+		} else if (this.searchWidget.getValue()) {
+			if (count.count === 0) {
+				this.searchWidget.showMessage(nls.localize('noSettingsFound', "No Results"), count.count);
+			} else if (count.count === 1) {
+				this.searchWidget.showMessage(nls.localize('oneSettingFound', "1 Setting matched"), count.count);
 			} else {
-				this.searchWidget.showMessage(nls.localize('settingsFound', "{0} Settings matched", count), count);
+				this.searchWidget.showMessage(nls.localize('settingsFound', "{0} Settings matched", count.count), count.count);
 			}
 		} else {
-			this.searchWidget.showMessage(nls.localize('totalSettingsMessage', "Total {0} Settings", count), count);
+			this.searchWidget.showMessage(nls.localize('totalSettingsMessage', "Total {0} Settings", count.count), count.count);
 		}
 	}
 
@@ -355,6 +356,11 @@ interface IFilterOrSearchResult {
 	metadata: IFilterMetadata;
 }
 
+interface IPreferencesCount {
+	target?: SettingsTarget;
+	count: number;
+}
+
 class PreferencesRenderersController extends Disposable {
 
 	private _defaultPreferencesRenderer: IPreferencesRenderer<ISetting>;
@@ -364,18 +370,20 @@ class PreferencesRenderersController extends Disposable {
 	private _editablePreferencesRendererDisposables: IDisposable[] = [];
 
 	private _settingsNavigator: SettingsNavigator;
-	private _filtersInProgress: TPromise<IFilterResult>[];
+	private _filtersInProgress: TPromise<any>[];
+	private _prefsModelsForSearch = new Map<SettingsTarget, ISettingsEditorModel>();
 
 	private _currentLocalSearchProvider: ISearchProvider;
 	private _currentRemoteSearchProvider: ISearchProvider;
 	private _lastQuery: string;
 
-	private _onDidFilterResultsCountChange: Emitter<number> = this._register(new Emitter<number>());
-	public onDidFilterResultsCountChange: Event<number> = this._onDidFilterResultsCountChange.event;
+	private _onDidFilterResultsCountChange: Emitter<IPreferencesCount> = this._register(new Emitter<IPreferencesCount>());
+	public onDidFilterResultsCountChange: Event<IPreferencesCount> = this._onDidFilterResultsCountChange.event;
 
 	constructor(
-		private preferencesSearchService: IPreferencesSearchService,
-		private telemetryService: ITelemetryService
+		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IPreferencesService private preferencesService: IPreferencesService,
 	) {
 		super();
 	}
@@ -437,7 +445,13 @@ class PreferencesRenderersController extends Disposable {
 
 		this._filtersInProgress = [
 			this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel),
-			this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel)];
+			this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel),
+			this.searchSettingsTarget(searchProvider, ConfigurationTarget.WORKSPACE, groupId, groupLabel),
+			this.searchSettingsTarget(searchProvider, ConfigurationTarget.USER, groupId, groupLabel)
+		];
+
+		// for (const folder of this.workspaceContextService.getWorkspace().folders) {
+		// 	const folderSettingsResource = this.preferencesService.getFolderSettingsResource(folder.uri);
 
 		return TPromise.join(this._filtersInProgress).then(results => {
 			this._filtersInProgress = null;
@@ -459,6 +473,34 @@ class PreferencesRenderersController extends Disposable {
 		});
 	}
 
+	private searchSettingsTarget(provider: ISearchProvider, target: SettingsTarget, groupId: string, groupLabel: string): TPromise<void> {
+		return this.getPreferencesEditorModel(target).then(model => {
+			return this._filterOrSearchPreferencesModel('', <ISettingsEditorModel>model, provider, groupId, groupLabel);
+		}).then(result => {
+			const count = result ? this._flatten(result.filteredGroups).length : 0;
+			this._onDidFilterResultsCountChange.fire({ target, count });
+		}, err => {
+			if (!isPromiseCanceledError(err)) {
+				return TPromise.wrapError(err);
+			}
+
+			return null;
+		});
+	}
+
+	private async getPreferencesEditorModel(target: SettingsTarget): TPromise<ISettingsEditorModel> {
+		const resource = target === ConfigurationTarget.USER ? this.preferencesService.userSettingsResource :
+			target === ConfigurationTarget.WORKSPACE ? this.preferencesService.workspaceSettingsResource :
+				target;
+
+		if (!this._prefsModelsForSearch.has(target)) {
+			const model = await this.preferencesService.createPreferencesEditorModel(resource);
+			this._prefsModelsForSearch.set(target, <ISettingsEditorModel>model);
+		}
+
+		return this._prefsModelsForSearch.get(target);
+	}
+
 	focusNextPreference(forward: boolean = true) {
 		if (!this._settingsNavigator) {
 			return;
@@ -472,41 +514,47 @@ class PreferencesRenderersController extends Disposable {
 	private _filterOrSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
-			const searchP = provider ? provider.searchModel(model) : TPromise.wrap(null);
-			return searchP
-				.then<ISearchResult>(null, err => {
-					if (isPromiseCanceledError(err)) {
-						return TPromise.wrapError(err);
-					} else {
-						/* __GDPR__
-							"defaultSettings.searchError" : {
-								"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-							}
-						*/
-						const message = getErrorMessage(err);
-						this.telemetryService.publicLog('defaultSettings.searchError', { message });
-						return null;
-					}
-				})
-				.then(searchResult => {
-					const filterResult = searchResult ?
-						model.updateResultGroup(groupId, {
-							id: groupId,
-							label: groupLabel,
-							result: searchResult
-						}) :
-						model.updateResultGroup(groupId, null);
-
-					if (filterResult) {
-						filterResult.query = filter;
-					}
-
-					preferencesRenderer.filterPreferences(filterResult);
-					return filterResult;
-				});
+			return this._filterOrSearchPreferencesModel(filter, model, provider, groupId, groupLabel).then(filterResult => {
+				preferencesRenderer.filterPreferences(filterResult);
+				return filterResult;
+			});
 		}
 
 		return TPromise.wrap(null);
+	}
+
+	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterResult> {
+		const searchP = provider ? provider.searchModel(model) : TPromise.wrap(null);
+		return searchP
+			.then<ISearchResult>(null, err => {
+				if (isPromiseCanceledError(err)) {
+					return TPromise.wrapError(err);
+				} else {
+					/* __GDPR__
+						"defaultSettings.searchError" : {
+							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
+					const message = getErrorMessage(err);
+					this.telemetryService.publicLog('defaultSettings.searchError', { message });
+					return null;
+				}
+			})
+			.then(searchResult => {
+				const filterResult = searchResult ?
+					model.updateResultGroup(groupId, {
+						id: groupId,
+						label: groupLabel,
+						result: searchResult
+					}) :
+					model.updateResultGroup(groupId, null);
+
+				if (filterResult) {
+					filterResult.query = filter;
+				}
+
+				return filterResult;
+			});
 	}
 
 	private consolidateAndUpdate(defaultFilterResult: IFilterResult, editableFilterResult: IFilterResult): void {
@@ -516,7 +564,7 @@ class PreferencesRenderersController extends Disposable {
 
 		this._settingsNavigator = new SettingsNavigator(this._lastQuery ? consolidatedSettings : []);
 		const totalCount = consolidatedSettings.length;
-		this._onDidFilterResultsCountChange.fire(totalCount);
+		this._onDidFilterResultsCountChange.fire({ count: totalCount });
 	}
 
 	private _getAllPreferences(preferencesRenderer: IPreferencesRenderer<ISetting>): ISettingsGroup[] {
@@ -663,6 +711,10 @@ class SideBySidePreferencesWidget extends Widget {
 				this.defaultPreferencesHeader.textContent = defaultPreferencesRenderer && (<DefaultSettingsEditorModel>defaultPreferencesRenderer.preferencesModel).configurationScope === ConfigurationScope.RESOURCE ? nls.localize('defaultFolderSettings', "Default Folder Settings") : nls.localize('defaultSettings', "Default Settings");
 				return { defaultPreferencesRenderer, editablePreferencesRenderer };
 			});
+	}
+
+	public setResultCount(settingsTarget: SettingsTarget, count: number): void {
+		this.settingsTargetsWidget.setResultCount(settingsTarget, count);
 	}
 
 	public layout(dimension: Dimension): void {
