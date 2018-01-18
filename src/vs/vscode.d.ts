@@ -1812,20 +1812,56 @@ declare module 'vscode' {
 	 */
 	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
 
+	/**
+	 * Scope of a code action.
+	 *
+	 * Specifies the type of a code action. Scopes are
+	 */
 	export class CodeActionScope {
+		/**
+		 * Empty scope.
+		 */
 		public static readonly Empty: CodeActionScope;
+
+		/**
+		 * Base scope for refactoring actions.
+		 */
 		public static readonly Refactor: CodeActionScope;
+
+		/**
+		 * Base scope for refactoring extraction actions.
+		 */
 		public static readonly RefactorExtract: CodeActionScope;
+
+		/**
+		 * Base scope for refactoring extraction inline.
+		 */
 		public static readonly RefactorInline: CodeActionScope;
 
 		private constructor(value: string);
 
+		/**
+		 * TODO: should this be exposed?
+		 */
 		readonly value?: string;
 
+		/**
+		 * Create a new scope by appending a more specific selector to the current scope.
+		 *
+		 * Does not modify the current scope object.
+		 *
+		 * TODO: Should we allow `add('a.b.c')` or require `add('a').add('b').add('c')`?
+		 */
 		public add(parts: string): CodeActionScope;
 
+		/**
+		 * Does this scope contain scope `other`?
+		 *
+		 * Another way of saying: is `other` within this scope?
+		 *
+		 * @param other Scope to check.
+		 */
 		public contains(other: CodeActionScope): boolean;
-
 	}
 
 	/**
@@ -1838,6 +1874,11 @@ declare module 'vscode' {
 		 */
 		readonly diagnostics: Diagnostic[];
 
+		/**
+		 * Requested scope of actions to return.
+		 *
+		 * Actions not within this scope are filtered out before being shown by the lightbulb.
+		 */
 		readonly requestedScope?: CodeActionScope;
 	}
 
