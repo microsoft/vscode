@@ -468,9 +468,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			panelHeight = 0;
 			panelWidth = 0;
 		} else if (panelPosition === Position.BOTTOM) {
-			if (this.panelHeight === previousMaxPanelHeight) {
-				panelHeight = maxPanelHeight;
-			} else if (this.panelHeight > 0) {
+			if (this.panelHeight > 0) {
 				panelHeight = Math.min(maxPanelHeight, Math.max(this.partLayoutInfo.panel.minHeight, this.panelHeight));
 			} else {
 				panelHeight = sidebarSize.height * DEFAULT_PANEL_SIZE_COEFFICIENT;
