@@ -10,6 +10,7 @@ import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ISingleEditOperationIdentifier, IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -46,6 +47,45 @@ export interface ITextSource {
 	 * The text contains only characters inside the ASCII range 32-126 or \t \r \n
 	 */
 	readonly isBasicASCII: boolean;
+}
+
+class LinesTextBufferSnapshot implements ITextSnapshot {
+
+	private readonly _lines: string[];
+	private readonly _linesLength: number;
+	private readonly _eol: string;
+	private readonly _bom: string;
+	private _lineIndex: number;
+
+	constructor(lines: string[], eol: string, bom: string) {
+		this._lines = lines;
+		this._linesLength = this._lines.length;
+		this._eol = eol;
+		this._bom = bom;
+		this._lineIndex = 0;
+	}
+
+	public read(): string {
+		if (this._lineIndex >= this._linesLength) {
+			return null;
+		}
+
+		let result: string = null;
+
+		if (this._lineIndex === 0) {
+			result = this._bom + this._lines[this._lineIndex];
+		} else {
+			result = this._lines[this._lineIndex];
+		}
+
+		this._lineIndex++;
+
+		if (this._lineIndex < this._linesLength) {
+			result += this._eol;
+		}
+
+		return result;
+	}
 }
 
 export class LinesTextBuffer implements ITextBuffer {
@@ -174,6 +214,10 @@ export class LinesTextBuffer implements ITextBuffer {
 		resultLines.push(this._lines[endLineIndex].substring(0, range.endColumn - 1));
 
 		return resultLines.join(lineEnding);
+	}
+
+	public createSnapshot(preserveBOM: boolean): ITextSnapshot {
+		return new LinesTextBufferSnapshot(this._lines.slice(0), this._EOL, preserveBOM ? this._BOM : '');
 	}
 
 	public getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
