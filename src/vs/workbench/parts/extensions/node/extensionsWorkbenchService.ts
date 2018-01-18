@@ -539,8 +539,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	install(extension: string | IExtension): TPromise<void> {
 		if (typeof extension === 'string') {
 			return this.progressService.withProgress({
-				location: ProgressLocation.Window,
-				title: nls.localize('installingExtension', 'Installing extension from VSIX...'),
+				location: ProgressLocation.Extensions,
+				title: nls.localize('installingVSIXExtension', 'Installing extension from VSIX...'),
 				tooltip: `${extension}`
 			}, () => this.extensionService.install(extension));
 		}
@@ -556,7 +556,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrapError<void>(new Error('Missing gallery'));
 		}
 
-		return this.extensionService.installFromGallery(gallery);
+		return this.progressService.withProgress({
+			location: ProgressLocation.Extensions,
+			title: nls.localize('installingMarketPlaceExtension', 'Installing extension from Market place....'),
+			tooltip: `${extension.id}`
+		}, () => this.extensionService.installFromGallery(gallery));
 	}
 
 	setEnablement(extension: IExtension, enablementState: EnablementState): TPromise<void> {
@@ -597,8 +601,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		this.logService.info(`Requested uninstalling the extension ${extension.id} from window ${this.windowService.getCurrentWindowId()}`);
-		return this.extensionService.uninstall(local);
-
+		return this.progressService.withProgress({
+			location: ProgressLocation.Extensions,
+			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
+			tooltip: `${local.identifier.id}`
+		}, () => this.extensionService.uninstall(local));
 	}
 
 	private promptAndSetEnablement(extension: IExtension, enablementState: EnablementState, enable: boolean): TPromise<any> {
