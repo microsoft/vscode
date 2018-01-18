@@ -12,7 +12,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { IFileStat, isParent } from 'vs/platform/files/common/files';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 
@@ -369,18 +369,18 @@ export class NewStatPlaceholder extends FileStat {
 	}
 }
 
-export class OpenEditor {
+export class OpenEditor implements IEditorIdentifier {
 
-	constructor(private editor: IEditorInput, private group: IEditorGroup) {
+	constructor(private _editor: IEditorInput, private _group: IEditorGroup) {
 		// noop
 	}
 
-	public get editorInput() {
-		return this.editor;
+	public get editor() {
+		return this._editor;
 	}
 
-	public get editorGroup() {
-		return this.group;
+	public get group() {
+		return this._group;
 	}
 
 	public getId(): string {

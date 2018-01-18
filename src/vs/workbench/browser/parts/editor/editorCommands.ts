@@ -13,7 +13,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditor, Position, POSITIONS, Direction, IEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
@@ -496,21 +496,21 @@ function positionAndInput(editorGroupService: IEditorGroupService, editorService
 }
 
 export function getMultiSelectedEditorContexts(editorContext: IEditorIdentifier, listService: IListService): IEditorIdentifier[] {
-	// TODO@Isidor this method is not nice since it assumes it is working on open editors view and maps elements on top of that
 	const list = listService.lastFocusedList;
 	// Mapping for open editors view
-	const elementToContext = element => element && element.editorGroup && element.editorInput ? { group: element.editorGroup, editor: element.editorInput } : { group: element, editor: undefined };
+	const isEditorIdentifier = (element: any) => 'group' in element && 'editor' in element;
+	const elementToContext = (element: IEditorIdentifier | EditorGroup) => element instanceof EditorGroup ? { group: element, editor: undefined } : element;
 
 	if (list instanceof List && list.isDOMFocused()) {
 		const selection = list.getSelectedElements();
 		const focus = list.getFocusedElements();
 		// Only respect selection if it contains focused element
 		if (focus.length && selection && selection.indexOf(focus[0]) >= 0) {
-			return list.getSelectedElements().map(elementToContext);
+			return list.getSelectedElements().filter(e => e instanceof EditorGroup || isEditorIdentifier(e)).map(elementToContext);
 		}
 
-		if (focus) {
-			return focus.map(elementToContext);
+		if (focus.length) {
+			return focus.filter(e => e instanceof EditorGroup || isEditorIdentifier(e)).map(elementToContext);
 		}
 	}
 
