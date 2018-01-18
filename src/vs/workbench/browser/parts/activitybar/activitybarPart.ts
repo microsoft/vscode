@@ -217,12 +217,4 @@ export class ActivitybarPart extends Part {
 
 		super.dispose();
 	}
-
-	public shutdown(): void {
-		// Persist Hidden State
-		this.compositeBar.store();
-
-		// Pass to super
-		super.shutdown();
-	}
 }

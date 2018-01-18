@@ -14,6 +14,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelContentChange } from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -498,6 +499,14 @@ export interface ITextModel {
 	 * @return The text.
 	 */
 	getValue(eol?: EndOfLinePreference, preserveBOM?: boolean): string;
+
+	/**
+	 * Get the text stored in this model.
+	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
+	 * @return The text snapshot (it is safe to consume it asynchronously).
+	 * @internal
+	 */
+	createSnapshot(preserveBOM?: boolean): ITextSnapshot;
 
 	/**
 	 * Get the length of the text stored in this model.
@@ -1078,6 +1087,7 @@ export interface ITextBuffer {
 	getRangeAt(offset: number, length: number): Range;
 
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	createSnapshot(preserveBOM: boolean): ITextSnapshot;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
 	getLength(): number;
 	getLineCount(): number;

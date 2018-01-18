@@ -75,7 +75,9 @@ export class Controller extends treedefaults.DefaultController {
 
 	private _getMenuActions(tree: WorkbenchTree): IAction[] {
 		const result: IAction[] = [];
-		const groups = this.menuService.createMenu(MenuId.ProblemsPanelContext, tree.contextKeyService).getActions();
+		const menu = this.menuService.createMenu(MenuId.ProblemsPanelContext, tree.contextKeyService);
+		const groups = menu.getActions();
+		menu.dispose();
 
 		for (let group of groups) {
 			const [, actions] = group;
