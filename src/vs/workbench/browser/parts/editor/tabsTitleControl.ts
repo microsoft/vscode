@@ -321,7 +321,7 @@ export class TabsTitleControl extends TitleControl {
 				domAction(tabContainer, `close-button-${option}`);
 			});
 
-			['fit', 'shrink'].forEach(option => {
+			['fit', 'shrink', 'fixed'].forEach(option => {
 				const domAction = tabOptions.tabSizing === option ? DOM.addClass : DOM.removeClass;
 				domAction(tabContainer, `sizing-${option}`);
 			});

@@ -170,9 +170,9 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.tabSizing': {
 			'type': 'string',
-			'enum': ['fit', 'shrink'],
+			'enum': ['fit', 'shrink', 'fixed'],
 			'default': 'fit',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. Set to 'fit' to keep tabs always large enough to show the full editor label. Set to 'shrink' to allow tabs to get smaller when the available space is not enough to show all tabs at once.")
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. Set to 'fit' to keep tabs always large enough to show the full editor label. Set to 'shrink' to allow tabs to get smaller when the available space is not enough to show all tabs at once. Set to 'fixed' to always have same size for all tabs.")
 		},
 		'workbench.editor.showIcons': {
 			'type': 'boolean',

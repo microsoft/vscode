@@ -66,6 +66,17 @@
 	min-width: 80px; /* make more room for close button when it shows to the left */
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fixed {
+	min-width: 160px;
+	flex-basis: 0; /* all tabs are even */
+	flex-grow: 1; /* all tabs grow even */
+	max-width: 160px;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fixed.close-button-left {
+	min-width: 160px; /* make more room for close button when it shows to the left */
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dragged {
 	will-change: transform; /* forces tab to be drawn on a separate layer (fixes https://github.com/Microsoft/vscode/issues/18733) */
 }
@@ -111,6 +122,16 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty.close-button-right.sizing-shrink > .tab-close,
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-right.sizing-shrink:hover > .tab-close {
+	overflow: visible; /* ...but still show the close button on hover and when dirty */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-right.sizing-fixed > .tab-close {
+	flex: 0;
+	overflow: hidden; /* let the close button be pushed out of view when sizing is set to shrink to make more room... */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty.close-button-right.sizing-fixed > .tab-close,
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-right.sizing-fixed:hover > .tab-close {
 	overflow: visible; /* ...but still show the close button on hover and when dirty */
 }
 
