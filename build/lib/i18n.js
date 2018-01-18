@@ -496,8 +496,51 @@ function getResource(sourceFile) {
     throw new Error("Could not identify the XLF bundle for " + sourceFile);
 }
 exports.getResource = getResource;
-
-
+function createXlfFilesForCoreBundle() {
+    return event_stream_1.through(function (file) {
+        var basename = path.basename(file.path);
+        if (basename === 'nls.metadata.json') {
+            if (file.isBuffer()) {
+                var xlfs = Object.create(null);
+                var json = JSON.parse(file.contents.toString('utf8'));
+                for (var coreModule in json.keys) {
+                    var projectResource = getResource(coreModule);
+                    var resource = projectResource.name;
+                    var project = projectResource.project;
+                    var keys = json.keys[coreModule];
+                    var messages = json.messages[coreModule];
+                    if (keys.length !== messages.length) {
+                        this.emit('error', "There is a mismatch between keys and messages in " + file.relative + " for module " + coreModule);
+                    }
+                    else {
+                        var xlf = xlfs[resource];
+                        if (!xlf) {
+                            xlf = new XLF(project);
+                            xlfs[resource] = xlf;
+                        }
+                        xlf.addFile("src/" + coreModule, keys, messages);
+                    }
+                }
+                for (var resource in xlfs) {
+                    var xlf = xlfs[resource];
+                    var filePath = xlf.project + "/" + resource.replace(/\//g, '_') + ".xlf";
+                    var xlfFile = new File({
+                        path: filePath,
+                        contents: new Buffer(xlf.toString(), 'utf8')
+                    });
+                    this.emit('data', xlfFile);
+                }
+            }
+            else {
+                this.emit('error', new Error("File " + file.relative + " is not using a buffer content"));
+            }
+        }
+        else {
+            this.emit('error', new Error("File " + file.relative + " is not a core meta data file."));
+        }
+    });
+}
+exports.createXlfFilesForCoreBundle = createXlfFilesForCoreBundle;
 function createXlfFilesForExtensions() {
     var counter = 0;
     var folderStreamEnded = false;

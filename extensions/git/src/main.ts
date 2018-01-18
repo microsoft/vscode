@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vscode-nls';
-const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
+const localize = nls.config(process.env.VSCODE_NLS_CONFIG, nls.ExtensionKind.prePackaged, __dirname)();
 import { ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';

@@ -85,7 +85,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 				}))
 				.pipe(tsFilter.restore)
 				.pipe(build ? nlsDev.createAdditionalLanguageFiles(languages, i18nPath, out) : es.through())
-				.pipe(build ? nlsDev.bundleMetaDataFiles() : es.through())
+				.pipe(build ? nlsDev.bundleMetaDataFiles(name, 'out') : es.through())
 				.pipe(reporter.end(emitError));
 
 			return es.duplex(input, output);

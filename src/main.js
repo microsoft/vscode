@@ -190,7 +190,7 @@ function getNLSConfiguration(locale) {
 	let userData = app.getPath('userData');
 
 	// This is temporay to test language packs until we have them installed via an extension.
-	if (locale === 'lpTest') {
+	if (locale === 'lptest') {
 		let commit = getCommit();
 		let cacheRoot = path.join(userData, 'CachedLanguagePacks');
 		let cacheFolder = path.join(cacheRoot, 'vscode', commit, locale, 'core');
