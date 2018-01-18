@@ -34,9 +34,14 @@ import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelS
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
 import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/linesTextBufferBuilder';
+import { ChunksTextBufferBuilder } from 'vs/editor/common/model/chunksTextBuffer/chunksTextBufferBuilder';
 
 // Here is the master switch for the text buffer implementation:
+const USE_CHUNKS_TEXT_BUFFER = false;
 function createTextBufferBuilder() {
+	if (USE_CHUNKS_TEXT_BUFFER) {
+		return new ChunksTextBufferBuilder();
+	}
 	return new LinesTextBufferBuilder();
 }
 
