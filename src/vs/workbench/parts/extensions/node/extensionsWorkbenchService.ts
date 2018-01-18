@@ -35,6 +35,7 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -345,7 +346,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private windowService: IWindowService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@IProgressService2 private progressService: IProgressService2
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -536,7 +538,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	install(extension: string | IExtension): TPromise<void> {
 		if (typeof extension === 'string') {
-			return this.extensionService.install(extension);
+			return this.progressService.withProgress({
+				location: ProgressLocation.Window,
+				title: nls.localize('installingExtension', 'Installing extension from VSIX...'),
+				tooltip: `${extension}`
+			}, () => this.extensionService.install(extension));
 		}
 
 		if (!(extension instanceof Extension)) {

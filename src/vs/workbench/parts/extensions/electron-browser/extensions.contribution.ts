@@ -43,8 +43,6 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { RuntimeExtensionsEditor, RuntimeExtensionsInput, ShowRuntimeExtensionsAction, IExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
 import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { ExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/extensionProfileService';
-import { IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { InstallingStatusItem } from 'vs/workbench/parts/extensions/browser/extensionsStatus';
 
 // Singletons
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService);
@@ -225,7 +223,3 @@ CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccess
 		extensionService.open(extension[0]).done(null, errors.onUnexpectedError);
 	}
 });
-
-
-let statusbarRegistry = <IStatusbarRegistry>Registry.as(StatusbarExtensions.Statusbar);
-statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(InstallingStatusItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
