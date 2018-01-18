@@ -24,7 +24,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, IPreferencesSearchService,
-	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, ISearchProvider, ISearchResult
+	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, ISearchProvider, ISearchResult, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -176,6 +176,10 @@ export class PreferencesEditor extends BaseEditor {
 		if (this.preferencesRenderers) {
 			this.preferencesRenderers.focusNextPreference(false);
 		}
+	}
+
+	public editFocusedPreference(): void {
+		this.preferencesRenderers.editFocusedPreference();
 	}
 
 	public setInput(newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
@@ -486,6 +490,18 @@ class PreferencesRenderersController extends Disposable {
 		const setting = forward ? this._settingsNavigator.next() : this._settingsNavigator.previous();
 		this._focusPreference(setting, this._defaultPreferencesRenderer);
 		this._focusPreference(setting, this._editablePreferencesRenderer);
+	}
+
+	editFocusedPreference(): void {
+		if (!this._settingsNavigator || !this._settingsNavigator.current()) {
+			return;
+		}
+
+		const setting = this._settingsNavigator.current();
+		const shownInEditableRenderer = this._editablePreferencesRenderer.editPreference(setting);
+		if (!shownInEditableRenderer) {
+			this.defaultPreferencesRenderer.editPreference(setting);
+		}
 	}
 
 	private _filterOrSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number): TPromise<IFilterResult> {
@@ -1165,3 +1181,20 @@ const focusPreviousSearchResultCommand = new FocusPreviousSearchResultCommand({
 	kbOpts: { primary: KeyMod.Shift | KeyCode.Enter }
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(focusPreviousSearchResultCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+class EditFocusedSettingCommand extends SettingsCommand {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const preferencesEditor = this.getPreferencesEditor(accessor);
+		if (preferencesEditor) {
+			preferencesEditor.editFocusedPreference();
+		}
+	}
+
+}
+const editFocusedSettingCommand = new EditFocusedSettingCommand({
+	id: SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING,
+	precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
+	kbOpts: { primary: KeyMod.CtrlCmd | KeyCode.US_DOT }
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(editFocusedSettingCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));

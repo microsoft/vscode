@@ -9,6 +9,7 @@ import { Delayer } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Position } from 'vs/editor/common/core/position';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -36,6 +37,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { getDomNodePagePosition } from 'vs/base/browser/dom';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -52,6 +54,7 @@ export interface IPreferencesRenderer<T> extends IDisposable {
 	focusPreference(setting: T): void;
 	clearFocus(setting: T): void;
 	filterPreferences(filterResult: IFilterResult): void;
+	editPreference(setting: T): boolean;
 }
 
 export class UserSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
@@ -185,6 +188,10 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 	public clearFocus(setting: ISetting): void {
 		this.settingHighlighter.clear(true);
+	}
+
+	public editPreference(setting: ISetting): boolean {
+		return this.editSettingActionRenderer.activateOnSetting(setting);
 	}
 }
 
@@ -376,6 +383,10 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	}
 
 	public updatePreference(key: string, value: any, source: ISetting): void {
+	}
+
+	public editPreference(setting: ISetting): boolean {
+		return this.editSettingActionRenderer.activateOnSetting(setting);
 	}
 }
 
@@ -1095,6 +1106,32 @@ class EditSettingRenderer extends Disposable {
 			getAnchor: () => anchor,
 			getActions: () => TPromise.wrap(actions)
 		});
+	}
+
+	public activateOnSetting(setting: ISetting): boolean {
+		const startLine = setting.keyRange.startLineNumber;
+		const settings = this.getSettings(startLine);
+		if (!settings.length) {
+			return false;
+		}
+
+		this.editPreferenceWidgetForMouseMove.show(startLine, '', settings);
+		const actions = this.getActions(this.editPreferenceWidgetForMouseMove.preferences[0], this.getConfigurationsMap()[this.editPreferenceWidgetForMouseMove.preferences[0].key]);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => this.toAbsoluteCoords(new Position(startLine, 1)),
+			getActions: () => TPromise.wrap(actions)
+		});
+
+		return true;
+	}
+
+	private toAbsoluteCoords(position: Position): { x: number, y: number } {
+		const positionCoords = this.editor.getScrolledVisiblePosition(position);
+		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
+		const x = editorCoords.left + positionCoords.left;
+		const y = editorCoords.top + positionCoords.top + positionCoords.height;
+
+		return { x, y: y + 10 };
 	}
 
 	private getConfigurationsMap(): { [qualifiedKey: string]: IConfigurationPropertySchema } {
