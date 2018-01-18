@@ -255,7 +255,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private triggerThrottledSearch(query: string): TPromise<IFilterOrSearchResult> {
 		if (query) {
-			return this.remoteSearchThrottle.trigger(() => this.preferencesRenderers.localFilterPreferences(query));
+			return this.remoteSearchThrottle.trigger(() => this.preferencesRenderers.remoteSearchPreferences(query));
 		} else {
 			// When clearing the input, update immediately to clear it
 			return this.preferencesRenderers.remoteSearchPreferences(query);
