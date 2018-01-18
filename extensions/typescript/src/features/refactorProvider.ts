@@ -158,7 +158,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 								command: ApplyRefactoringCommand.ID,
 								arguments: [document, file, info.name, action.name, range]
 							},
-							scope: vscode.CodeActionScope.Refactor
+							scope: TypeScriptRefactorProvider.getScope(action)
 						});
 					}
 				}
@@ -167,5 +167,12 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 		} catch {
 			return [];
 		}
+	}
+
+	private static getScope(refactor: Proto.RefactorActionInfo) {
+		if (refactor.name.startsWith('function_')) {
+			return vscode.CodeActionScope.RefactorExtract.add('function');
+		}
+		return vscode.CodeActionScope.Refactor;
 	}
 }

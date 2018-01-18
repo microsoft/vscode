@@ -15,7 +15,7 @@ import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { QuickFixContextMenu } from './quickFixWidget';
 import { LightBulbWidget } from './lightBulbWidget';
@@ -70,6 +70,19 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _onQuickFixEvent(e: QuickFixComputeEvent): void {
+		if (e && e.scope) {
+			// Triggered for specific scope
+			// Apply if we only have one action, otherwise show menu
+			e.fixes.then(fixes => {
+				if (fixes.length === 1) {
+					this._onApplyCodeAction(fixes[0]);
+				} else {
+					this._quickFixContextMenu.show(e.fixes, e.position);
+				}
+			});
+			return;
+		}
+
 		if (e && e.type === 'manual') {
 			this._quickFixContextMenu.show(e.fixes, e.position);
 		} else if (e && e.fixes) {
@@ -94,7 +107,11 @@ export class QuickFixController implements IEditorContribution {
 		this._quickFixContextMenu.show(this._lightBulbWidget.model.fixes, coords);
 	}
 
-	public triggerFromEditorSelection(scope?: CodeActionScope): void {
+	public triggerFromEditorSelection(): void {
+		this._model.trigger('manual');
+	}
+
+	public tryPerformFromEditorSelection(scope: CodeActionScope): void {
 		this._model.trigger('manual', scope);
 	}
 
@@ -139,13 +156,33 @@ export class QuickFixAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args?: any[]): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = QuickFixController.get(editor);
 		if (controller) {
-			controller.triggerFromEditorSelection(args && typeof args[0] === 'string' ? new CodeActionScope(args[0]) : undefined);
+			controller.triggerFromEditorSelection();
+		}
+	}
+}
+
+export class CodeActionCommand extends EditorCommand {
+
+	static readonly Id = 'editor.action.codeAction';
+
+	constructor() {
+		super({
+			id: CodeActionCommand.Id,
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider)
+		});
+	}
+
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any) {
+		let controller = QuickFixController.get(editor);
+		if (controller) {
+			controller.tryPerformFromEditorSelection(args && typeof args[0] === 'string' ? new CodeActionScope(args[0]) : new CodeActionScope(''));
 		}
 	}
 }
 
 registerEditorContribution(QuickFixController);
 registerEditorAction(QuickFixAction);
+registerEditorCommand(new CodeActionCommand());

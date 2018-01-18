@@ -1824,7 +1824,7 @@ declare module 'vscode' {
 
 		public add(parts: string): CodeActionScope;
 
-		public matches(other: CodeActionScope): boolean;
+		public contains(other: CodeActionScope): boolean;
 
 	}
 

@@ -844,8 +844,8 @@ export class CodeActionScope {
 		return new CodeActionScope(this.value + CodeActionScope.sep + scopes);
 	}
 
-	public matches(other: CodeActionScope): boolean {
-		return this.value === other.value || (startsWith(this.value, other.value) && other.value[this.value + 1] === CodeActionScope.sep);
+	public contains(other: CodeActionScope): boolean {
+		return this.value === other.value || startsWith(other.value, this.value + CodeActionScope.sep);
 	}
 }
 

@@ -24,8 +24,8 @@ export class CodeActionScope {
 		public readonly value: string
 	) { }
 
-	public matches(other: CodeActionScope): boolean {
-		return this.value === other.value || (startsWith(this.value, other.value) && other.value[this.value + 1] === CodeActionScope.sep);
+	public contains(other: CodeActionScope): boolean {
+		return this.value === other.value || startsWith(other.value, this.value + CodeActionScope.sep);
 	}
 }
 
@@ -131,7 +131,7 @@ export class QuickFixOracle {
 				if (!scope) {
 					return actions;
 				}
-				return actions.filter(action => action.scope && new CodeActionScope(action.scope).matches(scope));
+				return actions.filter(action => action.scope && scope.contains(new CodeActionScope(action.scope)));
 			});
 
 			this._signalChange({
