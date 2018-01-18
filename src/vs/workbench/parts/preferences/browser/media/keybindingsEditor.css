@@ -63,6 +63,14 @@
 	border-collapse: separate;
 }
 
+.keybindings-editor .monaco-list-rows > .monaco-list-row.keybindings-list-header {
+	pointer-events: none;
+}
+.keybindings-editor .monaco-list-rows > .monaco-list-row.keybindings-list-header:hover {
+	background-color: inherit;
+	color: inherit;
+}
+
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row {
 	cursor: default;
 	display: flex;
