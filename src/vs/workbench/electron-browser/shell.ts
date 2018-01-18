@@ -87,6 +87,8 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { stat } from 'fs';
+import { join } from 'path';
 
 /**
  * Services that we require for the Shell
@@ -206,6 +208,11 @@ export class WorkbenchShell {
 						}
 					}
 				});
+
+				// localStorage metrics (TODO@Ben remove me later)
+				if (!this.environmentService.extensionTestsPath && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+					this.logLocalStorageMetrics();
+				}
 			});
 
 			return workbench;
@@ -272,6 +279,37 @@ export class WorkbenchShell {
 			*/
 			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
 		});
+	}
+
+	private logLocalStorageMetrics(): void {
+		perf.mark('willReadLocalStorage');
+		if (!this.storageService.getBoolean('localStorageMetricsSent')) {
+			perf.mark('didReadLocalStorage');
+
+			perf.mark('willWriteLocalStorage');
+			this.storageService.store('localStorageMetricsSent', true);
+
+			stat(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage'), (error, stat) => {
+				/* __GDPR__
+					"localStorageMetrics" : {
+						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"subsequentReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"writeTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"keys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('localStorageMetrics', {
+					'accessTime': perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage'),
+					'firstReadTime': perf.getDuration('willReadWorkspaceIdentifier', 'didReadWorkspaceIdentifier'),
+					'subsequentReadTime': perf.getDuration('willReadLocalStorage', 'didReadLocalStorage'),
+					'writeTime': perf.getDuration('willWriteLocalStorage', 'willComputeLocalStorageSize'),
+					'keys': window.localStorage.length,
+					'size': stat ? stat.size : -1
+				});
+			});
+		}
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
