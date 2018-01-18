@@ -347,6 +347,13 @@ export interface CodeAction {
 }
 
 /**
+ * @internal
+ */
+export interface CodeActionContext {
+	scope?: string;
+}
+
+/**
  * The code action interface defines the contract between extensions and
  * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
  * @internal
@@ -355,7 +362,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 }
 
 /**

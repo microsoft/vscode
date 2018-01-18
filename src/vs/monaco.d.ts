@@ -4043,6 +4043,7 @@ declare module monaco.languages {
 		 * @readonly
 		 */
 		readonly markers: editor.IMarkerData[];
+		readonly scope?: string;
 	}
 
 	/**

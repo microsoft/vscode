@@ -8,10 +8,11 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionProviderRegistry, LanguageIdentifier, CodeActionProvider, Command, WorkspaceEdit, IResourceEdit } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry, LanguageIdentifier, CodeActionProvider, Command, WorkspaceEdit, IResourceEdit, CodeAction } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions } from 'vs/editor/contrib/quickFix/quickFix';
+import { CodeActionScope } from 'vs/editor/contrib/quickFix/codeActionScope';
 
 suite('QuickFix', () => {
 
@@ -119,5 +120,37 @@ suite('QuickFix', () => {
 		const actions = await getCodeActions(model, new Range(1, 1, 2, 1));
 		assert.equal(actions.length, 6);
 		assert.deepEqual(actions, expected);
+	});
+
+	test('getCodeActions should filter by scope', async function () {
+		const provider = new class implements CodeActionProvider {
+			provideCodeActions(): CodeAction[] {
+				return [
+					{ title: 'a', scope: 'a' },
+					{ title: 'b', scope: 'b' },
+					{ title: 'a.b', scope: 'a.b' }
+				];
+			}
+		};
+
+		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+
+		{
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionScope('a'));
+			assert.equal(actions.length, 2);
+			assert.strictEqual(actions[0].title, 'a');
+			assert.strictEqual(actions[1].title, 'a.b');
+		}
+
+		{
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionScope('a.b'));
+			assert.equal(actions.length, 1);
+			assert.strictEqual(actions[0].title, 'a.b');
+		}
+
+		{
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionScope('a.b.c'));
+			assert.equal(actions.length, 0);
+		}
 	});
 });
