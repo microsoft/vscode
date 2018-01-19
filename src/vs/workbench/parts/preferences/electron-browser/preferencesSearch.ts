@@ -106,17 +106,10 @@ export class LocalSearchProvider implements ISearchProvider {
 	}
 
 	private getGroupFilter(filter: string): IGroupFilter {
-		if (strings.startsWith(filter, '@')) {
-			const groupId = filter.replace(/^@/, '');
-			return (group: ISettingsGroup) => {
-				return group.id.toLowerCase() === groupId.toLowerCase();
-			};
-		} else {
-			const regex = strings.createRegExp(this._filter, false, { global: true });
-			return (group: ISettingsGroup) => {
-				return regex.test(group.title);
-			};
-		}
+		const regex = strings.createRegExp(this._filter, false, { global: true });
+		return (group: ISettingsGroup) => {
+			return regex.test(group.title);
+		};
 	}
 }
 
