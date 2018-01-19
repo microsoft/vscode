@@ -440,6 +440,7 @@ function registerFileProtocol(
 				callback({ path: normalizedPath });
 				return;
 			}
+
 		}
 		callback({ error: 'Cannot load resource outside of protocol root' });
 	}, (error) => {
