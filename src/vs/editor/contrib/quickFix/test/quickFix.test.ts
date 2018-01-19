@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionProviderRegistry, LanguageIdentifier, CodeActionProvider, Command, WorkspaceEdit, IResourceEdit } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry, LanguageIdentifier, CodeActionProvider, Command, WorkspaceEdit, ResourceTextEdit } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions } from 'vs/editor/contrib/quickFix/quickFix';
@@ -57,7 +57,7 @@ suite('QuickFix', () => {
 			bcd: {
 				diagnostics: [],
 				edit: new class implements WorkspaceEdit {
-					edits: IResourceEdit[];
+					edits: ResourceTextEdit[];
 				},
 				title: 'abc'
 			}

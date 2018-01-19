@@ -22,10 +22,9 @@ import { LightBulbWidget } from './lightBulbWidget';
 import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CodeAction } from 'vs/editor/common/modes';
-import { bulkEdit } from 'vs/editor/browser/services/bulkEdit';
+import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import URI from 'vs/base/common/uri';
 
 export class QuickFixController implements IEditorContribution {
 
@@ -113,11 +112,7 @@ export class QuickFixController implements IEditorContribution {
 
 	private async _onApplyCodeAction(action: CodeAction): TPromise<void> {
 		if (action.edit) {
-			await bulkEdit(this._textModelService, this._editor, action.edit.edits, this._fileService, {
-				createdResources: action.edit.createdResources.map(create => ({ uri: URI.revive(create.uri), contents: create.contents })),
-				renamedResources: action.edit.renamedResources.map(rename => ({ from: URI.revive(rename.from), to: URI.revive(rename.to) })),
-				deletedResources: action.edit.deletedResources.map(URI.revive)
-			});
+			await BulkEdit.perform(action.edit.edits, this._textModelService, this._fileService, this._editor);
 		}
 
 		if (action.command) {

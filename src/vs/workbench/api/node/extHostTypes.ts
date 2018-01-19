@@ -491,44 +491,28 @@ export class TextEdit {
 	}
 }
 
-export class WorkspaceEdit {
+export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private _values: [URI, TextEdit[]][] = [];
-	private readonly _resourcesCreated: { uri: URI, contents: string }[] = [];
-	private readonly _resourcesDeleted: URI[] = [];
-	private readonly _resourcesRenamed: { from: URI, to: URI }[] = [];
-	private _index = new Map<string, number>();
+	private _clock: number = 0;
 
-	private _validResources = new Set<URI>();
-	private _invalidResources = new Set<URI>();
+	private _resourceEdits: [number/*time*/, URI, URI][] = [];
+	private _textEdits: [URI, TextEdit[]][] = [];
+	private _textEditsIndex = new Map<string, [number/*index*/, number/*time*/]>();
 
-
-	createResource(uri: URI, contents: string): void {
-		if (this._invalidResources.has(uri)) {
-			throw illegalArgument('Cannot create already deleted resource');
-		}
-		this._resourcesCreated.push({ uri: uri, contents: contents });
-		this._validResources.add(uri);
+	createResource(uri: vscode.Uri): void {
+		this.renameResource(undefined, uri);
 	}
 
-	deleteResource(uri: URI): void {
-		if (this._validResources.has(uri)) {
-			throw illegalArgument('Cannot delete newly created resource');
-		}
-		this._resourcesDeleted.push(uri);
-		this._invalidResources.add(uri);
+	deleteResource(uri: vscode.Uri): void {
+		this.renameResource(uri, undefined);
 	}
 
-	renameResource(uri: URI, newUri: URI): void {
-		if (this._validResources.has(uri)) {
-			throw illegalArgument('Cannot delete newly created resource');
-		}
-		if (this._invalidResources.has(newUri)) {
-			throw illegalArgument('Cannot create already deleted resource');
-		}
-		this._resourcesRenamed.push({ from: uri, to: newUri });
-		this._invalidResources.add(uri);
-		this._validResources.add(newUri);
+	renameResource(from: vscode.Uri, to: vscode.Uri): void {
+		this._resourceEdits.push([this._clock++, from, to]);
+	}
+
+	resourceEdits(): [vscode.Uri, vscode.Uri][] {
+		return this._resourceEdits.map(([, oldUri, newUri]) => (<[vscode.Uri, vscode.Uri]>[oldUri, newUri]));
 	}
 
 	replace(uri: URI, range: Range, newText: string): void {
@@ -550,50 +534,54 @@ export class WorkspaceEdit {
 	}
 
 	has(uri: URI): boolean {
-		return this._index.has(uri.toString());
+		return this._textEditsIndex.has(uri.toString());
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
-		if (this._invalidResources.has(uri)) {
-			throw illegalArgument('Cannot modify already deleted resource');
-		}
-		this._validResources.add(uri);
-		const idx = this._index.get(uri.toString());
-		if (typeof idx === 'undefined') {
-			let newLen = this._values.push([uri, edits]);
-			this._index.set(uri.toString(), newLen - 1);
+		if (!this._textEditsIndex.has(uri.toString())) {
+			let newLen = this._textEdits.push([uri, edits]);
+			this._textEditsIndex.set(uri.toString(), [newLen - 1, this._clock++]);
 		} else {
-			this._values[idx][1] = edits;
+			const [idx] = this._textEditsIndex.get(uri.toString());
+			this._textEdits[idx][1] = edits;
 		}
 	}
 
 	get(uri: URI): TextEdit[] {
-		let idx = this._index.get(uri.toString());
-		return typeof idx !== 'undefined' && this._values[idx][1];
+		if (!this._textEditsIndex.has(uri.toString())) {
+			return undefined;
+		}
+		const [idx] = this._textEditsIndex.get(uri.toString());
+		return this._textEdits[idx][1];
 	}
 
 	entries(): [URI, TextEdit[]][] {
-		return this._values;
+		// todo@joh - make this immutable
+		return this._textEdits;
 	}
 
-	get createdResources(): { uri: URI, contents: string }[] {
-		return this._resourcesCreated;
-	}
-
-	get deletedResources(): URI[] {
-		return this._resourcesDeleted;
-	}
-
-	get renamedResources(): { from: URI, to: URI }[] {
-		return this._resourcesRenamed;
+	allEntries(): ([URI, TextEdit[]] | [URI, URI])[] {
+		// use the 'time' the we have assigned when inserting
+		// the operation and use that order in the resulting
+		// array
+		const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
+		this._textEditsIndex.forEach(value => {
+			const [index, time] = value;
+			res[time] = this._textEdits[index];
+		});
+		this._resourceEdits.forEach(value => {
+			const [time, oldUri, newUri] = value;
+			res[time] = [oldUri, newUri];
+		});
+		return res;
 	}
 
 	get size(): number {
-		return this._values.length + this._resourcesCreated.length + this._resourcesRenamed.length + this._resourcesDeleted.length;
+		return this._textEdits.length + this._resourceEdits.length;
 	}
 
 	toJSON(): any {
-		return this._values;
+		return this._textEdits;
 	}
 }
 

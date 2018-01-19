@@ -2431,29 +2431,6 @@ declare module 'vscode' {
 		readonly size: number;
 
 		/**
-		 * Renames a given resource in the workspace.
-		 *
-		 * @param from Uri of current resource.
-		 * @param to Uri of renamed resource.
-		 */
-		renameResource(from: Uri, to: Uri): void;
-
-		/**
-		 * Create a new resource in the workspace.
-		 *
-		 * @param uri Uri of resource to create.
-		 * @param contents New file contents.
-		 */
-		createResource(uri: Uri, contents: String): void;
-
-		/**
-		 * Delete a given resource in the workspace.
-		 *
-		 * @param uri Uri of resource to delete.
-		 */
-		deleteResource(uri: Uri): void;
-
-		/**
 		 * Replace the given range with given text for the given resource.
 		 *
 		 * @param uri A resource identifier.
@@ -2510,19 +2487,40 @@ declare module 'vscode' {
 		entries(): [Uri, TextEdit[]][];
 
 		/**
-		 * Get all resource rename edits.
+		 * Renames a given resource in the workspace.
+		 *
+		 * @param from Uri of current resource.
+		 * @param to Uri of renamed resource.
 		 */
-		readonly renamedResources: { from: Uri, to: Uri }[];
+		renameResource(from: Uri, to: Uri): void;
 
 		/**
-		 * Get all resource create edits.
+		 * Create a new resource in the workspace.
+		 *
+		 * @param uri Uri of resource to create.
 		 */
-		readonly createdResources: { uri: Uri, contents: string }[];
+		createResource(uri: Uri): void;
 
 		/**
-		 * Get all resource delete edits.
+		 * Delete a given resource in the workspace.
+		 *
+		 * @param uri Uri of resource to delete.
 		 */
-		readonly deletedResources: Uri[];
+		deleteResource(uri: Uri): void;
+
+		/**
+		 * Get the resource edits for this workspace edit.
+		 *
+		 * @returns A array of uri-tuples in which a rename-edit
+		 * is represented as `[from, to]`, a delete-operation as `[from, null]`,
+		 * and a create-operation as `[null, to]`;
+		 */
+		resourceEdits(): [Uri, Uri][];
+
+		/**
+		 *
+		 */
+		allEntries(): ([Uri, TextEdit[]] | [Uri, Uri])[];
 	}
 
 	/**

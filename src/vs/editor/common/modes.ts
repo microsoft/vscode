@@ -17,6 +17,7 @@ import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationReg
 import { Color } from 'vs/base/common/color';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import * as model from 'vs/editor/common/model';
+import { isObject } from 'vs/base/common/types';
 
 /**
  * Open ended enum at runtime
@@ -816,29 +817,36 @@ export interface DocumentColorProvider {
 	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 }
 
-export interface IResourceEdit {
+/**
+ * @internal
+ */
+export function isResourceFileEdit(thing: any): thing is ResourceFileEdit {
+	return isObject(thing) && (Boolean((<ResourceFileEdit>thing).newUri) || Boolean((<ResourceFileEdit>thing).oldUri));
+}
+
+/**
+ * @internal
+ */
+export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
+	return isObject(thing) && (<ResourceTextEdit>thing).resource && Array.isArray((<ResourceTextEdit>thing).edits);
+}
+
+export interface ResourceFileEdit {
+	oldUri: URI;
+	newUri: URI;
+}
+
+export interface ResourceTextEdit {
 	resource: URI;
-	range: IRange;
-	newText: string;
-}
-
-export interface IResourceRename {
-	readonly from: URI;
-	readonly to: URI;
-}
-
-export interface IResourceCreate {
-	readonly uri: URI;
-	readonly contents: string;
+	modelVersionId?: number;
+	edits: TextEdit[];
 }
 
 export interface WorkspaceEdit {
-	edits: IResourceEdit[];
-	renamedResources?: IResourceRename[];
-	createdResources?: IResourceCreate[];
-	deletedResources?: URI[];
-	rejectReason?: string;
+	edits: Array<ResourceTextEdit | ResourceFileEdit>;
+	rejectReason?: string; // TODO@joh, move to rename
 }
+
 export interface RenameProvider {
 	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
 }

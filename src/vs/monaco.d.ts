@@ -4907,27 +4907,19 @@ declare module monaco.languages {
 		provideColorPresentations(model: editor.ITextModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 	}
 
-	export interface IResourceEdit {
+	export interface ResourceFileEdit {
+		oldUri: Uri;
+		newUri: Uri;
+	}
+
+	export interface ResourceTextEdit {
 		resource: Uri;
-		range: IRange;
-		newText: string;
-	}
-
-	export interface IResourceRename {
-		readonly from: Uri;
-		readonly to: Uri;
-	}
-
-	export interface IResourceCreate {
-		readonly uri: Uri;
-		readonly contents: string;
+		modelVersionId?: number;
+		edits: TextEdit[];
 	}
 
 	export interface WorkspaceEdit {
-		edits: IResourceEdit[];
-		renamedResources?: IResourceRename[];
-		createdResources?: IResourceCreate[];
-		deletedResources?: Uri[];
+		edits: Array<ResourceTextEdit | ResourceFileEdit>;
 		rejectReason?: string;
 	}
 
