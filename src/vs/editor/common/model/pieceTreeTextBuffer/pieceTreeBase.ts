@@ -18,10 +18,6 @@ export function getNodeColor(node: TreeNode) {
 	return node.color;
 }
 
-function setNodeColor(node: TreeNode, color: NodeColor) {
-	node.color = color;
-}
-
 function leftest(node: TreeNode): TreeNode {
 	while (node.left !== SENTINEL) {
 		node = node.left;
@@ -218,7 +214,7 @@ export const SENTINEL: TreeNode = new TreeNode(null, NodeColor.Black);
 SENTINEL.parent = SENTINEL;
 SENTINEL.left = SENTINEL;
 SENTINEL.right = SENTINEL;
-setNodeColor(SENTINEL, NodeColor.Black);
+SENTINEL.color = NodeColor.Black;
 
 export interface NodePosition {
 	/**
@@ -1383,7 +1379,7 @@ export class PieceTreeBase {
 		let x = this.root;
 		if (x === SENTINEL) {
 			this.root = z;
-			setNodeColor(z, NodeColor.Black);
+			z.color = NodeColor.Black;
 		} else if (node.right === SENTINEL) {
 			node.right = z;
 			z.parent = node;
@@ -1415,7 +1411,7 @@ export class PieceTreeBase {
 		let x = this.root;
 		if (x === SENTINEL) {
 			this.root = z;
-			setNodeColor(z, NodeColor.Black);
+			z.color = NodeColor.Black;
 		} else if (node.left === SENTINEL) {
 			node.left = z;
 			z.parent = node;
@@ -1448,8 +1444,7 @@ export class PieceTreeBase {
 			this.root = x;
 
 			// if x is null, we are removing the only node
-			setNodeColor(x, NodeColor.Black);
-
+			x.color = NodeColor.Black;
 			z.detach();
 			resetSentinel();
 			this.root.parent = SENTINEL;
@@ -1457,7 +1452,7 @@ export class PieceTreeBase {
 			return;
 		}
 
-		let yWasRed = (getNodeColor(y) === NodeColor.Red);
+		let yWasRed = (y.color === NodeColor.Red);
 
 		if (y === y.parent.left) {
 			y.parent.left = x;
@@ -1481,7 +1476,7 @@ export class PieceTreeBase {
 			y.left = z.left;
 			y.right = z.right;
 			y.parent = z.parent;
-			setNodeColor(y, getNodeColor(z));
+			y.color = z.color;
 
 			if (z === this.root) {
 				this.root = y;
@@ -1529,79 +1524,79 @@ export class PieceTreeBase {
 
 		// RB-DELETE-FIXUP
 		let w: TreeNode;
-		while (x !== this.root && getNodeColor(x) === NodeColor.Black) {
+		while (x !== this.root && x.color === NodeColor.Black) {
 			if (x === x.parent.left) {
 				w = x.parent.right;
 
-				if (getNodeColor(w) === NodeColor.Red) {
-					setNodeColor(w, NodeColor.Black);
-					setNodeColor(x.parent, NodeColor.Red);
+				if (w.color === NodeColor.Red) {
+					w.color = NodeColor.Black;
+					x.parent.color = NodeColor.Red;
 					this.leftRotate(x.parent);
 					w = x.parent.right;
 				}
 
-				if (getNodeColor(w.left) === NodeColor.Black && getNodeColor(w.right) === NodeColor.Black) {
-					setNodeColor(w, NodeColor.Red);
+				if (w.left.color === NodeColor.Black && w.right.color === NodeColor.Black) {
+					w.color = NodeColor.Red;
 					x = x.parent;
 				} else {
-					if (getNodeColor(w.right) === NodeColor.Black) {
-						setNodeColor(w.left, NodeColor.Black);
-						setNodeColor(w, NodeColor.Red);
+					if (w.right.color === NodeColor.Black) {
+						w.left.color = NodeColor.Black;
+						w.color = NodeColor.Red;
 						this.rightRotate(w);
 						w = x.parent.right;
 					}
 
-					setNodeColor(w, getNodeColor(x.parent));
-					setNodeColor(x.parent, NodeColor.Black);
-					setNodeColor(w.right, NodeColor.Black);
+					w.color = x.parent.color;
+					x.parent.color = NodeColor.Black;
+					w.right.color = NodeColor.Black;
 					this.leftRotate(x.parent);
 					x = this.root;
 				}
 			} else {
 				w = x.parent.left;
 
-				if (getNodeColor(w) === NodeColor.Red) {
-					setNodeColor(w, NodeColor.Black);
-					setNodeColor(x.parent, NodeColor.Red);
+				if (w.color === NodeColor.Red) {
+					w.color = NodeColor.Black;
+					x.parent.color = NodeColor.Red;
 					this.rightRotate(x.parent);
 					w = x.parent.left;
 				}
 
-				if (getNodeColor(w.left) === NodeColor.Black && getNodeColor(w.right) === NodeColor.Black) {
-					setNodeColor(w, NodeColor.Red);
+				if (w.left.color === NodeColor.Black && w.right.color === NodeColor.Black) {
+					w.color = NodeColor.Red;
 					x = x.parent;
 
 				} else {
-					if (getNodeColor(w.left) === NodeColor.Black) {
-						setNodeColor(w.right, NodeColor.Black);
-						setNodeColor(w, NodeColor.Red);
+					if (w.left.color === NodeColor.Black) {
+						w.right.color = NodeColor.Black;
+						w.color = NodeColor.Red;
 						this.leftRotate(w);
 						w = x.parent.left;
 					}
 
-					setNodeColor(w, getNodeColor(x.parent));
-					setNodeColor(x.parent, NodeColor.Black);
-					setNodeColor(w.left, NodeColor.Black);
+					w.color = x.parent.color;
+					x.parent.color = NodeColor.Black;
+					w.left.color = NodeColor.Black;
 					this.rightRotate(x.parent);
 					x = this.root;
 				}
 			}
 		}
-		setNodeColor(x, NodeColor.Black);
+		x.color = NodeColor.Black;
 		resetSentinel();
 	}
 
 	fixInsert(x: TreeNode) {
 		this.recomputeTreeMetadata(x);
 
-		while (x !== this.root && getNodeColor(x.parent) === NodeColor.Red) {
+		while (x !== this.root && x.parent.color === NodeColor.Red) {
 			if (x.parent === x.parent.parent.left) {
 				const y = x.parent.parent.right;
 
-				if (getNodeColor(y) === NodeColor.Red) {
-					setNodeColor(x.parent, NodeColor.Black);
-					setNodeColor(y, NodeColor.Black);
-					setNodeColor(x.parent.parent, NodeColor.Red);
+				if (y.color === NodeColor.Red) {
+					x.parent.color = NodeColor.Black;
+					y.color = NodeColor.Black;
+					x.parent.parent.color = NodeColor.Red;
 					x = x.parent.parent;
 				} else {
 					if (x === x.parent.right) {
@@ -1609,31 +1604,31 @@ export class PieceTreeBase {
 						this.leftRotate(x);
 					}
 
-					setNodeColor(x.parent, NodeColor.Black);
-					setNodeColor(x.parent.parent, NodeColor.Red);
+					x.parent.color = NodeColor.Black;
+					x.parent.parent.color = NodeColor.Red;
 					this.rightRotate(x.parent.parent);
 				}
 			} else {
 				const y = x.parent.parent.left;
 
-				if (getNodeColor(y) === NodeColor.Red) {
-					setNodeColor(x.parent, NodeColor.Black);
-					setNodeColor(y, NodeColor.Black);
-					setNodeColor(x.parent.parent, NodeColor.Red);
+				if (y.color === NodeColor.Red) {
+					x.parent.color = NodeColor.Black;
+					y.color = NodeColor.Black;
+					x.parent.parent.color = NodeColor.Red;
 					x = x.parent.parent;
 				} else {
 					if (x === x.parent.left) {
 						x = x.parent;
 						this.rightRotate(x);
 					}
-					setNodeColor(x.parent, NodeColor.Black);
-					setNodeColor(x.parent.parent, NodeColor.Red);
+					x.parent.color = NodeColor.Black;
+					x.parent.parent.color = NodeColor.Red;
 					this.leftRotate(x.parent.parent);
 				}
 			}
 		}
 
-		setNodeColor(this.root, NodeColor.Black);
+		this.root.color = NodeColor.Black;
 	}
 
 	updateTreeMetadata(x: TreeNode, delta: number, lineFeedCntDelta: number): void {

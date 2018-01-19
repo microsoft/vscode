@@ -9,7 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { PieceTreeBase, getNodeColor, SENTINEL, NodeColor, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
+import { PieceTreeBase, SENTINEL, NodeColor, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
@@ -158,7 +158,7 @@ function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTre
 }
 
 function assertTreeInvariants(T: PieceTreeBase): void {
-	assert(getNodeColor(SENTINEL) === NodeColor.Black);
+	assert(SENTINEL.color === NodeColor.Black);
 	assert(SENTINEL.parent === SENTINEL);
 	assert(SENTINEL.left === SENTINEL);
 	assert(SENTINEL.right === SENTINEL);
@@ -173,7 +173,7 @@ function depth(n: TreeNode): number {
 		return 1;
 	}
 	assert(depth(n.left) === depth(n.right));
-	return (getNodeColor(n) === NodeColor.Black ? 1 : 0) + depth(n.left);
+	return (n.color === NodeColor.Black ? 1 : 0) + depth(n.left);
 }
 
 function assertValidNode(n: TreeNode): { size: number, lf_cnt: number } {
@@ -184,9 +184,9 @@ function assertValidNode(n: TreeNode): { size: number, lf_cnt: number } {
 	let l = n.left;
 	let r = n.right;
 
-	if (getNodeColor(n) === NodeColor.Red) {
-		assert(getNodeColor(l) === NodeColor.Black);
-		assert(getNodeColor(r) === NodeColor.Black);
+	if (n.color === NodeColor.Red) {
+		assert(l.color === NodeColor.Black);
+		assert(r.color === NodeColor.Black);
 	}
 
 	let actualLeft = assertValidNode(l);
@@ -201,7 +201,7 @@ function assertValidTree(T: PieceTreeBase): void {
 	if (T.root === SENTINEL) {
 		return;
 	}
-	assert(getNodeColor(T.root) === NodeColor.Black);
+	assert(T.root.color === NodeColor.Black);
 	assert(depth(T.root.left) === depth(T.root.right));
 	assertValidNode(T.root);
 }
