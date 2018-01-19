@@ -272,12 +272,18 @@ export class StringBuffer {
 	}
 }
 
+/**
+ * Readonly snapshot for piece tree.
+ * In a real multiple thread environment, to make snapshot reading always work correctly, we need to
+ * 1. Make TreeNode.piece immutable, then reading and writing can run in parallel.
+ * 2. TreeNode/Buffers normalization should not happen during snapshot reading.
+ */
 class PieceTreeSnapshot implements ITextSnapshot {
-	// pieces/tree nodes in order
-	private _nodes: TreeNode[];
+	private _nodes: TreeNode[]; // pieces/tree nodes in order
 	private _index: number;
 	private _tree: PieceTreeBase;
 	private _BOM: string;
+
 	constructor(tree: PieceTreeBase, BOM: string) {
 		this._nodes = [];
 		this._tree = tree;
