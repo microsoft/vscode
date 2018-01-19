@@ -118,9 +118,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
+						const fastUpdatesEnabled = this.configurationService.getValue<boolean>('update.enableWindowsBackgroundUpdates');
+
 						this.availableUpdate = { packagePath };
 
-						if (update.supportsFastUpdate) {
+						if (fastUpdatesEnabled && update.supportsFastUpdate) {
 							this.setState(State.Downloaded(update));
 						} else {
 							this.setState(State.Ready(update));

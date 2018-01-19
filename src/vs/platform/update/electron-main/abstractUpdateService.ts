@@ -40,7 +40,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService protected configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILogService protected logService: ILogService
 	) {
