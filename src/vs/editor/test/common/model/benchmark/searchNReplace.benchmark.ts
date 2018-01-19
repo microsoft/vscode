@@ -26,6 +26,7 @@ for (let fileSize of fileSizes) {
 
 	let replaceSuite = new BenchmarkSuite({
 		name: `File Size: ${fileSize}Byte`,
+		iterations: 10
 	});
 
 	let edits = generateRandomReplaces(chunks, 500, 5, 10);

@@ -160,7 +160,7 @@ export function generateRandomChunkWithLF(minLength: number, maxLength: number):
 	let r = '';
 	for (let i = 0; i < length; i++) {
 		let randomI = getRandomInt(0, CharCode.z - CharCode.a + 1);
-		if (randomI === 0) {
+		if (randomI === 0 && Math.random() < 0.3) {
 			r += '\n';
 		} else {
 			r += String.fromCharCode(randomI + CharCode.a - 1);

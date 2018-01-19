@@ -39,6 +39,7 @@ for (let fileSize of fileSizes) {
 
 		let editsSuite = new BenchmarkSuite({
 			name: `File Size: ${fileSize}Byte, ${editType.id}`,
+			iterations: 10
 		});
 
 		for (let i of [10, 100, 1000]) {
