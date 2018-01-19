@@ -1027,6 +1027,10 @@ json-stringify-safe@~5.0.1:
   version "5.0.1"
   resolved "https://registry.yarnpkg.com/json-stringify-safe/-/json-stringify-safe-5.0.1.tgz#1296a2d58fd45f19a0f6ce01d65701e2c735b6eb"
 
+jsonc-parser@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.0.tgz#ddcc864ae708e60a7a6dd36daea00172fa8d9272"
+
 jsonify@~0.0.0:
   version "0.0.0"
   resolved "https://registry.yarnpkg.com/jsonify/-/jsonify-0.0.0.tgz#2c74b6ee41d93ca51b7b5aaee8f503631d252a73"
@@ -2048,11 +2052,12 @@ vinyl@~2.0.1:
     remove-trailing-separator "^1.0.1"
     replace-ext "^1.0.0"
 
-vscode-emmet-helper@^1.1.20:
-  version "1.1.20"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.1.20.tgz#7523dc7f635f74e4becc44d4e519a9db5055a023"
+vscode-emmet-helper@^1.1.21:
+  version "1.1.21"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.1.21.tgz#4c77c2c5f5acc316d9a47cc564a51a732609ef7b"
   dependencies:
     "@emmetio/extract-abbreviation" "^0.1.1"
+    jsonc-parser "^1.0.0"
     vscode-languageserver-types "^3.0.3"
 
 vscode-languageserver-types@^3.0.3:
