@@ -53,6 +53,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { Color } from 'vs/base/common/color';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import URI from 'vs/base/common/uri';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -67,7 +68,7 @@ function renderBody(
 	body: string,
 	environmentService: IEnvironmentService
 ): string {
-	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://' + environmentService.appRoot, 'vscode-core-resource://');
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace(URI.file(environmentService.appRoot).toString(true), 'vscode-core-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>

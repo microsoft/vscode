@@ -28,13 +28,14 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
+import URI from 'vs/base/common/uri';
 
 function renderBody(
 	body: string,
 	css: string,
 	environmentService: IEnvironmentService
 ): string {
-	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://' + environmentService.appRoot, 'vscode-core-resource://');
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace(URI.file(environmentService.appRoot).toString(true), 'vscode-core-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>

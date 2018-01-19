@@ -15,7 +15,7 @@ import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { normalize, join } from 'vs/base/common/paths';
+import { normalize, join, nativeSep } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 
 export interface WebviewElementFindInPageOptions {
@@ -102,7 +102,7 @@ export default class Webview {
 
 				const contents = this._webview.getWebContents();
 				if (contents && !contents.isDestroyed()) {
-					registerFileProtocol(contents, 'vscode-core-resource', this._environmentService.appRoot);
+					registerFileProtocol(contents, 'vscode-core-resource', this._environmentService.appRoot + nativeSep);
 				}
 			}));
 		}
@@ -421,7 +421,8 @@ function registerFileProtocol(
 ) {
 	contents.session.protocol.registerFileProtocol(protocol, (request, callback: any) => {
 		const requestPath = URI.parse(request.url).path;
-		const normalizedPath = normalize(join(root, requestPath));
+		const normalizedPath = normalize(join(root, requestPath), true);
+		console.log(root, requestPath, normalizedPath);
 		if (startsWith(normalizedPath, root)) {
 			callback({ path: normalizedPath });
 		} else {
