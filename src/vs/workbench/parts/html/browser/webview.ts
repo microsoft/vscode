@@ -422,7 +422,6 @@ function registerFileProtocol(
 	contents.session.protocol.registerFileProtocol(protocol, (request, callback: any) => {
 		const requestPath = URI.parse(request.url).path;
 		const normalizedPath = normalize(join(root, requestPath), true);
-		console.log(root, requestPath, normalizedPath);
 		if (startsWith(normalizedPath, root)) {
 			callback({ path: normalizedPath });
 		} else {
