@@ -713,15 +713,18 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Extract editors to close for veto
 		const editorsToClose: EditorIdentifier[] = [];
+		let groupsWithEditorsToClose = 0;
 		POSITIONS.forEach(position => {
 			const details = (position === Position.ONE) ? editors.positionOne : (position === Position.TWO) ? editors.positionTwo : editors.positionThree;
 			if (details && this.stacks.groupAt(position)) {
+				groupsWithEditorsToClose++;
 				editorsToClose.push(...this.extractCloseEditorDetails(position, details).editorsToClose);
 			}
 		});
 
 		// Check for dirty and veto
-		return this.handleDirty(editorsToClose).then(veto => {
+		const ignoreDirtyIfOpenedInOtherGroup = (groupsWithEditorsToClose === 1);
+		return this.handleDirty(editorsToClose, ignoreDirtyIfOpenedInOtherGroup).then(veto => {
 			if (veto) {
 				return void 0;
 			}
@@ -758,7 +761,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Check for dirty and veto
-		return this.handleDirty(arrays.flatten(groups.map(group => group.getEditors(true /* in MRU order */).map(editor => ({ group, editor }))))).then(veto => {
+		const ignoreDirtyIfOpenedInOtherGroup = (groups.length === 1);
+		return this.handleDirty(arrays.flatten(groups.map(group => group.getEditors(true /* in MRU order */).map(editor => ({ group, editor })))), ignoreDirtyIfOpenedInOtherGroup).then(veto => {
 			if (veto) {
 				return;
 			}

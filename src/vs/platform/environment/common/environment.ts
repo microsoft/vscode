@@ -13,6 +13,7 @@ export interface ParsedArgs {
 	help?: boolean;
 	version?: boolean;
 	status?: boolean;
+	issue?: boolean;
 	wait?: boolean;
 	waitMarkerFilePath?: string;
 	diff?: boolean;

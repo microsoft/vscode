@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { toResource, IEditorContext } from 'vs/workbench/common/editor';
+import { toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -41,6 +41,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { sequence } from 'vs/base/common/async';
 import { getResourceForCommand, getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 // Commands
 
@@ -67,7 +68,6 @@ export const SAVE_ALL_LABEL = nls.localize('saveAll', "Save All");
 export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.files.action.saveAllInGroup';
 
 export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
-export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
 
 export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
 export const DirtyEditorContext = new RawContextKey<boolean>('dirtyEditor', false);
@@ -474,6 +474,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, resource: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+
+		if (resources.length === 1) {
+			// If only one resource is selected explictly call save since the behavior is a bit different than save all #41841
+			return save(resources[0], false, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+		}
 		return saveAll(resources, editorService, accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 	}
 });
@@ -487,19 +492,22 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-	handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+	handler: (accessor, resource: URI, editorContext: IEditorIdentifier) => {
+		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
 		let saveAllArg: any;
-		if (!editorContext) {
+		if (!contexts.length) {
 			saveAllArg = true;
 		} else {
 			const fileService = accessor.get(IFileService);
-			const editorGroup = editorContext.group;
 			saveAllArg = [];
-			editorGroup.getEditors().forEach(editor => {
-				const resource = toResource(editor, { supportSideBySide: true });
-				if (resource && (resource.scheme === 'untitled' || fileService.canHandleResource(resource))) {
-					saveAllArg.push(resource);
-				}
+			contexts.forEach(context => {
+				const editorGroup = context.group;
+				editorGroup.getEditors().forEach(editor => {
+					const resource = toResource(editor, { supportSideBySide: true });
+					if (resource && (resource.scheme === 'untitled' || fileService.canHandleResource(resource))) {
+						saveAllArg.push(resource);
+					}
+				});
 			});
 		}
 

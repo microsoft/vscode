@@ -785,11 +785,7 @@ export interface IEditorGroup {
 
 export interface IEditorIdentifier {
 	group: IEditorGroup;
-	editor?: IEditorInput;
-}
-
-export interface IEditorContext extends IEditorIdentifier {
-	event?: any;
+	editor: IEditorInput;
 }
 
 export interface IEditorCloseEvent extends IEditorIdentifier {

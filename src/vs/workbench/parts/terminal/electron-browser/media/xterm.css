@@ -127,7 +127,7 @@
 	cursor: text;
 }
 
-.xterm .accessibility {
+.xterm .xterm-accessibility {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -136,8 +136,12 @@
 	z-index: 100;
 }
 
-.xterm .accessibility-tree {
+.xterm .xterm-accessibility-tree {
 	color: transparent;
+}
+
+.xterm .xterm-accessibility-tree:focus [id^="xterm-active-item-"] {
+	outline: 1px solid #F80;
 }
 
 .xterm .live-region {

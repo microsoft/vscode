@@ -6,11 +6,5 @@
 {
 	"openEditors": "Éditeurs ouverts",
 	"openEditosrSection": "Section des éditeurs ouverts",
-	"dirtyCounter": "{0} non enregistré(s)",
-	"saveAll": "Enregistrer tout",
-	"closeAllUnmodified": "Fermer les éléments non modifiés",
-	"closeAll": "Tout fermer",
-	"compareWithSaved": "Comparer avec celui enregistré",
-	"close": "Fermer",
-	"closeOthers": "Fermer les autres"
+	"dirtyCounter": "{0} non enregistré(s)"
 }

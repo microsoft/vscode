@@ -57,6 +57,7 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -110,9 +111,8 @@ export class PreferencesEditor extends BaseEditor {
 	private preferencesRenderers: PreferencesRenderersController;
 
 	private delayedFilterLogging: Delayer<void>;
-	private remoteSearchThrottle: ThrottledDelayer<void>;
+	private remoteSearchThrottle: ThrottledDelayer<IFilterOrSearchResult>;
 
-	private latestEmptyFilters: string[] = [];
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
 
 	constructor(
@@ -237,16 +237,28 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private onInputChanged(): void {
-		this.triggerThrottledSearch();
-		this.localFilterPreferences();
+		const query = this.searchWidget.getValue().trim();
+		this.delayedFilterLogging.cancel();
+		TPromise.join([
+			this.preferencesRenderers.localFilterPreferences(query),
+			this.triggerThrottledSearch(query)
+		]).then(results => {
+			if (results) {
+				const [localResult, remoteResult] = results;
+				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(
+					query,
+					remoteResult ? remoteResult.defaultSettingsGroupCounts : localResult.defaultSettingsGroupCounts,
+					remoteResult && remoteResult.metadata));
+			}
+		});
 	}
 
-	private triggerThrottledSearch(): void {
-		if (this.searchWidget.getValue()) {
-			this.remoteSearchThrottle.trigger(() => this.remoteSearchPreferences());
+	private triggerThrottledSearch(query: string): TPromise<IFilterOrSearchResult> {
+		if (query) {
+			return this.remoteSearchThrottle.trigger(() => this.preferencesRenderers.remoteSearchPreferences(query));
 		} else {
 			// When clearing the input, update immediately to clear it
-			this.remoteSearchPreferences();
+			return this.preferencesRenderers.remoteSearchPreferences(query);
 		}
 	}
 
@@ -267,31 +279,6 @@ export class PreferencesEditor extends BaseEditor {
 		});
 	}
 
-	private remoteSearchPreferences(): TPromise<void> {
-		const query = this.searchWidget.getValue().trim();
-		return this.preferencesRenderers.remoteSearchPreferences(query).then(result => {
-			this.onSearchResult(query, result);
-		}, onUnexpectedError);
-	}
-
-	private localFilterPreferences(): TPromise<void> {
-		const query = this.searchWidget.getValue().trim();
-		return this.preferencesRenderers.localFilterPreferences(query).then(result => {
-			this.onSearchResult(query, result);
-		}, onUnexpectedError);
-	}
-
-	private onSearchResult(filter: string, result: { count: number, metadata: IFilterMetadata }): void {
-		if (result) {
-			this.showSearchResultsMessage(result.count);
-			if (result.count === 0) {
-				this.latestEmptyFilters.push(filter);
-			}
-
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
-		}
-	}
-
 	private showSearchResultsMessage(count: number): void {
 		if (this.searchWidget.getValue()) {
 			if (count === 0) {
@@ -306,37 +293,27 @@ export class PreferencesEditor extends BaseEditor {
 		}
 	}
 
-	private reportFilteringUsed(filter: string, metadata?: IFilterMetadata): void {
+	private reportFilteringUsed(filter: string, counts: IStringDictionary<number>, metadata?: IFilterMetadata): void {
 		if (filter) {
 			let data = {
 				filter,
-				emptyFilters: this.getLatestEmptyFiltersForTelemetry(),
 				fuzzy: !!metadata,
 				duration: metadata ? metadata.duration : undefined,
-				context: metadata ? metadata.context : undefined
+				context: metadata ? metadata.context : undefined,
+				counts
 			};
 
-			this.latestEmptyFilters = [];
 			/* __GDPR__
 				"defaultSettings.filter" : {
 					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"context" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"context" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"counts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
 			this.telemetryService.publicLog('defaultSettings.filter', data);
 		}
-	}
-
-	/**
-	 * Put a rough limit on the size of the telemetry data, since otherwise it could be an unbounded large amount
-	 * of data. 8192 is the max size of a property value. This is rough since that probably includes ""s, etc.
-	 */
-	private getLatestEmptyFiltersForTelemetry(): string[] {
-		let cumulativeSize = 0;
-		return this.latestEmptyFilters.filter(filterText => (cumulativeSize += filterText.length) <= 8192);
 	}
 }
 
@@ -374,7 +351,7 @@ class SettingsNavigator implements INavigator<ISetting> {
 }
 
 interface IFilterOrSearchResult {
-	count: number;
+	defaultSettingsGroupCounts: IStringDictionary<number>;
 	metadata: IFilterMetadata;
 }
 
@@ -387,7 +364,7 @@ class PreferencesRenderersController extends Disposable {
 	private _editablePreferencesRendererDisposables: IDisposable[] = [];
 
 	private _settingsNavigator: SettingsNavigator;
-	private _filtersInProgress: TPromise<any>[];
+	private _filtersInProgress: TPromise<IFilterResult>[];
 
 	private _currentLocalSearchProvider: ISearchProvider;
 	private _currentRemoteSearchProvider: ISearchProvider;
@@ -418,7 +395,7 @@ class PreferencesRenderersController extends Disposable {
 			this._defaultPreferencesRendererDisposables = dispose(this._defaultPreferencesRendererDisposables);
 
 			if (this._defaultPreferencesRenderer) {
-				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source, index }) => this._updatePreference(key, value, source, index, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
+				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source }) => this._updatePreference(key, value, source, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 				this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 				this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 			}
@@ -466,8 +443,19 @@ class PreferencesRenderersController extends Disposable {
 			this._filtersInProgress = null;
 			const [defaultFilterResult, editableFilterResult] = results;
 
-			const count = this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
-			return { count, metadata: defaultFilterResult && defaultFilterResult.metadata };
+			this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
+			const result = <IFilterOrSearchResult>{
+				metadata: defaultFilterResult && defaultFilterResult.metadata,
+				defaultSettingsGroupCounts: defaultFilterResult && this._countById(defaultFilterResult.filteredGroups)
+			};
+
+			return result;
+		}, err => {
+			if (isPromiseCanceledError(err)) {
+				return null;
+			} else {
+				onUnexpectedError(err);
+			}
 		});
 	}
 
@@ -488,7 +476,7 @@ class PreferencesRenderersController extends Disposable {
 			return searchP
 				.then<ISearchResult>(null, err => {
 					if (isPromiseCanceledError(err)) {
-						return null;
+						return TPromise.wrapError(err);
 					} else {
 						/* __GDPR__
 							"defaultSettings.searchError" : {
@@ -521,15 +509,14 @@ class PreferencesRenderersController extends Disposable {
 		return TPromise.wrap(null);
 	}
 
-	private consolidateAndUpdate(defaultFilterResult: IFilterResult, editableFilterResult: IFilterResult): number {
+	private consolidateAndUpdate(defaultFilterResult: IFilterResult, editableFilterResult: IFilterResult): void {
 		const defaultPreferencesFilteredGroups = defaultFilterResult ? defaultFilterResult.filteredGroups : this._getAllPreferences(this._defaultPreferencesRenderer);
 		const editablePreferencesFilteredGroups = editableFilterResult ? editableFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
 		const consolidatedSettings = this._consolidateSettings(editablePreferencesFilteredGroups, defaultPreferencesFilteredGroups);
 
 		this._settingsNavigator = new SettingsNavigator(this._lastQuery ? consolidatedSettings : []);
-		const count = consolidatedSettings.length;
-		this._onDidFilterResultsCountChange.fire(count);
-		return count;
+		const totalCount = consolidatedSettings.length;
+		this._onDidFilterResultsCountChange.fire(totalCount);
 	}
 
 	private _getAllPreferences(preferencesRenderer: IPreferencesRenderer<ISetting>): ISettingsGroup[] {
@@ -548,9 +535,9 @@ class PreferencesRenderersController extends Disposable {
 		}
 	}
 
-	private _updatePreference(key: string, value: any, source: ISetting, index: number, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
+	private _updatePreference(key: string, value: any, source: ISetting, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
 		if (preferencesRenderer) {
-			preferencesRenderer.updatePreference(key, value, source, index);
+			preferencesRenderer.updatePreference(key, value, source);
 		}
 	}
 
@@ -569,6 +556,21 @@ class PreferencesRenderersController extends Disposable {
 		}
 
 		return settings;
+	}
+
+	private _countById(settingsGroups: ISettingsGroup[]): IStringDictionary<number> {
+		const result = {};
+
+		for (const group of settingsGroups) {
+			let i = 0;
+			for (const section of group.sections) {
+				i += section.settings.length;
+			}
+
+			result[group.id] = i;
+		}
+
+		return result;
 	}
 
 	public dispose(): void {
@@ -909,7 +911,8 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 
 	private _hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri: URI): TPromise<boolean> {
 		return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
-			return !(preferencesRenderer && preferencesRenderer.associatedPreferencesModel && preferencesRenderer.associatedPreferencesModel.uri.toString() === associatedPreferencesModelUri.toString());
+			const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
+			return !(preferencesRenderer && associatedPreferencesModel && associatedPreferencesModel.uri.toString() === associatedPreferencesModelUri.toString());
 		});
 	}
 
@@ -918,10 +921,11 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 			.then(associatedPreferencesEditorModel => {
 				return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 					if (preferencesRenderer) {
-						if (preferencesRenderer.associatedPreferencesModel) {
-							preferencesRenderer.associatedPreferencesModel.dispose();
+						const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
+						if (associatedPreferencesModel) {
+							associatedPreferencesModel.dispose();
 						}
-						preferencesRenderer.associatedPreferencesModel = associatedPreferencesEditorModel;
+						preferencesRenderer.setAssociatedPreferencesModel(associatedPreferencesEditorModel);
 					}
 					return preferencesRenderer;
 				});
@@ -932,8 +936,9 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 		if (this.preferencesRendererCreationPromise) {
 			this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 				if (preferencesRenderer) {
-					if (preferencesRenderer.associatedPreferencesModel) {
-						preferencesRenderer.associatedPreferencesModel.dispose();
+					const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
+					if (associatedPreferencesModel) {
+						associatedPreferencesModel.dispose();
 					}
 					preferencesRenderer.preferencesModel.dispose();
 					preferencesRenderer.dispose();

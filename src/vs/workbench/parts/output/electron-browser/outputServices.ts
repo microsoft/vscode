@@ -128,7 +128,8 @@ abstract class AbstractFileOutputChannel extends Disposable {
 	protected modelUpdater: RunOnceScheduler;
 	protected model: ITextModel;
 	readonly file: URI;
-	protected startOffset: number = 0;
+
+	private startOffset: number = 0;
 	protected endOffset: number = 0;
 
 	constructor(
@@ -201,7 +202,6 @@ abstract class AbstractFileOutputChannel extends Disposable {
 			const lastLine = this.model.getLineCount();
 			const lastLineMaxColumn = this.model.getLineMaxColumn(lastLine);
 			this.model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), content)]);
-			this.endOffset = this.endOffset + new Buffer(content).byteLength;
 			this._onDidAppendedContent.fire();
 		}
 	}
@@ -245,6 +245,8 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	}
 
 	append(message: string): void {
+		// update end offset always as message is read
+		this.endOffset = this.endOffset + new Buffer(message).byteLength;
 		if (this.loadingFromFileInProgress) {
 			this.appendedMessage += message;
 		} else {
@@ -371,7 +373,10 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		if (this.model) {
 			this.fileService.resolveContent(this.file, { position: this.endOffset })
 				.then(content => {
-					this.appendToModel(content.value);
+					if (content.value) {
+						this.endOffset = this.endOffset + new Buffer(content.value).byteLength;
+						this.appendToModel(content.value);
+					}
 					this.updateInProgress = false;
 				}, () => this.updateInProgress = false);
 		} else {

@@ -106,7 +106,10 @@ class ExtensionStoragePath {
 			await mkdirp(storagePath);
 			await writeFile(
 				join(storagePath, 'meta.json'),
-				JSON.stringify({ id: this._workspace.id })
+				JSON.stringify({
+					id: this._workspace.id,
+					name: this._workspace.name
+				}, undefined, 2)
 			);
 			return storagePath;
 

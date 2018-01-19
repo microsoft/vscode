@@ -17,7 +17,7 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
+import { ViewsRegistry, ViewLocation, IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +30,7 @@ import { IPanelOptions } from 'vs/base/browser/ui/splitview/panelview';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -121,8 +122,10 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 	}
 
 	setExpanded(expanded: boolean): void {
-		this.updateTreeVisibility(this.tree, expanded);
-		super.setExpanded(expanded);
+		if (this.isExpanded() !== expanded) {
+			this.updateTreeVisibility(this.tree, expanded);
+			super.setExpanded(expanded);
+		}
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -259,7 +262,7 @@ export interface IViewState {
 	order: number;
 }
 
-export class ViewsViewlet extends PanelViewlet {
+export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 
 	private viewHeaderContextMenuListeners: IDisposable[] = [];
 	private viewletSettings: object;
@@ -269,6 +272,9 @@ export class ViewsViewlet extends PanelViewlet {
 	private dimension: Dimension;
 	protected viewsStates: Map<string, IViewState> = new Map<string, IViewState>();
 	private areExtensionsReady: boolean = false;
+
+	private _onDidChangeViewVisibilityState: Emitter<string> = new Emitter<string>();
+	readonly onDidChangeViewVisibilityState: Event<string> = this._onDidChangeViewVisibilityState.event;
 
 	constructor(
 		id: string,
@@ -324,6 +330,17 @@ export class ViewsViewlet extends PanelViewlet {
 			.then(() => void 0);
 	}
 
+	openView(id: string): void {
+		this.focus();
+		const view = this.getView(id);
+		if (view) {
+			view.setExpanded(true);
+			view.focus();
+		} else {
+			this.toggleViewVisibility(id);
+		}
+	}
+
 	layout(dimension: Dimension): void {
 		super.layout(dimension);
 		this.dimension = dimension;
@@ -348,18 +365,17 @@ export class ViewsViewlet extends PanelViewlet {
 	}
 
 	toggleViewVisibility(id: string): void {
-		const view = this.getView(id);
 		let viewState = this.viewsStates.get(id);
-
 		if (!viewState) {
 			return;
 		}
 
-		viewState.isHidden = !!view;
+		viewState.isHidden = !!this.getView(id);
 		this.updateViews()
 			.then(() => {
+				this._onDidChangeViewVisibilityState.fire(id);
 				if (!viewState.isHidden) {
-					this.getView(id).focus();
+					this.openView(id);
 				} else {
 					this.focus();
 				}
@@ -570,7 +586,7 @@ export class ViewsViewlet extends PanelViewlet {
 			getAnchor: () => anchor,
 			getActions: () => TPromise.as([<IAction>{
 				id: `${view.id}.removeView`,
-				label: nls.localize('hideView', "Hide from Side Bar"),
+				label: nls.localize('hideView', "Hide"),
 				enabled: true,
 				run: () => this.toggleViewVisibility(view.id)
 			}]),
@@ -666,10 +682,12 @@ export class ViewsViewlet extends PanelViewlet {
 
 export class PersistentViewsViewlet extends ViewsViewlet {
 
+	private readonly hiddenViewsStorageId: string;
+
 	constructor(
 		id: string,
 		location: ViewLocation,
-		private viewletStateStorageId: string,
+		private readonly viewletStateStorageId: string,
 		showHeaderInTitleWhenSingleView: boolean,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
@@ -681,6 +699,8 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		@IExtensionService extensionService: IExtensionService
 	) {
 		super(id, location, showHeaderInTitleWhenSingleView, telemetryService, storageService, instantiationService, themeService, contextKeyService, contextMenuService, extensionService);
+		this.hiddenViewsStorageId = `${this.viewletStateStorageId}.hidden`;
+		this._register(this.onDidChangeViewVisibilityState(id => this.onViewVisibilityChanged(id)));
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -719,7 +739,27 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 
 	protected loadViewsStates(): void {
 		const viewsStates = JSON.parse(this.storageService.get(this.viewletStateStorageId, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
-		Object.keys(viewsStates).forEach(id => this.viewsStates.set(id, <IViewState>viewsStates[id]));
+		const hiddenViews = this.loadHiddenViews();
+		Object.keys(viewsStates).forEach(id => this.viewsStates.set(id, <IViewState>{ ...viewsStates[id], ...{ isHidden: hiddenViews.indexOf(id) !== -1 } }));
+	}
+
+	private onViewVisibilityChanged(id: string) {
+		const hiddenViews = this.loadHiddenViews();
+		const index = hiddenViews.indexOf(id);
+		if (this.getView(id) && index !== -1) {
+			hiddenViews.splice(index, 1);
+		} else if (index === -1) {
+			hiddenViews.push(id);
+		}
+		this.storeHiddenViews(hiddenViews);
+	}
+
+	private storeHiddenViews(hiddenViews: string[]): void {
+		this.storageService.store(this.hiddenViewsStorageId, JSON.stringify(hiddenViews), StorageScope.GLOBAL);
+	}
+
+	private loadHiddenViews(): string[] {
+		return JSON.parse(this.storageService.get(this.hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
 	}
 }
 

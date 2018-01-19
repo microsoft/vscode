@@ -40,6 +40,5 @@
 	"menuId.invalid": "A(z) `{0}` nem érvényes menüazonosító",
 	"missing.command": "A menüpont a(z) `{0}` parancsra hivatkozik, ami nincs deklarálva a 'commands'-szakaszban.",
 	"missing.altCommand": "A menüpont a(z) `{0}` alternatív parancsra hivatkozik, ami nincs deklarálva a 'commands'-szakaszban.",
-	"dupe.command": "A menüpont ugyanazt a parancsot hivatkozza alapértelmezett és alternatív parancsként",
-	"nosupport.altCommand": "Jelenleg csak az 'editor/title' menü 'navigation' csoportja támogatja az alternatív parancsokat"
+	"dupe.command": "A menüpont ugyanazt a parancsot hivatkozza alapértelmezett és alternatív parancsként"
 }

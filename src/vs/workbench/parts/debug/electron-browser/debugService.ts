@@ -728,9 +728,6 @@ export class DebugService implements debug.IDebugService {
 							if (config && config.type) {
 								return this.createProcess(root, config, sessionId);
 							}
-							if (launch) {
-								return launch.openConfigFile(false, type).then(() => undefined);
-							}
 
 							return undefined;
 						})

@@ -25,8 +25,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
@@ -54,9 +53,7 @@ export class DebugHoverWidget implements IContentWidget {
 		private editor: ICodeEditor,
 		private debugService: IDebugService,
 		private instantiationService: IInstantiationService,
-		private themeService: IThemeService,
-		private contextKeyService: IContextKeyService,
-		private listService: IListService
+		private themeService: IThemeService
 	) {
 		this.toDispose = [];
 
@@ -71,7 +68,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
-		this.tree = new WorkbenchTree(this.treeContainer, {
+		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
 			controller: new DebugHoverController(this.editor)
@@ -80,7 +77,7 @@ export class DebugHoverWidget implements IContentWidget {
 				twistiePixels: 15,
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService, this.themeService);
+			});
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;

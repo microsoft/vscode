@@ -9,5 +9,6 @@
 	"cut": "Kes",
 	"copy": "Kopyala",
 	"paste": "Yapıştır",
-	"selectAll": "Tümünü Seç"
+	"selectAll": "Tümünü Seç",
+	"runningAsRoot": "[0] uygulamasını root olarak çalıştırmanız önerilmez."
 }

@@ -90,7 +90,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
 				if (confirmed) {
 					return TPromise.join(oldKeymaps.map(keymap => {
-						return this.extensionEnablementService.setEnablement(keymap.local.identifier, EnablementState.Disabled);
+						return this.extensionEnablementService.setEnablement(keymap.local, EnablementState.Disabled);
 					}));
 				}
 				return undefined;

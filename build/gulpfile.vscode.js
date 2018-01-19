@@ -45,7 +45,7 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.20.2' },
+	{ name: 'ms-vscode.node-debug', version: '1.20.3' },
 	{ name: 'ms-vscode.node-debug2', version: '1.20.0' }
 ];
 
@@ -83,6 +83,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
 	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
+	'out-build/vs/code/electron-browser/issue/issueReporter.js',
 	'!**/test/**'
 ];
 

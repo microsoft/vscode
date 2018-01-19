@@ -18,7 +18,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { join, basename, extname } from 'path';
 import { mkdirp, readdir, exists } from 'vs/base/node/pfs';
-import { watch } from 'fs';
+import { watch } from 'vs/base/node/extfs';
 import { SnippetFile, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -217,9 +217,7 @@ class SnippetsService implements ISnippetsService {
 			}
 		}).then(() => {
 			// watch
-			const watcher = watch(userSnippetsFolder);
-			this._disposables.push({ dispose: () => watcher.close() });
-			watcher.on('change', (type, filename) => {
+			const watcher = watch(userSnippetsFolder, (type, filename) => {
 				if (typeof filename !== 'string') {
 					return;
 				}
@@ -238,6 +236,13 @@ class SnippetsService implements ISnippetsService {
 					}
 				});
 			});
+			this._disposables.push({
+				dispose: () => {
+					watcher.removeAllListeners();
+					watcher.close();
+				}
+			});
+
 		}).then(undefined, err => {
 			this._logService.error('Failed to load user snippets', err);
 		});
