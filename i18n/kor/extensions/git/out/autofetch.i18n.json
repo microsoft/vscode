@@ -7,5 +7,6 @@
 	"yes": "예",
 	"read more": "자세히 알아보기",
 	"no": "아니요",
-	"not now": "나중에 물어보기"
+	"not now": "나중에 물어보기",
+	"suggest auto fetch": "Code가 주기적으로 `git fetch`를 실행할까요?"
 }

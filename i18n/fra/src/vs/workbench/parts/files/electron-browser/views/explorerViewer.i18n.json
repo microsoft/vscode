@@ -10,6 +10,7 @@
 	"dropFolder": "Voulez-vous ajouter le dossier à l’espace de travail ?",
 	"addFolders": "&&Ajouter les dossiers",
 	"addFolder": "&&Ajouter le dossier",
+	"confirmMultiMove": "Êtes-vous sûr de vouloir déplacer les fichiers '{0}' suivants ?",
 	"confirmMove": "Êtes-vous certain de vouloir déplacer '{0}' ?",
 	"doNotAskAgain": "Ne plus me demander",
 	"moveButtonLabel": "&&Déplacer",

@@ -43,6 +43,7 @@
 	"yes discard tracked multiple": "{0} verfolgte Dateien verwerfen",
 	"unsaved files single": "Die folgende Datei ist nicht gespeichert: {0}.\n\nMöchten Sie diese vor dem Committen speichern?",
 	"unsaved files": "{0} Dateien sind nicht gespeichert.\n\nMöchten Sie diese vor dem Committen speichern?",
+	"save and commit": "Alles speichern und committen",
 	"commit": "Trotzdem committen",
 	"no staged changes": "Es sind keine Änderungen bereitgestellt.\n\nMöchten Sie alle Ihre Änderungen automatisch bereitstellen und direkt committen?",
 	"always": "Immer",

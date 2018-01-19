@@ -15,6 +15,7 @@
 	"workbench.action.terminal.new": "建立新的整合式終端機",
 	"workbench.action.terminal.new.short": "新增終端機",
 	"workbench.action.terminal.newWorkspacePlaceholder": "為新的終端機選擇目前的工作目錄",
+	"workbench.action.terminal.newInActiveWorkspace": "建立新的整合式終端機 (於目前工作區)",
 	"workbench.action.terminal.focus": "聚焦終端機",
 	"workbench.action.terminal.focusNext": "聚焦下一個終端機",
 	"workbench.action.terminal.focusPrevious": "聚焦上一個終端機",

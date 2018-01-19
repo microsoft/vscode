@@ -14,6 +14,7 @@
 	"lineNumbers.on": "I numeri di riga vengono visualizzati come numeri assoluti.",
 	"lineNumbers.relative": "I numeri di riga vengono visualizzati come distanza in linee alla posizione del cursore.",
 	"lineNumbers.interval": "I numeri di riga vengono visualizzati ogni 10 righe.",
+	"lineNumbers": "Controlla la visualizzazione dei numeri di riga. I valori possibili sono 'on', 'off', 'relativi' ed 'intervallo'.",
 	"rulers": "Mostra righelli verticali dopo un certo numero di caratteri a spaziatura fissa. Utilizza più valori  per più righelli. Nessun righello viene disegnati se la matrice è vuota",
 	"wordSeparators": "Caratteri che verranno usati come separatori di parola quando si eseguono operazioni o spostamenti correlati a parole",
 	"tabSize": "Il numero di spazi corrispondenti ad un carattere Tab. Questa impostazione viene sottoposta a override in base al contenuto dei file quando 'editor.detectIndentation' è 'on'.",

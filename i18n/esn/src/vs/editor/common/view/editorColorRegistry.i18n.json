@@ -6,6 +6,7 @@
 {
 	"lineHighlight": "Color de fondo del resaltado de línea en la posición del cursor.",
 	"lineHighlightBorderBox": "Color de fondo del borde alrededor de la línea en la posición del cursor.",
+	"rangeHighlight": "Color de fondo de los rangos resaltados, como por ejemplo las características de abrir rápidamente y encontrar. El color no debe ser opaco para no ocultar las decoraciones subyacentes.",
 	"caret": "Color del cursor del editor.",
 	"editorCursorBackground": "Color de fondo del cursor de edición. Permite personalizar el color del carácter solapado por el bloque del cursor.",
 	"editorWhitespaces": "Color de los caracteres de espacio en blanco del editor.",

@@ -10,6 +10,7 @@
 	"revertLocalChanges": "Änderungen verwerfen und Datenträgerinhalte wiederherstellen",
 	"copyPathOfActive": "Pfad der aktiven Datei kopieren",
 	"saveAllInGroup": "Alle in der Gruppe speichern",
+	"saveFiles": "Alle Dateien speichern",
 	"revert": "Datei wiederherstellen",
 	"compareActiveWithSaved": "Aktive Datei mit gespeicherter Datei vergleichen",
 	"closeEditor": "Editor schließen",

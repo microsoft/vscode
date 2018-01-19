@@ -10,6 +10,7 @@
 	"revertLocalChanges": "変更を破棄してディスク上の内容に戻る",
 	"copyPathOfActive": "アクティブ ファイルのパスのコピー",
 	"saveAllInGroup": "グループ内のすべてを保存する",
+	"saveFiles": "すべてのファイルを保存",
 	"revert": "ファイルを元に戻す",
 	"compareActiveWithSaved": "保存済みファイルと作業中のファイルを比較",
 	"closeEditor": "エディターを閉じる",
