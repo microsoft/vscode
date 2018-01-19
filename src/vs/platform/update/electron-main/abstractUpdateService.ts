@@ -89,7 +89,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	checkForUpdates(explicit = false): TPromise<void> {
-		if (this.state !== State.Idle) {
+		if (this.state.type !== StateType.Idle) {
 			return TPromise.as(null);
 		}
 
