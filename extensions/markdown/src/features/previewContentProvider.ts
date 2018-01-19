@@ -320,9 +320,39 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 }
 
 export class MarkdownPreviewWebviewManager {
+	private readonly webviews = new Map<string, vscode.Webview>();
+
+	private readonly disposables: vscode.Disposable[] = [];
+
 	public constructor(
 		private readonly contentProvider: MDDocumentContentProvider
-	) { }
+	) {
+		vscode.workspace.onDidSaveTextDocument(document => {
+			if (isMarkdownFile(document)) {
+				const uri = getMarkdownUri(document.uri);
+				this.contentProvider.update(uri);
+			}
+		}, null, this.disposables);
+
+		vscode.workspace.onDidChangeTextDocument(event => {
+			if (isMarkdownFile(event.document)) {
+				const webview = this.webviews.get(event.document.uri.fsPath);
+				if (webview) {
+					this.contentProvider.provideTextDocumentContent(getMarkdownUri(event.document.uri)).then(x => webview.html = x);
+				}
+			}
+		}, null, this.disposables);
+	}
+
+	public dispose(): void {
+		while (this.disposables.length) {
+			const item = this.disposables.pop();
+			if (item) {
+				item.dispose();
+			}
+		}
+		this.webviews.clear();
+	}
 
 	public update(uri: vscode.Uri) {
 		this.contentProvider.update(uri);
@@ -343,6 +373,7 @@ export class MarkdownPreviewWebviewManager {
 			vscode.commands.executeCommand(e.command, ...e.args);
 		});
 
+		this.webviews.set(resource.fsPath, view);
 		return view;
 	}
 }

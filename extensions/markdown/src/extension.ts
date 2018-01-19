@@ -33,6 +33,7 @@ export function activate(context: vscode.ExtensionContext) {
 	loadMarkdownExtensions(contentProvider, engine);
 
 	const webviewManager = new MarkdownPreviewWebviewManager(contentProvider);
+	context.subscriptions.push(webviewManager);
 
 	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, new MDDocumentSymbolProvider(engine)));
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()));
@@ -51,20 +52,6 @@ export function activate(context: vscode.ExtensionContext) {
 	commandManager.register(new commands.OnPreviewStyleLoadErrorCommand());
 	commandManager.register(new commands.DidClickCommand());
 	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
-
-	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
-		if (isMarkdownFile(document)) {
-			const uri = getMarkdownUri(document.uri);
-			contentProvider.update(uri);
-		}
-	}));
-
-	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
-		if (isMarkdownFile(event.document)) {
-			const uri = getMarkdownUri(event.document.uri);
-			contentProvider.update(uri);
-		}
-	}));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		logger.updateConfiguration();
