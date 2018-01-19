@@ -912,7 +912,13 @@ export class TerminalInstance implements ITerminalInstance {
 		while (lineIndex >= 0 && buffer.lines.get(lineIndex--).isWrapped) {
 			lineData = buffer.translateBufferLineToString(lineIndex, true) + lineData;
 		}
-		this._onLineDataListeners.forEach(listener => listener(lineData));
+		this._onLineDataListeners.forEach(listener => {
+			try {
+				listener(lineData);
+			} catch (err) {
+				console.error(`onLineData listener threw`, err);
+			}
+		});
 	}
 
 	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
