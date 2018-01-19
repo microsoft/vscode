@@ -8,12 +8,14 @@
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { State, IUpdate } from 'vs/platform/update/common/update';
+import { State, IUpdate, Available } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { asJson } from 'vs/base/node/request';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { shell } from 'electron';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -71,7 +73,10 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			});
 	}
 
-	protected doQuitAndInstall(): void {
-		// not available
+	protected doDownloadUpdate(state: Available): TPromise<void> {
+		shell.openExternal(state.update.url);
+		this.setState(State.Idle);
+
+		return TPromise.as(null);
 	}
 }

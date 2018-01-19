@@ -68,6 +68,7 @@ export interface IUpdateService {
 	readonly state: State;
 
 	checkForUpdates(explicit: boolean): TPromise<void>;
+	downloadUpdate(): TPromise<void>;
 	applyUpdate(): TPromise<void>;
 	quitAndInstall(): TPromise<void>;
 }

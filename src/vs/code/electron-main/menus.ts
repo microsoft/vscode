@@ -1060,7 +1060,7 @@ export class CodeMenu {
 			case StateType.Available:
 				return [new MenuItem({
 					label: nls.localize('miDownloadUpdate', "Download Available Update"), click: () => {
-						shell.openExternal(state.update.url);
+						this.updateService.downloadUpdate();
 					}
 				})];
 

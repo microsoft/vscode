@@ -32,7 +32,6 @@ import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/pla
 import * as semver from 'semver';
 import { OS } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 const NotNowAction = new Action(
 	'update.later',
@@ -282,21 +281,6 @@ class CommandAction extends Action {
 	}
 }
 
-export class DownloadNowAction extends Action {
-
-	constructor(
-		private url: string,
-		@IWindowsService private windowsService: IWindowsService
-	) {
-		super('update.downloadNow', nls.localize('download now', "Download Now"), null, true);
-	}
-
-	run(): TPromise<any> {
-		this.windowsService.openExternal(this.url);
-		return TPromise.as(null);
-	}
-}
-
 export class UpdateContribution implements IGlobalActivity {
 
 	private static readonly showCommandsId = 'workbench.action.showCommands';
@@ -399,7 +383,8 @@ export class UpdateContribution implements IGlobalActivity {
 		}
 
 		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-		const downloadAction = this.instantiationService.createInstance(DownloadNowAction, update.url);
+		const downloadAction = new Action('update.downloadNow', nls.localize('download now', "Download Now"), null, true, () =>
+			this.updateService.downloadUpdate());
 
 		this.messageService.show(severity.Info, {
 			message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
@@ -507,7 +492,8 @@ export class UpdateContribution implements IGlobalActivity {
 				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false);
 
 			case StateType.Available:
-				return this.instantiationService.createInstance(DownloadNowAction, state.update.url);
+				return new Action('update.downloadNow', nls.localize('download now', "Download Now"), null, true, () =>
+					this.updateService.downloadUpdate());
 
 			case StateType.Downloading:
 				return new Action('update.downloading', nls.localize('DownloadingUpdate', "Downloading Update..."), undefined, false);

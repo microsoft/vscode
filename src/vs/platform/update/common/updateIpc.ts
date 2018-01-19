@@ -13,6 +13,7 @@ import { IUpdateService, State } from './update';
 
 export interface IUpdateChannel extends IChannel {
 	call(command: 'checkForUpdates', arg: boolean): TPromise<void>;
+	call(command: 'downloadUpdate'): TPromise<void>;
 	call(command: 'applyUpdate'): TPromise<void>;
 	call(command: 'quitAndInstall'): TPromise<void>;
 	call(command: '_getInitialState'): TPromise<State>;
@@ -27,6 +28,7 @@ export class UpdateChannel implements IUpdateChannel {
 		switch (command) {
 			case 'event:onStateChange': return eventToCall(this.service.onStateChange);
 			case 'checkForUpdates': return this.service.checkForUpdates(arg);
+			case 'downloadUpdate': return this.service.downloadUpdate();
 			case 'applyUpdate': return this.service.applyUpdate();
 			case 'quitAndInstall': return this.service.quitAndInstall();
 			case '_getInitialState': return TPromise.as(this.service.state);
@@ -62,6 +64,10 @@ export class UpdateChannelClient implements IUpdateService {
 
 	checkForUpdates(explicit: boolean): TPromise<void> {
 		return this.channel.call('checkForUpdates', explicit);
+	}
+
+	downloadUpdate(): TPromise<void> {
+		return this.channel.call('downloadUpdate');
 	}
 
 	applyUpdate(): TPromise<void> {
