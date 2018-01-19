@@ -5,22 +5,22 @@
 
 import { startsWith } from 'vs/base/common/strings';
 
-export class CodeActionScope {
+export class CodeActionKind {
 	private static readonly sep = '.';
 
-	public static readonly Empty = new CodeActionScope('');
+	public static readonly Empty = new CodeActionKind('');
 
 	constructor(
 		public readonly value: string
 	) { }
 
 	public contains(other: string): boolean {
-		return this.value === other || startsWith(other, this.value + CodeActionScope.sep);
+		return this.value === other || startsWith(other, this.value + CodeActionKind.sep);
 	}
 }
 
 export interface CodeActionTrigger {
 	type: 'auto' | 'manual';
-	scope?: CodeActionScope;
+	scope?: CodeActionKind;
 	autoApply?: boolean;
 }

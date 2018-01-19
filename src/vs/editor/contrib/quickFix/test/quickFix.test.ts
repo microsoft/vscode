@@ -12,7 +12,7 @@ import { CodeActionProviderRegistry, LanguageIdentifier, CodeActionProvider, Com
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { getCodeActions } from 'vs/editor/contrib/quickFix/quickFix';
-import { CodeActionScope } from 'vs/editor/contrib/quickFix/codeActionScope';
+import { CodeActionKind } from 'vs/editor/contrib/quickFix/codeActionTrigger';
 
 suite('QuickFix', () => {
 
@@ -136,20 +136,20 @@ suite('QuickFix', () => {
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionScope('a'));
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionKind('a'));
 			assert.equal(actions.length, 2);
 			assert.strictEqual(actions[0].title, 'a');
 			assert.strictEqual(actions[1].title, 'a.b');
 		}
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionScope('a.b'));
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionKind('a.b'));
 			assert.equal(actions.length, 1);
 			assert.strictEqual(actions[0].title, 'a.b');
 		}
 
 		{
-			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionScope('a.b.c'));
+			const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionKind('a.b.c'));
 			assert.equal(actions.length, 0);
 		}
 	});
@@ -165,7 +165,7 @@ suite('QuickFix', () => {
 
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
-		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionScope('a'));
+		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), new CodeActionKind('a'));
 		assert.equal(actions.length, 1);
 		assert.strictEqual(actions[0].title, 'a');
 	});

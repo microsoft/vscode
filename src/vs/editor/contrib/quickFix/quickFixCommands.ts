@@ -20,7 +20,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { QuickFixContextMenu } from './quickFixWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
-import { CodeActionScope } from './codeActionScope';
+import { CodeActionKind } from './codeActionTrigger';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CodeAction } from 'vs/editor/common/modes';
 import { createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
@@ -112,7 +112,7 @@ export class QuickFixController implements IEditorContribution {
 		this._model.trigger({ type: 'manual' });
 	}
 
-	public triggerCodeActionFromEditorSelection(scope?: CodeActionScope, autoApply?: boolean): void {
+	public triggerCodeActionFromEditorSelection(scope?: CodeActionKind, autoApply?: boolean): void {
 		this._model.trigger({ type: 'manual', scope, autoApply });
 	}
 
@@ -183,7 +183,7 @@ export class CodeActionCommand extends EditorCommand {
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any) {
 		let controller = QuickFixController.get(editor);
 		if (controller) {
-			const scope = args && typeof args[0] === 'string' ? new CodeActionScope(args[0]) : CodeActionScope.Empty;
+			const scope = args && typeof args[0] === 'string' ? new CodeActionKind(args[0]) : CodeActionKind.Empty;
 			const argsSettings: CodeActionCommandOptions = (args && args[1]) || {};
 			controller.triggerCodeActionFromEditorSelection(scope, argsSettings.autoApply);
 		}

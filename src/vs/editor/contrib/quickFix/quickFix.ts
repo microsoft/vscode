@@ -14,9 +14,9 @@ import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/error
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { CodeActionScope } from './codeActionScope';
+import { CodeActionKind } from './codeActionTrigger';
 
-export function getCodeActions(model: ITextModel, range: Range, scope?: CodeActionScope): TPromise<CodeAction[]> {
+export function getCodeActions(model: ITextModel, range: Range, scope?: CodeActionKind): TPromise<CodeAction[]> {
 
 	const allResults: CodeAction[] = [];
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
