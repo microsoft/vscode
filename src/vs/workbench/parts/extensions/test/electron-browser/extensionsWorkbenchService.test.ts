@@ -34,6 +34,8 @@ import { IChoiceService } from 'vs/platform/message/common/message';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IProgressService2 } from 'vs/platform/progress/common/progress';
+import { ProgressService2 } from 'vs/workbench/services/progress/browser/progressService2';
 
 suite('ExtensionsWorkbenchService Test', () => {
 
@@ -56,6 +58,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IWindowService, TestWindowService);
+		instantiationService.stub(IProgressService2, ProgressService2);
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 
