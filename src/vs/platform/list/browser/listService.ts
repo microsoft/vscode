@@ -5,7 +5,7 @@
 'use strict';
 
 import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { List, IListOptions } from 'vs/base/browser/ui/list/listWidget';
+import { List, IListCreationOptions } from 'vs/base/browser/ui/list/listWidget';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -15,6 +15,8 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { mixin } from 'vs/base/common/objects';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
@@ -89,6 +91,12 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 	return result;
 }
 
+export const multiSelectModifierSettingKey = 'workbench.multiSelectModifier';
+
+function useAltAsMultiSelectModifier(configurationService: IConfigurationService): { useAltAsMultiSelectModifier: boolean } {
+	return { useAltAsMultiSelectModifier: configurationService.getValue(multiSelectModifierSettingKey) === 'alt' };
+}
+
 export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
@@ -98,12 +106,13 @@ export class WorkbenchList<T> extends List<T> {
 		container: HTMLElement,
 		delegate: IDelegate<T>,
 		renderers: IRenderer<T, any>[],
-		options: IListOptions<T>,
+		private options: IListCreationOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, options);
+		super(container, delegate, renderers, mixin(options, useAltAsMultiSelectModifier(configurationService)));
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 
@@ -116,6 +125,15 @@ export class WorkbenchList<T> extends List<T> {
 			const selection = this.getSelection();
 			this.listDoubleSelection.set(selection && selection.length === 2);
 		}));
+		this.disposables.push(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+				this.updateOptions(useAltAsMultiSelectModifier(configurationService));
+			}
+		}));
+	}
+
+	public get useAltAsMultiSelectModifier(): boolean {
+		return this.options.useAltAsMultiSelectModifier;
 	}
 }
 
@@ -128,18 +146,24 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		container: HTMLElement,
 		delegate: IDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
-		options: IListOptions<any>,
+		options: IListCreationOptions<any>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, options);
+		super(container, delegate, renderers, mixin(options, useAltAsMultiSelectModifier(configurationService)));
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
 		this.disposable = combinedDisposable([
 			this.contextKeyService,
 			(listService as ListService).register(this),
-			attachListStyler(this, themeService)
+			attachListStyler(this, themeService),
+			configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+					this.updateOptions(useAltAsMultiSelectModifier(configurationService));
+				}
+			})
 		]);
 	}
 

@@ -28,7 +28,7 @@ import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IDelegate, IRenderer, IListContextMenuEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { EditorLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -74,7 +74,6 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IListService private listService: IListService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService private themeService: IThemeService,
@@ -150,13 +149,13 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 			return focused;
 		};
-		this.list = new WorkbenchList<OpenEditor | IEditorGroup>(container, delegate, [
+		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService, this.editorGroupService),
 			new OpenEditorRenderer(getSelectedElements, this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
 		], {
 				keyboardSupport: false,
 				identityProvider: element => element instanceof OpenEditor ? element.getId() : element.id.toString()
-			}, this.contextKeyService, this.listService, this.themeService);
+			});
 
 		this.contributedContextMenu = this.menuService.createMenu(MenuId.OpenEditorsContext, this.list.contextKeyService);
 		this.disposables.push(this.contributedContextMenu);
@@ -194,7 +193,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 				const focused = this.list.getFocusedElements();
 				const element = focused.length ? focused[0] : undefined;
 				if (element instanceof OpenEditor) {
-					this.openEditor(element, { pinned: false, sideBySide: !!event.altKey, preserveFocus: false });
+					this.openEditor(element, { pinned: false, sideBySide: !!(event.altKey || event.ctrlKey || event.metaKey), preserveFocus: false });
 				}
 			}
 		}));
@@ -279,7 +278,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			const position = this.model.positionOfGroup(element.group);
 			this.editorService.closeEditor(position, element.editor).done(null, errors.onUnexpectedError);
 		} else {
-			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick, sideBySide: event.browserEvent.altKey });
+			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick, sideBySide: this.list.useAltAsMultiSelectModifier ? (event.browserEvent.ctrlKey || event.browserEvent.metaKey) : event.browserEvent.altKey });
 		}
 	}
 
