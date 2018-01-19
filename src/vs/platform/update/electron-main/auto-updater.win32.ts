@@ -6,6 +6,7 @@
 'use strict';
 
 import * as path from 'path';
+import * as fs from 'fs';
 import * as pfs from 'vs/base/node/pfs';
 import { checksum } from 'vs/base/node/crypto';
 import { EventEmitter } from 'events';
@@ -17,6 +18,7 @@ import { download, asJson } from 'vs/base/node/request';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { IAutoUpdater } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
+import { isActive } from 'windows-mutex';
 
 interface IUpdate {
 	url: string;
@@ -25,13 +27,35 @@ interface IUpdate {
 	version: string;
 	productVersion: string;
 	hash: string;
+	supportsFastUpdate?: boolean;
+}
+
+function pollUntil(fn: () => boolean, timeout = 1000): TPromise<void> {
+	return new TPromise<void>(c => {
+		const poll = () => {
+			if (fn()) {
+				c(null);
+			} else {
+				setTimeout(poll, timeout);
+			}
+		};
+
+		poll();
+	});
+}
+
+interface IAvailableUpdate {
+	packagePath: string;
+	version: string;
+	supportsFastUpdate: boolean;
+	updateFilePath?: string;
 }
 
 export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 
 	private url: string = null;
 	private currentRequest: Promise = null;
-	private updatePackagePath: string = null;
+	private currentUpdate: IAvailableUpdate = null;
 
 	constructor(
 		@IRequestService private requestService: IRequestService
@@ -87,14 +111,21 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 								.then(() => updatePackagePath);
 						});
 					}).then(updatePackagePath => {
-						this.updatePackagePath = updatePackagePath;
+						const supportsFastUpdate = !!update.supportsFastUpdate;
+
+						this.currentUpdate = {
+							packagePath: updatePackagePath,
+							version: update.version,
+							supportsFastUpdate
+						};
 
 						this.emit('update-downloaded',
 							{},
 							update.releaseNotes,
 							update.productVersion,
 							new Date(),
-							this.url
+							this.url,
+							supportsFastUpdate
 						);
 					});
 				});
@@ -126,12 +157,45 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 			);
 	}
 
+	applyUpdate(): TPromise<void> {
+		if (!this.currentUpdate) {
+			return TPromise.as(null);
+		}
+
+		return this.cachePath.then(cachePath => {
+			this.currentUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${product.quality}-${this.currentUpdate.version}.flag`);
+
+			return pfs.touch(this.currentUpdate.updateFilePath).then(() => {
+				spawn(this.currentUpdate.packagePath, ['/verysilent', '/update=FILENAME', '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+					detached: true,
+					stdio: ['ignore', 'ignore', 'ignore']
+				});
+
+				const readyMutexName = `${product.win32MutexName}-ready`;
+
+				// poll for mutex-ready
+				pollUntil(() => isActive(readyMutexName)).then(() => {
+
+					// now we're ready for `quitAndInstall`
+					this.emit('update-ready');
+				});
+			});
+		});
+	}
+
 	quitAndInstall(): void {
-		if (!this.updatePackagePath) {
+		if (!this.currentUpdate) {
 			return;
 		}
 
-		spawn(this.updatePackagePath, ['/silent', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+		if (this.currentUpdate.supportsFastUpdate && this.currentUpdate.updateFilePath) {
+			// let's delete the file, to signal inno setup that we want Code to start
+			// after the update is applied. after that, just die
+			fs.unlinkSync(this.currentUpdate.updateFilePath);
+			return;
+		}
+
+		spawn(this.currentUpdate.packagePath, ['/silent', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 			detached: true,
 			stdio: ['ignore', 'ignore', 'ignore']
 		});

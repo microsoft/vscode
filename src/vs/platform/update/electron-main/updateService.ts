@@ -45,6 +45,12 @@ export class UpdateService implements IUpdateService {
 	private _onUpdateNotAvailable = new Emitter<boolean>();
 	get onUpdateNotAvailable(): Event<boolean> { return this._onUpdateNotAvailable.event; }
 
+	private _onUpdateDownloaded = new Emitter<IRawUpdate>();
+	get onUpdateDownloaded(): Event<IRawUpdate> { return this._onUpdateDownloaded.event; }
+
+	private _onUpdateInstalling = new Emitter<IRawUpdate>();
+	get onUpdateInstalling(): Event<IRawUpdate> { return this._onUpdateInstalling.event; }
+
 	private _onUpdateReady = new Emitter<IRawUpdate>();
 	get onUpdateReady(): Event<IRawUpdate> { return this._onUpdateReady.event; }
 
@@ -68,14 +74,19 @@ export class UpdateService implements IUpdateService {
 
 	@memoize
 	private get onRawUpdateDownloaded(): Event<IRawUpdate> {
-		return fromNodeEventEmitter(this.raw, 'update-downloaded', (_, releaseNotes, version, date, url) => ({ releaseNotes, version, date }));
+		return fromNodeEventEmitter(this.raw, 'update-downloaded', (_, releaseNotes, version, date, url, supportsFastUpdate) => ({ releaseNotes, version, date, supportsFastUpdate }));
+	}
+
+	@memoize
+	private get onRawUpdateReady(): Event<IRawUpdate> {
+		return fromNodeEventEmitter(this.raw, 'update-ready');
 	}
 
 	get state(): State {
 		return this._state;
 	}
 
-	set state(state: State) {
+	private updateState(state: State): void {
 		this._state = state;
 		this._onStateChange.fire(state);
 	}
@@ -119,7 +130,7 @@ export class UpdateService implements IUpdateService {
 			return; // application not signed
 		}
 
-		this.state = State.Idle;
+		this.updateState(State.Idle);
 
 		// Start checking for updates after 30 seconds
 		this.scheduleCheckForUpdates(30 * 1000)
@@ -157,20 +168,20 @@ export class UpdateService implements IUpdateService {
 		}
 
 		this._onCheckForUpdate.fire();
-		this.state = State.CheckingForUpdate;
+		this.updateState(State.CheckingForUpdate);
 
 		const listeners: IDisposable[] = [];
 		const result = new TPromise<IUpdate>((c, e) => {
 			once(this.onRawError)(e, null, listeners);
 			once(this.onRawUpdateNotAvailable)(() => c(null), null, listeners);
 			once(this.onRawUpdateAvailable)(({ url, version }) => url && c({ url, version }), null, listeners);
-			once(this.onRawUpdateDownloaded)(({ version, date, releaseNotes }) => c({ version, date, releaseNotes }), null, listeners);
+			once(this.onRawUpdateDownloaded)(({ version, date, releaseNotes, supportsFastUpdate }) => c({ version, date, releaseNotes, supportsFastUpdate }), null, listeners);
 
 			this.raw.checkForUpdates();
 		}).then(update => {
 			if (!update) {
 				this._onUpdateNotAvailable.fire(explicit);
-				this.state = State.Idle;
+				this.updateState(State.Idle);
 				/* __GDPR__
 					"update:notAvailable" : {
 						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -178,6 +189,7 @@ export class UpdateService implements IUpdateService {
 				*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit });
 
+				// LINUX
 			} else if (update.url) {
 				const data: IUpdate = {
 					url: update.url,
@@ -188,7 +200,7 @@ export class UpdateService implements IUpdateService {
 
 				this._availableUpdate = data;
 				this._onUpdateAvailable.fire({ url: update.url, version: update.version });
-				this.state = State.UpdateAvailable;
+				this.updateState(State.UpdateAvailable);
 				/* __GDPR__
 					"update:available" : {
 						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -202,12 +214,20 @@ export class UpdateService implements IUpdateService {
 				const data: IRawUpdate = {
 					releaseNotes: update.releaseNotes,
 					version: update.version,
-					date: update.date
+					date: update.date,
+					supportsFastUpdate: update.supportsFastUpdate
 				};
 
 				this._availableUpdate = data;
-				this._onUpdateReady.fire(data);
-				this.state = State.UpdateDownloaded;
+
+				if (update.supportsFastUpdate) {
+					this._onUpdateDownloaded.fire(data);
+					this.updateState(State.UpdateDownloaded);
+				} else {
+					this._onUpdateReady.fire(data);
+					this.updateState(State.UpdateReady);
+				}
+
 				/* __GDPR__
 					"update:downloaded" : {
 						"version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -218,7 +238,7 @@ export class UpdateService implements IUpdateService {
 
 			return update;
 		}, err => {
-			this.state = State.Idle;
+			this.updateState(State.Idle);
 			return TPromise.wrapError<IUpdate>(err);
 		});
 
@@ -258,6 +278,26 @@ export class UpdateService implements IUpdateService {
 		}
 
 		return process.platform;
+	}
+
+	// for windows fast updates
+	applyUpdate(): TPromise<void> {
+		if (this.state !== State.UpdateDownloaded) {
+			return TPromise.as(null);
+		}
+
+		if (!this.raw.applyUpdate) {
+			return TPromise.as(null);
+		}
+
+		once(this.onRawUpdateReady)(() => {
+			this._onUpdateReady.fire(this._availableUpdate as IRawUpdate);
+			this.updateState(State.UpdateReady);
+		});
+
+		this._onUpdateInstalling.fire(this._availableUpdate as IRawUpdate);
+		this.updateState(State.UpdateInstalling);
+		return this.raw.applyUpdate();
 	}
 
 	quitAndInstall(): TPromise<void> {

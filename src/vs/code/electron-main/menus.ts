@@ -1046,6 +1046,17 @@ export class CodeMenu {
 
 			case UpdateState.UpdateDownloaded:
 				return [new MenuItem({
+					label: nls.localize('miInstallUpdate', "Install Update..."), click: () => {
+						this.reportMenuActionTelemetry('InstallUpdate');
+						this.updateService.applyUpdate();
+					}
+				})];
+
+			case UpdateState.UpdateInstalling:
+				return [new MenuItem({ label: nls.localize('miInstallingUpdate', "Installing Update..."), enabled: false })];
+
+			case UpdateState.UpdateReady:
+				return [new MenuItem({
 					label: nls.localize('miRestartToUpdate', "Restart to Update..."), click: () => {
 						this.reportMenuActionTelemetry('RestartToUpdate');
 						this.updateService.quitAndInstall();

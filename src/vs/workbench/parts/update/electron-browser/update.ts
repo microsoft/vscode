@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
-import { mapEvent } from 'vs/base/common/event';
+import { mapEvent, filterEvent, once } from 'vs/base/common/event';
 import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
@@ -33,16 +33,6 @@ import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/
 import * as semver from 'semver';
 import { OS, isLinux, isWindows } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-
-class ApplyUpdateAction extends Action {
-	constructor( @IUpdateService private updateService: IUpdateService) {
-		super('update.applyUpdate', nls.localize('updateNow', "Update Now"), null, true);
-	}
-
-	run(): TPromise<void> {
-		return this.updateService.quitAndInstall();
-	}
-}
 
 const NotNowAction = new Action(
 	'update.later',
@@ -175,17 +165,6 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(id, label, pkg.version, editorService, instantiationService);
-	}
-}
-
-export class DownloadAction extends Action {
-
-	constructor( @IUpdateService private updateService: IUpdateService) {
-		super('update.download', nls.localize('downloadNow', "Download Now"), null, true);
-	}
-
-	run(): TPromise<void> {
-		return this.updateService.quitAndInstall();
 	}
 }
 
@@ -328,11 +307,25 @@ export class UpdateContribution implements IGlobalActivity {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IActivityService private activityService: IActivityService
 	) {
-		const onUpdateAvailable = isLinux
-			? mapEvent(updateService.onUpdateAvailable, e => e.version)
-			: mapEvent(updateService.onUpdateReady, e => e.version);
+		if (isLinux) {
+			mapEvent(updateService.onUpdateAvailable, e => e.version)
+				(this.onUpdateAvailable, this, this.disposables);
+		} else if (isWindows) {
+			// fast updates
+			mapEvent(updateService.onUpdateDownloaded, e => e.version)
+				(this.onUpdateDownloaded, this, this.disposables);
+			mapEvent(updateService.onUpdateInstalling, e => e.version)
+				(this.onUpdateInstalling, this, this.disposables);
 
-		onUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
+			// regular old updates
+			mapEvent(filterEvent(updateService.onUpdateReady, e => !e.supportsFastUpdate), e => e.version)
+				(this.onUpdateAvailable, this, this.disposables);
+
+		} else {
+			mapEvent(updateService.onUpdateReady, e => e.version)
+				(this.onUpdateAvailable, this, this.disposables);
+		}
+
 		updateService.onError(this.onError, this, this.disposables);
 		updateService.onUpdateNotAvailable(this.onUpdateNotAvailable, this, this.disposables);
 
@@ -370,7 +363,7 @@ export class UpdateContribution implements IGlobalActivity {
 		}
 	}
 
-	private onUpdateAvailable(version: string): void {
+	private shouldShowNotification(): boolean {
 		const currentVersion = product.commit;
 		const currentMillis = new Date().getTime();
 		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
@@ -384,27 +377,73 @@ export class UpdateContribution implements IGlobalActivity {
 		const updateNotificationMillis = this.storageService.getInteger('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
 		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
 
-		// if 5 days have passed from stored date, show message service
-		if (diffDays > 5) {
-			this.showUpdateNotification(version);
-		}
+		return diffDays > 5;
 	}
 
-	private showUpdateNotification(version: string): void {
+	// windows fast updates
+	private onUpdateDownloaded(version: string): void {
+		if (!this.shouldShowNotification()) {
+			return;
+		}
+
+		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, version);
+		const installUpdateAction = new Action('update.applyUpdate', nls.localize('installUpdate', "Install Update"), undefined, true, () => {
+			once(mapEvent(filterEvent(this.updateService.onUpdateReady, e => e.supportsFastUpdate), e => e.version))
+				(this.onWindowsFastUpdateReady, this);
+
+			return this.updateService.applyUpdate();
+		});
+
+		this.messageService.show(severity.Info, {
+			message: nls.localize('updateAvailable', "There's an available update: {0} {1}", product.nameLong, version),
+			actions: [installUpdateAction, NotNowAction, releaseNotesAction]
+		});
+	}
+
+	// windows fast updates
+	private onWindowsFastUpdateReady(version: string): void {
+		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, version);
+		const restartAction = new Action('update.applyUpdate', nls.localize('updateNow', "Update Now"), undefined, true, () => this.updateService.quitAndInstall());
+
+		this.messageService.show(severity.Info, {
+			message: nls.localize('updateAvailableAfterRestart', "{0} will be updated after it restarts.", product.nameLong),
+			actions: [restartAction, NotNowAction, releaseNotesAction]
+		});
+	}
+
+	// windows fast updates
+	private onUpdateInstalling(version: string): void {
+		const neverShowAgain = new NeverShowAgain('update/win32-fast-updates', this.storageService);
+
+		if (!neverShowAgain.shouldShow()) {
+			return;
+		}
+
+		this.messageService.show(severity.Info, {
+			message: nls.localize('updateInstalling', "{0} {1} is being installed in the background, we'll let you know when it's done.", product.nameLong, version),
+			actions: [CloseAction, neverShowAgain.action]
+		});
+	}
+
+	private onUpdateAvailable(version: string): void {
+		if (!this.shouldShowNotification()) {
+			return;
+		}
+
 		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, version);
 
 		if (isLinux) {
-			const downloadAction = this.instantiationService.createInstance(DownloadAction);
+			const downloadAction = new Action('update.download', nls.localize('downloadNow', "Download Now"), undefined, true, () => this.updateService.quitAndInstall());
 
 			this.messageService.show(severity.Info, {
 				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
 				actions: [downloadAction, NotNowAction, releaseNotesAction]
 			});
 		} else {
-			const applyUpdateAction = this.instantiationService.createInstance(ApplyUpdateAction);
+			const applyUpdateAction = new Action('update.applyUpdate', nls.localize('updateNow', "Update Now"), undefined, true, () => this.updateService.quitAndInstall());
 
 			this.messageService.show(severity.Info, {
-				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", product.nameLong),
+				message: nls.localize('updateAvailableAfterRestart', "{0} will be updated after it restarts.", product.nameLong),
 				actions: [applyUpdateAction, NotNowAction, releaseNotesAction]
 			});
 		}
@@ -461,6 +500,13 @@ export class UpdateContribution implements IGlobalActivity {
 				return new Action('update.available', updateAvailableLabel, undefined, false);
 
 			case UpdateState.UpdateDownloaded:
+				return new Action('update.apply', nls.localize('installUpdate...', "Install Update..."), undefined, true, () =>
+					this.updateService.applyUpdate());
+
+			case UpdateState.UpdateInstalling:
+				return new Action('update.applying', nls.localize('installingUpdate', "Installing Update..."), undefined, false);
+
+			case UpdateState.UpdateReady:
 				return new Action('update.restart', nls.localize('restartToUpdate', "Restart to Update..."), undefined, true, () =>
 					this.updateService.quitAndInstall());
 

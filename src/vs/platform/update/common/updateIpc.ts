@@ -15,9 +15,12 @@ export interface IUpdateChannel extends IChannel {
 	call(command: 'event:onError'): TPromise<void>;
 	call(command: 'event:onUpdateAvailable'): TPromise<void>;
 	call(command: 'event:onUpdateNotAvailable'): TPromise<void>;
+	call(command: 'event:onUpdateDownloaded'): TPromise<void>;
+	call(command: 'event:onUpdateInstalling'): TPromise<void>;
 	call(command: 'event:onUpdateReady'): TPromise<void>;
 	call(command: 'event:onStateChange'): TPromise<void>;
 	call(command: 'checkForUpdates', arg: boolean): TPromise<IUpdate>;
+	call(command: 'applyUpdate'): TPromise<void>;
 	call(command: 'quitAndInstall'): TPromise<void>;
 	call(command: '_getInitialState'): TPromise<State>;
 	call(command: string, arg?: any): TPromise<any>;
@@ -32,9 +35,12 @@ export class UpdateChannel implements IUpdateChannel {
 			case 'event:onError': return eventToCall(this.service.onError);
 			case 'event:onUpdateAvailable': return eventToCall(this.service.onUpdateAvailable);
 			case 'event:onUpdateNotAvailable': return eventToCall(this.service.onUpdateNotAvailable);
+			case 'event:onUpdateDownloaded': return eventToCall(this.service.onUpdateDownloaded);
+			case 'event:onUpdateInstalling': return eventToCall(this.service.onUpdateInstalling);
 			case 'event:onUpdateReady': return eventToCall(this.service.onUpdateReady);
 			case 'event:onStateChange': return eventToCall(this.service.onStateChange);
 			case 'checkForUpdates': return this.service.checkForUpdates(arg);
+			case 'applyUpdate': return this.service.applyUpdate();
 			case 'quitAndInstall': return this.service.quitAndInstall();
 			case '_getInitialState': return TPromise.as(this.service.state);
 		}
@@ -54,6 +60,12 @@ export class UpdateChannelClient implements IUpdateService {
 
 	private _onUpdateNotAvailable = eventFromCall<boolean>(this.channel, 'event:onUpdateNotAvailable');
 	get onUpdateNotAvailable(): Event<boolean> { return this._onUpdateNotAvailable; }
+
+	private _onUpdateDownloaded = eventFromCall<IRawUpdate>(this.channel, 'event:onUpdateDownloaded');
+	get onUpdateDownloaded(): Event<IRawUpdate> { return this._onUpdateDownloaded; }
+
+	private _onUpdateInstalling = eventFromCall<IRawUpdate>(this.channel, 'event:onUpdateInstalling');
+	get onUpdateInstalling(): Event<IRawUpdate> { return this._onUpdateInstalling; }
 
 	private _onUpdateReady = eventFromCall<IRawUpdate>(this.channel, 'event:onUpdateReady');
 	get onUpdateReady(): Event<IRawUpdate> { return this._onUpdateReady; }
@@ -80,6 +92,10 @@ export class UpdateChannelClient implements IUpdateService {
 
 	checkForUpdates(explicit: boolean): TPromise<IUpdate> {
 		return this.channel.call('checkForUpdates', explicit);
+	}
+
+	applyUpdate(): TPromise<void> {
+		return this.channel.call('applyUpdate');
 	}
 
 	quitAndInstall(): TPromise<void> {
