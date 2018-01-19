@@ -245,24 +245,28 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 	}
 
 	protected getMarkerMatch(data: ProblemData): ProblemMatch {
-		let location = this.getLocation(data);
-		if (data.file && location && data.message) {
-			let marker: IMarkerData = {
-				severity: this.getSeverity(data),
-				startLineNumber: location.startLineNumber,
-				startColumn: location.startCharacter,
-				endLineNumber: location.startLineNumber,
-				endColumn: location.endCharacter,
-				message: data.message
-			};
-			if (!Types.isUndefined(data.code)) {
-				marker.code = data.code;
+		try {
+			let location = this.getLocation(data);
+			if (data.file && location && data.message) {
+				let marker: IMarkerData = {
+					severity: this.getSeverity(data),
+					startLineNumber: location.startLineNumber,
+					startColumn: location.startCharacter,
+					endLineNumber: location.startLineNumber,
+					endColumn: location.endCharacter,
+					message: data.message
+				};
+				if (!Types.isUndefined(data.code)) {
+					marker.code = data.code;
+				}
+				return {
+					description: this.matcher,
+					resource: this.getResource(data.file),
+					marker: marker
+				};
 			}
-			return {
-				description: this.matcher,
-				resource: this.getResource(data.file),
-				marker: marker
-			};
+		} catch (err) {
+			console.error(`Failed to convert problem data into match: ${JSON.stringify(data)}`);
 		}
 		return undefined;
 	}
