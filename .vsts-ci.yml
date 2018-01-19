@@ -1,6 +1,3 @@
-queue:
-  name: Hosted
-
 variables:
   ELECTRON_RUN_AS_NODE: 1
   VSCODE_BUILD_VERBOSE: true
