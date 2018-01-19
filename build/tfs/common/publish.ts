@@ -240,6 +240,8 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		asset.supportsFastUpdate = true;
 	}
 
+	console.log('Asset:', JSON.stringify(asset, null, '  '));
+
 	const release = {
 		id: commit,
 		timestamp: (new Date()).getTime(),
