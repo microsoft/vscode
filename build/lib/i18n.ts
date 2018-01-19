@@ -6,8 +6,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
-import { through, readable } from 'event-stream';
-import { ThroughStream } from 'through';
+import { through, readable, ThroughStream } from 'event-stream';
 import File = require('vinyl');
 import * as Is from 'is';
 import * as xml2js from 'xml2js';
@@ -442,7 +441,7 @@ function escapeCharacters(value: string): string {
 	return result.join('');
 }
 
-function processCoreBundleFormat(fileHeader: string, languages: Language[], json: BundledFormat, emitter: any) {
+function processCoreBundleFormat(fileHeader: string, languages: Language[], json: BundledFormat, emitter: ThroughStream) {
 	let keysSection = json.keys;
 	let messageSection = json.messages;
 	let bundleSection = json.bundles;
@@ -535,7 +534,7 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 				contents.push(index < modules.length - 1 ? '\t],' : '\t]');
 			});
 			contents.push('});');
-			emitter.emit('data', new File({ path: bundle + '.nls.' + language.id + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
+			emitter.queue(new File({ path: bundle + '.nls.' + language.id + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
 		});
 	});
 	Object.keys(statistics).forEach(key => {
@@ -551,7 +550,7 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 }
 
 export function processNlsFiles(opts: { fileHeader: string; languages: Language[] }): ThroughStream {
-	return through(function (file: File) {
+	return through(function (this: ThroughStream, file: File) {
 		let fileName = path.basename(file.path);
 		if (fileName === 'nls.metadata.json') {
 			let json = null;
@@ -559,12 +558,13 @@ export function processNlsFiles(opts: { fileHeader: string; languages: Language[
 				json = JSON.parse((<Buffer>file.contents).toString('utf8'));
 			} else {
 				this.emit('error', `Failed to read component file: ${file.relative}`);
+				return;
 			}
 			if (BundledFormat.is(json)) {
 				processCoreBundleFormat(opts.fileHeader, opts.languages, json, this);
 			}
 		}
-		this.emit('data', file);
+		this.queue(file);
 	});
 }
 
@@ -601,7 +601,7 @@ export function getResource(sourceFile: string): Resource {
 
 
 export function createXlfFilesForCoreBundle(): ThroughStream {
-	return through(function (file: File) {
+	return through(function (this: ThroughStream, file: File) {
 		const basename = path.basename(file.path);
 		if (basename === 'nls.metadata.json') {
 			if (file.isBuffer()) {
@@ -616,6 +616,7 @@ export function createXlfFilesForCoreBundle(): ThroughStream {
 					const messages = json.messages[coreModule];
 					if (keys.length !== messages.length) {
 						this.emit('error', `There is a mismatch between keys and messages in ${file.relative} for module ${coreModule}`);
+						return;
 					} else {
 						let xlf = xlfs[resource];
 						if (!xlf) {
@@ -632,13 +633,15 @@ export function createXlfFilesForCoreBundle(): ThroughStream {
 						path: filePath,
 						contents: new Buffer(xlf.toString(), 'utf8')
 					});
-					this.emit('data', xlfFile);
+					this.queue(xlfFile);
 				}
  			} else {
 				this.emit('error', new Error(`File ${file.relative} is not using a buffer content`));
+				return;
 			}
 		} else {
 			this.emit('error', new Error(`File ${file.relative} is not a core meta data file.`));
+			return;
 		}
 	});
 }
@@ -647,7 +650,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 	let counter: number = 0;
 	let folderStreamEnded: boolean = false;
 	let folderStreamEndEmitted: boolean = false;
-	return through(function (extensionFolder: File) {
+	return through(function (this: ThroughStream, extensionFolder: File) {
 		const folderStream = this;
 		const stat = fs.statSync(extensionFolder.path);
 		if (!stat.isDirectory()) {
@@ -691,6 +694,7 @@ export function createXlfFilesForExtensions(): ThroughStream {
 					}
 				} else {
 					this.emit('error', new Error(`${file.path} is not a valid extension nls file`));
+					return;
 				}
 			}
 		}, function() {
@@ -699,26 +703,26 @@ export function createXlfFilesForExtensions(): ThroughStream {
 					path: path.join(extensionsProject, extensionName + '.xlf'),
 					contents: new Buffer(_xlf.toString(), 'utf8')
 				});
-				folderStream.emit('data', xlfFile);
+				folderStream.queue(xlfFile);
 			}
-			this.emit('end');
+			this.queue(null);
 			counter--;
 			if (counter === 0 && folderStreamEnded && !folderStreamEndEmitted) {
 				folderStreamEndEmitted = true;
-				folderStream.emit('end');
+				folderStream.queue(null);
 			}
 		}));
 	}, function() {
 		folderStreamEnded = true;
 		if (counter === 0) {
 			folderStreamEndEmitted = true;
-			this.emit('end');
+			this.queue(null);
 		}
 	});
 }
 
 export function createXlfFilesForIsl(): ThroughStream {
-	return through(function (file: File) {
+	return through(function (this: ThroughStream, file: File) {
 		let projectName: string,
 			resourceFile: string;
 		if (path.basename(file.path) === 'Default.isl') {
@@ -770,7 +774,7 @@ export function createXlfFilesForIsl(): ThroughStream {
 		// Emit only upon all ISL files combined into single XLF instance
 		const newFilePath = path.join(projectName, resourceFile);
 		const xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8') });
-		this.emit('data', xlfFile);
+		this.queue(xlfFile);
 	});
 }
 
@@ -778,7 +782,7 @@ export function pushXlfFiles(apiHostname: string, username: string, password: st
 	let tryGetPromises = [];
 	let updateCreatePromises = [];
 
-	return through(function (file: File) {
+	return through(function (this: ThroughStream, file: File) {
 		const project = path.dirname(file.relative);
 		const fileName = path.basename(file.path);
 		const slug = fileName.substr(0, fileName.length - '.xlf'.length);
@@ -800,7 +804,7 @@ export function pushXlfFiles(apiHostname: string, username: string, password: st
 		// End the pipe only after all the communication with Transifex API happened
 		Promise.all(tryGetPromises).then(() => {
 			Promise.all(updateCreatePromises).then(() => {
-				this.emit('end');
+				this.queue(null);
 			}).catch((reason) => { throw new Error(reason); });
 		}).catch((reason) => { throw new Error(reason); });
 	});
@@ -1006,7 +1010,7 @@ function retrieveResource(language: Language, resource: Resource, apiHostname, c
 export function prepareI18nFiles(): ThroughStream {
 	let parsePromises: Promise<ParsedXLF[]>[] = [];
 
-	return through(function (xlf: File) {
+	return through(function (this: ThroughStream, xlf: File) {
 		let stream = this;
 		let parsePromise = XLF.parse(xlf.contents.toString());
 		parsePromises.push(parsePromise);
@@ -1014,13 +1018,13 @@ export function prepareI18nFiles(): ThroughStream {
 			resolvedFiles => {
 				resolvedFiles.forEach(file => {
 					let translatedFile = createI18nFile(file.originalFilePath, file.messages);
-					stream.emit('data', translatedFile);
+					stream.queue(translatedFile);
 				});
 			}
 		);
 	}, function () {
 		Promise.all(parsePromises)
-			.then(() => { this.emit('end'); })
+			.then(() => { this.queue(null); })
 			.catch(reason => { throw new Error(reason); });
 	});
 }
@@ -1048,7 +1052,7 @@ export function prepareI18nPackFiles() {
 	let parsePromises: Promise<ParsedXLF[]>[] = [];
 	let mainPack : I18nPack = {};
 	let extensionsPacks : Map<I18nPack> = {};
-	return through(function (xlf: File) {
+	return through(function (this: ThroughStream, xlf: File) {
 		let stream = this;
 		let parsePromise = XLF.parse(xlf.contents.toString());
 		parsePromises.push(parsePromise);
@@ -1083,12 +1087,12 @@ export function prepareI18nPackFiles() {
 		Promise.all(parsePromises)
 			.then(() => {
 				const translatedMainFile = createI18nFile('./main', mainPack);
-				this.emit('data', translatedMainFile);
+				this.queue(translatedMainFile);
 				for (let extension in extensionsPacks) {
 					const translatedExtFile = createI18nFile(`./extensions/${extension}`, extensionsPacks[extension]);
-					this.emit('data', translatedExtFile);
+					this.queue(translatedExtFile);
 				}
-				this.emit('end'); })
+				this.queue(null); })
 			.catch(reason => { throw new Error(reason); });
 	});
 }
@@ -1096,7 +1100,7 @@ export function prepareI18nPackFiles() {
 export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup): ThroughStream {
 	let parsePromises: Promise<ParsedXLF[]>[] = [];
 
-	return through(function (xlf: File) {
+	return through(function (this: ThroughStream, xlf: File) {
 		let stream = this;
 		let parsePromise = XLF.parse(xlf.contents.toString());
 		parsePromises.push(parsePromise);
@@ -1107,13 +1111,13 @@ export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup):
 						return;
 					}
 					let translatedFile = createIslFile(file.originalFilePath, file.messages, language, innoSetupConfig);
-					stream.emit('data', translatedFile);
+					stream.queue(translatedFile);
 				});
 			}
 		);
 	}, function () {
 		Promise.all(parsePromises)
-			.then(() => { this.emit('end'); })
+			.then(() => { this.queue(null); })
 			.catch(reason => { throw new Error(reason); });
 	});
 }

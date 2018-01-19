@@ -431,7 +431,7 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
                 contents.push(index < modules.length - 1 ? '\t],' : '\t]');
             });
             contents.push('});');
-            emitter.emit('data', new File({ path: bundle + '.nls.' + language.id + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
+            emitter.queue(new File({ path: bundle + '.nls.' + language.id + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
         });
     });
     Object.keys(statistics).forEach(function (key) {
@@ -455,12 +455,13 @@ function processNlsFiles(opts) {
             }
             else {
                 this.emit('error', "Failed to read component file: " + file.relative);
+                return;
             }
             if (BundledFormat.is(json)) {
                 processCoreBundleFormat(opts.fileHeader, opts.languages, json, this);
             }
         }
-        this.emit('data', file);
+        this.queue(file);
     });
 }
 exports.processNlsFiles = processNlsFiles;
@@ -511,6 +512,7 @@ function createXlfFilesForCoreBundle() {
                     var messages = json.messages[coreModule];
                     if (keys.length !== messages.length) {
                         this.emit('error', "There is a mismatch between keys and messages in " + file.relative + " for module " + coreModule);
+                        return;
                     }
                     else {
                         var xlf = xlfs[resource];
@@ -528,15 +530,17 @@ function createXlfFilesForCoreBundle() {
                         path: filePath,
                         contents: new Buffer(xlf.toString(), 'utf8')
                     });
-                    this.emit('data', xlfFile);
+                    this.queue(xlfFile);
                 }
             }
             else {
                 this.emit('error', new Error("File " + file.relative + " is not using a buffer content"));
+                return;
             }
         }
         else {
             this.emit('error', new Error("File " + file.relative + " is not a core meta data file."));
+            return;
         }
     });
 }
@@ -593,6 +597,7 @@ function createXlfFilesForExtensions() {
                 }
                 else {
                     this.emit('error', new Error(file.path + " is not a valid extension nls file"));
+                    return;
                 }
             }
         }, function () {
@@ -601,20 +606,20 @@ function createXlfFilesForExtensions() {
                     path: path.join(extensionsProject, extensionName + '.xlf'),
                     contents: new Buffer(_xlf.toString(), 'utf8')
                 });
-                folderStream.emit('data', xlfFile);
+                folderStream.queue(xlfFile);
             }
-            this.emit('end');
+            this.queue(null);
             counter--;
             if (counter === 0 && folderStreamEnded && !folderStreamEndEmitted) {
                 folderStreamEndEmitted = true;
-                folderStream.emit('end');
+                folderStream.queue(null);
             }
         }));
     }, function () {
         folderStreamEnded = true;
         if (counter === 0) {
             folderStreamEndEmitted = true;
-            this.emit('end');
+            this.queue(null);
         }
     });
 }
@@ -667,7 +672,7 @@ function createXlfFilesForIsl() {
         // Emit only upon all ISL files combined into single XLF instance
         var newFilePath = path.join(projectName, resourceFile);
         var xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8') });
-        this.emit('data', xlfFile);
+        this.queue(xlfFile);
     });
 }
 exports.createXlfFilesForIsl = createXlfFilesForIsl;
@@ -696,7 +701,7 @@ function pushXlfFiles(apiHostname, username, password) {
         // End the pipe only after all the communication with Transifex API happened
         Promise.all(tryGetPromises).then(function () {
             Promise.all(updateCreatePromises).then(function () {
-                _this.emit('end');
+                _this.queue(null);
             }).catch(function (reason) { throw new Error(reason); });
         }).catch(function (reason) { throw new Error(reason); });
     });
@@ -893,13 +898,13 @@ function prepareI18nFiles() {
         parsePromise.then(function (resolvedFiles) {
             resolvedFiles.forEach(function (file) {
                 var translatedFile = createI18nFile(file.originalFilePath, file.messages);
-                stream.emit('data', translatedFile);
+                stream.queue(translatedFile);
             });
         });
     }, function () {
         var _this = this;
         Promise.all(parsePromises)
-            .then(function () { _this.emit('end'); })
+            .then(function () { _this.queue(null); })
             .catch(function (reason) { throw new Error(reason); });
     });
 }
@@ -958,12 +963,12 @@ function prepareI18nPackFiles() {
         Promise.all(parsePromises)
             .then(function () {
             var translatedMainFile = createI18nFile('./main', mainPack);
-            _this.emit('data', translatedMainFile);
+            _this.queue(translatedMainFile);
             for (var extension in extensionsPacks) {
                 var translatedExtFile = createI18nFile("./extensions/" + extension, extensionsPacks[extension]);
-                _this.emit('data', translatedExtFile);
+                _this.queue(translatedExtFile);
             }
-            _this.emit('end');
+            _this.queue(null);
         })
             .catch(function (reason) { throw new Error(reason); });
     });
@@ -981,13 +986,13 @@ function prepareIslFiles(language, innoSetupConfig) {
                     return;
                 }
                 var translatedFile = createIslFile(file.originalFilePath, file.messages, language, innoSetupConfig);
-                stream.emit('data', translatedFile);
+                stream.queue(translatedFile);
             });
         });
     }, function () {
         var _this = this;
         Promise.all(parsePromises)
-            .then(function () { _this.emit('end'); })
+            .then(function () { _this.queue(null); })
             .catch(function (reason) { throw new Error(reason); });
     });
 }
