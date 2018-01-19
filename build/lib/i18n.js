@@ -876,7 +876,6 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             res.on('data', function (chunk) { return xlfBuffer.push(chunk); });
             res.on('end', function () {
                 if (res.statusCode === 200) {
-                    console.log('success: ' + options.path);
                     resolve(new File({ contents: Buffer.concat(xlfBuffer), path: project + "/" + slug + ".xlf" }));
                 }
                 reject(slug + " in " + project + " returned no data. Response code: " + res.statusCode + ".");
@@ -886,7 +885,6 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             reject("Failed to query resource " + slug + " with the following error: " + err + ". " + options.path);
         });
         request.end();
-        console.log('started: ' + options.path);
     }); });
 }
 function prepareI18nFiles() {
@@ -933,7 +931,6 @@ function prepareI18nPackFiles() {
         parsePromise.then(function (resolvedFiles) {
             resolvedFiles.forEach(function (file) {
                 var path = file.originalFilePath;
-                console.log(path);
                 var firstSlash = path.indexOf('/');
                 var firstSegment = path.substr(0, firstSlash);
                 if (firstSegment === 'src') {
