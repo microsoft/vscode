@@ -911,7 +911,8 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 
 	private _hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri: URI): TPromise<boolean> {
 		return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
-			return !(preferencesRenderer && preferencesRenderer.associatedPreferencesModel && preferencesRenderer.associatedPreferencesModel.uri.toString() === associatedPreferencesModelUri.toString());
+			const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
+			return !(preferencesRenderer && associatedPreferencesModel && associatedPreferencesModel.uri.toString() === associatedPreferencesModelUri.toString());
 		});
 	}
 
@@ -920,10 +921,11 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 			.then(associatedPreferencesEditorModel => {
 				return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 					if (preferencesRenderer) {
-						if (preferencesRenderer.associatedPreferencesModel) {
-							preferencesRenderer.associatedPreferencesModel.dispose();
+						const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
+						if (associatedPreferencesModel) {
+							associatedPreferencesModel.dispose();
 						}
-						preferencesRenderer.associatedPreferencesModel = associatedPreferencesEditorModel;
+						preferencesRenderer.setAssociatedPreferencesModel(associatedPreferencesEditorModel);
 					}
 					return preferencesRenderer;
 				});
@@ -934,8 +936,9 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 		if (this.preferencesRendererCreationPromise) {
 			this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 				if (preferencesRenderer) {
-					if (preferencesRenderer.associatedPreferencesModel) {
-						preferencesRenderer.associatedPreferencesModel.dispose();
+					const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
+					if (associatedPreferencesModel) {
+						associatedPreferencesModel.dispose();
 					}
 					preferencesRenderer.preferencesModel.dispose();
 					preferencesRenderer.dispose();
