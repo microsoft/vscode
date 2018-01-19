@@ -7,6 +7,7 @@
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import { Range } from 'vs/editor/common/core/range';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 export const enum NodeColor {
 	Black = 0,
@@ -271,6 +272,28 @@ export class StringBuffer {
 	}
 }
 
+class PieceTreeSnapshot implements ITextSnapshot {
+	// pieces/tree nodes in order
+	private _nodes: TreeNode[];
+	private _index: number;
+	constructor(private tree: PieceTreeBase, BOM: string) {
+		this._nodes = [];
+		tree.iterate(tree.root, node => {
+			this._nodes.push(node);
+			return true;
+		});
+		this._index = 0;
+	}
+
+	read(): string {
+		if (this._index > this._nodes.length - 1) {
+			return null;
+		}
+
+		return this.tree.getNodeContent(this._nodes[this._index++]);
+	}
+}
+
 export class PieceTreeBase {
 	root: TreeNode;
 	protected _buffers: StringBuffer[]; // 0 is change buffer, others are readonly original buffer.
@@ -323,7 +346,8 @@ export class PieceTreeBase {
 		let tempChunkLen = 0;
 		let chunks: StringBuffer[] = [];
 
-		this.iterate(this.root, (str) => {
+		this.iterate(this.root, node => {
+			let str = this.getNodeContent(node);
 			let len = str.length;
 			if (tempChunkLen <= min || tempChunkLen + len < max) {
 				tempChunk += str;
@@ -347,7 +371,12 @@ export class PieceTreeBase {
 		this.create(chunks);
 	}
 
+
 	// #region Buffer API
+	public createSnapshot(BOM: string): ITextSnapshot {
+		return new PieceTreeSnapshot(this, BOM);
+	}
+
 	public equal(other: PieceTreeBase): boolean {
 		if (this.getLength() !== other.getLength()) {
 			return false;
@@ -357,7 +386,8 @@ export class PieceTreeBase {
 		}
 
 		let offset = 0;
-		let ret = this.iterate(this.root, str => {
+		let ret = this.iterate(this.root, node => {
+			let str = this.getNodeContent(node);
 			let len = str.length;
 			let startPosition = other.nodeAt(offset);
 			let endPosition = other.nodeAt(offset + len);
@@ -1249,9 +1279,9 @@ export class PieceTreeBase {
 	// #endregion
 
 	// #region Red Black Tree
-	iterate(node: TreeNode, callback: (str: string) => boolean): boolean {
+	iterate(node: TreeNode, callback: (node: TreeNode) => boolean): boolean {
 		if (node === SENTINEL) {
-			return callback('');
+			return callback(SENTINEL);
 		}
 
 		let leftRet = this.iterate(node.left, callback);
@@ -1259,13 +1289,17 @@ export class PieceTreeBase {
 			return leftRet;
 		}
 
+		return callback(node) && this.iterate(node.right, callback);
+	}
+
+	getNodeContent(node: TreeNode) {
 		let buffer = this._buffers[node.piece.bufferIndex];
 		let currentContent;
 		let piece = node.piece;
 		let startOffset = this.offsetInBuffer(piece.bufferIndex, piece.start);
 		let endOffset = this.offsetInBuffer(piece.bufferIndex, piece.end);
 		currentContent = buffer.buffer.substring(startOffset, endOffset);
-		return callback(currentContent) && this.iterate(node.right, callback);
+		return currentContent;
 	}
 
 	leftRotate(x: TreeNode) {

@@ -10,6 +10,7 @@ import * as strings from 'vs/base/common/strings';
 import { IValidatedEditOperation } from 'vs/editor/common/model/linesTextBuffer/linesTextBuffer';
 import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { IIdentifiedSingleEditOperation, EndOfLinePreference, ITextBuffer, ApplyEditsResult, IInternalModelContentChange } from 'vs/editor/common/model';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 export class PieceTreeTextBuffer implements ITextBuffer {
 	private _pieceTree: PieceTreeBase;
@@ -52,6 +53,10 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	}
 	public getEOL(): string {
 		return this._EOL;
+	}
+
+	public createSnapshot(preserveBOM: boolean): ITextSnapshot {
+		return this._pieceTree.createSnapshot(preserveBOM ? this._BOM : '');
 	}
 
 	public getOffsetAt(lineNumber: number, column: number): number {
