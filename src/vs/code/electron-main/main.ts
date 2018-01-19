@@ -127,6 +127,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 	function setup(retry: boolean): TPromise<Server> {
 		return serve(environmentService.mainIPCHandle).then(server => {
+
 			// Print --status usage info
 			if (environmentService.args.status) {
 				logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');

@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 const path = require('path');
+const remote = require('electron').remote;
 
 function parseURLQueryArgs() {
 	const search = window.location.search || '';
@@ -36,6 +39,30 @@ function uriFromPath(_path) {
 function main() {
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
+
+	const extractKey = function (e) {
+		return [
+			e.ctrlKey ? 'ctrl-' : '',
+			e.metaKey ? 'meta-' : '',
+			e.altKey ? 'alt-' : '',
+			e.shiftKey ? 'shift-' : '',
+			e.keyCode
+		].join('');
+	};
+
+	const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
+	const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
+
+	window.addEventListener('keydown', function (e) {
+		const key = extractKey(e);
+		if (key === TOGGLE_DEV_TOOLS_KB) {
+			remote.getCurrentWebContents().toggleDevTools();
+		} else if (key === RELOAD_KB) {
+			remote.getCurrentWindow().reload();
+		}
+	});
+
+	// Load the loader and start loading the workbench
 	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
 
 	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
