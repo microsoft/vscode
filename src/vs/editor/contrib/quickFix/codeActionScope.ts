@@ -20,6 +20,7 @@ export class CodeActionScope {
 }
 
 export interface CodeActionTrigger {
-	scope: CodeActionScope;
+	type: 'auto' | 'manual';
+	scope?: CodeActionScope;
 	autoApply?: boolean;
 }

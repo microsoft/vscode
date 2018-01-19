@@ -20,7 +20,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { QuickFixContextMenu } from './quickFixWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
-import { CodeActionScope, CodeActionTrigger } from './codeActionScope';
+import { CodeActionScope } from './codeActionScope';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CodeAction } from 'vs/editor/common/modes';
 import { createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
@@ -58,7 +58,7 @@ export class QuickFixController implements IEditorContribution {
 		this._updateLightBulbTitle();
 
 		this._disposables.push(
-			this._quickFixContextMenu.onDidExecuteCodeAction(_ => this._model.trigger('auto')),
+			this._quickFixContextMenu.onDidExecuteCodeAction(_ => this._model.trigger({ type: 'auto' })),
 			this._lightBulbWidget.onClick(this._handleLightBulbSelect, this),
 			this._model.onDidChangeFixes(e => this._onQuickFixEvent(e)),
 			this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this)
@@ -71,7 +71,7 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _onQuickFixEvent(e: QuickFixComputeEvent): void {
-		if (e && e.trigger) {
+		if (e && e.trigger.scope) {
 			// Triggered for specific scope
 			// Apply if we only have one action or requested autoApply, otherwise show menu
 			e.fixes.then(fixes => {
@@ -84,7 +84,7 @@ export class QuickFixController implements IEditorContribution {
 			return;
 		}
 
-		if (e && e.type === 'manual') {
+		if (e && e.trigger.type === 'manual') {
 			this._quickFixContextMenu.show(e.fixes, e.position);
 		} else if (e && e.fixes) {
 			// auto magically triggered
@@ -109,11 +109,11 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	public triggerFromEditorSelection(): void {
-		this._model.trigger('manual');
+		this._model.trigger({ type: 'manual' });
 	}
 
-	public triggerCodeActionFromEditorSelection(trigger: CodeActionTrigger): void {
-		this._model.trigger('manual', trigger);
+	public triggerCodeActionFromEditorSelection(scope?: CodeActionScope, autoApply?: boolean): void {
+		this._model.trigger({ type: 'manual', scope, autoApply });
 	}
 
 	private _updateLightBulbTitle(): void {
@@ -185,10 +185,7 @@ export class CodeActionCommand extends EditorCommand {
 		if (controller) {
 			const scope = args && typeof args[0] === 'string' ? new CodeActionScope(args[0]) : CodeActionScope.Empty;
 			const argsSettings: CodeActionCommandOptions = (args && args[1]) || {};
-			controller.triggerCodeActionFromEditorSelection({
-				scope,
-				autoApply: argsSettings.autoApply
-			});
+			controller.triggerCodeActionFromEditorSelection(scope, argsSettings.autoApply);
 		}
 	}
 }
