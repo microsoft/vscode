@@ -111,7 +111,7 @@ export class PreferencesEditor extends BaseEditor {
 	private preferencesRenderers: PreferencesRenderersController;
 
 	private delayedFilterLogging: Delayer<void>;
-	private remoteSearchThrottle: ThrottledDelayer<IFilterOrSearchResult>;
+	private remoteSearchThrottle: ThrottledDelayer<void>;
 	private _lastReportedFilter: string;
 
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
@@ -243,18 +243,18 @@ export class PreferencesEditor extends BaseEditor {
 		TPromise.join([
 			this.preferencesRenderers.localFilterPreferences(query),
 			this.triggerThrottledSearch(query)
-		]).then(results => {
-			if (results) {
-				const [localResult, remoteResult] = results;
+		]).then(() => {
+			const result = this.preferencesRenderers.lastFilterResult;
+			if (result) {
 				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(
 					query,
-					remoteResult ? remoteResult.defaultSettingsGroupCounts : localResult.defaultSettingsGroupCounts,
-					remoteResult && remoteResult.metadata));
+					result.defaultSettingsGroupCounts,
+					result.metadata));
 			}
 		});
 	}
 
-	private triggerThrottledSearch(query: string): TPromise<IFilterOrSearchResult> {
+	private triggerThrottledSearch(query: string): TPromise<void> {
 		if (query) {
 			return this.remoteSearchThrottle.trigger(() => this.preferencesRenderers.remoteSearchPreferences(query));
 		} else {
@@ -366,11 +366,13 @@ class PreferencesRenderersController extends Disposable {
 	private _editablePreferencesRendererDisposables: IDisposable[] = [];
 
 	private _settingsNavigator: SettingsNavigator;
-	private _filtersInProgress: TPromise<IFilterResult>[];
+	private _remoteFiltersInProgress: TPromise<any>[];
 
 	private _currentLocalSearchProvider: ISearchProvider;
 	private _currentRemoteSearchProvider: ISearchProvider;
+	private _currentNewExtensionsSearchProvider: ISearchProvider;
 	private _lastQuery: string;
+	private _lastFilterResult: IFilterOrSearchResult;
 
 	private _onDidFilterResultsCountChange: Emitter<number> = this._register(new Emitter<number>());
 	public onDidFilterResultsCountChange: Event<number> = this._onDidFilterResultsCountChange.event;
@@ -380,6 +382,10 @@ class PreferencesRenderersController extends Disposable {
 		private telemetryService: ITelemetryService
 	) {
 		super();
+	}
+
+	get lastFilterResult(): IFilterOrSearchResult {
+		return this._lastFilterResult;
 	}
 
 	get defaultPreferencesRenderer(): IPreferencesRenderer<ISetting> {
@@ -415,34 +421,48 @@ class PreferencesRenderersController extends Disposable {
 		}
 	}
 
-	async _onEditableContentDidChange(): TPromise<void> {
+	private async _onEditableContentDidChange(): TPromise<void> {
 		await this.localFilterPreferences(this._lastQuery, true);
 		await this.remoteSearchPreferences(this._lastQuery, true);
 	}
 
-	remoteSearchPreferences(query: string, updateCurrentResults?: boolean): TPromise<IFilterOrSearchResult> {
+	remoteSearchPreferences(query: string, updateCurrentResults?: boolean): TPromise<void> {
+		if (this._remoteFiltersInProgress) {
+			// Resolved/rejected promises have no .cancel()
+			this._remoteFiltersInProgress.forEach(p => p.cancel && p.cancel());
+		}
+
 		this._currentRemoteSearchProvider = (updateCurrentResults && this._currentRemoteSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query);
-		return this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"));
+		this._currentNewExtensionsSearchProvider = (updateCurrentResults && this._currentNewExtensionsSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query, true);
+
+		this._remoteFiltersInProgress = [
+			this.filterOrSearchPreferences(query, this._currentNewExtensionsSearchProvider, 'newExtensionsResult', nls.localize('newExtensionsResult', "Other Extension Results")),
+			this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"))
+		];
+
+		return TPromise.join(this._remoteFiltersInProgress).then(() => {
+			this._remoteFiltersInProgress = null;
+		}, err => {
+			if (isPromiseCanceledError(err)) {
+				return null;
+			} else {
+				onUnexpectedError(err);
+			}
+		});
 	}
 
-	localFilterPreferences(query: string, updateCurrentResults?: boolean): TPromise<IFilterOrSearchResult> {
+	localFilterPreferences(query: string, updateCurrentResults?: boolean): TPromise<void> {
 		this._currentLocalSearchProvider = (updateCurrentResults && this._currentLocalSearchProvider) || this.preferencesSearchService.getLocalSearchProvider(query);
 		return this.filterOrSearchPreferences(query, this._currentLocalSearchProvider, 'filterResult', nls.localize('filterResult', "Filtered Results"));
 	}
 
-	filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterOrSearchResult> {
+	private filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string): TPromise<void> {
 		this._lastQuery = query;
-		if (this._filtersInProgress) {
-			// Resolved/rejected promises have no .cancel()
-			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
-		}
 
-		this._filtersInProgress = [
+		return TPromise.join([
 			this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel),
-			this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel)];
-
-		return TPromise.join(this._filtersInProgress).then(results => {
-			this._filtersInProgress = null;
+			this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel)]
+		).then(results => {
 			const [defaultFilterResult, editableFilterResult] = results;
 
 			this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
@@ -451,13 +471,7 @@ class PreferencesRenderersController extends Disposable {
 				defaultSettingsGroupCounts: defaultFilterResult && this._countById(defaultFilterResult.filteredGroups)
 			};
 
-			return result;
-		}, err => {
-			if (isPromiseCanceledError(err)) {
-				return null;
-			} else {
-				onUnexpectedError(err);
-			}
+			this._lastFilterResult = result;
 		});
 	}
 

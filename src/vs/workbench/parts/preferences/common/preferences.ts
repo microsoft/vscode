@@ -177,7 +177,7 @@ export interface IPreferencesSearchService {
 	_serviceBrand: any;
 
 	getLocalSearchProvider(filter: string): ISearchProvider;
-	getRemoteSearchProvider(filter: string): ISearchProvider;
+	getRemoteSearchProvider(filter: string, newExtensionsOnly?: boolean): ISearchProvider;
 }
 
 export interface ISearchProvider {

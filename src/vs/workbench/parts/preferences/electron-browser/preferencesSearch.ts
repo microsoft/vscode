@@ -67,8 +67,8 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		}
 	}
 
-	getRemoteSearchProvider(filter: string): RemoteSearchProvider {
-		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, filter, this._endpoint, this._installedExtensions);
+	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): RemoteSearchProvider {
+		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, filter, this._endpoint, this._installedExtensions, newExtensionsOnly);
 	}
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider {
@@ -117,7 +117,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 	private _filter: string;
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
-	constructor(filter: string, endpoint: IEndpointDetails, private installedExtensions: TPromise<ILocalExtension[]>,
+	constructor(filter: string, private endpoint: IEndpointDetails, private installedExtensions: TPromise<ILocalExtension[]>, private newExtensionsOnly: boolean,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IRequestService private requestService: IRequestService,
 	) {
@@ -125,7 +125,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 
 		// @queries are always handled by local filter
 		this._remoteSearchP = filter && !strings.startsWith(filter, '@') ?
-			this.getSettingsFromBing(filter, endpoint) :
+			this.getSettingsFromBing(filter) :
 			TPromise.wrap(null);
 	}
 
@@ -148,15 +148,15 @@ export class RemoteSearchProvider implements ISearchProvider {
 		});
 	}
 
-	private getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromise<IFilterMetadata> {
+	private getSettingsFromBing(filter: string): TPromise<IFilterMetadata> {
 		const start = Date.now();
-		return this.prepareUrl(filter, endpoint, this.environmentService.settingsSearchBuildId).then(url => {
+		return this.prepareUrl(filter).then(url => {
 			return this.requestService.request({
 				url,
 				headers: {
 					'User-Agent': 'request',
 					'Content-Type': 'application/json; charset=utf-8',
-					'api-key': endpoint.key
+					'api-key': this.endpoint.key
 				},
 				timeout: 5000
 			}).then(context => {
@@ -205,7 +205,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 		};
 	}
 
-	private prepareUrl(query: string, endpoint: IEndpointDetails, buildNumber: number): TPromise<string> {
+	private prepareUrl(query: string): TPromise<string> {
 		query = escapeSpecialChars(query);
 		const boost = 10;
 		const userQuery = `(${query})^${boost}`;
@@ -214,41 +214,55 @@ export class RemoteSearchProvider implements ISearchProvider {
 		query = query.replace(/\ +/g, '~ ') + '~';
 
 		const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
-		let url = `${endpoint.urlBase}?`;
+		let url = `${this.endpoint.urlBase}?`;
 
-		return this.installedExtensions.then(exts => {
-			if (endpoint.key) {
-				url += `${API_VERSION}`;
-				url += `&search=${encodedQuery}`;
+		const buildNumber = this.environmentService.settingsSearchBuildId;
+		if (this.endpoint.key) {
+			url += `${API_VERSION}&${QUERY_TYPE}`;
+			url += `&search=${encodedQuery}`;
 
-				const filters = exts.map(ext => {
-					const uuid = ext.identifier.uuid;
-					const versionString = ext.manifest.version
-						.split('.')
-						.map(versionPart => strings.pad(<any>versionPart, 10))
-						.join('');
-
-					return `(packageid eq '${uuid}' and startbuildno le '${versionString}' and endbuildno ge '${versionString}')`;
-				});
-
-				if (buildNumber) {
-					filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
-					url += `&$filter=${filters.join(' or ')}`;
-				}
+			if (this.newExtensionsOnly) {
+				return TPromise.wrap(url);
 			} else {
-				url += `query=${encodedQuery}`;
+				return this.getVersionAndExtensionFilters(buildNumber).then(filters => {
+					url += `&$filter=${filters.join(' or ')}`;
+					return url;
+				});
+			}
+		} else {
+			url += `query=${encodedQuery}`;
 
-				if (buildNumber) {
-					url += `&build=${buildNumber}`;
-				}
+			if (buildNumber) {
+				url += `&build=${buildNumber}`;
+			}
+		}
+
+		return TPromise.wrap(url);
+	}
+
+	private getVersionAndExtensionFilters(buildNumber?: number): TPromise<string[]> {
+		return this.installedExtensions.then(exts => {
+			const filters = exts.map(ext => {
+				const uuid = ext.identifier.uuid;
+				const versionString = ext.manifest.version
+					.split('.')
+					.map(versionPart => strings.pad(<any>versionPart, 10))
+					.join('');
+
+				return `(packageid eq '${uuid}' and startbuildno le '${versionString}' and endbuildno ge '${versionString}')`;
+			});
+
+			if (buildNumber) {
+				filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
 			}
 
-			return url;
+			return filters;
 		});
 	}
 }
 
 const API_VERSION = 'api-version=2016-09-01-Preview';
+const QUERY_TYPE = 'querytype=full';
 
 function escapeSpecialChars(query: string): string {
 	return query.replace(/\./g, ' ')
