@@ -413,7 +413,6 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 				range: contentChangeRange,
 				rangeLength: op.rangeLength,
 				text: text,
-				lines: op.lines,
 				rangeOffset: op.rangeOffset,
 				forceMoveMarkers: op.forceMoveMarkers
 			});

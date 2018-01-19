@@ -412,7 +412,6 @@ export class ChunksTextBuffer implements ITextBuffer {
 				range: op.range,
 				rangeLength: op.rangeLength,
 				text: text,
-				lines: op.lines,
 				rangeOffset: op.rangeOffset,
 				forceMoveMarkers: op.forceMoveMarkers
 			});

@@ -1120,7 +1120,6 @@ export class ApplyEditsResult {
  */
 export interface IInternalModelContentChange extends IModelContentChange {
 	range: Range;
-	lines: string[];
 	rangeOffset: number;
 	forceMoveMarkers: boolean;
 }

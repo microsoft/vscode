@@ -1096,12 +1096,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 	}
 
-	private static _eolCount(text: string): number {
+	private static _eolCount(text: string): [number, number] {
 		let eolCount = 0;
+		let firstLineLength = 0;
 		for (let i = 0, len = text.length; i < len; i++) {
 			const chr = text.charCodeAt(i);
 
 			if (chr === CharCode.CarriageReturn) {
+				if (eolCount === 0) {
+					firstLineLength = i;
+				}
 				eolCount++;
 				if (i + 1 < len && text.charCodeAt(i + 1) === CharCode.LineFeed) {
 					// \r\n... case
@@ -1110,10 +1114,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 					// \r... case
 				}
 			} else if (chr === CharCode.LineFeed) {
+				if (eolCount === 0) {
+					firstLineLength = i;
+				}
 				eolCount++;
 			}
 		}
-		return eolCount;
+		if (eolCount === 0) {
+			firstLineLength = text.length;
+		}
+		return [eolCount, firstLineLength];
 	}
 
 	private _applyEdits(rawOperations: model.IIdentifiedSingleEditOperation[]): model.IIdentifiedSingleEditOperation[] {
@@ -1134,7 +1144,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 			let lineCount = oldLineCount;
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
-				this._tokens.applyEdits(change.range, change.lines);
+				const [eolCount, firstLineLength] = TextModel._eolCount(change.text);
+				this._tokens.applyEdits(change.range, eolCount, firstLineLength);
 				this._onDidChangeDecorations.fire();
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 
@@ -1142,7 +1153,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				const endLineNumber = change.range.endLineNumber;
 
 				const deletingLinesCnt = endLineNumber - startLineNumber;
-				const insertingLinesCnt = TextModel._eolCount(change.text);
+				const insertingLinesCnt = eolCount;
 				const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
 
 				const changeLineCountDelta = (insertingLinesCnt - deletingLinesCnt);
