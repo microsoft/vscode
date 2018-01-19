@@ -1813,30 +1813,35 @@ declare module 'vscode' {
 	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
 
 	/**
-	 * Scope of a code action.
+	 * Kind of a code action.
 	 *
-	 * Specifies the type of a code action. A scope is a hierarchical list of identifiers separated by `.`, e.g. `"refactoring.extract.function"`.
+	 * Kinds are a hierarchical list of identifiers separated by `.`, e.g. `"refactoring.extract.function"`.
 	 */
-	export class CodeActionScope {
+	export class CodeActionKind {
 		/**
-		 * Empty scope.
+		 * Empty kind.
 		 */
-		public static readonly Empty: CodeActionScope;
+		static readonly Empty: CodeActionKind;
 
 		/**
-		 * Base scope for refactoring actions.
+		 * Base kind for refactoring actions.
 		 */
-		public static readonly Refactor: CodeActionScope;
+		static readonly Refactor: CodeActionKind;
 
 		/**
-		 * Base scope for refactoring extraction actions.
+		 * Base kind for refactoring extraction actions.
 		 */
-		public static readonly RefactorExtract: CodeActionScope;
+		static readonly RefactorExtract: CodeActionKind;
 
 		/**
-		 * Base scope for refactoring extraction inline.
+		 * Base kind for refactoring rewite actions.
 		 */
-		public static readonly RefactorInline: CodeActionScope;
+		static readonly RefactorRewrite: CodeActionKind;
+
+		/**
+		 * Base kind for refactoring extraction inline.
+		 */
+		static readonly RefactorInline: CodeActionKind;
 
 		private constructor(value: string);
 
@@ -1846,11 +1851,11 @@ declare module 'vscode' {
 		readonly value?: string;
 
 		/**
-		 * Create a new scope by appending a more specific selector to the current scope.
+		 * Create a new kind by appending a more specific selector to the current kind.
 		 *
-		 * Does not modify the current scope object.
+		 * Does not modify the current object.
 		 */
-		public add(parts: string): CodeActionScope;
+		append(parts: string): CodeActionKind;
 
 		/**
 		 * Does this scope contain scope `other`?
@@ -1859,7 +1864,7 @@ declare module 'vscode' {
 		 *
 		 * @param other Scope to check.
 		 */
-		public contains(other: CodeActionScope): boolean;
+		contains(other: CodeActionKind): boolean;
 	}
 
 	/**
@@ -1873,11 +1878,11 @@ declare module 'vscode' {
 		readonly diagnostics: Diagnostic[];
 
 		/**
-		 * Requested scope of actions to return.
+		 * Requested kind of actions to return.
 		 *
-		 * Actions not within this scope are filtered out before being shown by the lightbulb.
+		 * Actions not of this kind are filtered out before being shown by the lightbulb.
 		 */
-		readonly requestedScope?: CodeActionScope;
+		readonly only?: CodeActionKind;
 	}
 
 	/**
@@ -1911,11 +1916,11 @@ declare module 'vscode' {
 		command?: Command;
 
 		/**
-		 * Scope of the code action.
+		 * Kind of the code action.
 		 *
 		 * Used to filter code actions.
 		 */
-		readonly scope?: CodeActionScope;
+		readonly kind?: CodeActionKind;
 
 		/**
 		 * Creates a new code action.

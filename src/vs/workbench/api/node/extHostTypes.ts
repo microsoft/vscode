@@ -819,7 +819,7 @@ export class CodeAction {
 
 	dianostics?: Diagnostic[];
 
-	scope?: CodeActionScope;
+	scope?: CodeActionKind;
 
 	constructor(title: string, edit?: WorkspaceEdit) {
 		this.title = title;
@@ -828,24 +828,25 @@ export class CodeAction {
 }
 
 
-export class CodeActionScope {
+export class CodeActionKind {
 	private static readonly sep = '.';
 
-	public static readonly Empty = new CodeActionScope('');
-	public static readonly Refactor = new CodeActionScope('refactor');
-	public static readonly RefactorExtract = CodeActionScope.Refactor.add('extract');
-	public static readonly RefactorInline = CodeActionScope.Refactor.add('inline');
+	public static readonly Empty = new CodeActionKind('');
+	public static readonly Refactor = new CodeActionKind('refactor');
+	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
+	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
+	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
 
 	constructor(
 		public readonly value: string
 	) { }
 
-	public add(scopes: string): CodeActionScope {
-		return new CodeActionScope(this.value ? this.value + CodeActionScope.sep + scopes : scopes);
+	public append(parts: string): CodeActionKind {
+		return new CodeActionKind(this.value ? this.value + CodeActionKind.sep + parts : parts);
 	}
 
-	public contains(other: CodeActionScope): boolean {
-		return this.value === other.value || startsWith(other.value, this.value + CodeActionScope.sep);
+	public contains(other: CodeActionKind): boolean {
+		return this.value === other.value || startsWith(other.value, this.value + CodeActionKind.sep);
 	}
 }
 

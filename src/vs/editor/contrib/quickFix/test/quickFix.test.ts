@@ -126,9 +126,9 @@ suite('QuickFix', () => {
 		const provider = new class implements CodeActionProvider {
 			provideCodeActions(): CodeAction[] {
 				return [
-					{ title: 'a', scope: 'a' },
-					{ title: 'b', scope: 'b' },
-					{ title: 'a.b', scope: 'a.b' }
+					{ title: 'a', kind: 'a' },
+					{ title: 'b', kind: 'b' },
+					{ title: 'a.b', kind: 'a.b' }
 				];
 			}
 		};
@@ -158,7 +158,7 @@ suite('QuickFix', () => {
 		const provider = new class implements CodeActionProvider {
 			provideCodeActions(_model: any, _range: Range, context: CodeActionContext, _token: any): CodeAction[] {
 				return [
-					{ title: context.requestedScope, scope: context.requestedScope }
+					{ title: context.only, kind: context.only }
 				];
 			}
 		};

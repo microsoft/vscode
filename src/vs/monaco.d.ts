@@ -4496,7 +4496,7 @@ declare module monaco.languages {
 		command?: Command;
 		edit?: WorkspaceEdit;
 		diagnostics?: editor.IMarkerData[];
-		scope?: string;
+		kind?: string;
 	}
 
 	/**

@@ -673,7 +673,7 @@ suite('ExtHostLanguageFeatures', function () {
 					{
 						title: 'Testing1',
 						command: { title: 'Testing1Command', command: 'test1' },
-						scope: types.CodeActionScope.Empty.add('test.scope')
+						kind: types.CodeActionKind.Empty.append('test.scope')
 					}
 				];
 			}
@@ -687,7 +687,7 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.equal(first.title, 'Testing1');
 				assert.equal(first.command.title, 'Testing1Command');
 				assert.equal(first.command.id, 'test1');
-				assert.equal(first.scope, 'test.scope');
+				assert.equal(first.kind, 'test.scope');
 			});
 		});
 	});

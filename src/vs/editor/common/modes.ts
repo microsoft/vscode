@@ -343,14 +343,14 @@ export interface CodeAction {
 	command?: Command;
 	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
-	scope?: string;
+	kind?: string;
 }
 
 /**
  * @internal
  */
 export interface CodeActionContext {
-	requestedScope: string;
+	only?: string;
 }
 
 /**

@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, Color, CodeActionScope } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, Color, CodeActionKind } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -291,7 +291,7 @@ class CodeActionAdapter {
 
 		const codeActionContext: vscode.CodeActionContext = {
 			diagnostics: allDiagnostics,
-			requestedScope: context.requestedScope ? new CodeActionScope(context.requestedScope) : undefined
+			only: context.only ? new CodeActionKind(context.only) : undefined
 		};
 		return asWinJsPromise(token =>
 			this._provider.provideCodeActions(doc, ran, codeActionContext, token)
@@ -318,7 +318,7 @@ class CodeActionAdapter {
 						command: candidate.command && this._commands.toInternal(candidate.command),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(DiagnosticCollection.toMarkerData),
 						edit: candidate.edit && TypeConverters.WorkspaceEdit.from(candidate.edit),
-						scope: candidate.scope && candidate.scope.value
+						kind: candidate.kind && candidate.kind.value
 					});
 				}
 			}
