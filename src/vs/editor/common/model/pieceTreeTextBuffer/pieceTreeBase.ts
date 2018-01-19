@@ -276,8 +276,12 @@ class PieceTreeSnapshot implements ITextSnapshot {
 	// pieces/tree nodes in order
 	private _nodes: TreeNode[];
 	private _index: number;
-	constructor(private tree: PieceTreeBase, BOM: string) {
+	private _tree: PieceTreeBase;
+	private _BOM: string;
+	constructor(tree: PieceTreeBase, BOM: string) {
 		this._nodes = [];
+		this._tree = tree;
+		this._BOM = BOM;
 		tree.iterate(tree.root, node => {
 			this._nodes.push(node);
 			return true;
@@ -290,7 +294,10 @@ class PieceTreeSnapshot implements ITextSnapshot {
 			return null;
 		}
 
-		return this.tree.getNodeContent(this._nodes[this._index++]);
+		if (this._index === 0) {
+			return this._BOM + this._tree.getNodeContent(this._nodes[this._index++]);
+		}
+		return this._tree.getNodeContent(this._nodes[this._index++]);
 	}
 }
 
@@ -1293,6 +1300,9 @@ export class PieceTreeBase {
 	}
 
 	getNodeContent(node: TreeNode) {
+		if (node === SENTINEL) {
+			return '';
+		}
 		let buffer = this._buffers[node.piece.bufferIndex];
 		let currentContent;
 		let piece = node.piece;
@@ -1673,8 +1683,8 @@ export class PieceTreeBase {
 	getContentOfSubTree(node: TreeNode): string {
 		let str = '';
 
-		this.iterate(node, (newStr) => {
-			str += newStr;
+		this.iterate(node, node => {
+			str += this.getNodeContent(node);
 			return true;
 		});
 
