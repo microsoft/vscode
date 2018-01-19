@@ -176,8 +176,6 @@ export const IPreferencesSearchService = createDecorator<IPreferencesSearchServi
 export interface IPreferencesSearchService {
 	_serviceBrand: any;
 
-	endpoint: IEndpointDetails;
-
 	getLocalSearchProvider(filter: string): ISearchProvider;
 	getRemoteSearchProvider(filter: string): ISearchProvider;
 }

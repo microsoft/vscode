@@ -18,6 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -27,12 +28,16 @@ export interface IEndpointDetails {
 export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
 	_serviceBrand: any;
 
+	private _installedExtensions: TPromise<ILocalExtension[]>;
+
 	constructor(
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		super();
+		this._installedExtensions = this.extensionManagementService.getInstalled(LocalExtensionType.User);
 	}
 
 	private get remoteSearchAllowed(): boolean {
@@ -45,10 +50,10 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 			return false;
 		}
 
-		return !!this.endpoint.urlBase;
+		return !!this._endpoint.urlBase;
 	}
 
-	get endpoint(): IEndpointDetails {
+	private get _endpoint(): IEndpointDetails {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		if (workbenchSettings.naturalLanguageSearchEndpoint) {
 			return {
@@ -63,7 +68,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	}
 
 	getRemoteSearchProvider(filter: string): RemoteSearchProvider {
-		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, filter, this.endpoint);
+		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, filter, this._endpoint, this._installedExtensions);
 	}
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider {
@@ -119,9 +124,9 @@ export class RemoteSearchProvider implements ISearchProvider {
 	private _filter: string;
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
-	constructor(filter: string, endpoint: IEndpointDetails,
+	constructor(filter: string, endpoint: IEndpointDetails, private installedExtensions: TPromise<ILocalExtension[]>,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IRequestService private requestService: IRequestService
+		@IRequestService private requestService: IRequestService,
 	) {
 		this._filter = filter;
 
@@ -151,25 +156,23 @@ export class RemoteSearchProvider implements ISearchProvider {
 	}
 
 	private getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromise<IFilterMetadata> {
-		const url = prepareUrl(filter, endpoint, this.environmentService.settingsSearchBuildId);
 		const start = Date.now();
-		const p = this.requestService.request({
-			url,
-			headers: {
-				'User-Agent': 'request',
-				'Content-Type': 'application/json; charset=utf-8',
-				'api-key': endpoint.key
-			},
-			timeout: 5000
-		})
-			.then(context => {
+		return this.prepareUrl(filter, endpoint, this.environmentService.settingsSearchBuildId).then(url => {
+			return this.requestService.request({
+				url,
+				headers: {
+					'User-Agent': 'request',
+					'Content-Type': 'application/json; charset=utf-8',
+					'api-key': endpoint.key
+				},
+				timeout: 5000
+			}).then(context => {
 				if (context.res.statusCode >= 300) {
 					throw new Error(`${url} returned status code: ${context.res.statusCode}`);
 				}
 
 				return asJson(context);
-			})
-			.then((result: any) => {
+			}).then((result: any) => {
 				const timestamp = Date.now();
 				const duration = timestamp - start;
 				const suggestions = (result.value || [])
@@ -194,8 +197,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 					context: result['@odata.context']
 				};
 			});
-
-		return TPromise.as(p as any);
+		});
 	}
 
 	private getRemoteSettingMatcher(scoredResults: IScoredResults, minScore: number, preferencesModel: ISettingsEditorModel): ISettingMatcher {
@@ -209,45 +211,57 @@ export class RemoteSearchProvider implements ISearchProvider {
 			return null;
 		};
 	}
+
+	private prepareUrl(query: string, endpoint: IEndpointDetails, buildNumber: number): TPromise<string> {
+		query = escapeSpecialChars(query);
+		const boost = 10;
+		const userQuery = `(${query})^${boost}`;
+
+		// Appending Fuzzy after each word.
+		query = query.replace(/\ +/g, '~ ') + '~';
+
+		const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
+		let url = `${endpoint.urlBase}?`;
+
+		return this.installedExtensions.then(exts => {
+			if (endpoint.key) {
+				url += `${API_VERSION}`;
+				url += `&search=${encodedQuery}`;
+
+				const filters = exts.map(ext => {
+					const uuid = ext.identifier.uuid;
+					const versionString = ext.manifest.version
+						.split('.')
+						.map(versionPart => strings.pad(<any>versionPart, 10))
+						.join('');
+
+					return `(packageid eq '${uuid}' and startbuildno le '${versionString}' and endbuildno ge '${versionString}')`;
+				});
+
+				if (buildNumber) {
+					filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
+					url += `&$filter=${filters.join(' or ')}`;
+				}
+			} else {
+				url += `query=${encodedQuery}`;
+
+				if (buildNumber) {
+					url += `&build=${buildNumber}`;
+				}
+			}
+
+			return url;
+		});
+	}
 }
 
 const API_VERSION = 'api-version=2016-09-01-Preview';
-const QUERY_TYPE = 'querytype=full';
-const SCORING_PROFILE = 'scoringProfile=ranking';
 
 function escapeSpecialChars(query: string): string {
 	return query.replace(/\./g, ' ')
 		.replace(/[\\/+\-&|!"~*?:(){}\[\]\^]/g, '\\$&')
 		.replace(/  /g, ' ') // collapse spaces
 		.trim();
-}
-
-function prepareUrl(query: string, endpoint: IEndpointDetails, buildNumber: number): string {
-	query = escapeSpecialChars(query);
-	const boost = 10;
-	const userQuery = `(${query})^${boost}`;
-
-	// Appending Fuzzy after each word.
-	query = query.replace(/\ +/g, '~ ') + '~';
-
-	const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
-	let url = `${endpoint.urlBase}?`;
-	if (endpoint.key) {
-		url += `search=${encodedQuery}`;
-		url += `&${API_VERSION}&${QUERY_TYPE}&${SCORING_PROFILE}`;
-
-		if (buildNumber) {
-			url += `&$filter startbuildno le ${buildNumber} and endbuildno ge ${buildNumber}`;
-		}
-	} else {
-		url += `query=${encodedQuery}`;
-
-		if (buildNumber) {
-			url += `&build=${buildNumber}`;
-		}
-	}
-
-	return url;
 }
 
 class SettingMatches {
