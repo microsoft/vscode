@@ -69,6 +69,6 @@ export class IssueService implements IIssueService {
 			windowId: this._issueWindow.id,
 			machineId: this.machineId
 		};
-		return `${require.toUrl('vs/issue/electron-browser/index.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		return `${require.toUrl('vs/code/electron-browser/issue/issueReporter.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}
 }

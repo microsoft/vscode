@@ -23,7 +23,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IssueReporterModel, IssueReporterData } from 'vs/issue/electron-browser/issueReporterModel';
+import { IssueReporterModel, IssueReporterData } from 'vs/code/electron-browser/issue/issueReporterModel';
 import { IssueReporterStyles } from 'vs/platform/issue/common/issue';
 
 export function startup(configuration: IWindowConfiguration) {

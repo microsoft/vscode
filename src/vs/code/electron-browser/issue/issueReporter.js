@@ -53,7 +53,7 @@ function main() {
 			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 		});
 
-		require(['vs/issue/electron-browser/issueReporter'], (issueReporter) => {
+		require(['vs/code/electron-browser/issue/issueReporterMain'], (issueReporter) => {
 			issueReporter.startup(configuration);
 		});
 	});

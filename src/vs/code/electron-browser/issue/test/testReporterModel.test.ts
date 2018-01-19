@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IssueReporterModel } from 'vs/issue/electron-browser/issueReporterModel';
+import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
 
 suite('IssueReporter', () => {
 

@@ -83,6 +83,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
 	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
+	'out-build/vs/code/electron-browser/issue/issueReporter.js',
 	'!**/test/**'
 ];
 
