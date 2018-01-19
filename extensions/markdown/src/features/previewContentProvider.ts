@@ -318,3 +318,31 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		}
 	}
 }
+
+export class MarkdownPreviewWebviewManager {
+	public constructor(
+		private readonly contentProvider: MDDocumentContentProvider
+	) { }
+
+	public update(uri: vscode.Uri) {
+		this.contentProvider.update(uri);
+	}
+
+	public create(
+		resource: vscode.Uri,
+		viewColumn: vscode.ViewColumn
+	) {
+		const view = vscode.window.createWebview(
+			localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath)),
+			viewColumn,
+			{ enableScripts: true });
+
+		this.contentProvider.provideTextDocumentContent(getMarkdownUri(resource)).then(x => view.html = x);
+
+		view.onMessage(e => {
+			vscode.commands.executeCommand(e.command, ...e.args);
+		});
+
+		return view;
+	}
+}

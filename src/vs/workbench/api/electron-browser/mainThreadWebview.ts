@@ -65,7 +65,6 @@ class WebviewInput extends EditorInput {
 		this._html = value;
 	}
 
-
 	public get options(): vscode.WebviewOptions {
 		return this._options;
 	}
@@ -73,7 +72,6 @@ class WebviewInput extends EditorInput {
 	public set options(value: vscode.WebviewOptions) {
 		this._options = value;
 	}
-
 
 	public getTypeId(): string {
 		return 'webview';
@@ -94,7 +92,7 @@ class WebviewEditor extends BaseWebviewEditor {
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IPartService private partService: IPartService,
+		@IPartService private _partService: IPartService,
 		@IContextViewService private _contextViewService: IContextViewService,
 		@IEnvironmentService private _environmentService: IEnvironmentService,
 		@IOpenerService private _openerService: IOpenerService
@@ -132,18 +130,16 @@ class WebviewEditor extends BaseWebviewEditor {
 
 		this._webview = new WebView(
 			this.content,
-			this.partService.getContainer(Parts.EDITOR_PART),
+			this._partService.getContainer(Parts.EDITOR_PART),
 			this._environmentService,
 			this._contextViewService,
 			this.contextKey,
 			this.findInputFocusContextKey,
-			{ allowScripts: true },
+			{
+				allowScripts: input.options.enableScripts,
+				enableWrappedPostMessage: true
+			},
 			false);
-
-		this._webview.options = {
-			allowScripts: input.options.enableScripts,
-			enableWrappedPostMessage: true
-		};
 
 		this._webview.style(this.themeService.getTheme());
 		this._webview.contents = [input.html];
@@ -154,9 +150,11 @@ class WebviewEditor extends BaseWebviewEditor {
 				this._openerService.open(link);
 			}
 		}, null, this.contentDisposables);
+
 		this._webview.onMessage(message => {
 			input.onMessage(message);
-		});
+		}, null, this.contentDisposables);
+
 		this.themeService.onThemeChange(theme => this._webview.style(theme), null, this.contentDisposables);
 
 		this.contentDisposables.push(this._webview);

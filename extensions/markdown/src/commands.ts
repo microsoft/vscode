@@ -10,8 +10,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { Command } from './commandManager';
-import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
-import { getMarkdownUri, MDDocumentContentProvider, isMarkdownFile } from './features/previewContentProvider';
+import { PreviewSecuritySelector } from './security';
+import { getMarkdownUri, MDDocumentContentProvider, isMarkdownFile, MarkdownPreviewWebviewManager } from './features/previewContentProvider';
 import { Logger } from './logger';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
 import { MarkdownEngine } from './markdownEngine';
@@ -39,8 +39,7 @@ function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
 }
 
 function showPreview(
-	previewContentProvider: MDDocumentContentProvider,
-	cspArbiter: ExtensionContentSecurityPolicyArbiter,
+	webviewManager: MarkdownPreviewWebviewManager,
 	telemetryReporter: TelemetryReporter,
 	uri?: vscode.Uri,
 	sideBySide: boolean = false,
@@ -62,24 +61,9 @@ function showPreview(
 		return;
 	}
 
-	const view = vscode.window.createWebview(
-		localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath)),
-		getViewColumn(sideBySide) || vscode.ViewColumn.Active,
-		{ enableScripts: true });
-	previewContentProvider.provideTextDocumentContent(getMarkdownUri(resource)).then(x => view.html = x);
-
-	view.onMessage(e => {
-		vscode.commands.executeCommand(e.command, ...e.args);
-	});
-
-	// const thenable = vscode.commands.executeCommand('vscode.previewHtml',
-	// 	getMarkdownUri(resource),
-	// 	getViewColumn(sideBySide),
-	// 	localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath)),
-	// 	{
-	// 		allowScripts: true,
-	// 		allowSvgs: cspArbiter.shouldAllowSvgsForResource(resource)
-	// 	});
+	const view = webviewManager.create(
+		resource,
+		getViewColumn(sideBySide) || vscode.ViewColumn.Active);
 
 	telemetryReporter.sendTelemetryEvent('openPreview', {
 		where: sideBySide ? 'sideBySide' : 'inPlace',
@@ -93,13 +77,12 @@ export class ShowPreviewCommand implements Command {
 	public readonly id = 'markdown.showPreview';
 
 	public constructor(
-		private readonly previewContentProvider: MDDocumentContentProvider,
-		private readonly cspArbiter: ExtensionContentSecurityPolicyArbiter,
+		private readonly webviewManager: MarkdownPreviewWebviewManager,
 		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
 	public execute(uri?: vscode.Uri) {
-		showPreview(this.previewContentProvider, this.cspArbiter, this.telemetryReporter, uri, false);
+		showPreview(this.webviewManager, this.telemetryReporter, uri, false);
 	}
 }
 
@@ -107,13 +90,12 @@ export class ShowPreviewToSideCommand implements Command {
 	public readonly id = 'markdown.showPreviewToSide';
 
 	public constructor(
-		private readonly previewContentProvider: MDDocumentContentProvider,
-		private readonly cspArbiter: ExtensionContentSecurityPolicyArbiter,
+		private readonly webviewManager: MarkdownPreviewWebviewManager,
 		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
 	public execute(uri?: vscode.Uri) {
-		showPreview(this.previewContentProvider, this.cspArbiter, this.telemetryReporter, uri, true);
+		showPreview(this.webviewManager, this.telemetryReporter, uri, true);
 	}
 }
 
