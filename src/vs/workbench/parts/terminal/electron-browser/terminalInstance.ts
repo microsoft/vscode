@@ -955,6 +955,7 @@ export class TerminalInstance implements ITerminalInstance {
 				it: 'IT',
 				ja: 'JP',
 				ko: 'KR',
+				pl: 'PL',
 				ru: 'RU',
 				zh: 'CN'
 			};
