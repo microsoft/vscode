@@ -18,7 +18,6 @@ import { download, asJson } from 'vs/base/node/request';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { IAutoUpdater } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
-import { isActive } from 'windows-mutex';
 
 interface IUpdate {
 	url: string;
@@ -172,6 +171,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 				});
 
 				const readyMutexName = `${product.win32MutexName}-ready`;
+				const isActive = (require.__$__nodeRequire('windows-mutex') as any).isActive;
 
 				// poll for mutex-ready
 				pollUntil(() => isActive(readyMutexName)).then(() => {
