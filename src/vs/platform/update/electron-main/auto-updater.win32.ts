@@ -164,10 +164,16 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 		return this.cachePath.then(cachePath => {
 			this.currentUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${product.quality}-${this.currentUpdate.version}.flag`);
 
-			return pfs.touch(this.currentUpdate.updateFilePath).then(() => {
-				spawn(this.currentUpdate.packagePath, ['/verysilent', '/update=FILENAME', '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+			return pfs.writeFile(this.currentUpdate.updateFilePath, 'flag').then(() => {
+				const child = spawn(this.currentUpdate.packagePath, ['/verysilent', `/update="${this.currentUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 					detached: true,
 					stdio: ['ignore', 'ignore', 'ignore']
+				});
+
+				child.once('exit', () => {
+					this.emit('update-not-available');
+					this.currentRequest = null;
+					this.currentUpdate = null;
 				});
 
 				const readyMutexName = `${product.win32MutexName}-ready`;

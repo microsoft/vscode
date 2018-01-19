@@ -355,7 +355,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		const isUpdateAvailable = isLinux
 			? state === UpdateState.UpdateAvailable
-			: state === UpdateState.UpdateDownloaded;
+			: state === UpdateState.UpdateDownloaded || state === UpdateState.UpdateReady;
 
 		if (isUpdateAvailable) {
 			const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
