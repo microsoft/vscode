@@ -46,6 +46,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
 import { IEditor } from 'vs/platform/editor/common/editor';
+import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder } from 'vs/platform/theme/common/colorRegistry';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 // --- actions
 
@@ -740,6 +744,41 @@ export class CloseMessagesAction extends Action {
 		}
 
 		return TPromise.as(true);
+	}
+}
+
+export class OpenIssueReporterAction extends Action {
+	public static readonly ID = 'workbench.action.openIssueReporter';
+	public static readonly LABEL = nls.localize('openIssueReporter', "Open Issue Reporter");
+
+	constructor(
+		id: string,
+		label: string,
+		@IIssueService private issueService: IIssueService,
+		@IThemeService private themeService: IThemeService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		const theme = this.themeService.getTheme();
+		const style = {
+			backgroundColor: theme.getColor(SIDE_BAR_BACKGROUND) && theme.getColor(SIDE_BAR_BACKGROUND).toString(),
+			color: theme.getColor(foreground).toString(),
+			textLinkColor: theme.getColor(textLinkForeground) && theme.getColor(textLinkForeground).toString(),
+			inputBackground: theme.getColor(inputBackground) && theme.getColor(inputBackground).toString(),
+			inputForeground: theme.getColor(inputForeground) && theme.getColor(inputForeground).toString(),
+			inputBorder: theme.getColor(inputBorder) && theme.getColor(inputBorder).toString(),
+			inputActiveBorder: theme.getColor(inputActiveOptionBorder) && theme.getColor(inputActiveOptionBorder).toString(),
+			inputErrorBorder: theme.getColor(inputValidationErrorBorder) && theme.getColor(inputValidationErrorBorder).toString(),
+			buttonBackground: theme.getColor(buttonBackground) && theme.getColor(buttonBackground).toString(),
+			buttonForeground: theme.getColor(buttonForeground) && theme.getColor(buttonForeground).toString(),
+			buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString(),
+			zoomLevel: webFrame.getZoomLevel()
+		};
+		return this.issueService.openReporter(style).then(() => {
+			return TPromise.as(true);
+		});
 	}
 }
 
