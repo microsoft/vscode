@@ -1877,7 +1877,7 @@ declare module 'vscode' {
 		 *
 		 * Actions not within this scope are filtered out before being shown by the lightbulb.
 		 */
-		readonly requestedScope: CodeActionScope;
+		readonly requestedScope?: CodeActionScope;
 	}
 
 	/**

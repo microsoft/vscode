@@ -108,10 +108,14 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 	public async provideCodeActions(
 		document: vscode.TextDocument,
 		_range: vscode.Range,
-		_context: vscode.CodeActionContext,
+		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.CodeAction[]> {
 		if (!this.client.apiVersion.has240Features()) {
+			return [];
+		}
+
+		if (context.requestedScope && !vscode.CodeActionScope.Refactor.contains(context.requestedScope)) {
 			return [];
 		}
 

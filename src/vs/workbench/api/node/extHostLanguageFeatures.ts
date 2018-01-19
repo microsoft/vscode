@@ -289,7 +289,7 @@ class CodeActionAdapter {
 			}
 		});
 
-		const codeActionContext = {
+		const codeActionContext: vscode.CodeActionContext = {
 			diagnostics: allDiagnostics,
 			requestedScope: context.requestedScope ? new CodeActionScope(context.requestedScope) : undefined
 		};
