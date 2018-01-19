@@ -266,22 +266,6 @@ configurationRegistry.registerConfiguration({
 			],
 			'included': isMacintosh
 		},
-		'workbench.multiSelectModifier': {
-			'type': 'string',
-			'enum': ['ctrlCmd', 'alt'],
-			'enumDescriptions': [
-				nls.localize('multiSelectModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
-				nls.localize('multiSelectModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
-			],
-			'default': 'ctrlCmd',
-			'description': nls.localize({
-				key: 'multiSelectModifier',
-				comment: [
-					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
-					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
-				]
-			}, "The modifier to be used to add an item to a multi-selection with the mouse (for example in trees and lists, if supported). `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The 'Open to Side' mouse gestures - if supported - will adapt such that they do not conflict with the multiselect modifier.")
-		},
 		'workbench.settings.enableNaturalLanguageSearch': {
 			'type': 'boolean',
 			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),

@@ -17,6 +17,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { mixin } from 'vs/base/common/objects';
+import { localize } from 'vs/nls';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
@@ -206,3 +209,30 @@ export class WorkbenchTree extends Tree {
 		this.disposables = dispose(this.disposables);
 	}
 }
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+configurationRegistry.registerConfiguration({
+	'id': 'workbench',
+	'order': 7,
+	'title': localize('workbenchConfigurationTitle', "Workbench"),
+	'type': 'object',
+	'properties': {
+		'workbench.multiSelectModifier': {
+			'type': 'string',
+			'enum': ['ctrlCmd', 'alt'],
+			'enumDescriptions': [
+				localize('multiSelectModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
+				localize('multiSelectModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
+			],
+			'default': 'ctrlCmd',
+			'description': localize({
+				key: 'multiSelectModifier',
+				comment: [
+					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
+					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
+				]
+			}, "The modifier to be used to add an item to a multi-selection with the mouse (for example in trees and lists, if supported). `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The 'Open to Side' mouse gestures - if supported - will adapt such that they do not conflict with the multiselect modifier.")
+		}
+	}
+});
