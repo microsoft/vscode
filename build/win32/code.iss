@@ -961,30 +961,30 @@ begin
 end;
 
 // Updates
-function IsUpdate(): Boolean;
+function IsBackgroundUpdate(): Boolean;
 begin
   Result := ExpandConstant('{param:update|false}') <> 'false';
 end;
 
 function IsNotUpdate(): Boolean;
 begin
-  Result := not IsUpdate();
+  Result := not IsBackgroundUpdate();
 end;
 
-// VS Code will create a flag file before the update starts (/update=C:\foo\bar)
-// - if the file exists at this point, the user quit Code before the update finished, so don't start Code after update
-// - otherwise, the user has accepted to apply the update and Code should start
 function ShouldRunAfterUpdate(): Boolean;
 begin
-  if IsUpdate() then
+  if IsBackgroundUpdate() then
+    // VS Code will create a flag file before the update starts (/update=C:\foo\bar)
+    // - if the file exists at this point, the user quit Code before the update finished, so don't start Code after update
+    // - otherwise, the user has accepted to apply the update and Code should start
     Result := not FileExists(ExpandConstant('{param:update}'))
   else
-    Result := False;
+    Result := True;
 end;
 
 function GetAppMutex(Value: string): string;
 begin
-  if IsUpdate() then
+  if IsBackgroundUpdate() then
     Result := ''
   else
     Result := '{#AppMutex}';
@@ -992,7 +992,7 @@ end;
 
 function GetDestDir(Value: string): string;
 begin
-  if IsUpdate() then
+  if IsBackgroundUpdate() then
     Result := ExpandConstant('{app}\_')
   else
     Result := ExpandConstant('{app}');
@@ -1002,7 +1002,7 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   UpdateResultCode: Integer;
 begin
-  if IsUpdate() and (CurStep = ssPostInstall) then
+  if IsBackgroundUpdate() and (CurStep = ssPostInstall) then
   begin
     CreateMutex('{#AppMutex}-ready');
 
