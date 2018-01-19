@@ -43,6 +43,8 @@ export class IssueService implements IIssueService {
 			alwaysOnTop: true
 		});
 
+		this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
+
 		this._issueWindow.loadURL(this.getIssueReporterPath());
 
 		return TPromise.as(null);
