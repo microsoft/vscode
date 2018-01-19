@@ -295,6 +295,11 @@ export class UpdateService implements IUpdateService {
 			this.updateState(State.UpdateReady);
 		});
 
+		once(this.onRawUpdateNotAvailable)(() => {
+			this._onUpdateNotAvailable.fire(false);
+			this.updateState(State.Idle);
+		});
+
 		this._onUpdateInstalling.fire(this._availableUpdate as IRawUpdate);
 		this.updateState(State.UpdateInstalling);
 		return this.raw.applyUpdate();
