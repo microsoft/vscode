@@ -65,11 +65,12 @@ export class RipgrepEngine {
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
 
-			const rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}\n`;
-			onMessage({ message: rgCmd });
+			let rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}`;
 			if (rgArgs.siblingClauses) {
-				onMessage({ message: ` - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}\n` });
+				rgCmd += `\n - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}`;
 			}
+
+			onMessage({ message: rgCmd });
 		});
 		this.rgProc = cp.spawn(rgPath, rgArgs.globArgs, { cwd });
 		process.once('exit', this.killRgProcFn);
