@@ -34,6 +34,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { overrideIdentifierFromKey, IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -844,7 +845,8 @@ export class HighlightMatchesRenderer extends Disposable {
 export class ExtensionCodelensRenderer extends Disposable {
 	private decorationIds: string[] = [];
 
-	constructor(private editor: ICodeEditor) {
+	constructor(private editor: ICodeEditor,
+		@ICommandService private commandService: ICommandService) {
 		super();
 	}
 
@@ -860,6 +862,14 @@ export class ExtensionCodelensRenderer extends Disposable {
 				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, settings.map(setting => this.createDecoration(setting)));
 			});
 		}
+
+		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
+				return;
+			}
+
+			this.commandService.executeCommand('workbench.extensions.action.showExtensionsWithId', 'ms-python.python');
+		}));
 	}
 
 	private createDecoration(setting: ISetting): IModelDeltaDecoration {
