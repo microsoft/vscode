@@ -1,7 +1,7 @@
-- variables:
-    ELECTRON_RUN_AS_NODE: 1
-    VSCODE_BUILD_VERBOSE: true
-    System.Debug: true
+variables:
+  ELECTRON_RUN_AS_NODE: 1 
+  VSCODE_BUILD_VERBOSE: true
+  System.Debug: true
 
 steps:
 
