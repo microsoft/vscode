@@ -55,8 +55,9 @@ import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditor } from 'vs/editor/common/editorCommon';
+import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+
 
 const HELP_PREFIX = '?';
 
@@ -548,38 +549,13 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			return null;
 		}
 
-		const editorControl = activeEditor.getControl() as IEditor | null;
+		const editorControl = activeEditor.getControl() as ICodeEditor | null;
 
 		if (!editorControl) {
 			return null;
 		}
 
-		const selection = editorControl.getSelection();
-
-		if (!selection) {
-			return null;
-		}
-
-		const startPosition = selection.getStartPosition();
-		const endPosition = selection.getEndPosition();
-
-		let isSelection = startPosition.column !== endPosition.column;
-		let isMultiline = startPosition.lineNumber !== endPosition.lineNumber;
-
-		if (!isSelection || isMultiline) {
-			return null;
-		}
-
-		const model = editorControl.getModel();
-
-		if (!('getValueInRange' in model)) {
-			// not interested in any other type of model, but TextModel
-			return null;
-		}
-
-		let selectedText = (model as ITextModel).getValueInRange(selection);
-
-		return selectedText;
+		return getSelectionSearchString(editorControl);
 	}
 
 	private shouldPrefill(prefix?: string): boolean {
