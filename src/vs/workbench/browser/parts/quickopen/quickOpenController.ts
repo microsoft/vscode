@@ -617,6 +617,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		const selectedText = this.getSelectedText();
 
 		if (selectedText && this.shouldPrefill(prefix)) {
+			inputSelection = {
+				start: prefix ? prefix.length : 0,
+				end: selectedText.length + 1
+			};
 			prefix = (prefix || '') + selectedText;
 		}
 
