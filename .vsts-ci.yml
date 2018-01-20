@@ -13,6 +13,11 @@ steps:
   inputs:
     versionSpec: "1.3.2"
 
+- script: |
+    git config --global core.autocrlf false
+    git config --global core.safescrlf true
+    git reset --hard
+
 - powershell: |
     yarn
     .\node_modules\.bin\gulp electron
