@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IUpdateService, State, StateType, Available } from 'vs/platform/update/common/update';
+import { IUpdateService, State, StateType, AvailableForDownload } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -97,14 +97,14 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	downloadUpdate(): TPromise<void> {
-		if (this.state.type !== StateType.Available) {
+		if (this.state.type !== StateType.AvailableForDownload) {
 			return TPromise.as(null);
 		}
 
 		return this.doDownloadUpdate(this.state);
 	}
 
-	protected doDownloadUpdate(state: Available): TPromise<void> {
+	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
 		return TPromise.as(null);
 	}
 

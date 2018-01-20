@@ -1057,7 +1057,7 @@ export class CodeMenu {
 			case StateType.CheckingForUpdates:
 				return [new MenuItem({ label: nls.localize('miCheckingForUpdates', "Checking For Updates..."), enabled: false })];
 
-			case StateType.Available:
+			case StateType.AvailableForDownload:
 				return [new MenuItem({
 					label: nls.localize('miDownloadUpdate', "Download Available Update"), click: () => {
 						this.updateService.downloadUpdate();

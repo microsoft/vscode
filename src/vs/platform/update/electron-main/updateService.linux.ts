@@ -8,7 +8,7 @@
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IRequestService } from 'vs/platform/request/node/request';
-import { State, IUpdate, Available } from 'vs/platform/update/common/update';
+import { State, IUpdate, AvailableForDownload } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -57,7 +57,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 					this.setState(State.Idle);
 				} else {
-					this.setState(State.Available(update));
+					this.setState(State.AvailableForDownload(update));
 				}
 			})
 			.then(null, err => {
@@ -73,7 +73,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			});
 	}
 
-	protected doDownloadUpdate(state: Available): TPromise<void> {
+	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
 		shell.openExternal(state.update.url);
 		this.setState(State.Idle);
 

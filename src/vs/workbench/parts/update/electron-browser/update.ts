@@ -338,7 +338,7 @@ export class UpdateContribution implements IGlobalActivity {
 				}
 				break;
 
-			case StateType.Available:
+			case StateType.AvailableForDownload:
 				this.onUpdateAvailable(state.update);
 				break;
 
@@ -357,7 +357,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		let badge: IBadge | undefined = undefined;
 
-		if (state.type === StateType.Available || state.type === StateType.Downloaded || state.type === StateType.Ready) {
+		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
 			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
 		} else if (state.type === StateType.CheckingForUpdates || state.type === StateType.Downloading || state.type === StateType.Updating) {
 			badge = new ProgressBadge(() => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
@@ -491,7 +491,7 @@ export class UpdateContribution implements IGlobalActivity {
 			case StateType.CheckingForUpdates:
 				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false);
 
-			case StateType.Available:
+			case StateType.AvailableForDownload:
 				return new Action('update.downloadNow', nls.localize('download now', "Download Now"), null, true, () =>
 					this.updateService.downloadUpdate());
 
