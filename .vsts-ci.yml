@@ -1,4 +1,4 @@
-variables:
+-variables:
   ELECTRON_RUN_AS_NODE: 1
   VSCODE_BUILD_VERBOSE: true
   System.Debug: true
@@ -6,7 +6,7 @@ variables:
 steps:
 
 - powershell: |
-    Get-ChildItem -Recurse -Exclude .git | ForEach-Object { Remove-Item -Path $_.FullName -Force }
+    Get-ChildItem -Recurse -Exclude .git | ForEach-Object { Remove-Item -Path $_.FullName -Force -Confirm}
 
 - script: |
     git config --global core.autocrlf false
