@@ -12,6 +12,8 @@ import { ILaunchService } from 'vs/code/electron-main/launch';
 import { buildDiagnostics, DiagnosticInfo } from 'vs/code/electron-main/diagnostics';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
+const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
+
 export class IssueService implements IIssueService {
 	_serviceBrand: any;
 	_issueWindow: BrowserWindow;
@@ -40,7 +42,8 @@ export class IssueService implements IIssueService {
 			width: 800,
 			height: 900,
 			title: 'Issue Reporter',
-			parent: BrowserWindow.getFocusedWindow()
+			parent: BrowserWindow.getFocusedWindow(),
+			backgroundColor: theme && theme.backgroundColor || DEFAULT_BACKGROUND_COLOR
 		});
 
 		this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented

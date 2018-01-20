@@ -31,7 +31,12 @@ import { IssueReporterStyles } from 'vs/platform/issue/common/issue';
 
 export function startup(configuration: IWindowConfiguration) {
 	const issueReporter = new IssueReporter(configuration);
-	issueReporter.render();
+
+	// workaround for flickering on page load as css is applied
+	setTimeout(() => {
+		issueReporter.render();
+		document.body.style.display = 'block';
+	}, 10);
 }
 
 export class IssueReporter extends Disposable {
@@ -132,8 +137,6 @@ export class IssueReporter extends Disposable {
 
 		styleTag.innerHTML = content.join('\n');
 		document.head.appendChild(styleTag);
-
-		document.body.style.backgroundColor = styles.backgroundColor;
 		document.body.style.color = styles.color;
 	}
 
