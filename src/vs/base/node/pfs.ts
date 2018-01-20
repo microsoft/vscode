@@ -13,7 +13,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import { once } from 'vs/base/common/event';
-import { Readable } from 'stream';
 
 export function readdir(path: string): TPromise<string[]> {
 	return nfcall(extfs.readdir, path);
@@ -102,7 +101,7 @@ const writeFilePathQueue: { [path: string]: Queue<void> } = Object.create(null);
 
 export function writeFile(path: string, data: string, options?: { mode?: number; flag?: string; }): TPromise<void>;
 export function writeFile(path: string, data: NodeBuffer, options?: { mode?: number; flag?: string; }): TPromise<void>;
-export function writeFile(path: string, data: Readable, options?: { mode?: number; flag?: string; }): TPromise<void>;
+export function writeFile(path: string, data: NodeJS.ReadableStream, options?: { mode?: number; flag?: string; }): TPromise<void>;
 export function writeFile(path: string, data: any, options?: { mode?: number; flag?: string; }): TPromise<void> {
 	let queueKey = toQueueKey(path);
 

@@ -14,7 +14,6 @@ import * as fs from 'fs';
 import * as paths from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { nfcall } from 'vs/base/common/async';
-import { Readable } from 'stream';
 
 const loop = flow.loop;
 
@@ -321,17 +320,17 @@ export function mv(source: string, target: string, callback: (error: Error) => v
 }
 
 let canFlush = true;
-export function writeFileAndFlush(path: string, data: string | NodeBuffer | Readable, options: { mode?: number; flag?: string; }, callback: (error?: Error) => void): void {
+export function writeFileAndFlush(path: string, data: string | NodeBuffer | NodeJS.ReadableStream, options: { mode?: number; flag?: string; }, callback: (error?: Error) => void): void {
 	options = ensureOptions(options);
 
-	if (data instanceof Readable) {
-		doWriteFileStreamAndFlush(path, data, options, callback);
-	} else {
+	if (typeof data === 'string' || Buffer.isBuffer(data)) {
 		doWriteFileAndFlush(path, data, options, callback);
+	} else {
+		doWriteFileStreamAndFlush(path, data, options, callback);
 	}
 }
 
-function doWriteFileStreamAndFlush(path: string, reader: Readable, options: { mode?: number; flag?: string; }, callback: (error?: Error) => void): void {
+function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, options: { mode?: number; flag?: string; }, callback: (error?: Error) => void): void {
 
 	// finish only once
 	let finished = false;

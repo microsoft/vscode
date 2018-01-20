@@ -50,7 +50,8 @@ function toReadable(value: string, throwError?: boolean): Readable {
 			if (!res) {
 				this.push(null);
 			}
-		}
+		},
+		encoding: 'utf8'
 	});
 }
 

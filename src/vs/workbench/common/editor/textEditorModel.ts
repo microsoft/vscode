@@ -13,6 +13,7 @@ import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -137,6 +138,15 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		const model = this.textEditorModel;
 		if (model) {
 			return model.getValue(EndOfLinePreference.TextDefined, true /* Preserve BOM */);
+		}
+
+		return null;
+	}
+
+	public createSnapshot(): ITextSnapshot {
+		const model = this.textEditorModel;
+		if (model) {
+			return model.createSnapshot(true /* Preserve BOM */);
 		}
 
 		return null;
