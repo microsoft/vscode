@@ -10,7 +10,6 @@
 	"saveAs": "另存新檔...",
 	"save": "儲存",
 	"saveAll": "全部儲存",
-	"saveFiles": "儲存所有檔案",
 	"removeFolderFromWorkspace": "將資料夾從工作區移除",
 	"genericRevertError": "無法還原 '{0}': {1}",
 	"modifiedLabel": "{0} (在磁碟上) ↔ {1}",

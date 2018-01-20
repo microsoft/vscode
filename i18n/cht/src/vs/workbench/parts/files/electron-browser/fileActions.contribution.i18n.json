@@ -10,6 +10,7 @@
 	"revertLocalChanges": "捨棄您的變更並還原成磁碟上的內容",
 	"copyPathOfActive": "複製使用中檔案的路徑",
 	"saveAllInGroup": "全部儲存在群組中",
+	"saveFiles": "儲存所有檔案",
 	"revert": "還原檔案",
 	"compareActiveWithSaved": "比較使用中的檔案和已儲存的檔案",
 	"closeEditor": "關閉編輯器",

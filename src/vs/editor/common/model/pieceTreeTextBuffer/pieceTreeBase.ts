@@ -8,49 +8,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextSnapshot } from 'vs/platform/files/common/files';
-
-export const enum NodeColor {
-	Black = 0,
-	Red = 1,
-}
-
-export function getNodeColor(node: TreeNode) {
-	return node.color;
-}
-
-function leftest(node: TreeNode): TreeNode {
-	while (node.left !== SENTINEL) {
-		node = node.left;
-	}
-	return node;
-}
-
-function righttest(node: TreeNode): TreeNode {
-	while (node.right !== SENTINEL) {
-		node = node.right;
-	}
-	return node;
-}
-
-function calculateSize(node: TreeNode): number {
-	if (node === SENTINEL) {
-		return 0;
-	}
-
-	return node.size_left + node.piece.length + calculateSize(node.right);
-}
-
-function calculateLF(node: TreeNode): number {
-	if (node === SENTINEL) {
-		return 0;
-	}
-
-	return node.lf_left + node.piece.lineFeedCnt + calculateLF(node.right);
-}
-
-function resetSentinel(): void {
-	SENTINEL.parent = SENTINEL;
-}
+import { leftest, righttest, updateTreeMetadata, rbDelete, fixInsert, NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
 
 // const lfRegex = new RegExp(/\r\n|\r|\n/g);
 
@@ -137,84 +95,6 @@ export function createLineStarts(r: number[], str: string): LineStarts {
 
 	return result;
 }
-
-export class TreeNode {
-	parent: TreeNode;
-	left: TreeNode;
-	right: TreeNode;
-	color: NodeColor;
-
-	// Piece
-	piece: Piece;
-	size_left: number; // size of the left subtree (not inorder)
-	lf_left: number; // line feeds cnt in the left subtree (not in order)
-
-	constructor(piece: Piece, color: NodeColor) {
-		this.piece = piece;
-		this.color = color;
-		this.size_left = 0;
-		this.lf_left = 0;
-		this.parent = null;
-		this.left = null;
-		this.right = null;
-	}
-
-	public next(): TreeNode {
-		if (this.right !== SENTINEL) {
-			return leftest(this.right);
-		}
-
-		let node: TreeNode = this;
-
-		while (node.parent !== SENTINEL) {
-			if (node.parent.left === node) {
-				break;
-			}
-
-			node = node.parent;
-		}
-
-		if (node.parent === SENTINEL) {
-			return SENTINEL;
-		} else {
-			return node.parent;
-		}
-	}
-
-	public prev(): TreeNode {
-		if (this.left !== SENTINEL) {
-			return righttest(this.left);
-		}
-
-		let node: TreeNode = this;
-
-		while (node.parent !== SENTINEL) {
-			if (node.parent.right === node) {
-				break;
-			}
-
-			node = node.parent;
-		}
-
-		if (node.parent === SENTINEL) {
-			return SENTINEL;
-		} else {
-			return node.parent;
-		}
-	}
-
-	public detach(): void {
-		this.parent = null;
-		this.left = null;
-		this.right = null;
-	}
-}
-
-export const SENTINEL: TreeNode = new TreeNode(null, NodeColor.Black);
-SENTINEL.parent = SENTINEL;
-SENTINEL.left = SENTINEL;
-SENTINEL.right = SENTINEL;
-SENTINEL.color = NodeColor.Black;
 
 export interface NodePosition {
 	/**
@@ -309,6 +189,7 @@ export class PieceTreeBase {
 	protected _lineCnt: number;
 	protected _length: number;
 	private _lastChangeBufferPos: BufferCursor;
+	private _lastNodePosition: NodePosition;
 
 	constructor(chunks: StringBuffer[]) {
 		this.create(chunks);
@@ -319,6 +200,7 @@ export class PieceTreeBase {
 			new StringBuffer('', [0])
 		];
 		this._lastChangeBufferPos = { line: 0, column: 0 };
+		this._lastNodePosition = null;
 		this.root = SENTINEL;
 		this._lineCnt = 1;
 		this._length = 0;
@@ -379,7 +261,6 @@ export class PieceTreeBase {
 
 		this.create(chunks);
 	}
-
 
 	// #region Buffer API
 	public createSnapshot(BOM: string): ITextSnapshot {
@@ -556,6 +437,7 @@ export class PieceTreeBase {
 				// changed buffer
 				this.appendToNode(node, value);
 				this.computeBufferMetadata();
+				this._lastNodePosition = { node, remainder, nodeStartOffset };
 				return;
 			}
 
@@ -638,7 +520,7 @@ export class PieceTreeBase {
 			if (startPosition.nodeStartOffset === offset) {
 				if (cnt === startNode.piece.length) { // delete node
 					let next = startNode.next();
-					this.rbDelete(startNode);
+					rbDelete(this, startNode);
 					this.validateCRLFWithPrevNode(next);
 					this.computeBufferMetadata();
 					return;
@@ -702,7 +584,7 @@ export class PieceTreeBase {
 			piece.length -= 1;
 
 			value += '\n';
-			this.updateTreeMetadata(node, -1, -1);
+			updateTreeMetadata(this, node, -1, -1);
 
 			if (node.piece.length === 0) {
 				nodesToDel.push(node);
@@ -806,7 +688,7 @@ export class PieceTreeBase {
 
 	deleteNodes(nodes: TreeNode[]): void {
 		for (let i = 0; i < nodes.length; i++) {
-			this.rbDelete(nodes[i]);
+			rbDelete(this, nodes[i]);
 		}
 	}
 
@@ -962,7 +844,7 @@ export class PieceTreeBase {
 		let lf_delta = piece.lineFeedCnt - originalLFCnt;
 		let size_delta = newEndOffset - originalEndOffset;
 		piece.length += size_delta;
-		this.updateTreeMetadata(node, size_delta, lf_delta);
+		updateTreeMetadata(this, node, size_delta, lf_delta);
 	}
 
 	deleteNodeHead(node: TreeNode, pos: BufferCursor) {
@@ -976,7 +858,7 @@ export class PieceTreeBase {
 		let lf_delta = piece.lineFeedCnt - originalLFCnt;
 		let size_delta = originalStartOffset - newStartOffset;
 		piece.length += size_delta;
-		this.updateTreeMetadata(node, size_delta, lf_delta);
+		updateTreeMetadata(this, node, size_delta, lf_delta);
 	}
 
 	shrinkNode(node: TreeNode, start: BufferCursor, end: BufferCursor) {
@@ -992,7 +874,7 @@ export class PieceTreeBase {
 		let newLength = this.offsetInBuffer(piece.bufferIndex, start) - this.offsetInBuffer(piece.bufferIndex, originalStartPos);
 		let newLFCnt = piece.lineFeedCnt;
 		piece.length = newLength;
-		this.updateTreeMetadata(node, newLength - oldLength, newLFCnt - oldLFCnt);
+		updateTreeMetadata(this, node, newLength - oldLength, newLFCnt - oldLFCnt);
 
 		// new right piece, end, originalEndPos
 		let newPiece = new Piece(
@@ -1036,10 +918,36 @@ export class PieceTreeBase {
 		node.piece.lineFeedCnt = newLineFeedCnt;
 		let lf_delta = newLineFeedCnt - oldLineFeedCnt;
 		this._lastChangeBufferPos = endPos;
-		this.updateTreeMetadata(node, value.length, lf_delta);
+		updateTreeMetadata(this, node, value.length, lf_delta);
+	}
+
+	readNodePositionFromCache(offset: number): NodePosition {
+		if (!this._lastNodePosition) {
+			return null;
+		}
+
+		if (this._lastNodePosition.node.parent === null) {
+			this._lastNodePosition = null;
+			return null;
+		}
+
+		if (this._lastNodePosition.nodeStartOffset > offset || this._lastNodePosition.nodeStartOffset + this._lastNodePosition.node.piece.length < offset) {
+			return null;
+		}
+
+		return {
+			node: this._lastNodePosition.node,
+			remainder: offset - this._lastNodePosition.nodeStartOffset,
+			nodeStartOffset: this._lastNodePosition.nodeStartOffset
+		};
 	}
 
 	nodeAt(offset: number): NodePosition {
+		let cachedNodePosition = this.readNodePositionFromCache(offset);
+		if (cachedNodePosition) {
+			return cachedNodePosition;
+		}
+
 		let x = this.root;
 		let nodeStartOffset = 0;
 
@@ -1231,7 +1139,7 @@ export class PieceTreeBase {
 		prev.piece.length -= 1;
 		prev.piece.lineFeedCnt -= 1;
 
-		this.updateTreeMetadata(prev, - 1, -1);
+		updateTreeMetadata(this, prev, - 1, -1);
 		if (prev.piece.length === 0) {
 			nodesToDel.push(prev);
 		}
@@ -1243,7 +1151,7 @@ export class PieceTreeBase {
 		next.piece.lineFeedCnt = this.getLineFeedCnt(next.piece.bufferIndex, next.piece.start, next.piece.end); // @todo, we can optimize
 		// }
 
-		this.updateTreeMetadata(next, - 1, -1);
+		updateTreeMetadata(this, next, - 1, -1);
 		if (next.piece.length === 0) {
 			nodesToDel.push(next);
 		}
@@ -1254,7 +1162,7 @@ export class PieceTreeBase {
 		// delete empty nodes
 
 		for (let i = 0; i < nodesToDel.length; i++) {
-			this.rbDelete(nodesToDel[i]);
+			rbDelete(this, nodesToDel[i]);
 		}
 	}
 
@@ -1266,7 +1174,7 @@ export class PieceTreeBase {
 				value += '\n';
 
 				if (nextNode.piece.length === 1) {
-					this.rbDelete(nextNode);
+					rbDelete(this, nextNode);
 				} else {
 
 					let piece = nextNode.piece;
@@ -1274,7 +1182,7 @@ export class PieceTreeBase {
 					piece.start = newStart;
 					piece.length -= 1;
 					piece.lineFeedCnt = this.getLineFeedCnt(piece.bufferIndex, piece.start, piece.end); // @todo, we can optimize
-					this.updateTreeMetadata(nextNode, -1, -1);
+					updateTreeMetadata(this, nextNode, -1, -1);
 				}
 				return true;
 			}
@@ -1287,7 +1195,7 @@ export class PieceTreeBase {
 
 	// #endregion
 
-	// #region Red Black Tree
+	// #region Tree operations
 	iterate(node: TreeNode, callback: (node: TreeNode) => boolean): boolean {
 		if (node === SENTINEL) {
 			return callback(SENTINEL);
@@ -1312,53 +1220,6 @@ export class PieceTreeBase {
 		let endOffset = this.offsetInBuffer(piece.bufferIndex, piece.end);
 		currentContent = buffer.buffer.substring(startOffset, endOffset);
 		return currentContent;
-	}
-
-	leftRotate(x: TreeNode) {
-		let y = x.right;
-
-		// fix size_left
-		y.size_left += x.size_left + (x.piece ? x.piece.length : 0);
-		y.lf_left += x.lf_left + (x.piece ? x.piece.lineFeedCnt : 0);
-		x.right = y.left;
-
-		if (y.left !== SENTINEL) {
-			y.left.parent = x;
-		}
-		y.parent = x.parent;
-		if (x.parent === SENTINEL) {
-			this.root = y;
-		} else if (x.parent.left === x) {
-			x.parent.left = y;
-		} else {
-			x.parent.right = y;
-		}
-		y.left = x;
-		x.parent = y;
-	}
-
-	rightRotate(y: TreeNode) {
-		let x = y.left;
-		y.left = x.right;
-		if (x.right !== SENTINEL) {
-			x.right.parent = y;
-		}
-		x.parent = y.parent;
-
-		// fix size_left
-		y.size_left -= x.size_left + (x.piece ? x.piece.length : 0);
-		y.lf_left -= x.lf_left + (x.piece ? x.piece.lineFeedCnt : 0);
-
-		if (y.parent === SENTINEL) {
-			this.root = x;
-		} else if (y === y.parent.right) {
-			y.parent.right = x;
-		} else {
-			y.parent.left = x;
-		}
-
-		x.right = y;
-		y.parent = x;
 	}
 
 	/**
@@ -1389,7 +1250,7 @@ export class PieceTreeBase {
 			z.parent = nextNode;
 		}
 
-		this.fixInsert(z);
+		fixInsert(this, z);
 		return z;
 	}
 
@@ -1421,264 +1282,8 @@ export class PieceTreeBase {
 			z.parent = prevNode;
 		}
 
-		this.fixInsert(z);
+		fixInsert(this, z);
 		return z;
-	}
-
-	rbDelete(z: TreeNode) {
-		let x: TreeNode;
-		let y: TreeNode;
-
-		if (z.left === SENTINEL) {
-			y = z;
-			x = y.right;
-		} else if (z.right === SENTINEL) {
-			y = z;
-			x = y.left;
-		} else {
-			y = leftest(z.right);
-			x = y.right;
-		}
-
-		if (y === this.root) {
-			this.root = x;
-
-			// if x is null, we are removing the only node
-			x.color = NodeColor.Black;
-			z.detach();
-			resetSentinel();
-			this.root.parent = SENTINEL;
-
-			return;
-		}
-
-		let yWasRed = (y.color === NodeColor.Red);
-
-		if (y === y.parent.left) {
-			y.parent.left = x;
-		} else {
-			y.parent.right = x;
-		}
-
-		if (y === z) {
-			x.parent = y.parent;
-			this.recomputeTreeMetadata(x);
-		} else {
-			if (y.parent === z) {
-				x.parent = y;
-			} else {
-				x.parent = y.parent;
-			}
-
-			// as we make changes to x's hierarchy, update size_left of subtree first
-			this.recomputeTreeMetadata(x);
-
-			y.left = z.left;
-			y.right = z.right;
-			y.parent = z.parent;
-			y.color = z.color;
-
-			if (z === this.root) {
-				this.root = y;
-			} else {
-				if (z === z.parent.left) {
-					z.parent.left = y;
-				} else {
-					z.parent.right = y;
-				}
-			}
-
-			if (y.left !== SENTINEL) {
-				y.left.parent = y;
-			}
-			if (y.right !== SENTINEL) {
-				y.right.parent = y;
-			}
-			// update metadata
-			// we replace z with y, so in this sub tree, the length change is z.item.length
-			y.size_left = z.size_left;
-			y.lf_left = z.lf_left;
-			this.recomputeTreeMetadata(y);
-		}
-
-		z.detach();
-
-		if (x.parent.left === x) {
-			let newSizeLeft = calculateSize(x);
-			let newLFLeft = calculateLF(x);
-			if (newSizeLeft !== x.parent.size_left || newLFLeft !== x.parent.lf_left) {
-				let delta = newSizeLeft - x.parent.size_left;
-				let lf_delta = newLFLeft - x.parent.lf_left;
-				x.parent.size_left = newSizeLeft;
-				x.parent.lf_left = newLFLeft;
-				this.updateTreeMetadata(x.parent, delta, lf_delta);
-			}
-		}
-
-		this.recomputeTreeMetadata(x.parent);
-
-		if (yWasRed) {
-			resetSentinel();
-			return;
-		}
-
-		// RB-DELETE-FIXUP
-		let w: TreeNode;
-		while (x !== this.root && x.color === NodeColor.Black) {
-			if (x === x.parent.left) {
-				w = x.parent.right;
-
-				if (w.color === NodeColor.Red) {
-					w.color = NodeColor.Black;
-					x.parent.color = NodeColor.Red;
-					this.leftRotate(x.parent);
-					w = x.parent.right;
-				}
-
-				if (w.left.color === NodeColor.Black && w.right.color === NodeColor.Black) {
-					w.color = NodeColor.Red;
-					x = x.parent;
-				} else {
-					if (w.right.color === NodeColor.Black) {
-						w.left.color = NodeColor.Black;
-						w.color = NodeColor.Red;
-						this.rightRotate(w);
-						w = x.parent.right;
-					}
-
-					w.color = x.parent.color;
-					x.parent.color = NodeColor.Black;
-					w.right.color = NodeColor.Black;
-					this.leftRotate(x.parent);
-					x = this.root;
-				}
-			} else {
-				w = x.parent.left;
-
-				if (w.color === NodeColor.Red) {
-					w.color = NodeColor.Black;
-					x.parent.color = NodeColor.Red;
-					this.rightRotate(x.parent);
-					w = x.parent.left;
-				}
-
-				if (w.left.color === NodeColor.Black && w.right.color === NodeColor.Black) {
-					w.color = NodeColor.Red;
-					x = x.parent;
-
-				} else {
-					if (w.left.color === NodeColor.Black) {
-						w.right.color = NodeColor.Black;
-						w.color = NodeColor.Red;
-						this.leftRotate(w);
-						w = x.parent.left;
-					}
-
-					w.color = x.parent.color;
-					x.parent.color = NodeColor.Black;
-					w.left.color = NodeColor.Black;
-					this.rightRotate(x.parent);
-					x = this.root;
-				}
-			}
-		}
-		x.color = NodeColor.Black;
-		resetSentinel();
-	}
-
-	fixInsert(x: TreeNode) {
-		this.recomputeTreeMetadata(x);
-
-		while (x !== this.root && x.parent.color === NodeColor.Red) {
-			if (x.parent === x.parent.parent.left) {
-				const y = x.parent.parent.right;
-
-				if (y.color === NodeColor.Red) {
-					x.parent.color = NodeColor.Black;
-					y.color = NodeColor.Black;
-					x.parent.parent.color = NodeColor.Red;
-					x = x.parent.parent;
-				} else {
-					if (x === x.parent.right) {
-						x = x.parent;
-						this.leftRotate(x);
-					}
-
-					x.parent.color = NodeColor.Black;
-					x.parent.parent.color = NodeColor.Red;
-					this.rightRotate(x.parent.parent);
-				}
-			} else {
-				const y = x.parent.parent.left;
-
-				if (y.color === NodeColor.Red) {
-					x.parent.color = NodeColor.Black;
-					y.color = NodeColor.Black;
-					x.parent.parent.color = NodeColor.Red;
-					x = x.parent.parent;
-				} else {
-					if (x === x.parent.left) {
-						x = x.parent;
-						this.rightRotate(x);
-					}
-					x.parent.color = NodeColor.Black;
-					x.parent.parent.color = NodeColor.Red;
-					this.leftRotate(x.parent.parent);
-				}
-			}
-		}
-
-		this.root.color = NodeColor.Black;
-	}
-
-	updateTreeMetadata(x: TreeNode, delta: number, lineFeedCntDelta: number): void {
-		// node length change or line feed count change
-		while (x !== this.root && x !== SENTINEL) {
-			if (x.parent.left === x) {
-				x.parent.size_left += delta;
-				x.parent.lf_left += lineFeedCntDelta;
-			}
-
-			x = x.parent;
-		}
-	}
-
-	recomputeTreeMetadata(x: TreeNode) {
-		let delta = 0;
-		let lf_delta = 0;
-		if (x === this.root) {
-			return;
-		}
-
-		if (delta === 0) {
-			// go upwards till the node whose left subtree is changed.
-			while (x !== this.root && x === x.parent.right) {
-				x = x.parent;
-			}
-
-			if (x === this.root) {
-				// well, it means we add a node to the end (inorder)
-				return;
-			}
-
-			// x is the node whose right subtree is changed.
-			x = x.parent;
-
-			delta = calculateSize(x.left) - x.size_left;
-			lf_delta = calculateLF(x.left) - x.lf_left;
-			x.size_left += delta;
-			x.lf_left += lf_delta;
-		}
-
-		// go upwards till root. O(logN)
-		while (x !== this.root && (delta !== 0 || lf_delta !== 0)) {
-			if (x.parent.left === x) {
-				x.parent.size_left += delta;
-				x.parent.lf_left += lf_delta;
-			}
-
-			x = x.parent;
-		}
 	}
 
 	getContentOfSubTree(node: TreeNode): string {

@@ -112,6 +112,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private delayedFilterLogging: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<IFilterOrSearchResult>;
+	private _lastReportedFilter: string;
 
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
 
@@ -294,7 +295,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private reportFilteringUsed(filter: string, counts: IStringDictionary<number>, metadata?: IFilterMetadata): void {
-		if (filter) {
+		if (filter && filter !== this._lastReportedFilter) {
 			let data = {
 				filter,
 				fuzzy: !!metadata,
@@ -313,6 +314,7 @@ export class PreferencesEditor extends BaseEditor {
 				}
 			*/
 			this.telemetryService.publicLog('defaultSettings.filter', data);
+			this._lastReportedFilter = filter;
 		}
 	}
 }

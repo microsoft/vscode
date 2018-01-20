@@ -30,6 +30,7 @@
 	"closeOnFocusLost": "控制是否在 Quick Open 失去焦點時自動關閉。",
 	"openDefaultSettings": "控制開啟設定時是否也會開啟顯示所有預設設定的編輯器。",
 	"sideBarLocation": "控制項資訊看板的位置。可顯示於 Workbench 的左方或右方。",
+	"panelDefaultLocation": "控制面板的預設位置。可顯示在 Workbench 的底部或是右方。",
 	"statusBarVisibility": "控制 Workbench 底端狀態列的可視性。",
 	"activityBarVisibility": "控制活動列在 workbench 中的可見度。",
 	"fontAliasing": "在 Workbench 中控制字型鋸齒化的方法。- 預設: 子像素字型平滑處理。在大部分非 Retina 顯示器上會顯示出最銳利的文字- 已消除鋸齒: 相對於子像素，根據像素層級平滑字型。可讓字型整體顯得較細- 無: 停用字型平滑處理。文字會以鋸齒狀的銳邊顯示 ",

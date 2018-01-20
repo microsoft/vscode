@@ -30,6 +30,7 @@
 	"inspect-extensions": "Erlaubt Debugging und Profiling für Erweiterungen. Überprüfen Sie die Entwicklertools für die Verbindungs-URI.",
 	"inspect-brk-extensions": "Erlaubt Debugging und Profiling für Erweiterungen, wobei der Erweiterungs-Host nach dem Starten pausiert wird. Überprüfen Sie die Entwicklertools für die Verbindungs-URI.",
 	"disableGPU": "Deaktiviert die GPU-Hardwarebeschleunigung.",
+	"uploadLogs": "Lädt die Logs der aktuellen Sitzung an einem sicheren Endpunkt hoch.",
 	"usage": "Verwendung",
 	"options": "Optionen",
 	"paths": "Pfade",

@@ -11,6 +11,7 @@
 	"rendererProcess": "Janela",
 	"extensionHost": "Host de Extensão",
 	"selectProcess": "Selecionar processo",
+	"openLogFile": "Abrir Arquivo de Log...",
 	"setLogLevel": "Definir Nível de Log",
 	"trace": "Rastreamento",
 	"debug": "Depurar",

@@ -9,10 +9,16 @@
 	"mainProcess": "主进程",
 	"sharedProcess": "共享进程",
 	"rendererProcess": "窗口",
+	"extensionHost": "扩展主机",
 	"selectProcess": "选择进程",
+	"openLogFile": "打开日志文件...",
+	"setLogLevel": "设置日志级别",
+	"trace": "跟踪",
 	"debug": "调试",
 	"info": "信息",
 	"warn": "警告",
 	"err": "错误",
-	"off": "关闭"
+	"critical": "严重",
+	"off": "关闭",
+	"selectLogLevel": "选择日志级别"
 }

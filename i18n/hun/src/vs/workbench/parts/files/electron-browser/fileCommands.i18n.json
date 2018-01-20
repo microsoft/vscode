@@ -10,7 +10,6 @@
 	"saveAs": "Mentés másként...",
 	"save": "Mentés",
 	"saveAll": "Összes mentése",
-	"saveFiles": "Összes fájl mentése",
 	"removeFolderFromWorkspace": "Mappa eltávolítása a munkaterületről",
 	"genericRevertError": "Nem sikerült a(z) '{0}' visszaállítása: {1}",
 	"modifiedLabel": "{0} (a lemezen) ↔ {1}",

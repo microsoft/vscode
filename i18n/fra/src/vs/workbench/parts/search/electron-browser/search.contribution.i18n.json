@@ -22,5 +22,6 @@
 	"useRipgrep": "Contrôle si ripgrep doit être utilisé dans la recherche de texte et de fichier",
 	"useIgnoreFiles": "Contrôle s'il faut utiliser les fichiers .gitignore et .ignore par défaut pendant la recherche de fichiers.",
 	"search.quickOpen.includeSymbols": "Configurez l'ajout des résultats d'une recherche de symboles globale dans le fichier de résultats pour Quick Open.",
-	"search.followSymlinks": "Contrôle s'il faut suivre les symlinks pendant la recherche."
+	"search.followSymlinks": "Contrôle s'il faut suivre les symlinks pendant la recherche.",
+	"search.smartCase": "Recherches de manière non case-sensitive si le modèle est entièrement en minuscules, dans le cas contraire, recherche de manière case-sensitive"
 }

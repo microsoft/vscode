@@ -10,5 +10,6 @@
 	"editableEditorWithInputAriaLabel": "{0}. Éditeur de comparaison de fichier texte.",
 	"editableEditorAriaLabel": "Éditeur de comparaison de fichier texte.",
 	"navigate.next.label": "Modification suivante",
-	"navigate.prev.label": "Modification précédente"
+	"navigate.prev.label": "Modification précédente",
+	"toggleIgnoreTrimWhitespace.label": "Ignorer la suppression des espaces"
 }
