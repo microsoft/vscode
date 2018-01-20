@@ -5,6 +5,14 @@ variables:
 
 steps:
 
+- powershell: |
+    Get-ChildItem -Recurse -Exclude .git | ForEach-Object { Remove-Item -Path $_ -Force }
+
+- script: |
+    git config --global core.autocrlf false
+    git config --global core.safescrlf true
+    git checkout -f master
+
 - task: NodeTool@0
   inputs:
     versionSpec: "8.9.1"
@@ -12,12 +20,6 @@ steps:
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
     versionSpec: "1.3.2"
-
-- script: |
-    git config --global core.autocrlf false
-    git config --global core.safescrlf true
-    git checkout HEAD^
-    git checkout -f master
 
 - powershell: |
     yarn
