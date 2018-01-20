@@ -14,10 +14,10 @@ steps:
     versionSpec: "1.3.2"
 
 - script: |
-    del /S /Q *.*
     git config --global core.autocrlf false
     git config --global core.safescrlf true
-    git checkout $(Build.SourceBranch)
+    git checkout HEAD^
+    git checkout -f master
 
 - powershell: |
     yarn
