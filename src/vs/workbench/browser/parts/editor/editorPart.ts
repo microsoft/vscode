@@ -697,8 +697,17 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				return;
 			}
 
-			groups.forEach(group => this.doCloseEditors(group));
+			groups.forEach(group => this.doCloseAllEditorsInGroup(group));
 		});
+	}
+
+	private doCloseAllEditorsInGroup(group: EditorGroup): void {
+
+		// Update stacks model: remove all non active editors first to prevent opening the next editor in group
+		group.closeEditors(group.activeEditor);
+
+		// Now close active editor in group which will close the group
+		this.doCloseActiveEditor(group);
 	}
 
 	public closeEditors(position: Position, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void>;
@@ -740,11 +749,44 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				return;
 			}
 
-			this.doCloseEditors(group, filter);
+			// Close without filter
+			if (Array.isArray(filterOrEditors)) {
+				return this.doCloseEditors(group, editorsToClose);
+			}
+
+			// Close with filter
+			return this.doCloseEditorsWithFilter(group, filter);
 		});
 	}
 
-	private doCloseEditors(group: EditorGroup, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean } = Object.create(null)): void {
+	private doCloseEditors(group: EditorGroup, editors: EditorInput[]): void {
+
+		// Close all editors in group
+		if (editors.length === group.count) {
+			this.doCloseAllEditorsInGroup(group);
+		}
+
+		// Close specific editors in group
+		else {
+
+			// Editors to close are not active, so we can just close them
+			if (!editors.some(editor => group.activeEditor.matches(editor))) {
+				editors.forEach(editor => this.doCloseInactiveEditor(group, editor));
+			}
+
+			// Active editor is also a candidate to close, thus we make the first
+			// non-candidate editor active and then close the other ones
+			else {
+				const firstEditorToKeep = group.getEditors(true).filter(editorInGroup => !editors.some(editor => editor.matches(editorInGroup)))[0];
+
+				this.openEditor(firstEditorToKeep, null, this.stacks.positionOfGroup(group)).done(() => {
+					editors.forEach(editor => this.doCloseInactiveEditor(group, editor));
+				}, errors.onUnexpectedError);
+			}
+		}
+	}
+
+	private doCloseEditorsWithFilter(group: EditorGroup, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean }): void {
 
 		// Close all editors if there is no editor to except and
 		// we either are not only closing unmodified editors or
@@ -760,12 +802,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Close all editors in group
 		if (closeAllEditors) {
-
-			// Update stacks model: remove all non active editors first to prevent opening the next editor in group
-			group.closeEditors(group.activeEditor);
-
-			// Now close active editor in group which will close the group
-			this.doCloseActiveEditor(group);
+			this.doCloseAllEditorsInGroup(group);
 		}
 
 		// Close unmodified editors in group
@@ -779,10 +816,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			// Active editor is also a candidate to close, thus we make the first dirty editor
 			// active and then close the other ones
 			else {
-				const firstDirtyEditor = group.getEditors().filter(editor => editor.isDirty())[0];
+				const firstDirtyEditor = group.getEditors(true).filter(editor => editor.isDirty())[0];
 
 				this.openEditor(firstDirtyEditor, null, this.stacks.positionOfGroup(group)).done(() => {
-					this.doCloseEditors(group, filter);
+					this.doCloseEditorsWithFilter(group, filter);
 				}, errors.onUnexpectedError);
 			}
 		}
@@ -803,7 +840,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				// being the expected one, otherwise we end up in an endless loop trying to open the
 				// editor
 				if (filter.except.matches(group.activeEditor)) {
-					this.doCloseEditors(group, filter);
+					this.doCloseEditorsWithFilter(group, filter);
 				}
 			}, errors.onUnexpectedError);
 		}
