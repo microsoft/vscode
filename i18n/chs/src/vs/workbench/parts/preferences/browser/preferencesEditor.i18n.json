@@ -11,6 +11,8 @@
 	"oneSettingFound": "1 个设置匹配",
 	"settingsFound": "{0} 个设置匹配",
 	"totalSettingsMessage": "总计 {0} 个设置",
+	"nlpResult": "自然语言结果",
+	"filterResult": "筛选结果",
 	"defaultSettings": "默认设置",
 	"defaultFolderSettings": "默认文件夹设置",
 	"defaultEditorReadonly": "在右侧编辑器中编辑以覆盖默认值。",

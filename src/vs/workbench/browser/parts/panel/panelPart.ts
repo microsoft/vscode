@@ -250,14 +250,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		return this.toolbarWidth.get(activePanel.getId());
 	}
-
-	public shutdown(): void {
-		// Persist Hidden State
-		this.compositeBar.store();
-
-		// Pass to super
-		super.shutdown();
-	}
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {

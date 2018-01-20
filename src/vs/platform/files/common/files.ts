@@ -460,6 +460,15 @@ export interface IStringStream {
 }
 
 /**
+ * Text snapshot that works like an iterator.
+ * Will try to return chunks of roughly ~64KB size.
+ * Will return null when finished.
+ */
+export interface ITextSnapshot {
+	read(): string;
+}
+
+/**
  * Streamable content and meta information of a file.
  */
 export interface IStreamContent extends IBaseStat {

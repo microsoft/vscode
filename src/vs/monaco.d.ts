@@ -4487,6 +4487,7 @@ declare module monaco.languages {
 	export enum SuggestTriggerKind {
 		Invoke = 0,
 		TriggerCharacter = 1,
+		TriggerForIncompleteCompletions = 2,
 	}
 
 	export interface CodeAction {

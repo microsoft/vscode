@@ -55,7 +55,7 @@ import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
 import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
 import { firstIndex } from 'vs/base/common/arrays';
-import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // TODO@Joao
@@ -226,9 +226,7 @@ class MainPanel extends ViewletPanel {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@ISCMService protected scmService: ISCMService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IListService private listService: IListService,
 		@IMenuService private menuService: IMenuService
 	) {
 		super(localize('scm providers', "Source Control Providers"), {}, keybindingService, contextMenuService);
@@ -260,9 +258,9 @@ class MainPanel extends ViewletPanel {
 		const delegate = new ProvidersListDelegate();
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 
-		this.list = new WorkbenchList<ISCMRepository>(container, delegate, [renderer], {
+		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
 			identityProvider: repository => repository.provider.id
-		}, this.contextKeyService, this.listService, this.themeService);
+		});
 
 		this.disposables.push(this.list);
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
@@ -690,12 +688,10 @@ export class RepositoryPanel extends ViewletPanel {
 		@IThemeService protected themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IContextViewService protected contextViewService: IContextViewService,
-		@IListService protected listService: IListService,
 		@ICommandService protected commandService: ICommandService,
 		@IMessageService protected messageService: IMessageService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
-		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService protected configurationService: IConfigurationService
 	) {
@@ -844,10 +840,10 @@ export class RepositoryPanel extends ViewletPanel {
 			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider, () => this.getSelectedResources()),
 		];
 
-		this.list = new WorkbenchList(this.listContainer, delegate, renderers, {
+		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
 			keyboardSupport: false
-		}, this.contextKeyService, this.listService, this.themeService);
+		});
 
 		chain(this.list.onOpen)
 			.map(e => e.elements[0])

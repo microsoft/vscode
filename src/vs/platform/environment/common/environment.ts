@@ -13,6 +13,7 @@ export interface ParsedArgs {
 	help?: boolean;
 	version?: boolean;
 	status?: boolean;
+	issue?: boolean;
 	wait?: boolean;
 	waitMarkerFilePath?: string;
 	diff?: boolean;
@@ -47,6 +48,7 @@ export interface ParsedArgs {
 	'skip-getting-started'?: boolean;
 	'skip-release-notes'?: boolean;
 	'sticky-quickopen'?: boolean;
+	'disable-restore-windows'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;

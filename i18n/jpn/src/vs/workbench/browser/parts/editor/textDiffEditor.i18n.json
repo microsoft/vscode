@@ -11,6 +11,5 @@
 	"editableEditorAriaLabel": "テキスト ファイル比較エディター。",
 	"navigate.next.label": "次の変更箇所",
 	"navigate.prev.label": "前の変更箇所",
-	"inlineDiffLabel": "インライン表示に切り替え",
-	"sideBySideDiffLabel": "並べて表示に切り替え"
+	"toggleIgnoreTrimWhitespace.label": "末尾の空白文字のトリミングを無視する"
 }

@@ -41,7 +41,6 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { first } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IListService } from 'vs/platform/list/browser/listService';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -78,13 +77,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ICommandService private commandService: ICommandService,
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IListService listService: IListService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this.breakpointHintDecoration = [];
-		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService, themeService, contextKeyService, listService);
+		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService, themeService);
 		this.toDispose = [];
 		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);

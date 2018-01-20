@@ -79,7 +79,23 @@ export class SuggestMemory {
 	}
 
 	select(items: ICompletionItem[], last: ICompletionItem): number {
+
+		if (items.length === 0) {
+			return -1;
+		}
+
+		const topScore = items[0].score;
+
 		for (let i = 0; i < items.length; i++) {
+
+			if (topScore !== items[i].score) {
+				// we only take a look at the bucket
+				// of top matches, hence we return
+				// as soon as we see an item that
+				// hasn't the top score anymore
+				return -1;
+			}
+
 			if (items[i] === last) {
 				// prefer the last selected item when
 				// there is one

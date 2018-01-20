@@ -15,9 +15,12 @@ import { foldersToIncludeGlobs, foldersToRgExcludeGlobs } from './ripgrepTextSea
 
 export function spawnRipgrepCmd(config: IRawSearch, folderQuery: IFolderSearch, includePattern: glob.IExpression, excludePattern: glob.IExpression) {
 	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern);
+	const cwd = folderQuery.folder;
 	return {
-		cmd: cp.spawn(rgPath, rgArgs.globArgs, { cwd: folderQuery.folder }),
-		siblingClauses: rgArgs.siblingClauses
+		cmd: cp.spawn(rgPath, rgArgs.args, { cwd }),
+		siblingClauses: rgArgs.siblingClauses,
+		rgArgs,
+		cwd
 	};
 }
 
@@ -57,7 +60,7 @@ function getRgArgs(config: IRawSearch, folderQuery: IFolderSearch, includePatter
 
 	args.push('.');
 
-	return { globArgs: args, siblingClauses };
+	return { args, siblingClauses };
 }
 
 function anchor(glob: string) {

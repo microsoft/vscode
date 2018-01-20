@@ -12,19 +12,65 @@ import { IStat } from 'vs/platform/files/common/files';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IPatternInfo } from 'vs/platform/search/common/search';
+import { values } from 'vs/base/common/map';
+import { Range } from 'vs/workbench/api/node/extHostTypes';
+import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
+
+class FsLinkProvider implements vscode.DocumentLinkProvider {
+
+	private _schemes = new Set<string>();
+	private _regex: RegExp;
+
+	add(scheme: string): void {
+		this._regex = undefined;
+		this._schemes.add(scheme);
+	}
+
+	delete(scheme: string): void {
+		if (this._schemes.delete(scheme)) {
+			this._regex = undefined;
+		}
+	}
+
+	provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.DocumentLink[]> {
+		if (this._schemes.size === 0) {
+			return undefined;
+		}
+		if (!this._regex) {
+			this._regex = new RegExp(`(${(values(this._schemes).join('|'))}):[^\\s]+`, 'gi');
+		}
+		let result: vscode.DocumentLink[] = [];
+		let max = Math.min(document.lineCount, 2500);
+		for (let line = 0; line < max; line++) {
+			this._regex.lastIndex = 0;
+			let textLine = document.lineAt(line);
+			let m: RegExpMatchArray;
+			while (m = this._regex.exec(textLine.text)) {
+				const target = URI.parse(m[0]);
+				const range = new Range(line, this._regex.lastIndex - m[0].length, line, this._regex.lastIndex);
+				result.push({ target, range });
+			}
+		}
+		return result;
+	}
+}
 
 export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 	private readonly _proxy: MainThreadFileSystemShape;
 	private readonly _provider = new Map<number, vscode.FileSystemProvider>();
+	private readonly _linkProvider = new FsLinkProvider();
+
 	private _handlePool: number = 0;
 
-	constructor(mainContext: IMainContext) {
+	constructor(mainContext: IMainContext, extHostLanguageFeatures: ExtHostLanguageFeatures) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
+		extHostLanguageFeatures.registerDocumentLinkProvider('*', this._linkProvider);
 	}
 
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider) {
 		const handle = this._handlePool++;
+		this._linkProvider.add(scheme);
 		this._provider.set(handle, provider);
 		this._proxy.$registerFileSystemProvider(handle, scheme);
 		if (provider.root) {
@@ -40,6 +86,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 				if (reg) {
 					reg.dispose();
 				}
+				this._linkProvider.delete(scheme);
 				this._provider.delete(handle);
 				this._proxy.$unregisterFileSystemProvider(handle);
 			}
@@ -90,7 +137,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		};
 		return asWinJsPromise(token => provider.findFiles(query, progress, token));
 	}
-	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, include: string, exclude: string): TPromise<void> {
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, options: { includes: string[], excludes: string[] }): TPromise<void> {
 		const provider = this._provider.get(handle);
 		if (!provider.provideTextSearchResults) {
 			return TPromise.as(undefined);
@@ -104,6 +151,6 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 				}]);
 			}
 		};
-		return asWinJsPromise(token => provider.provideTextSearchResults(pattern, include, exclude, progress, token));
+		return asWinJsPromise(token => provider.provideTextSearchResults(pattern, options, progress, token));
 	}
 }

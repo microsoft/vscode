@@ -171,6 +171,15 @@ export class TerminalInstance implements ITerminalInstance {
 				this.attachToElement(_container);
 			}
 		});
+
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('terminal.integrated')) {
+				this.updateConfig();
+			}
+			if (e.affectsConfiguration('editor.accessibilitySupport')) {
+				this.updateAccessibilitySupport();
+			}
+		});
 	}
 
 	public addDisposable(disposable: lifecycle.IDisposable): void {
@@ -903,7 +912,13 @@ export class TerminalInstance implements ITerminalInstance {
 		while (lineIndex >= 0 && buffer.lines.get(lineIndex--).isWrapped) {
 			lineData = buffer.translateBufferLineToString(lineIndex, true) + lineData;
 		}
-		this._onLineDataListeners.forEach(listener => listener(lineData));
+		this._onLineDataListeners.forEach(listener => {
+			try {
+				listener(lineData);
+			} catch (err) {
+				console.error(`onLineData listener threw`, err);
+			}
+		});
 	}
 
 	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
@@ -946,6 +961,7 @@ export class TerminalInstance implements ITerminalInstance {
 				it: 'IT',
 				ja: 'JP',
 				ko: 'KR',
+				pl: 'PL',
 				ru: 'RU',
 				zh: 'CN'
 			};
@@ -967,8 +983,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._setEnableBell(this._configHelper.config.enableBell);
 	}
 
-	public updateAccessibilitySupport(isEnabled: boolean): void {
-		this._xterm.setOption('screenReaderMode', isEnabled);
+	public updateAccessibilitySupport(): void {
+		const value = this._configurationService.getValue('editor.accessibilitySupport');
+		this._xterm.setOption('screenReaderMode', value === 'on');
 	}
 
 	private _setCursorBlink(blink: boolean): void {
@@ -1122,6 +1139,15 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _updateTheme(theme?: ITheme): void {
 		this._xterm.setOption('theme', this._getXtermTheme(theme));
+	}
+
+	public enterNavigationMode(): void {
+		// Perform this asynchronously as entering navigation mode will override
+		// the key event handlers which seemed to mess with the keybindings
+		// system
+		setTimeout(() => {
+			this._xterm.enterNavigationMode();
+		}, 100);
 	}
 }
 

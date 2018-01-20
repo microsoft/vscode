@@ -40,6 +40,5 @@
 	"menuId.invalid": "'{0}' nao é um identificador de menu válido ",
 	"missing.command": "Identificador do comando para ser executado. O comando deve ser declarado na seção de 'Comandos'",
 	"missing.altCommand": "Referências ao item de menu no alt-command '{0}' qual nao é definido na sessão 'comandos'",
-	"dupe.command": "Itens de referencias do mesmo comando como padrão e alt-command",
-	"nosupport.altCommand": "Desculpe, mas atualmente somente o groupo 'navegação' do menu 'editor/título' suporta alt-commands"
+	"dupe.command": "Itens de referencias do mesmo comando como padrão e alt-command"
 }

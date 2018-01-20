@@ -22,6 +22,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
@@ -35,7 +36,8 @@ export class SearchService implements ISearchService {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ILogService private logService: ILogService
 	) {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
 		this.registerSearchResultProvider(this.diskSearch);
@@ -104,6 +106,10 @@ export class SearchService implements ISearchService {
 						// Progress
 						onProgress(<IProgress>progress);
 					}
+
+					if (progress.message) {
+						this.logService.info('SearchService#search', progress.message);
+					}
 				}
 			));
 
@@ -158,6 +164,9 @@ export class SearchService implements ISearchService {
 				}
 
 				// Don't support other resource schemes than files for now
+				// todo@remote
+				// why is that? we should search for resources from other
+				// schemes
 				else if (resource.scheme !== 'file') {
 					return;
 				}

@@ -148,7 +148,7 @@ export class WindowsManager implements IWindowsMainService {
 			this.windowsState.openedWindows = [];
 		}
 
-		this.dialogs = new Dialogs(environmentService, telemetryService, stateService, this, this.logService);
+		this.dialogs = new Dialogs(environmentService, telemetryService, stateService, this);
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, environmentService, this);
 	}
 
@@ -369,7 +369,7 @@ export class WindowsManager implements IWindowsMainService {
 		let foldersToRestore: string[] = [];
 		let workspacesToRestore: IWorkspaceIdentifier[] = [];
 		let emptyToRestore: string[] = [];
-		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) {
+		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath && !openConfig.cli['disable-restore-windows']) {
 			foldersToRestore = this.backupMainService.getFolderBackupPaths();
 
 			workspacesToRestore = this.backupMainService.getWorkspaceBackups();						// collect from workspaces with hot-exit backups
@@ -1565,7 +1565,6 @@ class Dialogs {
 		private telemetryService: ITelemetryService,
 		private stateService: IStateService,
 		private windowsMainService: IWindowsMainService,
-		private logService: ILogService // TODO@Ben remove logging when no longer needed
 	) {
 		this.mapWindowToDialogQueue = new Map<number, Queue<any>>();
 		this.noWindowDialogQueue = new Queue<any>();
@@ -1645,31 +1644,22 @@ class Dialogs {
 
 	private getDialogQueue(window?: ICodeWindow): Queue<any> {
 		if (!window) {
-			this.logService.info('getDialogQueue: using NO WINDOW queue. size: ', this.noWindowDialogQueue.size);
 			return this.noWindowDialogQueue;
 		}
 
 		let windowDialogQueue = this.mapWindowToDialogQueue.get(window.id);
 		if (!windowDialogQueue) {
-			this.logService.info('getDialogQueue: creating window dialog queue for window:', window.id);
 			windowDialogQueue = new Queue<any>();
 			this.mapWindowToDialogQueue.set(window.id, windowDialogQueue);
-		} else {
-			this.logService.info('getDialogQueue: found existing window dialog queue for window:', window.id);
 		}
-
-		this.logService.info('getDialogQueue: size: ', windowDialogQueue.size);
 
 		return windowDialogQueue;
 	}
 
 	public showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): TPromise<IMessageBoxResult> {
-		this.logService.info('showMessageBox begin: ', options, window ? window.id : 'No Window');
 		return this.getDialogQueue(window).queue(() => {
 			return new TPromise((c, e) => {
-				this.logService.info('showMessageBox opening');
 				dialog.showMessageBox(window ? window.win : void 0, options, (response: number, checkboxChecked: boolean) => {
-					this.logService.info('showMessageBox closed, response: ', response, checkboxChecked);
 					c({ button: response, checkboxChecked });
 				});
 			});
@@ -1685,12 +1675,9 @@ class Dialogs {
 			return path;
 		}
 
-		this.logService.info('showSaveDialog begin: ', options, window ? window.id : 'No Window');
 		return this.getDialogQueue(window).queue(() => {
 			return new TPromise((c, e) => {
-				this.logService.info('showSaveDialog opening');
 				dialog.showSaveDialog(window ? window.win : void 0, options, path => {
-					this.logService.info('showSaveDialog closed, response: ', path);
 					c(normalizePath(path));
 				});
 			});
@@ -1706,12 +1693,9 @@ class Dialogs {
 			return paths;
 		}
 
-		this.logService.info('showOpenDialog begin: ', options, window ? window.id : 'No Window');
 		return this.getDialogQueue(window).queue(() => {
 			return new TPromise((c, e) => {
-				this.logService.info('showOpenDialog opening');
 				dialog.showOpenDialog(window ? window.win : void 0, options, paths => {
-					this.logService.info('showOpenDialog closed, response: ', paths);
 					c(normalizePaths(paths));
 				});
 			});
