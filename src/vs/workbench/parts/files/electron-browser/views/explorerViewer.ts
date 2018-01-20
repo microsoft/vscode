@@ -342,7 +342,7 @@ export class FileController extends DefaultController implements IDisposable {
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ });
 
-		this.useAltAsMultiSelectModifier = configurationService.getValue(multiSelectModifierSettingKey);
+		this.useAltAsMultiSelectModifier = configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
 		this.toDispose = [];
 
 		this.registerListeners();
@@ -351,7 +351,7 @@ export class FileController extends DefaultController implements IDisposable {
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-				this.useAltAsMultiSelectModifier = this.configurationService.getValue(multiSelectModifierSettingKey);
+				this.useAltAsMultiSelectModifier = this.configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
 			}
 		}));
 	}
