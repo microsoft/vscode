@@ -234,10 +234,10 @@ configurationRegistry.registerConfiguration({
 		'workbench.quickOpen.prefillPrefixes': {
 			'type': 'array',
 			'items': {
-				'type': ['string', 'null']
+				'type': 'string'
 			},
 			'default': [
-				null,
+				'',
 				'@',
 				'#'
 			],

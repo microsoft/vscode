@@ -566,7 +566,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			return false;
 		}
 
-		return prefixes.indexOf(prefix) !== -1;
+		return prefixes.indexOf(prefix || '') !== -1;
 	}
 
 	public show(prefix?: string, options?: IShowOptions): TPromise<void> {
