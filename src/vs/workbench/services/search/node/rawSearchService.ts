@@ -367,7 +367,9 @@ export class SearchService implements IRawSearchService {
 					}
 				}
 			}, (progress) => {
-				p(progress);
+				process.nextTick(() => {
+					p(progress);
+				});
 			}, (error, stats) => {
 				if (batch.length) {
 					p(batch);

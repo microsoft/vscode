@@ -18,10 +18,10 @@ import * as paths from 'vs/base/common/paths';
 import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
 import * as glob from 'vs/base/common/glob';
-import { ISearchLog } from 'vs/platform/search/common/search';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSearch, LineMatch, FileMatch } from './search';
+import { IProgress } from 'vs/platform/search/common/search';
 
 export class RipgrepEngine {
 	private isDone = false;
@@ -44,7 +44,7 @@ export class RipgrepEngine {
 	}
 
 	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
-	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: ISearchLog) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		if (!this.config.folderQueries.length && !this.config.extraFiles.length) {
 			process.removeListener('exit', this.killRgProcFn);
 			done(null, {
@@ -61,7 +61,7 @@ export class RipgrepEngine {
 
 		const cwd = platform.isWindows ? 'c:/' : '/';
 		process.nextTick(() => { // Allow caller to register progress callback
-			const escapedArgs = rgArgs.globArgs
+			const escapedArgs = rgArgs.args
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
 
@@ -72,7 +72,7 @@ export class RipgrepEngine {
 
 			onMessage({ message: rgCmd });
 		});
-		this.rgProc = cp.spawn(rgPath, rgArgs.globArgs, { cwd });
+		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd });
 		process.once('exit', this.killRgProcFn);
 
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd, this.config.extraFiles);
@@ -422,7 +422,7 @@ export function fixDriveC(path: string): string {
 		path;
 }
 
-function getRgArgs(config: IRawSearch): IRgGlobResult {
+function getRgArgs(config: IRawSearch) {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	if (config.contentPattern.isSmartCase) {
 		args.push('--smart-case');
@@ -500,7 +500,7 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	args.push(...config.folderQueries.map(q => q.folder));
 	args.push(...config.extraFiles);
 
-	return { globArgs: args, siblingClauses };
+	return { args, siblingClauses };
 }
 
 function getSiblings(file: string): TPromise<string[]> {
