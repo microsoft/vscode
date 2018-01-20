@@ -237,8 +237,6 @@ configurationRegistry.registerConfiguration({
 				'type': 'string'
 			},
 			'default': [
-				'',
-				'@',
 				'#'
 			],
 			'description': nls.localize('quickopen.prefillPrefixes', "Controls which prefixes should be prefilled on quickopen if prefill feature turned on"),
