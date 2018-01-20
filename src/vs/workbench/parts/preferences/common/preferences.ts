@@ -65,6 +65,7 @@ export interface ISearchResultGroup {
 	id: string;
 	label: string;
 	result: ISearchResult;
+	order: number;
 }
 
 export interface IFilterResult {
@@ -82,7 +83,15 @@ export interface ISettingMatch {
 }
 
 export interface IScoredResults {
-	[key: string]: number;
+	[key: string]: IRemoteSetting;
+}
+
+export interface IRemoteSetting {
+	score: number;
+	key: string;
+	defaultValue: string;
+	description: string;
+	packageId: string;
 }
 
 export interface IFilterMetadata {

@@ -436,8 +436,8 @@ class PreferencesRenderersController extends Disposable {
 		this._currentNewExtensionsSearchProvider = (updateCurrentResults && this._currentNewExtensionsSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query, true);
 
 		this._remoteFiltersInProgress = [
-			this.filterOrSearchPreferences(query, this._currentNewExtensionsSearchProvider, 'newExtensionsResult', nls.localize('newExtensionsResult', "Other Extension Results")),
-			this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"))
+			this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"), 1),
+			this.filterOrSearchPreferences(query, this._currentNewExtensionsSearchProvider, 'newExtensionsResult', nls.localize('newExtensionsResult', "Other Extension Results"), 2)
 		];
 
 		return TPromise.join(this._remoteFiltersInProgress).then(() => {
@@ -453,16 +453,18 @@ class PreferencesRenderersController extends Disposable {
 
 	localFilterPreferences(query: string, updateCurrentResults?: boolean): TPromise<void> {
 		this._currentLocalSearchProvider = (updateCurrentResults && this._currentLocalSearchProvider) || this.preferencesSearchService.getLocalSearchProvider(query);
-		return this.filterOrSearchPreferences(query, this._currentLocalSearchProvider, 'filterResult', nls.localize('filterResult', "Filtered Results"));
+		return this.filterOrSearchPreferences(query, this._currentLocalSearchProvider, 'filterResult', nls.localize('filterResult', "Filtered Results"), 0);
 	}
 
-	private filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string): TPromise<void> {
+	private filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, newExtensionsOnly?: boolean): TPromise<void> {
 		this._lastQuery = query;
 
-		return TPromise.join([
-			this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel),
-			this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel)]
-		).then(results => {
+		const filterPs = [this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder)];
+		if (!newExtensionsOnly) {
+			filterPs.push(this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder));
+		}
+
+		return TPromise.join(filterPs).then(results => {
 			const [defaultFilterResult, editableFilterResult] = results;
 
 			this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
@@ -485,7 +487,7 @@ class PreferencesRenderersController extends Disposable {
 		this._focusPreference(setting, this._editablePreferencesRenderer);
 	}
 
-	private _filterOrSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterResult> {
+	private _filterOrSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
 			const searchP = provider ? provider.searchModel(model) : TPromise.wrap(null);
@@ -509,7 +511,8 @@ class PreferencesRenderersController extends Disposable {
 						model.updateResultGroup(groupId, {
 							id: groupId,
 							label: groupLabel,
-							result: searchResult
+							result: searchResult,
+							order: groupOrder
 						}) :
 						model.updateResultGroup(groupId, null);
 

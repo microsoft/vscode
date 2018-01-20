@@ -611,7 +611,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	protected update(): IFilterResult {
 		// Grab current result groups, only render non-empty groups
-		const resultGroups = map.values(this._currentResultGroups);
+		const resultGroups = map
+			.values(this._currentResultGroups)
+			.sort((a, b) => a.order - b.order);
 		const nonEmptyResultGroups = resultGroups.filter(group => group.result.filterMatches.length);
 
 		const startLine = tail(this.settingsGroups).range.endLineNumber + 2;

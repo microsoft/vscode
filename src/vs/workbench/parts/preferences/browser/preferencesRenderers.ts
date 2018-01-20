@@ -6,6 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
+import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
@@ -255,6 +256,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private editSettingActionRenderer: EditSettingRenderer;
 	private feedbackWidgetRenderer: FeedbackWidgetRenderer;
 	private bracesHidingRenderer: BracesHidingRenderer;
+	private extensionCodelensRenderer: ExtensionCodelensRenderer;
 	private filterResult: IFilterResult;
 
 	private _onUpdatePreference: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
@@ -279,6 +281,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.feedbackWidgetRenderer = this._register(instantiationService.createInstance(FeedbackWidgetRenderer, editor));
 		this.bracesHidingRenderer = this._register(instantiationService.createInstance(BracesHidingRenderer, editor, preferencesModel));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, this.bracesHidingRenderer]));
+		this.extensionCodelensRenderer = this._register(instantiationService.createInstance(ExtensionCodelensRenderer, editor));
 
 		this._register(this.editSettingActionRenderer.onUpdateSetting(e => this._onUpdatePreference.fire(e)));
 		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
@@ -314,6 +317,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 			this.settingHighlighter.clear(true);
 			this.bracesHidingRenderer.render(filterResult, this.preferencesModel.settingsGroups);
 			this.editSettingActionRenderer.render(filterResult.filteredGroups, this._associatedPreferencesModel);
+			this.extensionCodelensRenderer.render(filterResult);
 		} else {
 			this.settingHighlighter.clear(true);
 			this.filteredMatchesRenderer.render(null, this.preferencesModel.settingsGroups);
@@ -323,6 +327,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 			this.settingsGroupTitleRenderer.showGroup(0);
 			this.bracesHidingRenderer.render(null, this.preferencesModel.settingsGroups);
 			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
+			this.extensionCodelensRenderer.render(null);
 		}
 
 		this.hiddenAreasRenderer.render();
@@ -832,6 +837,48 @@ export class HighlightMatchesRenderer extends Disposable {
 				return changeAccessor.deltaDecorations(this.decorationIds, []);
 			});
 		}
+		super.dispose();
+	}
+}
+
+export class ExtensionCodelensRenderer extends Disposable {
+	private decorationIds: string[] = [];
+
+	constructor(private editor: ICodeEditor) {
+		super();
+	}
+
+	public render(filterResult: IFilterResult): void {
+		this.editor.changeDecorations(changeAccessor => {
+			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
+		});
+
+		const newExtensionGroup = filterResult && arrays.first(filterResult.filteredGroups, g => g.id === 'newExtensionsResult');
+		if (newExtensionGroup) {
+			this.editor.changeDecorations(changeAccessor => {
+				const settings = newExtensionGroup.sections[0].settings;
+				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, settings.map(setting => this.createDecoration(setting)));
+			});
+		}
+	}
+
+	private createDecoration(setting: ISetting): IModelDeltaDecoration {
+		return {
+			range: new Range(setting.keyRange.startLineNumber, 1, setting.keyRange.endLineNumber, 1),
+			options: {
+				glyphMarginClassName: 'newExtensionInstall',
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			}
+		};
+	}
+
+	public dispose() {
+		if (this.decorationIds) {
+			this.decorationIds = this.editor.changeDecorations(changeAccessor => {
+				return changeAccessor.deltaDecorations(this.decorationIds, []);
+			});
+		}
+
 		super.dispose();
 	}
 }

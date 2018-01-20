@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider, IGroupFilter, ISettingMatcher, IScoredResults } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider, IGroupFilter, ISettingMatcher, IScoredResults, ISettingMatch, IRemoteSetting } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct, top } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -131,19 +131,37 @@ export class RemoteSearchProvider implements ISearchProvider {
 
 	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
 		return this._remoteSearchP.then(remoteResult => {
-			if (remoteResult) {
-				const highScoreKey = top(Object.keys(remoteResult.scoredResults), (a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a], 1)[0];
-				const highScore = highScoreKey ? remoteResult.scoredResults[highScoreKey] : 0;
-				const minScore = highScore / 5;
+			if (!remoteResult) {
+				return null;
+			}
 
+			const resultKeys = Object.keys(remoteResult.scoredResults);
+			const highScoreKey = top(resultKeys, (a, b) => remoteResult.scoredResults[b].score - remoteResult.scoredResults[a].score, 1)[0];
+			const highScore = highScoreKey ? remoteResult.scoredResults[highScoreKey].score : 0;
+			const minScore = highScore / 5;
+			if (this.newExtensionsOnly) {
+				const passingScoreKeys = resultKeys.filter(k => remoteResult.scoredResults[k].score >= minScore);
+				const filterMatches: ISettingMatch[] = passingScoreKeys.map(k => {
+					const remoteSetting = remoteResult.scoredResults[k];
+					const setting = remoteSettingToISetting(remoteSetting);
+					return <ISettingMatch>{
+						setting,
+						score: remoteSetting.score,
+						matches: [] // TODO
+					};
+				});
+
+				return <ISearchResult>{
+					filterMatches,
+					metadata: remoteResult
+				};
+			} else {
 				const settingMatcher = this.getRemoteSettingMatcher(remoteResult.scoredResults, minScore, preferencesModel);
 				const filterMatches = preferencesModel.filterSettings(this._filter, group => null, settingMatcher);
 				return <ISearchResult>{
 					filterMatches,
 					metadata: remoteResult
 				};
-			} else {
-				return null;
 			}
 		});
 	}
@@ -168,18 +186,18 @@ export class RemoteSearchProvider implements ISearchProvider {
 			}).then((result: any) => {
 				const timestamp = Date.now();
 				const duration = timestamp - start;
-				const suggestions = (result.value || [])
-					.map(r => ({
-						name: r.setting || r.Setting,
-						score: r['@search.score']
+				const remoteSettings: IRemoteSetting[] = (result.value || [])
+					.map(r => (<IRemoteSetting>{
+						key: JSON.parse(r.setting || r.Setting),
+						defaultValue: r['value'],
+						score: r['@search.score'],
+						description: JSON.parse(r['details']),
+						packageId: r['packageid']
 					}));
 
 				const scoredResults = Object.create(null);
-				suggestions.forEach(s => {
-					const name = s.name
-						.replace(/^"/, '')
-						.replace(/"$/, '');
-					scoredResults[name] = s.score;
+				remoteSettings.forEach(s => {
+					scoredResults[s.key] = s;
 				});
 
 				return <IFilterMetadata>{
@@ -195,10 +213,10 @@ export class RemoteSearchProvider implements ISearchProvider {
 
 	private getRemoteSettingMatcher(scoredResults: IScoredResults, minScore: number, preferencesModel: ISettingsEditorModel): ISettingMatcher {
 		return (setting: ISetting) => {
-			const score = scoredResults[setting.key];
-			if (typeof score === 'number' && score >= minScore) {
+			const remoteSetting = scoredResults[setting.key];
+			if (remoteSetting && remoteSetting.score >= minScore) {
 				const settingMatches = new SettingMatches(this._filter, setting, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
-				return { matches: settingMatches, score: scoredResults[setting.key] };
+				return { matches: settingMatches, score: remoteSetting.score };
 			}
 
 			return null;
@@ -269,6 +287,19 @@ function escapeSpecialChars(query: string): string {
 		.replace(/[\\/+\-&|!"~*?:(){}\[\]\^]/g, '\\$&')
 		.replace(/  /g, ' ') // collapse spaces
 		.trim();
+}
+
+function remoteSettingToISetting(remoteSetting: IRemoteSetting): ISetting {
+	return {
+		description: remoteSetting.description.split('\n'),
+		descriptionRanges: null,
+		key: remoteSetting.key,
+		keyRange: null,
+		value: remoteSetting.defaultValue,
+		range: null,
+		valueRange: null,
+		overrides: []
+	};
 }
 
 class SettingMatches {
@@ -345,7 +376,7 @@ class SettingMatches {
 			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
 			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, this.valueMatchingWords, [this.keyMatchingWords, this.descriptionMatchingWords]);
 		} else {
-			valueRanges = this.valuesMatcher(searchString, setting);
+			valueRanges = this.valuesMatcher ? this.valuesMatcher(searchString, setting) : [];
 		}
 
 		return [...descriptionRanges, ...keyRanges, ...valueRanges];
