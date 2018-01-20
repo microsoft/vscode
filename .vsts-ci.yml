@@ -6,7 +6,7 @@ variables:
 steps:
 
 - powershell: |
-    Get-ChildItem -Recurse -Exclude .git | ForEach-Object { Remove-Item -Path $_.FullName -Force -Confirm}
+    Get-ChildItem -Recurse -Exclude .git | ForEach-Object { Remove-Item -Recurse -Path $_.FullName -Force -Confirm}
 
 - script: |
     git config --global core.autocrlf false
