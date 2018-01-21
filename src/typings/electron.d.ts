@@ -5613,7 +5613,7 @@ declare namespace Electron {
 		 * context in the page. HTML APIs like requestFullScreen, which require user
 		 * action, can take advantage of this option for automation.
 		 */
-		executeJavaScript(code: string, userGesture: boolean, callback?: (result: any) => void): void;
+		executeJavaScript(code: string, userGesture?: boolean, callback?: (result: any) => void): void;
 		/**
 		 * Starts a request to find all matches for the text in the web page and returns an
 		 * Integer representing the request id used for the request. The result of the
