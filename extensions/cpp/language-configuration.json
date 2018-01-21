@@ -1,4 +1,9 @@
 {
+	"indentationRules": {
+		"increaseIndentPattern": "^.*\\{[^}\"']*$|^.*\\([^\\)\"']*$|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$|^\\s*\\{\\}$",
+		"decreaseIndentPattern": "^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$",
+		"indentNextLinePattern": "^(?!.*;\\s*//).*[^\\s;{}]\\s*$"
+	},
 	"comments": {
 		"lineComment": "//",
 		"blockComment": ["/*", "*/"]
