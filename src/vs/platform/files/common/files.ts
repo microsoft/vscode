@@ -482,32 +482,6 @@ export function snapshotToString(snapshot: ITextSnapshot): string {
 }
 
 /**
- * Helper that wraps around a ITextSnapshot and allows to have a
- * preamble that the read() method will return first.
- */
-export class BufferedTextSnapshot implements ITextSnapshot {
-	private preambleHandled: boolean;
-
-	constructor(private snapshot: ITextSnapshot, private preamble: string) {
-	}
-
-	public read(): string {
-		let value = this.snapshot.read();
-		if (!this.preambleHandled) {
-			this.preambleHandled = true;
-
-			if (typeof value === 'string') {
-				value = this.preamble + value;
-			} else {
-				value = this.preamble;
-			}
-		}
-
-		return value;
-	}
-}
-
-/**
  * Streamable content and meta information of a file.
  */
 export interface IStreamContent extends IBaseStat {
