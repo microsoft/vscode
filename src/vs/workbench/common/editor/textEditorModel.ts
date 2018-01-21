@@ -91,7 +91,9 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this;
 	}
 
-	protected getFirstLineText(value: string | ITextBufferFactory): string {
+	protected getFirstLineText(value: string | ITextBufferFactory | ITextSnapshot): string {
+
+		// string
 		if (typeof value === 'string') {
 			const firstLineText = value.substr(0, 100);
 
@@ -106,9 +108,17 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 			}
 
 			return firstLineText.substr(0, Math.min(crIndex, lfIndex));
-		} else {
-			return value.getFirstLineText(100);
 		}
+
+		// text buffer factory
+		const textBufferFactory = value as ITextBufferFactory;
+		if (typeof textBufferFactory.getFirstLineText === 'function') {
+			return textBufferFactory.getFirstLineText(100);
+		}
+
+		// text snapshot
+		const textSnapshot = value as ITextSnapshot;
+		return this.getFirstLineText(textSnapshot.read() || '');
 	}
 
 	/**
