@@ -22,6 +22,7 @@ import { onError } from 'vs/base/test/common/utils';
 import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 suite('FileService', () => {
 	let service: FileService;
@@ -581,6 +582,54 @@ suite('FileService', () => {
 		}, error => onError(error, done));
 	});
 
+	test('updateContent (ITextSnapShot)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'small.txt'));
+
+		service.resolveContent(resource).done(c => {
+			assert.equal(c.value, 'Small File');
+
+			const model = TextModel.createFromString('Updates to the small file');
+
+			return service.updateContent(c.resource, model.createSnapshot()).then(c => {
+				assert.equal(fs.readFileSync(resource.fsPath), 'Updates to the small file');
+
+				model.dispose();
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('updateContent (large file)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'lorem.txt'));
+
+		service.resolveContent(resource).done(c => {
+			const newValue = c.value + c.value;
+			c.value = newValue;
+
+			return service.updateContent(c.resource, c.value).then(c => {
+				assert.equal(fs.readFileSync(resource.fsPath), newValue);
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('updateContent (large file, ITextSnapShot)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'lorem.txt'));
+
+		service.resolveContent(resource).done(c => {
+			const newValue = c.value + c.value;
+			const model = TextModel.createFromString(newValue);
+
+			return service.updateContent(c.resource, model.createSnapshot()).then(c => {
+				assert.equal(fs.readFileSync(resource.fsPath), newValue);
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
 	test('updateContent - use encoding (UTF 16 BE)', function (done: () => void) {
 		const resource = uri.file(path.join(testDir, 'small.txt'));
 		const encoding = 'utf16be';
@@ -594,6 +643,31 @@ suite('FileService', () => {
 
 					return service.resolveContent(resource).then(c => {
 						assert.equal(c.encoding, encoding);
+
+						done();
+					});
+				});
+			});
+		}, error => onError(error, done));
+	});
+
+	test('updateContent - use encoding (UTF 16 BE, ITextSnapShot)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'small.txt'));
+		const encoding = 'utf16be';
+
+		service.resolveContent(resource).done(c => {
+			c.encoding = encoding;
+
+			const model = TextModel.createFromString(c.value);
+
+			return service.updateContent(c.resource, model.createSnapshot(), { encoding: encoding }).then(c => {
+				return encodingLib.detectEncodingByBOM(c.resource.fsPath).then((enc) => {
+					assert.equal(enc, encodingLib.UTF16be);
+
+					return service.resolveContent(resource).then(c => {
+						assert.equal(c.encoding, encoding);
+
+						model.dispose();
 
 						done();
 					});
@@ -617,6 +691,31 @@ suite('FileService', () => {
 
 					return service.resolveContent(resource).then(c => {
 						assert.equal(c.encoding, encoding);
+
+						done();
+					});
+				});
+			});
+		}, error => onError(error, done));
+	});
+
+	test('updateContent - encoding preserved (UTF 16 LE, ITextSnapShot)', function (done: () => void) {
+		const encoding = 'utf16le';
+		const resource = uri.file(path.join(testDir, 'some_utf16le.css'));
+
+		service.resolveContent(resource).done(c => {
+			assert.equal(c.encoding, encoding);
+
+			const model = TextModel.createFromString('Some updates');
+
+			return service.updateContent(c.resource, model.createSnapshot(), { encoding: encoding }).then(c => {
+				return encodingLib.detectEncodingByBOM(c.resource.fsPath).then((enc) => {
+					assert.equal(enc, encodingLib.UTF16le);
+
+					return service.resolveContent(resource).then(c => {
+						assert.equal(c.encoding, encoding);
+
+						model.dispose();
 
 						done();
 					});
