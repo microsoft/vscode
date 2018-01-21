@@ -356,14 +356,13 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 		}
 	};
 
-	// create writer to target
-	const writer = fs.createWriteStream(path, options);
+	// create writer to target. we set autoClose: false because we want to use the streams
+	// file descriptor to call fs.fdatasync to ensure the data is flushed to disk
+	const writer = fs.createWriteStream(path, { mode: options.mode, flags: options.flag, autoClose: false });
 
-	// handle errors properly
-	reader.once('error', error => finish(error));
-	writer.once('error', error => finish(error));
-
-	// save the fd for later use
+	// Event: 'open'
+	// Purpose: save the fd for later use
+	// Notes: will not be called when there is an error opening the file descriptor!
 	let fd: number;
 	let isOpen: boolean;
 	writer.once('open', descriptor => {
@@ -371,11 +370,16 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 		isOpen = true;
 	});
 
-	// we are done (underlying fd has been closed)
-	writer.once('close', () => finish());
+	// Event: 'error'
+	// Purpose: to return the error to the outside and to close the write stream (does not happen automatically)
+	reader.once('error', error => finish(error));
+	writer.once('error', error => finish(error));
 
-	// handle end event because we are in charge
-	reader.once('end', () => {
+	// Event: 'finish'
+	// Purpose: use fs.fdatasync to flush the contents to disk
+	// Notes: event is called when the writer has finished writing to the underlying resource. we must call writer.close()
+	// because we have created the WriteStream with autoClose: false
+	writer.once('finish', () => {
 
 		// flush to disk
 		if (canFlush && isOpen) {
@@ -388,18 +392,20 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 					canFlush = false;
 				}
 
-				writer.end();
+				writer.close();
 			});
-		}
-
-		// do not flush
-		else {
-			writer.end();
+		} else {
+			writer.close();
 		}
 	});
 
-	// end: false means we are in charge of ending the streams properly
-	reader.pipe(writer, { end: false });
+	// Event: 'close'
+	// Purpose: signal we are done to the outside
+	// Notes: event is called when the writer's filedescriptor is closed
+	writer.once('close', () => finish());
+
+	// start data piping
+	reader.pipe(writer);
 }
 
 // Calls fs.writeFile() followed by a fs.sync() call to flush the changes to disk
