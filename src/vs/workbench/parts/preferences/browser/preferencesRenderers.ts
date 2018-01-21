@@ -110,7 +110,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 		if (this.filterResult) {
 			data['query'] = this.filterResult.query;
-			data['fuzzy'] = !!this.filterResult.metadata;
 			data['duration'] = this.filterResult.metadata && this.filterResult.metadata.duration;
 			data['index'] = source.index;
 			data['groupId'] = source.groupId;
@@ -121,8 +120,8 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 			"defaultSettingsActions.copySetting" : {
 				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"query" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"editableSide" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
