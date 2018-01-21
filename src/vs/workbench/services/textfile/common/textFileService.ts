@@ -241,7 +241,7 @@ export abstract class TextFileService implements ITextFileService {
 	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): TPromise<void> {
 
 		// Handle file resources first
-		return TPromise.join(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId()))).then(results => {
+		return TPromise.join(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId()))).then(results => {
 
 			// Handle untitled resources
 			const untitledModelPromises = untitledResources
@@ -250,7 +250,7 @@ export abstract class TextFileService implements ITextFileService {
 
 			return TPromise.join(untitledModelPromises).then(untitledModels => {
 				const untitledBackupPromises = untitledModels.map(model => {
-					return this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId());
+					return this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId());
 				});
 
 				return TPromise.join(untitledBackupPromises).then(() => void 0);

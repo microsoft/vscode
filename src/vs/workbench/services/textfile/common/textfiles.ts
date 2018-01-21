@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
-import { IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/files';
+import { IBaseStat, IResolveContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory } from 'vs/editor/common/model';
@@ -201,6 +201,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	revert(soft?: boolean): TPromise<void>;
 
 	getValue(): string;
+
+	createSnapshot(): ITextSnapshot;
 
 	isDirty(): boolean;
 

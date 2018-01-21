@@ -856,7 +856,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return null;
 	}
 
-	public backupResource(resource: URI, content: string): TPromise<void> {
+	public backupResource(resource: URI, content: string | ITextSnapshot): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

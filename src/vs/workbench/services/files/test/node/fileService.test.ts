@@ -945,26 +945,32 @@ suite('FileService', () => {
 			fs.readFile(resource.fsPath, (error, data) => {
 				assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
 
+				const model = TextModel.createFromString('Hello Bom');
+
 				// Update content: UTF_8 => UTF_8_BOM
-				_service.updateContent(resource, 'Hello Bom', { encoding: encodingLib.UTF8_with_bom }).done(() => {
+				_service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8_with_bom }).done(() => {
 					fs.readFile(resource.fsPath, (error, data) => {
 						assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), encodingLib.UTF8);
 
 						// Update content: PRESERVE BOM when using UTF-8
-						_service.updateContent(resource, 'Please stay Bom', { encoding: encodingLib.UTF8 }).done(() => {
+						model.setValue('Please stay Bom');
+						_service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8 }).done(() => {
 							fs.readFile(resource.fsPath, (error, data) => {
 								assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), encodingLib.UTF8);
 
 								// Update content: REMOVE BOM
-								_service.updateContent(resource, 'Go away Bom', { encoding: encodingLib.UTF8, overwriteEncoding: true }).done(() => {
+								model.setValue('Go away Bom');
+								_service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8, overwriteEncoding: true }).done(() => {
 									fs.readFile(resource.fsPath, (error, data) => {
 										assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
 
 										// Update content: BOM comes not back
-										_service.updateContent(resource, 'Do not come back Bom', { encoding: encodingLib.UTF8 }).done(() => {
+										model.setValue('Do not come back Bom');
+										_service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8 }).done(() => {
 											fs.readFile(resource.fsPath, (error, data) => {
 												assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
 
+												model.dispose();
 												_service.dispose();
 												done();
 											});
