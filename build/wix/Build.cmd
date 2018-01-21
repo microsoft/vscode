@@ -12,9 +12,6 @@ REM
 REM Nothing below this line need to be changed normally.
 REM
 
-REM Cultures: https://msdn.microsoft.com/de-de/library/ee825488(v=cs.20).aspx
-SET CULTURE=en-us
-SET LANGIDS=1033
 SET PRODUCT_SKU=code
 SET PRODUCT_VERSION=%PRODUCT_MAJOR_VERSION%.%PRODUCT_MINOR_VERSION%.%PRODUCT_MAINTENANCE_VERSION%
 
@@ -28,6 +25,9 @@ REM Generate platform specific builds
 FOR %%G IN (x64,x86) DO (
   ECHO Generate vscode setup for "%%G" platform
   ECHO ****************************************
+  REM Cultures: https://msdn.microsoft.com/de-de/library/ee825488(v=cs.20).aspx
+  SET CULTURE=en-us
+  SET LANGIDS=1033
   SET PLATFORM=%%G
   SET SETUP_RESOURCES_DIR=.\Resources
   SET REPRO_DIR=.\SourceDir\!PRODUCT_VERSION!\!PLATFORM!
