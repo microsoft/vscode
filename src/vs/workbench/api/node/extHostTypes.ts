@@ -819,11 +819,11 @@ export class CodeAction {
 
 	dianostics?: Diagnostic[];
 
-	scope?: CodeActionKind;
+	kind?: CodeActionKind;
 
-	constructor(title: string, edit?: WorkspaceEdit) {
+	constructor(title: string, kind?: CodeActionKind) {
 		this.title = title;
-		this.edit = edit;
+		this.kind = kind;
 	}
 }
 

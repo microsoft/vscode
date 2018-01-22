@@ -144,26 +144,22 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 			const actions: vscode.CodeAction[] = [];
 			for (const info of response.body) {
 				if (info.inlineable === false) {
-					actions.push({
+					const codeAction = new vscode.CodeAction(info.description, vscode.CodeActionKind.Refactor);
+					codeAction.command = {
 						title: info.description,
-						command: {
-							title: info.description,
-							command: SelectRefactorCommand.ID,
-							arguments: [document, file, info, range]
-						},
-						kind: vscode.CodeActionKind.Refactor
-					});
+						command: SelectRefactorCommand.ID,
+						arguments: [document, file, info, range]
+					};
+					actions.push(codeAction);
 				} else {
 					for (const action of info.actions) {
-						actions.push({
+						const codeAction = new vscode.CodeAction(action.description, TypeScriptRefactorProvider.getKind(action));
+						codeAction.command = {
 							title: action.description,
-							command: {
-								title: action.description,
-								command: ApplyRefactoringCommand.ID,
-								arguments: [document, file, info.name, action.name, range]
-							},
-							kind: TypeScriptRefactorProvider.getKind(action)
-						});
+							command: ApplyRefactoringCommand.ID,
+							arguments: [document, file, info.name, action.name, range]
+						};
+						actions.push(codeAction);
 					}
 				}
 			}
