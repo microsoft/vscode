@@ -325,8 +325,9 @@ function getNLSConfiguration(locale) {
 					});
 				});
 			});
-		} catch (exp) {
-			// Do nothing. Use English locale
+		} catch (err) {
+			console.error('Generating translation files failed: ' + err.message);
+			console.error(err.stack);
 			return defaultResult;
 		}
 	}
