@@ -228,9 +228,12 @@ export class ViewLine implements IVisibleLine {
 				isRegularASCII = strings.isBasicASCII(lineData.content);
 			}
 
-			if (isRegularASCII && lineData.content.length < 1000) {
+			if (isRegularASCII && lineData.content.length < 1000 && renderLineInput.lineTokens.getCount() < 100) {
 				// Browser rounding errors have been observed in Chrome and IE, so using the fast
 				// view line only for short lines. Please test before removing the length check...
+				// ---
+				// Another rounding error has been observed on Linux in VSCode, where <span> width
+				// rounding errors add up to an observable large number...
 				renderedViewLine = new FastRenderedViewLine(
 					this._renderedViewLine ? this._renderedViewLine.domNode : null,
 					renderLineInput,
