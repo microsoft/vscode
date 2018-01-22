@@ -74,7 +74,7 @@ function _buildWin32Setup(arch) {
 function buildWin32Setup(arch) {
 	return () => {
 		return gulp.src('build/win32/inno_updater.exe', { base: 'build/win32' })
-			.pipe(vfs.dest(buildPath))
+			.pipe(vfs.dest(buildPath(arch)))
 			.pipe(_buildWin32Setup(arch));
 	};
 }
