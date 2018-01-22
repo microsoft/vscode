@@ -229,6 +229,13 @@ function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IG
 			return { uri, fallbackUri: uri };
 		}
 
+		if (type === AssetType.Repository) {
+			return {
+				uri: null,
+				fallbackUri: null
+			};
+		}
+
 		return null;
 	}
 
