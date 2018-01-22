@@ -246,9 +246,9 @@ export class IssueReporter extends Disposable {
 			hide(processBlock);
 			hide(workspaceBlock);
 
-			descriptionTitle.innerHTML = 'Steps to reproduce <span class="required-input">*</span>';
+			descriptionTitle.innerHTML = 'Steps to Reproduce <span class="required-input">*</span>';
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = 'How did you encounter this problem? Clear steps to reproduce the problem help our investigation. What did you expect to happen and what actually happened?';
+			descriptionSubtitle.innerHTML = 'How did you encounter this problem? Please provide clear steps to reproduce the problem during our investigation. What did you expect to happen and what actually did happen?';
 		}
 		// 2 - Perf Issue
 		else if (issueType === 1) {
@@ -256,7 +256,7 @@ export class IssueReporter extends Disposable {
 			show(processBlock);
 			show(workspaceBlock);
 
-			descriptionTitle.innerHTML = 'Steps to reproduce <span class="required-input">*</span>';
+			descriptionTitle.innerHTML = 'Steps to Reproduce <span class="required-input">*</span>';
 			show(descriptionSubtitle);
 			descriptionSubtitle.innerHTML = 'When did this performance issue happen? For example, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.';
 		}
