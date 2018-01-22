@@ -118,12 +118,6 @@ export class TabsTitleControl extends TitleControl {
 		return this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 	}
 
-	public setContext(group: IEditorGroup): void {
-		super.setContext(group);
-
-		this.editorActionsToolbar.context = { group };
-	}
-
 	public create(parent: HTMLElement): void {
 		super.create(parent);
 

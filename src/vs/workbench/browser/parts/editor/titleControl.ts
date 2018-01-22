@@ -170,6 +170,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 	public setContext(group: IEditorGroup): void {
 		this.context = group;
+
+		this.editorActionsToolbar.context = { group };
 	}
 
 	public hasContext(): boolean {
