@@ -9,10 +9,12 @@ const gulp = require('gulp');
 const path = require('path');
 const assert = require('assert');
 const cp = require('child_process');
+const es = require('event-stream');
 const _7z = require('7zip')['7z'];
 const util = require('./lib/util');
 const pkg = require('../package.json');
 const product = require('../product.json');
+const vfs = require('vinyl-fs');
 
 const repoPath = path.dirname(__dirname);
 const buildPath = arch => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
@@ -38,8 +40,8 @@ function packageInnoSetup(iss, options, cb) {
 		.on('exit', () => cb(null));
 }
 
-function buildWin32Setup(arch) {
-	return cb => {
+function _buildWin32Setup(arch) {
+	return es.through(null, function () {
 		const ia32AppId = product.win32AppId;
 		const x64AppId = product.win32x64AppId;
 
@@ -65,7 +67,15 @@ function buildWin32Setup(arch) {
 			OutputDir: setupDir(arch)
 		};
 
-		packageInnoSetup(issPath, { definitions }, cb);
+		packageInnoSetup(issPath, { definitions }, err => err ? this.emit('error', err) : this.emit('end'));
+	});
+}
+
+function buildWin32Setup(arch) {
+	return () => {
+		return gulp.src('build/win32/inno_updater.exe', { base: 'build/win32' })
+			.pipe(vfs.dest(buildPath))
+			.pipe(_buildWin32Setup(arch));
 	};
 }
 

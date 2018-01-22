@@ -349,8 +349,6 @@ function packageTask(platform, arch, opts) {
 
 			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
-
-			result = es.merge(result, gulp.src('build/win32/inno_updater.exe', { base: 'build/win32' }));
 		} else if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
 				.pipe(replace('@@NAME@@', product.applicationName))
