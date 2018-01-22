@@ -832,8 +832,8 @@ export class CodeActionKind {
 	private static readonly sep = '.';
 
 	public static readonly Empty = new CodeActionKind('');
-	public static readonly QuickFix = new CodeActionKind('quickfix');
-	public static readonly Refactor = new CodeActionKind('refactor');
+	public static readonly QuickFix = CodeActionKind.Empty.append('quickfix');
+	public static readonly Refactor = CodeActionKind.Empty.append('refactor');
 	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
 	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
