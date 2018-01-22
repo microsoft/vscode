@@ -47,7 +47,40 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	) {
 	}
 
+	public updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): TPromise<void> {
+		const folders = this.contextService.getWorkspace().folders;
+		if (index < 0 || index > folders.length - 1) {
+			return TPromise.wrapError(new Error(nls.localize('errorInvalidIndex', "The index for updating workspace folders is invalid.")));
+		}
+
+		if (typeof deleteCount === 'number' && (deleteCount < 0 || index + deleteCount > folders.length - 1)) {
+			return TPromise.wrapError(new Error(nls.localize('errorInvalidDelete', "The number of workspace folders to delete is invalid.")));
+		}
+
+		const wantsToDelete = typeof deleteCount === 'number';
+		const wantsToAdd = Array.isArray(foldersToAdd) && foldersToAdd.length;
+
+		// Add Folders
+		if (wantsToAdd && !wantsToDelete) {
+			return this.doAddFolders(foldersToAdd, index, donotNotifyError);
+		}
+
+		// Delete Folders
+		if (wantsToDelete && !wantsToAdd) {
+			return this.removeFolders(folders.slice(index, index + deleteCount).map(f => f.uri));
+		}
+
+		// Add & Delete Folders (first remove and then add to allow for updating existing folders)
+		return this.removeFolders(folders.slice(index, index + deleteCount).map(f => f.uri)).then(() => {
+			return this.doAddFolders(foldersToAdd, index, donotNotifyError);
+		});
+	}
+
 	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): TPromise<void> {
+		return this.doAddFolders(foldersToAdd, void 0, donotNotifyError);
+	}
+
+	private doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): TPromise<void> {
 		const state = this.contextService.getWorkbenchState();
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
@@ -66,7 +99,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		// Delegate addition of folders to workspace service otherwise
-		return this.contextService.addFolders(foldersToAdd)
+		return this.contextService.addFolders(foldersToAdd, index)
 			.then(() => null, error => donotNotifyError ? TPromise.wrapError(error) : this.handleWorkspaceConfigurationEditingError(error));
 	}
 

@@ -192,6 +192,34 @@ suite('WorkspaceContextService - Workspace', () => {
 			});
 	});
 
+	test('add folders (at specific index)', () => {
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }], 0)
+			.then(() => {
+				const actual = testObject.getWorkspace().folders;
+
+				assert.equal(actual.length, 4);
+				assert.equal(path.basename(actual[0].uri.fsPath), 'd');
+				assert.equal(path.basename(actual[1].uri.fsPath), 'c');
+				assert.equal(path.basename(actual[2].uri.fsPath), 'a');
+				assert.equal(path.basename(actual[3].uri.fsPath), 'b');
+			});
+	});
+
+	test('add folders (at specific wrong index)', () => {
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }], 10)
+			.then(() => {
+				const actual = testObject.getWorkspace().folders;
+
+				assert.equal(actual.length, 4);
+				assert.equal(path.basename(actual[0].uri.fsPath), 'a');
+				assert.equal(path.basename(actual[1].uri.fsPath), 'b');
+				assert.equal(path.basename(actual[2].uri.fsPath), 'd');
+				assert.equal(path.basename(actual[3].uri.fsPath), 'c');
+			});
+	});
+
 	test('add folders (with name)', () => {
 		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
 		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')), name: 'DDD' }, { uri: URI.file(path.join(workspaceDir, 'c')), name: 'CCC' }])
