@@ -40,7 +40,7 @@ if (nlsConfig._resolvedLanguagePackCoreLocation) {
 		if (result) {
 			cb(result);
 		}
-		let bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.' + language + '.json');
+		let bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
 		readFile(bundleFile).then(function (content) {
 			let json = JSON.parse(content);
 			bundles[bundle] = json;

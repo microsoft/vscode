@@ -125,29 +125,6 @@ function writeFile(file, content) {
 	});
 }
 
-function generateLanguagePack(locale, sourceFolder, cacheFolder) {
-	let filename =  path.join(__dirname, 'nls.metadata.json');
-	return readFile(filename).then((content) => {
-		let json = JSON.parse(content);
-		let bundles = Object.keys(json.bundles);
-		let writes = [];
-		for (let bundle of bundles) {
-			let modules = json.bundles[bundle];
-			let target = Object.create(null);
-			for (let module of modules) {
-				let strings = json.messages[module];
-				let targetStrings = [];
-				for (let s of strings) {
-					targetStrings.push('\uFF3B' + s.replace(/[aouei]/g, '$&$&') + '\uFF3D');
-				}
-				target[module] = targetStrings;
-			}
-			writes.push(writeFile(path.join(cacheFolder, bundle.replace(/\//g,'!') + '.nls.' + locale + '.json'), JSON.stringify(target)));
-		}
-		return Promise.all(writes);
-	});
-}
-
 // Language tags are case insensitve however an amd loader is case sensitive
 // To make this work on case preserving & insensitive FS we do the following:
 // the language bundles have lower case language tags and we always lower case
@@ -178,6 +155,39 @@ function getUserDefinedLocale() {
 	});
 }
 
+function getLanguagePackConfigurations() {
+	let userData = app.getPath('userData');
+	let configFile = path.join(userData, 'languagepacks.json');
+	try {
+		return require(configFile);
+	} catch (err) {
+		console.error('Loading language pack configuration failed: ' + err.message);
+		console.error(err.stack);
+	}
+	return undefined;
+}
+
+function resolveLanguagePackLocale(config, locale) {
+	try {
+		while (locale) {
+			if (config[locale]) {
+				return locale;
+			} else {
+				let index = locale.lastIndexOf('-');
+				if (index > 0) {
+					locale = locale.substring(0, index);
+				} else {
+					return undefined;
+				}
+			}
+		}
+	} catch (err) {
+		console.error('Resolving language pack configuration failed ' + err.message);
+		console.error(err.stack);
+	}
+	return undefined;
+}
+
 function getNLSConfiguration(locale) {
 	if (locale === 'pseudo') {
 		return Promise.resolve({ locale: locale, availableLanguages: {}, pseudo: true });
@@ -188,32 +198,6 @@ function getNLSConfiguration(locale) {
 	}
 
 	let userData = app.getPath('userData');
-
-	// This is temporay to test language packs until we have them installed via an extension.
-	if (locale === 'lptest') {
-		let commit = getCommit();
-		let cacheRoot = path.join(userData, 'CachedLanguagePacks');
-		let cacheFolder = path.join(cacheRoot, 'vscode', commit, locale, 'core');
-		return exists(cacheFolder).then((folderExists) => {
-			let result = {
-				locale: locale,
-				availableLanguages: { '*': locale },
-				_languagePackLocation: null,
-				_cacheRoot: cacheRoot,
-				_resolvedLanguagePackCoreLocation: cacheFolder,
-				_resolvedLanguagePackExtensionLocation: path.join(cacheRoot, 'vscode', commit, locale, 'extensions')
-			};
-			if (folderExists) {
-				return result;
-			} else {
-				return mkdirp(cacheFolder).then(() => {
-					return generateLanguagePack(locale, '', cacheFolder).then(() => {
-						return result;
-					});
-				});
-			}
-		});
-	}
 
 	// We have a built version so we have extracted nls file. Try to find
 	// the right file to use.
@@ -259,10 +243,87 @@ function getNLSConfiguration(locale) {
 			if (!commit) {
 				return defaultResult;
 			}
-			let lpFolder = path.join(userData, 'CachedLanguagePacks', commit, locale);
-			return mkdirp(lpFolder).then(() => {
-				// Check fo the language pack folder and generate the language pack files.
-				return { locale: locale, availableLanguages: {}, location: lpFolder };
+			let configs = getLanguagePackConfigurations();
+			if (!configs) {
+				return defaultResult;
+			}
+			let initialLocale = locale;
+			locale = resolveLanguagePackLocale(configs, locale);
+			if (!locale) {
+				return defaultResult;
+			}
+			let packConfigs = configs[locale];
+			if (!packConfigs || !Array.isArray(packConfigs) || packConfigs.length === 0) {
+				return defaultResult;
+			}
+			// We take the first install language pack. No idea what to do if we have more
+			// than one :-)
+			let packConfig = packConfigs[0];
+			if (typeof packConfig.path !== 'string' || typeof packConfig.version !== 'string' || packConfig.version.match(/\d+\.\d+\.\d+/) === null) {
+				return defaultResult;
+			}
+			return exists(packConfig.path).then((fileExists) => {
+				if (!fileExists) {
+					return defaultResult;
+				}
+				let cacheRoot = path.join(userData, 'CachedLanguagePacks');
+				let id = commit + '_' + packConfig.version + '_' + locale;
+				let coreLocation = path.join(cacheRoot, 'vscode', id, 'core');
+				let extLocation = path.join(cacheRoot, 'vscode', id, 'ext');
+				let result = {
+					locale: initialLocale,
+					availableLanguages: { '*': locale },
+					_languagePackLocation: packConfig.path,
+					_cacheRoot: cacheRoot,
+					_resolvedLanguagePackCoreLocation: coreLocation,
+					_resolvedLanguagePackExtensionLocation: extLocation
+				};
+				return exists(coreLocation).then((fileExists) => {
+					if (fileExists) {
+						return result;
+					}
+					return mkdirp(coreLocation).then(() => {
+						return Promise.all([readFile(path.join(__dirname, 'nls.metadata.json')), readFile(path.join(packConfig.path, 'translations', 'main.i18n.json'))]);
+					}).then((values) => {
+						let metadata = JSON.parse(values[0]);
+						let packData = JSON.parse(values[1]);
+						let bundles = Object.keys(metadata.bundles);
+						let writes = [];
+						for (let bundle of bundles) {
+							let modules = metadata.bundles[bundle];
+							let target = Object.create(null);
+							for (let module of modules) {
+								let keys = metadata.keys[module];
+								let defaultMessages = metadata.messages[module];
+								let translations = packData[module];
+								let targetStrings;
+								if (translations) {
+									targetStrings = [];
+									for (let i = 0; i < keys.length; i++) {
+										let elem = keys[i];
+										let key = typeof elem === 'string' ? elem : elem.key;
+										let translatedMessage = translations[key];
+										if (translatedMessage === undefined) {
+											translatedMessage = defaultMessages[i];
+										}
+										targetStrings.push(translatedMessage);
+									}
+								} else {
+									targetStrings = defaultMessages;
+								}
+								target[module] = targetStrings;
+							}
+							writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g,'!') + '.nls.json'), JSON.stringify(target)));
+						}
+						return Promise.all(writes);
+					}).then(() => {
+						return result;
+					}).catch((err) => {
+						console.error('Generating translation files failed: ' + err.message);
+						console.error(err.stack);
+						return defaultResult;
+					});
+				});
 			});
 		} catch (exp) {
 			// Do nothing. Use English locale
