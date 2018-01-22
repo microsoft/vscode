@@ -404,25 +404,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						return;
 					}
 
-					// Suggest the search only once as this is not a strong recommendation
-					fileExtensionSuggestionIgnoreList.push(fileExtension);
-					this.storageService.store(
-						'extensionsAssistant/fileExtensionsSuggestionIgnore',
-						JSON.stringify(fileExtensionSuggestionIgnoreList),
-						StorageScope.GLOBAL
-					);
-
-
 					const message = localize('showLanguageExtensions', "The Marketplace has extensions that can help with '.{0}' files", fileExtension);
 
 					const searchMarketplaceAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, fileExtension);
 
 					const options = [
 						localize('searchMarketplace', "Search Marketplace"),
+						choiceNever,
 						choiceClose
 					];
 
-					this.choiceService.choose(Severity.Info, message, options, 1).done(choice => {
+					this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 						switch (choice) {
 							case 0:
 								/* __GDPR__
@@ -435,6 +427,20 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 								searchMarketplaceAction.run();
 								break;
 							case 1:
+								fileExtensionSuggestionIgnoreList.push(fileExtension);
+								this.storageService.store(
+									'extensionsAssistant/fileExtensionsSuggestionIgnore',
+									JSON.stringify(fileExtensionSuggestionIgnoreList),
+									StorageScope.GLOBAL
+								);
+								/* __GDPR__
+									"fileExtensionSuggestion:popup" : {
+										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+									}
+								*/
+								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'neverShowAgain', fileExtension: fileExtension });
+							case 2:
 								/* __GDPR__
 									"fileExtensionSuggestion:popup" : {
 										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
