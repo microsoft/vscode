@@ -9,10 +9,17 @@ import { basename, dirname } from 'vs/base/common/paths';
 import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad } from 'vs/base/common/strings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export const KnownSnippetVariableNames = Object.freeze({
+	'CURRENT_YEAR': true,
+	'CURRENT_YEAR_SHORT': true,
+	'CURRENT_MONTH': true,
+	'CURRENT_DATE': true,
+	'CURRENT_HOUR': true,
+	'CURRENT_MINUTE': true,
+	'CURRENT_SECOND': true,
 	'SELECTION': true,
 	'CLIPBOARD': true,
 	'TM_SELECTED_TEXT': true,
@@ -168,5 +175,30 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 		} else {
 			return text;
 		}
+	}
+}
+
+export class TimeBasedVariableResolver implements VariableResolver {
+
+	resolve(variable: Variable): string {
+		const { name } = variable;
+
+		if (name === 'CURRENT_YEAR') {
+			return String(new Date().getFullYear());
+		} else if (name === 'CURRENT_YEAR_SHORT') {
+			return String(new Date().getFullYear()).slice(-2);
+		} else if (name === 'CURRENT_MONTH') {
+			return pad((new Date().getMonth().valueOf() + 1), 2);
+		} else if (name === 'CURRENT_DATE') {
+			return pad(new Date().getDate().valueOf(), 2);
+		} else if (name === 'CURRENT_HOUR') {
+			return pad(new Date().getHours().valueOf(), 2);
+		} else if (name === 'CURRENT_MINUTE') {
+			return pad(new Date().getMinutes().valueOf(), 2);
+		} else if (name === 'CURRENT_SECOND') {
+			return pad(new Date().getSeconds().valueOf(), 2);
+		}
+
+		return undefined;
 	}
 }

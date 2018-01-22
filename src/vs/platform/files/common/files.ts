@@ -410,12 +410,6 @@ export interface IFileStat extends IBaseStat {
 	isDirectory: boolean;
 
 	/**
-	 * Return {{true}} when this is a directory
-	 * that is not empty.
-	 */
-	hasChildren: boolean;
-
-	/**
 	 * The children of the file stat or undefined if none.
 	 */
 	children?: IFileStat[];
@@ -463,6 +457,15 @@ export interface IStringStream {
 	on(event: 'error', callback: (err: any) => void): void;
 	on(event: 'end', callback: () => void): void;
 	on(event: string, callback: any): void;
+}
+
+/**
+ * Text snapshot that works like an iterator.
+ * Will try to return chunks of roughly ~64KB size.
+ * Will return null when finished.
+ */
+export interface ITextSnapshot {
+	read(): string;
 }
 
 /**

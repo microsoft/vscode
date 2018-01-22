@@ -12,7 +12,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ToggleMarkersPanelAction, ToggleErrorsAndWarningsAction, ShowProblemsPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
+import { ToggleMarkersPanelAction, ShowProblemsPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
@@ -30,6 +30,16 @@ export function registerContributions(): void {
 		handler: (accessor, args: any) => {
 			const markersPanel = (<MarkersPanel>accessor.get(IPanelService).getActivePanel());
 			markersPanel.openFileAtElement(markersPanel.getFocusElement(), false, true, true);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: Constants.MARKER_SHOW_PANEL_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: undefined,
+		primary: undefined,
+		handler: (accessor, args: any) => {
+			accessor.get(IPanelService).openPanel(Constants.MARKERS_PANEL_ID);
 		}
 	});
 
@@ -63,9 +73,6 @@ export function registerContributions(): void {
 	const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
-	}), 'View: Toggle Problems', Messages.MARKERS_PANEL_VIEW_CATEGORY);
-	registry.registerWorkbenchAction(new SyncActionDescriptor(ShowProblemsPanelAction, ShowProblemsPanelAction.ID, ShowProblemsPanelAction.LABEL), 'View: Show Problems', Messages.MARKERS_PANEL_VIEW_CATEGORY);
-
-	// Retaining old action to show errors and warnings, so that custom bindings to this action for existing users works.
-	registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleErrorsAndWarningsAction, ToggleErrorsAndWarningsAction.ID, ToggleErrorsAndWarningsAction.LABEL), 'Show Errors and Warnings');
+	}), 'View: Toggle Problems (Errors, Warnings, Infos)', Messages.MARKERS_PANEL_VIEW_CATEGORY);
+	registry.registerWorkbenchAction(new SyncActionDescriptor(ShowProblemsPanelAction, ShowProblemsPanelAction.ID, ShowProblemsPanelAction.LABEL), 'View: Focus Problems (Errors, Warnings, Infos)', Messages.MARKERS_PANEL_VIEW_CATEGORY);
 }

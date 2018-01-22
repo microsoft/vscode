@@ -12,6 +12,5 @@
 	"globalConsoleActionWin": "開啟新的命令提示字元",
 	"globalConsoleActionMacLinux": "開啟新的終端機",
 	"scopedConsoleActionWin": "在命令提示字元中開啟",
-	"scopedConsoleActionMacLinux": "在終端機中開啟",
-	"openFolderInIntegratedTerminal": "在終端機中開啟"
+	"scopedConsoleActionMacLinux": "在終端機中開啟"
 }

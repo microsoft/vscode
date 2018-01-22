@@ -50,6 +50,11 @@ export const DataTransfers = {
 	URL: 'URL',
 
 	/**
+	 * Application specific resource transfer type when multiple resources are being dragged.
+	 */
+	URLS: 'URLS',
+
+	/**
 	 * Browser specific transfer type to download.
 	 */
 	DOWNLOAD_URL: 'DownloadURL',

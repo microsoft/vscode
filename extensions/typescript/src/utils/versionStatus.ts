@@ -40,8 +40,10 @@ export default class VersionStatus {
 		if (vscode.languages.match([languageModeIds.typescript, languageModeIds.typescriptreact], doc)) {
 			if (this.normalizePath(doc.uri)) {
 				this.versionBarEntry.show();
-				return;
+			} else {
+				this.versionBarEntry.hide();
 			}
+			return;
 		}
 
 		if (!vscode.window.activeTextEditor.viewColumn) {

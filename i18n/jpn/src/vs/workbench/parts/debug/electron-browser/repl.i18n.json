@@ -8,5 +8,5 @@
 	"actions.repl.historyPrevious": "前の履歴",
 	"actions.repl.historyNext": "次の履歴",
 	"actions.repl.acceptInput": "REPL での入力を反映",
-	"actions.repl.copyAll": "デバッグ: コンソールをすべてコピーする"
+	"actions.repl.copyAll": "デバッグ: コンソールをすべてコピー"
 }

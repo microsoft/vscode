@@ -25,6 +25,7 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
 
 function createMockEditor(model: TextModel): TestCodeEditor {
 	const contextKeyService = new MockContextKeyService();
@@ -590,7 +591,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
-				_onDidSelectItem(item) {
+				_onDidSelectItem(item: ISelectedSuggestion) {
 					super._onDidSelectItem(item);
 				}
 			}
@@ -606,7 +607,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 				assert.equal(first.suggestion.label, 'bar');
 
-				ctrl._onDidSelectItem(first);
+				ctrl._onDidSelectItem({ item: first, index: 0, model: event.completionModel });
 			});
 
 			assert.equal(

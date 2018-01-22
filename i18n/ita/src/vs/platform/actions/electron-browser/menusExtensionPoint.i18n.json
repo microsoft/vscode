@@ -40,6 +40,5 @@
 	"menuId.invalid": "`{0}` non è un identificatore di menu valido",
 	"missing.command": "La voce di menu fa riferimento a un comando `{0}` che non è definito nella sezione 'commands'.",
 	"missing.altCommand": "La voce di menu fa riferimento a un comando alternativo `{0}` che non è definito nella sezione 'commands'.",
-	"dupe.command": "La voce di menu fa riferimento allo stesso comando come comando predefinito e come comando alternativo",
-	"nosupport.altCommand": "I comandi alternativi sono attualmente supportati solo nel gruppo 'navigation' del menu 'editor/title'"
+	"dupe.command": "La voce di menu fa riferimento allo stesso comando come comando predefinito e come comando alternativo"
 }

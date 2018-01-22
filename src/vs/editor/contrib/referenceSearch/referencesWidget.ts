@@ -251,7 +251,7 @@ class Controller extends DefaultController {
 			}
 
 			var result = super.onClick(tree, element, event);
-			if (event.ctrlKey || event.metaKey) {
+			if (event.ctrlKey || event.metaKey || event.altKey) {
 				this._onDidOpenToSide.fire(element);
 			} else if (event.detail === 2) {
 				this._onDidSelect.fire(element);
@@ -578,7 +578,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		if (this._preview && this._preview.getModel()) {
 			this._onDidSelectReference.fire({
 				element: this._getFocusedReference(),
-				kind: e.ctrlKey || e.metaKey ? 'side' : 'open',
+				kind: e.ctrlKey || e.metaKey || e.altKey ? 'side' : 'open',
 				source: 'title'
 			});
 		}
@@ -745,7 +745,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			if (event.detail === 2) {
 				this._onDidSelectReference.fire({
 					element: { uri: this._getFocusedReference().uri, range: target.range },
-					kind: (event.ctrlKey || event.metaKey) ? 'side' : 'open',
+					kind: (event.ctrlKey || event.metaKey || event.altKey) ? 'side' : 'open',
 					source: 'editor'
 				});
 			}

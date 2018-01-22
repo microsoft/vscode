@@ -85,10 +85,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IHashService private hashService: IHashService
 	) {
 		super(modelService, modeService);
-
-		// TODO@remote
-		// assert.ok(resource.scheme === 'file', 'TextFileEditorModel can only handle file:// resources.');
-
 		this.resource = resource;
 		this.toDispose = [];
 		this._onDidContentChange = new Emitter<StateChange>();
@@ -393,8 +389,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			mtime: content.mtime,
 			etag: content.etag,
 			isDirectory: false,
-			hasChildren: false,
-			children: void 0,
+			children: void 0
 		};
 		this.updateLastResolvedDiskStat(resolvedStat);
 

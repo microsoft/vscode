@@ -39,7 +39,7 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, IConfirmation, Severity, IConfirmationResult } from 'vs/platform/message/common/message';
+import { IMessageService, IConfirmation, Severity, IConfirmationResult, getConfirmMessage } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -55,6 +55,8 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/workbench/browser/editor';
 import { relative } from 'path';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { distinctParents } from 'vs/base/common/resources';
+import { WorkbenchTree, multiSelectModifierSettingKey } from 'vs/platform/list/browser/listService';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -104,7 +106,6 @@ export class FileDataSource implements IDataSource {
 
 				return stat.children;
 			}, (e: any) => {
-				stat.hasChildren = false;
 				this.messageService.show(Severity.Error, e);
 
 				return []; // we could not resolve any children because of an error
@@ -279,16 +280,15 @@ export class FileRenderer implements IRenderer {
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
-		const done = once((commit: boolean) => {
+		const done = once((commit: boolean, blur: boolean) => {
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
 				editableData.action.run({ value: inputBox.value });
 			}
 
-			const restoreFocus = document.activeElement === inputBox.inputElement; // https://github.com/Microsoft/vscode/issues/20269
 			setTimeout(() => {
-				if (restoreFocus) {
+				if (!blur) { // https://github.com/Microsoft/vscode/issues/20269
 					tree.DOMFocus();
 				}
 				lifecycle.dispose(toDispose);
@@ -301,14 +301,14 @@ export class FileRenderer implements IRenderer {
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
-						done(true);
+						done(true, false);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false);
+					done(false, false);
 				}
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-				done(inputBox.isInputValid());
+				done(inputBox.isInputValid(), true);
 			}),
 			label,
 			styler
@@ -329,19 +329,31 @@ export class FileController extends DefaultController implements IDisposable {
 
 	private contributedContextMenu: IMenu;
 	private toDispose: IDisposable[];
+	private previousSelectionRangeStop: FileStat;
+	private useAltAsMultiSelectModifier: boolean;
 
-	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+	constructor(
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IMenuService private menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ });
 
+		this.useAltAsMultiSelectModifier = configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
 		this.toDispose = [];
-		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
-		this.toDispose.push(this.contributedContextMenu);
 
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+				this.useAltAsMultiSelectModifier = this.configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
+			}
+		}));
 	}
 
 	public onLeftClick(tree: ITree, stat: FileStat | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
@@ -377,20 +389,40 @@ export class FileController extends DefaultController implements IDisposable {
 
 		// Set DOM focus
 		tree.DOMFocus();
+		if (stat instanceof NewStatPlaceholder) {
+			return true;
+		}
 
-		// Expand / Collapse
-		tree.toggleExpansion(stat, event.altKey);
+		// Allow to multiselect
+		if ((this.useAltAsMultiSelectModifier && event.altKey) || !this.useAltAsMultiSelectModifier && (event.ctrlKey || event.metaKey)) {
+			const selection = tree.getSelection();
+			this.previousSelectionRangeStop = undefined;
+			if (selection.indexOf(stat) >= 0) {
+				tree.setSelection(selection.filter(s => s !== stat));
+			} else {
+				tree.setSelection(selection.concat(stat));
+			}
+			tree.setFocus(stat, payload);
+		}
 
 		// Allow to unselect
-		if (event.shiftKey && !(stat instanceof NewStatPlaceholder)) {
-			const selection = tree.getSelection();
-			if (selection && selection.length > 0 && selection[0] === stat) {
-				tree.clearSelection(payload);
+		else if (event.shiftKey) {
+			const focus = tree.getFocus();
+			if (focus) {
+				if (this.previousSelectionRangeStop) {
+					tree.deselectRange(stat, this.previousSelectionRangeStop);
+				}
+				tree.selectRange(focus, stat, payload);
+				this.previousSelectionRangeStop = stat;
 			}
 		}
 
 		// Select, Focus and open files
-		else if (!(stat instanceof NewStatPlaceholder)) {
+		else {
+			// Expand / Collapse
+			tree.toggleExpansion(stat, event.altKey);
+			this.previousSelectionRangeStop = undefined;
+
 			const preserveFocus = !isDoubleClick;
 			tree.setFocus(stat, payload);
 
@@ -401,14 +433,19 @@ export class FileController extends DefaultController implements IDisposable {
 			tree.setSelection([stat], payload);
 
 			if (!stat.isDirectory) {
-				this.openEditor(stat, { preserveFocus, sideBySide: event && (event.ctrlKey || event.metaKey), pinned: isDoubleClick });
+				let sideBySide = false;
+				if (event) {
+					sideBySide = this.useAltAsMultiSelectModifier ? (event.ctrlKey || event.metaKey) : event.altKey;
+				}
+
+				this.openEditor(stat, { preserveFocus, sideBySide, pinned: isDoubleClick });
 			}
 		}
 
 		return true;
 	}
 
-	public onContextMenu(tree: ITree, stat: FileStat | Model, event: ContextMenuEvent): boolean {
+	public onContextMenu(tree: WorkbenchTree, stat: FileStat | Model, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
 		}
@@ -418,7 +455,13 @@ export class FileController extends DefaultController implements IDisposable {
 
 		tree.setFocus(stat);
 
+		if (!this.contributedContextMenu) {
+			this.contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, tree.contextKeyService);
+			this.toDispose.push(this.contributedContextMenu);
+		}
+
 		const anchor = { x: event.posx, y: event.posy };
+		const selection = tree.getSelection();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => {
@@ -430,7 +473,8 @@ export class FileController extends DefaultController implements IDisposable {
 				if (wasCancelled) {
 					tree.DOMFocus();
 				}
-			}
+			},
+			getActionsContext: () => selection && selection.indexOf(stat) >= 0 ? selection.map((fs: FileStat) => fs.resource) : [stat]
 		});
 
 		return true;
@@ -677,23 +721,24 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
 		const sources: FileStat[] = data.getData();
-		let source: FileStat = null;
-		if (sources.length > 0) {
-			source = sources[0];
-		}
+		if (sources && sources.length) {
+			// When dragging folders, make sure to collapse them to free up some space
+			sources.forEach(s => {
+				if (s.isDirectory && tree.isExpanded(s)) {
+					tree.collapse(s, false);
+				}
+			});
 
-		// When dragging folders, make sure to collapse them to free up some space
-		if (source && source.isDirectory && tree.isExpanded(source)) {
-			tree.collapse(source, false);
-		}
+			// Apply some datatransfer types to allow for dragging the element outside of the application
+			originalEvent.dataTransfer.setData(DataTransfers.TEXT, sources.map(fs => fs.resource.scheme === 'file' ? getPathLabel(fs.resource) : fs.resource.toString()).join('\n'));
+			if (sources.length === 1) {
+				if (!sources[0].isDirectory) {
+					originalEvent.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, sources[0].name, sources[0].resource.toString()].join(':'));
+				}
 
-		// Apply some datatransfer types to allow for dragging the element outside of the application
-		if (source) {
-			if (!source.isDirectory) {
-				originalEvent.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, source.name, source.resource.toString()].join(':'));
+			} else {
+				originalEvent.dataTransfer.setData(DataTransfers.URLS, JSON.stringify(sources.filter(s => !s.isDirectory).map(s => s.resource.toString())));
 			}
-
-			originalEvent.dataTransfer.setData(DataTransfers.TEXT, getPathLabel(source.resource));
 		}
 	}
 
@@ -844,7 +889,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private handleExplorerDrop(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): TPromise<void> {
-		const source: FileStat = data.getData()[0];
+		const sources: FileStat[] = distinctParents(data.getData(), s => s.resource);
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		let confirmPromise: TPromise<IConfirmationResult>;
@@ -853,7 +898,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
 			confirmPromise = this.messageService.confirmWithCheckbox({
-				message: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", source.name),
+				message: sources.length > 1 ? getConfirmMessage(nls.localize('confirmMultiMove', "Are you sure you want to move the following {0} files?", sources.length), sources.map(s => s.resource))
+					: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", sources[0].name),
 				checkbox: {
 					label: nls.localize('doNotAskAgain', "Do not ask me again")
 				},
@@ -874,7 +920,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 			return updateConfirmSettingsPromise.then(() => {
 				if (confirmation.confirmed) {
-					return this.doHandleExplorerDrop(tree, data, source, target, isCopy);
+					return TPromise.join(sources.map(source => this.doHandleExplorerDrop(tree, data, source, target, isCopy))).then(() => void 0);
 				}
 
 				return TPromise.as(void 0);

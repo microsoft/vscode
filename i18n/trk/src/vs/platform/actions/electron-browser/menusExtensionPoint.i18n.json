@@ -40,6 +40,5 @@
 	"menuId.invalid": "`{0}` geçerli bir menü tanımlayıcısı değil",
 	"missing.command": "Menü ögesi, 'commands' bölümünde tanımlanmamış bir `{0}` komutuna başvuruyor.",
 	"missing.altCommand": "Menü ögesi, 'commands' bölümünde tanımlanmamış bir `{0}` alternatif komutuna başvuruyor.",
-	"dupe.command": "Menü ögesi, aynı varsayılan ve alternatif komutlarına başvuruyor",
-	"nosupport.altCommand": "Üzgünüz, fakat sadece 'editor/title' menüsünün 'navigation' grubu alternatif komutları destekliyor"
+	"dupe.command": "Menü ögesi, aynı varsayılan ve alternatif komutlarına başvuruyor"
 }

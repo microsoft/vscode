@@ -196,6 +196,27 @@ export class DeleteWordRightTerminalAction extends Action {
 	}
 }
 
+export class EnterNavigationModeTerminalAction extends Action {
+
+	public static readonly ID = 'workbench.action.terminal.enterLineNavigationMode';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.enterLineNavigationMode', "Enter Line Navigation Mode");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.enterNavigationMode();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.new';

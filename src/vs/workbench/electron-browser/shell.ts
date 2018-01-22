@@ -87,6 +87,8 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { stat } from 'fs';
+import { join } from 'path';
 
 /**
  * Services that we require for the Shell
@@ -161,17 +163,7 @@ export class WorkbenchShell {
 		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
 
 		// Workbench
-		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection, this.lifecycleService);
-		try {
-			this.workbench.startup().done(startupInfos => this.onWorkbenchStarted(startupInfos, instantiationService));
-		} catch (error) {
-
-			// Log it
-			this.logService.error(toErrorMessage(error, true));
-
-			// Rethrow
-			throw error;
-		}
+		this.workbench = this.createWorkbench(instantiationService, serviceCollection, parent.getHTMLElement(), workbenchContainer.getHTMLElement());
 
 		// Window
 		this.workbench.getInstantiationService().createInstance(ElectronWindow, this.container);
@@ -188,26 +180,50 @@ export class WorkbenchShell {
 		return workbenchContainer;
 	}
 
-	private onWorkbenchStarted(info: IWorkbenchStartedInfo, instantiationService: IInstantiationService): void {
+	private createWorkbench(instantiationService: IInstantiationService, serviceCollection: ServiceCollection, parent: HTMLElement, workbenchContainer: HTMLElement): Workbench {
+		try {
+			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService);
 
-		// Startup Telemetry
-		this.logStartupTelemetry(info);
+			// Set lifecycle phase to `Restoring`
+			this.lifecycleService.phase = LifecyclePhase.Restoring;
 
-		// Set lifecycle phase to `Runnning` so that other contributions can now do something
-		this.lifecycleService.phase = LifecyclePhase.Running;
+			// Startup Workbench
+			workbench.startup().done(startupInfos => {
 
-		// Set lifecycle phase to `Runnning For A Bit` after a short delay
-		let timeoutHandle = setTimeout(() => {
-			timeoutHandle = void 0;
-			this.lifecycleService.phase = LifecyclePhase.Eventually;
-		}, 3000);
-		this.toUnbind.push({
-			dispose: () => {
-				if (timeoutHandle) {
-					clearTimeout(timeoutHandle);
+				// Set lifecycle phase to `Runnning` so that other contributions can now do something
+				this.lifecycleService.phase = LifecyclePhase.Running;
+
+				// Startup Telemetry
+				this.logStartupTelemetry(startupInfos);
+
+				// Set lifecycle phase to `Runnning For A Bit` after a short delay
+				let eventuallPhaseTimeoutHandle = setTimeout(() => {
+					eventuallPhaseTimeoutHandle = void 0;
+					this.lifecycleService.phase = LifecyclePhase.Eventually;
+				}, 3000);
+				this.toUnbind.push({
+					dispose: () => {
+						if (eventuallPhaseTimeoutHandle) {
+							clearTimeout(eventuallPhaseTimeoutHandle);
+						}
+					}
+				});
+
+				// localStorage metrics (TODO@Ben remove me later)
+				if (!this.environmentService.extensionTestsPath && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+					this.logLocalStorageMetrics();
 				}
-			}
-		});
+			});
+
+			return workbench;
+		} catch (error) {
+
+			// Log it
+			this.logService.error(toErrorMessage(error, true));
+
+			// Rethrow
+			throw error;
+		}
 	}
 
 	private logStartupTelemetry(info: IWorkbenchStartedInfo): void {
@@ -263,6 +279,37 @@ export class WorkbenchShell {
 			*/
 			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
 		});
+	}
+
+	private logLocalStorageMetrics(): void {
+		perf.mark('willReadLocalStorage');
+		if (!this.storageService.getBoolean('localStorageMetricsSent')) {
+			perf.mark('didReadLocalStorage');
+
+			perf.mark('willWriteLocalStorage');
+			this.storageService.store('localStorageMetricsSent', true);
+
+			stat(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage'), (error, stat) => {
+				/* __GDPR__
+					"localStorageMetrics" : {
+						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"subsequentReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"writeTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"keys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('localStorageMetrics', {
+					'accessTime': perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage'),
+					'firstReadTime': perf.getDuration('willReadWorkspaceIdentifier', 'didReadWorkspaceIdentifier'),
+					'subsequentReadTime': perf.getDuration('willReadLocalStorage', 'didReadLocalStorage'),
+					'writeTime': perf.getDuration('willWriteLocalStorage', 'willComputeLocalStorageSize'),
+					'keys': window.localStorage.length,
+					'size': stat ? stat.size : -1
+				});
+			});
+		}
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {

@@ -6,11 +6,5 @@
 {
 	"openEditors": "Açık Düzenleyiciler",
 	"openEditosrSection": "Açık Düzenleyiciler Bölümü",
-	"dirtyCounter": "{0} kaydedilmemiş",
-	"saveAll": "Tümünü Kaydet",
-	"closeAllUnmodified": "Değiştirilmeyenleri Kapat",
-	"closeAll": "Tümünü Kapat",
-	"compareWithSaved": "Kaydedilenle Karşılaştır",
-	"close": "Kapat",
-	"closeOthers": "Diğerlerini Kapat"
+	"dirtyCounter": "{0} kaydedilmemiş"
 }
