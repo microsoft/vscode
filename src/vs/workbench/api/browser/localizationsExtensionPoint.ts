@@ -58,7 +58,8 @@ namespace schema {
 				},
 				translations: {
 					description: localize('vscode.extension.contributes.localizations.translations', 'A relative path to the folder containing all translation files for the contributed language.'),
-					type: 'string'
+					type: 'string',
+					default: 'translations'
 				}
 			}
 		}
