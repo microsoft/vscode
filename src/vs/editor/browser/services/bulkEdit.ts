@@ -9,7 +9,7 @@ import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -17,7 +17,7 @@ import { IIdentifiedSingleEditOperation, ITextModel, EndOfLineSequence } from 'v
 import { IProgressRunner, emptyProgressRunner, IProgress } from 'vs/platform/progress/common/progress';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceTextEdit, ResourceFileEdit, isResourceFileEdit } from 'vs/editor/common/modes';
+import { ResourceTextEdit, ResourceFileEdit, isResourceFileEdit, isResourceTextEdit } from 'vs/editor/common/modes';
 import { getPathLabel } from 'vs/base/common/labels';
 
 
@@ -32,7 +32,9 @@ abstract class IRecording {
 			// watch only when there is a fileservice available
 			stop = fileService.onFileChanges(event => {
 				for (const change of event.changes) {
-					_changes.add(change.resource.toString());
+					if (change.type === FileChangeType.UPDATED) {
+						_changes.add(change.resource.toString());
+					}
 				}
 			});
 		}
@@ -304,7 +306,10 @@ export class BulkEdit {
 		const groups: Edit[][] = [];
 		let group: Edit[];
 		for (const edit of this._edits) {
-			if (!group || isResourceFileEdit(group[0]) === isResourceFileEdit(edit)) {
+			if (!group
+				|| (isResourceFileEdit(group[0]) && !isResourceFileEdit(edit))
+				|| (isResourceTextEdit(group[0]) && !isResourceTextEdit(edit))
+			) {
 				group = [];
 				groups.push(group);
 			}
