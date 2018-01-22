@@ -18,7 +18,7 @@ OutputDir={#OutputDir}
 OutputBaseFilename=VSCodeSetup
 Compression=lzma
 SolidCompression=yes
-AppMutex={#AppMutex}
+AppMutex={code:GetAppMutex}
 SetupMutex={#AppMutex}setup
 WizardImageFile={#RepoDir}\resources\win32\inno-big.bmp
 WizardSmallImageFile={#RepoDir}\resources\win32\inno-small.bmp
@@ -47,11 +47,15 @@ Name: "simplifiedChinese"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.zh
 Name: "traditionalChinese"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.zh-tw.isl,{#RepoDir}\build\win32\i18n\messages.zh-tw.isl" {#LocalizedLanguageFile("cht")}
 
 [InstallDelete]
-Type: filesandordirs; Name: {app}\resources\app\out
-Type: filesandordirs; Name: {app}\resources\app\plugins
-Type: filesandordirs; Name: {app}\resources\app\extensions
-Type: filesandordirs; Name: {app}\resources\app\node_modules
-Type: files; Name: {app}\resources\app\Credits_45.0.2454.85.html
+Type: filesandordirs; Name: "{app}\resources\app\out"; Check: IsNotUpdate
+Type: filesandordirs; Name: "{app}\resources\app\plugins"; Check: IsNotUpdate
+Type: filesandordirs; Name: "{app}\resources\app\extensions"; Check: IsNotUpdate
+Type: filesandordirs; Name: "{app}\resources\app\node_modules"; Check: IsNotUpdate
+Type: files; Name: "{app}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotUpdate
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\_"
+Type: filesandordirs; Name: "{app}\old"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
@@ -63,7 +67,8 @@ Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Other}"
 Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{cm:Other}"; Check: WizardSilent
 
 [Files]
-Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "*"; Excludes: "inno_updater.exe"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "inno_updater.exe"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; AppUserModelID: "{#AppUserId}"
@@ -71,7 +76,7 @@ Name: "{commondesktop}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: quicklaunchicon; AppUserModelID: "{#AppUserId}"
 
 [Run]
-Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: WizardSilent
+Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunAfterUpdate
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Flags: nowait postinstall; Check: WizardNotSilent
 
 [Registry]
@@ -953,6 +958,62 @@ end;
 function WizardNotSilent(): Boolean;
 begin
   Result := not WizardSilent();
+end;
+
+// Updates
+function IsBackgroundUpdate(): Boolean;
+begin
+  Result := ExpandConstant('{param:update|false}') <> 'false';
+end;
+
+function IsNotUpdate(): Boolean;
+begin
+  Result := not IsBackgroundUpdate();
+end;
+
+function ShouldRunAfterUpdate(): Boolean;
+begin
+  if IsBackgroundUpdate() then
+    // VS Code will create a flag file before the update starts (/update=C:\foo\bar)
+    // - if the file exists at this point, the user quit Code before the update finished, so don't start Code after update
+    // - otherwise, the user has accepted to apply the update and Code should start
+    Result := not FileExists(ExpandConstant('{param:update}'))
+  else
+    Result := True;
+end;
+
+function GetAppMutex(Value: string): string;
+begin
+  if IsBackgroundUpdate() then
+    Result := ''
+  else
+    Result := '{#AppMutex}';
+end;
+
+function GetDestDir(Value: string): string;
+begin
+  if IsBackgroundUpdate() then
+    Result := ExpandConstant('{app}\_')
+  else
+    Result := ExpandConstant('{app}');
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  UpdateResultCode: Integer;
+begin
+  if IsBackgroundUpdate() and (CurStep = ssPostInstall) then
+  begin
+    CreateMutex('{#AppMutex}-ready');
+
+    while (CheckForMutexes('{#AppMutex}')) do
+    begin
+      Log('Application is still running, waiting');
+      Sleep(1000);
+    end;
+
+    Exec(ExpandConstant('{app}\inno_updater.exe'), ExpandConstant('--apply-update _ "{app}\unins000.dat"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+  end;
 end;
 
 // http://stackoverflow.com/a/23838239/261019
