@@ -1851,23 +1851,23 @@ declare module 'vscode' {
 		private constructor(value: string);
 
 		/**
-		 * TODO: should this be exposed?
+		 * String value of the kind, e.g. `"refactoring.extract.function"`.
 		 */
 		readonly value?: string;
 
 		/**
 		 * Create a new kind by appending a more specific selector to the current kind.
 		 *
-		 * Does not modify the current object.
+		 * Does not modify the current kind.
 		 */
 		append(parts: string): CodeActionKind;
 
 		/**
-		 * Does this scope contain scope `other`?
+		 * Does this kind contain `other`?
 		 *
-		 * Another way of saying: is `other` within this scope?
+		 * The kind `"refactoring"` for example contains `"refactoring.extract"` and ``"refactoring.extract.function"`, but not `"unicorn.refactor.extract"` or `"refactory.extract"`
 		 *
-		 * @param other Scope to check.
+		 * @param other Kind to check.
 		 */
 		contains(other: CodeActionKind): boolean;
 	}
