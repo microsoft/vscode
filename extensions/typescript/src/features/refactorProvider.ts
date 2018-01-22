@@ -108,10 +108,14 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 	public async provideCodeActions(
 		document: vscode.TextDocument,
 		_range: vscode.Range,
-		_context: vscode.CodeActionContext,
+		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.CodeAction[]> {
 		if (!this.client.apiVersion.has240Features()) {
+			return [];
+		}
+
+		if (context.only && !vscode.CodeActionKind.Refactor.contains(context.only)) {
 			return [];
 		}
 
@@ -146,7 +150,8 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 							title: info.description,
 							command: SelectRefactorCommand.ID,
 							arguments: [document, file, info, range]
-						}
+						},
+						kind: vscode.CodeActionKind.Refactor
 					});
 				} else {
 					for (const action of info.actions) {
@@ -156,7 +161,8 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 								title: action.description,
 								command: ApplyRefactoringCommand.ID,
 								arguments: [document, file, info.name, action.name, range]
-							}
+							},
+							kind: TypeScriptRefactorProvider.getKind(action)
 						});
 					}
 				}
@@ -165,5 +171,12 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 		} catch {
 			return [];
 		}
+	}
+
+	private static getKind(refactor: Proto.RefactorActionInfo) {
+		if (refactor.name.startsWith('function_')) {
+			return vscode.CodeActionKind.RefactorExtract.append('function');
+		}
+		return vscode.CodeActionKind.Refactor;
 	}
 }
