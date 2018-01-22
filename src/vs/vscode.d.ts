@@ -1824,6 +1824,11 @@ declare module 'vscode' {
 		static readonly Empty: CodeActionKind;
 
 		/**
+		 * Base kind for quickfix actions.
+		 */
+		static readonly QuickFix: CodeActionKind;
+
+		/**
 		 * Base kind for refactoring actions.
 		 */
 		static readonly Refactor: CodeActionKind;
@@ -1834,14 +1839,14 @@ declare module 'vscode' {
 		static readonly RefactorExtract: CodeActionKind;
 
 		/**
+		 * Base kind for refactoring inline actions.
+		 */
+		static readonly RefactorInline: CodeActionKind;
+
+		/**
 		 * Base kind for refactoring rewite actions.
 		 */
 		static readonly RefactorRewrite: CodeActionKind;
-
-		/**
-		 * Base kind for refactoring extraction inline.
-		 */
-		static readonly RefactorInline: CodeActionKind;
 
 		private constructor(value: string);
 
