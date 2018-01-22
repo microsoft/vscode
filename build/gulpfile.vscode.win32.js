@@ -77,7 +77,7 @@ gulp.task('vscode-win32-x64-setup', ['clean-vscode-win32-x64-setup'], buildWin32
 
 function archiveWin32Setup(arch) {
 	return cb => {
-		const args = ['a', '-tzip', zipPath(arch), '.', '-r'];
+		const args = ['a', '-tzip', zipPath(arch), '.', '-r', '-x!inno_updater.exe'];
 
 		cp.spawn(_7z, args, { stdio: 'inherit', cwd: buildPath(arch) })
 			.on('error', cb)
