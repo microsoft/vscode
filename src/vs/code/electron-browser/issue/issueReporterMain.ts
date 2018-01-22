@@ -95,7 +95,7 @@ export class IssueReporter extends Disposable {
 		if (styles.inputBorder) {
 			content.push(`input, textarea, select { border: 1px solid ${styles.inputBorder}; }`);
 		} else {
-			content.push(`input, textarea, select { border: none; }`);
+			content.push(`input, textarea, select { border: 1px solid transparent; }`);
 		}
 
 		if (styles.inputForeground) {
