@@ -16,7 +16,7 @@ import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactory, TextModel } from 'vs/editor/common/model/textModel';
 import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -118,6 +118,56 @@ suite('BackupFileService', () => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 				assert.equal(fs.existsSync(untitledBackupPath), true);
 				assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
+				done();
+			});
+		});
+
+		test('text file (ITextSnapshot)', function (done: () => void) {
+			const model = TextModel.createFromString('test');
+
+			service.backupResource(fooFile, model.createSnapshot()).then(() => {
+				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+				assert.equal(fs.existsSync(fooBackupPath), true);
+				assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
+				model.dispose();
+				done();
+			});
+		});
+
+		test('untitled file (ITextSnapshot)', function (done: () => void) {
+			const model = TextModel.createFromString('test');
+
+			service.backupResource(untitledFile, model.createSnapshot()).then(() => {
+				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+				assert.equal(fs.existsSync(untitledBackupPath), true);
+				assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
+				model.dispose();
+				done();
+			});
+		});
+
+		test('text file (large file, ITextSnapshot)', function (done: () => void) {
+			const largeString = (new Array(100 * 1024)).join('Large String\n');
+			const model = TextModel.createFromString(largeString);
+
+			service.backupResource(fooFile, model.createSnapshot()).then(() => {
+				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+				assert.equal(fs.existsSync(fooBackupPath), true);
+				assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\n${largeString}`);
+				model.dispose();
+				done();
+			});
+		});
+
+		test('untitled file (large file, ITextSnapshot)', function (done: () => void) {
+			const largeString = (new Array(100 * 1024)).join('Large String\n');
+			const model = TextModel.createFromString(largeString);
+
+			service.backupResource(untitledFile, model.createSnapshot()).then(() => {
+				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+				assert.equal(fs.existsSync(untitledBackupPath), true);
+				assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\n${largeString}`);
+				model.dispose();
 				done();
 			});
 		});
