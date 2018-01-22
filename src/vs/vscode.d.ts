@@ -1815,7 +1815,7 @@ declare module 'vscode' {
 	/**
 	 * Kind of a code action.
 	 *
-	 * Kinds are a hierarchical list of identifiers separated by `.`, e.g. `"refactoring.extract.function"`.
+	 * Kinds are a hierarchical list of identifiers separated by `.`, e.g. `"refactor.extract.function"`.
 	 */
 	export class CodeActionKind {
 		/**
@@ -1851,7 +1851,7 @@ declare module 'vscode' {
 		private constructor(value: string);
 
 		/**
-		 * String value of the kind, e.g. `"refactoring.extract.function"`.
+		 * String value of the kind, e.g. `"refactor.extract.function"`.
 		 */
 		readonly value?: string;
 
@@ -1865,7 +1865,7 @@ declare module 'vscode' {
 		/**
 		 * Does this kind contain `other`?
 		 *
-		 * The kind `"refactoring"` for example contains `"refactoring.extract"` and ``"refactoring.extract.function"`, but not `"unicorn.refactor.extract"` or `"refactory.extract"`
+		 * The kind `"refactor"` for example contains `"refactor.extract"` and ``"refactor.extract.function"`, but not `"unicorn.refactor.extract"` or `"refactory.extract"`
 		 *
 		 * @param other Kind to check.
 		 */
