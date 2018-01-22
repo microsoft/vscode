@@ -7,6 +7,7 @@
 
 import 'vs/css!./media/issueReporter';
 import { shell, ipcRenderer, webFrame, remote } from 'electron';
+import { localize } from 'vs/nls';
 import { $ } from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browser';
 import product from 'vs/platform/node/product';
@@ -28,8 +29,10 @@ import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IssueReporterModel, IssueReporterData } from 'vs/code/electron-browser/issue/issueReporterModel';
 import { IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 
 export function startup(configuration: IWindowConfiguration) {
+	document.body.innerHTML = BaseHtml();
 	const issueReporter = new IssueReporter(configuration);
 
 	// workaround for flickering on page load as css is applied
@@ -66,7 +69,7 @@ export class IssueReporter extends Disposable {
 
 			const submitButton = <HTMLButtonElement>document.getElementById('github-submit-btn');
 			submitButton.disabled = false;
-			submitButton.textContent = 'Preview on GitHub';
+			submitButton.textContent = localize('previewOnGitHub', "Preview on GitHub");
 		});
 
 		ipcRenderer.send('issueInfoRequest');
@@ -74,6 +77,10 @@ export class IssueReporter extends Disposable {
 
 		this.initServices(configuration);
 		this.setEventHandlers();
+
+		if (window.document.documentElement.lang !== 'en') {
+			show(document.getElementById('english'));
+		}
 	}
 
 	render(): void {
@@ -218,7 +225,7 @@ export class IssueReporter extends Disposable {
 						if (result.items.length) {
 							const issues = $('ul');
 							const issuesText = $('div.list-title');
-							issuesText.textContent = 'Similar issues:';
+							issuesText.textContent = localize('similarIssues', "Similar issues");
 							addIssuesToList(issues, result.items);
 							similarIssues.appendChild(issuesText);
 							similarIssues.appendChild(issues);
@@ -258,9 +265,9 @@ export class IssueReporter extends Disposable {
 			hide(processBlock);
 			hide(workspaceBlock);
 
-			descriptionTitle.innerHTML = 'Steps to Reproduce <span class="required-input">*</span>';
+			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = 'How did you encounter this problem? Please provide clear steps to reproduce the problem during our investigation. What did you expect to happen and what actually did happen?';
+			descriptionSubtitle.innerHTML = localize('bugDescription', "How did you encounter this problem? Please provide clear steps to reproduce the problem during our investigation. What did you expect to happen and what actually did happen?");
 		}
 		// 2 - Perf Issue
 		else if (issueType === 1) {
@@ -268,9 +275,9 @@ export class IssueReporter extends Disposable {
 			show(processBlock);
 			show(workspaceBlock);
 
-			descriptionTitle.innerHTML = 'Steps to Reproduce <span class="required-input">*</span>';
+			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = 'When did this performance issue happen? For example, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.';
+			descriptionSubtitle.innerHTML = localize('performanceIssueDesciption', "When did this performance issue happen? For example, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.");
 		}
 		// 3 - Feature Request
 		else {
@@ -278,7 +285,7 @@ export class IssueReporter extends Disposable {
 			hide(processBlock);
 			hide(workspaceBlock);
 
-			descriptionTitle.innerHTML = 'Description <span class="required-input">*</span>';
+			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
 			hide(descriptionSubtitle);
 		}
 	}

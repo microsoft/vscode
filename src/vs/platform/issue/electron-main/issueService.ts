@@ -6,6 +6,7 @@
 'use strict';
 
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
+import { localize } from 'vs/nls';
 import { IIssueService, IssueReporterStyles } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain } from 'electron';
 import { ILaunchService } from 'vs/code/electron-main/launch';
@@ -41,7 +42,7 @@ export class IssueService implements IIssueService {
 		this._issueWindow = new BrowserWindow({
 			width: 800,
 			height: 900,
-			title: 'Issue Reporter',
+			title: localize('issueReporter', "Issue Reporter"),
 			parent: BrowserWindow.getFocusedWindow(),
 			backgroundColor: theme && theme.backgroundColor || DEFAULT_BACKGROUND_COLOR
 		});
