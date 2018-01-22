@@ -298,7 +298,6 @@ export class PreferencesEditor extends BaseEditor {
 		if (filter && filter !== this._lastReportedFilter) {
 			let data = {
 				filter,
-				fuzzy: !!metadata,
 				duration: metadata ? metadata.duration : undefined,
 				context: metadata ? metadata.context : undefined,
 				counts
@@ -307,7 +306,6 @@ export class PreferencesEditor extends BaseEditor {
 			/* __GDPR__
 				"defaultSettings.filter" : {
 					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"context" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"counts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
