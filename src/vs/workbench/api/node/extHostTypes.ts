@@ -493,11 +493,11 @@ export class TextEdit {
 
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private _clock: number = 0;
+	private _seqPool: number = 0;
 
-	private _resourceEdits: [number/*time*/, URI, URI][] = [];
+	private _resourceEdits: { seq: number, from: URI, to: URI }[] = [];
 	private _textEdits: [URI, TextEdit[]][] = [];
-	private _textEditsIndex = new Map<string, [number/*index*/, number/*time*/]>();
+	private _textEditsIndex = new Map<string, { idx: number, seq: number }>();
 
 	createResource(uri: vscode.Uri): void {
 		this.renameResource(undefined, uri);
@@ -508,11 +508,11 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	renameResource(from: vscode.Uri, to: vscode.Uri): void {
-		this._resourceEdits.push([this._clock++, from, to]);
+		this._resourceEdits.push({ seq: this._seqPool++, from, to });
 	}
 
 	resourceEdits(): [vscode.Uri, vscode.Uri][] {
-		return this._resourceEdits.map(([, oldUri, newUri]) => (<[vscode.Uri, vscode.Uri]>[oldUri, newUri]));
+		return this._resourceEdits.map(({ from, to }) => (<[vscode.Uri, vscode.Uri]>[from, to]));
 	}
 
 	replace(uri: URI, range: Range, newText: string): void {
@@ -540,9 +540,9 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	set(uri: URI, edits: TextEdit[]): void {
 		if (!this._textEditsIndex.has(uri.toString())) {
 			let newLen = this._textEdits.push([uri, edits]);
-			this._textEditsIndex.set(uri.toString(), [newLen - 1, this._clock++]);
+			this._textEditsIndex.set(uri.toString(), { idx: newLen - 1, seq: this._seqPool++ });
 		} else {
-			const [idx] = this._textEditsIndex.get(uri.toString());
+			const { idx } = this._textEditsIndex.get(uri.toString());
 			this._textEdits[idx][1] = edits;
 		}
 	}
@@ -551,7 +551,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		if (!this._textEditsIndex.has(uri.toString())) {
 			return undefined;
 		}
-		const [idx] = this._textEditsIndex.get(uri.toString());
+		const { idx } = this._textEditsIndex.get(uri.toString());
 		return this._textEdits[idx][1];
 	}
 
@@ -561,17 +561,17 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	allEntries(): ([URI, TextEdit[]] | [URI, URI])[] {
-		// use the 'time' the we have assigned when inserting
+		// use the 'seq' the we have assigned when inserting
 		// the operation and use that order in the resulting
 		// array
 		const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
 		this._textEditsIndex.forEach(value => {
-			const [index, time] = value;
-			res[time] = this._textEdits[index];
+			const { idx, seq } = value;
+			res[seq] = this._textEdits[idx];
 		});
 		this._resourceEdits.forEach(value => {
-			const [time, oldUri, newUri] = value;
-			res[time] = [oldUri, newUri];
+			const { seq, from, to } = value;
+			res[seq] = [from, to];
 		});
 		return res;
 	}
