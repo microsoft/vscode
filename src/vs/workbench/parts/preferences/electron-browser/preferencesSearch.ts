@@ -20,6 +20,7 @@ import { asJson } from 'vs/base/node/request';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -125,8 +126,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 	) {
 		this._filter = filter;
 
-		// @queries are always handled by local filter
-		this._remoteSearchP = filter && !strings.startsWith(filter, '@') ?
+		this._remoteSearchP = filter ?
 			this.getSettingsFromBing(filter) :
 			TPromise.wrap(null);
 	}
@@ -194,17 +194,23 @@ export class RemoteSearchProvider implements ISearchProvider {
 				const timestamp = Date.now();
 				const duration = timestamp - start;
 				const remoteSettings: IRemoteSetting[] = (result.value || [])
-					.map(r => (<IRemoteSetting>{
-						key: JSON.parse(r.setting || r.Setting),
-						defaultValue: r['value'],
-						score: r['@search.score'],
-						description: JSON.parse(r['details']),
-						packageId: r['packageid']
-					}));
+					.map(r => {
+						const key = JSON.parse(r.setting || r.Setting);
+						const packageId = r['packageid'];
+						const id = getSettingKey(packageId, key);
+						return <IRemoteSetting>{
+							key,
+							id,
+							defaultValue: r['value'],
+							score: r['@search.score'],
+							description: JSON.parse(r['details']),
+							packageId
+						};
+					});
 
 				const scoredResults = Object.create(null);
 				remoteSettings.forEach(s => {
-					scoredResults[s.key] = s;
+					scoredResults[s.id] = s;
 				});
 
 				return <IFilterMetadata>{
@@ -219,8 +225,8 @@ export class RemoteSearchProvider implements ISearchProvider {
 	}
 
 	private getRemoteSettingMatcher(scoredResults: IScoredResults, minScore: number, preferencesModel: ISettingsEditorModel): ISettingMatcher {
-		return (setting: ISetting) => {
-			const remoteSetting = scoredResults[setting.key];
+		return (setting: ISetting, group: ISettingsGroup) => {
+			const remoteSetting = scoredResults[getSettingKey(group.id, setting.key)];
 			if (remoteSetting && remoteSetting.score >= minScore) {
 				const settingMatches = new SettingMatches(this._filter, setting, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 				return { matches: settingMatches, score: remoteSetting.score };
@@ -297,6 +303,10 @@ export class RemoteSearchProvider implements ISearchProvider {
 
 		return `(packageid eq '${uuid}' and startbuildno le '${versionString}' and endbuildno ge '${versionString}')`;
 	}
+}
+
+function getSettingKey(packageId: string, name: string): string {
+	return packageId + '_' + name;
 }
 
 const API_VERSION = 'api-version=2016-09-01-Preview';

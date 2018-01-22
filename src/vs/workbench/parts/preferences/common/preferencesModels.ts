@@ -57,7 +57,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			const groupMatched = groupFilter(group);
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
-					const settingMatchResult = settingMatcher(setting);
+					const settingMatchResult = settingMatcher(setting, group);
 
 					if (groupMatched || settingMatchResult) {
 						filterMatches.push({

@@ -89,6 +89,7 @@ export interface IScoredResults {
 export interface IRemoteSetting {
 	score: number;
 	key: string;
+	id: string;
 	defaultValue: string;
 	description: string;
 	packageId: string;
@@ -111,7 +112,7 @@ export interface IPreferencesEditorModel<T> {
 }
 
 export type IGroupFilter = (group: ISettingsGroup) => boolean;
-export type ISettingMatcher = (setting: ISetting) => { matches: IRange[], score: number };
+export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[], score: number };
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;
