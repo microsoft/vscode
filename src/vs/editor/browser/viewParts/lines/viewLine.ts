@@ -278,8 +278,27 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
+		startColumn = startColumn | 0; // @perf
+		endColumn = endColumn | 0; // @perf
+
 		startColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, startColumn));
 		endColumn = Math.min(this._renderedViewLine.input.lineContent.length + 1, Math.max(1, endColumn));
+
+		const stopRenderingLineAfter = this._renderedViewLine.input.stopRenderingLineAfter | 0; // @perf
+
+		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
+			// This range is obviously not visible
+			return null;
+		}
+
+		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter) {
+			startColumn = stopRenderingLineAfter;
+		}
+
+		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter) {
+			endColumn = stopRenderingLineAfter;
+		}
+
 		return this._renderedViewLine.getVisibleRangesForRange(startColumn, endColumn, context);
 	}
 
@@ -325,23 +344,6 @@ class FastRenderedViewLine implements IRenderedViewLine {
 	}
 
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
-		startColumn = startColumn | 0; // @perf
-		endColumn = endColumn | 0; // @perf
-		const stopRenderingLineAfter = this.input.stopRenderingLineAfter | 0; // @perf
-
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
-			// This range is obviously not visible
-			return null;
-		}
-
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter) {
-			startColumn = stopRenderingLineAfter;
-		}
-
-		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter) {
-			endColumn = stopRenderingLineAfter;
-		}
-
 		const startPosition = this._getCharPosition(startColumn);
 		const endPosition = this._getCharPosition(endColumn);
 		return [new HorizontalRange(startPosition, endPosition - startPosition)];
@@ -432,23 +434,6 @@ class RenderedViewLine implements IRenderedViewLine {
 	 * Visible ranges for a model range
 	 */
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] {
-		startColumn = startColumn | 0; // @perf
-		endColumn = endColumn | 0; // @perf
-		const stopRenderingLineAfter = this.input.stopRenderingLineAfter | 0; // @perf
-
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
-			// This range is obviously not visible
-			return null;
-		}
-
-		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter) {
-			startColumn = stopRenderingLineAfter;
-		}
-
-		if (stopRenderingLineAfter !== -1 && endColumn > stopRenderingLineAfter) {
-			endColumn = stopRenderingLineAfter;
-		}
-
 		if (this._pixelOffsetCache !== null) {
 			// the text is LTR
 			let startOffset = this._readPixelOffset(startColumn, context);
