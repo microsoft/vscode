@@ -356,17 +356,19 @@ export class UpdateContribution implements IGlobalActivity {
 		}
 
 		let badge: IBadge | undefined = undefined;
+		let clazz: string | undefined;
 
 		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
 			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
 		} else if (state.type === StateType.CheckingForUpdates || state.type === StateType.Downloading || state.type === StateType.Updating) {
 			badge = new ProgressBadge(() => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
+			clazz = 'progress-badge';
 		}
 
 		this.badgeDisposable.dispose();
 
 		if (badge) {
-			this.badgeDisposable = this.activityService.showActivity(this.id, badge);
+			this.badgeDisposable = this.activityService.showActivity(this.id, badge, clazz);
 		}
 
 		this.state = state;
