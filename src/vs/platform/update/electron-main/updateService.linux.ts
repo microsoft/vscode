@@ -44,6 +44,8 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			return;
 		}
 
+		this.setState(State.CheckingForUpdates(explicit));
+
 		this.requestService.request({ url: this.url })
 			.then<IUpdate>(asJson)
 			.then(update => {
