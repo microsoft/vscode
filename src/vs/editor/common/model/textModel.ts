@@ -38,7 +38,7 @@ import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeText
 import { ChunksTextBufferBuilder } from 'vs/editor/common/model/chunksTextBuffer/chunksTextBufferBuilder';
 
 // Here is the master switch for the text buffer implementation:
-const USE_PIECE_TREE_IMPLEMENTATION = false;
+const USE_PIECE_TREE_IMPLEMENTATION = true;
 const USE_CHUNKS_TEXT_BUFFER = false;
 
 function createTextBufferBuilder() {
