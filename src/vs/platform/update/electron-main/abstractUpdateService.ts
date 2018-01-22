@@ -34,6 +34,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	protected setState(state: State): void {
+		this.logService.info('update#setState', state.type);
 		this._state = state;
 		this._onStateChange.fire(state);
 	}
@@ -45,20 +46,24 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@ILogService protected logService: ILogService
 	) {
 		if (this.environmentService.disableUpdates) {
+			this.logService.info('update#ctor - updates are disabled');
 			return;
 		}
 
 		if (!product.updateUrl || !product.commit) {
+			this.logService.info('update#ctor - updates are disabled');
 			return;
 		}
 
 		const quality = this.getProductQuality();
 
 		if (!quality) {
+			this.logService.info('update#ctor - updates are disabled');
 			return;
 		}
 
 		if (!this.setUpdateFeedUrl(quality)) {
+			this.logService.info('update#ctor - updates are disabled');
 			return;
 		}
 
@@ -89,6 +94,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	checkForUpdates(explicit = false): TPromise<void> {
+		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
+
 		if (this.state.type !== StateType.Idle) {
 			return TPromise.as(null);
 		}
@@ -97,6 +104,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	downloadUpdate(): TPromise<void> {
+		this.logService.trace('update#downloadUpdate, state = ', this.state.type);
+
 		if (this.state.type !== StateType.AvailableForDownload) {
 			return TPromise.as(null);
 		}
@@ -109,6 +118,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	applyUpdate(): TPromise<void> {
+		this.logService.trace('update#applyUpdate, state = ', this.state.type);
+
 		if (this.state.type !== StateType.Ready) {
 			return TPromise.as(null);
 		}
@@ -121,6 +132,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	quitAndInstall(): TPromise<void> {
+		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
+
 		if (this.state.type !== StateType.Ready) {
 			return TPromise.as(null);
 		}
