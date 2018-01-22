@@ -156,7 +156,6 @@ suite('MainThreadEditors', () => {
 function createMockFileStat(target: URI): IFileStat {
 	return {
 		etag: '',
-		hasChildren: false,
 		isDirectory: false,
 		name: target.path,
 		mtime: 0,

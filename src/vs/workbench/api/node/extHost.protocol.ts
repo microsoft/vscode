@@ -52,7 +52,7 @@ import { IStat, FileChangeType } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
-import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model';
+import { ISingleEditOperation } from 'vs/editor/common/model';
 import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
 
 export interface IEnvironment {
