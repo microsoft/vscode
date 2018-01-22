@@ -36,10 +36,6 @@
 	-webkit-font-smoothing: none;
 }
 
-.monaco-font-aliasing-auto {
-	-webkit-font-smoothing: subpixel-antialiased;
-}
-
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
 	.monaco-font-aliasing-auto {
 		-webkit-font-smoothing: antialiased;
