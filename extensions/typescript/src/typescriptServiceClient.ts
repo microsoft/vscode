@@ -633,8 +633,10 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 					return root.uri.fsPath;
 				}
 			}
+			return roots[0].uri.fsPath;
 		}
-		return roots[0].uri.fsPath;
+
+		return undefined;
 	}
 
 	public execute(command: string, args: any, expectsResultOrToken?: boolean | CancellationToken): Promise<any> {

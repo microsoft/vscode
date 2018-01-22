@@ -48,11 +48,8 @@ class SyncedBuffer {
 			}
 		}
 
-		if (this.client.apiVersion.has230Features() && this.document.uri.scheme === fileSchemes.file) {
-			const root = this.client.getWorkspaceRootForResource(this.document.uri);
-			if (root) {
-				args.projectRootPath = root;
-			}
+		if (this.client.apiVersion.has230Features()) {
+			args.projectRootPath = this.client.getWorkspaceRootForResource(this.document.uri);
 		}
 
 		if (this.client.apiVersion.has240Features()) {
