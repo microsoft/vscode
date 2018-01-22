@@ -942,13 +942,14 @@ export class Workbench implements IPartService {
 	private setFontAliasing(aliasing: FontAliasingOption) {
 		this.fontAliasing = aliasing;
 		const fontAliasingClassNames = [
-			'monaco-font-aliasing-default',
 			'monaco-font-aliasing-antialiased',
 			'monaco-font-aliasing-none',
 			'monaco-font-aliasing-auto'
 		];
 		document.body.classList.remove(...fontAliasingClassNames);
-		document.body.classList.add(`monaco-font-aliasing-${aliasing}`);
+		if (aliasing !== 'default') {
+			document.body.classList.add(`monaco-font-aliasing-${aliasing}`);
+		}
 	}
 
 	public dispose(reason = ShutdownReason.QUIT): void {

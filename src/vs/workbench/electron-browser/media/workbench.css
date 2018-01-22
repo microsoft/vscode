@@ -28,10 +28,6 @@
 	margin-top: 7px; /* Center the select box */
 }
 
-.monaco-font-aliasing-default {
-	-webkit-font-smoothing: subpixel-antialiased;
-}
-
 .monaco-font-aliasing-antialiased {
 	-webkit-font-smoothing: antialiased;
 }
