@@ -333,7 +333,7 @@ export function registerCodeActionProvider(languageId: string, provider: CodeAct
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
-			return provider.provideCodeActions(model, range, { markers, scope: context.only }, token);
+			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
 		}
 	});
 }
@@ -402,7 +402,10 @@ export interface CodeActionContext {
 	 */
 	readonly markers: IMarkerData[];
 
-	readonly scope?: string;
+	/**
+	 * Requested kind of actions to return.
+	 */
+	readonly only?: string;
 }
 
 /**
