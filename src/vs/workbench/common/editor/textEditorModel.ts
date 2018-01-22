@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EndOfLinePreference, ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
 import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
@@ -139,18 +139,6 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		}
 
 		this.modelService.updateModel(this.textEditorModel, newValue);
-	}
-
-	/**
-	 * Returns the textual value of this editor model or null if it has not yet been created.
-	 */
-	public getValue(): string {
-		const model = this.textEditorModel;
-		if (model) {
-			return model.getValue(EndOfLinePreference.TextDefined, true /* Preserve BOM */);
-		}
-
-		return null;
 	}
 
 	public createSnapshot(): ITextSnapshot {

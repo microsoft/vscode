@@ -200,8 +200,6 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	revert(soft?: boolean): TPromise<void>;
 
-	getValue(): string;
-
 	createSnapshot(): ITextSnapshot;
 
 	isDirty(): boolean;
