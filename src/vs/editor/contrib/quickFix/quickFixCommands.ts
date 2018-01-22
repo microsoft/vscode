@@ -20,7 +20,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { QuickFixContextMenu } from './quickFixWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
-import { CodeActionKind } from './codeActionTrigger';
+import { CodeActionKind, CodeActionAutoApply } from './codeActionTrigger';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CodeAction } from 'vs/editor/common/modes';
 import { createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
@@ -71,11 +71,11 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _onQuickFixEvent(e: QuickFixComputeEvent): void {
-		if (e && e.trigger.scope) {
+		if (e && e.trigger.kind) {
 			// Triggered for specific scope
 			// Apply if we only have one action or requested autoApply, otherwise show menu
 			e.fixes.then(fixes => {
-				if (e.trigger.autoApply !== false && (fixes.length === 1 || fixes.length >= 1 && e.trigger.autoApply)) {
+				if (e.trigger.autoApply === CodeActionAutoApply.First || (e.trigger.autoApply === CodeActionAutoApply.IfSingle && fixes.length === 1)) {
 					this._onApplyCodeAction(fixes[0]);
 				} else {
 					this._quickFixContextMenu.show(e.fixes, e.position);
@@ -112,8 +112,8 @@ export class QuickFixController implements IEditorContribution {
 		this._model.trigger({ type: 'manual' });
 	}
 
-	public triggerCodeActionFromEditorSelection(scope?: CodeActionKind, autoApply?: boolean): void {
-		this._model.trigger({ type: 'manual', scope, autoApply });
+	public triggerCodeActionFromEditorSelection(kind?: CodeActionKind, autoApply?: CodeActionAutoApply): void {
+		this._model.trigger({ type: 'manual', kind, autoApply });
 	}
 
 	private _updateLightBulbTitle(): void {
@@ -165,8 +165,41 @@ export class QuickFixAction extends EditorAction {
 	}
 }
 
-interface CodeActionCommandOptions {
-	autoApply?: boolean;
+
+class CodeActionCommandArgs {
+	public static fromUser(arg: any): CodeActionCommandArgs {
+		if (!arg || typeof arg !== 'object') {
+			return new CodeActionCommandArgs(CodeActionKind.Empty, CodeActionAutoApply.IfSingle);
+		}
+		return new CodeActionCommandArgs(
+			CodeActionCommandArgs.getKindFromUser(arg),
+			CodeActionCommandArgs.getApplyFromUser(arg));
+	}
+
+	private static getApplyFromUser(arg: any) {
+		switch (typeof arg.apply === 'string' ? arg.apply.toLowerCase() : '') {
+			case 'first':
+				return CodeActionAutoApply.First;
+
+			case 'never':
+				return CodeActionAutoApply.Never;
+
+			case 'ifsingle':
+			default:
+				return CodeActionAutoApply.IfSingle;
+		}
+	}
+
+	private static getKindFromUser(arg: any) {
+		return typeof arg.kind === 'string'
+			? new CodeActionKind(arg.kind)
+			: CodeActionKind.Empty;
+	}
+
+	private constructor(
+		public readonly kind: CodeActionKind,
+		public readonly apply: CodeActionAutoApply
+	) { }
 }
 
 export class CodeActionCommand extends EditorCommand {
@@ -180,12 +213,11 @@ export class CodeActionCommand extends EditorCommand {
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any) {
-		let controller = QuickFixController.get(editor);
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, userArg: any) {
+		const controller = QuickFixController.get(editor);
 		if (controller) {
-			const scope = args && typeof args[0] === 'string' ? new CodeActionKind(args[0]) : CodeActionKind.Empty;
-			const argsSettings: CodeActionCommandOptions = (args && args[1]) || {};
-			controller.triggerCodeActionFromEditorSelection(scope, argsSettings.autoApply);
+			const args = CodeActionCommandArgs.fromUser(userArg);
+			controller.triggerCodeActionFromEditorSelection(args.kind, args.apply);
 		}
 	}
 }

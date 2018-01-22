@@ -113,7 +113,7 @@ export class QuickFixOracle {
 			const model = this._editor.getModel();
 			const range = model.validateRange(rangeOrSelection);
 			const position = rangeOrSelection instanceof Selection ? rangeOrSelection.getPosition() : rangeOrSelection.getStartPosition();
-			const fixes = getCodeActions(model, range, trigger && trigger.scope);
+			const fixes = getCodeActions(model, range, trigger && trigger.kind);
 
 			this._signalChange({
 				trigger,

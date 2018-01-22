@@ -19,8 +19,14 @@ export class CodeActionKind {
 	}
 }
 
+export enum CodeActionAutoApply {
+	IfSingle = 1,
+	First = 2,
+	Never = 3
+}
+
 export interface CodeActionTrigger {
 	type: 'auto' | 'manual';
-	scope?: CodeActionKind;
-	autoApply?: boolean;
+	kind?: CodeActionKind;
+	autoApply?: CodeActionAutoApply;
 }
