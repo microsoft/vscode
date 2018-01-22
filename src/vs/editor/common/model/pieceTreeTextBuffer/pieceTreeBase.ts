@@ -164,14 +164,27 @@ class PieceTreeSnapshot implements ITextSnapshot {
 		this._nodes = [];
 		this._tree = tree;
 		this._BOM = BOM;
-		tree.iterate(tree.root, node => {
-			this._nodes.push(node);
-			return true;
-		});
 		this._index = 0;
+		if (tree.root !== SENTINEL) {
+			tree.iterate(tree.root, node => {
+				if (node !== SENTINEL) {
+					this._nodes.push(node);
+				}
+				return true;
+			});
+		}
 	}
 
 	read(): string {
+		if (this._nodes.length === 0) {
+			if (this._index === 0) {
+				this._index++;
+				return this._BOM;
+			} else {
+				return null;
+			}
+		}
+
 		if (this._index > this._nodes.length - 1) {
 			return null;
 		}
