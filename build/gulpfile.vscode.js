@@ -462,7 +462,7 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
 gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () => {
 	const branch = process.env.BUILD_SOURCEBRANCH;
-	//@ts-ignore endWith not defined in typings of String
+	// @ts-ignore endsWith not defined in typings of String
 	if (!branch.endsWith('/master') && branch.indexOf('/release/') < 0) {
 		console.log(`Only runs on master and release branches, not ${branch}`);
 		return;

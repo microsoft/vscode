@@ -18,7 +18,7 @@ const packageJson = require('../package.json');
 // @ts-ignore Microsoft/TypeScript#21262
 const product = require('../product.json');
 // @ts-ignore Microsoft/TypeScript#21262
-const rpmDependencies = require('../resources/linux/rpm/dependencies');
+const rpmDependencies = require('../resources/linux/rpm/dependencies.json');
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 

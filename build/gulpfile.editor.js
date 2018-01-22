@@ -84,8 +84,8 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'],
 	header: BUNDLED_FILE_HEADER,
 	bundleInfo: true,
 	out: 'out-editor',
-	// @Review should we pass the languages?
-	languages: []
+	// @Review should we pass some languages?
+	languages: undefined
 }));
 
 gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
