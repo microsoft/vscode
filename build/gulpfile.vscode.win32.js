@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
+// @ts-check
 
 const gulp = require('gulp');
 const path = require('path');
@@ -11,7 +12,9 @@ const assert = require('assert');
 const cp = require('child_process');
 const _7z = require('7zip')['7z'];
 const util = require('./lib/util');
+// @ts-ignore Microsoft/TypeScript#21262
 const pkg = require('../package.json');
+// @ts-ignore Microsoft/TypeScript#21262
 const product = require('../product.json');
 
 const repoPath = path.dirname(__dirname);

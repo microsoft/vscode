@@ -44,11 +44,11 @@ interface ILoaderPluginReqFunc {
 
 export interface IEntryPoint {
 	name: string;
-	include: string[];
-	exclude: string[];
+	include?: string[];
+	exclude?: string[];
 	prepend: string[];
-	append: string[];
-	dest: string;
+	append?: string[];
+	dest?: string;
 }
 
 interface IEntryPointMap {

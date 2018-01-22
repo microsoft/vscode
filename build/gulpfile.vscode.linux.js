@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
+// @ts-check
 
 const gulp = require('gulp');
 const replace = require('gulp-replace');
@@ -12,8 +13,11 @@ const shell = require('gulp-shell');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
 const util = require('./lib/util');
+// @ts-ignore Microsoft/TypeScript#21262
 const packageJson = require('../package.json');
+// @ts-ignore Microsoft/TypeScript#21262
 const product = require('../product.json');
+// @ts-ignore Microsoft/TypeScript#21262
 const rpmDependencies = require('../resources/linux/rpm/dependencies');
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);

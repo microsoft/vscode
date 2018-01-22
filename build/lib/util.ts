@@ -28,7 +28,7 @@ export interface IStreamProvider {
 	(cancellationToken?: ICancellationToken): NodeJS.ReadWriteStream;
 }
 
-export function incremental(streamProvider: IStreamProvider, initial: NodeJS.ReadWriteStream, supportsCancellation: boolean): NodeJS.ReadWriteStream {
+export function incremental(streamProvider: IStreamProvider, initial: NodeJS.ReadWriteStream, supportsCancellation?: boolean): NodeJS.ReadWriteStream {
 	const input = es.through();
 	const output = es.through();
 	let state = 'idle';
@@ -129,7 +129,7 @@ export function skipDirectories(): NodeJS.ReadWriteStream {
 	});
 }
 
-export function cleanNodeModule(name: string, excludes: string[], includes: string[]): NodeJS.ReadWriteStream {
+export function cleanNodeModule(name: string, excludes: string[], includes?: string[]): NodeJS.ReadWriteStream {
 	const toGlob = (path: string) => '**/node_modules/' + name + (path ? '/' + path : '');
 	const negate = (str: string) => '!' + str;
 

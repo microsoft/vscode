@@ -30,7 +30,7 @@ function log(prefix: string, message: string): void {
 	gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
 }
 
-export function loaderConfig(emptyPaths: string[]) {
+export function loaderConfig(emptyPaths?: string[]) {
 	const result = {
 		paths: {
 			'vs': 'out-build/vs',
@@ -293,7 +293,7 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 	return es.duplex(input, output);
 }
 
-export function minifyTask(src: string, sourceMapBaseUrl: string): (cb: any) => void {
+export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) => void {
 	const sourceMappingURL = sourceMapBaseUrl && (f => `${sourceMapBaseUrl}/${f.relative}.map`);
 
 	return cb => {
