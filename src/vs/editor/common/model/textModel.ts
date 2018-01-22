@@ -82,6 +82,17 @@ export function createTextBufferFactoryFromStream(stream: IStringStream): TPromi
 	});
 }
 
+export function createTextBufferFactoryFromSnapshot(snapshot: ITextSnapshot): model.ITextBufferFactory {
+	let builder = createTextBufferBuilder();
+
+	let chunk: string;
+	while (typeof (chunk = snapshot.read()) === 'string') {
+		builder.acceptChunk(chunk);
+	}
+
+	return builder.finish();
+}
+
 export function createTextBuffer(value: string | model.ITextBufferFactory, defaultEOL: model.DefaultEndOfLine): model.ITextBuffer {
 	const factory = (typeof value === 'string' ? createTextBufferFactory(value) : value);
 	return factory.create(defaultEOL);
