@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+// @ts-check
+
 const cp = require('child_process');
 const path = require('path');
 const fs = require('fs');
