@@ -19,6 +19,7 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -120,6 +121,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 	constructor(filter: string, private endpoint: IEndpointDetails, private installedExtensions: TPromise<ILocalExtension[]>, private newExtensionsOnly: boolean,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IRequestService private requestService: IRequestService,
+		@ILogService private logService: ILogService
 	) {
 		this._filter = filter;
 
@@ -168,9 +170,14 @@ export class RemoteSearchProvider implements ISearchProvider {
 
 	private getSettingsFromBing(filter: string): TPromise<IFilterMetadata> {
 		const start = Date.now();
-		return this.prepareUrl(filter).then(url => {
+		return this.prepareRequest(filter).then(details => {
+			this.logService.debug(`Searching settings via ${details.url}`);
+			this.logService.debug(`Body: ${details.body}`);
+
 			return this.requestService.request({
-				url,
+				type: 'POST',
+				url: details.url,
+				data: details.body,
 				headers: {
 					'User-Agent': 'request',
 					'Content-Type': 'application/json; charset=utf-8',
@@ -179,7 +186,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 				timeout: 5000
 			}).then(context => {
 				if (context.res.statusCode >= 300) {
-					throw new Error(`${url} returned status code: ${context.res.statusCode}`);
+					throw new Error(`${details} returned status code: ${context.res.statusCode}`);
 				}
 
 				return asJson(context);
@@ -201,7 +208,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 				});
 
 				return <IFilterMetadata>{
-					remoteUrl: url,
+					remoteUrl: details.url, // telemetry for filter text?
 					duration,
 					timestamp,
 					scoredResults,
@@ -223,7 +230,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 		};
 	}
 
-	private prepareUrl(query: string): TPromise<string> {
+	private async prepareRequest(query: string): TPromise<{ url: string, body?: string }> {
 		query = escapeSpecialChars(query);
 		const boost = 10;
 		const userQuery = `(${query})^${boost}`;
@@ -237,16 +244,24 @@ export class RemoteSearchProvider implements ISearchProvider {
 		const buildNumber = this.environmentService.settingsSearchBuildId;
 		if (this.endpoint.key) {
 			url += `${API_VERSION}&${QUERY_TYPE}`;
-			url += `&search=${encodedQuery}`;
+		}
 
-			if (this.newExtensionsOnly) {
-				return TPromise.wrap(url);
-			} else {
-				return this.getVersionAndExtensionFilters(buildNumber).then(filters => {
-					url += `&$filter=${filters.join(' or ')}`;
-					return url;
-				});
-			}
+		const usePost = true;
+		if (usePost) {
+			const filters = this.newExtensionsOnly ?
+				[`diminish eq 'latest'`] :
+				await this.getVersionFilters(buildNumber);
+
+			const filterStr = encodeURIComponent(filters.join(' or '));
+			const body = JSON.stringify({
+				query: encodedQuery,
+				filters: filterStr
+			});
+
+			return {
+				url,
+				body
+			};
 		} else {
 			url += `query=${encodedQuery}`;
 
@@ -255,20 +270,15 @@ export class RemoteSearchProvider implements ISearchProvider {
 			}
 		}
 
-		return TPromise.wrap(url);
+		return TPromise.wrap({ url });
 	}
 
-	private getVersionAndExtensionFilters(buildNumber?: number): TPromise<string[]> {
+	private getVersionFilters(buildNumber?: number): TPromise<string[]> {
 		return this.installedExtensions.then(exts => {
-			const filters = exts.map(ext => {
-				const uuid = ext.identifier.uuid;
-				const versionString = ext.manifest.version
-					.split('.')
-					.map(versionPart => strings.pad(<any>versionPart, 10))
-					.join('');
-
-				return `(packageid eq '${uuid}' and startbuildno le '${versionString}' and endbuildno ge '${versionString}')`;
-			});
+			// Only search extensions that contribute settings
+			const filters = exts
+				.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
+				.map(ext => this.getExtensionFilter(ext));
 
 			if (buildNumber) {
 				filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
@@ -276,6 +286,16 @@ export class RemoteSearchProvider implements ISearchProvider {
 
 			return filters;
 		});
+	}
+
+	private getExtensionFilter(ext: ILocalExtension): string {
+		const uuid = ext.identifier.uuid;
+		const versionString = ext.manifest.version
+			.split('.')
+			.map(versionPart => strings.pad(<any>versionPart, 10))
+			.join('');
+
+		return `(packageid eq '${uuid}' and startbuildno le '${versionString}' and endbuildno ge '${versionString}')`;
 	}
 }
 
