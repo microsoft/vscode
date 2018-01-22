@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
+// @ts-check
 
 const gulp = require('gulp');
 const json = require('gulp-json-editor');
