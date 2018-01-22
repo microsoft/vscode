@@ -290,6 +290,9 @@ export class PieceTreeBase {
 
 		let offset = 0;
 		let ret = this.iterate(this.root, node => {
+			if (node === SENTINEL) {
+				return true;
+			}
 			let str = this.getNodeContent(node);
 			let len = str.length;
 			let startPosition = other.nodeAt(offset);
