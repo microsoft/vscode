@@ -30,8 +30,13 @@
 	"inspect-extensions": "Autorise le débogage et le profilage des extensions. Vérifier les outils de développements pour l'uri de connexion.",
 	"inspect-brk-extensions": "Autorise le débogage et le profilage des extensions avec l'hôte d'extensions en pause après le démarrage. Vérifier les outils de développement pour l'uri de connexion.",
 	"disableGPU": "Désactivez l'accélération matérielle du GPU.",
+	"uploadLogs": "Upload les logs depuis la session actuelle vers le endpoint sécurisé.",
 	"usage": "Utilisation",
 	"options": "options",
 	"paths": "chemins",
-	"optionsUpperCase": "Options"
+	"stdinWindows": "Pour lire la sortie d’un autre programme, ajouter '-' (ex. 'echo Bonjour tout le monde | {0} -')",
+	"stdinUnix": "Pour lire depuis stdin, ajouter '-' (ex. 'ps aux | grep code | {0} -')",
+	"optionsUpperCase": "Options",
+	"extensionsManagement": "Gestion des extensions",
+	"troubleshooting": "Dépannage"
 }

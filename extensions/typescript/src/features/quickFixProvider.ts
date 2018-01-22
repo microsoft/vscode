@@ -11,6 +11,10 @@ import { vsRangeToTsFileRange } from '../utils/convert';
 import FormattingConfigurationManager from './formattingConfigurationManager';
 import { getEditForCodeAction, applyCodeActionCommands } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
+import { createWorkspaceEditFromFileCodeEdits } from '../utils/workspaceEdit';
+
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 class ApplyCodeActionCommand implements Command {
 	public static readonly ID = '_typescript.applyCodeActionCommand';
@@ -87,23 +91,50 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 
 		const results: vscode.CodeAction[] = [];
 		for (const diagnostic of fixableDiagnostics) {
-			const args: Proto.CodeFixRequestArgs = {
-				...vsRangeToTsFileRange(file, diagnostic.range),
-				errorCodes: [+diagnostic.code]
-			};
-			const response = await this.client.execute('getCodeFixes', args, token);
-			if (response.body) {
-				results.push(...response.body.map(action => this.getCommandForAction(diagnostic, action)));
-			}
+			results.push(...await this.getFixesForDiagnostic(file, diagnostic, token));
 		}
 		return results;
 	}
 
-	private getCommandForAction(
+	private async getFixesForDiagnostic(
+		file: string,
 		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeAction
+		token: vscode.CancellationToken
+	): Promise<Iterable<vscode.CodeAction>> {
+		const args: Proto.CodeFixRequestArgs = {
+			...vsRangeToTsFileRange(file, diagnostic.range),
+			errorCodes: [+diagnostic.code]
+		};
+		const codeFixesResponse = await this.client.execute('getCodeFixes', args, token);
+		if (codeFixesResponse.body) {
+			const results: vscode.CodeAction[] = [];
+			for (const tsCodeFix of codeFixesResponse.body) {
+				results.push(...await this.getAllFixesForTsCodeAction(file, diagnostic, tsCodeFix, token));
+			}
+			return results;
+		}
+		return [];
+	}
+
+	private async getAllFixesForTsCodeAction(
+		file: string,
+		diagnostic: vscode.Diagnostic,
+		tsAction: Proto.CodeFixAction,
+		token: vscode.CancellationToken
+	): Promise<Iterable<vscode.CodeAction>> {
+		const singleFix = this.getSingleFixForTsCodeAction(diagnostic, tsAction);
+		const fixAll = await this.getFixAllForTsCodeAction(file, diagnostic, tsAction, token);
+		return fixAll ? [singleFix, fixAll] : [singleFix];
+	}
+
+	private getSingleFixForTsCodeAction(
+		diagnostic: vscode.Diagnostic,
+		tsAction: Proto.CodeFixAction
 	): vscode.CodeAction {
-		const codeAction = new vscode.CodeAction(tsAction.description, getEditForCodeAction(this.client, tsAction));
+		const codeAction = new vscode.CodeAction(
+			tsAction.description,
+			getEditForCodeAction(this.client, tsAction));
+
 		codeAction.diagnostics = [diagnostic];
 		if (tsAction.commands) {
 			codeAction.command = {
@@ -113,5 +144,46 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 			};
 		}
 		return codeAction;
+	}
+
+	private async getFixAllForTsCodeAction(
+		file: string,
+		diagnostic: vscode.Diagnostic,
+		tsAction: Proto.CodeFixAction,
+		token: vscode.CancellationToken
+	): Promise<vscode.CodeAction | undefined> {
+		if (!tsAction.fixId || !this.client.apiVersion.has270Features()) {
+			return undefined;
+		}
+
+		const args: Proto.GetCombinedCodeFixRequestArgs = {
+			scope: {
+				type: 'file',
+				args: { file }
+			},
+			fixId: tsAction.fixId
+		};
+
+		try {
+			const combinedCodeFixesResponse = await this.client.execute('getCombinedCodeFix', args, token);
+			if (!combinedCodeFixesResponse.body) {
+				return undefined;
+			}
+
+			const codeAction = new vscode.CodeAction(
+				localize('fixAllInFileLabel', '{0} (Fix all in file)', tsAction.description),
+				createWorkspaceEditFromFileCodeEdits(this.client, combinedCodeFixesResponse.body.changes));
+			codeAction.diagnostics = [diagnostic];
+			if (tsAction.commands) {
+				codeAction.command = {
+					command: ApplyCodeActionCommand.ID,
+					arguments: [tsAction],
+					title: tsAction.description
+				};
+			}
+			return codeAction;
+		} catch {
+			return undefined;
+		}
 	}
 }

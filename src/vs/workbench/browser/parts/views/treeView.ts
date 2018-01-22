@@ -26,7 +26,7 @@ import { ViewsRegistry, TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvid
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IViewletViewOptions, IViewOptions, TreeViewsViewletPanel, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import URI from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
@@ -48,9 +48,7 @@ export class TreeView extends TreeViewsViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IListService private listService: IListService,
-		@IThemeService private themeService: IWorkbenchThemeService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IThemeService themeService: IWorkbenchThemeService,
 		@IExtensionService private extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -91,13 +89,10 @@ export class TreeView extends TreeViewsViewletPanel {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.id);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, this.menus);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, this.menus);
-		const tree = new FileIconThemableWorkbenchTree(
+		const tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree,
 			container.getHTMLElement(),
 			{ dataSource, renderer, controller },
-			{ keyboardSupport: false },
-			this.contextKeyService,
-			this.listService,
-			this.themeService
+			{ keyboardSupport: false }
 		);
 
 		tree.contextKeyService.createKey<boolean>(this.id, true);

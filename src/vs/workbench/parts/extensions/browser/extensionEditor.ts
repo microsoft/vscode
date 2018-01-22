@@ -51,7 +51,7 @@ import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 /**  A context key that is set when an extension editor webview has focus. */
@@ -63,11 +63,8 @@ export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED = new 
 /**  A context key that is set when the find widget find input in extension editor webview is not focused. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
-function renderBody(
-	body: string,
-	environmentService: IEnvironmentService
-): string {
-	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://' + environmentService.appRoot, 'vscode-core-resource://');
+function renderBody(body: string): string {
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>
@@ -195,7 +192,6 @@ export class ExtensionEditor extends BaseEditor {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
 		@IOpenerService private openerService: IOpenerService,
-		@IListService private listService: IListService,
 		@IPartService private partService: IPartService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -415,7 +411,7 @@ export class ExtensionEditor extends BaseEditor {
 	private openMarkdown(content: TPromise<string>, noContentCopy: string) {
 		return this.loadContents(() => content
 			.then(marked.parse)
-			.then(content => renderBody(content, this.environmentService))
+			.then(renderBody)
 			.then(removeEmbeddedSVGs)
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
@@ -521,7 +517,7 @@ export class ExtensionEditor extends BaseEditor {
 	private renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): Tree {
 		const renderer = this.instantiationService.createInstance(Renderer);
 		const controller = this.instantiationService.createInstance(Controller);
-		const tree = new WorkbenchTree(container, {
+		const tree = this.instantiationService.createInstance(WorkbenchTree, container, {
 			dataSource: new DataSource(),
 			renderer,
 			controller
@@ -529,7 +525,7 @@ export class ExtensionEditor extends BaseEditor {
 				indentPixels: 40,
 				twistiePixels: 20,
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService, this.themeService);
+			});
 
 		tree.setInput(extensionDependencies);
 

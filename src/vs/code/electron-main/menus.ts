@@ -327,7 +327,7 @@ export class CodeMenu {
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
 		const quit = new MenuItem(this.likeAction('workbench.action.quit', {
 			label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => {
-				if (this.windowsMainService.getWindowCount() === 0 || !!this.windowsMainService.getFocusedWindow()) {
+				if (this.windowsMainService.getWindowCount() === 0 || !!BrowserWindow.getFocusedWindow()) {
 					this.windowsMainService.quit(); // fix for https://github.com/Microsoft/vscode/issues/39191
 				}
 			}

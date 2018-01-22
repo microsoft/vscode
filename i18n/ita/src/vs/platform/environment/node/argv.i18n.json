@@ -33,5 +33,7 @@
 	"usage": "Utilizzo",
 	"options": "opzioni",
 	"paths": "percorsi",
+	"stdinWindows": "Per leggere l'output da un altro programma, aggiungere alla fine '-' (ad esempio 'echo Hello World | {0} -')",
+	"stdinUnix": "Per leggere da stdin, aggiungere alla fine '-' (ad esempio 'ps aux | grep code | {0} -')",
 	"optionsUpperCase": "Opzioni"
 }

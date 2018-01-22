@@ -6,5 +6,6 @@
 {
 	"addFolderToWorkspace": "Adicionar pasta ao espaço de trabalho...",
 	"add": "&&Adicionar",
-	"addFolderToWorkspaceTitle": "Adicionar pasta ao espaço de trabalho"
+	"addFolderToWorkspaceTitle": "Adicionar pasta ao espaço de trabalho",
+	"workspaceFolderPickerPlaceholder": "Selecione a pasta do espaço de trabalho"
 }

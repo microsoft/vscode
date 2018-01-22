@@ -15,7 +15,7 @@ import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { normalize, join } from 'vs/base/common/paths';
+import { normalize, nativeSep } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 
 export interface WebviewElementFindInPageOptions {
@@ -102,7 +102,7 @@ export default class Webview {
 
 				const contents = this._webview.getWebContents();
 				if (contents && !contents.isDestroyed()) {
-					registerFileProtocol(contents, 'vscode-core-resource', this._environmentService.appRoot);
+					registerFileProtocol(contents, 'vscode-core-resource', [this._environmentService.appRoot]);
 				}
 			}));
 		}
@@ -417,20 +417,21 @@ export default class Webview {
 function registerFileProtocol(
 	contents: Electron.WebContents,
 	protocol: string,
-	root: string
+	roots: string[]
 ) {
 	contents.session.protocol.registerFileProtocol(protocol, (request, callback: any) => {
 		const requestPath = URI.parse(request.url).path;
-		const normalizedPath = normalize(join(root, requestPath));
-		if (startsWith(normalizedPath, root)) {
-			callback({ path: normalizedPath });
-		} else {
-			callback({ error: 'Cannot load resource outside of protocol root' });
+		for (const root of roots) {
+			const normalizedPath = normalize(requestPath, true);
+			if (startsWith(normalizedPath, root + nativeSep)) {
+				callback({ path: normalizedPath });
+				return;
+			}
 		}
+		callback({ error: 'Cannot load resource outside of protocol root' });
 	}, (error) => {
 		if (error) {
 			console.error('Failed to register protocol ' + protocol);
 		}
 	});
 }
-

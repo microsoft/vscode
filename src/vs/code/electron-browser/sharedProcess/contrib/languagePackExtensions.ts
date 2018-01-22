@@ -15,6 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 interface ILanguageSource {
 	extensionIdentifier: IExtensionIdentifier;
+	version: string;
 	path: string;
 }
 
@@ -71,7 +72,7 @@ export class LanguagePackExtensions extends Disposable {
 				const extensionIdentifier = { id: getGalleryExtensionIdFromLocal(extension), uuid: extension.identifier.uuid };
 				for (const localeContribution of extension.manifest.contributes.locales) {
 					const languageSources = languagePacks[localeContribution.locale] || [];
-					languageSources.splice(0, 0, { extensionIdentifier, path: join(extension.path, localeContribution.path) });
+					languageSources.splice(0, 0, { extensionIdentifier, path: join(extension.path, localeContribution.path), version: extension.manifest.version });
 					languagePacks[localeContribution.locale] = languageSources;
 				}
 			}

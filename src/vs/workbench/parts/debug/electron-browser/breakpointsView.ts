@@ -28,9 +28,8 @@ import { IEditorService, IEditor } from 'vs/platform/editor/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
@@ -50,11 +49,9 @@ export class BreakpointsView extends ViewsViewletPanel {
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService,
 		@IEditorService private editorService: IEditorService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextViewService private contextViewService: IContextViewService
 	) {
 		super(options, keybindingService, contextMenuService);
 
@@ -67,7 +64,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 		dom.addClass(container, 'debug-breakpoints');
 		const delegate = new BreakpointsDelegate(this.debugService);
 
-		this.list = new WorkbenchList<IEnablement>(container, delegate, [
+		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [
 			this.instantiationService.createInstance(BreakpointsRenderer),
 			new ExceptionBreakpointsRenderer(this.debugService),
 			new FunctionBreakpointsRenderer(this.debugService),
@@ -75,7 +72,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 		], {
 				identityProvider: element => element.getId(),
 				multipleSelectionSupport: false
-			}, this.contextKeyService, this.listService, this.themeService);
+			});
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 

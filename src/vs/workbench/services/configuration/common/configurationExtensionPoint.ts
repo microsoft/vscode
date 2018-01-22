@@ -94,7 +94,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 configurationExtPoint.setHandler(extensions => {
 	const configurations: IConfigurationNode[] = [];
 
-	function handleConfiguration(node: IConfigurationNode, id: string, extension: IExtensionPointUser<any>) {
+	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<any>) {
 		let configuration = objects.deepClone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
@@ -103,17 +103,17 @@ configurationExtPoint.setHandler(extensions => {
 
 		validateProperties(configuration, extension);
 
-		configuration.id = id;
+		configuration.id = extension.description.uuid || extension.description.id;
+		configuration.title = configuration.title || extension.description.displayName || extension.description.id;
 		configurations.push(configuration);
 	}
 
 	for (let extension of extensions) {
 		const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
-		const id = extension.description.id;
 		if (!Array.isArray(value)) {
-			handleConfiguration(value, id, extension);
+			handleConfiguration(value, extension);
 		} else {
-			value.forEach(v => handleConfiguration(v, id, extension));
+			value.forEach(v => handleConfiguration(v, extension));
 		}
 	}
 	configurationRegistry.registerConfigurations(configurations, registeredDefaultConfigurations, false);

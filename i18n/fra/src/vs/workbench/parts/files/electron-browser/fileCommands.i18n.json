@@ -10,8 +10,8 @@
 	"saveAs": "Enregistrer sous...",
 	"save": "Enregistrer",
 	"saveAll": "Enregistrer tout",
-	"saveFiles": "Enregistrer tous les fichiers",
 	"removeFolderFromWorkspace": "Supprimer le dossier de l'espace de travail",
+	"genericRevertError": "Échec pour faire revenir '{0}' : {1}",
 	"modifiedLabel": "{0} (sur le disque) ↔ {1}",
 	"openFileToReveal": "Ouvrir d'abord un fichier à révéler",
 	"openFileToCopy": "Ouvrir d'abord un fichier pour copier son chemin"

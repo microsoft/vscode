@@ -10,7 +10,6 @@
 	"saveAs": "Speichern unter...",
 	"save": "Speichern",
 	"saveAll": "Alle speichern",
-	"saveFiles": "Alle Dateien speichern",
 	"removeFolderFromWorkspace": "Ordner aus dem Arbeitsbereich entfernen",
 	"genericRevertError": "Fehler beim Zurücksetzen von '{0}': {1}",
 	"modifiedLabel": "{0} (auf Datenträger) ↔ {1}",

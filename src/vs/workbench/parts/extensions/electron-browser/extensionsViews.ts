@@ -35,8 +35,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import { WorkbenchPagedList, IListService } from 'vs/platform/list/browser/listService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 
 export class ExtensionsListView extends ViewsViewletPanel {
 
@@ -52,7 +51,6 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -60,8 +58,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@IEditorGroupService private editorInputService: IEditorGroupService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IModeService private modeService: IModeService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
 	}
@@ -80,10 +77,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		this.messageBox = append(container, $('.message'));
 		const delegate = new Delegate();
 		const renderer = this.instantiationService.createInstance(Renderer);
-		this.list = new WorkbenchPagedList(this.extensionsList, delegate, [renderer], {
+		this.list = this.instantiationService.createInstance(WorkbenchPagedList, this.extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions"),
 			keyboardSupport: false
-		}, this.contextKeyService, this.listService, this.themeService);
+		});
 
 		chain(this.list.onSelectionChange)
 			.map(e => e.elements[0])
@@ -237,7 +234,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 				const languageTag = languageName ? ` tag:"${languageName}"` : '';
 
 				// Construct a rich query
-				return `tag:"__ext_${ext}" ${keywords.map(tag => `tag:"${tag}"`).join(' ')}${languageTag}`;
+				return `tag:"__ext_.${ext}" ${keywords.map(tag => `tag:"${tag}"`).join(' ')}${languageTag}`;
 			});
 
 			if (names.length) {

@@ -20,6 +20,7 @@
 	"closeAllUnmodified": "Fermer les éléments non modifiés",
 	"closeAll": "Tout fermer",
 	"keepOpen": "Garder ouvert",
+	"toggleInlineView": "Activer/désactiver l'affichage Inline",
 	"showOpenedEditors": "Afficher les éditeurs ouverts",
 	"keepEditor": "Conserver l'éditeur",
 	"closeEditorsInGroup": "Fermer tous les éditeurs du groupe",
