@@ -178,7 +178,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		if (storedFoldersToAdd.length > 0) {
 			let newStoredWorkspaceFolders: IStoredWorkspaceFolder[] = [];
 
-			if (typeof index === 'number' && index >= 0 && index < currentStoredFolders.length - 1) {
+			if (typeof index === 'number' && index >= 0 && index < currentStoredFolders.length) {
 				newStoredWorkspaceFolders = currentStoredFolders.slice(0);
 				newStoredWorkspaceFolders.splice(index, 0, ...storedFoldersToAdd);
 			} else {

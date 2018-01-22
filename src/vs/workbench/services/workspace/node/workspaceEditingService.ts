@@ -49,16 +49,18 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	public updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): TPromise<void> {
 		const folders = this.contextService.getWorkspace().folders;
-		if (index < 0 || index > folders.length - 1) {
-			return TPromise.wrapError(new Error(nls.localize('errorInvalidIndex', "The index for updating workspace folders is invalid.")));
+
+		let foldersToDelete: URI[] = [];
+		if (typeof deleteCount === 'number') {
+			foldersToDelete = folders.slice(index, index + deleteCount).map(f => f.uri);
 		}
 
-		if (typeof deleteCount === 'number' && (deleteCount < 0 || index + deleteCount > folders.length - 1)) {
-			return TPromise.wrapError(new Error(nls.localize('errorInvalidDelete', "The number of workspace folders to delete is invalid.")));
-		}
+		const wantsToDelete = foldersToDelete.length > 0;
+		const wantsToAdd = Array.isArray(foldersToAdd) && foldersToAdd.length > 0;
 
-		const wantsToDelete = typeof deleteCount === 'number';
-		const wantsToAdd = Array.isArray(foldersToAdd) && foldersToAdd.length;
+		if (!wantsToAdd && !wantsToDelete) {
+			return TPromise.as(void 0); // return early if there is nothing to do
+		}
 
 		// Add Folders
 		if (wantsToAdd && !wantsToDelete) {
@@ -67,11 +69,11 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Delete Folders
 		if (wantsToDelete && !wantsToAdd) {
-			return this.removeFolders(folders.slice(index, index + deleteCount).map(f => f.uri));
+			return this.removeFolders(foldersToDelete);
 		}
 
 		// Add & Delete Folders (first remove and then add to allow for updating existing folders)
-		return this.removeFolders(folders.slice(index, index + deleteCount).map(f => f.uri)).then(() => {
+		return this.removeFolders(foldersToDelete).then(() => {
 			return this.doAddFolders(foldersToAdd, index, donotNotifyError);
 		});
 	}

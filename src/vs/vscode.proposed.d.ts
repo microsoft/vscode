@@ -157,6 +157,37 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
+
+		/**
+		 * Updates the workspace folders of the currently opened workspace. This method allows to add and remove
+		 * workspace folders a the same time.
+		 *
+		 * Example: adding a new workspace folder at the end of workspace folders
+		 * ```typescript
+		 * workspace.updateWorkspaceFolders(workspace.workspaceFolders ? workspace.workspaceFolders.length : 0, null, [{ uri: ...}])
+		 * ```
+		 *
+		 * Example: removing the first workspace folder
+		 * ```typescript
+		 * workspace.updateWorkspaceFolders(0, 1)
+		 * ```
+		 *
+		 * Example: replacing an existing workspace folder with a new one
+		 * ```typescript
+		 * workspace.updateWorkspaceFolders(0, 1, [{ uri: ...}])
+		 * ```
+		 *
+		 * Note: if the first workspace folder is removed or changed, all extensions will be restarted
+		 * so that the (deprecated) `rootPath` property is updated to point to the first workspace
+		 * folder.
+		 *
+		 * @param index the zero-based index in the list of currently opened [workspace folders](#WorkspaceFolder)
+		 * from where to delete workspace folders or from where to add to.
+		 * @param deleteCount the optional number of workspace folders to delete from the index that is provided.
+		 * @param workspaceFoldersToAdd the optional number of workspace folders to add
+		 * @return A thenable that resolves when the workspace folder was removed successfully
+		 */
+		export function updateWorkspaceFolders(index: number, deleteCount?: number, workspaceFoldersToAdd?: { uri: Uri, name?: string }[]): Thenable<boolean>;
 	}
 
 	export namespace window {
