@@ -98,4 +98,47 @@ suite('bracket matching', () => {
 		model.dispose();
 		mode.dispose();
 	});
+
+	test('Quick Tab Jump to next bracket', () => {
+		let mode = new BracketMode();
+		let model = Model.createFromString('var x = (3 + (5-7)); y();', undefined, mode.getLanguageIdentifier());
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			let bracketMatchingController = editor.registerAndInstantiateContribution<BracketMatchingController>(BracketMatchingController);
+
+			// start position between brackets
+			editor.setPosition(new Position(1, 16));
+			bracketMatchingController.quickTabJumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 19));
+			bracketMatchingController.quickTabJumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 20));
+			bracketMatchingController.quickTabJumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 20));
+
+			// start position in open brackets
+			editor.setPosition(new Position(1, 9));
+			bracketMatchingController.quickTabJumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 20));
+
+			// start position outside brackets
+			editor.setPosition(new Position(1, 21));
+			bracketMatchingController.quickTabJumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 21));
+
+			// start position in close brackets
+			editor.setPosition(new Position(1, 20));
+			bracketMatchingController.quickTabJumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 20));
+
+			// do not break if no brackets are available
+			editor.setPosition(new Position(1, 26));
+			bracketMatchingController.jumpToBracket();
+			assert.deepEqual(editor.getPosition(), new Position(1, 26));
+
+			bracketMatchingController.dispose();
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
 });
