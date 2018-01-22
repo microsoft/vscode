@@ -22,6 +22,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export function registerCommands(): void {
 
+	// TODO@Isidor remove in february
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.logToDebugConsole',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
