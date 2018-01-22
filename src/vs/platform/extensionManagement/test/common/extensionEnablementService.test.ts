@@ -326,7 +326,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test canChangeEnablement return false for language packs', () => {
-		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { locales: [{ locale: 'gr', path: 'somepath' }] })), false);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { localizations: [{ languagId: 'gr', translations: 'somepath' }] })), false);
 	});
 });
 
