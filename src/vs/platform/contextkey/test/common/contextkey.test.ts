@@ -6,7 +6,6 @@
 
 import * as assert from 'assert';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { match } from 'vs/base/common/glob';
 
 function createContext(ctx: any) {
 	return {
@@ -22,8 +21,8 @@ suite('ContextKeyExpr', () => {
 			ContextKeyExpr.has('a1'),
 			ContextKeyExpr.and(ContextKeyExpr.has('and.a')),
 			ContextKeyExpr.has('a2'),
-			ContextKeyExpr.glob('d3', '**/d*'),
-			ContextKeyExpr.glob('d4', '**/3*'),
+			ContextKeyExpr.regex('d3', 'd.*'),
+			ContextKeyExpr.regex('d4', '\\*\\*/3*'),
 			ContextKeyExpr.equals('b1', 'bb1'),
 			ContextKeyExpr.equals('b2', 'bb2'),
 			ContextKeyExpr.notEquals('c1', 'cc1'),
@@ -35,11 +34,11 @@ suite('ContextKeyExpr', () => {
 			ContextKeyExpr.equals('b2', 'bb2'),
 			ContextKeyExpr.notEquals('c1', 'cc1'),
 			ContextKeyExpr.not('d1'),
-			ContextKeyExpr.glob('d4', '**/3*'),
+			ContextKeyExpr.regex('d4', '\\*\\*/3*'),
 			ContextKeyExpr.notEquals('c2', 'cc2'),
 			ContextKeyExpr.has('a2'),
 			ContextKeyExpr.equals('b1', 'bb1'),
-			ContextKeyExpr.glob('d3', '**/d*'),
+			ContextKeyExpr.regex('d3', 'd.*'),
 			ContextKeyExpr.has('a1'),
 			ContextKeyExpr.and(ContextKeyExpr.equals('and.a', true)),
 			ContextKeyExpr.not('d2')
@@ -68,7 +67,7 @@ suite('ContextKeyExpr', () => {
 			'd': 'd'
 		});
 		function testExpression(expr: string, expected: boolean): void {
-			console.log(expr + ' ' + expected);
+			// console.log(expr + ' ' + expected);
 			let rules = ContextKeyExpr.deserialize(expr);
 			assert.equal(rules.evaluate(context), expected, expr);
 		}
@@ -81,7 +80,7 @@ suite('ContextKeyExpr', () => {
 			testExpression(expr + ' == 5', value == <any>'5');
 			testExpression(expr + ' != 5', value != <any>'5');
 			testExpression('!' + expr, !value);
-			testExpression(expr + ' =~ **/d*', match('**/d*', value));
+			testExpression(expr + ' =~ d.*', /d.*/.test(value));
 		}
 
 		testBatch('a', true);
