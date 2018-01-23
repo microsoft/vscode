@@ -187,9 +187,10 @@ declare module 'vscode' {
 		 * @param index the zero-based index in the list of currently opened [workspace folders](#WorkspaceFolder)
 		 * from where to delete workspace folders or from where to add to.
 		 * @param deleteCount the optional number of workspace folders to delete from the index that is provided.
-		 * @param workspaceFoldersToAdd the optional number of workspace folders to add at the index that is provided.
+		 * @param workspaceFoldersToAdd the optional set of workspace folders to add at the index that is provided.
+		 * Each workspace is identified with a mandatory URI and an optional name.
 		 * @return A thenable that resolves when the workspace folder was removed successfully. The user might prevent
-		 * the operation from happening and this will be indicated with the return type. 
+		 * the operation from happening and this will be indicated with the return type.
 		 */
 		export function updateWorkspaceFolders(index: number, deleteCount?: number, workspaceFoldersToAdd?: { uri: Uri, name?: string }[]): Thenable<boolean>;
 	}
