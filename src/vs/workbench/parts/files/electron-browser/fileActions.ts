@@ -318,7 +318,7 @@ class RenameFileAction extends BaseRenameAction {
 
 			const model = this.textFileService.models.get(d);
 
-			return this.backupFileService.backupResource(renamed, model.getValue(), model.getVersionId());
+			return this.backupFileService.backupResource(renamed, model.createSnapshot(), model.getVersionId());
 		}))
 
 			// 2. soft revert all dirty since we have backed up their contents

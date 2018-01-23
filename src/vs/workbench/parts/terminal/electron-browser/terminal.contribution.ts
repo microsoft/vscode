@@ -394,9 +394,8 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordRightT
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word Right', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(EnterNavigationModeTerminalAction, EnterNavigationModeTerminalAction.ID, EnterNavigationModeTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_N
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Enter Navigation Mode', category);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Enter Screen Reader Navigation Mode', category);
 
 terminalCommands.setup();
 
 registerColors();
-

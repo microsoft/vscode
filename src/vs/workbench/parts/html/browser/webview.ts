@@ -420,7 +420,7 @@ function registerFileProtocol(
 	roots: string[]
 ) {
 	contents.session.protocol.registerFileProtocol(protocol, (request, callback: any) => {
-		const requestPath = URI.parse(request.url).path;
+		const requestPath = URI.parse(request.url).fsPath;
 		for (const root of roots) {
 			const normalizedPath = normalize(requestPath, true);
 			if (startsWith(normalizedPath, root + nativeSep)) {

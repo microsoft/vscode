@@ -6,6 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
+import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
@@ -16,7 +17,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults, IWorkbenchSettingsConfiguration, IExtensionSetting } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
@@ -33,6 +34,8 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { overrideIdentifierFromKey, IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -254,6 +257,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private editSettingActionRenderer: EditSettingRenderer;
 	private feedbackWidgetRenderer: FeedbackWidgetRenderer;
 	private bracesHidingRenderer: BracesHidingRenderer;
+	private extensionCodelensRenderer: ExtensionCodelensRenderer;
 	private filterResult: IFilterResult;
 
 	private _onUpdatePreference: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
@@ -278,6 +282,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.feedbackWidgetRenderer = this._register(instantiationService.createInstance(FeedbackWidgetRenderer, editor));
 		this.bracesHidingRenderer = this._register(instantiationService.createInstance(BracesHidingRenderer, editor, preferencesModel));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, this.bracesHidingRenderer]));
+		this.extensionCodelensRenderer = this._register(instantiationService.createInstance(ExtensionCodelensRenderer, editor));
 
 		this._register(this.editSettingActionRenderer.onUpdateSetting(e => this._onUpdatePreference.fire(e)));
 		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
@@ -305,6 +310,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	public filterPreferences(filterResult: IFilterResult): void {
 		this.filterResult = filterResult;
+
 		if (filterResult) {
 			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
@@ -313,6 +319,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 			this.settingHighlighter.clear(true);
 			this.bracesHidingRenderer.render(filterResult, this.preferencesModel.settingsGroups);
 			this.editSettingActionRenderer.render(filterResult.filteredGroups, this._associatedPreferencesModel);
+			this.extensionCodelensRenderer.render(filterResult);
 		} else {
 			this.settingHighlighter.clear(true);
 			this.filteredMatchesRenderer.render(null, this.preferencesModel.settingsGroups);
@@ -322,6 +329,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 			this.settingsGroupTitleRenderer.showGroup(0);
 			this.bracesHidingRenderer.render(null, this.preferencesModel.settingsGroups);
 			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
+			this.extensionCodelensRenderer.render(null);
 		}
 
 		this.hiddenAreasRenderer.render();
@@ -615,20 +623,23 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 		const result = this._currentResult;
 		const actualResults = result.metadata.scoredResults;
-		const actualResultNames = Object.keys(actualResults);
+		const actualResultIds = Object.keys(actualResults);
 
 		const feedbackQuery: any = {};
 		feedbackQuery['comment'] = FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT;
 		feedbackQuery['queryString'] = result.query;
 		feedbackQuery['resultScores'] = {};
-		actualResultNames.forEach(settingKey => {
-			feedbackQuery['resultScores'][settingKey] = 10;
+		actualResultIds.forEach(settingId => {
+			const outputKey = actualResults[settingId].key;
+			feedbackQuery['resultScores'][outputKey] = 10;
 		});
 		feedbackQuery['alts'] = [];
 
 		const contents = FeedbackWidgetRenderer.INSTRUCTION_TEXT + '\n' +
 			JSON.stringify(feedbackQuery, undefined, '    ') + '\n\n' +
-			actualResultNames.map(name => `// ${name}: ${result.metadata.scoredResults[name]}`).join('\n');
+			actualResultIds.map(name => {
+				return `// ${actualResults[name].key}: ${actualResults[name].score}`;
+			}).join('\n');
 
 		this.editorService.openEditor({ contents, language: 'jsonc' }, /*sideBySide=*/true).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
@@ -832,6 +843,51 @@ export class HighlightMatchesRenderer extends Disposable {
 			});
 		}
 		super.dispose();
+	}
+}
+
+export class ExtensionCodelensRenderer extends Disposable implements CodeLensProvider {
+	private filterResult: IFilterResult;
+
+	constructor() {
+		super();
+		this._register(CodeLensProviderRegistry.register({ pattern: '**/settings.json' }, this));
+	}
+
+	public render(filterResult: IFilterResult): void {
+		this.filterResult = filterResult;
+	}
+
+	public provideCodeLenses(model: ITextModel, token: CancellationToken): ICodeLensSymbol[] {
+		if (!this.filterResult || !this.filterResult.filteredGroups) {
+			return [];
+		}
+
+		const newExtensionGroup = arrays.first(this.filterResult.filteredGroups, g => g.id === 'newExtensionsResult');
+		if (!newExtensionGroup) {
+			return [];
+		}
+
+		return newExtensionGroup.sections[0].settings
+			.filter((s: IExtensionSetting) => {
+				// Skip any non IExtensionSettings that somehow got in here
+				return s.extensionName && s.extensionPublisher;
+			})
+			.map((s: IExtensionSetting) => {
+				const extId = s.extensionPublisher + '.' + s.extensionName;
+				return <ICodeLensSymbol>{
+					command: {
+						title: nls.localize('newExtensionLabel', "View \"{0}\"", extId),
+						id: 'workbench.extensions.action.showExtensionsWithId',
+						arguments: [extId.toLowerCase()]
+					},
+					range: new Range(s.keyRange.startLineNumber, 1, s.keyRange.startLineNumber, 1)
+				};
+			});
+	}
+
+	public resolveCodeLens(model: ITextModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol {
+		return codeLens;
 	}
 }
 

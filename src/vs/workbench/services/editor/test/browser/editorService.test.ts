@@ -19,6 +19,7 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ICloseEditorsFilter } from 'vs/workbench/browser/parts/editor/editorPart';
+import { snapshotToString } from 'vs/platform/files/common/files';
 
 let activeEditor: BaseEditor = {
 	getSelection: function () {
@@ -163,7 +164,7 @@ suite('WorkbenchEditorService', () => {
 
 			const untitledInput = openedEditorInput as UntitledEditorInput;
 			untitledInput.resolve().then(model => {
-				assert.equal(model.getValue(), 'Hello Untitled');
+				assert.equal(snapshotToString(model.createSnapshot()), 'Hello Untitled');
 			});
 		});
 

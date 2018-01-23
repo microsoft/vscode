@@ -1326,7 +1326,17 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Handle untitled workspaces with prompt as needed
-		e.veto(this.workspacesManager.promptToSaveUntitledWorkspace(this.getWindowById(e.window.id), workspace));
+		e.veto(this.workspacesManager.promptToSaveUntitledWorkspace(this.getWindowById(e.window.id), workspace).then(veto => {
+			if (veto) {
+				return veto;
+			}
+
+			// Bug in electron: somehow we need this timeout so that the window closes properly. That
+			// might be related to the fact that the untitled workspace prompt shows up async and this
+			// code can execute before the dialog is fully closed which then blocks the window from closing.
+			// Issue: https://github.com/Microsoft/vscode/issues/41989
+			return TPromise.timeout(0).then(() => veto);
+		}));
 	}
 
 	public focusLastActive(cli: ParsedArgs, context: OpenContext): CodeWindow {

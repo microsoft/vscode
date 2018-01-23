@@ -165,7 +165,12 @@ button:disabled {
 }
 
 select, input, textarea {
+	border: 1px solid transparent;
 	margin-top: 10px;
+}
+
+summary {
+	border: 1px solid transparent;
 }
 
 .validation-error {
