@@ -227,4 +227,13 @@ export class MenuItemActionItem extends ActionItem {
 			this._itemClassDispose = { dispose: () => this.$e.getHTMLElement().classList.remove('icon', iconClass) };
 		}
 	}
+
+	dispose(): void {
+		if (this._itemClassDispose) {
+			dispose(this._itemClassDispose);
+			this._itemClassDispose = undefined;
+		}
+
+		super.dispose();
+	}
 }
