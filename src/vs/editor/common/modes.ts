@@ -343,6 +343,14 @@ export interface CodeAction {
 	command?: Command;
 	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
+	kind?: string;
+}
+
+/**
+ * @internal
+ */
+export interface CodeActionContext {
+	only?: string;
 }
 
 /**
@@ -354,7 +362,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 }
 
 /**

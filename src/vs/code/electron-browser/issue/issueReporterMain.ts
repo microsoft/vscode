@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/issueReporter';
-import { shell, ipcRenderer, webFrame } from 'electron';
+import { shell, ipcRenderer, webFrame, remote } from 'electron';
 import { $ } from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browser';
 import product from 'vs/platform/node/product';
@@ -95,7 +95,7 @@ export class IssueReporter extends Disposable {
 		if (styles.inputBorder) {
 			content.push(`input, textarea, select { border: 1px solid ${styles.inputBorder}; }`);
 		} else {
-			content.push(`input, textarea, select { border: none; }`);
+			content.push(`input, textarea, select { border: 1px solid transparent; }`);
 		}
 
 		if (styles.inputForeground) {
@@ -228,6 +228,15 @@ export class IssueReporter extends Disposable {
 		});
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
+
+		document.onkeydown = (e: KeyboardEvent) => {
+			if (e.shiftKey && e.keyCode === 13) {
+				// Close the window if the issue was successfully created
+				if (this.createIssue()) {
+					remote.getCurrentWindow().close();
+				}
+			}
+		};
 	}
 
 	private renderBlocks(): void {
@@ -246,9 +255,9 @@ export class IssueReporter extends Disposable {
 			hide(processBlock);
 			hide(workspaceBlock);
 
-			descriptionTitle.innerHTML = 'Steps to reproduce <span class="required-input">*</span>';
+			descriptionTitle.innerHTML = 'Steps to Reproduce <span class="required-input">*</span>';
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = 'How did you encounter this problem? Clear steps to reproduce the problem help our investigation. What did you expect to happen and what actually happened?';
+			descriptionSubtitle.innerHTML = 'How did you encounter this problem? Please provide clear steps to reproduce the problem during our investigation. What did you expect to happen and what actually did happen?';
 		}
 		// 2 - Perf Issue
 		else if (issueType === 1) {
@@ -256,7 +265,7 @@ export class IssueReporter extends Disposable {
 			show(processBlock);
 			show(workspaceBlock);
 
-			descriptionTitle.innerHTML = 'Steps to reproduce <span class="required-input">*</span>';
+			descriptionTitle.innerHTML = 'Steps to Reproduce <span class="required-input">*</span>';
 			show(descriptionSubtitle);
 			descriptionSubtitle.innerHTML = 'When did this performance issue happen? For example, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.';
 		}
@@ -294,7 +303,7 @@ export class IssueReporter extends Disposable {
 		return isValid;
 	}
 
-	private createIssue(): void {
+	private createIssue(): boolean {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
@@ -307,7 +316,8 @@ export class IssueReporter extends Disposable {
 			document.getElementById('description').addEventListener('input', (event) => {
 				this.validateInput('description');
 			});
-			return;
+
+			return false;
 		}
 
 		if (this.telemetryService) {
@@ -323,6 +333,7 @@ export class IssueReporter extends Disposable {
 		const baseUrl = `https://github.com/microsoft/vscode/issues/new?title=${issueTitle}&body=`;
 		const issueBody = this.issueReporterModel.serialize();
 		shell.openExternal(baseUrl + encodeURIComponent(issueBody));
+		return true;
 	}
 
 	/**

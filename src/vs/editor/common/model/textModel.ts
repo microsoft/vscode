@@ -38,7 +38,7 @@ import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeText
 import { ChunksTextBufferBuilder } from 'vs/editor/common/model/chunksTextBuffer/chunksTextBufferBuilder';
 
 // Here is the master switch for the text buffer implementation:
-const USE_PIECE_TREE_IMPLEMENTATION = false;
+const USE_PIECE_TREE_IMPLEMENTATION = true;
 const USE_CHUNKS_TEXT_BUFFER = false;
 
 function createTextBufferBuilder() {
@@ -80,6 +80,17 @@ export function createTextBufferFactoryFromStream(stream: IStringStream): TPromi
 			}
 		});
 	});
+}
+
+export function createTextBufferFactoryFromSnapshot(snapshot: ITextSnapshot): model.ITextBufferFactory {
+	let builder = createTextBufferBuilder();
+
+	let chunk: string;
+	while (typeof (chunk = snapshot.read()) === 'string') {
+		builder.acceptChunk(chunk);
+	}
+
+	return builder.finish();
 }
 
 export function createTextBuffer(value: string | model.ITextBufferFactory, defaultEOL: model.DefaultEndOfLine): model.ITextBuffer {

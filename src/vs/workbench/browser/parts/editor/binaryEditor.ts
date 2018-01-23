@@ -10,7 +10,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import { ResourceViewer } from 'vs/base/browser/ui/resourceviewer/resourceViewer';
+import { ResourceViewer, ResourceViewerContext } from 'vs/base/browser/ui/resourceviewer/resourceViewer';
 import { EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -29,6 +29,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 	private binaryContainer: Builder;
 	private scrollbar: DomScrollableElement;
+	private resourceViewerContext: ResourceViewerContext;
 
 	constructor(
 		id: string,
@@ -87,7 +88,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 				// Render Input
 				const model = <BinaryEditorModel>resolvedModel;
-				ResourceViewer.show(
+				this.resourceViewerContext = ResourceViewer.show(
 					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() },
 					this.binaryContainer,
 					this.scrollbar,
@@ -132,6 +133,9 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		// Pass on to Binary Container
 		this.binaryContainer.size(dimension.width, dimension.height);
 		this.scrollbar.scanDomNode();
+		if (this.resourceViewerContext) {
+			this.resourceViewerContext.layout(dimension);
+		}
 	}
 
 	public focus(): void {

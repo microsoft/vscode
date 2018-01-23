@@ -164,14 +164,27 @@ class PieceTreeSnapshot implements ITextSnapshot {
 		this._nodes = [];
 		this._tree = tree;
 		this._BOM = BOM;
-		tree.iterate(tree.root, node => {
-			this._nodes.push(node);
-			return true;
-		});
 		this._index = 0;
+		if (tree.root !== SENTINEL) {
+			tree.iterate(tree.root, node => {
+				if (node !== SENTINEL) {
+					this._nodes.push(node);
+				}
+				return true;
+			});
+		}
 	}
 
 	read(): string {
+		if (this._nodes.length === 0) {
+			if (this._index === 0) {
+				this._index++;
+				return this._BOM;
+			} else {
+				return null;
+			}
+		}
+
 		if (this._index > this._nodes.length - 1) {
 			return null;
 		}
@@ -189,7 +202,6 @@ export class PieceTreeBase {
 	protected _lineCnt: number;
 	protected _length: number;
 	private _lastChangeBufferPos: BufferCursor;
-	private _lastNodePosition: NodePosition;
 
 	constructor(chunks: StringBuffer[]) {
 		this.create(chunks);
@@ -200,7 +212,6 @@ export class PieceTreeBase {
 			new StringBuffer('', [0])
 		];
 		this._lastChangeBufferPos = { line: 0, column: 0 };
-		this._lastNodePosition = null;
 		this.root = SENTINEL;
 		this._lineCnt = 1;
 		this._length = 0;
@@ -277,6 +288,9 @@ export class PieceTreeBase {
 
 		let offset = 0;
 		let ret = this.iterate(this.root, node => {
+			if (node === SENTINEL) {
+				return true;
+			}
 			let str = this.getNodeContent(node);
 			let len = str.length;
 			let startPosition = other.nodeAt(offset);
@@ -437,7 +451,6 @@ export class PieceTreeBase {
 				// changed buffer
 				this.appendToNode(node, value);
 				this.computeBufferMetadata();
-				this._lastNodePosition = { node, remainder, nodeStartOffset };
 				return;
 			}
 
@@ -921,33 +934,7 @@ export class PieceTreeBase {
 		updateTreeMetadata(this, node, value.length, lf_delta);
 	}
 
-	readNodePositionFromCache(offset: number): NodePosition {
-		if (!this._lastNodePosition) {
-			return null;
-		}
-
-		if (this._lastNodePosition.node.parent === null) {
-			this._lastNodePosition = null;
-			return null;
-		}
-
-		if (this._lastNodePosition.nodeStartOffset > offset || this._lastNodePosition.nodeStartOffset + this._lastNodePosition.node.piece.length < offset) {
-			return null;
-		}
-
-		return {
-			node: this._lastNodePosition.node,
-			remainder: offset - this._lastNodePosition.nodeStartOffset,
-			nodeStartOffset: this._lastNodePosition.nodeStartOffset
-		};
-	}
-
 	nodeAt(offset: number): NodePosition {
-		let cachedNodePosition = this.readNodePositionFromCache(offset);
-		if (cachedNodePosition) {
-			return cachedNodePosition;
-		}
-
 		let x = this.root;
 		let nodeStartOffset = 0;
 

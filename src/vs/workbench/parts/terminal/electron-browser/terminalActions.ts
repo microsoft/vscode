@@ -199,7 +199,7 @@ export class DeleteWordRightTerminalAction extends Action {
 export class EnterNavigationModeTerminalAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.enterLineNavigationMode';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.enterLineNavigationMode', "Enter Line Navigation Mode");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.enterLineNavigationMode', "Enter Screen Reader Navigation Mode");
 
 	constructor(
 		id: string, label: string,
