@@ -2574,6 +2574,11 @@ declare module monaco.editor {
 		 */
 		smoothScrolling?: boolean;
 		/**
+		 * Disable difference between first and secondary cursors if true
+		 * Defaults to false.
+		 */
+		sameCursorStyle?: boolean;
+		/**
 		 * Enable that the editor will install an interval to check if its container dom node size has changed.
 		 * Enabling this might have a severe performance impact.
 		 * Defaults to false.
@@ -3066,6 +3071,7 @@ declare module monaco.editor {
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
 		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
+		readonly sameCursorStyle: boolean;
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
 		readonly autoIndent: boolean;
@@ -3199,6 +3205,7 @@ declare module monaco.editor {
 		readonly readOnly: boolean;
 		readonly accessibilitySupport: boolean;
 		readonly multiCursorModifier: boolean;
+		readonly sameCursorStyle: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly autoIndent: boolean;

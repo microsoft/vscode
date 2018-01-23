@@ -62,7 +62,7 @@ export class ViewCursor {
 
 		// Create the dom node
 		this._domNode = createFastDomNode(document.createElement('div'));
-		if (this._isSecondary) {
+		if (this._isSecondary && !this._context.configuration.editor.sameCursorStyle) {
 			this._domNode.setClassName('cursor secondary');
 		} else {
 			this._domNode.setClassName('cursor');
