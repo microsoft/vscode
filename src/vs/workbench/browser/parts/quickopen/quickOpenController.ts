@@ -55,6 +55,7 @@ import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { dirname } from 'vs/base/common/paths';
 
 const HELP_PREFIX = '?';
 
@@ -1259,12 +1260,22 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
 			this.label = getBaseLabel(resourceInput.resource);
-			this.description = labels.getPathLabel(resources.dirname(this.resource), contextService, environmentService);
+			this.description = labels.getPathLabel(this.safeDirname(this.resource), contextService, environmentService);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
 			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 				this.dirty = false; // no dirty decoration if auto save is on with a short timeout
 			}
+		}
+	}
+
+	private safeDirname(resource: URI): string | URI {
+		try {
+			return resources.dirname(resource); // workaround for https://github.com/Microsoft/vscode/issues/41987
+		} catch (error) {
+			console.warn(`Unable to resolve to parent resource: ${resource.toString()}`, resource, error);
+
+			return dirname(resource.fsPath);
 		}
 	}
 
