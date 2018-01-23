@@ -10,7 +10,6 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
 import * as languageModeIds from '../utils/languageModeIds';
-import * as fileSchemes from '../utils/fileSchemes';
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
