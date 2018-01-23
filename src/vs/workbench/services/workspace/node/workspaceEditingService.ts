@@ -94,10 +94,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		// If we are in no-workspace or single-folder workspace, adding folders has to
 		// enter a workspace.
 		if (state !== WorkbenchState.WORKSPACE) {
-			const newWorkspaceFolders: IWorkspaceFolderCreationData[] = distinct([
-				...this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri } as IWorkspaceFolderCreationData)),
-				...foldersToAdd
-			] as IWorkspaceFolderCreationData[], folder => isLinux ? folder.uri.toString() : folder.uri.toString().toLowerCase());
+			let newWorkspaceFolders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri } as IWorkspaceFolderCreationData));
+			newWorkspaceFolders.splice(typeof index === 'number' ? index : newWorkspaceFolders.length, 0, ...foldersToAdd);
+			newWorkspaceFolders = distinct(newWorkspaceFolders, folder => isLinux ? folder.uri.toString() : folder.uri.toString().toLowerCase());
 
 			if (state === WorkbenchState.EMPTY && newWorkspaceFolders.length === 0 || state === WorkbenchState.FOLDER && newWorkspaceFolders.length === 1) {
 				return TPromise.as(void 0); // return if the operation is a no-op for the current state
