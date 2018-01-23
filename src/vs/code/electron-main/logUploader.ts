@@ -94,12 +94,22 @@ async function postLogs(
 		throw e;
 	}
 
-	try {
-		return JSON.parse(result.stream.toString());
-	} catch (e) {
-		console.log(localize('parseError', 'Error parsing response'));
-		throw e;
-	}
+	return new TPromise<PostResult>((res, reject) => {
+		const parts: Buffer[] = [];
+		result.stream.on('data', data => {
+			parts.push(data);
+		});
+
+		result.stream.on('end', () => {
+			try {
+				const result = Buffer.concat(parts).toString('utf-8');
+				res(JSON.parse(result));
+			} catch (e) {
+				console.log(localize('parseError', 'Error parsing response'));
+				reject(e);
+			}
+		});
+	});
 }
 
 function zipLogs(
