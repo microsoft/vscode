@@ -44,6 +44,7 @@ import * as strings from 'vs/base/common/strings';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
+const ExtraDevSystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', '.build', 'builtInExtensions'));
 
 // Enable to see detailed message communication between window and extension host
 const logExtensionHostCommunication = false;
@@ -624,6 +625,36 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			log
 		);
 
+		let finalBuiltinExtensions: TPromise<IExtensionDescription[]> = builtinExtensions;
+
+		if (devMode) {
+			const extraBuiltinExtensions = ExtensionScanner.scanExtensions(new ExtensionScannerInput(version, commit, locale, devMode, ExtraDevSystemExtensionsRoot, true), log);
+			finalBuiltinExtensions = TPromise.join([builtinExtensions, extraBuiltinExtensions]).then(([builtinExtensions, extraBuiltinExtensions]) => {
+				let resultMap: { [id: string]: IExtensionDescription; } = Object.create(null);
+				for (let i = 0, len = builtinExtensions.length; i < len; i++) {
+					resultMap[builtinExtensions[i].id] = builtinExtensions[i];
+				}
+				// Overwrite with extensions found in extra
+				for (let i = 0, len = extraBuiltinExtensions.length; i < len; i++) {
+					resultMap[extraBuiltinExtensions[i].id] = extraBuiltinExtensions[i];
+				}
+
+				let resultArr = Object.keys(resultMap).map((id) => resultMap[id]);
+				resultArr.sort((a, b) => {
+					const aLastSegment = path.basename(a.extensionFolderPath);
+					const bLastSegment = path.basename(b.extensionFolderPath);
+					if (aLastSegment < bLastSegment) {
+						return -1;
+					}
+					if (aLastSegment > bLastSegment) {
+						return 1;
+					}
+					return 0;
+				});
+				return resultArr;
+			});
+		}
+
 		const userExtensions = (
 			environmentService.disableExtensions || !environmentService.extensionsPath
 				? TPromise.as([])
@@ -646,7 +677,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				: TPromise.as([])
 		);
 
-		return TPromise.join([builtinExtensions, userExtensions, developedExtensions])
+		return TPromise.join([finalBuiltinExtensions, userExtensions, developedExtensions])
 			.then((extensionDescriptions: IExtensionDescription[][]) => {
 				const system = extensionDescriptions[0];
 				const user = extensionDescriptions[1];

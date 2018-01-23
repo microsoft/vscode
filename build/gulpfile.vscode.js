@@ -44,14 +44,13 @@ const nodeModules = ['electron', 'original-fs']
 
 // Build
 
-const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.20.3' },
-	{ name: 'ms-vscode.node-debug2', version: '1.20.1' }
-];
+const builtInExtensions = require('./builtInExtensions');
 
 const excludedExtensions = [
 	'vscode-api-tests',
-	'vscode-colorize-tests'
+	'vscode-colorize-tests',
+	'ms-vscode.node-debug',
+	'ms-vscode.node-debug2',
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -584,3 +583,20 @@ gulp.task('generate-vscode-configuration', () => {
 		console.error(e.toString());
 	});
 });
+
+//#region Built-In Extensions
+gulp.task('clean-builtInExtensions', util.rimraf('.build/builtInExtensions'));
+
+gulp.task('builtInExtensions', ['clean-builtInExtensions'], function() {
+	const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
+		return ext.fromMarketplace(extension.name, extension.version)
+			.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
+	}));
+
+	return (
+		marketplaceExtensions
+		.pipe(util.setExecutableBit(['**/*.sh']))
+		.pipe(vfs.dest('.build/builtInExtensions'))
+	);
+});
+//#endregion

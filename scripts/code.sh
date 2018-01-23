@@ -24,6 +24,9 @@ function code() {
 	# Get electron
 	node build/lib/electron.js || ./node_modules/.bin/gulp electron
 
+	# Get built-in extensions
+	node build/lib/builtInExtensions.js || ./node_modules/.bin/gulp builtInExtensions
+
 	# Build
 	test -d out || ./node_modules/.bin/gulp compile
 
