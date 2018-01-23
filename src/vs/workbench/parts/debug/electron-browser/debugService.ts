@@ -53,6 +53,7 @@ import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-br
 import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { TaskEvent, TaskEventKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { sequence } from 'vs/base/common/async';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -668,7 +669,7 @@ export class DebugService implements debug.IDebugService {
 					this.model.getBreakpoints().forEach(bp => bp.verified = false);
 				}
 				this.launchJsonChanged = false;
-				const launch = root ? this.configurationManager.getLaunches().filter(l => l.uri.toString() === root.uri.toString()).pop()
+				const launch = root ? this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === root.uri.toString()).pop()
 					: this.configurationManager.getWorkspaceLaunch();
 
 				let config: debug.IConfig, compound: debug.ICompound;
@@ -692,7 +693,7 @@ export class DebugService implements debug.IDebugService {
 							"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 					}
 
-					return TPromise.join(compound.configurations.map(name => {
+					return sequence(compound.configurations.map(name => () => {
 						if (name === compound.name) {
 							return TPromise.as(null);
 						}
@@ -738,7 +739,7 @@ export class DebugService implements debug.IDebugService {
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
 					(type ? this.extensionService.activateByEvent(`onDebugResolve:${type}`) : TPromise.as(null)).then(() =>
-						this.configurationManager.resolveConfigurationByProviders(launch ? launch.uri : undefined, type, config).then(config => {
+						this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
 							// a falsy config indicates an aborted launch
 							if (config && config.type) {
 								return this.createProcess(root, config, sessionId);
@@ -1035,7 +1036,7 @@ export class DebugService implements debug.IDebugService {
 		const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
 
 		return process.session.disconnect(true).then(() => {
-			if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost')) {
+			if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost') && process.session.root) {
 				return this.broadcastService.broadcast({
 					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
 					payload: [process.session.root.uri.fsPath]

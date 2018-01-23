@@ -142,7 +142,7 @@ export class StartAction extends AbstractDebugAction {
 		if (contextService && contextService.getWorkbenchState() === WorkbenchState.EMPTY && processes.length > 0) {
 			return false;
 		}
-		if (processes.some(p => p.getName(false) === configName && (!launch || p.session.root.uri.toString() === launch.uri.toString()))) {
+		if (processes.some(p => p.getName(false) === configName && (!launch || !launch.workspace || !p.session.root || p.session.root.uri.toString() === launch.workspace.uri.toString()))) {
 			return false;
 		}
 		const compound = launch && launch.getCompound(configName);
