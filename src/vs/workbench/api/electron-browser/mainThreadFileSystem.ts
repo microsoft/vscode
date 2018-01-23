@@ -6,7 +6,7 @@
 
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
-import { ExtHostContext, MainContext, IExtHostContext, MainThreadFileSystemShape, ExtHostFileSystemShape } from '../node/extHost.protocol';
+import { ExtHostContext, MainContext, IExtHostContext, MainThreadFileSystemShape, ExtHostFileSystemShape, IFileChangeDto } from '../node/extHost.protocol';
 import { IFileService, IFileSystemProvider, IStat, IFileChange } from 'vs/platform/files/common/files';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -16,6 +16,7 @@ import { ISearchResultProvider, ISearchQuery, ISearchComplete, ISearchProgressIt
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { values } from 'vs/base/common/map';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -50,7 +51,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._workspaceEditingService.addFolders([{ uri: URI.revive(data) }], true).done(null, onUnexpectedError);
 	}
 
-	$onFileSystemChange(handle: number, changes: IFileChange[]): void {
+	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
 		this._provider.get(handle).$onFileSystemChange(changes);
 	}
 
@@ -103,12 +104,12 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 	constructor(
 		fileService: IFileService,
 		searchService: ISearchService,
-		scheme: string,
+		private readonly _scheme: string,
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostFileSystemShape
 	) {
 		this._registrations = [
-			fileService.registerProvider(scheme, this),
+			fileService.registerProvider(_scheme, this),
 			searchService.registerSearchResultProvider(this),
 		];
 	}
@@ -118,8 +119,12 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 		this._onDidChange.dispose();
 	}
 
-	$onFileSystemChange(changes: IFileChange[]): void {
-		this._onDidChange.fire(changes);
+	$onFileSystemChange(changes: IFileChangeDto[]): void {
+		this._onDidChange.fire(changes.map(RemoteFileSystemProvider._createFileChange));
+	}
+
+	private static _createFileChange(dto: IFileChangeDto): IFileChange {
+		return { resource: URI.revive(dto.resource), type: dto.type };
 	}
 
 	// --- forwarding calls
@@ -166,6 +171,20 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
 
+		if (isFalsyOrEmpty(query.folderQueries)) {
+			return PPromise.as(undefined);
+		}
+
+		let includes = { ...query.includePattern };
+		let excludes = { ...query.excludePattern };
+
+		for (const folderQuery of query.folderQueries) {
+			if (folderQuery.folder.scheme === this._scheme) {
+				includes = { ...includes, ...folderQuery.includePattern };
+				excludes = { ...excludes, ...folderQuery.excludePattern };
+			}
+		}
+
 		return new PPromise((resolve, reject, report) => {
 
 			const search = new SearchOperation(report);
@@ -173,7 +192,7 @@ class RemoteFileSystemProvider implements IFileSystemProvider, ISearchResultProv
 
 			const promise = query.type === QueryType.File
 				? this._proxy.$findFiles(this._handle, search.id, query.filePattern)
-				: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, undefined, undefined);
+				: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, { excludes: Object.keys(excludes), includes: Object.keys(includes) });
 
 			promise.then(() => {
 				this._searches.delete(search.id);

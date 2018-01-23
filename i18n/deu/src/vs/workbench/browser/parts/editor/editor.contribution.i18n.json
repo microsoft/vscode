@@ -13,5 +13,17 @@
 	"groupThreePicker": "Editoren in dritter Gruppe anzeigen",
 	"allEditorsPicker": "Alle geöffneten Editoren anzeigen",
 	"view": "Anzeigen",
-	"file": "Datei"
+	"file": "Datei",
+	"close": "Schließen",
+	"closeOthers": "Andere schließen",
+	"closeRight": "Rechts schließen",
+	"closeAllUnmodified": "Nicht geänderte schließen",
+	"closeAll": "Alle schließen",
+	"keepOpen": "Geöffnet lassen",
+	"showOpenedEditors": "Geöffnete Editoren anzeigen",
+	"keepEditor": "Editor beibehalten",
+	"closeEditorsInGroup": "Alle Editoren in der Gruppe schließen",
+	"closeUnmodifiedEditors": "Nicht geänderte Editoren in der Gruppe schließen",
+	"closeOtherEditors": "Andere Editoren schließen",
+	"closeRightEditors": "Editoren rechts schließen"
 }

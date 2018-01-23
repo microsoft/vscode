@@ -85,6 +85,11 @@ export interface IColor {
 	defaults: { light: string, dark: string, highContrast: string };
 }
 
+export interface ILocale {
+	locale: string;
+	path: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration;
@@ -98,7 +103,8 @@ export interface IExtensionContributions {
 	themes?: ITheme[];
 	iconThemes?: ITheme[];
 	views?: { [location: string]: IView[] };
-	colors: IColor[];
+	colors?: IColor[];
+	locales?: ILocale[];
 }
 
 export interface IExtensionManifest {
@@ -134,6 +140,13 @@ export interface IGalleryExtensionAssets {
 	icon: IGalleryExtensionAsset;
 	license: IGalleryExtensionAsset;
 	repository: IGalleryExtensionAsset;
+}
+
+export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
+	return thing
+		&& typeof thing === 'object'
+		&& typeof thing.id === 'string'
+		&& (!thing.uuid || typeof thing.uuid === 'string');
 }
 
 export interface IExtensionIdentifier {
@@ -295,7 +308,7 @@ export interface IExtensionEnablementService {
 	/**
 	 * Returns `true` if the enablement can be changed.
 	 */
-	canChangeEnablement(): boolean;
+	canChangeEnablement(extension: ILocalExtension): boolean;
 
 	/**
 	 * Returns `true` if the given extension identifier is enabled.
@@ -310,6 +323,10 @@ export interface IExtensionEnablementService {
 	 * if resolves to `true` then requires restart for the change to take effect.
 	 *
 	 * Throws error if enablement is requested for workspace and there is no workspace
+	 */
+	setEnablement(extension: ILocalExtension, state: EnablementState): TPromise<boolean>;
+	/**
+	 * TODO: @Sandy. Use setEnablement(extension: ILocalExtension, state: EnablementState): TPromise<boolean>. Use one model for extension management and runtime
 	 */
 	setEnablement(identifier: IExtensionIdentifier, state: EnablementState): TPromise<boolean>;
 

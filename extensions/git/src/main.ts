@@ -77,7 +77,7 @@ async function _activate(context: ExtensionContext, disposables: Disposable[]): 
 		outputChannel.show();
 
 		const download = localize('downloadgit', "Download Git");
-		const neverShowAgain = localize('neverShowAgain', "Don't show again");
+		const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
 		const choice = await window.showWarningMessage(
 			localize('notfound', "Git not found. Install it or configure it using the 'git.path' setting."),
 			download,
@@ -116,7 +116,7 @@ async function checkGitVersion(info: IGit): Promise<void> {
 	}
 
 	const update = localize('updateGit', "Update Git");
-	const neverShowAgain = localize('neverShowAgain', "Don't show again");
+	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
 
 	const choice = await window.showWarningMessage(
 		localize('git20', "You seem to have git {0} installed. Code works best with git >= 2", info.version),

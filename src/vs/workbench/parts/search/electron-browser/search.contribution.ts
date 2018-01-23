@@ -50,7 +50,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { distinct } from 'vs/base/common/arrays';
-import { getResourcesForCommand } from 'vs/workbench/parts/files/browser/files';
+import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -193,7 +193,7 @@ CommandsRegistry.registerCommand({
 		const listService = accessor.get(IListService);
 		const viewletService = accessor.get(IViewletService);
 		const fileService = accessor.get(IFileService);
-		const resources = getResourcesForCommand(resource, listService, accessor.get(IWorkbenchEditorService));
+		const resources = getMultiSelectedResources(resource, listService, accessor.get(IWorkbenchEditorService));
 
 		return viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
 			if (resources && resources.length) {

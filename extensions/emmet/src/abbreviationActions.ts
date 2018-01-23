@@ -8,6 +8,7 @@ import { Node, HtmlNode, Rule, Property } from 'EmmetNode';
 import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode } from './util';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
+const hexColorRegex = /^#\d+$/;
 
 interface ExpandAbbreviationInput {
 	syntax: string;
@@ -23,6 +24,7 @@ export function wrapWithAbbreviation(args: any) {
 	}
 
 	const editor = vscode.window.activeTextEditor;
+	let rootNode = parseDocument(editor.document, false);
 
 	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
 	if (!syntax) {
@@ -46,7 +48,13 @@ export function wrapWithAbbreviation(args: any) {
 		editor.selections.forEach(selection => {
 			let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
 			if (rangeToReplace.isEmpty) {
-				rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
+				let { active } = selection;
+				let currentNode = getNode(rootNode, active, true);
+				if (currentNode && (currentNode.start.line === active.line || currentNode.end.line === active.line)) {
+					rangeToReplace = new vscode.Range(currentNode.start, currentNode.end);
+				} else {
+					rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
+				}
 			}
 
 			const firstLineOfSelection = editor.document.lineAt(rangeToReplace.start).text.substr(rangeToReplace.start.character);
@@ -232,17 +240,18 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 		// Fix for https://github.com/Microsoft/vscode/issues/34162
 		// Other than sass, stylus, we can make use of the terminator tokens to validate position
 		if (syntax !== 'sass' && syntax !== 'stylus' && currentNode.type === 'property') {
+			const abbreviation = document.getText(new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character));
 			const propertyNode = <Property>currentNode;
 			if (propertyNode.terminatorToken
 				&& propertyNode.separator
 				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
 				&& position.isBeforeOrEqual(propertyNode.terminatorToken.start)) {
-				return false;
+				return hexColorRegex.test(abbreviation);
 			}
 			if (!propertyNode.terminatorToken
 				&& propertyNode.separator
 				&& position.isAfterOrEqual(propertyNode.separatorToken.end)) {
-				return false;
+				return hexColorRegex.test(abbreviation);
 			}
 		}
 

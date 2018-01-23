@@ -102,11 +102,11 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 				}
 			},
 			osx: {
-				description: nls.localize('vscode.extension.contributes.debuggers.osx', "OS X specific settings."),
+				description: nls.localize('vscode.extension.contributes.debuggers.osx', "macOS specific settings."),
 				type: 'object',
 				properties: {
 					runtime: {
-						description: nls.localize('vscode.extension.contributes.debuggers.osx.runtime', "Runtime used for OSX."),
+						description: nls.localize('vscode.extension.contributes.debuggers.osx.runtime', "Runtime used for macOS."),
 						type: 'string'
 					}
 				}

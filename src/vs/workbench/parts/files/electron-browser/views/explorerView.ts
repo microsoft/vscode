@@ -24,7 +24,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions, IViewOptions, TreeViewsViewletPanel, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -39,10 +39,9 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
-import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { isLinux } from 'vs/base/common/platform';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -84,14 +83,12 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IProgressService private progressService: IProgressService,
-		@IListService private listService: IListService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IDecorationsService decorationService: IDecorationsService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService);
@@ -156,7 +153,6 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		DOM.addClass(this.treeContainer, 'explorer-folders-view');
-		DOM.addClass(this.treeContainer, 'show-file-icons');
 
 		this.tree = this.createViewer($(this.treeContainer));
 
@@ -164,15 +160,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			this.toolbar.setActions(this.getActions(), this.getSecondaryActions())();
 		}
 
-		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
-			DOM.toggleClass(this.treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
-			DOM.toggleClass(this.treeContainer, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
-		};
-
-		this.disposables.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
 		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.refreshFromEvent(e.added)));
 		this.disposables.push(this.contextService.onDidChangeWorkbenchState(e => this.refreshFromEvent()));
-		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 
 	public getActions(): IAction[] {
@@ -404,7 +393,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
 		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
 
-		this.explorerViewer = new WorkbenchTree(container.getHTMLElement(), {
+		this.explorerViewer = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, container.getHTMLElement(), {
 			dataSource,
 			renderer,
 			controller,
@@ -415,10 +404,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}, {
 				autoExpandSingleChildren: true,
 				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
-				twistiePixels: 12,
-				showTwistie: false,
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService, this.themeService);
+			});
 
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
@@ -613,7 +600,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			const added = e.getAdded();
 
 			// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
-			const ignoredPaths: { [fsPath: string]: boolean } = <{ [fsPath: string]: boolean }>{};
+			const ignoredPaths: { [resource: string]: boolean } = <{ [resource: string]: boolean }>{};
 			for (let i = 0; i < added.length; i++) {
 				const change = added[i];
 				if (!this.contextService.isInsideWorkspace(change.resource)) {
@@ -621,22 +608,22 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				}
 
 				// Find parent
-				const parent = paths.dirname(change.resource.fsPath);
+				const parent = resources.dirname(change.resource);
 
 				// Continue if parent was already determined as to be ignored
-				if (ignoredPaths[parent]) {
+				if (ignoredPaths[parent.toString()]) {
 					continue;
 				}
 
 				// Compute if parent is visible and added file not yet part of it
-				const parentStat = this.model.findClosest(URI.file(parent));
+				const parentStat = this.model.findClosest(parent);
 				if (parentStat && parentStat.isDirectoryResolved && !this.model.findClosest(change.resource)) {
 					return true;
 				}
 
 				// Keep track of path that can be ignored for faster lookup
 				if (!parentStat || !parentStat.isDirectoryResolved) {
-					ignoredPaths[parent] = true;
+					ignoredPaths[parent.toString()] = true;
 				}
 			}
 		}

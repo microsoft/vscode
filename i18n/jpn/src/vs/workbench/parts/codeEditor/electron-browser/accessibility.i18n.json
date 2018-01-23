@@ -22,5 +22,5 @@
 	"openDocMac": "command + H キーを押して、ブラウザー ウィンドウを今すぐ開き、アクセシビリティに関連する他の VS Code 情報を確認します。",
 	"openDocWinLinux": "Ctrl + H キーを押して、ブラウザー ウィンドウを今すぐ開き、アクセシビリティに関連する他の VS Code 情報を確認します。",
 	"outroMsg": "Esc キー か Shift+Esc を押すと、ヒントを消してエディターに戻ることができます。",
-	"ShowAccessibilityHelpAction": "アクセシビリティのヘルプを表示します"
+	"ShowAccessibilityHelpAction": "アクセシビリティのヘルプを表示"
 }

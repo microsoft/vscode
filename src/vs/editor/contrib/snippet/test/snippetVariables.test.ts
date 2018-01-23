@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
-import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
+import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
 import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -260,5 +260,26 @@ suite('Snippet Variables Resolver', function () {
 		readTextResult = 'line1\nline2';
 		resolver = new ClipboardBasedVariableResolver(clipboardService, 0, 2);
 		assertVariableResolve(resolver, 'CLIPBOARD', 'line1');
+	});
+
+
+	function assertVariableResolve3(resolver: VariableResolver, varName: string) {
+		const snippet = new SnippetParser().parse(`$${varName}`);
+		const variable = <Variable>snippet.children[0];
+
+		assert.equal(variable.resolve(resolver), true, `${varName} failed to resolve`);
+	}
+
+	test('Add time variables for snippets #41631', function () {
+
+		const resolver = new TimeBasedVariableResolver;
+
+		assertVariableResolve3(resolver, 'CURRENT_YEAR');
+		assertVariableResolve3(resolver, 'CURRENT_YEAR_SHORT');
+		assertVariableResolve3(resolver, 'CURRENT_MONTH');
+		assertVariableResolve3(resolver, 'CURRENT_DATE');
+		assertVariableResolve3(resolver, 'CURRENT_HOUR');
+		assertVariableResolve3(resolver, 'CURRENT_MINUTE');
+		assertVariableResolve3(resolver, 'CURRENT_SECOND');
 	});
 });

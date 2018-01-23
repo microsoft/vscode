@@ -22,5 +22,6 @@
 	"keybindings.json.when": "Condição quando a chave está ativa.",
 	"keybindings.json.args": "Argumentos a serem passados para o comando para executar.",
 	"keyboardConfigurationTitle": "Teclado",
-	"dispatch": "Controla a lógica de pressionamentos de teclas a ser usada para envio, se será 'code' (recomendado) ou 'keyCode'."
+	"dispatch": "Controla a lógica de pressionamentos de teclas a ser usada para envio, se será 'code' (recomendado) ou 'keyCode'.",
+	"touchbar.enabled": "Habilita os botões do touchbar do macOS no teclado se disponível."
 }

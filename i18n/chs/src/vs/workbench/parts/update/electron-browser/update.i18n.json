@@ -23,6 +23,7 @@
 	"commandPalette": "命令面板...",
 	"settings": "设置",
 	"keyboardShortcuts": "键盘快捷方式",
+	"userSnippets": "用户代码片段",
 	"selectTheme.label": "颜色主题",
 	"themes.selectIconTheme.label": "文件图标主题",
 	"not available": "更新不可用",

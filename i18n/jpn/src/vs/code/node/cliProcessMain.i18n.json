@@ -10,7 +10,7 @@
 	"successVsixInstall": "拡張機能 '{0}' が正常にインストールされました。",
 	"cancelVsixInstall": "拡張機能 '{0}' のインストールをキャンセルしました。",
 	"alreadyInstalled": "拡張機能 '{0}' は既にインストールされています。",
-	"foundExtension": "マーケットプレースで '{0}' が見つかりました。",
+	"foundExtension": "Marketplace で '{0}' が見つかりました。",
 	"installing": "インストールしています...",
 	"successInstall": "拡張機能 '{0}' v{1} が正常にインストールされました!",
 	"uninstalling": "{0} をアンインストールしています...",
