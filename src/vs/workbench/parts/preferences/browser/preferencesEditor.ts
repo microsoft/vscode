@@ -434,7 +434,7 @@ class PreferencesRenderersController extends Disposable {
 		this._currentNewExtensionsSearchProvider = (updateCurrentResults && this._currentNewExtensionsSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query, true);
 
 		this._remoteFilterInProgress = this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"), 1)
-			.then(result => this.filterOrSearchPreferences(query, this._currentNewExtensionsSearchProvider, 'newExtensionsResult', nls.localize('newExtensionsResult', "Other Extension Results"), 2));
+			.then(result => this.filterOrSearchPreferences(query, this._currentNewExtensionsSearchProvider, 'newExtensionsResult', nls.localize('newExtensionsResult', "Marketplace Extension Results"), 2));
 
 		return this._remoteFilterInProgress.then(() => {
 			this._remoteFilterInProgress = null;

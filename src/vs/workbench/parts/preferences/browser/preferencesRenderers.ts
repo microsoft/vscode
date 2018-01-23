@@ -877,7 +877,7 @@ export class ExtensionCodelensRenderer extends Disposable implements CodeLensPro
 				const extId = s.extensionPublisher + '.' + s.extensionName;
 				return <ICodeLensSymbol>{
 					command: {
-						title: nls.localize('newExtensionLabel', "View \"{0}\"", extId),
+						title: nls.localize('newExtensionLabel', "Show Extension \"{0}\"", extId),
 						id: 'workbench.extensions.action.showExtensionsWithId',
 						arguments: [extId.toLowerCase()]
 					},
