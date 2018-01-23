@@ -24,6 +24,7 @@ export interface IWorkbenchSettingsConfiguration {
 			naturalLanguageSearchEndpoint: string;
 			naturalLanguageSearchKey: string;
 			naturalLanguageSearchAutoIngestFeedback: boolean;
+			useNaturalLanguageSearchPost: boolean;
 			enableNaturalLanguageSearch: boolean;
 			enableNaturalLanguageSearchFeedback: boolean;
 		}

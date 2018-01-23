@@ -20,7 +20,6 @@ import { asJson } from 'vs/base/node/request';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStringDictionary } from 'vs/base/common/collections';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -69,8 +68,17 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		}
 	}
 
-	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): RemoteSearchProvider {
-		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, filter, this._endpoint, this._installedExtensions, newExtensionsOnly);
+	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider {
+		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
+
+		const opts: IRemoteSearchProviderOptions = {
+			filter,
+			newExtensionsOnly,
+			endpoint: this._endpoint,
+			usePost: workbenchSettings.useNaturalLanguageSearchPost
+		};
+
+		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, opts, this._installedExtensions);
 	}
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider {
@@ -115,20 +123,25 @@ export class LocalSearchProvider implements ISearchProvider {
 	}
 }
 
-export class RemoteSearchProvider implements ISearchProvider {
-	private _filter: string;
+interface IRemoteSearchProviderOptions {
+	filter: string;
+	endpoint: IEndpointDetails;
+	newExtensionsOnly: boolean;
+	usePost: boolean;
+}
+
+class RemoteSearchProvider implements ISearchProvider {
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
-	constructor(filter: string, private endpoint: IEndpointDetails, private installedExtensions: TPromise<ILocalExtension[]>, private newExtensionsOnly: boolean,
+	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: TPromise<ILocalExtension[]>,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IRequestService private requestService: IRequestService,
 		@ILogService private logService: ILogService
 	) {
-		this._filter = filter;
-
-		this._remoteSearchP = filter ?
-			this.getSettingsFromBing(filter) :
-			TPromise.wrap(null);
+		this._remoteSearchP = (this.options.newExtensionsOnly && !this.options.usePost) ? TPromise.wrap(null) :
+			this.options.filter ?
+				this.getSettingsFromBing(this.options.filter) :
+				TPromise.wrap(null);
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
@@ -141,7 +154,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 			const highScoreKey = top(resultKeys, (a, b) => remoteResult.scoredResults[b].score - remoteResult.scoredResults[a].score, 1)[0];
 			const highScore = highScoreKey ? remoteResult.scoredResults[highScoreKey].score : 0;
 			const minScore = highScore / 5;
-			if (this.newExtensionsOnly) {
+			if (this.options.newExtensionsOnly) {
 				const passingScoreKeys = resultKeys.filter(k => remoteResult.scoredResults[k].score >= minScore);
 				const filterMatches: ISettingMatch[] = passingScoreKeys.map(k => {
 					const remoteSetting = remoteResult.scoredResults[k];
@@ -159,7 +172,7 @@ export class RemoteSearchProvider implements ISearchProvider {
 				};
 			} else {
 				const settingMatcher = this.getRemoteSettingMatcher(remoteResult.scoredResults, minScore, preferencesModel);
-				const filterMatches = preferencesModel.filterSettings(this._filter, group => null, settingMatcher);
+				const filterMatches = preferencesModel.filterSettings(this.options.filter, group => null, settingMatcher);
 				return <ISearchResult>{
 					filterMatches,
 					metadata: remoteResult
@@ -172,16 +185,19 @@ export class RemoteSearchProvider implements ISearchProvider {
 		const start = Date.now();
 		return this.prepareRequest(filter).then(details => {
 			this.logService.debug(`Searching settings via ${details.url}`);
-			this.logService.debug(`Body: ${details.body}`);
+			if (details.body) {
+				this.logService.debug(`Body: ${details.body}`);
+			}
 
+			const requestType = details.body ? 'post' : 'get';
 			return this.requestService.request({
-				type: 'POST',
+				type: requestType,
 				url: details.url,
 				data: details.body,
 				headers: {
 					'User-Agent': 'request',
 					'Content-Type': 'application/json; charset=utf-8',
-					'api-key': this.endpoint.key
+					'api-key': this.options.endpoint.key
 				},
 				timeout: 5000
 			}).then(context => {
@@ -197,12 +213,12 @@ export class RemoteSearchProvider implements ISearchProvider {
 					.map(r => {
 						const key = JSON.parse(r.setting || r.Setting);
 						const packageId = r['packageid'];
-						const id = getSettingKey(packageId, key);
+						const id = getSettingKey(key, packageId);
 
 						const packageName = r['packagename'];
 						let extensionName: string;
 						let extensionPublisher: string;
-						if (packageName.indexOf('##') >= 0) {
+						if (packageName && packageName.indexOf('##') >= 0) {
 							[extensionPublisher, extensionName] = packageName.split('##');
 						}
 
@@ -236,9 +252,9 @@ export class RemoteSearchProvider implements ISearchProvider {
 
 	private getRemoteSettingMatcher(scoredResults: IScoredResults, minScore: number, preferencesModel: ISettingsEditorModel): ISettingMatcher {
 		return (setting: ISetting, group: ISettingsGroup) => {
-			const remoteSetting = scoredResults[getSettingKey(group.id, setting.key)];
+			const remoteSetting = scoredResults[getSettingKey(setting.key, group.id)] || scoredResults[getSettingKey(setting.key)];
 			if (remoteSetting && remoteSetting.score >= minScore) {
-				const settingMatches = new SettingMatches(this._filter, setting, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+				const settingMatches = new SettingMatches(this.options.filter, setting, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 				return { matches: settingMatches, score: remoteSetting.score };
 			}
 
@@ -255,16 +271,15 @@ export class RemoteSearchProvider implements ISearchProvider {
 		query = query.replace(/\ +/g, '~ ') + '~';
 
 		const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
-		let url = `${this.endpoint.urlBase}?`;
+		let url = `${this.options.endpoint.urlBase}?`;
 
 		const buildNumber = this.environmentService.settingsSearchBuildId;
-		if (this.endpoint.key) {
+		if (this.options.endpoint.key) {
 			url += `${API_VERSION}&${QUERY_TYPE}`;
 		}
 
-		const usePost = true;
-		if (usePost) {
-			const filters = this.newExtensionsOnly ?
+		if (this.options.usePost) {
+			const filters = this.options.newExtensionsOnly ?
 				[`diminish eq 'latest'`] :
 				await this.getVersionFilters(buildNumber);
 
@@ -315,8 +330,10 @@ export class RemoteSearchProvider implements ISearchProvider {
 	}
 }
 
-function getSettingKey(packageId: string, name: string): string {
-	return packageId + '_' + name;
+function getSettingKey(name: string, packageId?: string): string {
+	return packageId ?
+		packageId + '_' + name :
+		name;
 }
 
 const API_VERSION = 'api-version=2016-09-01-Preview';
