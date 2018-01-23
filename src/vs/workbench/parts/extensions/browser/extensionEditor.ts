@@ -30,7 +30,7 @@ import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
-import { RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
+import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
@@ -337,7 +337,7 @@ export class ExtensionEditor extends BaseEditor {
 			this.repository.style.display = 'none';
 		}
 
-		const install = this.instantiationService.createInstance(InstallWidget, this.installCount, { extension });
+		const install = this.instantiationService.createInstance(InstallCountWidget, this.installCount, { extension });
 		this.transientDisposables.push(install);
 
 		const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, { extension });
