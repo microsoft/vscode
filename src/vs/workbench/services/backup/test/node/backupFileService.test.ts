@@ -147,7 +147,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('text file (large file, ITextSnapshot)', function (done: () => void) {
-			const largeString = (new Array(100 * 1024)).join('Large String\n');
+			const largeString = (new Array(10 * 1024)).join('Large String\n');
 			const model = TextModel.createFromString(largeString);
 
 			service.backupResource(fooFile, model.createSnapshot()).then(() => {
@@ -160,7 +160,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('untitled file (large file, ITextSnapshot)', function (done: () => void) {
-			const largeString = (new Array(100 * 1024)).join('Large String\n');
+			const largeString = (new Array(10 * 1024)).join('Large String\n');
 			const model = TextModel.createFromString(largeString);
 
 			service.backupResource(untitledFile, model.createSnapshot()).then(() => {
