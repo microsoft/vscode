@@ -36,12 +36,14 @@ export class IssueService implements IIssueService {
 			});
 		}
 
+		// focusedWindow can be null (eg. using the Help menu in macOS)
+		const focusedWindow = BrowserWindow.getFocusedWindow();
 		this._issueWindow = new BrowserWindow({
 			width: 800,
 			height: 900,
 			title: 'Issue Reporter',
-			modal: true,
-			parent: BrowserWindow.getFocusedWindow()
+			modal: focusedWindow !== null ? true : false,
+			parent: focusedWindow
 		});
 
 		this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
