@@ -120,7 +120,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	applyUpdate(): TPromise<void> {
 		this.logService.trace('update#applyUpdate, state = ', this.state.type);
 
-		if (this.state.type !== StateType.Ready) {
+		if (this.state.type !== StateType.Downloaded) {
 			return TPromise.as(null);
 		}
 
