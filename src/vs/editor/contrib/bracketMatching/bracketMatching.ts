@@ -51,11 +51,7 @@ class SelectToBracketAction extends EditorAction {
 			id: 'editor.action.selectToBracket',
 			label: nls.localize('smartSelect.selectToBracket', "Select to Bracket"),
 			alias: 'Select to Bracket',
-			precondition: null,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Q
-			}
+			precondition: null
 		});
 	}
 
