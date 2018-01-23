@@ -667,7 +667,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.show();
 				break;
 			case State.Frozen:
-				hide(this.messageElement, this.details.element);
+				hide(this.messageElement);
 				show(this.listElement);
 				this.show();
 				break;
