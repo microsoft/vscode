@@ -437,6 +437,11 @@ export interface ILaunch {
 	 */
 	uri: uri;
 
+	/**
+	 * Name of the launch.
+	 */
+	name: string;
+
 	workspace: IWorkspaceFolder;
 
 	/**

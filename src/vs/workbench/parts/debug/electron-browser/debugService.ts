@@ -668,8 +668,8 @@ export class DebugService implements debug.IDebugService {
 					this.model.getBreakpoints().forEach(bp => bp.verified = false);
 				}
 				this.launchJsonChanged = false;
-				const manager = this.getConfigurationManager();
-				const launch = root ? manager.getLaunches().filter(l => l.workspace.uri.toString() === root.uri.toString()).pop() : undefined;
+				const launch = root ? this.configurationManager.getLaunches().filter(l => l.uri.toString() === root.uri.toString()).pop()
+					: this.configurationManager.getWorkspaceLaunch();
 
 				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {
@@ -683,7 +683,7 @@ export class DebugService implements debug.IDebugService {
 				}
 				if (launch) {
 					// in the drop down the name of the top most compound takes precedence over the launch config name
-					manager.selectConfiguration(launch, topCompoundName || (typeof configOrName === 'string' ? configOrName : undefined), true);
+					this.configurationManager.selectConfiguration(launch, topCompoundName || (typeof configOrName === 'string' ? configOrName : undefined), true);
 				}
 
 				if (compound) {
@@ -692,7 +692,22 @@ export class DebugService implements debug.IDebugService {
 							"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 					}
 
-					return TPromise.join(compound.configurations.map(name => name !== compound.name ? this.startDebugging(root, name, noDebug, topCompoundName || compound.name) : TPromise.as(null)));
+					return TPromise.join(compound.configurations.map(name => {
+						if (name === compound.name) {
+							return TPromise.as(null);
+						}
+
+						let rootForName = root;
+						if (launch === this.configurationManager.getWorkspaceLaunch()) {
+							// For workspace launches allow comound referencing configurations across folder
+							const launchContainingName = this.configurationManager.getLaunches().filter(l => !!l.getConfiguration(name)).pop();
+							if (launchContainingName) {
+								rootForName = launchContainingName.workspace;
+							}
+						}
+
+						return this.startDebugging(rootForName, name, noDebug, topCompoundName || compound.name);
+					}));
 				}
 				if (configOrName && !config) {
 					const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configOrName) :
@@ -723,7 +738,7 @@ export class DebugService implements debug.IDebugService {
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
 					(type ? this.extensionService.activateByEvent(`onDebugResolve:${type}`) : TPromise.as(null)).then(() =>
-						this.configurationManager.resolveConfigurationByProviders(launch ? launch.workspace.uri : undefined, type, config).then(config => {
+						this.configurationManager.resolveConfigurationByProviders(launch ? launch.uri : undefined, type, config).then(config => {
 							// a falsy config indicates an aborted launch
 							if (config && config.type) {
 								return this.createProcess(root, config, sessionId);
