@@ -465,7 +465,8 @@ export class ExtensionEditor extends BaseEditor {
 					this.renderColors(content, manifest, layout),
 					this.renderJSONValidation(content, manifest, layout),
 					this.renderDebuggers(content, manifest, layout),
-					this.renderViews(content, manifest, layout)
+					this.renderViews(content, manifest, layout),
+					this.renderLocalizations(content, manifest, layout)
 				];
 
 				const isEmpty = !renders.reduce((v, r) => r || v, false);
@@ -614,6 +615,26 @@ export class ExtensionEditor extends BaseEditor {
 			$('table', null,
 				$('tr', null, $('th', null, localize('view id', "ID")), $('th', null, localize('view name', "Name")), $('th', null, localize('view location', "Where"))),
 				...views.map(view => $('tr', null, $('td', null, view.id), $('td', null, view.name), $('td', null, view.location)))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderLocalizations(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contributes = manifest.contributes;
+		const localizations = contributes && contributes.localizations || [];
+
+		if (!localizations.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', null, localize('localizations', "Localizations ({0})", localizations.length)),
+			$('table', null,
+				$('tr', null, $('th', null, localize('localizations language id', "Language Id")), $('th', null, localize('localizations language name', "Langauge Name")), $('th', null, localize('translations location', "Translations Location"))),
+				...localizations.map(localization => $('tr', null, $('td', null, localization.languageId), $('td', null, localization.languageName), $('td', null, localization.translations)))
 			)
 		);
 

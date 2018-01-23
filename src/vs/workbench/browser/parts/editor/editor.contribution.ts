@@ -403,12 +403,12 @@ editorCommands.setup();
 // Touch Bar
 if (isMacintosh) {
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconPath: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')).fsPath },
+		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconPath: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')).fsPath } },
 		group: 'navigation'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconPath: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')).fsPath },
+		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconPath: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')).fsPath } },
 		group: 'navigation'
 	});
 }

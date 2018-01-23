@@ -131,10 +131,8 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction
 	): vscode.CodeAction {
-		const codeAction = new vscode.CodeAction(
-			tsAction.description,
-			getEditForCodeAction(this.client, tsAction));
-
+		const codeAction = new vscode.CodeAction(tsAction.description, vscode.CodeActionKind.QuickFix);
+		codeAction.edit = getEditForCodeAction(this.client, tsAction);
 		codeAction.diagnostics = [diagnostic];
 		if (tsAction.commands) {
 			codeAction.command = {
@@ -172,7 +170,8 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 
 			const codeAction = new vscode.CodeAction(
 				localize('fixAllInFileLabel', '{0} (Fix all in file)', tsAction.description),
-				createWorkspaceEditFromFileCodeEdits(this.client, combinedCodeFixesResponse.body.changes));
+				vscode.CodeActionKind.QuickFix);
+			codeAction.edit = createWorkspaceEditFromFileCodeEdits(this.client, combinedCodeFixesResponse.body.changes);
 			codeAction.diagnostics = [diagnostic];
 			if (tsAction.commands) {
 				codeAction.command = {

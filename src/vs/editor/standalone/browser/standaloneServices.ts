@@ -40,6 +40,7 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -141,6 +142,8 @@ export module StaticServices {
 	export const progressService = define(IProgressService, () => new SimpleProgressService());
 
 	export const storageService = define(IStorageService, () => NullStorageService);
+
+	export const logService = define(ILogService, () => new NullLogService());
 
 }
 

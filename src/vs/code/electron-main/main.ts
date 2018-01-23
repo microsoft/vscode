@@ -45,6 +45,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
+import { uploadLogs } from 'vs/code/electron-main/logUploader';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -198,8 +199,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					// Log uploader
 					if (environmentService.args['upload-logs']) {
-						return import('vs/code/electron-main/logUploader')
-							.then(logUploader => logUploader.uploadLogs(channel, requestService))
+						return uploadLogs(channel, requestService)
 							.then(() => TPromise.wrapError(new ExpectedError()));
 					}
 

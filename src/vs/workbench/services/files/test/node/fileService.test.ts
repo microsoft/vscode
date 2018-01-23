@@ -22,6 +22,7 @@ import { onError } from 'vs/base/test/common/utils';
 import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 suite('FileService', () => {
 	let service: FileService;
@@ -581,6 +582,54 @@ suite('FileService', () => {
 		}, error => onError(error, done));
 	});
 
+	test('updateContent (ITextSnapShot)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'small.txt'));
+
+		service.resolveContent(resource).done(c => {
+			assert.equal(c.value, 'Small File');
+
+			const model = TextModel.createFromString('Updates to the small file');
+
+			return service.updateContent(c.resource, model.createSnapshot()).then(c => {
+				assert.equal(fs.readFileSync(resource.fsPath), 'Updates to the small file');
+
+				model.dispose();
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('updateContent (large file)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'lorem.txt'));
+
+		service.resolveContent(resource).done(c => {
+			const newValue = c.value + c.value;
+			c.value = newValue;
+
+			return service.updateContent(c.resource, c.value).then(c => {
+				assert.equal(fs.readFileSync(resource.fsPath), newValue);
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('updateContent (large file, ITextSnapShot)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'lorem.txt'));
+
+		service.resolveContent(resource).done(c => {
+			const newValue = c.value + c.value;
+			const model = TextModel.createFromString(newValue);
+
+			return service.updateContent(c.resource, model.createSnapshot()).then(c => {
+				assert.equal(fs.readFileSync(resource.fsPath), newValue);
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
 	test('updateContent - use encoding (UTF 16 BE)', function (done: () => void) {
 		const resource = uri.file(path.join(testDir, 'small.txt'));
 		const encoding = 'utf16be';
@@ -594,6 +643,31 @@ suite('FileService', () => {
 
 					return service.resolveContent(resource).then(c => {
 						assert.equal(c.encoding, encoding);
+
+						done();
+					});
+				});
+			});
+		}, error => onError(error, done));
+	});
+
+	test('updateContent - use encoding (UTF 16 BE, ITextSnapShot)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'small.txt'));
+		const encoding = 'utf16be';
+
+		service.resolveContent(resource).done(c => {
+			c.encoding = encoding;
+
+			const model = TextModel.createFromString(c.value);
+
+			return service.updateContent(c.resource, model.createSnapshot(), { encoding: encoding }).then(c => {
+				return encodingLib.detectEncodingByBOM(c.resource.fsPath).then((enc) => {
+					assert.equal(enc, encodingLib.UTF16be);
+
+					return service.resolveContent(resource).then(c => {
+						assert.equal(c.encoding, encoding);
+
+						model.dispose();
 
 						done();
 					});
@@ -617,6 +691,31 @@ suite('FileService', () => {
 
 					return service.resolveContent(resource).then(c => {
 						assert.equal(c.encoding, encoding);
+
+						done();
+					});
+				});
+			});
+		}, error => onError(error, done));
+	});
+
+	test('updateContent - encoding preserved (UTF 16 LE, ITextSnapShot)', function (done: () => void) {
+		const encoding = 'utf16le';
+		const resource = uri.file(path.join(testDir, 'some_utf16le.css'));
+
+		service.resolveContent(resource).done(c => {
+			assert.equal(c.encoding, encoding);
+
+			const model = TextModel.createFromString('Some updates');
+
+			return service.updateContent(c.resource, model.createSnapshot(), { encoding: encoding }).then(c => {
+				return encodingLib.detectEncodingByBOM(c.resource.fsPath).then((enc) => {
+					assert.equal(enc, encodingLib.UTF16le);
+
+					return service.resolveContent(resource).then(c => {
+						assert.equal(c.encoding, encoding);
+
+						model.dispose();
 
 						done();
 					});
@@ -846,26 +945,32 @@ suite('FileService', () => {
 			fs.readFile(resource.fsPath, (error, data) => {
 				assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
 
+				const model = TextModel.createFromString('Hello Bom');
+
 				// Update content: UTF_8 => UTF_8_BOM
-				_service.updateContent(resource, 'Hello Bom', { encoding: encodingLib.UTF8_with_bom }).done(() => {
+				_service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8_with_bom }).done(() => {
 					fs.readFile(resource.fsPath, (error, data) => {
 						assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), encodingLib.UTF8);
 
 						// Update content: PRESERVE BOM when using UTF-8
-						_service.updateContent(resource, 'Please stay Bom', { encoding: encodingLib.UTF8 }).done(() => {
+						model.setValue('Please stay Bom');
+						_service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8 }).done(() => {
 							fs.readFile(resource.fsPath, (error, data) => {
 								assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), encodingLib.UTF8);
 
 								// Update content: REMOVE BOM
-								_service.updateContent(resource, 'Go away Bom', { encoding: encodingLib.UTF8, overwriteEncoding: true }).done(() => {
+								model.setValue('Go away Bom');
+								_service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8, overwriteEncoding: true }).done(() => {
 									fs.readFile(resource.fsPath, (error, data) => {
 										assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
 
 										// Update content: BOM comes not back
-										_service.updateContent(resource, 'Do not come back Bom', { encoding: encodingLib.UTF8 }).done(() => {
+										model.setValue('Do not come back Bom');
+										_service.updateContent(resource, model.createSnapshot(), { encoding: encodingLib.UTF8 }).done(() => {
 											fs.readFile(resource.fsPath, (error, data) => {
 												assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
 
+												model.dispose();
 												_service.dispose();
 												done();
 											});

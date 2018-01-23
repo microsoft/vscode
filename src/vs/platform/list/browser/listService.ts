@@ -5,12 +5,12 @@
 'use strict';
 
 import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { List, IListCreationOptions } from 'vs/base/browser/ui/list/listWidget';
+import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IDelegate, IRenderer, IListMouseEvent, IListTouchEvent } from 'vs/base/browser/ui/list/list';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -96,8 +96,25 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 
 export const multiSelectModifierSettingKey = 'workbench.multiSelectModifier';
 
-function useAltAsMultiSelectModifier(configurationService: IConfigurationService): { useAltAsMultiSelectModifier: boolean } {
-	return { useAltAsMultiSelectModifier: configurationService.getValue(multiSelectModifierSettingKey) === 'alt' };
+export function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
+}
+
+class MultipleSelectionController<T> implements IMultipleSelectionController<T> {
+
+	constructor(private configurationService: IConfigurationService) { }
+
+	isSelectionSingleChangeEvent(event: IListMouseEvent<T> | IListTouchEvent<T>): boolean {
+		if (useAltAsMultipleSelectionModifier(this.configurationService)) {
+			return event.browserEvent.altKey;
+		}
+
+		return isSelectionSingleChangeEvent(event);
+	}
+
+	isSelectionRangeChangeEvent(event: IListMouseEvent<T> | IListTouchEvent<T>): boolean {
+		return isSelectionRangeChangeEvent(event);
+	}
 }
 
 export class WorkbenchList<T> extends List<T> {
@@ -109,34 +126,28 @@ export class WorkbenchList<T> extends List<T> {
 		container: HTMLElement,
 		delegate: IDelegate<T>,
 		renderers: IRenderer<T, any>[],
-		private options: IListCreationOptions<T>,
+		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, mixin(options, useAltAsMultiSelectModifier(configurationService)));
+		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
+
+		if (multipleSelectionSupport && !options.multipleSelectionController) {
+			options.multipleSelectionController = new MultipleSelectionController(configurationService);
+		}
+
+		super(container, delegate, renderers, mixin(options, useAltAsMultipleSelectionModifier(configurationService)));
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 
 		this.disposables.push(combinedDisposable([
 			this.contextKeyService,
 			(listService as ListService).register(this),
-			attachListStyler(this, themeService)
+			attachListStyler(this, themeService),
+			this.onSelectionChange(() => this.listDoubleSelection.set(this.getSelection().length === 2))
 		]));
-		this.disposables.push(this.onSelectionChange(() => {
-			const selection = this.getSelection();
-			this.listDoubleSelection.set(selection && selection.length === 2);
-		}));
-		this.disposables.push(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-				this.updateOptions(useAltAsMultiSelectModifier(configurationService));
-			}
-		}));
-	}
-
-	public get useAltAsMultiSelectModifier(): boolean {
-		return this.options.useAltAsMultiSelectModifier;
 	}
 }
 
@@ -149,24 +160,25 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		container: HTMLElement,
 		delegate: IDelegate<number>,
 		renderers: IPagedRenderer<T, any>[],
-		options: IListCreationOptions<any>,
+		options: IListOptions<any>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, mixin(options, useAltAsMultiSelectModifier(configurationService)));
+		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
+
+		if (multipleSelectionSupport && !options.multipleSelectionController) {
+			options.multipleSelectionController = new MultipleSelectionController(configurationService);
+		}
+
+		super(container, delegate, renderers, mixin(options, useAltAsMultipleSelectionModifier(configurationService)));
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
 		this.disposable = combinedDisposable([
 			this.contextKeyService,
 			(listService as ListService).register(this),
-			attachListStyler(this, themeService),
-			configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-					this.updateOptions(useAltAsMultiSelectModifier(configurationService));
-				}
-			})
+			attachListStyler(this, themeService)
 		]);
 	}
 

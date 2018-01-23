@@ -87,11 +87,11 @@ function registerLocaleCompletionsInLanguageDocument(): vscode.Disposable {
 function provideContributedLocalesProposals(range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
 	const contributedLocales: string[] = [];
 	for (const extension of vscode.extensions.all) {
-		if (extension.packageJSON && extension.packageJSON['contributes'] && extension.packageJSON['contributes']['locales'] && extension.packageJSON['contributes']['locales'].length) {
-			const locales: { locale: string }[] = extension.packageJSON['contributes']['locales'];
-			for (const locale of locales) {
-				if (contributedLocales.indexOf(locale.locale) === -1) {
-					contributedLocales.push(locale.locale);
+		if (extension.packageJSON && extension.packageJSON['contributes'] && extension.packageJSON['contributes']['localizations'] && extension.packageJSON['contributes']['localizations'].length) {
+			const localizations: { languageId: string }[] = extension.packageJSON['contributes']['localizations'];
+			for (const localization of localizations) {
+				if (contributedLocales.indexOf(localization.languageId) === -1) {
+					contributedLocales.push(localization.languageId);
 				}
 			}
 		}

@@ -1,7 +1,7 @@
 {
-	"name": "node-debug-placeholder",
+	"name": "node-debug",
 	"version": "1.6.0",
-	"publisher": "vscode",
+	"publisher": "ms-vscode",
 	"engines": {
 		"vscode": "1.6.x"
 	}

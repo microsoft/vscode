@@ -145,7 +145,7 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 		const lineCount = model.getLineCount();
 
 		// Do not insert new line if file does not end with new line
-		if (!lineCount) {
+		if (lineCount === 1) {
 			return;
 		}
 
