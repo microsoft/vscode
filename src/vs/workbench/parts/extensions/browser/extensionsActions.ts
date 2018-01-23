@@ -1692,6 +1692,17 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForL
 		});
 });
 
+CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWithId', function (accessor: ServicesAccessor, extensionId: string) {
+	const viewletService = accessor.get(IViewletService);
+
+	return viewletService.openViewlet(VIEWLET_ID, true)
+		.then(viewlet => viewlet as IExtensionsViewlet)
+		.then(viewlet => {
+			viewlet.search(`@id:${extensionId}`);
+			viewlet.focus();
+		});
+});
+
 export const extensionButtonProminentBackground = registerColor('extensionButton.prominentBackground', {
 	dark: '#327e36',
 	light: '#327e36',

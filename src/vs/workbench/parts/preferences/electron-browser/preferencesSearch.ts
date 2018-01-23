@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider, IGroupFilter, ISettingMatcher, IScoredResults } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider, IGroupFilter, ISettingMatcher, IScoredResults, ISettingMatch, IRemoteSetting, IExtensionSetting } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct, top } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -19,6 +19,7 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -67,8 +68,17 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		}
 	}
 
-	getRemoteSearchProvider(filter: string): RemoteSearchProvider {
-		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, filter, this._endpoint, this._installedExtensions);
+	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider {
+		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
+
+		const opts: IRemoteSearchProviderOptions = {
+			filter,
+			newExtensionsOnly,
+			endpoint: this._endpoint,
+			usePost: workbenchSettings.useNaturalLanguageSearchPost
+		};
+
+		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, opts, this._installedExtensions);
 	}
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider {
@@ -90,7 +100,7 @@ export class LocalSearchProvider implements ISearchProvider {
 
 		let score = 1000; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
-			const matches = new SettingMatches(this._filter, setting, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			const matches = new SettingMatches(this._filter, setting, true, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 			return matches && matches.length ?
 				{
 					matches,
@@ -113,77 +123,124 @@ export class LocalSearchProvider implements ISearchProvider {
 	}
 }
 
-export class RemoteSearchProvider implements ISearchProvider {
-	private _filter: string;
+interface IRemoteSearchProviderOptions {
+	filter: string;
+	endpoint: IEndpointDetails;
+	newExtensionsOnly: boolean;
+	usePost: boolean;
+}
+
+class RemoteSearchProvider implements ISearchProvider {
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
-	constructor(filter: string, endpoint: IEndpointDetails, private installedExtensions: TPromise<ILocalExtension[]>,
+	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: TPromise<ILocalExtension[]>,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IRequestService private requestService: IRequestService,
+		@ILogService private logService: ILogService
 	) {
-		this._filter = filter;
-
-		// @queries are always handled by local filter
-		this._remoteSearchP = filter && !strings.startsWith(filter, '@') ?
-			this.getSettingsFromBing(filter, endpoint) :
-			TPromise.wrap(null);
+		this._remoteSearchP = (this.options.newExtensionsOnly && !this.options.usePost) ? TPromise.wrap(null) :
+			this.options.filter ?
+				this.getSettingsFromBing(this.options.filter) :
+				TPromise.wrap(null);
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
 		return this._remoteSearchP.then(remoteResult => {
-			if (remoteResult) {
-				const highScoreKey = top(Object.keys(remoteResult.scoredResults), (a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a], 1)[0];
-				const highScore = highScoreKey ? remoteResult.scoredResults[highScoreKey] : 0;
-				const minScore = highScore / 5;
+			if (!remoteResult) {
+				return null;
+			}
 
-				const settingMatcher = this.getRemoteSettingMatcher(remoteResult.scoredResults, minScore, preferencesModel);
-				const filterMatches = preferencesModel.filterSettings(this._filter, group => null, settingMatcher);
+			const resultKeys = Object.keys(remoteResult.scoredResults);
+			const highScoreKey = top(resultKeys, (a, b) => remoteResult.scoredResults[b].score - remoteResult.scoredResults[a].score, 1)[0];
+			const highScore = highScoreKey ? remoteResult.scoredResults[highScoreKey].score : 0;
+			const minScore = highScore / 5;
+			if (this.options.newExtensionsOnly) {
+				const passingScoreKeys = resultKeys.filter(k => remoteResult.scoredResults[k].score >= minScore);
+				const filterMatches: ISettingMatch[] = passingScoreKeys.map(k => {
+					const remoteSetting = remoteResult.scoredResults[k];
+					const setting = remoteSettingToISetting(remoteSetting);
+					return <ISettingMatch>{
+						setting,
+						score: remoteSetting.score,
+						matches: [] // TODO
+					};
+				});
+
 				return <ISearchResult>{
 					filterMatches,
 					metadata: remoteResult
 				};
 			} else {
-				return null;
+				const settingMatcher = this.getRemoteSettingMatcher(remoteResult.scoredResults, minScore, preferencesModel);
+				const filterMatches = preferencesModel.filterSettings(this.options.filter, group => null, settingMatcher);
+				return <ISearchResult>{
+					filterMatches,
+					metadata: remoteResult
+				};
 			}
 		});
 	}
 
-	private getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromise<IFilterMetadata> {
+	private getSettingsFromBing(filter: string): TPromise<IFilterMetadata> {
 		const start = Date.now();
-		return this.prepareUrl(filter, endpoint, this.environmentService.settingsSearchBuildId).then(url => {
+		return this.prepareRequest(filter).then(details => {
+			this.logService.debug(`Searching settings via ${details.url}`);
+			if (details.body) {
+				this.logService.debug(`Body: ${details.body}`);
+			}
+
+			const requestType = details.body ? 'post' : 'get';
 			return this.requestService.request({
-				url,
+				type: requestType,
+				url: details.url,
+				data: details.body,
 				headers: {
 					'User-Agent': 'request',
 					'Content-Type': 'application/json; charset=utf-8',
-					'api-key': endpoint.key
+					'api-key': this.options.endpoint.key
 				},
 				timeout: 5000
 			}).then(context => {
 				if (context.res.statusCode >= 300) {
-					throw new Error(`${url} returned status code: ${context.res.statusCode}`);
+					throw new Error(`${details} returned status code: ${context.res.statusCode}`);
 				}
 
 				return asJson(context);
 			}).then((result: any) => {
 				const timestamp = Date.now();
 				const duration = timestamp - start;
-				const suggestions = (result.value || [])
-					.map(r => ({
-						name: r.setting || r.Setting,
-						score: r['@search.score']
-					}));
+				const remoteSettings: IRemoteSetting[] = (result.value || [])
+					.map(r => {
+						const key = JSON.parse(r.setting || r.Setting);
+						const packageId = r['packageid'];
+						const id = getSettingKey(key, packageId);
+
+						const packageName = r['packagename'];
+						let extensionName: string;
+						let extensionPublisher: string;
+						if (packageName && packageName.indexOf('##') >= 0) {
+							[extensionPublisher, extensionName] = packageName.split('##');
+						}
+
+						return <IRemoteSetting>{
+							key,
+							id,
+							defaultValue: r['value'],
+							score: r['@search.score'],
+							description: JSON.parse(r['details']),
+							packageId,
+							extensionName,
+							extensionPublisher
+						};
+					});
 
 				const scoredResults = Object.create(null);
-				suggestions.forEach(s => {
-					const name = s.name
-						.replace(/^"/, '')
-						.replace(/"$/, '');
-					scoredResults[name] = s.score;
+				remoteSettings.forEach(s => {
+					scoredResults[s.id] = s;
 				});
 
 				return <IFilterMetadata>{
-					remoteUrl: url,
+					remoteUrl: details.url, // telemetry for filter text?
 					duration,
 					timestamp,
 					scoredResults,
@@ -194,18 +251,20 @@ export class RemoteSearchProvider implements ISearchProvider {
 	}
 
 	private getRemoteSettingMatcher(scoredResults: IScoredResults, minScore: number, preferencesModel: ISettingsEditorModel): ISettingMatcher {
-		return (setting: ISetting) => {
-			const score = scoredResults[setting.key];
-			if (typeof score === 'number' && score >= minScore) {
-				const settingMatches = new SettingMatches(this._filter, setting, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
-				return { matches: settingMatches, score: scoredResults[setting.key] };
+		return (setting: ISetting, group: ISettingsGroup) => {
+			const remoteSetting = scoredResults[getSettingKey(setting.key, group.id)] || // extension setting
+				scoredResults[getSettingKey(setting.key, 'core')] || // core setting
+				scoredResults[getSettingKey(setting.key)]; // core setting from original prod endpoint
+			if (remoteSetting && remoteSetting.score >= minScore) {
+				const settingMatches = new SettingMatches(this.options.filter, setting, false, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+				return { matches: settingMatches, score: remoteSetting.score };
 			}
 
 			return null;
 		};
 	}
 
-	private prepareUrl(query: string, endpoint: IEndpointDetails, buildNumber: number): TPromise<string> {
+	private async prepareRequest(query: string): TPromise<{ url: string, body?: string }> {
 		query = escapeSpecialChars(query);
 		const boost = 10;
 		const userQuery = `(${query})^${boost}`;
@@ -214,47 +273,94 @@ export class RemoteSearchProvider implements ISearchProvider {
 		query = query.replace(/\ +/g, '~ ') + '~';
 
 		const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
-		let url = `${endpoint.urlBase}?`;
+		let url = `${this.options.endpoint.urlBase}?`;
 
+		const buildNumber = this.environmentService.settingsSearchBuildId;
+		if (this.options.endpoint.key) {
+			url += `${API_VERSION}&${QUERY_TYPE}`;
+		}
+
+		if (this.options.usePost) {
+			const filters = this.options.newExtensionsOnly ?
+				[`diminish eq 'latest'`] :
+				await this.getVersionFilters(buildNumber);
+
+			const filterStr = encodeURIComponent(filters.join(' or '));
+			const body = JSON.stringify({
+				query: encodedQuery,
+				filters: filterStr
+			});
+
+			return {
+				url,
+				body
+			};
+		} else {
+			url += `query=${encodedQuery}`;
+
+			if (buildNumber) {
+				url += `&build=${buildNumber}`;
+			}
+		}
+
+		return TPromise.wrap({ url });
+	}
+
+	private getVersionFilters(buildNumber?: number): TPromise<string[]> {
 		return this.installedExtensions.then(exts => {
-			if (endpoint.key) {
-				url += `${API_VERSION}`;
-				url += `&search=${encodedQuery}`;
+			// Only search extensions that contribute settings
+			const filters = exts
+				.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
+				.map(ext => this.getExtensionFilter(ext));
 
-				const filters = exts.map(ext => {
-					const uuid = ext.identifier.uuid;
-					const versionString = ext.manifest.version
-						.split('.')
-						.map(versionPart => strings.pad(<any>versionPart, 10))
-						.join('');
-
-					return `(packageid eq '${uuid}' and startbuildno le '${versionString}' and endbuildno ge '${versionString}')`;
-				});
-
-				if (buildNumber) {
-					filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
-					url += `&$filter=${filters.join(' or ')}`;
-				}
-			} else {
-				url += `query=${encodedQuery}`;
-
-				if (buildNumber) {
-					url += `&build=${buildNumber}`;
-				}
+			if (buildNumber) {
+				filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
 			}
 
-			return url;
+			return filters;
 		});
+	}
+
+	private getExtensionFilter(ext: ILocalExtension): string {
+		const uuid = ext.identifier.uuid;
+		const versionString = ext.manifest.version
+			.split('.')
+			.map(versionPart => strings.pad(<any>versionPart, 10))
+			.join('');
+
+		return `(packageid eq '${uuid}' and startbuildno le '${versionString}' and endbuildno ge '${versionString}')`;
 	}
 }
 
+function getSettingKey(name: string, packageId?: string): string {
+	return packageId ?
+		packageId + '_' + name :
+		name;
+}
+
 const API_VERSION = 'api-version=2016-09-01-Preview';
+const QUERY_TYPE = 'querytype=full';
 
 function escapeSpecialChars(query: string): string {
 	return query.replace(/\./g, ' ')
 		.replace(/[\\/+\-&|!"~*?:(){}\[\]\^]/g, '\\$&')
 		.replace(/  /g, ' ') // collapse spaces
 		.trim();
+}
+
+function remoteSettingToISetting(remoteSetting: IRemoteSetting): IExtensionSetting {
+	return {
+		description: remoteSetting.description.split('\n'),
+		descriptionRanges: null,
+		key: remoteSetting.key,
+		keyRange: null,
+		value: remoteSetting.defaultValue,
+		range: null,
+		valueRange: null,
+		overrides: [],
+		extensionName: remoteSetting.extensionName,
+		extensionPublisher: remoteSetting.extensionPublisher
+	};
 }
 
 class SettingMatches {
@@ -265,7 +371,7 @@ class SettingMatches {
 
 	public readonly matches: IRange[];
 
-	constructor(searchString: string, setting: ISetting, private requireFullQueryMatch: boolean, private valuesMatcher: (filter: string, setting: ISetting) => IRange[]) {
+	constructor(searchString: string, setting: ISetting, private requireFullQueryMatch: boolean, private searchDescription, private valuesMatcher: (filter: string, setting: ISetting) => IRange[]) {
 		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
 	}
 
@@ -273,7 +379,7 @@ class SettingMatches {
 		const result = this._doFindMatchesInSetting(searchString, setting);
 		if (setting.overrides && setting.overrides.length) {
 			for (const subSetting of setting.overrides) {
-				const subSettingMatches = new SettingMatches(searchString, subSetting, this.requireFullQueryMatch, this.valuesMatcher);
+				const subSettingMatches = new SettingMatches(searchString, subSetting, this.requireFullQueryMatch, this.searchDescription, this.valuesMatcher);
 				let words = searchString.split(' ');
 				const descriptionRanges: IRange[] = this.getRangesForWords(words, this.descriptionMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
 				const keyRanges: IRange[] = this.getRangesForWords(words, this.keyMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
@@ -294,10 +400,12 @@ class SettingMatches {
 		const settingKeyAsWords: string = setting.key.split('.').join(' ');
 
 		for (const word of words) {
-			for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-				const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
-				if (descriptionMatches) {
-					this.descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+			if (this.searchDescription) {
+				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
+					const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
+					if (descriptionMatches) {
+						this.descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+					}
 				}
 			}
 
@@ -315,12 +423,14 @@ class SettingMatches {
 		}
 
 		const descriptionRanges: IRange[] = [];
-		for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-			const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex] || '') || [];
-			descriptionRanges.push(...matches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
-		}
-		if (descriptionRanges.length === 0) {
-			descriptionRanges.push(...this.getRangesForWords(words, this.descriptionMatchingWords, [this.keyMatchingWords, this.valueMatchingWords]));
+		if (this.searchDescription) {
+			for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
+				const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex] || '') || [];
+				descriptionRanges.push(...matches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+			}
+			if (descriptionRanges.length === 0) {
+				descriptionRanges.push(...this.getRangesForWords(words, this.descriptionMatchingWords, [this.keyMatchingWords, this.valueMatchingWords]));
+			}
 		}
 
 		const keyMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.key);
@@ -331,7 +441,7 @@ class SettingMatches {
 			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
 			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, this.valueMatchingWords, [this.keyMatchingWords, this.descriptionMatchingWords]);
 		} else {
-			valueRanges = this.valuesMatcher(searchString, setting);
+			valueRanges = this.valuesMatcher ? this.valuesMatcher(searchString, setting) : [];
 		}
 
 		return [...descriptionRanges, ...keyRanges, ...valueRanges];
