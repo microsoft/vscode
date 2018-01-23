@@ -818,12 +818,7 @@ export class DebugService implements debug.IDebugService {
 					return undefined;
 				}
 
-				return this.configurationManager.selectedLaunch.openConfigFile(false).then(result => {
-					if (result.configFileCreated) {
-						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application. {0}", err.message));
-					}
-					return undefined;
-				});
+				return this.configurationManager.selectedLaunch.openConfigFile(false).then(editor => void 0);
 			})
 		);
 	}

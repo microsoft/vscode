@@ -171,9 +171,9 @@ export function registerCommands(): void {
 			}
 			const launch = manager.getLaunches().filter(l => l.uri.toString() === workspaceUri).pop() || manager.selectedLaunch;
 
-			return launch.openConfigFile(false).done(result => {
-				if (result.editor && !result.configFileCreated) {
-					const codeEditor = <ICodeEditor>result.editor.getControl();
+			return launch.openConfigFile(false).done(editor => {
+				if (editor) {
+					const codeEditor = <ICodeEditor>editor.getControl();
 					if (codeEditor) {
 						return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
 					}

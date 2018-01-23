@@ -9,6 +9,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import { first } from 'vs/base/common/arrays';
+import severity from 'vs/base/common/severity';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
@@ -34,6 +35,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawAdapter[]>('debuggers', [], {
@@ -466,7 +468,8 @@ class Launch implements ILaunch {
 		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
+		@IMessageService private messageService: IMessageService
 	) {
 		// noop
 	}
@@ -541,11 +544,11 @@ class Launch implements ILaunch {
 		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
 	}
 
-	public openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor; configFileCreated: boolean; }> {
+	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
 		const resource = this.uri;
 		let configFileCreated = false;
 
-		return this.fileService.resolveContent(resource).then(content => content, err => {
+		return this.fileService.resolveContent(resource).then(content => content.value, err => {
 
 			// launch.json not found: create one by collecting launch configs from debugConfigProviders
 
@@ -566,17 +569,17 @@ class Launch implements ILaunch {
 				configFileCreated = true;
 				return this.fileService.updateContent(resource, content).then(() => {
 					// convert string into IContent; see #32135
-					return { value: content };
+					return content;
 				});
 			});
 		}).then(content => {
 			if (!content) {
-				return { editor: undefined, configFileCreated };
+				return undefined;
 			}
-			const index = content.value.indexOf(`"${this.configurationManager.selectedName}"`);
+			const index = content.indexOf(`"${this.configurationManager.selectedName}"`);
 			let startLineNumber = 1;
 			for (let i = 0; i < index; i++) {
-				if (content.value.charAt(i) === '\n') {
+				if (content.charAt(i) === '\n') {
 					startLineNumber++;
 				}
 			}
@@ -590,7 +593,13 @@ class Launch implements ILaunch {
 					pinned: configFileCreated, // pin only if config file is created #8727
 					revealIfVisible: true
 				},
-			}, sideBySide).then(editor => ({ editor, configFileCreated }));
+			}, sideBySide).then(editor => {
+				if (configFileCreated) {
+					this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
+				}
+
+				return editor;
+			});
 		}, (error) => {
 			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 		});
@@ -605,9 +614,10 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IMessageService messageService: IMessageService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService, messageService);
 	}
 
 	get uri(): uri {
@@ -622,7 +632,7 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').workspace;
 	}
 
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor; configFileCreated: boolean; }, any> {
-		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration }).then(editor => ({ editor, configFileCreated: false }));
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
+		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
 	}
 }
