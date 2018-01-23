@@ -648,7 +648,7 @@ export interface CodeActionDto {
 	edit?: WorkspaceEditDto;
 	diagnostics?: IMarkerData[];
 	command?: modes.Command;
-	scope?: string;
+	kind?: string;
 }
 
 export interface ExtHostLanguageFeaturesShape {
