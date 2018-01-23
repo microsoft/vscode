@@ -100,7 +100,7 @@ export class LocalSearchProvider implements ISearchProvider {
 
 		let score = 1000; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
-			const matches = new SettingMatches(this._filter, setting, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			const matches = new SettingMatches(this._filter, setting, true, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 			return matches && matches.length ?
 				{
 					matches,
@@ -254,7 +254,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		return (setting: ISetting, group: ISettingsGroup) => {
 			const remoteSetting = scoredResults[getSettingKey(setting.key, group.id)] || scoredResults[getSettingKey(setting.key)];
 			if (remoteSetting && remoteSetting.score >= minScore) {
-				const settingMatches = new SettingMatches(this.options.filter, setting, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+				const settingMatches = new SettingMatches(this.options.filter, setting, false, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 				return { matches: settingMatches, score: remoteSetting.score };
 			}
 
@@ -369,7 +369,7 @@ class SettingMatches {
 
 	public readonly matches: IRange[];
 
-	constructor(searchString: string, setting: ISetting, private requireFullQueryMatch: boolean, private valuesMatcher: (filter: string, setting: ISetting) => IRange[]) {
+	constructor(searchString: string, setting: ISetting, private requireFullQueryMatch: boolean, private searchDescription, private valuesMatcher: (filter: string, setting: ISetting) => IRange[]) {
 		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
 	}
 
@@ -377,7 +377,7 @@ class SettingMatches {
 		const result = this._doFindMatchesInSetting(searchString, setting);
 		if (setting.overrides && setting.overrides.length) {
 			for (const subSetting of setting.overrides) {
-				const subSettingMatches = new SettingMatches(searchString, subSetting, this.requireFullQueryMatch, this.valuesMatcher);
+				const subSettingMatches = new SettingMatches(searchString, subSetting, this.requireFullQueryMatch, this.searchDescription, this.valuesMatcher);
 				let words = searchString.split(' ');
 				const descriptionRanges: IRange[] = this.getRangesForWords(words, this.descriptionMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
 				const keyRanges: IRange[] = this.getRangesForWords(words, this.keyMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
@@ -398,10 +398,12 @@ class SettingMatches {
 		const settingKeyAsWords: string = setting.key.split('.').join(' ');
 
 		for (const word of words) {
-			for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-				const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
-				if (descriptionMatches) {
-					this.descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+			if (this.searchDescription) {
+				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
+					const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
+					if (descriptionMatches) {
+						this.descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+					}
 				}
 			}
 
@@ -419,12 +421,14 @@ class SettingMatches {
 		}
 
 		const descriptionRanges: IRange[] = [];
-		for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-			const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex] || '') || [];
-			descriptionRanges.push(...matches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
-		}
-		if (descriptionRanges.length === 0) {
-			descriptionRanges.push(...this.getRangesForWords(words, this.descriptionMatchingWords, [this.keyMatchingWords, this.valueMatchingWords]));
+		if (this.searchDescription) {
+			for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
+				const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex] || '') || [];
+				descriptionRanges.push(...matches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+			}
+			if (descriptionRanges.length === 0) {
+				descriptionRanges.push(...this.getRangesForWords(words, this.descriptionMatchingWords, [this.keyMatchingWords, this.valueMatchingWords]));
+			}
 		}
 
 		const keyMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.key);
