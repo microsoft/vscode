@@ -150,10 +150,17 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 1
 		},
-		'terminal.integrated.enableBold': {
-			'type': 'boolean',
-			'description': nls.localize('terminal.integrated.enableBold', "Whether to enable bold text within the terminal, note that this requires support from the terminal shell."),
-			'default': true
+		'terminal.integrated.fontWeight': {
+			'type': 'string',
+			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
+			'description': nls.localize('terminal.integrated.fontWeight', "The font weight to use within the termianl for non-bold text."),
+			'default': 'normal'
+		},
+		'terminal.integrated.fontWeightBold': {
+			'type': 'string',
+			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
+			'description': nls.localize('terminal.integrated.fontWeightBold', "The font weight to use within the termianl for bold text."),
+			'default': 'bold'
 		},
 		'terminal.integrated.cursorBlinking': {
 			'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),

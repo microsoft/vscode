@@ -278,9 +278,10 @@ export class TerminalInstance implements ITerminalInstance {
 			scrollback: this._configHelper.config.scrollback,
 			theme: this._getXtermTheme(),
 			fontFamily: font.fontFamily,
+			fontWeight: this._configHelper.config.fontWeight,
+			fontWeightBold: this._configHelper.config.fontWeightBold,
 			fontSize: font.fontSize,
 			lineHeight: font.lineHeight,
-			enableBold: this._configHelper.config.enableBold,
 			bellStyle: this._configHelper.config.enableBell ? 'sound' : 'none',
 			screenReaderMode: accessibilitySupport === 'on',
 			macOptionIsMeta: this._configHelper.config.macOptionIsMeta
@@ -1056,8 +1057,11 @@ export class TerminalInstance implements ITerminalInstance {
 				if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
 					this._xterm.setOption('fontFamily', font.fontFamily);
 				}
-				if (this._xterm.getOption('enableBold') !== this._configHelper.config.enableBold) {
-					this._xterm.setOption('enableBold', this._configHelper.config.enableBold);
+				if (this._xterm.getOption('fontWeight') !== this._configHelper.config.fontWeight) {
+					this._xterm.setOption('fontWeight', this._configHelper.config.fontWeight);
+				}
+				if (this._xterm.getOption('fontWeightBold') !== this._configHelper.config.fontWeightBold) {
+					this._xterm.setOption('fontWeightBold', this._configHelper.config.fontWeightBold);
 				}
 			}
 

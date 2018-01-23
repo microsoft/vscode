@@ -49,6 +49,8 @@ export const TerminalCursorStyle = {
 
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 
+export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+
 export interface ITerminalConfiguration {
 	shell: {
 		linux: string;
@@ -60,12 +62,13 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
-	enableBold: boolean;
 	macOptionIsMeta: boolean;
 	rightClickCopyPaste: boolean;
 	cursorBlinking: boolean;
 	cursorStyle: string;
 	fontFamily: string;
+	fontWeight: FontWeight;
+	fontWeightBold: FontWeight;
 	// fontLigatures: boolean;
 	fontSize: number;
 	lineHeight: number;
