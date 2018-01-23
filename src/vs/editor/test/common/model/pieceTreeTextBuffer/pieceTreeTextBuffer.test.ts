@@ -1531,3 +1531,61 @@ suite('buffer api', () => {
 		assert(!a.equal(b));
 	});
 });
+
+suite('search offset cache', () => {
+	test('render white space exception', () => {
+		let pieceTable = createTextBuffer(['class Name{\n\t\n\t\t\tget() {\n\n\t\t\t}\n\t\t}']);
+		let str = 'class Name{\n\t\n\t\t\tget() {\n\n\t\t\t}\n\t\t}';
+
+		pieceTable.insert(12, 's');
+		str = str.substring(0, 12) + 's' + str.substring(12);
+
+		pieceTable.insert(13, 'e');
+		str = str.substring(0, 13) + 'e' + str.substring(13);
+
+		pieceTable.insert(14, 't');
+		str = str.substring(0, 14) + 't' + str.substring(14);
+
+		pieceTable.insert(15, '()');
+		str = str.substring(0, 15) + '()' + str.substring(15);
+
+		pieceTable.delete(16, 1);
+		str = str.substring(0, 16) + str.substring(16 + 1);
+
+		pieceTable.insert(17, '()');
+		str = str.substring(0, 17) + '()' + str.substring(17);
+
+		pieceTable.delete(18, 1);
+		str = str.substring(0, 18) + str.substring(18 + 1);
+
+		pieceTable.insert(18, '}');
+		str = str.substring(0, 18) + '}' + str.substring(18);
+
+		pieceTable.insert(12, '\n');
+		str = str.substring(0, 12) + '\n' + str.substring(12);
+
+		pieceTable.delete(12, 1);
+		str = str.substring(0, 12) + str.substring(12 + 1);
+
+		pieceTable.delete(18, 1);
+		str = str.substring(0, 18) + str.substring(18 + 1);
+
+		pieceTable.insert(18, '}');
+		str = str.substring(0, 18) + '}' + str.substring(18);
+
+		pieceTable.delete(17, 2);
+		str = str.substring(0, 17) + str.substring(17 + 2);
+
+		pieceTable.delete(16, 1);
+		str = str.substring(0, 16) + str.substring(16 + 1);
+
+		pieceTable.insert(16, ')');
+		str = str.substring(0, 16) + ')' + str.substring(16);
+
+		pieceTable.delete(15, 2);
+		str = str.substring(0, 15) + str.substring(15 + 2);
+
+		var content = pieceTable.getLinesRawContent();
+		assert(content === str);
+	});
+});
