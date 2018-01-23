@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vscode-nls';
-nls.config(process.env.VSCODE_NLS_CONFIG)();
+nls.config(process.env.VSCODE_NLS_CONFIG as string, nls.ExtensionKind.prePackaged, __dirname)();
 import * as vscode from 'vscode';
 import MergeConflictServices from './services';
 

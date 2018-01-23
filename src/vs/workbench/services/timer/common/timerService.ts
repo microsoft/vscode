@@ -66,6 +66,7 @@ export interface IStartupMetrics {
 		ellapsedEditorRestore: number;
 		ellapsedWorkbench: number;
 		ellapsedTimersToTimersComputed: number;
+		ellapsedNlsGeneration: number;
 	};
 	platform: string;
 	release: string;

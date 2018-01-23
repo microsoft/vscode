@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
+/* const localize = */nls.config(process.env.VSCODE_NLS_CONFIG, nls.ExtensionKind.prePackaged, __dirname)();
 
 import { MarkdownEngine } from './markdownEngine';
 import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';

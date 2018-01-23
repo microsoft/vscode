@@ -1,7 +1,14 @@
 declare module "event-stream" {
 	import { Stream } from 'stream';
-	import { ThroughStream } from 'through';
+	import { ThroughStream as _ThroughStream} from 'through';
 	import { MapStream } from 'map-stream';
+	import * as File from 'vinyl';
+
+	export interface ThroughStream extends _ThroughStream {
+		queue(data: File | null);
+		push(data: File | null);
+		paused: boolean;
+	}
 
 	function merge(streams: Stream[]): ThroughStream;
 	function merge(...streams: Stream[]): ThroughStream;

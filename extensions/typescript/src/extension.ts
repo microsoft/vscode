@@ -8,8 +8,7 @@ import * as vscode from 'vscode';
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
 import * as nls from 'vscode-nls';
-nls.config({ locale: vscode.env.language });
-nls.loadMessageBundle();
+nls.config(process.env.VSCODE_NLS_CONFIG as string, nls.ExtensionKind.prePackaged, __dirname)();
 
 import { CommandManager } from './utils/commandManager';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';

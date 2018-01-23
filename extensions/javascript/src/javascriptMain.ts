@@ -11,6 +11,7 @@ import * as httpRequest from 'request-light';
 import { ExtensionContext, env, workspace } from 'vscode';
 
 import * as nls from 'vscode-nls';
+/* const localize = */nls.config(process.env.VSCODE_NLS_CONFIG as string, nls.ExtensionKind.prePackaged, __dirname)();
 
 export function activate(context: ExtensionContext): any {
 	nls.config({ locale: env.language });
