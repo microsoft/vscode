@@ -46,6 +46,8 @@ import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
+import { IChoiceService } from 'vs/platform/message/common/message';
+import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -69,6 +71,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IURLService, new SyncDescriptor(URLService, args['open-url'] ? args._urls : []));
 	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
+	services.set(IChoiceService, new SyncDescriptor(ChoiceCliService));
 
 	return new InstantiationService(services, true);
 }
@@ -106,6 +109,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const requestService = accessor.get(IRequestService);
+	const choiceService = accessor.get(IChoiceService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
 		let promise = TPromise.wrap<void>(void 0);
@@ -199,7 +203,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					// Log uploader
 					if (environmentService.args['upload-logs']) {
-						return uploadLogs(channel, requestService)
+						return uploadLogs(channel, requestService, choiceService)
 							.then(() => TPromise.wrapError(new ExpectedError()));
 					}
 
