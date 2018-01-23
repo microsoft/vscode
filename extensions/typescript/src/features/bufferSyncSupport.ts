@@ -10,6 +10,7 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
 import * as languageModeIds from '../utils/languageModeIds';
+import * as fileSchemes from '../utils/fileSchemes';
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
@@ -48,10 +49,7 @@ class SyncedBuffer {
 		}
 
 		if (this.client.apiVersion.has230Features()) {
-			const root = this.client.getWorkspaceRootForResource(this.document.uri);
-			if (root) {
-				args.projectRootPath = root;
-			}
+			args.projectRootPath = this.client.getWorkspaceRootForResource(this.document.uri);
 		}
 
 		if (this.client.apiVersion.has240Features()) {
