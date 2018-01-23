@@ -23,6 +23,7 @@ export const defaultSettingsSchemaId = 'vscode://schemas/settings/default';
 export const userSettingsSchemaId = 'vscode://schemas/settings/user';
 export const workspaceSettingsSchemaId = 'vscode://schemas/settings/workspace';
 export const folderSettingsSchemaId = 'vscode://schemas/settings/folder';
+export const launchSchemaId = 'vscode://schemas/launch';
 
 export const TASKS_CONFIGURATION_KEY = 'tasks';
 export const LAUNCH_CONFIGURATION_KEY = 'launch';

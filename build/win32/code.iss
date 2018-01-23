@@ -971,13 +971,18 @@ begin
   Result := not IsBackgroundUpdate();
 end;
 
+// VS Code will create a flag file before the update starts (/update=C:\foo\bar)
+// - if the file exists at this point, the user quit Code before the update finished, so don't start Code after update
+// - otherwise, the user has accepted to apply the update and Code should start
+function LockFileExists(): Boolean;
+begin
+  Result := FileExists(ExpandConstant('{param:update}'))
+end;
+
 function ShouldRunAfterUpdate(): Boolean;
 begin
   if IsBackgroundUpdate() then
-    // VS Code will create a flag file before the update starts (/update=C:\foo\bar)
-    // - if the file exists at this point, the user quit Code before the update finished, so don't start Code after update
-    // - otherwise, the user has accepted to apply the update and Code should start
-    Result := not FileExists(ExpandConstant('{param:update}'))
+    Result := not LockFileExists()
   else
     Result := True;
 end;
@@ -998,6 +1003,14 @@ begin
     Result := ExpandConstant('{app}');
 end;
 
+function BoolToStr(Value: Boolean): String; 
+begin
+  if Value then
+    Result := 'true'
+  else
+    Result := 'false';
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   UpdateResultCode: Integer;
@@ -1012,7 +1025,7 @@ begin
       Sleep(1000);
     end;
 
-    Exec(ExpandConstant('{app}\inno_updater.exe'), ExpandConstant('--apply-update _ "{app}\unins000.dat"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+    Exec(ExpandConstant('{app}\inno_updater.exe'), ExpandConstant('_ "{app}\unins000.dat" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
   end;
 end;
 

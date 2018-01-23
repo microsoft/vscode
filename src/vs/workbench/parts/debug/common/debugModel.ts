@@ -545,7 +545,7 @@ export class Process implements IProcess {
 	}
 
 	public getName(includeRoot: boolean): string {
-		return includeRoot ? `${this.configuration.name} (${resources.basenameOrAuthority(this.session.root.uri)})` : this.configuration.name;
+		return includeRoot && this.session.root ? `${this.configuration.name} (${resources.basenameOrAuthority(this.session.root.uri)})` : this.configuration.name;
 	}
 
 	public get state(): ProcessState {

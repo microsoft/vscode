@@ -288,7 +288,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	getUnsupportedWorkspaceKeys(): string[] {
-		const unsupportedWorkspaceKeys = [...this.workspaceConfiguration.getWorkspaceSettings().unsupportedKeys];
+		const unsupportedWorkspaceKeys = [...this.workspaceConfiguration.getUnsupportedKeys()];
 		for (const folder of this.workspace.folders) {
 			unsupportedWorkspaceKeys.push(...this.cachedFolderConfigs.get(folder.uri).getUnsupportedKeys());
 		}

@@ -71,7 +71,6 @@ export interface IWorkspaceData {
 	id: string;
 	name: string;
 	folders: { uri: UriComponents, name: string, index: number }[];
-	configuration: UriComponents;
 }
 
 export interface IInitData {

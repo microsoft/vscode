@@ -6,7 +6,6 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
-import { match } from 'vs/base/common/glob';
 
 export enum ContextKeyExprType {
 	Defined = 1,
@@ -14,7 +13,7 @@ export enum ContextKeyExprType {
 	Equals = 3,
 	NotEquals = 4,
 	And = 5,
-	Glob = 6
+	Regex = 6
 }
 
 export abstract class ContextKeyExpr {
@@ -31,8 +30,8 @@ export abstract class ContextKeyExpr {
 		return new ContextKeyNotEqualsExpr(key, value);
 	}
 
-	public static glob(key: string, value: string): ContextKeyExpr {
-		return new ContextKeyGlobExpr(key, value);
+	public static regex(key: string, value: string): ContextKeyExpr {
+		return new ContextKeyRegexExpr(key, value);
 	}
 
 	public static not(key: string): ContextKeyExpr {
@@ -68,7 +67,7 @@ export abstract class ContextKeyExpr {
 
 		if (serializedOne.indexOf('=~') >= 0) {
 			let pieces = serializedOne.split('=~');
-			return new ContextKeyGlobExpr(pieces[0].trim(), this._deserializeValue(pieces[1]));
+			return new ContextKeyRegexExpr(pieces[0].trim(), this._deserializeValue(pieces[1]));
 		}
 
 		if (/^\!\s*/.test(serializedOne)) {
@@ -120,8 +119,8 @@ function cmp(a: ContextKeyExpr, b: ContextKeyExpr): number {
 			return (<ContextKeyEqualsExpr>a).cmp(<ContextKeyEqualsExpr>b);
 		case ContextKeyExprType.NotEquals:
 			return (<ContextKeyNotEqualsExpr>a).cmp(<ContextKeyNotEqualsExpr>b);
-		case ContextKeyExprType.Glob:
-			return (<ContextKeyGlobExpr>a).cmp(<ContextKeyGlobExpr>b);
+		case ContextKeyExprType.Regex:
+			return (<ContextKeyRegexExpr>a).cmp(<ContextKeyRegexExpr>b);
 		default:
 			throw new Error('Unknown ContextKeyExpr!');
 	}
@@ -333,40 +332,48 @@ export class ContextKeyNotExpr implements ContextKeyExpr {
 	}
 }
 
-export class ContextKeyGlobExpr implements ContextKeyExpr {
+export class ContextKeyRegexExpr implements ContextKeyExpr {
 
-	constructor(private key: string, private value: any) {
+	private regexp: { source: string, test(s: string): boolean };
+
+	constructor(private key: string, value: any) {
+		try {
+			this.regexp = new RegExp(value);
+		} catch (e) {
+			this.regexp = { source: '', test() { return false; } };
+			console.warn(`Bad value for glob-context key expression: ${value}`);
+		}
 	}
 
 	public getType(): ContextKeyExprType {
-		return ContextKeyExprType.Glob;
+		return ContextKeyExprType.Regex;
 	}
 
-	public cmp(other: ContextKeyGlobExpr): number {
+	public cmp(other: ContextKeyRegexExpr): number {
 		if (this.key < other.key) {
 			return -1;
 		}
 		if (this.key > other.key) {
 			return 1;
 		}
-		if (this.value < other.value) {
+		if (this.regexp.source < other.regexp.source) {
 			return -1;
 		}
-		if (this.value > other.value) {
+		if (this.regexp.source > other.regexp.source) {
 			return 1;
 		}
 		return 0;
 	}
 
 	public equals(other: ContextKeyExpr): boolean {
-		if (other instanceof ContextKeyGlobExpr) {
-			return (this.key === other.key && this.value === other.value);
+		if (other instanceof ContextKeyRegexExpr) {
+			return (this.key === other.key && this.regexp.source === other.regexp.source);
 		}
 		return false;
 	}
 
 	public evaluate(context: IContext): boolean {
-		return match(this.value, context.getValue(this.key));
+		return this.regexp.test(context.getValue(this.key));
 	}
 
 	public normalize(): ContextKeyExpr {
@@ -374,7 +381,7 @@ export class ContextKeyGlobExpr implements ContextKeyExpr {
 	}
 
 	public serialize(): string {
-		return this.key + ' =~ \'' + this.value + '\'';
+		return this.key + ' =~ \'' + this.regexp.source + '\'';
 	}
 
 	public keys(): string[] {

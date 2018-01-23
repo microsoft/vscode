@@ -86,7 +86,7 @@ export interface IColor {
 }
 
 export interface ILocalization {
-	languagId: string;
+	languageId: string;
 	languageName?: string;
 	translations: string;
 }
@@ -229,6 +229,12 @@ export enum StatisticType {
 	Uninstall = 'uninstall'
 }
 
+export interface IReportedExtension {
+	id: IExtensionIdentifier;
+	malicious: boolean;
+	slow: boolean;
+}
+
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
@@ -240,6 +246,7 @@ export interface IExtensionGalleryService {
 	getChangelog(extension: IGalleryExtension): TPromise<string>;
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[]): TPromise<IGalleryExtension[]>;
+	getExtensionsReport(): TPromise<IReportedExtension[]>;
 }
 
 export interface InstallExtensionEvent {
