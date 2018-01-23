@@ -1318,7 +1318,10 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		if (e.window.config && !!e.window.config.extensionDevelopmentPath) {
-			return; // do not ask to save workspace when doing extension development
+			// do not ask to save workspace when doing extension development
+			// but still delete it.
+			this.workspacesMainService.deleteUntitledWorkspaceSync(workspace);
+			return;
 		}
 
 		if (windowClosing && !isMacintosh && this.getWindowCount() === 1) {
@@ -1716,8 +1719,8 @@ class Dialogs {
 class WorkspacesManager {
 
 	constructor(
-		private workspacesService: IWorkspacesMainService,
-		private backupService: IBackupMainService,
+		private workspacesMainService: IWorkspacesMainService,
+		private backupMainService: IBackupMainService,
 		private environmentService: IEnvironmentService,
 		private windowsMainService: IWindowsMainService
 	) {
@@ -1741,7 +1744,7 @@ class WorkspacesManager {
 				return TPromise.as(null); // return early if the workspace is not valid
 			}
 
-			return this.workspacesService.createWorkspace(folders).then(workspace => {
+			return this.workspacesMainService.createWorkspace(folders).then(workspace => {
 				return this.doSaveAndOpenWorkspace(window, workspace, path);
 			});
 		});
@@ -1758,7 +1761,7 @@ class WorkspacesManager {
 		}
 
 		// Prevent overwriting a workspace that is currently opened in another window
-		if (findWindowOnWorkspace(this.windowsMainService.getWindows(), { id: this.workspacesService.getWorkspaceId(path), configPath: path })) {
+		if (findWindowOnWorkspace(this.windowsMainService.getWindows(), { id: this.workspacesMainService.getWorkspaceId(path), configPath: path })) {
 			const options: Electron.MessageBoxOptions = {
 				title: product.nameLong,
 				type: 'info',
@@ -1777,7 +1780,7 @@ class WorkspacesManager {
 	private doSaveAndOpenWorkspace(window: CodeWindow, workspace: IWorkspaceIdentifier, path?: string): TPromise<IEnterWorkspaceResult> {
 		let savePromise: TPromise<IWorkspaceIdentifier>;
 		if (path) {
-			savePromise = this.workspacesService.saveWorkspace(workspace, path);
+			savePromise = this.workspacesMainService.saveWorkspace(workspace, path);
 		} else {
 			savePromise = TPromise.as(workspace);
 		}
@@ -1788,7 +1791,7 @@ class WorkspacesManager {
 			// Register window for backups and migrate current backups over
 			let backupPath: string;
 			if (!window.config.extensionDevelopmentPath) {
-				backupPath = this.backupService.registerWorkspaceBackupSync(workspace, window.config.backupPath);
+				backupPath = this.backupMainService.registerWorkspaceBackupSync(workspace, window.config.backupPath);
 			}
 
 			// Update window configuration properly based on transition to workspace
@@ -1861,7 +1864,7 @@ class WorkspacesManager {
 
 				// Don't Save: delete workspace
 				case ConfirmResult.DONT_SAVE:
-					this.workspacesService.deleteUntitledWorkspaceSync(workspace);
+					this.workspacesMainService.deleteUntitledWorkspaceSync(workspace);
 					return false;
 
 				// Save: save workspace, but do not veto unload
@@ -1873,7 +1876,7 @@ class WorkspacesManager {
 						defaultPath: this.getUntitledWorkspaceSaveDialogDefaultPath(workspace)
 					}, window).then(target => {
 						if (target) {
-							return this.workspacesService.saveWorkspace(workspace, target).then(() => false, () => false);
+							return this.workspacesMainService.saveWorkspace(workspace, target).then(() => false, () => false);
 						}
 
 						return true; // keep veto if no target was provided
@@ -1889,7 +1892,7 @@ class WorkspacesManager {
 				return dirname(workspace);
 			}
 
-			const resolvedWorkspace = this.workspacesService.resolveWorkspaceSync(workspace.configPath);
+			const resolvedWorkspace = this.workspacesMainService.resolveWorkspaceSync(workspace.configPath);
 			if (resolvedWorkspace && resolvedWorkspace.folders.length > 0) {
 				for (const folder of resolvedWorkspace.folders) {
 					if (folder.uri.scheme === Schemas.file) {
