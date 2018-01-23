@@ -101,8 +101,14 @@ async function postLogs(
 
 		result.stream.on('end', () => {
 			try {
-				const result = Buffer.concat(parts).toString('utf-8');
-				res(JSON.parse(result));
+				const response = Buffer.concat(parts).toString('utf-8');
+				if (result.res.statusCode === 200) {
+					res(JSON.parse(response));
+				} else {
+					const errorMessage = localize('responseError', 'Error posting logs. Got {0}', result.res.statusCode);
+					console.log(errorMessage);
+					reject(new Error(errorMessage));
+				}
 			} catch (e) {
 				console.log(localize('parseError', 'Error parsing response'));
 				reject(e);
