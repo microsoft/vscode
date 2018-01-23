@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
-// @ts-check
 
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;

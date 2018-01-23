@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
+*  Copyright (c) Microsoft Corporation. All rights reserved.
+*  Licensed under the MIT License. See License.txt in the project root for license information.
+*--------------------------------------------------------------------------------------------*/
 
 var nsfw = require('nsfw');
 var path = require('path');
@@ -30,7 +30,7 @@ function watch(root) {
             path: path,
             base: root
         });
-
+        // @ts-ignore incorrect typings
         file.event = type;
         result.emit('data', file);
     }

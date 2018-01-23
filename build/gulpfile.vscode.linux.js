@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
-// @ts-check
 
 const gulp = require('gulp');
 const replace = require('gulp-replace');

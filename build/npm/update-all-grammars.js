@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
-// @ts-check
 
 const cp = require('child_process');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
