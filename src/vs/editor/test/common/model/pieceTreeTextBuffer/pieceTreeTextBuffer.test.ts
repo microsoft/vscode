@@ -9,8 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { SENTINEL, NodeColor, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
+import { PieceTreeBase, SENTINEL, NodeColor, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
