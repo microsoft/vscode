@@ -1517,4 +1517,18 @@ suite('buffer api', () => {
 		assert(!a.equal(c));
 		assert(!a.equal(d));
 	});
+
+	test('equal 2, empty buffer', () => {
+		let a = createTextBuffer(['']);
+		let b = createTextBuffer(['']);
+
+		assert(a.equal(b));
+	});
+
+	test('equal 3, empty buffer', () => {
+		let a = createTextBuffer(['a']);
+		let b = createTextBuffer(['']);
+
+		assert(!a.equal(b));
+	});
 });
