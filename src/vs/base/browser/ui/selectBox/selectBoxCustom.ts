@@ -25,6 +25,7 @@ const $ = dom.$;
 const SELECT_OPTION_ENTRY_TEMPLATE_ID = 'selectOption.entry.template';
 
 export interface ISelectOptionItem {
+	id: string;
 	optionText: string;
 	optionDisabled: boolean;
 }
@@ -217,7 +218,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 					const element = this.options[index];
 					let optionDisabled: boolean;
 					index === this.disabledOptionIndex ? optionDisabled = true : optionDisabled = false;
-					listEntries.push({ optionText: element, optionDisabled: optionDisabled });
+					// listEntries.push({ optionText: element, optionDisabled: optionDisabled });
+					listEntries.push({ id: SELECT_OPTION_ENTRY_TEMPLATE_ID, optionText: element, optionDisabled: optionDisabled });
 				}
 
 				this.selectList.splice(0, this.selectList.length, listEntries);

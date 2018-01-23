@@ -11,15 +11,11 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { deepClone, mixin } from 'vs/base/common/objects';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { List, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
-// import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
-import { SelectBoxList } from 'vs/workbench/parts/selectBox/browser/selectBoxCustom';
+import { SelectBoxList, SelectListDelegate, SelectListRenderer } from 'vs/workbench/parts/selectBox/browser/selectBoxCustom';
 import { isMacintosh } from 'vs/base/common/platform';
-// import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
 
 // Public SelectBox interface - Calls routed to appropriate select implementation class
 
@@ -66,11 +62,8 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 		options: string[],
 		selected: number,
 		contextViewProvider: IContextViewProvider,
-		// instaniationService: IInstantiationService,
-		contextKeyService: IContextKeyService,
-		listService: IListService,
-		themeService: IThemeService,
-		styles: ISelectBoxStyles = deepClone(defaultStyles)
+		styles: ISelectBoxStyles = deepClone(defaultStyles),
+		listCreator?: { container: HTMLElement, list: List<ISelectOptionItem>, delegate: SelectListDelegate, renderer: SelectListRenderer }
 	) {
 		super();
 
@@ -82,7 +75,8 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 		if (isMacintosh) {
 			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles);
 		} else {
-			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, contextKeyService, listService, themeService, this.styles);
+			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, this.styles, listCreator);
+
 		}
 
 		this.toDispose.push(this.selectBoxDelegate);

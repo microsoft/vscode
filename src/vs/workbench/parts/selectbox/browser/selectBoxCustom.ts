@@ -14,13 +14,11 @@ import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IListEvent, IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { List } from 'vs/base/browser/ui/list/listWidget';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISelectBoxDelegate, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
-import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
 
@@ -32,13 +30,23 @@ export interface ISelectOptionItem {
 	optionDisabled: boolean;
 }
 
-interface ISelectListTemplateData {
+export interface ISelectListTemplateData {
 	root: HTMLElement;
 	optionText: HTMLElement;
 	disposables: IDisposable[];
 }
 
-class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemplateData> {
+export class SelectListDelegate implements IDelegate<ISelectOptionItem> {
+	getHeight(element: ISelectOptionItem): number {
+		return 18;
+	}
+
+	getTemplateId(element: ISelectOptionItem): string { return SELECT_OPTION_ENTRY_TEMPLATE_ID; }
+
+	constructor() { }
+}
+
+export class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemplateData> {
 	public templateId = SELECT_OPTION_ENTRY_TEMPLATE_ID;
 
 	get getHeight(): number {
@@ -93,35 +101,19 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private contextViewProvider: IContextViewProvider;
 	private selectDropDownContainer: HTMLElement;
 	private styleElement: HTMLStyleElement;
-	// private selectList: List<ISelectOptionItem>;
+	private selectList: List<ISelectOptionItem>;
 	private selectDropDownListContainer: HTMLElement;
 	private widthControlElement: HTMLElement;
-
-	private selectList: WorkbenchList<ISelectOptionItem>;
-	// instaniationService: IInstantiationService,
-	private contextKeyService: IContextKeyService;
-	private listService: IListService;
-	private themeService: IThemeService;
-
-	// private instantiationService: IInstantiationService;
-	// private _tree: Tree;
-	// private _themeService:
 
 	constructor(
 		options: string[],
 		selected: number,
 		contextViewProvider: IContextViewProvider,
-		contextKeyService: IContextKeyService,
-		listService: IListService,
-		themeService: IThemeService,
-		styles: ISelectBoxStyles
+		styles: ISelectBoxStyles,
+		listCreator?: { container: HTMLElement, list: List<ISelectOptionItem>, delegate: SelectListDelegate, renderer: SelectListRenderer }
 	) {
 		this.toDispose = [];
 		this._isVisible = false;
-
-		this.contextKeyService = contextKeyService;
-		this.listService = listService;
-		this.themeService = themeService;
 
 		this.selectElement = document.createElement('select');
 		this.selectElement.className = 'select-box';
@@ -130,7 +122,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this.styles = styles;
 
 		this.registerListeners();
-		this.constructSelectDropDown(contextViewProvider);
+		// const listCreator = undefined;
+		this.constructSelectDropDown(contextViewProvider, listCreator);
 
 		this.setOptions(options, selected);
 
@@ -147,22 +140,29 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	}
 
 
-	private createSelectWorkbenchList(parent: HTMLElement): void {
+	private createSelectWorkbenchList(parent: HTMLElement, listCreator?: { container: HTMLElement, list: List<ISelectOptionItem>, delegate: SelectListDelegate, renderer: SelectListRenderer }): void {
 
-		this.selectDropDownListContainer = dom.append(parent, $('.select-box-dropdown-list-container'));
+		if (listCreator !== undefined) {
+			this.selectDropDownListContainer = listCreator.container;
+			dom.append(parent, this.selectDropDownListContainer);
+			dom.addClass(this.selectDropDownListContainer, 'select-box-dropdown-list-container');
 
-		this.listRenderer = new SelectListRenderer();
+			this.listRenderer = listCreator.renderer;
+			this.selectList = listCreator.list;
+		} else {
 
+			this.selectDropDownListContainer = dom.append(parent, $('.select-box-dropdown-list-container'));
 
-		this.selectList = new WorkbenchList<ISelectOptionItem>(this.selectDropDownListContainer, this, [this.listRenderer], {
-			identityProvider: e => e.id,
-			useShadows: false,
-			selectOnMouseDown: false,
-			verticalScrollMode: ScrollbarVisibility.Visible,
-			keyboardSupport: false,
-			mouseSupport: false
+			this.listRenderer = new SelectListRenderer();
 
-		}, this.contextKeyService, this.listService, this.themeService);
+			this.selectList = new List(this.selectDropDownListContainer, this, [this.listRenderer], {
+				useShadows: false,
+				selectOnMouseDown: false,
+				verticalScrollMode: ScrollbarVisibility.Visible,
+				keyboardSupport: false,
+				mouseSupport: false
+			});
+		}
 
 		const onSelectDropDownKeyDown = chain(domEvent(this.selectDropDownListContainer, 'keydown'))
 			.filter(() => this.selectList.length > 0)
@@ -185,14 +185,14 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 	}
 
-	private constructSelectDropDown(contextViewProvider: IContextViewProvider) {
+	private constructSelectDropDown(contextViewProvider: IContextViewProvider, listCreator) {
 
 		// SetUp ContextView container to hold select Dropdown
 		this.contextViewProvider = contextViewProvider;
 		this.selectDropDownContainer = dom.$('.select-box-dropdown-container');
 
 		// Setup list for drop-down select
-		this.createSelectWorkbenchList(this.selectDropDownContainer);
+		this.createSelectWorkbenchList(this.selectDropDownContainer, listCreator);
 
 		// Create span flex box item/div we can measure and control
 		let widthControlOuterDiv = dom.append(this.selectDropDownContainer, $('.select-box-dropdown-container-width-control'));
@@ -326,7 +326,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 	public render(container: HTMLElement): void {
 		dom.addClass(container, 'select-container');
-		ontainer.appendChild(this.selectElement);
+		container.appendChild(this.selectElement);
 		this.setOptions(this.options, this.selected);
 		this.applyStyles();
 	}
@@ -355,7 +355,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		// Hover background - ignore for disabled options
 		if (this.styles.listHoverBackground) {
-			cntent.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { background-color: ${this.styles.listHoverBackground} !important; }`);
+			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { background-color: ${this.styles.listHoverBackground} !important; }`);
 			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.selectBackground} !important; }`);
 		}
 
@@ -366,7 +366,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		if (this.styles.listHoverOutline) {
 			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover:not(.focused) { outline: 1.6px dashed ${this.styles.listHoverOutline} !important; outline-offset: -1.6px !important; }`);
-			cntent.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
+			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
 		}
 
 		this.styleElement.innerHTML = content.join('\n');
@@ -402,7 +402,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
 		let option = document.createElement('option');
-		ption.value = value;
+		option.value = value;
 		option.text = value;
 		option.disabled = disabled;
 
@@ -492,7 +492,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 			this.selectDropDownContainer.style.minWidth = selectOptimalWidth;
 
 			// Maintain focus outline on parent select as well as list container - tabindex for focus
-			this.selectDropDownListContainer.setAttribute('ta bindex', '0');
+			this.selectDropDownListContainer.setAttribute('tabindex', '0');
 			dom.toggleClass(this.selectElement, 'synthetic-focus', true);
 			dom.toggleClass(this.selectDropDownContainer, 'synthetic-focus', true);
 
@@ -612,4 +612,4 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this.hideSelectDropDown(false);
 		this.toDispose = dispose(this.toDispose);
 	}
-
+}
