@@ -10,7 +10,6 @@ import { createDecorator as createServiceDecorator } from 'vs/platform/instantia
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
-import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 
 export const ILogService = createServiceDecorator<ILogService>('logService');
 
@@ -24,11 +23,14 @@ export enum LogLevel {
 	Off
 }
 
-export interface ILogService extends IDisposable {
-	_serviceBrand: any;
-
+export interface ILogLevelSetter {
 	onDidChangeLogLevel: Event<LogLevel>;
 	setLevel(level: LogLevel): void;
+}
+
+export interface ILogService extends ILogLevelSetter, IDisposable {
+	_serviceBrand: any;
+
 	getLevel(): LogLevel;
 	trace(message: string, ...args: any[]): void;
 	debug(message: string, ...args: any[]): void;
@@ -237,16 +239,24 @@ export class MultiplexLogService extends AbstractLogService implements ILogServi
 	}
 }
 
-export class FollowerLogService extends AbstractLogService implements ILogService {
+export class FollowerLogService extends Disposable implements ILogService {
 	_serviceBrand: any;
 
-	constructor(private client: LogLevelChannelClient, private logService: ILogService) {
+	constructor(private master: ILogLevelSetter, private logService: ILogService) {
 		super();
-		this._register(client.onDidChangeLogLevel(level => logService.setLevel(level)));
+		this._register(master.onDidChangeLogLevel(level => logService.setLevel(level)));
+	}
+
+	get onDidChangeLogLevel(): Event<LogLevel> {
+		return this.logService.onDidChangeLogLevel;
 	}
 
 	setLevel(level: LogLevel): void {
-		this.client.setLogLevel(level);
+		this.master.setLevel(level);
+	}
+
+	getLevel(): LogLevel {
+		return this.logService.getLevel();
 	}
 
 	trace(message: string, ...args: any[]): void {

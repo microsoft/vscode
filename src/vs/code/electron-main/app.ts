@@ -57,7 +57,7 @@ import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateServ
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
-import { LogLevelChannel } from 'vs/platform/log/common/logIpc';
+import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 
 export class CodeApplication {
 
@@ -380,7 +380,7 @@ export class CodeApplication {
 		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
 
 		// Log level management
-		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService));
+		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
 		this.electronIpcServer.registerChannel('loglevel', logLevelChannel);
 		this.sharedProcessClient.done(client => client.registerChannel('loglevel', logLevelChannel));
 

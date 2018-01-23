@@ -5,15 +5,15 @@
 
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { LogLevel, ILogService } from 'vs/platform/log/common/log';
+import { LogLevel, ILogService, ILogLevelSetter } from 'vs/platform/log/common/log';
 import Event, { buffer } from 'vs/base/common/event';
 
-export interface ILogLevelManagementChannel extends IChannel {
+export interface ILogLevelSetterChannel extends IChannel {
 	call(command: 'event:onDidChangeLogLevel'): TPromise<LogLevel>;
-	call(command: 'setLogLevel', logLevel: LogLevel): TPromise<void>;
+	call(command: 'setLevel', logLevel: LogLevel): TPromise<void>;
 }
 
-export class LogLevelChannel implements ILogLevelManagementChannel {
+export class LogLevelSetterChannel implements ILogLevelSetterChannel {
 
 	onDidChangeLogLevel: Event<LogLevel>;
 
@@ -24,20 +24,20 @@ export class LogLevelChannel implements ILogLevelManagementChannel {
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'event:onDidChangeLogLevel': return eventToCall(this.onDidChangeLogLevel);
-			case 'setLogLevel': this.service.setLevel(arg); return TPromise.as(null);
+			case 'setLevel': this.service.setLevel(arg); return TPromise.as(null);
 		}
 		return undefined;
 	}
 }
 
-export class LogLevelChannelClient {
+export class LogLevelSetterChannelClient implements ILogLevelSetter {
 
-	constructor(private channel: ILogLevelManagementChannel) { }
+	constructor(private channel: ILogLevelSetterChannel) { }
 
 	private _onDidChangeLogLevel = eventFromCall<LogLevel>(this.channel, 'event:onDidChangeLogLevel');
 	get onDidChangeLogLevel(): Event<LogLevel> { return this._onDidChangeLogLevel; }
 
-	setLogLevel(level: LogLevel): TPromise<void> {
-		return this.channel.call('setLogLevel', level);
+	setLevel(level: LogLevel): TPromise<void> {
+		return this.channel.call('setLevel', level);
 	}
 }

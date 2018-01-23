@@ -46,7 +46,7 @@ import fs = require('fs');
 import { ConsoleLogService, MultiplexLogService, ILogService, FollowerLogService } from 'vs/platform/log/common/log';
 import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
-import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
+import { LogLevelSetterChannelClient } from 'vs/platform/log/common/logIpc';
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
@@ -202,7 +202,7 @@ function createLogService(mainProcessClient: ElectronIPCClient, configuration: I
 	const spdlogService = createSpdLogService(`renderer${configuration.windowId}`, environmentService);
 	const consoleLogService = new ConsoleLogService(environmentService);
 	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
-	const logLevelClient = new LogLevelChannelClient(mainProcessClient.getChannel('loglevel'));
+	const logLevelClient = new LogLevelSetterChannelClient(mainProcessClient.getChannel('loglevel'));
 	return new FollowerLogService(logLevelClient, logService);
 }
 
