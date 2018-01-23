@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 'use strict';
 
 let perf = require('./vs/base/common/performance');
@@ -161,8 +160,8 @@ function getLanguagePackConfigurations() {
 	try {
 		return require(configFile);
 	} catch (err) {
-		console.error('Loading language pack configuration failed: ' + err.message);
-		console.error(err.stack);
+		// Do nothing. If we can't read the file we have no
+		// language pack config.
 	}
 	return undefined;
 }
@@ -182,8 +181,7 @@ function resolveLanguagePackLocale(config, locale) {
 			}
 		}
 	} catch (err) {
-		console.error('Resolving language pack configuration failed ' + err.message);
-		console.error(err.stack);
+		console.error('Resolving language pack configuration failed.', err);
 	}
 	return undefined;
 }
@@ -280,13 +278,15 @@ function getNLSConfiguration(locale) {
 				};
 				return exists(coreLocation).then((fileExists) => {
 					if (fileExists) {
+						// We don't wait for this. No big harm if we can't write it.
+						writeFile(path.join(cacheRoot, 'vscode', id, 'lastUsed.touch'), '').catch(() => {});
 						return result;
 					}
 					return mkdirp(coreLocation).then(() => {
 						return Promise.all([readFile(path.join(__dirname, 'nls.metadata.json')), readFile(path.join(packConfig.path, 'translations', 'main.i18n.json'))]);
 					}).then((values) => {
 						let metadata = JSON.parse(values[0]);
-						let packData = JSON.parse(values[1]);
+						let packData = JSON.parse(values[1]).contents;
 						let bundles = Object.keys(metadata.bundles);
 						let writes = [];
 						for (let bundle of bundles) {
@@ -319,15 +319,13 @@ function getNLSConfiguration(locale) {
 					}).then(() => {
 						return result;
 					}).catch((err) => {
-						console.error('Generating translation files failed: ' + err.message);
-						console.error(err.stack);
+						console.error('Generating translation files failed.', err);
 						return defaultResult;
 					});
 				});
 			});
 		} catch (err) {
-			console.error('Generating translation files failed: ' + err.message);
-			console.error(err.stack);
+			console.error('Generating translation files failed.', err);
 			return defaultResult;
 		}
 	}
