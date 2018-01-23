@@ -83,10 +83,9 @@ async function postLogs(
 		result = await requestService.request({
 			url: endpoint.url,
 			type: 'POST',
-			data: fs.createReadStream(outZip),
+			data: new Buffer(fs.readFileSync(outZip)).toString('base64'),
 			headers: {
-				'Content-Type': 'application/zip',
-				'Content-Length': fs.statSync(outZip).size
+				'Content-Type': 'application/zip'
 			}
 		});
 	} catch (e) {
