@@ -28,7 +28,7 @@ import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { WorkbenchList, useAltAsMultipleSelectionModifier } from 'vs/platform/list/browser/listService';
 import { IDelegate, IRenderer, IListContextMenuEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { EditorLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -278,7 +278,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			const position = this.model.positionOfGroup(element.group);
 			this.editorService.closeEditor(position, element.editor).done(null, errors.onUnexpectedError);
 		} else {
-			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick, sideBySide: this.list.useAltAsMultiSelectModifier ? (event.browserEvent.ctrlKey || event.browserEvent.metaKey) : event.browserEvent.altKey });
+			const sideBySide = useAltAsMultipleSelectionModifier(this.configurationService) ? event.browserEvent.altKey : (event.browserEvent.ctrlKey || event.browserEvent.metaKey);
+			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick, sideBySide });
 		}
 	}
 
