@@ -129,11 +129,11 @@ export class ResourceViewer {
 
 	private static readonly MAX_IMAGE_SIZE = ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
 
-	private static SCALE_PINCH_FACTOR = 0.1;
-	private static SCALE_FACTOR = 1.5;
-	private static MAX_SCALE = 20;
-	private static MIN_SCALE = 0.1;
-	private static PIXELATION_THRESHOLD = 64; // enable image-rendering: pixelated for images less than this
+	private static readonly SCALE_PINCH_FACTOR = 0.1;
+	private static readonly SCALE_FACTOR = 1.5;
+	private static readonly MAX_SCALE = 20;
+	private static readonly MIN_SCALE = 0.1;
+	private static readonly PIXELATION_THRESHOLD = 64; // enable image-rendering: pixelated for images less than this
 
 	public static show(
 		descriptor: IResourceDescriptor,
