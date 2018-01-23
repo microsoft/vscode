@@ -40,7 +40,7 @@ export class IssueService implements IIssueService {
 			width: 800,
 			height: 900,
 			title: 'Issue Reporter',
-			alwaysOnTop: true
+			parent: BrowserWindow.getFocusedWindow()
 		});
 
 		this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented

@@ -198,7 +198,7 @@ const hygiene = exports.hygiene = (some, options) => {
 		tsfmt.processString(file.path, file.contents.toString('utf8'), {
 			verify: true,
 			tsfmt: true,
-			// verbose: true
+			verbose: true
 		}).then(result => {
 			if (result.error) {
 				console.error(result.message);
