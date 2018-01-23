@@ -35,13 +35,14 @@
 		linear-gradient(45deg, rgb(20, 20, 20) 25%, transparent 25%, transparent 75%, rgb(20, 20, 20) 75%, rgb(20, 20, 20));
 }
 
+.monaco-resource-viewer img.pixelated {
+	image-rendering: pixelated;
+}
+
 .monaco-resource-viewer img.untouched {
 	max-width: 100%;
 	object-fit: contain;
-}
-
-.monaco-resource-viewer img.pixelated {
-	image-rendering: pixelated;
+	image-rendering: auto;
 }
 
 .monaco-resource-viewer img {

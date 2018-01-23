@@ -180,6 +180,12 @@ export class ResourceViewer {
 							updateScale(scale);
 						}
 
+						if (imgElement.naturalWidth < ResourceViewer.PIXELATION_THRESHOLD
+							|| imgElement.naturalHeight < ResourceViewer.PIXELATION_THRESHOLD
+						) {
+							img.addClass('pixelated');
+						}
+
 						function setImageWidth(width) {
 							img.style('width', `${width}px`);
 							img.style('height', 'auto');
@@ -212,10 +218,6 @@ export class ResourceViewer {
 							const { clientWidth, naturalWidth } = imgElement;
 							setImageWidth(clientWidth);
 							img.removeClass('untouched');
-							if (imgElement.naturalWidth < ResourceViewer.PIXELATION_THRESHOLD
-								|| imgElement.naturalHeight < ResourceViewer.PIXELATION_THRESHOLD) {
-								img.addClass('pixelated');
-							}
 							scale = clientWidth / naturalWidth;
 						}
 
