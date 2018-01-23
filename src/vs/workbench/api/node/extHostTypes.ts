@@ -496,8 +496,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	private _seqPool: number = 0;
 
 	private _resourceEdits: { seq: number, from: URI, to: URI }[] = [];
-	private _textEdits: [URI, TextEdit[]][] = [];
-	private _textEditsIndex = new Map<string, { idx: number, seq: number }>();
+	private _textEdits = new Map<string, { seq: number, uri: URI, edits: TextEdit[] }>();
 
 	createResource(uri: vscode.Uri): void {
 		this.renameResource(undefined, uri);
@@ -521,8 +520,9 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		if (array) {
 			array.push(edit);
 		} else {
-			this.set(uri, [edit]);
+			array = [edit];
 		}
+		this.set(uri, array);
 	}
 
 	insert(resource: URI, position: Position, newText: string): void {
@@ -534,30 +534,34 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	has(uri: URI): boolean {
-		return this._textEditsIndex.has(uri.toString());
+		return this._textEdits.has(uri.toString());
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
-		if (!this._textEditsIndex.has(uri.toString())) {
-			let newLen = this._textEdits.push([uri, edits]);
-			this._textEditsIndex.set(uri.toString(), { idx: newLen - 1, seq: this._seqPool++ });
+		let data = this._textEdits.get(uri.toString());
+		if (!data) {
+			data = { seq: this._seqPool++, uri, edits: [] };
+			this._textEdits.set(uri.toString(), data);
+		}
+		if (!edits) {
+			data.edits = undefined;
 		} else {
-			const { idx } = this._textEditsIndex.get(uri.toString());
-			this._textEdits[idx][1] = edits;
+			data.edits = edits.slice(0);
 		}
 	}
 
 	get(uri: URI): TextEdit[] {
-		if (!this._textEditsIndex.has(uri.toString())) {
+		if (!this._textEdits.has(uri.toString())) {
 			return undefined;
 		}
-		const { idx } = this._textEditsIndex.get(uri.toString());
-		return this._textEdits[idx][1];
+		const { edits } = this._textEdits.get(uri.toString());
+		return edits ? edits.slice() : undefined;
 	}
 
 	entries(): [URI, TextEdit[]][] {
-		// todo@joh - make this immutable
-		return this._textEdits;
+		const res: [URI, TextEdit[]][] = [];
+		this._textEdits.forEach(value => res.push([value.uri, value.edits]));
+		return res.slice();
 	}
 
 	allEntries(): ([URI, TextEdit[]] | [URI, URI])[] {
@@ -565,9 +569,9 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		// the operation and use that order in the resulting
 		// array
 		const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
-		this._textEditsIndex.forEach(value => {
-			const { idx, seq } = value;
-			res[seq] = this._textEdits[idx];
+		this._textEdits.forEach(value => {
+			const { seq, uri, edits } = value;
+			res[seq] = [uri, edits];
 		});
 		this._resourceEdits.forEach(value => {
 			const { seq, from, to } = value;
@@ -577,11 +581,11 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	get size(): number {
-		return this._textEdits.length + this._resourceEdits.length;
+		return this._textEdits.size + this._resourceEdits.length;
 	}
 
 	toJSON(): any {
-		return this._textEdits;
+		return this.entries();
 	}
 }
 
