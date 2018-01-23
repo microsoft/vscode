@@ -23,9 +23,10 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 
 	constructor(
 		windowId: number,
+		logLevel: LogLevel,
 		private _environmentService: IEnvironmentService
 	) {
-		super(createSpdLogService(`exthost${windowId}`, _environmentService));
+		super(createSpdLogService(`exthost${windowId}`, logLevel, _environmentService.logsPath));
 	}
 
 	$setLevel(level: LogLevel): void {
@@ -42,7 +43,7 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 	}
 
 	private createLogger(extensionID: string): ExtHostLogger {
-		const logService = createSpdLogService(extensionID, this._environmentService, extensionID);
+		const logService = createSpdLogService(extensionID, this.getLevel(), this._environmentService.logsPath, extensionID);
 		const logsDirPath = path.join(this._environmentService.logsPath, extensionID);
 		this._register(this.onDidChangeLogLevel(level => logService.setLevel(level)));
 		return new ExtHostLogger(logService, logsDirPath);

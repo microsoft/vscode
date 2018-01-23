@@ -199,8 +199,8 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 }
 
 function createLogService(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration, environmentService: IEnvironmentService): ILogService {
-	const spdlogService = createSpdLogService(`renderer${configuration.windowId}`, environmentService);
-	const consoleLogService = new ConsoleLogService(environmentService);
+	const spdlogService = createSpdLogService(`renderer${configuration.windowId}`, configuration.logLevel, environmentService.logsPath);
+	const consoleLogService = new ConsoleLogService(configuration.logLevel);
 	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
 	const logLevelClient = new LogLevelSetterChannelClient(mainProcessClient.getChannel('loglevel'));
 	return new FollowerLogService(logLevelClient, logService);

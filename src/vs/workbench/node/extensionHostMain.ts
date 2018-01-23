@@ -91,7 +91,7 @@ export class ExtensionHostMain {
 		const rpcProtocol = new RPCProtocol(protocol);
 		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace);
 		const environmentService = new EnvironmentService(initData.args, initData.execPath);
-		this._extHostLogService = new ExtHostLogService(initData.windowId, environmentService);
+		this._extHostLogService = new ExtHostLogService(initData.windowId, initData.logLevel, environmentService);
 		this.disposables.push(this._extHostLogService);
 
 		this._extHostLogService.info('extension host started');

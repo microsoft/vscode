@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { LogLevel } from 'vs/platform/log/common/log';
 
 export interface ParsedArgs {
 	[arg: string]: any;
@@ -117,7 +116,6 @@ export interface IEnvironmentService {
 	// logging
 	logsPath: string;
 	verbose: boolean;
-	logLevel: LogLevel;
 
 	skipGettingStarted: boolean | undefined;
 	skipReleaseNotes: boolean | undefined;

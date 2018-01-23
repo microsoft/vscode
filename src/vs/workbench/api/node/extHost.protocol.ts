@@ -84,6 +84,7 @@ export interface IInitData {
 	windowId: number;
 	args: ParsedArgs;
 	execPath: string;
+	logLevel: LogLevel;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {

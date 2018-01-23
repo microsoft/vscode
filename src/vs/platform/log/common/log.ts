@@ -5,11 +5,11 @@
 
 'use strict';
 
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const ILogService = createServiceDecorator<ILogService>('logService');
 
@@ -63,9 +63,9 @@ export class ConsoleLogMainService extends AbstractLogService implements ILogSer
 	_serviceBrand: any;
 	private useColors: boolean;
 
-	constructor( @IEnvironmentService environmentService: IEnvironmentService) {
+	constructor(logLevel: LogLevel = LogLevel.Error) {
 		super();
-		this.setLevel(environmentService.logLevel);
+		this.setLevel(logLevel);
 		this.useColors = !isWindows;
 	}
 
@@ -138,9 +138,9 @@ export class ConsoleLogService extends AbstractLogService implements ILogService
 
 	_serviceBrand: any;
 
-	constructor( @IEnvironmentService environmentService: IEnvironmentService) {
+	constructor(logLevel: LogLevel = LogLevel.Error) {
 		super();
-		this.setLevel(environmentService.logLevel);
+		this.setLevel(logLevel);
 	}
 
 	trace(message: string, ...args: any[]): void {
@@ -187,6 +187,9 @@ export class MultiplexLogService extends AbstractLogService implements ILogServi
 
 	constructor(private logServices: ILogService[]) {
 		super();
+		if (logServices.length) {
+			this.setLevel(logServices[0].getLevel());
+		}
 	}
 
 	setLevel(level: LogLevel): void {
@@ -312,4 +315,31 @@ export class NullLogService implements ILogService {
 	error(message: string | Error, ...args: any[]): void { }
 	critical(message: string | Error, ...args: any[]): void { }
 	dispose(): void { }
+}
+
+
+export function getLogLevel(environmentService: IEnvironmentService): LogLevel {
+	if (environmentService.verbose) {
+		return LogLevel.Trace;
+	}
+	if (typeof environmentService.args.log === 'string') {
+		const logLevel = environmentService.args.log.toLowerCase();
+		switch (logLevel) {
+			case 'trace':
+				return LogLevel.Trace;
+			case 'debug':
+				return LogLevel.Debug;
+			case 'info':
+				return LogLevel.Info;
+			case 'warn':
+				return LogLevel.Warning;
+			case 'error':
+				return LogLevel.Error;
+			case 'critical':
+				return LogLevel.Critical;
+			case 'off':
+				return LogLevel.Off;
+		}
+	}
+	return LogLevel.Info;
 }
