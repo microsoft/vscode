@@ -21,6 +21,7 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -39,7 +40,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IWorkspaceEditingService private _workspaceEditingService: IWorkspaceEditingService,
 		@IMessageService private _messageService: IMessageService,
-		@IEnvironmentService private _environmentService: IEnvironmentService
+		@IStatusbarService private _statusbarService: IStatusbarService,
+		@IEnvironmentService private _environmentService: IEnvironmentService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
@@ -72,7 +74,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			return TPromise.as(false); // return early if we neither have folders to add nor remove
 		}
 
-		return this.confirmUpdateWorkspaceFolders(extensionName, workspaceFoldersToRemove, workspaceFoldersToAdd.map(f => f.uri)).then(confirmed => {
+		return this.confirmUpdateWorkspaceFolders(extensionName, workspaceFoldersToAdd.map(f => f.uri), workspaceFoldersToRemove).then(confirmed => {
 			if (!confirmed) {
 				return TPromise.as(false); // return if not confirmed by the user
 			}
@@ -81,12 +83,17 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 
-	private confirmUpdateWorkspaceFolders(extensionName: string, workspaceFoldersToRemove?: URI[], workspaceFoldersToAdd?: URI[]): Thenable<boolean> {
+	private confirmUpdateWorkspaceFolders(extensionName: string, workspaceFoldersToAdd?: URI[], workspaceFoldersToRemove?: URI[]): Thenable<boolean> {
 		if (!this._configurationService.getValue<boolean>(MainThreadWorkspace.CONFIRM_CHANGES_TO_WORKSPACES_KEY)) {
-			return TPromise.as(true); // return confirmed if the setting indicates this
+
+			// Indicate in status message
+			this._statusbarService.setStatusMessage(this.getStatusMessage(extensionName, workspaceFoldersToAdd, workspaceFoldersToRemove), 10 * 1000 /* 10s */);
+
+			// return confirmed if the setting indicates this
+			return TPromise.as(true);
 		}
 
-		return this._messageService.confirmWithCheckbox(this.getConfirmationOptions(extensionName, workspaceFoldersToRemove, workspaceFoldersToAdd)).then(confirmation => {
+		return this._messageService.confirmWithCheckbox(this.getConfirmationOptions(extensionName, workspaceFoldersToAdd, workspaceFoldersToRemove)).then(confirmation => {
 			let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
 			if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 				updateConfirmSettingsPromise = this._configurationService.updateValue(MainThreadWorkspace.CONFIRM_CHANGES_TO_WORKSPACES_KEY, false, ConfigurationTarget.USER);
@@ -96,7 +103,39 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 
-	private getConfirmationOptions(extensionName, workspaceFoldersToRemove?: URI[], workspaceFoldersToAdd?: URI[]): IConfirmation {
+	private getStatusMessage(extensionName, workspaceFoldersToAdd?: URI[], workspaceFoldersToRemove?: URI[]): string {
+		let message: string;
+
+		const wantsToDelete = Array.isArray(workspaceFoldersToRemove) && workspaceFoldersToRemove.length;
+		const wantsToAdd = Array.isArray(workspaceFoldersToAdd) && workspaceFoldersToAdd.length;
+
+		// Add Folders
+		if (wantsToAdd && !wantsToDelete) {
+			if (workspaceFoldersToAdd.length === 1) {
+				message = localize('folderStatusMessageAddSingleFolder', "Extension '{0}' added 1 folder to the workspace", extensionName);
+			} else {
+				message = localize('folderStatusMessageAddMultipleFolders', "Extension '{0}' added {1} folders to the workspace", extensionName, workspaceFoldersToAdd.length);
+			}
+		}
+
+		// Delete Folders
+		else if (wantsToDelete && !wantsToAdd) {
+			if (workspaceFoldersToRemove.length === 1) {
+				message = localize('folderStatusMessageRemoveSingleFolder', "Extension '{0}' removed 1 folder from the workspace", extensionName);
+			} else {
+				message = localize('folderStatusMessageRemoveMultipleFolders', "Extension '{0}' removed {1} folders from the workspace", extensionName, workspaceFoldersToRemove.length);
+			}
+		}
+
+		// Change Folders
+		else {
+			message = localize('folderStatusChangeFolder', "Extension '{0}' changed folders of the workspace", extensionName);
+		}
+
+		return message;
+	}
+
+	private getConfirmationOptions(extensionName, workspaceFoldersToAdd?: URI[], workspaceFoldersToRemove?: URI[]): IConfirmation {
 		const wantsToDelete = Array.isArray(workspaceFoldersToRemove) && workspaceFoldersToRemove.length;
 		const wantsToAdd = Array.isArray(workspaceFoldersToAdd) && workspaceFoldersToAdd.length;
 
@@ -123,7 +162,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 				message = localize('folderMessageRemoveSingleFolder', "Extension '{0}' wants to remove a folder from the workspace. Please confirm.", extensionName);
 				primaryButton = localize('removeFolder', "&&Remove Folder");
 			} else {
-				message = localize('folderMessageRemoveMultipleFolders', "Extension '{0}' wants to remove folders from the workspace. Please confirm.", extensionName);
+				message = localize('folderMessageRemoveMultipleFolders', "Extension '{0}' wants to remove {1} folders from the workspace. Please confirm.", extensionName, workspaceFoldersToRemove.length);
 				primaryButton = localize('removeFolders', "&&Remove Folders");
 			}
 
