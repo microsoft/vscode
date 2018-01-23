@@ -6,7 +6,7 @@
 'use strict';
 
 import * as path from 'path';
-import { ILogService, LogLevel, NullLogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, NullLogService, AbstractLogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RotatingLogger, setAsyncMode } from 'spdlog';
 
@@ -25,50 +25,44 @@ export function createSpdLogService(processName: string, environmentService: IEn
 	return new NullLogService();
 }
 
-class SpdLogService implements ILogService {
+class SpdLogService extends AbstractLogService implements ILogService {
 
 	_serviceBrand: any;
 
 	constructor(
 		private readonly logger: RotatingLogger,
-		private level: LogLevel = LogLevel.Error
+		level: LogLevel
 	) {
-	}
-
-	setLevel(logLevel: LogLevel): void {
-		this.level = logLevel;
-	}
-
-	getLevel(): LogLevel {
-		return this.level;
+		super();
+		this.setLevel(level);
 	}
 
 	trace(): void {
-		if (this.level <= LogLevel.Trace) {
+		if (this.getLevel() <= LogLevel.Trace) {
 			this.logger.trace(this.format(arguments));
 		}
 	}
 
 	debug(): void {
-		if (this.level <= LogLevel.Debug) {
+		if (this.getLevel() <= LogLevel.Debug) {
 			this.logger.debug(this.format(arguments));
 		}
 	}
 
 	info(): void {
-		if (this.level <= LogLevel.Info) {
+		if (this.getLevel() <= LogLevel.Info) {
 			this.logger.info(this.format(arguments));
 		}
 	}
 
 	warn(): void {
-		if (this.level <= LogLevel.Warning) {
+		if (this.getLevel() <= LogLevel.Warning) {
 			this.logger.warn(this.format(arguments));
 		}
 	}
 
 	error(): void {
-		if (this.level <= LogLevel.Error) {
+		if (this.getLevel() <= LogLevel.Error) {
 			const arg = arguments[0];
 
 			if (arg instanceof Error) {
@@ -82,7 +76,7 @@ class SpdLogService implements ILogService {
 	}
 
 	critical(): void {
-		if (this.level <= LogLevel.Critical) {
+		if (this.getLevel() <= LogLevel.Critical) {
 			this.logger.critical(this.format(arguments));
 		}
 	}

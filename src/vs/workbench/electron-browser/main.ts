@@ -43,9 +43,10 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 
 import fs = require('fs');
-import { ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
+import { ConsoleLogService, MultiplexLogService, ILogService, FollowerLogService } from 'vs/platform/log/common/log';
 import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
+import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
@@ -75,10 +76,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	const mainServices = createMainProcessServices(mainProcessClient, configuration);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
-	const spdlogService = createSpdLogService(`renderer${configuration.windowId}`, environmentService);
-	const consoleLogService = new ConsoleLogService(environmentService);
-	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
-
+	const logService = createLogService(mainProcessClient, configuration, environmentService);
 	logService.trace('openWorkbench configuration', JSON.stringify(configuration));
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
@@ -198,6 +196,14 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 	}
 
 	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);
+}
+
+function createLogService(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration, environmentService: IEnvironmentService): ILogService {
+	const spdlogService = createSpdLogService(`renderer${configuration.windowId}`, environmentService);
+	const consoleLogService = new ConsoleLogService(environmentService);
+	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
+	const logLevelClient = new LogLevelChannelClient(mainProcessClient.getChannel('loglevel'));
+	return new FollowerLogService(logLevelClient, logService);
 }
 
 function createMainProcessServices(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration): ServiceCollection {

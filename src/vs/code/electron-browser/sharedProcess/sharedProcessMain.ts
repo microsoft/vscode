@@ -38,7 +38,8 @@ import { ipcRenderer } from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createSharedProcessContributions } from 'vs/code/electron-browser/sharedProcess/contrib/contributions';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, FollowerLogService } from 'vs/platform/log/common/log';
+import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -81,7 +82,8 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
-	const logService = createSpdLogService('sharedprocess', environmentService);
+	const logLevelClient = new LogLevelChannelClient(server.getChannel('loglevel', { route: () => 'main' }));
+	const logService = new FollowerLogService(logLevelClient, createSpdLogService('sharedprocess', environmentService));
 	process.once('exit', () => logService.dispose());
 
 	logService.info('main', JSON.stringify(configuration));

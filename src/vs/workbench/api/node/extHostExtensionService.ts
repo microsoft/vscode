@@ -150,7 +150,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
 		this._proxy = extHostContext.getProxy(MainContext.MainThreadExtensionService);
 		this._activator = null;
-		this._extHostLogService = new ExtHostLogService(environmentService);
+		this._extHostLogService = new ExtHostLogService(environmentService, this._logService);
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
 		const apiFactory = createApiFactory(initData, extHostContext, extHostWorkspace, extHostConfiguration, this, logService);
