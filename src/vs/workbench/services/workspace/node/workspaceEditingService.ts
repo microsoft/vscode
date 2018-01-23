@@ -72,10 +72,16 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 			return this.removeFolders(foldersToDelete);
 		}
 
-		// Add & Delete Folders (first remove and then add to allow for updating existing folders)
-		return this.removeFolders(foldersToDelete).then(() => {
-			return this.doAddFolders(foldersToAdd, index, donotNotifyError);
-		});
+		// Add & Delete Folders
+		if (this.includesSingleFolderWorkspace(foldersToDelete)) {
+			// if we are in single-folder state and the folder is replaced with
+			// other folders, we handle this specially and just enter workspace
+			// mode with the folders that are being added.
+			return this.createAndEnterWorkspace(foldersToAdd);
+		}
+
+		// Make sure to first remove folders and then add them to account for folders being updated
+		return this.removeFolders(foldersToDelete).then(() => this.doAddFolders(foldersToAdd, index, donotNotifyError));
 	}
 
 	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): TPromise<void> {
@@ -108,17 +114,23 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	public removeFolders(foldersToRemove: URI[], donotNotifyError: boolean = false): TPromise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
-		// we close the workspace and enter the empty workspace state for the window.
-		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			const workspaceFolder = this.contextService.getWorkspace().folders[0];
-			if (foldersToRemove.some(folder => isEqual(folder, workspaceFolder.uri, !isLinux))) {
-				return this.windowService.closeWorkspace();
-			}
+		// we create an empty workspace and enter it.
+		if (this.includesSingleFolderWorkspace(foldersToRemove)) {
+			return this.createAndEnterWorkspace([]);
 		}
 
 		// Delegate removal of folders to workspace service otherwise
 		return this.contextService.removeFolders(foldersToRemove)
 			.then(() => null, error => donotNotifyError ? TPromise.wrapError(error) : this.handleWorkspaceConfigurationEditingError(error));
+	}
+
+	private includesSingleFolderWorkspace(folders: URI[]): boolean {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+			const workspaceFolder = this.contextService.getWorkspace().folders[0];
+			return (folders.some(folder => isEqual(folder, workspaceFolder.uri, !isLinux)));
+		}
+
+		return false;
 	}
 
 	public createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<void> {
