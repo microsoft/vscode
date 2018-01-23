@@ -285,34 +285,18 @@ export class ModelLinesTokens {
 
 	//#region Editing
 
-	// TODO: simplify
-	public applyEdits(range: Range, lines: string[]): void {
+	public applyEdits(range: Range, eolCount: number, firstLineLength: number): void {
 
 		const deletingLinesCnt = range.endLineNumber - range.startLineNumber;
-		const insertingLinesCnt = (lines ? lines.length - 1 : 0);
+		const insertingLinesCnt = eolCount;
 		const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
 
-		// Iterating descending to overlap with previous op
-		// in case there are common lines being edited in both
 		for (let j = editingLinesCnt; j >= 0; j--) {
-			const editLineNumber = range.startLineNumber + j;
-			this.invalidateLine(editLineNumber - 1);
-		}
-
-		if (editingLinesCnt < deletingLinesCnt) {
-			// Must delete some lines
-			const spliceStartLineNumber = range.startLineNumber + editingLinesCnt;
-			this.invalidateLine(spliceStartLineNumber - 1);
-		}
-
-		if (editingLinesCnt < insertingLinesCnt) {
-			// Must insert some lines
-			const spliceLineNumber = range.startLineNumber + editingLinesCnt;
-			this.invalidateLine(spliceLineNumber - 1);
+			this.invalidateLine(range.startLineNumber + j - 1);
 		}
 
 		this._acceptDeleteRange(range);
-		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), lines);
+		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
 	}
 
 	private _acceptDeleteRange(range: Range): void {
@@ -350,9 +334,9 @@ export class ModelLinesTokens {
 		this._tokens.splice(range.startLineNumber, range.endLineNumber - range.startLineNumber);
 	}
 
-	private _acceptInsertText(position: Position, insertLines: string[]): void {
+	private _acceptInsertText(position: Position, eolCount: number, firstLineLength: number): void {
 
-		if (!insertLines || insertLines.length === 0) {
+		if (eolCount === 0 && firstLineLength === 0) {
 			// Nothing to insert
 			return;
 		}
@@ -362,18 +346,18 @@ export class ModelLinesTokens {
 			return;
 		}
 
-		if (insertLines.length === 1) {
+		if (eolCount === 0) {
 			// Inserting text on one line
-			this._tokens[lineIndex].insert(position.column - 1, insertLines[0].length);
+			this._tokens[lineIndex].insert(position.column - 1, firstLineLength);
 			return;
 		}
 
 		const line = this._tokens[lineIndex];
 		line.deleteEnding(position.column - 1);
-		line.insert(position.column - 1, insertLines[0].length);
+		line.insert(position.column - 1, firstLineLength);
 
-		let insert: ModelLineTokens[] = new Array<ModelLineTokens>(insertLines.length - 1);
-		for (let i = insertLines.length - 2; i >= 0; i--) {
+		let insert: ModelLineTokens[] = new Array<ModelLineTokens>(eolCount);
+		for (let i = eolCount - 1; i >= 0; i--) {
 			insert[i] = new ModelLineTokens(null);
 		}
 		this._tokens = arrays.arrayInsert(this._tokens, position.lineNumber, insert);

@@ -53,7 +53,7 @@ class MyCompletionItem extends CompletionItem {
 			this.range = tsTextSpanToVsRange(tsEntry.replacementSpan);
 		}
 
-		if (typeof (tsEntry as any).insertText === 'string') {
+		if (typeof tsEntry.insertText === 'string') {
 			this.insertText = (tsEntry as any).insertText as string;
 
 			if (tsEntry.replacementSpan) {

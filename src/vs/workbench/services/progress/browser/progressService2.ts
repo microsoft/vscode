@@ -75,6 +75,8 @@ export class ProgressService2 implements IProgressService2 {
 				return this._withWindowProgress(options, task);
 			case ProgressLocation.Scm:
 				return this._withViewletProgress('workbench.view.scm', task);
+			case ProgressLocation.Extensions:
+				return this._withViewletProgress('workbench.view.extensions', task);
 			default:
 				console.warn(`Bad progress location: ${location}`);
 				return undefined;

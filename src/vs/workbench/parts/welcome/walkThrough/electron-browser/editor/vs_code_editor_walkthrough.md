@@ -88,7 +88,7 @@ function Book(title, author) {
 
 
 ### Refactoring via Extraction
-Sometimes you want refactor already written code into a separate function or constant to use it later again. Select the lines you want to refactor out and press kb(editor.action.quickFix) or click the little light bulb and choose one of the respective `Extract to...` options. Try it by selecting the code inside the `if`-clause on line 3 or any other common code you want to refactor out.
+Sometimes you want to refactor already written code into a separate function or constant to reuse it later. Select the lines you want to refactor out and press kb(editor.action.quickFix) or click the little light bulb and choose one of the respective `Extract to...` options. Try it by selecting the code inside the `if`-clause on line 3 or any other common code you want to refactor out.
 
 ```js
 function findFirstEvenNumber(arr) {

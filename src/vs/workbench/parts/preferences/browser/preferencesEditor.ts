@@ -57,6 +57,7 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -111,8 +112,8 @@ export class PreferencesEditor extends BaseEditor {
 
 	private delayedFilterLogging: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
+	private _lastReportedFilter: string;
 
-	private latestEmptyFilters: string[] = [];
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
 
 	constructor(
@@ -122,8 +123,7 @@ export class PreferencesEditor extends BaseEditor {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
@@ -238,16 +238,28 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private onInputChanged(): void {
-		this.triggerThrottledSearch();
-		this.localFilterPreferences();
+		const query = this.searchWidget.getValue().trim();
+		this.delayedFilterLogging.cancel();
+		TPromise.join([
+			this.preferencesRenderers.localFilterPreferences(query),
+			this.triggerThrottledSearch(query)
+		]).then(() => {
+			const result = this.preferencesRenderers.lastFilterResult;
+			if (result) {
+				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(
+					query,
+					result.defaultSettingsGroupCounts,
+					result.metadata));
+			}
+		});
 	}
 
-	private triggerThrottledSearch(): void {
-		if (this.searchWidget.getValue()) {
-			this.remoteSearchThrottle.trigger(() => this.remoteSearchPreferences());
+	private triggerThrottledSearch(query: string): TPromise<void> {
+		if (query) {
+			return this.remoteSearchThrottle.trigger(() => this.preferencesRenderers.remoteSearchPreferences(query));
 		} else {
 			// When clearing the input, update immediately to clear it
-			this.remoteSearchPreferences();
+			return this.preferencesRenderers.remoteSearchPreferences(query);
 		}
 	}
 
@@ -268,31 +280,6 @@ export class PreferencesEditor extends BaseEditor {
 		});
 	}
 
-	private remoteSearchPreferences(): TPromise<void> {
-		const query = this.searchWidget.getValue().trim();
-		return this.preferencesRenderers.remoteSearchPreferences(query).then(result => {
-			this.onSearchResult(query, result);
-		}, onUnexpectedError);
-	}
-
-	private localFilterPreferences(): TPromise<void> {
-		const query = this.searchWidget.getValue().trim();
-		return this.preferencesRenderers.localFilterPreferences(query).then(result => {
-			this.onSearchResult(query, result);
-		}, onUnexpectedError);
-	}
-
-	private onSearchResult(filter: string, result: { count: number, metadata: IFilterMetadata }): void {
-		if (result) {
-			this.showSearchResultsMessage(result.count);
-			if (result.count === 0) {
-				this.latestEmptyFilters.push(filter);
-			}
-
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
-		}
-	}
-
 	private showSearchResultsMessage(count: number): void {
 		if (this.searchWidget.getValue()) {
 			if (count === 0) {
@@ -307,37 +294,26 @@ export class PreferencesEditor extends BaseEditor {
 		}
 	}
 
-	private reportFilteringUsed(filter: string, metadata?: IFilterMetadata): void {
-		if (filter) {
+	private reportFilteringUsed(filter: string, counts: IStringDictionary<number>, metadata?: IFilterMetadata): void {
+		if (filter && filter !== this._lastReportedFilter) {
 			let data = {
 				filter,
-				emptyFilters: this.getLatestEmptyFiltersForTelemetry(),
-				fuzzy: !!metadata,
 				duration: metadata ? metadata.duration : undefined,
-				context: metadata ? metadata.context : undefined
+				context: metadata ? metadata.context : undefined,
+				counts
 			};
 
-			this.latestEmptyFilters = [];
 			/* __GDPR__
 				"defaultSettings.filter" : {
 					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"context" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"context" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"counts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
 			this.telemetryService.publicLog('defaultSettings.filter', data);
+			this._lastReportedFilter = filter;
 		}
-	}
-
-	/**
-	 * Put a rough limit on the size of the telemetry data, since otherwise it could be an unbounded large amount
-	 * of data. 8192 is the max size of a property value. This is rough since that probably includes ""s, etc.
-	 */
-	private getLatestEmptyFiltersForTelemetry(): string[] {
-		let cumulativeSize = 0;
-		return this.latestEmptyFilters.filter(filterText => (cumulativeSize += filterText.length) <= 8192);
 	}
 }
 
@@ -375,7 +351,7 @@ class SettingsNavigator implements INavigator<ISetting> {
 }
 
 interface IFilterOrSearchResult {
-	count: number;
+	defaultSettingsGroupCounts: IStringDictionary<number>;
 	metadata: IFilterMetadata;
 }
 
@@ -388,11 +364,13 @@ class PreferencesRenderersController extends Disposable {
 	private _editablePreferencesRendererDisposables: IDisposable[] = [];
 
 	private _settingsNavigator: SettingsNavigator;
-	private _filtersInProgress: TPromise<any>[];
+	private _remoteFilterInProgress: TPromise<any>;
 
 	private _currentLocalSearchProvider: ISearchProvider;
 	private _currentRemoteSearchProvider: ISearchProvider;
+	private _currentNewExtensionsSearchProvider: ISearchProvider;
 	private _lastQuery: string;
+	private _lastFilterResult: IFilterOrSearchResult;
 
 	private _onDidFilterResultsCountChange: Emitter<number> = this._register(new Emitter<number>());
 	public onDidFilterResultsCountChange: Event<number> = this._onDidFilterResultsCountChange.event;
@@ -402,6 +380,10 @@ class PreferencesRenderersController extends Disposable {
 		private telemetryService: ITelemetryService
 	) {
 		super();
+	}
+
+	get lastFilterResult(): IFilterOrSearchResult {
+		return this._lastFilterResult;
 	}
 
 	get defaultPreferencesRenderer(): IPreferencesRenderer<ISetting> {
@@ -419,7 +401,7 @@ class PreferencesRenderersController extends Disposable {
 			this._defaultPreferencesRendererDisposables = dispose(this._defaultPreferencesRendererDisposables);
 
 			if (this._defaultPreferencesRenderer) {
-				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source, index }) => this._updatePreference(key, value, source, index, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
+				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source }) => this._updatePreference(key, value, source, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 				this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 				this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 			}
@@ -437,38 +419,56 @@ class PreferencesRenderersController extends Disposable {
 		}
 	}
 
-	async _onEditableContentDidChange(): TPromise<void> {
+	private async _onEditableContentDidChange(): TPromise<void> {
 		await this.localFilterPreferences(this._lastQuery, true);
 		await this.remoteSearchPreferences(this._lastQuery, true);
 	}
 
-	remoteSearchPreferences(query: string, updateCurrentResults?: boolean): TPromise<IFilterOrSearchResult> {
-		this._currentRemoteSearchProvider = (updateCurrentResults && this._currentRemoteSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query);
-		return this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"));
-	}
-
-	localFilterPreferences(query: string, updateCurrentResults?: boolean): TPromise<IFilterOrSearchResult> {
-		this._currentLocalSearchProvider = (updateCurrentResults && this._currentLocalSearchProvider) || this.preferencesSearchService.getLocalSearchProvider(query);
-		return this.filterOrSearchPreferences(query, this._currentLocalSearchProvider, 'filterResult', nls.localize('filterResult', "Filtered Results"));
-	}
-
-	filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterOrSearchResult> {
-		this._lastQuery = query;
-		if (this._filtersInProgress) {
+	remoteSearchPreferences(query: string, updateCurrentResults?: boolean): TPromise<void> {
+		if (this._remoteFilterInProgress && this._remoteFilterInProgress.cancel) {
 			// Resolved/rejected promises have no .cancel()
-			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
+			this._remoteFilterInProgress.cancel();
 		}
 
-		this._filtersInProgress = [
-			this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel),
-			this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel)];
+		this._currentRemoteSearchProvider = (updateCurrentResults && this._currentRemoteSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query);
+		this._currentNewExtensionsSearchProvider = (updateCurrentResults && this._currentNewExtensionsSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query, true);
 
-		return TPromise.join(this._filtersInProgress).then(results => {
-			this._filtersInProgress = null;
+		this._remoteFilterInProgress = this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"), 1)
+			.then(result => this.filterOrSearchPreferences(query, this._currentNewExtensionsSearchProvider, 'newExtensionsResult', nls.localize('newExtensionsResult', "Other Extension Results"), 2));
+
+		return this._remoteFilterInProgress.then(() => {
+			this._remoteFilterInProgress = null;
+		}, err => {
+			if (isPromiseCanceledError(err)) {
+				return null;
+			} else {
+				onUnexpectedError(err);
+			}
+		});
+	}
+
+	localFilterPreferences(query: string, updateCurrentResults?: boolean): TPromise<void> {
+		this._currentLocalSearchProvider = (updateCurrentResults && this._currentLocalSearchProvider) || this.preferencesSearchService.getLocalSearchProvider(query);
+		return this.filterOrSearchPreferences(query, this._currentLocalSearchProvider, 'filterResult', nls.localize('filterResult', "Filtered Results"), 0);
+	}
+
+	private filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number): TPromise<void> {
+		this._lastQuery = query;
+
+		const filterPs = [
+			this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder),
+			this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder)];
+
+		return TPromise.join(filterPs).then(results => {
 			const [defaultFilterResult, editableFilterResult] = results;
 
-			const count = this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
-			return { count, metadata: defaultFilterResult && defaultFilterResult.metadata };
+			this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
+			const result = <IFilterOrSearchResult>{
+				metadata: defaultFilterResult && defaultFilterResult.metadata,
+				defaultSettingsGroupCounts: defaultFilterResult && this._countById(defaultFilterResult.filteredGroups)
+			};
+
+			this._lastFilterResult = result;
 		});
 	}
 
@@ -482,14 +482,14 @@ class PreferencesRenderersController extends Disposable {
 		this._focusPreference(setting, this._editablePreferencesRenderer);
 	}
 
-	private _filterOrSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string): TPromise<IFilterResult> {
+	private _filterOrSearchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
 			const searchP = provider ? provider.searchModel(model) : TPromise.wrap(null);
 			return searchP
 				.then<ISearchResult>(null, err => {
 					if (isPromiseCanceledError(err)) {
-						return null;
+						return TPromise.wrapError(err);
 					} else {
 						/* __GDPR__
 							"defaultSettings.searchError" : {
@@ -506,7 +506,8 @@ class PreferencesRenderersController extends Disposable {
 						model.updateResultGroup(groupId, {
 							id: groupId,
 							label: groupLabel,
-							result: searchResult
+							result: searchResult,
+							order: groupOrder
 						}) :
 						model.updateResultGroup(groupId, null);
 
@@ -522,15 +523,14 @@ class PreferencesRenderersController extends Disposable {
 		return TPromise.wrap(null);
 	}
 
-	private consolidateAndUpdate(defaultFilterResult: IFilterResult, editableFilterResult: IFilterResult): number {
+	private consolidateAndUpdate(defaultFilterResult: IFilterResult, editableFilterResult: IFilterResult): void {
 		const defaultPreferencesFilteredGroups = defaultFilterResult ? defaultFilterResult.filteredGroups : this._getAllPreferences(this._defaultPreferencesRenderer);
 		const editablePreferencesFilteredGroups = editableFilterResult ? editableFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
 		const consolidatedSettings = this._consolidateSettings(editablePreferencesFilteredGroups, defaultPreferencesFilteredGroups);
 
 		this._settingsNavigator = new SettingsNavigator(this._lastQuery ? consolidatedSettings : []);
-		const count = consolidatedSettings.length;
-		this._onDidFilterResultsCountChange.fire(count);
-		return count;
+		const totalCount = consolidatedSettings.length;
+		this._onDidFilterResultsCountChange.fire(totalCount);
 	}
 
 	private _getAllPreferences(preferencesRenderer: IPreferencesRenderer<ISetting>): ISettingsGroup[] {
@@ -549,9 +549,9 @@ class PreferencesRenderersController extends Disposable {
 		}
 	}
 
-	private _updatePreference(key: string, value: any, source: ISetting, index: number, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
+	private _updatePreference(key: string, value: any, source: ISetting, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
 		if (preferencesRenderer) {
-			preferencesRenderer.updatePreference(key, value, source, index);
+			preferencesRenderer.updatePreference(key, value, source);
 		}
 	}
 
@@ -570,6 +570,21 @@ class PreferencesRenderersController extends Disposable {
 		}
 
 		return settings;
+	}
+
+	private _countById(settingsGroups: ISettingsGroup[]): IStringDictionary<number> {
+		const result = {};
+
+		for (const group of settingsGroups) {
+			let i = 0;
+			for (const section of group.sections) {
+				i += section.settings.length;
+			}
+
+			result[group.id] = i;
+		}
+
+		return result;
 	}
 
 	public dispose(): void {
@@ -910,7 +925,8 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 
 	private _hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri: URI): TPromise<boolean> {
 		return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
-			return !(preferencesRenderer && preferencesRenderer.associatedPreferencesModel && preferencesRenderer.associatedPreferencesModel.uri.toString() === associatedPreferencesModelUri.toString());
+			const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
+			return !(preferencesRenderer && associatedPreferencesModel && associatedPreferencesModel.uri.toString() === associatedPreferencesModelUri.toString());
 		});
 	}
 
@@ -919,10 +935,11 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 			.then(associatedPreferencesEditorModel => {
 				return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 					if (preferencesRenderer) {
-						if (preferencesRenderer.associatedPreferencesModel) {
-							preferencesRenderer.associatedPreferencesModel.dispose();
+						const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
+						if (associatedPreferencesModel) {
+							associatedPreferencesModel.dispose();
 						}
-						preferencesRenderer.associatedPreferencesModel = associatedPreferencesEditorModel;
+						preferencesRenderer.setAssociatedPreferencesModel(associatedPreferencesEditorModel);
 					}
 					return preferencesRenderer;
 				});
@@ -933,8 +950,9 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 		if (this.preferencesRendererCreationPromise) {
 			this.preferencesRendererCreationPromise.then(preferencesRenderer => {
 				if (preferencesRenderer) {
-					if (preferencesRenderer.associatedPreferencesModel) {
-						preferencesRenderer.associatedPreferencesModel.dispose();
+					const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
+					if (associatedPreferencesModel) {
+						associatedPreferencesModel.dispose();
 					}
 					preferencesRenderer.preferencesModel.dispose();
 					preferencesRenderer.dispose();

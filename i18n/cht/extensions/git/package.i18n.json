@@ -54,12 +54,12 @@
 	"command.stashPopLatest": "快顯上一次的隱藏",
 	"config.enabled": "是否啟用 GIT",
 	"config.path": "Git 可執行檔的路徑",
+	"config.autoRepositoryDetection": "是否自動偵測儲存庫",
 	"config.autorefresh": "是否啟用自動重新整理",
 	"config.autofetch": "是否啟用自動擷取",
 	"config.enableLongCommitWarning": "是否發出長認可訊息的警告",
 	"config.confirmSync": "請先確認再同步處理 GIT 存放庫",
 	"config.countBadge": "控制 git 徽章計數器。[全部] 會計算所有變更。[已追蹤] 只會計算追蹤的變更。[關閉] 會將其關閉。",
-	"config.checkoutType": "控制在執行 [簽出至...] 時，會列出那些類型的分支。[全部] 會顯示所有參考，[本機] 只會顯示本機分支，[標記] 只會顯示標記，[遠端] 只會顯示遠端分支。",
 	"config.ignoreLegacyWarning": "略過舊的 Git 警告",
 	"config.ignoreMissingGitWarning": "忽略遺漏 Git 時的警告",
 	"config.ignoreLimitWarning": "當儲存庫中有過多變更時，略過警告。",
@@ -72,5 +72,6 @@
 	"colors.deleted": "刪除資源的顏色",
 	"colors.untracked": "未追蹤資源的顏色。",
 	"colors.ignored": "忽略資源的顏色。",
-	"colors.conflict": "帶有衝突資源的顏色。"
+	"colors.conflict": "帶有衝突資源的顏色。",
+	"colors.submodule": "子模組資源的顏色"
 }

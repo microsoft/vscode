@@ -12,8 +12,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelContentChange, ModelRawChange } from 'vs/editor/common/model/textModelEvents';
+import { ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelContentChange } from 'vs/editor/common/model/textModelEvents';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -498,6 +499,14 @@ export interface ITextModel {
 	 * @return The text.
 	 */
 	getValue(eol?: EndOfLinePreference, preserveBOM?: boolean): string;
+
+	/**
+	 * Get the text stored in this model.
+	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
+	 * @return The text snapshot (it is safe to consume it asynchronously).
+	 * @internal
+	 */
+	createSnapshot(preserveBOM?: boolean): ITextSnapshot;
 
 	/**
 	 * Get the length of the text stored in this model.
@@ -1078,7 +1087,9 @@ export interface ITextBuffer {
 	getRangeAt(offset: number, length: number): Range;
 
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	createSnapshot(preserveBOM: boolean): ITextSnapshot;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getLength(): number;
 	getLineCount(): number;
 	getLinesContent(): string[];
 	getLineContent(lineNumber: number): string;
@@ -1087,7 +1098,7 @@ export interface ITextBuffer {
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 
-	setEOL(newEOL: string): void;
+	setEOL(newEOL: '\r\n' | '\n'): void;
 	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
 }
 
@@ -1098,7 +1109,6 @@ export class ApplyEditsResult {
 
 	constructor(
 		public readonly reverseEdits: IIdentifiedSingleEditOperation[],
-		public readonly rawChanges: ModelRawChange[],
 		public readonly changes: IInternalModelContentChange[],
 		public readonly trimAutoWhitespaceLineNumbers: number[]
 	) { }
@@ -1110,7 +1120,6 @@ export class ApplyEditsResult {
  */
 export interface IInternalModelContentChange extends IModelContentChange {
 	range: Range;
-	lines: string[];
 	rangeOffset: number;
 	forceMoveMarkers: boolean;
 }

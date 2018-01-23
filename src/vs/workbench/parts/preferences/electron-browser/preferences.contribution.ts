@@ -19,7 +19,7 @@ import { KeybindingsEditor, KeybindingsEditorInput } from 'vs/workbench/parts/pr
 import { OpenRawDefaultSettingsAction, OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import {
 	IPreferencesService, IKeybindingsEditor, IPreferencesSearchService, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_SEARCH,
-	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS
+	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/parts/preferences/browser/preferencesService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -235,6 +235,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
 		editor.copyKeybinding(editor.activeKeybindingEntry);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
+	primary: null,
+	handler: (accessor, args: any) => {
+		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
+		editor.copyKeybindingCommand(editor.activeKeybindingEntry);
 	}
 });
 

@@ -22,5 +22,6 @@
 	"keybindings.json.when": "键处于活动状态时的条件。",
 	"keybindings.json.args": "要传递给命令以执行的参数。",
 	"keyboardConfigurationTitle": "键盘",
-	"dispatch": "控制按键的分派逻辑以使用 \"code\" (推荐) 或 \"keyCode\"。"
+	"dispatch": "控制按键的分派逻辑以使用 \"code\" (推荐) 或 \"keyCode\"。",
+	"touchbar.enabled": "启用键盘上的 macOS 触控栏按钮 (若可用)。"
 }

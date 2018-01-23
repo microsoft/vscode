@@ -47,6 +47,7 @@ import { join } from 'vs/base/common/paths';
 import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { ThrottledEmitter } from 'vs/base/common/async';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 class ProgressMonitor {
 
@@ -72,6 +73,10 @@ interface IEditorReplacement extends EditorIdentifier {
 	replaceWith: EditorInput;
 	options?: EditorOptions;
 }
+
+export type ICloseEditorsFilter = { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean };
+export type ICloseEditorsByFilterArgs = { positionOne?: ICloseEditorsFilter, positionTwo?: ICloseEditorsFilter, positionThree?: ICloseEditorsFilter };
+export type ICloseEditorsArgs = { positionOne?: EditorInput[], positionTwo?: EditorInput[], positionThree?: EditorInput[] };
 
 /**
  * The editor part is the container for editors in the workbench. Based on the editor input being opened, it asks the registered
@@ -683,16 +688,81 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.textCompareEditorVisible.set(this.visibleEditors.some(e => e && e.isVisible() && e.getId() === TEXT_DIFF_EDITOR_ID));
 	}
 
-	public closeAllEditors(except?: Position): TPromise<void> {
+	public closeEditors(positions?: Position[]): TPromise<void>;
+	public closeEditors(position: Position, filter?: ICloseEditorsFilter): TPromise<void>;
+	public closeEditors(position: Position, editors: EditorInput[]): TPromise<void>;
+	public closeEditors(editors: ICloseEditorsByFilterArgs): TPromise<void>;
+	public closeEditors(editors: ICloseEditorsArgs): TPromise<void>;
+	public closeEditors(positionsOrEditors?: Position[] | Position | ICloseEditorsByFilterArgs | ICloseEditorsArgs, filterOrEditors?: ICloseEditorsFilter | EditorInput[]): TPromise<void> {
+
+		// First check for specific position to close
+		if (typeof positionsOrEditors === 'number') {
+			return this.doCloseEditorsAtPosition(positionsOrEditors, filterOrEditors);
+		}
+
+		// Then check for array of positions to close
+		if (Array.isArray(positionsOrEditors) || isUndefinedOrNull(positionsOrEditors)) {
+			return this.doCloseAllEditorsAtPositions(positionsOrEditors as Position[]);
+		}
+
+		// Finally, close specific editors at multiple positions
+		return this.doCloseEditorsAtPositions(positionsOrEditors);
+	}
+
+	private doCloseEditorsAtPositions(editors: ICloseEditorsByFilterArgs | ICloseEditorsArgs): TPromise<void> {
+
+		// Extract editors to close for veto
+		const editorsToClose: EditorIdentifier[] = [];
+		let groupsWithEditorsToClose = 0;
+		POSITIONS.forEach(position => {
+			const details = (position === Position.ONE) ? editors.positionOne : (position === Position.TWO) ? editors.positionTwo : editors.positionThree;
+			if (details && this.stacks.groupAt(position)) {
+				groupsWithEditorsToClose++;
+				editorsToClose.push(...this.extractCloseEditorDetails(position, details).editorsToClose);
+			}
+		});
+
+		// Check for dirty and veto
+		const ignoreDirtyIfOpenedInOtherGroup = (groupsWithEditorsToClose === 1);
+		return this.handleDirty(editorsToClose, ignoreDirtyIfOpenedInOtherGroup).then(veto => {
+			if (veto) {
+				return void 0;
+			}
+
+			// Close by positions starting from last to first to prevent issues when
+			// editor groups close and thus move other editors around that are still open.
+			[Position.THREE, Position.TWO, Position.ONE].forEach(position => {
+				const details = (position === Position.ONE) ? editors.positionOne : (position === Position.TWO) ? editors.positionTwo : editors.positionThree;
+				if (details && this.stacks.groupAt(position)) {
+					const { group, editorsToClose, filter } = this.extractCloseEditorDetails(position, details);
+
+					// Close with filter
+					if (filter) {
+						this.doCloseEditorsWithFilter(group, filter);
+					}
+
+					// Close without filter
+					else {
+						this.doCloseEditors(group, editorsToClose.map(e => e.editor));
+					}
+
+					return void 0;
+				}
+			});
+		});
+	}
+
+	private doCloseAllEditorsAtPositions(positions?: Position[]): TPromise<void> {
 		let groups = this.stacks.groups.reverse(); // start from the end to prevent layout to happen through rochade
 
-		// Remove position to exclude if we have any
-		if (typeof except === 'number') {
-			groups = groups.filter(group => this.stacks.positionOfGroup(group) !== except);
+		// Remove positions that are not being asked for if provided
+		if (Array.isArray(positions)) {
+			groups = groups.filter(group => positions.indexOf(this.stacks.positionOfGroup(group)) >= 0);
 		}
 
 		// Check for dirty and veto
-		return this.handleDirty(arrays.flatten(groups.map(group => group.getEditors(true /* in MRU order */).map(editor => { return { group, editor }; })))).then(veto => {
+		const ignoreDirtyIfOpenedInOtherGroup = (groups.length === 1);
+		return this.handleDirty(arrays.flatten(groups.map(group => group.getEditors(true /* in MRU order */).map(editor => ({ group, editor })))), ignoreDirtyIfOpenedInOtherGroup).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -710,53 +780,70 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.doCloseActiveEditor(group);
 	}
 
-	public closeEditors(position: Position, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void>;
-	public closeEditors(position: Position, editors: EditorInput[]): TPromise<void>;
-	public closeEditors(position: Position, filterOrEditors?: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean } | EditorInput[]): TPromise<void> {
-		const group = this.stacks.groupAt(position);
-		if (!group) {
-			return TPromise.wrap<void>(null);
+	private doCloseEditorsAtPosition(position: Position, filterOrEditors?: ICloseEditorsFilter | EditorInput[]): TPromise<void> {
+		const closeEditorsDetails = this.extractCloseEditorDetails(position, filterOrEditors);
+		if (!closeEditorsDetails) {
+			return TPromise.wrap(void 0);
 		}
 
-		let editorsToClose: EditorInput[];
-		let filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean };
-		if (Array.isArray(filterOrEditors)) {
-			editorsToClose = filterOrEditors;
-			filter = Object.create(null);
-		} else {
-			editorsToClose = group.getEditors(true /* in MRU order */);
-			filter = filterOrEditors || Object.create(null);
-		}
-
-		// Filter: unmodified only
-		if (filter.unmodifiedOnly) {
-			editorsToClose = editorsToClose.filter(e => !e.isDirty());
-		}
-
-		// Filter: direction (left / right)
-		if (!types.isUndefinedOrNull(filter.direction)) {
-			editorsToClose = (filter.direction === Direction.LEFT) ? editorsToClose.slice(0, group.indexOf(filter.except)) : editorsToClose.slice(group.indexOf(filter.except) + 1);
-		}
-
-		// Filter: except
-		else {
-			editorsToClose = editorsToClose.filter(e => !filter.except || !e.matches(filter.except));
-		}
+		const { group, editorsToClose, filter } = closeEditorsDetails;
 
 		// Check for dirty and veto
-		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; }), true /* ignore if opened in other group */).then(veto => {
+		return this.handleDirty(editorsToClose, true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
-				return;
-			}
-
-			// Close without filter
-			if (Array.isArray(filterOrEditors)) {
-				return this.doCloseEditors(group, editorsToClose);
+				return void 0;
 			}
 
 			// Close with filter
-			return this.doCloseEditorsWithFilter(group, filter);
+			if (filter) {
+				this.doCloseEditorsWithFilter(group, filter);
+			}
+
+			// Close without filter
+			else {
+				this.doCloseEditors(group, editorsToClose.map(e => e.editor));
+			}
+
+			return void 0;
 		});
+	}
+
+	private extractCloseEditorDetails(position: Position, filterOrEditors?: ICloseEditorsFilter | EditorInput[]): { group: EditorGroup, editorsToClose: EditorIdentifier[], filter?: ICloseEditorsFilter } {
+		const group = this.stacks.groupAt(position);
+		if (!group) {
+			return void 0;
+		}
+
+		let editorsToClose: EditorInput[];
+		let filter: ICloseEditorsFilter;
+
+		// Close: Specific Editors
+		if (Array.isArray(filterOrEditors)) {
+			editorsToClose = filterOrEditors;
+		}
+
+		// Close: By Filter or all
+		else {
+			editorsToClose = group.getEditors(true /* in MRU order */);
+			filter = filterOrEditors || Object.create(null);
+
+			// Filter: unmodified only
+			if (filter.unmodifiedOnly) {
+				editorsToClose = editorsToClose.filter(e => !e.isDirty());
+			}
+
+			// Filter: direction (left / right)
+			else if (!types.isUndefinedOrNull(filter.direction)) {
+				editorsToClose = (filter.direction === Direction.LEFT) ? editorsToClose.slice(0, group.indexOf(filter.except)) : editorsToClose.slice(group.indexOf(filter.except) + 1);
+			}
+
+			// Filter: except
+			else if (filter.except) {
+				editorsToClose = editorsToClose.filter(e => !e.matches(filter.except));
+			}
+		}
+
+		return { group, editorsToClose: editorsToClose.map(editor => ({ editor, group })), filter };
 	}
 
 	private doCloseEditors(group: EditorGroup, editors: EditorInput[]): void {

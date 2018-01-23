@@ -10,7 +10,7 @@ import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { flatten, distinct } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -45,6 +45,8 @@ const INSTALL_ERROR_GALLERY = 'gallery';
 const INSTALL_ERROR_LOCAL = 'local';
 const INSTALL_ERROR_EXTRACTING = 'extracting';
 const INSTALL_ERROR_DELETING = 'deleting';
+const INSTALL_ERROR_READING_EXTENSION_FROM_DISK = 'readingExtension';
+const INSTALL_ERROR_SAVING_METADATA = 'savingMetadata';
 const INSTALL_ERROR_UNKNOWN = 'unknown';
 
 export class ExtensionManagementError extends Error {
@@ -105,14 +107,16 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private uninstalledFileLimiter: Limiter<void>;
 	private disposables: IDisposable[] = [];
 
-	private _onInstallExtension = new Emitter<InstallExtensionEvent>();
-	onInstallExtension: Event<InstallExtensionEvent> = this._onInstallExtension.event;
+	private readonly _onInstallExtension = new Emitter<InstallExtensionEvent>();
+	readonly onInstallExtension: Event<InstallExtensionEvent> = this._onInstallExtension.event;
 
-	private _onDidInstallExtension = new Emitter<DidInstallExtensionEvent>();
-	onDidInstallExtension: Event<DidInstallExtensionEvent> = this._onDidInstallExtension.event;
+	private readonly _onDidInstallExtension = new Emitter<DidInstallExtensionEvent>();
+	readonly onDidInstallExtension: Event<DidInstallExtensionEvent> = this._onDidInstallExtension.event;
 
-	private _onUninstallExtension = new Emitter<IExtensionIdentifier>();
-	onUninstallExtension: Event<IExtensionIdentifier> = this._onUninstallExtension.event;
+	private readonly _onUninstallExtension = new Emitter<IExtensionIdentifier>();
+	readonly onUninstallExtension: Event<IExtensionIdentifier> = this._onUninstallExtension.event;
+
+	private readonly installingExtensions: Map<string, TPromise<ILocalExtension>> = new Map<string, TPromise<ILocalExtension>>();
 
 	private _onDidUninstallExtension = new Emitter<DidUninstallExtensionEvent>();
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
@@ -127,6 +131,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		this.uninstalledPath = path.join(this.extensionsPath, '.obsolete');
 		this.userDataPath = environmentService.userDataPath;
 		this.uninstalledFileLimiter = new Limiter(1);
+		this.disposables.push(toDisposable(() => this.installingExtensions.clear()));
 	}
 
 	private deleteExtensionsManifestCache(): void {
@@ -257,9 +262,18 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private downloadAndInstallExtensions(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
-		return TPromise.join(extensions.map(extensionToInstall => this.downloadInstallableExtension(extensionToInstall)
-			.then(installableExtension => this.installExtension(installableExtension))
-		)).then(null, errors => this.rollback(extensions).then(() => TPromise.wrapError(errors), () => TPromise.wrapError(errors)));
+		return TPromise.join(extensions.map(extensionToInstall => this.downloadAndInstallExtension(extensionToInstall)))
+			.then(null, errors => this.rollback(extensions).then(() => TPromise.wrapError(errors), () => TPromise.wrapError(errors)));
+	}
+
+	private downloadAndInstallExtension(extension: IGalleryExtension): TPromise<ILocalExtension> {
+		let installingExtension = this.installingExtensions.get(extension.identifier.id);
+		if (!installingExtension) {
+			installingExtension = this.downloadInstallableExtension(extension).then(installableExtension => this.installExtension(installableExtension));
+			this.installingExtensions.set(extension.identifier.id, installingExtension);
+			installingExtension.then(local => { this.installingExtensions.delete(extension.identifier.id); return local; }, e => { this.installingExtensions.delete(extension.identifier.id); return TPromise.wrapError(e); });
+		}
+		return installingExtension;
 	}
 
 	private downloadInstallableExtension(extension: IGalleryExtension): TPromise<InstallableExtension> {
@@ -396,7 +410,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					() => {
 						this.logService.info(`Extracted extension to ${extensionPath}:`, id);
 						return TPromise.join([readManifest(extensionPath), pfs.readdir(extensionPath)])
-							.then(null, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_LOCAL)));
+							.then(null, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_READING_EXTENSION_FROM_DISK)));
 					},
 					e => TPromise.wrapError(new ExtensionManagementError(e.message, INSTALL_ERROR_EXTRACTING)))
 					.then(([{ manifest }, children]) => {
@@ -414,7 +428,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 							.then(() => {
 								this.logService.info(`Updated metadata of the extension:`, id);
 								return local;
-							}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_LOCAL)));
+							}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_SAVING_METADATA)));
 					});
 			}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
 	}

@@ -19,7 +19,6 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { once } from 'vs/base/common/event';
 import { IAction, IActionItem } from 'vs/base/common/actions';
@@ -29,7 +28,7 @@ import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IVariableTemplateData, renderVariable, renderRenameBox, renderExpressionValue, BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
@@ -46,10 +45,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IListService private listService: IListService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section") }, keybindingService, contextMenuService);
 		this.settings = options.viewletSettings;
@@ -65,7 +61,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		this.treeContainer = renderViewTree(container);
 
 		const actionProvider = new WatchExpressionsActionProvider(this.debugService, this.keybindingService);
-		this.tree = new WorkbenchTree(this.treeContainer, {
+		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new WatchExpressionsDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(WatchExpressionsRenderer),
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
@@ -75,7 +71,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				twistiePixels,
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService, this.themeService);
+			});
 
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
 

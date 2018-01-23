@@ -6,5 +6,7 @@
 {
 	"close": "Bezárás",
 	"later": "Később",
-	"cancel": "Mégse"
+	"cancel": "Mégse",
+	"moreFile": "...1 további fájl nincs megjelenítve",
+	"moreFiles": "...{0} további fájl nincs megjelenítve"
 }

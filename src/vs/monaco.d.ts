@@ -4043,6 +4043,10 @@ declare module monaco.languages {
 		 * @readonly
 		 */
 		readonly markers: editor.IMarkerData[];
+		/**
+		 * Requested kind of actions to return.
+		 */
+		readonly only?: string;
 	}
 
 	/**
@@ -4487,6 +4491,7 @@ declare module monaco.languages {
 	export enum SuggestTriggerKind {
 		Invoke = 0,
 		TriggerCharacter = 1,
+		TriggerForIncompleteCompletions = 2,
 	}
 
 	export interface CodeAction {
@@ -4494,6 +4499,7 @@ declare module monaco.languages {
 		command?: Command;
 		edit?: WorkspaceEdit;
 		diagnostics?: editor.IMarkerData[];
+		kind?: string;
 	}
 
 	/**

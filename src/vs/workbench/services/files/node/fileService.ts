@@ -10,8 +10,7 @@ import fs = require('fs');
 import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
-
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, FileChangesEvent, ICreateFileOptions, IContentData } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
@@ -41,6 +40,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { assign } from 'vs/base/common/objects';
+import { Readable } from 'stream';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -505,7 +505,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public updateContent(resource: uri, value: string, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
+	public updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
 		if (this.options.elevationSupport && options.writeElevated) {
 			return this.doUpdateContentElevated(resource, value, options);
 		}
@@ -513,7 +513,7 @@ export class FileService implements IFileService {
 		return this.doUpdateContent(resource, value, options);
 	}
 
-	private doUpdateContent(resource: uri, value: string, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
+	private doUpdateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file
@@ -579,18 +579,25 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string, addBOM: boolean, encodingToWrite: string, options?: { mode?: number; flag?: string; }): TPromise<IFileStat> {
+	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string | ITextSnapshot, addBOM: boolean, encodingToWrite: string, options?: { mode?: number; flag?: string; }): TPromise<IFileStat> {
 		let writeFilePromise: TPromise<void>;
 
 		// Write fast if we do UTF 8 without BOM
 		if (!addBOM && encodingToWrite === encoding.UTF8) {
-			writeFilePromise = pfs.writeFile(absolutePath, value, options);
+			if (typeof value === 'string') {
+				writeFilePromise = pfs.writeFile(absolutePath, value, options);
+			} else {
+				writeFilePromise = pfs.writeFile(absolutePath, this.snapshotToReadableStream(value), options);
+			}
 		}
 
 		// Otherwise use encoding lib
 		else {
-			const encoded = encoding.encode(value, encodingToWrite, { addBOM });
-			writeFilePromise = pfs.writeFile(absolutePath, encoded, options);
+			if (typeof value === 'string') {
+				writeFilePromise = pfs.writeFile(absolutePath, encoding.encode(value, encodingToWrite, { addBOM }), options);
+			} else {
+				writeFilePromise = pfs.writeFile(absolutePath, this.snapshotToReadableStream(value).pipe(encoding.encodeStream(encodingToWrite, { addBOM })), options);
+			}
 		}
 
 		// set contents
@@ -601,7 +608,32 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private doUpdateContentElevated(resource: uri, value: string, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
+	private snapshotToReadableStream(snapshot: ITextSnapshot): NodeJS.ReadableStream {
+		return new Readable({
+			read: function () {
+				try {
+					let chunk: string;
+					let canPush = true;
+
+					// Push all chunks as long as we can push and as long as
+					// the underlying snapshot returns strings to us
+					while (canPush && typeof (chunk = snapshot.read()) === 'string') {
+						canPush = this.push(chunk);
+					}
+
+					// Signal EOS by pushing NULL
+					if (typeof chunk !== 'string') {
+						this.push(null);
+					}
+				} catch (error) {
+					this.emit('error', error);
+				}
+			},
+			encoding: encoding.UTF8 // very important, so that strings are passed around and not buffers!
+		});
+	}
+
+	private doUpdateContentElevated(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file

@@ -12,6 +12,7 @@ import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { relative } from 'path';
+import { startsWith } from 'vs/base/common/strings';
 
 export class Disposable {
 
@@ -818,11 +819,38 @@ export class CodeAction {
 
 	dianostics?: Diagnostic[];
 
-	constructor(title: string, edit?: WorkspaceEdit) {
+	kind?: CodeActionKind;
+
+	constructor(title: string, kind?: CodeActionKind) {
 		this.title = title;
-		this.edit = edit;
+		this.kind = kind;
 	}
 }
+
+
+export class CodeActionKind {
+	private static readonly sep = '.';
+
+	public static readonly Empty = new CodeActionKind('');
+	public static readonly QuickFix = CodeActionKind.Empty.append('quickfix');
+	public static readonly Refactor = CodeActionKind.Empty.append('refactor');
+	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
+	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
+	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
+
+	constructor(
+		public readonly value: string
+	) { }
+
+	public append(parts: string): CodeActionKind {
+		return new CodeActionKind(this.value ? this.value + CodeActionKind.sep + parts : parts);
+	}
+
+	public contains(other: CodeActionKind): boolean {
+		return this.value === other.value || startsWith(other.value, this.value + CodeActionKind.sep);
+	}
+}
+
 
 export class CodeLens {
 
@@ -907,7 +935,8 @@ export class SignatureHelp {
 
 export enum CompletionTriggerKind {
 	Invoke = 0,
-	TriggerCharacter = 1
+	TriggerCharacter = 1,
+	TriggerForIncompleteCompletions = 2
 }
 
 export interface CompletionContext {
@@ -1440,11 +1469,20 @@ export enum ProgressLocation {
 
 export class TreeItem {
 
+	label?: string;
+	resourceUri?: URI;
 	iconPath?: string | URI | { light: string | URI; dark: string | URI };
 	command?: vscode.Command;
 	contextValue?: string;
 
-	constructor(public label: string, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+	constructor(label: string, collapsibleState?: vscode.TreeItemCollapsibleState)
+	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState)
+	constructor(arg1: string | URI, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+		if (arg1 instanceof URI) {
+			this.resourceUri = arg1;
+		} else {
+			this.label = arg1;
+		}
 	}
 
 }
@@ -1536,3 +1574,19 @@ export enum LogLevel {
 	Critical = 6,
 	Off = 7
 }
+
+//#region file api
+// todo@remote
+export enum FileChangeType {
+	Updated = 0,
+	Added = 1,
+	Deleted = 2
+}
+
+export enum FileType {
+	File = 0,
+	Dir = 1,
+	Symlink = 2
+}
+
+//#endregion

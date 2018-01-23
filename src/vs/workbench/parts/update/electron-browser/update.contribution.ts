@@ -57,6 +57,11 @@ configurationRegistry.registerConfiguration({
 			'enum': ['none', 'default'],
 			'default': 'default',
 			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change.")
+		},
+		'update.enableWindowsBackgroundUpdates': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('enableWindowsBackgroundUpdates', "Enables Windows background updates.")
 		}
 	}
 });

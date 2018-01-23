@@ -22,7 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ViewLocation } from 'vs/workbench/browser/parts/views/viewsRegistry';
+import { ViewLocation } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';

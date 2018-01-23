@@ -6,8 +6,6 @@
 {
 	"saveChangesMessage": "{0}에 대한 변경 내용을 저장할까요?",
 	"saveChangesMessages": "다음 {0}개 파일에 대한 변경 내용을 저장할까요?",
-	"moreFile": "...1개의 추가 파일이 표시되지 않음",
-	"moreFiles": "...{0}개의 추가 파일이 표시되지 않음",
 	"saveAll": "모두 저장(&&S)",
 	"save": "저장(&&S)",
 	"dontSave": "저장 안 함(&&N)",

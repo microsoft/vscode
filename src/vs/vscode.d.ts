@@ -1813,6 +1813,66 @@ declare module 'vscode' {
 	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
 
 	/**
+	 * Kind of a code action.
+	 *
+	 * Kinds are a hierarchical list of identifiers separated by `.`, e.g. `"refactor.extract.function"`.
+	 */
+	export class CodeActionKind {
+		/**
+		 * Empty kind.
+		 */
+		static readonly Empty: CodeActionKind;
+
+		/**
+		 * Base kind for quickfix actions.
+		 */
+		static readonly QuickFix: CodeActionKind;
+
+		/**
+		 * Base kind for refactoring actions.
+		 */
+		static readonly Refactor: CodeActionKind;
+
+		/**
+		 * Base kind for refactoring extraction actions.
+		 */
+		static readonly RefactorExtract: CodeActionKind;
+
+		/**
+		 * Base kind for refactoring inline actions.
+		 */
+		static readonly RefactorInline: CodeActionKind;
+
+		/**
+		 * Base kind for refactoring rewite actions.
+		 */
+		static readonly RefactorRewrite: CodeActionKind;
+
+		private constructor(value: string);
+
+		/**
+		 * String value of the kind, e.g. `"refactor.extract.function"`.
+		 */
+		readonly value?: string;
+
+		/**
+		 * Create a new kind by appending a more specific selector to the current kind.
+		 *
+		 * Does not modify the current kind.
+		 */
+		append(parts: string): CodeActionKind;
+
+		/**
+		 * Does this kind contain `other`?
+		 *
+		 * The kind `"refactor"` for example contains `"refactor.extract"` and ``"refactor.extract.function"`, but not `"unicorn.refactor.extract"` or `"refactory.extract"`
+		 *
+		 * @param other Kind to check.
+		 */
+		contains(other: CodeActionKind): boolean;
+	}
+
+	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
@@ -1821,6 +1881,13 @@ declare module 'vscode' {
 		 * An array of diagnostics.
 		 */
 		readonly diagnostics: Diagnostic[];
+
+		/**
+		 * Requested kind of actions to return.
+		 *
+		 * Actions not of this kind are filtered out before being shown by the lightbulb.
+		 */
+		readonly only?: CodeActionKind;
 	}
 
 	/**
@@ -1830,7 +1897,7 @@ declare module 'vscode' {
 	export class CodeAction {
 
 		/**
-		 * A short, human-readanle, title for this code action.
+		 * A short, human-readable, title for this code action.
 		 */
 		title: string;
 
@@ -1854,15 +1921,22 @@ declare module 'vscode' {
 		command?: Command;
 
 		/**
+		 * Kind of the code action.
+		 *
+		 * Used to filter code actions.
+		 */
+		kind?: CodeActionKind;
+
+		/**
 		 * Creates a new code action.
 		 *
 		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edits)
 		 * or a [command](#CodeAction.command).
 		 *
 		 * @param title The title of the code action.
-		 * @param edits The edit of the code action.
+		 * @param kind The kind of the code action.
 		 */
-		constructor(title: string, edit?: WorkspaceEdit);
+		constructor(title: string, kind?: CodeActionKind);
 	}
 
 	/**
@@ -2912,7 +2986,7 @@ declare module 'vscode' {
 	export class CompletionList {
 
 		/**
-		 * This list it not complete. Further typing should result in recomputing
+		 * This list is not complete. Further typing should result in recomputing
 		 * this list.
 		 */
 		isIncomplete?: boolean;
@@ -2942,7 +3016,11 @@ declare module 'vscode' {
 		/**
 		 * Completion was triggered by a trigger character.
 		 */
-		TriggerCharacter = 1
+		TriggerCharacter = 1,
+		/**
+		 * Completion was re-triggered as current completion list is incomplete
+		 */
+		TriggerForIncompleteCompletions = 2
 	}
 
 	/**
@@ -4963,14 +5041,29 @@ declare module 'vscode' {
 
 	export class TreeItem {
 		/**
-		 * A human-readable string describing this item
+		 * A human-readable string describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
 		 */
-		label: string;
+		label?: string;
 
 		/**
-		 * The icon path for the tree item
+		 * Optional id for the tree item that has to be unique across tree. The id is used to preserve the selection and expansion state of the tree item.
+		 *
+		 * If not provided, an id is generated using the tree item's label. **Note** that when labels change, ids will change and that selection and expansion state cannot be kept stable anymore.
+		 */
+		id?: string;
+
+		/**
+		 * The icon path for the tree item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
 		 */
 		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
+
+		/**
+		 * The [uri](#Uri) of the resource representing this item.
+		 *
+		 * Will be used to derive the [label](#TreeItem.label), when it is not provided.
+		 * Will be used to derive the icon from current file icon theme, when [iconPath](#TreeItem.iconPath) is not provided.
+		 */
+		resourceUri?: Uri;
 
 		/**
 		 * The [command](#Command) which should be run when the tree item is selected.
@@ -5007,6 +5100,12 @@ declare module 'vscode' {
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
 		constructor(label: string, collapsibleState?: TreeItemCollapsibleState);
+
+		/**
+		 * @param resourceUri The [uri](#Uri) of the resource representing this item.
+		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
+		 */
+		constructor(resourceUri: Uri, collapsibleState?: TreeItemCollapsibleState);
 	}
 
 	/**

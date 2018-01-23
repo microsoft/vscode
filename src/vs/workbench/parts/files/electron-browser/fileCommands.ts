@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { toResource, IEditorContext } from 'vs/workbench/common/editor';
+import { toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -39,8 +39,9 @@ import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { sequence } from 'vs/base/common/async';
-import { getResourceForCommand, getResourcesForCommand } from 'vs/workbench/parts/files/browser/files';
+import { getResourceForCommand, getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 // Commands
 
@@ -67,7 +68,6 @@ export const SAVE_ALL_LABEL = nls.localize('saveAll', "Save All");
 export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.files.action.saveAllInGroup';
 
 export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
-export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
 
 export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
 export const DirtyEditorContext = new RawContextKey<boolean>('dirtyEditor', false);
@@ -244,10 +244,10 @@ CommandsRegistry.registerCommand({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const textFileService = accessor.get(ITextFileService);
 		const messageService = accessor.get(IMessageService);
-		resource = getResourceForCommand(resource, accessor.get(IListService), editorService);
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
 
 		if (resource && resource.scheme !== 'untitled') {
-			return textFileService.revert(resource, { force: true }).then(null, error => {
+			return textFileService.revertAll(resources, { force: true }).then(null, error => {
 				messageService.show(Severity.Error, nls.localize('genericRevertError', "Failed to revert '{0}': {1}", basename(resource.fsPath), toErrorMessage(error, false)));
 			});
 		}
@@ -267,7 +267,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const listService = accessor.get(IListService);
 		const tree = listService.lastFocusedList;
-		const resources = getResourcesForCommand(resource, listService, editorService);
+		const resources = getMultiSelectedResources(resource, listService, editorService);
 
 		// Remove highlight
 		if (tree instanceof Tree) {
@@ -344,7 +344,7 @@ CommandsRegistry.registerCommand({
 	id: COMPARE_SELECTED_COMMAND_ID,
 	handler: (accessor, resource: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
-		const resources = getResourcesForCommand(resource, accessor.get(IListService), editorService);
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
 
 		return editorService.openEditor({
 			leftResource: resources[0],
@@ -373,7 +373,7 @@ CommandsRegistry.registerCommand({
 
 const revealInOSHandler = (accessor: ServicesAccessor, resource: URI) => {
 	// Without resource, try to look at the active editor
-	const resources = getResourcesForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
 
 	if (resources.length) {
 		const windowsService = accessor.get(IWindowsService);
@@ -401,7 +401,7 @@ CommandsRegistry.registerCommand({
 });
 
 const copyPathHandler = (accessor, resource: URI) => {
-	const resources = getResourcesForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
 	if (resources.length) {
 		const clipboardService = accessor.get(IClipboardService);
 		const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join('\n');
@@ -473,8 +473,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: SAVE_FILE_COMMAND_ID,
 	handler: (accessor, resource: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
-		resource = getResourceForCommand(resource, accessor.get(IListService), editorService);
-		return save(resource, false, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+
+		if (resources.length === 1) {
+			// If only one resource is selected explictly call save since the behavior is a bit different than save all #41841
+			return save(resources[0], false, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+		}
+		return saveAll(resources, editorService, accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 	}
 });
 
@@ -487,19 +492,22 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-	handler: (accessor, resource: URI, editorContext: IEditorContext) => {
+	handler: (accessor, resource: URI, editorContext: IEditorIdentifier) => {
+		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService));
 		let saveAllArg: any;
-		if (!editorContext) {
+		if (!contexts.length) {
 			saveAllArg = true;
 		} else {
 			const fileService = accessor.get(IFileService);
-			const editorGroup = editorContext.group;
 			saveAllArg = [];
-			editorGroup.getEditors().forEach(editor => {
-				const resource = toResource(editor, { supportSideBySide: true });
-				if (resource && (resource.scheme === 'untitled' || fileService.canHandleResource(resource))) {
-					saveAllArg.push(resource);
-				}
+			contexts.forEach(context => {
+				const editorGroup = context.group;
+				editorGroup.getEditors().forEach(editor => {
+					const resource = toResource(editor, { supportSideBySide: true });
+					if (resource && (resource.scheme === 'untitled' || fileService.canHandleResource(resource))) {
+						saveAllArg.push(resource);
+					}
+				});
 			});
 		}
 
@@ -520,7 +528,7 @@ CommandsRegistry.registerCommand({
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const workspace = contextService.getWorkspace();
-		const resources = getResourcesForCommand(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService)).filter(r =>
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService)).filter(r =>
 			// Need to verify resources are workspaces since multi selection can trigger this command on some non workspace resources
 			workspace.folders.some(f => f.uri.toString() === r.toString())
 		);

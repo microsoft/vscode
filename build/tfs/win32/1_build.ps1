@@ -45,6 +45,10 @@ step "Build minified" {
   exec { & npm run gulp -- "vscode-win32-$global:arch-min" }
 }
 
+step "Copy Inno updater" {
+  exec { & npm run gulp -- "vscode-win32-$global:arch-copy-inno-updater" }
+}
+
 # step "Create loader snapshot" {
 #   exec { & 	node build\lib\snapshotLoader.js --arch=$global:arch }
 # }

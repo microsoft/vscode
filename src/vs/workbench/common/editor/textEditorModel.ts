@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EndOfLinePreference, ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
 import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
@@ -13,6 +13,7 @@ import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -90,7 +91,9 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this;
 	}
 
-	protected getFirstLineText(value: string | ITextBufferFactory): string {
+	protected getFirstLineText(value: string | ITextBufferFactory | ITextSnapshot): string {
+
+		// string
 		if (typeof value === 'string') {
 			const firstLineText = value.substr(0, 100);
 
@@ -105,9 +108,17 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 			}
 
 			return firstLineText.substr(0, Math.min(crIndex, lfIndex));
-		} else {
-			return value.getFirstLineText(100);
 		}
+
+		// text buffer factory
+		const textBufferFactory = value as ITextBufferFactory;
+		if (typeof textBufferFactory.getFirstLineText === 'function') {
+			return textBufferFactory.getFirstLineText(100);
+		}
+
+		// text snapshot
+		const textSnapshot = value as ITextSnapshot;
+		return this.getFirstLineText(textSnapshot.read() || '');
 	}
 
 	/**
@@ -130,13 +141,10 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		this.modelService.updateModel(this.textEditorModel, newValue);
 	}
 
-	/**
-	 * Returns the textual value of this editor model or null if it has not yet been created.
-	 */
-	public getValue(): string {
+	public createSnapshot(): ITextSnapshot {
 		const model = this.textEditorModel;
 		if (model) {
-			return model.getValue(EndOfLinePreference.TextDefined, true /* Preserve BOM */);
+			return model.createSnapshot(true /* Preserve BOM */);
 		}
 
 		return null;

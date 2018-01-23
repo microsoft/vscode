@@ -329,11 +329,11 @@ export function registerCodeLensProvider(languageId: string, provider: modes.Cod
  */
 export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
-		provideCodeActions: (model: model.ITextModel, range: Range, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]> => {
+		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]> => {
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
-			return provider.provideCodeActions(model, range, { markers }, token);
+			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
 		}
 	});
 }
@@ -401,6 +401,11 @@ export interface CodeActionContext {
 	 * @readonly
 	 */
 	readonly markers: IMarkerData[];
+
+	/**
+	 * Requested kind of actions to return.
+	 */
+	readonly only?: string;
 }
 
 /**

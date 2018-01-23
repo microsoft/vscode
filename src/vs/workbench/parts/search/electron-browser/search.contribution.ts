@@ -35,7 +35,6 @@ import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKe
 import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
-import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
 import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { OpenSymbolHandler } from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import { OpenAnythingHandler } from 'vs/workbench/parts/search/browser/openAnythingHandler';
@@ -50,7 +49,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { distinct } from 'vs/base/common/arrays';
-import { getResourcesForCommand } from 'vs/workbench/parts/files/browser/files';
+import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -193,7 +192,7 @@ CommandsRegistry.registerCommand({
 		const listService = accessor.get(IListService);
 		const viewletService = accessor.get(IViewletService);
 		const fileService = accessor.get(IFileService);
-		const resources = getResourcesForCommand(resource, listService, accessor.get(IWorkbenchEditorService));
+		const resources = getMultiSelectedResources(resource, listService, accessor.get(IWorkbenchEditorService));
 
 		return viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
 			if (resources && resources.length) {
@@ -370,10 +369,6 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		]
 	)
 );
-
-// Search output channel
-const outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
-outputChannelRegistry.registerChannel(Constants.SEARCH_OUTPUT_CHANNEL_ID, nls.localize('searchOutputChannelTitle', "Search"));
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

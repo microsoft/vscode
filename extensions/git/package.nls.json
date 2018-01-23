@@ -55,7 +55,7 @@
 	"config.enableLongCommitWarning": "Whether long commit messages should be warned about",
 	"config.confirmSync": "Confirm before synchronizing git repositories",
 	"config.countBadge": "Controls the git badge counter. `all` counts all changes. `tracked` counts only the tracked changes. `off` turns it off.",
-	"config.checkoutType": "Controls what type of branches are listed when running `Checkout to...`. `all` shows all refs, `local` shows only the local branchs, `tags` shows only tags and `remote` shows only remote branches.",
+	"config.checkoutType": "Controls what type of branches are listed when running `Checkout to...`. `all` shows all refs, `local` shows only the local branches, `tags` shows only tags and `remote` shows only remote branches.",
 	"config.ignoreLegacyWarning": "Ignores the legacy Git warning",
 	"config.ignoreMissingGitWarning": "Ignores the warning when Git is missing",
 	"config.ignoreLimitWarning": "Ignores the warning when there are too many changes in a repository",

@@ -417,8 +417,11 @@ export class ExtHostApiCommands {
 				} else {
 					const ret = new types.CodeAction(
 						codeAction.title,
-						typeConverters.WorkspaceEdit.to(codeAction.edit)
+						codeAction.kind ? new types.CodeActionKind(codeAction.kind) : undefined
 					);
+					if (codeAction.edit) {
+						ret.edit = typeConverters.WorkspaceEdit.to(codeAction.edit);
+					}
 					return ret;
 				}
 			});

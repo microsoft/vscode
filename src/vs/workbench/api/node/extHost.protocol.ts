@@ -48,7 +48,7 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
-import { IStat, IFileChange } from 'vs/platform/files/common/files';
+import { IStat, FileChangeType } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
@@ -366,12 +366,17 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
 }
 
+export interface IFileChangeDto {
+	resource: UriComponents;
+	type: FileChangeType;
+}
+
 export interface MainThreadFileSystemShape extends IDisposable {
 	$registerFileSystemProvider(handle: number, scheme: string): void;
 	$unregisterFileSystemProvider(handle: number): void;
 
 	$onDidAddFileSystemRoot(root: UriComponents): void;
-	$onFileSystemChange(handle: number, resource: IFileChange[]): void;
+	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 	$reportFileChunk(handle: number, session: number, chunk: number[] | null): void;
 
 	$handleFindMatch(handle: number, session, data: UriComponents | [UriComponents, ILineMatch]): void;
@@ -544,7 +549,7 @@ export interface ExtHostFileSystemShape {
 	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
 	$rmdir(handle: number, resource: UriComponents): TPromise<void>;
 	$findFiles(handle: number, session: number, query: string): TPromise<void>;
-	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, include: string, exclude: string): TPromise<void>;
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, options: { includes: string[], excludes: string[] }): TPromise<void>;
 }
 
 export interface ExtHostExtensionServiceShape {
@@ -634,6 +639,7 @@ export interface CodeActionDto {
 	edit?: WorkspaceEditDto;
 	diagnostics?: IMarkerData[];
 	command?: modes.Command;
+	scope?: string;
 }
 
 export interface ExtHostLanguageFeaturesShape {
@@ -646,7 +652,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideHover(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Hover>;
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DocumentHighlight[]>;
 	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext): TPromise<LocationDto[]>;
-	$provideCodeActions(handle: number, resource: UriComponents, range: IRange): TPromise<CodeActionDto[]>;
+	$provideCodeActions(handle: number, resource: UriComponents, range: IRange, context: modes.CodeActionContext): TPromise<CodeActionDto[]>;
 	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]>;
 	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]>;

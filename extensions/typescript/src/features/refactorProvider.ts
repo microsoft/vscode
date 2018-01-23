@@ -108,10 +108,14 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 	public async provideCodeActions(
 		document: vscode.TextDocument,
 		_range: vscode.Range,
-		_context: vscode.CodeActionContext,
+		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.CodeAction[]> {
 		if (!this.client.apiVersion.has240Features()) {
+			return [];
+		}
+
+		if (context.only && !vscode.CodeActionKind.Refactor.contains(context.only)) {
 			return [];
 		}
 
@@ -140,24 +144,22 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 			const actions: vscode.CodeAction[] = [];
 			for (const info of response.body) {
 				if (info.inlineable === false) {
-					actions.push({
+					const codeAction = new vscode.CodeAction(info.description, vscode.CodeActionKind.Refactor);
+					codeAction.command = {
 						title: info.description,
-						command: {
-							title: info.description,
-							command: SelectRefactorCommand.ID,
-							arguments: [document, file, info, range]
-						}
-					});
+						command: SelectRefactorCommand.ID,
+						arguments: [document, file, info, range]
+					};
+					actions.push(codeAction);
 				} else {
 					for (const action of info.actions) {
-						actions.push({
+						const codeAction = new vscode.CodeAction(action.description, TypeScriptRefactorProvider.getKind(action));
+						codeAction.command = {
 							title: action.description,
-							command: {
-								title: action.description,
-								command: ApplyRefactoringCommand.ID,
-								arguments: [document, file, info.name, action.name, range]
-							}
-						});
+							command: ApplyRefactoringCommand.ID,
+							arguments: [document, file, info.name, action.name, range]
+						};
+						actions.push(codeAction);
 					}
 				}
 			}
@@ -165,5 +167,12 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 		} catch {
 			return [];
 		}
+	}
+
+	private static getKind(refactor: Proto.RefactorActionInfo) {
+		if (refactor.name.startsWith('function_')) {
+			return vscode.CodeActionKind.RefactorExtract.append('function');
+		}
+		return vscode.CodeActionKind.Refactor;
 	}
 }

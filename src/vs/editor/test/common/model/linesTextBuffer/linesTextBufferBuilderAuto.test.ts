@@ -5,7 +5,7 @@
 'use strict';
 
 import { testModelBuilder } from './linesTextBufferBuilder.test';
-import { CharCode } from 'vs/base/common/charCode';
+import { getRandomInt, getRandomEOLSequence, getRandomString } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
 
 const GENERATE_TESTS = false;
 
@@ -20,30 +20,6 @@ suite('ModelBuilder Auto Tests', () => {
 	});
 
 });
-
-function getRandomInt(min: number, max: number): number {
-	return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function getRandomEOLSequence(): string {
-	let rnd = getRandomInt(1, 3);
-	if (rnd === 1) {
-		return '\n';
-	}
-	if (rnd === 2) {
-		return '\r';
-	}
-	return '\r\n';
-}
-
-function getRandomString(minLength: number, maxLength: number): string {
-	let length = getRandomInt(minLength, maxLength);
-	let r = '';
-	for (let i = 0; i < length; i++) {
-		r += String.fromCharCode(getRandomInt(CharCode.a, CharCode.z));
-	}
-	return r;
-}
 
 function generateRandomFile(): string {
 	let lineCount = getRandomInt(1, 10);
