@@ -222,6 +222,30 @@ export class CodeActionCommand extends EditorCommand {
 	}
 }
 
+
+export class RefactorAction extends EditorAction {
+
+	static readonly Id = 'editor.action.refactor';
+
+	constructor() {
+		super({
+			id: RefactorAction.Id,
+			label: nls.localize('refactor.label', "Refactor"),
+			alias: 'Refactor',
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider)
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const controller = QuickFixController.get(editor);
+		if (controller) {
+			controller.triggerCodeActionFromEditorSelection(CodeActionKind.Refactor, CodeActionAutoApply.Never);
+		}
+	}
+}
+
+
 registerEditorContribution(QuickFixController);
 registerEditorAction(QuickFixAction);
+registerEditorAction(RefactorAction);
 registerEditorCommand(new CodeActionCommand());

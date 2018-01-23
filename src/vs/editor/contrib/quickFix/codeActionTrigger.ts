@@ -9,6 +9,7 @@ export class CodeActionKind {
 	private static readonly sep = '.';
 
 	public static readonly Empty = new CodeActionKind('');
+	public static readonly Refactor = new CodeActionKind('refactor');
 
 	constructor(
 		public readonly value: string
