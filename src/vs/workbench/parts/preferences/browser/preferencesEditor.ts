@@ -285,9 +285,9 @@ export class PreferencesEditor extends BaseEditor {
 			if (count === 0) {
 				this.searchWidget.showMessage(nls.localize('noSettingsFound', "No Results"), count);
 			} else if (count === 1) {
-				this.searchWidget.showMessage(nls.localize('oneSettingFound', "1 Setting matched"), count);
+				this.searchWidget.showMessage(nls.localize('oneSettingFound', "1 Setting Found"), count);
 			} else {
-				this.searchWidget.showMessage(nls.localize('settingsFound', "{0} Settings matched", count), count);
+				this.searchWidget.showMessage(nls.localize('settingsFound', "{0} Settings Found", count), count);
 			}
 		} else {
 			this.searchWidget.showMessage(nls.localize('totalSettingsMessage', "Total {0} Settings", count), count);
