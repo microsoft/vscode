@@ -14,7 +14,7 @@ import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { loadMarkdownExtensions } from './markdownExtensions';
 import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
-import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './features/previewContentProvider';
+import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile, MarkdownPreviewWebviewManager } from './features/previewContentProvider';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -32,6 +32,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	loadMarkdownExtensions(contentProvider, engine);
 
+	const webviewManager = new MarkdownPreviewWebviewManager(contentProvider);
+	context.subscriptions.push(webviewManager);
+
 	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, new MDDocumentSymbolProvider(engine)));
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()));
 
@@ -39,8 +42,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
-	commandManager.register(new commands.ShowPreviewCommand(cspArbiter, telemetryReporter));
-	commandManager.register(new commands.ShowPreviewToSideCommand(cspArbiter, telemetryReporter));
+	commandManager.register(new commands.ShowPreviewCommand(webviewManager, telemetryReporter));
+	commandManager.register(new commands.ShowPreviewToSideCommand(webviewManager, telemetryReporter));
 	commandManager.register(new commands.ShowSourceCommand());
 	commandManager.register(new commands.RefreshPreviewCommand(contentProvider));
 	commandManager.register(new commands.RevealLineCommand(logger));
@@ -49,20 +52,6 @@ export function activate(context: vscode.ExtensionContext) {
 	commandManager.register(new commands.OnPreviewStyleLoadErrorCommand());
 	commandManager.register(new commands.DidClickCommand());
 	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
-
-	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
-		if (isMarkdownFile(document)) {
-			const uri = getMarkdownUri(document.uri);
-			contentProvider.update(uri);
-		}
-	}));
-
-	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
-		if (isMarkdownFile(event.document)) {
-			const uri = getMarkdownUri(event.document.uri);
-			contentProvider.update(uri);
-		}
-	}));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		logger.updateConfiguration();

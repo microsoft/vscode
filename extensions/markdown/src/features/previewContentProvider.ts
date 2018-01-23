@@ -164,7 +164,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	}
 
 	private getMediaPath(mediaFile: string): string {
-		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))).toString();
+		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))).with({ scheme: 'vscode-extension-resource' }).toString();
 	}
 
 	private fixHref(resource: vscode.Uri, href: string): string {
@@ -307,14 +307,73 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	private getCspForResource(resource: vscode.Uri, nonce: string): string {
 		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
 			case MarkdownPreviewSecurityLevel.AllowInsecureContent:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data:; font-src 'self' http: https: data:;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data: vscode-extension-resource:; font-src 'self' http: https: data:;">`;
 
 			case MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent:
 				return '';
 
 			case MarkdownPreviewSecurityLevel.Strict:
 			default:
-				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https: data:; media-src 'self' https: data:; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' https: data:; font-src 'self' https: data:;">`;
+				return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https: data:; media-src 'self' https: data:; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' https: data: vscode-extension-resource:; font-src 'self' https: data:;">`;
 		}
+	}
+}
+
+export class MarkdownPreviewWebviewManager {
+	private readonly webviews = new Map<string, vscode.Webview>();
+
+	private readonly disposables: vscode.Disposable[] = [];
+
+	public constructor(
+		private readonly contentProvider: MDDocumentContentProvider
+	) {
+		vscode.workspace.onDidSaveTextDocument(document => {
+			if (isMarkdownFile(document)) {
+				const uri = getMarkdownUri(document.uri);
+				this.contentProvider.update(uri);
+			}
+		}, null, this.disposables);
+
+		vscode.workspace.onDidChangeTextDocument(event => {
+			if (isMarkdownFile(event.document)) {
+				const webview = this.webviews.get(event.document.uri.fsPath);
+				if (webview) {
+					this.contentProvider.provideTextDocumentContent(getMarkdownUri(event.document.uri)).then(x => webview.html = x);
+				}
+			}
+		}, null, this.disposables);
+	}
+
+	public dispose(): void {
+		while (this.disposables.length) {
+			const item = this.disposables.pop();
+			if (item) {
+				item.dispose();
+			}
+		}
+		this.webviews.clear();
+	}
+
+	public update(uri: vscode.Uri) {
+		this.contentProvider.update(uri);
+	}
+
+	public create(
+		resource: vscode.Uri,
+		viewColumn: vscode.ViewColumn
+	) {
+		const view = vscode.window.createWebview(
+			localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath)),
+			viewColumn,
+			{ enableScripts: true });
+
+		this.contentProvider.provideTextDocumentContent(getMarkdownUri(resource)).then(x => view.html = x);
+
+		view.onMessage(e => {
+			vscode.commands.executeCommand(e.command, ...e.args);
+		});
+
+		this.webviews.set(resource.fsPath, view);
+		return view;
 	}
 }

@@ -39,6 +39,7 @@ export interface WebviewOptions {
 	allowScripts?: boolean;
 	allowSvgs?: boolean;
 	svgWhiteList?: string[];
+	enableWrappedPostMessage?: boolean;
 }
 
 export default class Webview {
@@ -49,6 +50,7 @@ export default class Webview {
 
 	private _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
 	private _onFoundInPageResults = new Emitter<FoundInPageResults>();
+	private _onMessage = new Emitter<any>();
 
 	private _webviewFindWidget: WebviewFindWidget;
 	private _findStarted: boolean = false;
@@ -103,6 +105,7 @@ export default class Webview {
 				const contents = this._webview.getWebContents();
 				if (contents && !contents.isDestroyed()) {
 					registerFileProtocol(contents, 'vscode-core-resource', [this._environmentService.appRoot]);
+					registerFileProtocol(contents, 'vscode-extension-resource', [this._environmentService.extensionsPath, this._environmentService.appRoot, this._environmentService.extensionDevelopmentPath]);
 				}
 			}));
 		}
@@ -157,6 +160,12 @@ export default class Webview {
 			}),
 			addDisposableListener(this._webview, 'ipc-message', (event) => {
 				switch (event.channel) {
+					case 'onmessage':
+						if (this._options.enableWrappedPostMessage && event.args && event.args.length) {
+							this._onMessage.fire(event.args[0]);
+						}
+						return;
+
 					case 'did-click-link':
 						let [uri] = event.args;
 						this._onDidClickLink.fire(URI.parse(uri));
@@ -233,6 +242,10 @@ export default class Webview {
 
 	get onFindResults(): Event<FoundInPageResults> {
 		return this._onFoundInPageResults.event;
+	}
+
+	get onMessage(): Event<any> {
+		return this._onMessage.event;
 	}
 
 	private _send(channel: string, ...args: any[]): void {
@@ -427,6 +440,7 @@ function registerFileProtocol(
 				callback({ path: normalizedPath });
 				return;
 			}
+
 		}
 		callback({ error: 'Cannot load resource outside of protocol root' });
 	}, (error) => {

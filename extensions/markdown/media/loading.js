@@ -31,6 +31,6 @@
 		window.parent.postMessage({
 			command: 'did-click-link',
 			data: `command:_markdown.onPreviewStyleLoadError?${encodeURIComponent(JSON.stringify(args))}`
-		}, 'file://');
+		}, '*');
 	});
 }());
