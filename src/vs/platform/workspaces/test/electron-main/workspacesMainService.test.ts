@@ -48,7 +48,7 @@ suite('WorkspacesMainService', () => {
 	}
 
 	const environmentService = new TestEnvironmentService(parseArgs(process.argv), process.execPath);
-	const logService = new ConsoleLogMainService(environmentService);
+	const logService = new ConsoleLogMainService();
 
 	let service: TestWorkspacesMainService;
 

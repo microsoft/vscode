@@ -10,7 +10,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/platform/extensions/common/extensionsRegistry';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { workspaceSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { workspaceSettingsSchemaId, launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
@@ -200,6 +200,12 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			default: {},
 			description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
 			$ref: workspaceSettingsSchemaId
+		},
+		'launch': {
+			type: 'object',
+			default: { configurations: [], compounds: [] },
+			description: nls.localize('workspaceConfig.launch.description', "Workspace launch configurations"),
+			$ref: launchSchemaId
 		},
 		'extensions': {
 			type: 'object',

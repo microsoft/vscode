@@ -1,102 +1,18 @@
 <!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
 <!DOCTYPE html>
 <html>
-	<head>
-		<meta charset="utf-8" />
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https: data:; media-src 'none'; child-src 'self'; object-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; font-src 'self' https:;">
-	</head>
-	<body>
-		<div id="issue-reporter">
 
-			<div class="input-group">
-				<label for="issue-type">I want to submit a</label>
-				<select id="issue-type" class="form-control">
-					<option value="0">Bug Report</option>
-					<option value="1">Performance Issue</option>
-					<option value="2">Feature Request</option>
-				</select>
-			</div>
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' https: data:; media-src 'none'; child-src 'self'; object-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; font-src 'self' https:;">
+	<style>body{display: none}</style>
+</head>
 
-			<div class="input-group">
-				<label for="issue-title">Title <span class="required-input">*</span></label>
-				<div id="issue-title-validation-error" class="validation-error hidden">Please enter a title.</div>
-				<input id="issue-title" type="text" required>
-				<small id="similar-issues">
-					<!-- To be dynamically filled -->
-				</small>
-			</div>
+<body aria-label="">
+	Issue Reporter
+</body>
 
-			<div class="input-group">
-				<div class="two-col">
-					<label for="vscode-version">VS Code Version <span class="required-input">*</span></label>
-					<input id="vscode-version" type="text" value="Loading..." disabled/>
-				</div>
-				<div class="two-col">
-					<label for="os">OS Version <span class="required-input">*</span></label>
-					<input id="os" type="text" value="Loading..." disabled/>
-				</div>
-			</div>
+<!-- Startup via issueReporter.js -->
+<script src="issueReporter.js"></script>
 
-			<div id="block-container">
-				<div class="block block-system">
-					<details>
-						<summary>My System Info
-							<input type="checkbox" id="includeSystemInfo" checked>
-								<label class="caption" for="includeSystemInfo">Send my data</label>
-							</input>
-						</summary>
-						<div class="block-info">
-							<!-- To be dynamically filled -->
-						</div>
-					</details>
-				</div>
-				<div class="block block-process">
-					<details>
-						<summary>Currently Running Processes
-							<input type="checkbox" id="includeProcessInfo" checked>
-								<label class="caption" for="includeProcessInfo">Send my data</label>
-							</input>
-						</summary>
-						<div class="block-info">
-							<!-- To be dynamically filled -->
-						</div>
-					</details>
-				</div>
-				<div class="block block-workspace">
-					<details>
-						<summary>My Workspace Stats
-							<input type="checkbox" id="includeWorkspaceInfo" checked>
-								<label class="caption" for="includeWorkspaceInfo">Send my data</label>
-							</input>
-						</summary>
-						<pre class="block-info">
-							<code>
-								<!-- To be dynamically filled -->
-							</code>
-						</pre>
-					</details>
-				</div>
-				<div class="block block-description">
-					<label class="block-title">
-						<!-- To be dynamically filled -->
-					</label>
-					<small class="block-subtitle">
-						<!-- To be dynamically filled -->
-					</small>
-					<div class="block-info-text">
-						<small>
-								We support GitHub-flavored Markdown.
-								You will still be able to edit your issue when we preview it on GitHub.
-							</small>
-						<div id="description-validation-error" class="validation-error hidden">Please enter a description.</div>
-						<textarea name="description" id="description" cols="100" rows="15" required></textarea>
-					</div>
-				</div>
-			</div>
-
-			<button id="github-submit-btn" disabled>Loading data...</button>
-		</div>
-	</body>
-
-	<script src="issueReporter.js"></script>
 </html>

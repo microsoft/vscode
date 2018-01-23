@@ -36,7 +36,7 @@ import { getBaseLabel } from 'vs/base/common/labels';
 import { IStateService } from 'vs/platform/state/common/state';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
@@ -196,7 +196,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(argv, process.execPath);
-	const logService = createSpdLogService('cli', environmentService);
+	const logService = createSpdLogService('cli', getLogLevel(environmentService), environmentService.logsPath);
 	process.once('exit', () => logService.dispose());
 
 	logService.info('main', argv);

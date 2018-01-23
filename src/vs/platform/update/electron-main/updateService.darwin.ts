@@ -36,10 +36,15 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		@ILogService logService: ILogService
 	) {
 		super(lifecycleService, configurationService, environmentService, logService);
-		this.onRawError(this.logService.error, this.logService, this.disposables);
+		this.onRawError(this.onError, this, this.disposables);
 		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
 		this.onRawUpdateDownloaded(this.onUpdateDownloaded, this, this.disposables);
 		this.onRawUpdateNotAvailable(this.onUpdateNotAvailable, this, this.disposables);
+	}
+
+	private onError(err: string): void {
+		this.logService.error('UpdateService error: ', err);
+		this.setState(State.Idle);
 	}
 
 	protected setUpdateFeedUrl(quality: string): boolean {
