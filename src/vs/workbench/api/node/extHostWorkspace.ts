@@ -7,15 +7,15 @@
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
-import { delta, distinct } from 'vs/base/common/arrays';
+import { delta } from 'vs/base/common/arrays';
 import { relative, dirname } from 'path';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
-import { basenameOrAuthority } from 'vs/base/common/resources';
 
 class Workspace2 extends Workspace {
 
@@ -92,12 +92,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		let validatedDistinctWorkspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[] = [];
 		if (Array.isArray(workspaceFoldersToAdd)) {
 			workspaceFoldersToAdd.forEach(folderToAdd => {
-				if (URI.isUri(folderToAdd.uri)) {
+				if (URI.isUri(folderToAdd.uri) && !validatedDistinctWorkspaceFoldersToAdd.some(f => isEqual(f.uri, folderToAdd.uri, !isLinux))) {
 					validatedDistinctWorkspaceFoldersToAdd.push(folderToAdd);
 				}
 			});
-
-			validatedDistinctWorkspaceFoldersToAdd = distinct(validatedDistinctWorkspaceFoldersToAdd, folder => isLinux ? folder.uri.toString() : folder.uri.toString().toLowerCase());
 		}
 
 		if (index < 0) {
