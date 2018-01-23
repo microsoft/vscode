@@ -12,9 +12,6 @@
 	cursor: text;
 	overflow: hidden;
 }
-.monaco-editor .cursors-layer > .cursor.secondary {
-	opacity: 0.6;
-}
 
 /* -- block-outline-style -- */
 .monaco-editor .cursors-layer.cursor-block-outline-style > .cursor {
