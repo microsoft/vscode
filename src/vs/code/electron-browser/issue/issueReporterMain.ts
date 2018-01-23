@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/issueReporter';
-import { shell, ipcRenderer, webFrame } from 'electron';
+import { shell, ipcRenderer, webFrame, remote } from 'electron';
 import { $ } from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browser';
 import product from 'vs/platform/node/product';
@@ -228,6 +228,15 @@ export class IssueReporter extends Disposable {
 		});
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
+
+		document.onkeydown = (e: KeyboardEvent) => {
+			if (e.shiftKey && e.keyCode === 13) {
+				// Close the window if the issue was successfully created
+				if (this.createIssue()) {
+					remote.getCurrentWindow().close();
+				}
+			}
+		};
 	}
 
 	private renderBlocks(): void {
@@ -294,7 +303,7 @@ export class IssueReporter extends Disposable {
 		return isValid;
 	}
 
-	private createIssue(): void {
+	private createIssue(): boolean {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
@@ -307,7 +316,8 @@ export class IssueReporter extends Disposable {
 			document.getElementById('description').addEventListener('input', (event) => {
 				this.validateInput('description');
 			});
-			return;
+
+			return false;
 		}
 
 		if (this.telemetryService) {
@@ -323,6 +333,7 @@ export class IssueReporter extends Disposable {
 		const baseUrl = `https://github.com/microsoft/vscode/issues/new?title=${issueTitle}&body=`;
 		const issueBody = this.issueReporterModel.serialize();
 		shell.openExternal(baseUrl + encodeURIComponent(issueBody));
+		return true;
 	}
 
 	/**
