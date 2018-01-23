@@ -241,7 +241,11 @@ class InlineImageView {
 	private static readonly SCALE_FACTOR = 1.5;
 	private static readonly MAX_SCALE = 20;
 	private static readonly MIN_SCALE = 0.1;
-	private static readonly PIXELATION_THRESHOLD = 64; // enable image-rendering: pixelated for images less than this
+
+	/**
+	 * Enable image-rendering: pixelated for images scaled by more than this.
+	 */
+	private static readonly PIXELATION_THRESHOLD = 3;
 
 	/**
 	 * Chrome is caching images very aggressively and so we use the ETag information to find out if
@@ -279,16 +283,17 @@ class InlineImageView {
 					img.removeClass('untouched');
 					updateScale(scale);
 				}
-				if (imgElement.naturalWidth < InlineImageView.PIXELATION_THRESHOLD
-					|| imgElement.naturalHeight < InlineImageView.PIXELATION_THRESHOLD) {
-					img.addClass('pixelated');
-				}
 				function setImageWidth(width) {
 					img.style('width', `${width}px`);
 					img.style('height', 'auto');
 				}
 				function updateScale(newScale) {
 					scale = clamp(newScale, InlineImageView.MIN_SCALE, InlineImageView.MAX_SCALE);
+					if (scale >= InlineImageView.PIXELATION_THRESHOLD) {
+						img.addClass('pixelated');
+					} else {
+						img.removeClass('pixelated');
+					}
 					setImageWidth(Math.floor(imgElement.naturalWidth * scale));
 					InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, scale);
 					scrollbar.scanDomNode();
