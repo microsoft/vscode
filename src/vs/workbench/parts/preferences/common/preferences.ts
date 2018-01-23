@@ -56,6 +56,11 @@ export interface ISetting {
 	overrideOf?: ISetting;
 }
 
+export interface IExtensionSetting extends ISetting {
+	extensionName: string;
+	extensionPublisher: string;
+}
+
 export interface ISearchResult {
 	filterMatches: ISettingMatch[];
 	metadata?: IFilterMetadata;
@@ -93,6 +98,8 @@ export interface IRemoteSetting {
 	defaultValue: string;
 	description: string;
 	packageId: string;
+	extensionName?: string;
+	extensionPublisher?: string;
 }
 
 export interface IFilterMetadata {

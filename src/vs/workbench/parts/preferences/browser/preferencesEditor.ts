@@ -366,7 +366,7 @@ class PreferencesRenderersController extends Disposable {
 	private _editablePreferencesRendererDisposables: IDisposable[] = [];
 
 	private _settingsNavigator: SettingsNavigator;
-	private _remoteFiltersInProgress: TPromise<any>[];
+	private _remoteFilterInProgress: TPromise<any>;
 
 	private _currentLocalSearchProvider: ISearchProvider;
 	private _currentRemoteSearchProvider: ISearchProvider;
@@ -427,21 +427,19 @@ class PreferencesRenderersController extends Disposable {
 	}
 
 	remoteSearchPreferences(query: string, updateCurrentResults?: boolean): TPromise<void> {
-		if (this._remoteFiltersInProgress) {
+		if (this._remoteFilterInProgress && this._remoteFilterInProgress.cancel) {
 			// Resolved/rejected promises have no .cancel()
-			this._remoteFiltersInProgress.forEach(p => p.cancel && p.cancel());
+			this._remoteFilterInProgress.cancel();
 		}
 
 		this._currentRemoteSearchProvider = (updateCurrentResults && this._currentRemoteSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query);
 		this._currentNewExtensionsSearchProvider = (updateCurrentResults && this._currentNewExtensionsSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query, true);
 
-		this._remoteFiltersInProgress = [
-			this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"), 1),
-			this.filterOrSearchPreferences(query, this._currentNewExtensionsSearchProvider, 'newExtensionsResult', nls.localize('newExtensionsResult', "Other Extension Results"), 2)
-		];
+		this._remoteFilterInProgress = this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"), 1)
+			.then(result => this.filterOrSearchPreferences(query, this._currentNewExtensionsSearchProvider, 'newExtensionsResult', nls.localize('newExtensionsResult', "Other Extension Results"), 2));
 
-		return TPromise.join(this._remoteFiltersInProgress).then(() => {
-			this._remoteFiltersInProgress = null;
+		return this._remoteFilterInProgress.then(() => {
+			this._remoteFilterInProgress = null;
 		}, err => {
 			if (isPromiseCanceledError(err)) {
 				return null;
@@ -456,13 +454,12 @@ class PreferencesRenderersController extends Disposable {
 		return this.filterOrSearchPreferences(query, this._currentLocalSearchProvider, 'filterResult', nls.localize('filterResult', "Filtered Results"), 0);
 	}
 
-	private filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, newExtensionsOnly?: boolean): TPromise<void> {
+	private filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number): TPromise<void> {
 		this._lastQuery = query;
 
-		const filterPs = [this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder)];
-		if (!newExtensionsOnly) {
-			filterPs.push(this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder));
-		}
+		const filterPs = [
+			this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder),
+			this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder)];
 
 		return TPromise.join(filterPs).then(results => {
 			const [defaultFilterResult, editableFilterResult] = results;

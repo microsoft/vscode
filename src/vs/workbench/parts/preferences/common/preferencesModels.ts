@@ -41,12 +41,14 @@ export abstract class AbstractSettingsModel extends EditorModel {
 	 * Remove duplicates between result groups, preferring results in earlier groups
 	 */
 	private removeDuplicateResults(): void {
-		// Depends on order of map keys
 		const settingKeys = new Set<string>();
-		this._currentResultGroups.forEach((group, id) => {
-			group.result.filterMatches = group.result.filterMatches.filter(s => !settingKeys.has(s.setting.key));
-			group.result.filterMatches.forEach(s => settingKeys.add(s.setting.key));
-		});
+		map.keys(this._currentResultGroups)
+			.sort((a, b) => this._currentResultGroups.get(a).order - this._currentResultGroups.get(b).order)
+			.forEach(groupId => {
+				const group = this._currentResultGroups.get(groupId);
+				group.result.filterMatches = group.result.filterMatches.filter(s => !settingKeys.has(s.setting.key));
+				group.result.filterMatches.forEach(s => settingKeys.add(s.setting.key));
+			});
 	}
 
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[] {
@@ -61,7 +63,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 
 					if (groupMatched || settingMatchResult) {
 						filterMatches.push({
-							setting,
+							setting: this.copySetting(setting),
 							matches: settingMatchResult && settingMatchResult.matches,
 							score: settingMatchResult ? settingMatchResult.score : 0
 						});
@@ -85,6 +87,21 @@ export abstract class AbstractSettingsModel extends EditorModel {
 		}
 		return null;
 	}
+
+	private copySetting(setting: ISetting): ISetting {
+		return <ISetting>{
+			description: setting.description,
+			descriptionRanges: setting.descriptionRanges,
+			key: setting.key,
+			keyRange: setting.keyRange,
+			value: setting.value,
+			range: setting.range,
+			valueRange: setting.valueRange,
+			overrides: [],
+			overrideOf: setting.overrideOf
+		};
+	}
+
 
 	protected get filterGroups(): ISettingsGroup[] {
 		return this.settingsGroups;
@@ -720,19 +737,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return null;
 	}
 
-	private copySettings(settings: ISetting[]): ISetting[] {
-		return settings.map(setting => {
-			return <ISetting>{
-				description: setting.description,
-				key: setting.key,
-				value: setting.value,
-				range: null,
-				valueRange: null,
-				overrides: []
-			};
-		});
-	}
-
 	private getGroup(resultGroup: ISearchResultGroup): ISettingsGroup {
 		return <ISettingsGroup>{
 			id: resultGroup.id,
@@ -741,7 +745,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			titleRange: null,
 			sections: [
 				{
-					settings: this.copySettings(resultGroup.result.filterMatches.map(m => m.setting))
+					settings: resultGroup.result.filterMatches.map(m => m.setting)
 				}
 			]
 		};

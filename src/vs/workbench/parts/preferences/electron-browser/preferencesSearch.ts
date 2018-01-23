@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider, IGroupFilter, ISettingMatcher, IScoredResults, ISettingMatch, IRemoteSetting } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, ISearchResult, ISearchProvider, IGroupFilter, ISettingMatcher, IScoredResults, ISettingMatch, IRemoteSetting, IExtensionSetting } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct, top } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -198,13 +198,23 @@ export class RemoteSearchProvider implements ISearchProvider {
 						const key = JSON.parse(r.setting || r.Setting);
 						const packageId = r['packageid'];
 						const id = getSettingKey(packageId, key);
+
+						const packageName = r['packagename'];
+						let extensionName: string;
+						let extensionPublisher: string;
+						if (packageName.indexOf('##') >= 0) {
+							[extensionPublisher, extensionName] = packageName.split('##');
+						}
+
 						return <IRemoteSetting>{
 							key,
 							id,
 							defaultValue: r['value'],
 							score: r['@search.score'],
 							description: JSON.parse(r['details']),
-							packageId
+							packageId,
+							extensionName,
+							extensionPublisher
 						};
 					});
 
@@ -319,7 +329,7 @@ function escapeSpecialChars(query: string): string {
 		.trim();
 }
 
-function remoteSettingToISetting(remoteSetting: IRemoteSetting): ISetting {
+function remoteSettingToISetting(remoteSetting: IRemoteSetting): IExtensionSetting {
 	return {
 		description: remoteSetting.description.split('\n'),
 		descriptionRanges: null,
@@ -328,7 +338,9 @@ function remoteSettingToISetting(remoteSetting: IRemoteSetting): ISetting {
 		value: remoteSetting.defaultValue,
 		range: null,
 		valueRange: null,
-		overrides: []
+		overrides: [],
+		extensionName: remoteSetting.extensionName,
+		extensionPublisher: remoteSetting.extensionPublisher
 	};
 }
 
