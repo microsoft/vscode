@@ -72,7 +72,22 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			}
 		}
 
-		return filterMatches.sort((a, b) => b.score - a.score);
+		return filterMatches
+			.sort((a, b) => b.score - a.score)
+			.map(filteredMatch => {
+				// Fix match ranges to offset from setting start line
+				return <ISettingMatch>{
+					setting: filteredMatch.setting,
+					score: filteredMatch.score,
+					matches: filteredMatch.matches && filteredMatch.matches.map(match => {
+						return new Range(
+							match.startLineNumber - filteredMatch.setting.range.startLineNumber,
+							match.startColumn,
+							match.endLineNumber - filteredMatch.setting.range.startLineNumber,
+							match.endColumn);
+					})
+				};
+			});
 	}
 
 	public getPreference(key: string): ISetting {
@@ -91,12 +106,9 @@ export abstract class AbstractSettingsModel extends EditorModel {
 	private copySetting(setting: ISetting): ISetting {
 		return <ISetting>{
 			description: setting.description,
-			descriptionRanges: setting.descriptionRanges,
 			key: setting.key,
-			keyRange: setting.keyRange,
 			value: setting.value,
 			range: setting.range,
-			valueRange: setting.valueRange,
 			overrides: [],
 			overrideOf: setting.overrideOf
 		};
@@ -684,21 +696,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private writeSettingsGroupToBuilder(builder: SettingsContentBuilder, settingsGroup: ISettingsGroup, filterMatches: ISettingMatch[]): IRange[] {
-		// Fix match ranges to offset from setting start line
-		filterMatches = filterMatches.map(filteredMatch => {
-			return <ISettingMatch>{
-				setting: filteredMatch.setting,
-				score: filteredMatch.score,
-				matches: filteredMatch.matches && filteredMatch.matches.map(match => {
-					return new Range(
-						match.startLineNumber - filteredMatch.setting.range.startLineNumber,
-						match.startColumn,
-						match.endLineNumber - filteredMatch.setting.range.startLineNumber,
-						match.endColumn);
-				})
-			};
-		});
-
 		builder.pushGroup(settingsGroup);
 		builder.pushLine(',');
 
