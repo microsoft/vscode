@@ -55,9 +55,9 @@ export default (): string => `
 		</div>
 		<div class="block block-process">
 			<details>
-				<summary>${escape(localize('processes', "Currently Running Processes"))}Currently Running Processes
+				<summary>${escape(localize('processes', "Currently Running Processes"))}
 					<input type="checkbox" id="includeProcessInfo" checked>
-						<label class="caption" for="includeProcessInfo">${escape(localize('sendData', "Send my data"))}/label>
+						<label class="caption" for="includeProcessInfo">${escape(localize('sendData', "Send my data"))}</label>
 					</input>
 				</summary>
 				<div class="block-info">
