@@ -172,7 +172,8 @@ export class Win32UpdateService extends AbstractUpdateService {
 			return pfs.writeFile(this.availableUpdate.updateFilePath, 'flag').then(() => {
 				const child = spawn(this.availableUpdate.packagePath, ['/verysilent', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 					detached: true,
-					stdio: ['ignore', 'ignore', 'ignore']
+					stdio: ['ignore', 'ignore', 'ignore'],
+					windowsVerbatimArguments: true
 				});
 
 				child.once('exit', () => {
