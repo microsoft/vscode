@@ -268,74 +268,6 @@ var Limiter = /** @class */ (function () {
     return Limiter;
 }());
 exports.Limiter = Limiter;
-var iso639_3_to_2 = {
-    'chs': 'zh-cn',
-    'cht': 'zh-tw',
-    'csy': 'cs-cz',
-    'deu': 'de',
-    'enu': 'en',
-    'esn': 'es',
-    'fra': 'fr',
-    'hun': 'hu',
-    'ita': 'it',
-    'jpn': 'ja',
-    'kor': 'ko',
-    'nld': 'nl',
-    'plk': 'pl',
-    'ptb': 'pt-br',
-    'ptg': 'pt',
-    'rus': 'ru',
-    'sve': 'sv-se',
-    'trk': 'tr'
-};
-/**
- * Used to map Transifex to VS Code language code representation.
- */
-var iso639_2_to_3 = {
-    'zh-hans': 'chs',
-    'zh-hant': 'cht',
-    'cs-cz': 'csy',
-    'de': 'deu',
-    'en': 'enu',
-    'es': 'esn',
-    'fr': 'fra',
-    'hu': 'hun',
-    'it': 'ita',
-    'ja': 'jpn',
-    'ko': 'kor',
-    'nl': 'nld',
-    'pl': 'plk',
-    'pt-br': 'ptb',
-    'pt': 'ptg',
-    'ru': 'rus',
-    'sv-se': 'sve',
-    'tr': 'trk'
-};
-function sortLanguages(directoryNames) {
-    return directoryNames.map(function (dirName) {
-        var lower = dirName.toLowerCase();
-        return {
-            name: lower,
-            iso639_2: iso639_3_to_2[lower]
-        };
-    }).sort(function (a, b) {
-        if (!a.iso639_2 && !b.iso639_2) {
-            return 0;
-        }
-        if (!a.iso639_2) {
-            return -1;
-        }
-        if (!b.iso639_2) {
-            return 1;
-        }
-    };
-    Limiter.prototype.consumed = function () {
-        this.runningPromises--;
-        this.consume();
-    };
-    return Limiter;
-}());
-exports.Limiter = Limiter;
 function sortLanguages(languages) {
     return languages.sort(function (a, b) {
         return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
@@ -926,7 +858,6 @@ function pullXlfFiles(apiHostname, username, password, language, resources) {
         callback();
     });
 }
-exports.pullXlfFiles = pullXlfFiles;
 var limiter = new Limiter(NUMBER_OF_CONCURRENT_DOWNLOADS);
 function retrieveResource(language, resource, apiHostname, credentials) {
     return limiter.queue(function () { return new Promise(function (resolve, reject) {
@@ -945,8 +876,7 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             res.on('data', function (chunk) { return xlfBuffer.push(chunk); });
             res.on('end', function () {
                 if (res.statusCode === 200) {
-                    console.log('success: ' + options.path);
-                    resolve(new File({ contents: Buffer.concat(xlfBuffer), path: project + "/" + iso639_2_to_3[language] + "/" + slug + ".xlf" }));
+                    resolve(new File({ contents: Buffer.concat(xlfBuffer), path: project + "/" + slug + ".xlf" }));
                 }
                 reject(slug + " in " + project + " returned no data. Response code: " + res.statusCode + ".");
             });
@@ -955,7 +885,6 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             reject("Failed to query resource " + slug + " with the following error: " + err + ". " + options.path);
         });
         request.end();
-        console.log('started: ' + options.path);
     }); });
 }
 function prepareI18nFiles() {
