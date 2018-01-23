@@ -156,6 +156,7 @@ export class ResourceViewer {
 
 class ImageView {
 	private static readonly MAX_IMAGE_SIZE = BinarySize.MB; // showing images inline is memory intense, so we have a limit
+	private static readonly BASE64_MARKER = 'base64,';
 
 	public static create(
 		container: Builder,
@@ -177,9 +178,8 @@ class ImageView {
 
 		// Data URI
 		if (descriptor.resource.scheme === Schemas.data) {
-			const BASE64_MARKER = 'base64,';
-			const base64MarkerIndex = descriptor.resource.path.indexOf(BASE64_MARKER);
-			const hasData = base64MarkerIndex >= 0 && descriptor.resource.path.substring(base64MarkerIndex + BASE64_MARKER.length).length > 0;
+			const base64MarkerIndex = descriptor.resource.path.indexOf(ImageView.BASE64_MARKER);
+			const hasData = base64MarkerIndex >= 0 && descriptor.resource.path.substring(base64MarkerIndex + ImageView.BASE64_MARKER.length).length > 0;
 
 			skipInlineImage = !hasData || descriptor.size > ImageView.MAX_IMAGE_SIZE || descriptor.resource.path.length > ImageView.MAX_IMAGE_SIZE;
 		}
