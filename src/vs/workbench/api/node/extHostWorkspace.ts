@@ -7,13 +7,15 @@
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
-import { delta } from 'vs/base/common/arrays';
+import { delta, distinct } from 'vs/base/common/arrays';
 import { relative, dirname } from 'path';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { isLinux } from 'vs/base/common/platform';
+import { basenameOrAuthority } from 'vs/base/common/resources';
 
 class Workspace2 extends Workspace {
 
@@ -87,7 +89,38 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	}
 
 	updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[]): Thenable<boolean> {
-		return this._proxy.$updateWorkspaceFolders(extensionName, index, deleteCount, ...workspaceFoldersToAdd);
+		let validatedDistinctWorkspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[] = [];
+		if (Array.isArray(workspaceFoldersToAdd)) {
+			workspaceFoldersToAdd.forEach(folderToAdd => {
+				if (URI.isUri(folderToAdd.uri)) {
+					validatedDistinctWorkspaceFoldersToAdd.push(folderToAdd);
+				}
+			});
+
+			validatedDistinctWorkspaceFoldersToAdd = distinct(validatedDistinctWorkspaceFoldersToAdd, folder => isLinux ? folder.uri.toString() : folder.uri.toString().toLowerCase());
+		}
+
+		if (index < 0) {
+			return Promise.resolve(false); // index has to be at least 0
+		}
+
+		if (deleteCount <= 0 && validatedDistinctWorkspaceFoldersToAdd.length === 0) {
+			return Promise.resolve(false); // nothing to delete or add
+		}
+
+		const currentWorkspaceFolders: vscode.WorkspaceFolder[] = this._workspace ? this._workspace.workspaceFolders : [];
+		if (index + deleteCount > currentWorkspaceFolders.length) {
+			return Promise.resolve(false); // cannot delete more than we have
+		}
+
+		const newWorkspaceFolders = currentWorkspaceFolders.slice(0);
+		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map((f, index) => ({ uri: f.uri, name: f.name || basenameOrAuthority(f.uri), index })));
+		const { added, removed } = delta(currentWorkspaceFolders, newWorkspaceFolders, ExtHostWorkspace._compareWorkspaceFolderByUriAndName);
+		if (added.length === 0 && removed.length === 0) {
+			return Promise.resolve(false); // nothing actually changed
+		}
+
+		return this._proxy.$updateWorkspaceFolders(extensionName, index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd);
 	}
 
 	getWorkspaceFolder(uri: vscode.Uri, resolveParent?: boolean): vscode.WorkspaceFolder {
@@ -149,20 +182,24 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		// keep old workspace folder, build new workspace, and
 		// capture new workspace folders. Compute delta between
 		// them send that as event
-		const oldRoots = this._workspace ? this._workspace.workspaceFolders.sort(ExtHostWorkspace._compareWorkspaceFolder) : [];
+		const oldRoots = this._workspace ? this._workspace.workspaceFolders.sort(ExtHostWorkspace._compareWorkspaceFolderByUri) : [];
 
 		this._workspace = Workspace2.fromData(data);
-		const newRoots = this._workspace ? this._workspace.workspaceFolders.sort(ExtHostWorkspace._compareWorkspaceFolder) : [];
+		const newRoots = this._workspace ? this._workspace.workspaceFolders.sort(ExtHostWorkspace._compareWorkspaceFolderByUri) : [];
 
-		const { added, removed } = delta(oldRoots, newRoots, ExtHostWorkspace._compareWorkspaceFolder);
+		const { added, removed } = delta(oldRoots, newRoots, ExtHostWorkspace._compareWorkspaceFolderByUri);
 		this._onDidChangeWorkspace.fire(Object.freeze({
 			added: Object.freeze<vscode.WorkspaceFolder[]>(added),
 			removed: Object.freeze<vscode.WorkspaceFolder[]>(removed)
 		}));
 	}
 
-	private static _compareWorkspaceFolder(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder): number {
+	private static _compareWorkspaceFolderByUri(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder, includeName?: boolean): number {
 		return compare(a.uri.toString(), b.uri.toString());
+	}
+
+	private static _compareWorkspaceFolderByUriAndName(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder): number {
+		return compare(a.uri.toString(), b.uri.toString()) + compare(a.name, b.name);
 	}
 
 	// --- search ---
