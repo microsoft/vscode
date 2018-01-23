@@ -23,7 +23,7 @@ export interface ICommandAction {
 	id: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
-	iconPath?: string | { light: string; dark: string; };
+	iconPath?: { dark: string; light?: string; };
 	precondition?: ContextKeyExpr;
 }
 

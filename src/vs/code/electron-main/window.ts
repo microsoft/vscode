@@ -953,7 +953,7 @@ export class CodeWindow implements ICodeWindow {
 		const segments: ITouchBarSegment[] = items.map(item => {
 			let icon: Electron.NativeImage;
 			if (item.iconPath) {
-				icon = nativeImage.createFromPath(typeof item.iconPath === 'string' ? item.iconPath : item.iconPath.dark);
+				icon = nativeImage.createFromPath(item.iconPath.dark);
 				if (icon.isEmpty()) {
 					icon = void 0;
 				}

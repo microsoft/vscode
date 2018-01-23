@@ -286,10 +286,10 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 
 		const { icon, category, title, command } = userFriendlyCommand;
 
-		let absoluteIcon: string | { light: string; dark: string; };
+		let absoluteIcon: { dark: string; light?: string; };
 		if (icon) {
 			if (typeof icon === 'string') {
-				absoluteIcon = join(extension.description.extensionFolderPath, icon);
+				absoluteIcon = { dark: join(extension.description.extensionFolderPath, icon) };
 			} else {
 				absoluteIcon = {
 					dark: join(extension.description.extensionFolderPath, icon.dark),

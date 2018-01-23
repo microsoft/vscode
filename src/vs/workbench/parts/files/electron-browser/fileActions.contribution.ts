@@ -125,7 +125,7 @@ appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges',
 	dark: URI.parse(require.toUrl(`vs/workbench/parts/files/electron-browser/media/undo-inverse.svg`)).fsPath
 }, -9, revertLocalChangesCommand);
 
-function appendSaveConflictEditorTitleAction(id: string, title: string, iconPath: { dark: string; light: string; }, order: number, command: ICommandHandler): void {
+function appendSaveConflictEditorTitleAction(id: string, title: string, iconPath: { dark: string; light?: string; }, order: number, command: ICommandHandler): void {
 
 	// Command
 	CommandsRegistry.registerCommand(id, command);

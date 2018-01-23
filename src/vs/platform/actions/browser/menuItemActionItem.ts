@@ -127,12 +127,12 @@ export class MenuItemActionItem extends ActionItem {
 	private _itemClassDispose: IDisposable;
 
 	constructor(
-		private action: MenuItemAction,
+		public _action: MenuItemAction,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService protected _messageService: IMessageService,
 		@IContextMenuService private _contextMenuService: IContextMenuService
 	) {
-		super(undefined, action, { icon: !!(action.class || action.item.iconPath), label: !action.class && !action.item.iconPath });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.iconPath), label: !_action.class && !_action.item.iconPath });
 	}
 
 	protected get _commandAction(): IAction {
@@ -150,7 +150,7 @@ export class MenuItemActionItem extends ActionItem {
 	render(container: HTMLElement): void {
 		super.render(container);
 
-		this._updateItemClass(this.action.item);
+		this._updateItemClass(this._action.item);
 
 		let mouseOver = false;
 		let altDown = false;
@@ -200,9 +200,9 @@ export class MenuItemActionItem extends ActionItem {
 	_updateClass(): void {
 		if (this.options.icon) {
 			if (this._commandAction !== this._action) {
-				this._updateItemClass(this.action.alt.item);
+				this._updateItemClass(this._action.alt.item);
 			} else if ((<MenuItemAction>this._action).alt) {
-				this._updateItemClass(this.action.item);
+				this._updateItemClass(this._action.item);
 			}
 		}
 	}
@@ -213,23 +213,14 @@ export class MenuItemActionItem extends ActionItem {
 
 		if (item.iconPath) {
 			let iconClass: string;
-			if (typeof item.iconPath === 'string') {
-				if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(item.iconPath)) {
-					iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(item.iconPath);
-				} else {
-					iconClass = ids.nextId();
-					createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath).toString()}")`);
-					MenuItemActionItem.ICON_PATH_TO_CSS_RULES.set(item.iconPath, iconClass);
-				}
+
+			if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(item.iconPath.dark)) {
+				iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(item.iconPath.dark);
 			} else {
-				if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(item.iconPath.dark)) {
-					iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(item.iconPath.dark);
-				} else {
-					iconClass = ids.nextId();
-					createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath.light).toString()}")`);
-					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath.dark).toString()}")`);
-					MenuItemActionItem.ICON_PATH_TO_CSS_RULES.set(item.iconPath.dark, iconClass);
-				}
+				iconClass = ids.nextId();
+				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath.light || item.iconPath.dark).toString()}")`);
+				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath.dark).toString()}")`);
+				MenuItemActionItem.ICON_PATH_TO_CSS_RULES.set(item.iconPath.dark, iconClass);
 			}
 
 			this.$e.getHTMLElement().classList.add('icon', iconClass);
