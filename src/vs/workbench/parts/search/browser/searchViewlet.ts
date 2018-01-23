@@ -54,7 +54,6 @@ import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
-import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
@@ -120,8 +119,7 @@ export class SearchViewlet extends Viewlet {
 		@IReplaceService private replaceService: IReplaceService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IThemeService protected themeService: IThemeService,
-		@IOutputService private outputService: IOutputService
+		@IThemeService protected themeService: IThemeService
 	) {
 		super(Constants.VIEWLET_ID, telemetryService, themeService);
 
@@ -1071,12 +1069,7 @@ export class SearchViewlet extends Viewlet {
 		this.showEmptyStage();
 
 		let isDone = false;
-		const outputChannel = this.outputService.getChannel(Constants.SEARCH_OUTPUT_CHANNEL_ID);
 		let onComplete = (completed?: ISearchComplete) => {
-			if (query.useRipgrep) {
-				outputChannel.append('\n');
-			}
-
 			isDone = true;
 
 			// Complete up to 100% as needed
@@ -1205,10 +1198,6 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		let onError = (e: any) => {
-			if (query.useRipgrep) {
-				outputChannel.append('\n');
-			}
-
 			if (errors.isPromiseCanceledError(e)) {
 				onComplete(null);
 			} else {
@@ -1229,10 +1218,6 @@ export class SearchViewlet extends Viewlet {
 			}
 			if (p.worked) {
 				worked = p.worked;
-			}
-
-			if (p.message) {
-				outputChannel.append(p.message);
 			}
 		};
 

@@ -53,7 +53,6 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { Color } from 'vs/base/common/color';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import URI from 'vs/base/common/uri';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -64,11 +63,8 @@ export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED = new 
 /**  A context key that is set when the find widget find input in extension editor webview is not focused. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
-function renderBody(
-	body: string,
-	environmentService: IEnvironmentService
-): string {
-	const styleSheetPath = require.toUrl('./media/markdown.css').replace(URI.file(environmentService.appRoot).toString(true), 'vscode-core-resource://');
+function renderBody(body: string): string {
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>
@@ -415,7 +411,7 @@ export class ExtensionEditor extends BaseEditor {
 	private openMarkdown(content: TPromise<string>, noContentCopy: string) {
 		return this.loadContents(() => content
 			.then(marked.parse)
-			.then(content => renderBody(content, this.environmentService))
+			.then(renderBody)
 			.then(removeEmbeddedSVGs)
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;

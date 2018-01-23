@@ -1038,6 +1038,56 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			});
 	});
 
+	test('get launch configuration', () => {
+		const expectedLaunchConfiguration = {
+			'version': '0.1.0',
+			'configurations': [
+				{
+					'type': 'node',
+					'request': 'launch',
+					'name': 'Gulp Build',
+					'program': '${workspaceFolder}/node_modules/gulp/bin/gulp.js',
+					'stopOnEntry': true,
+					'args': [
+						'watch-extension:json-client'
+					],
+					'cwd': '${workspaceFolder}'
+				}
+			]
+		};
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'launch', value: expectedLaunchConfiguration }, true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				const actual = testObject.getValue('launch');
+				assert.deepEqual(actual, expectedLaunchConfiguration);
+			});
+	});
+
+	test('inspect launch configuration', () => {
+		const expectedLaunchConfiguration = {
+			'version': '0.1.0',
+			'configurations': [
+				{
+					'type': 'node',
+					'request': 'launch',
+					'name': 'Gulp Build',
+					'program': '${workspaceFolder}/node_modules/gulp/bin/gulp.js',
+					'stopOnEntry': true,
+					'args': [
+						'watch-extension:json-client'
+					],
+					'cwd': '${workspaceFolder}'
+				}
+			]
+		};
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'launch', value: expectedLaunchConfiguration }, true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				const actual = testObject.inspect('launch').workspace;
+				assert.deepEqual(actual, expectedLaunchConfiguration);
+			});
+	});
+
 	test('update user configuration', () => {
 		return testObject.updateValue('configurationService.workspace.testSetting', 'userValue', ConfigurationTarget.USER)
 			.then(() => assert.equal(testObject.getValue('configurationService.workspace.testSetting'), 'userValue'));
@@ -1088,10 +1138,10 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET));
 	});
 
-	test('update launch configuration in a workspace is not supported', () => {
+	test('update launch configuration in a workspace', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		return testObject.updateValue('launch', { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
-			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET));
+			.then(() => assert.deepEqual(testObject.getValue('launch'), { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }));
 	});
 
 	test('task configurations are not read from workspace', () => {
@@ -1099,15 +1149,6 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			.then(() => testObject.reloadConfiguration())
 			.then(() => {
 				const actual = testObject.inspect('tasks.version');
-				assert.equal(actual.workspace, void 0);
-			});
-	});
-
-	test('launch configurations are not read from workspace', () => {
-		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'launch', value: { 'version': '1.0' } }, true)
-			.then(() => testObject.reloadConfiguration())
-			.then(() => {
-				const actual = testObject.inspect('launch.version');
 				assert.equal(actual.workspace, void 0);
 			});
 	});

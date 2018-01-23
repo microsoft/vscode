@@ -342,7 +342,7 @@ export class FileController extends DefaultController implements IDisposable {
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ });
 
-		this.useAltAsMultiSelectModifier = configurationService.getValue(multiSelectModifierSettingKey);
+		this.useAltAsMultiSelectModifier = configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
 		this.toDispose = [];
 
 		this.registerListeners();
@@ -351,7 +351,7 @@ export class FileController extends DefaultController implements IDisposable {
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-				this.useAltAsMultiSelectModifier = this.configurationService.getValue(multiSelectModifierSettingKey);
+				this.useAltAsMultiSelectModifier = this.configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
 			}
 		}));
 	}
@@ -968,7 +968,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 				const model = this.textFileService.models.get(d);
 
-				return this.backupFileService.backupResource(moved, model.getValue(), model.getVersionId());
+				return this.backupFileService.backupResource(moved, model.createSnapshot(), model.getVersionId());
 			}))
 
 				// 2. soft revert all dirty since we have backed up their contents

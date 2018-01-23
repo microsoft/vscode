@@ -10,7 +10,6 @@
 	"saveAs": "Guardar como...",
 	"save": "Guardar",
 	"saveAll": "Guardar todos",
-	"saveFiles": "Guardar todos los archivos",
 	"removeFolderFromWorkspace": "Quitar carpeta del área de trabajo",
 	"modifiedLabel": "{0} (en el disco) ↔ {1}",
 	"openFileToReveal": "Abrir un archivo antes para mostrarlo",

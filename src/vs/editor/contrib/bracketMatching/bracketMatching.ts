@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
@@ -22,7 +22,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
 
-class SelectBracketAction extends EditorAction {
+class JumpToBracketAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.jumpToBracket',
@@ -42,6 +42,25 @@ class SelectBracketAction extends EditorAction {
 			return;
 		}
 		controller.jumpToBracket();
+	}
+}
+
+class SelectToBracketAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.selectToBracket',
+			label: nls.localize('smartSelect.selectToBracket', "Select to Bracket"),
+			alias: 'Select to Bracket',
+			precondition: null
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let controller = BracketMatchingController.get(editor);
+		if (!controller) {
+			return;
+		}
+		controller.selectToBracket();
 	}
 }
 
@@ -149,6 +168,50 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._editor.revealRange(newSelections[0]);
 	}
 
+	public selectToBracket(): void {
+		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+		const selection = this._editor.getSelection();
+		if (!selection.isEmpty()) {
+			return;
+		}
+
+		const position = selection.getStartPosition();
+
+		let brackets = model.matchBracket(position);
+
+		let openBracket: Position = null;
+		let closeBracket: Position = null;
+
+		if (!brackets) {
+			const nextBracket = model.findNextBracket(position);
+			if (nextBracket && nextBracket.range) {
+				brackets = model.matchBracket(nextBracket.range.getStartPosition());
+			}
+		}
+
+		if (brackets) {
+			if (brackets[0].startLineNumber === brackets[1].startLineNumber) {
+				openBracket = brackets[1].startColumn < brackets[0].startColumn ?
+					brackets[1].getStartPosition() : brackets[0].getStartPosition();
+				closeBracket = brackets[1].startColumn < brackets[0].startColumn ?
+					brackets[0].getEndPosition() : brackets[1].getEndPosition();
+			} else {
+				openBracket = brackets[1].startLineNumber < brackets[0].startLineNumber ?
+					brackets[1].getStartPosition() : brackets[0].getStartPosition();
+				closeBracket = brackets[1].startLineNumber < brackets[0].startLineNumber ?
+					brackets[0].getEndPosition() : brackets[1].getEndPosition();
+			}
+		}
+
+		if (openBracket && closeBracket) {
+			this._editor.setSelection(new Range(openBracket.lineNumber, openBracket.column, closeBracket.lineNumber, closeBracket.column));
+		}
+	}
+
+
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match'
@@ -228,7 +291,8 @@ export class BracketMatchingController extends Disposable implements editorCommo
 }
 
 registerEditorContribution(BracketMatchingController);
-registerEditorAction(SelectBracketAction);
+registerEditorAction(SelectToBracketAction);
+registerEditorAction(JumpToBracketAction);
 registerThemingParticipant((theme, collector) => {
 	let bracketMatchBackground = theme.getColor(editorBracketMatchBackground);
 	if (bracketMatchBackground) {

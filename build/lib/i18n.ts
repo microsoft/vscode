@@ -348,6 +348,66 @@ export class Limiter<T> {
 
 	queue(factory: ITask<Promise<T>>): Promise<T> {
 		return new Promise<T>((c, e) => {
+			this.outstandingPromises.push({factory, c, e});
+			this.consume();
+		});
+	}
+
+	private consume(): void {
+		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+			const iLimitedTask = this.outstandingPromises.shift();
+			this.runningPromises++;
+
+			const promise = iLimitedTask.factory();
+			promise.then(iLimitedTask.c).catch(iLimitedTask.e);
+			promise.then(() => this.consumed()).catch(() => this.consumed());
+		}
+	}
+
+	private consumed(): void {
+		this.runningPromises--;
+		this.consume();
+	}
+}
+
+const iso639_3_to_2: Map<string> = {
+	'chs': 'zh-cn',
+	'cht': 'zh-tw',
+	'csy': 'cs-cz',
+	'deu': 'de',
+	'enu': 'en',
+	'esn': 'es',
+	'fra': 'fr',
+	'hun': 'hu',
+	'ita': 'it',
+	'jpn': 'ja',
+	'kor': 'ko',
+	'nld': 'nl',
+	'plk': 'pl',
+	'ptb': 'pt-br',
+	'ptg': 'pt',
+	'rus': 'ru',
+	'sve': 'sv-se',
+	'trk': 'tr'
+};
+
+interface ILimitedTaskFactory<T> {
+	factory: ITask<Promise<T>>;
+	c: (value?: T | Thenable<T>) => void;
+	e: (error?: any) => void;
+}
+
+export class Limiter<T> {
+	private runningPromises: number;
+	private outstandingPromises: ILimitedTaskFactory<any>[];
+
+	constructor(private maxDegreeOfParalellism: number) {
+		this.outstandingPromises = [];
+		this.runningPromises = 0;
+	}
+
+	queue(factory: ITask<Promise<T>>): Promise<T> {
+		return new Promise<T>((c, e) => {
 			this.outstandingPromises.push({ factory, c, e });
 			this.consume();
 		});
@@ -975,7 +1035,7 @@ function pullXlfFiles(apiHostname: string, username: string, password: string, l
 }
 const limiter = new Limiter<File>(NUMBER_OF_CONCURRENT_DOWNLOADS);
 
-function retrieveResource(language: Language, resource: Resource, apiHostname, credentials): Promise<File> {
+function retrieveResource(language: string, resource: Resource, apiHostname, credentials): Promise<File> {
 	return limiter.queue(() => new Promise<File>((resolve, reject) => {
 		const slug = resource.name.replace(/\//g, '_');
 		const project = resource.project;
@@ -993,7 +1053,8 @@ function retrieveResource(language: Language, resource: Resource, apiHostname, c
 			res.on('data', (chunk: Buffer) => xlfBuffer.push(chunk));
 			res.on('end', () => {
 				if (res.statusCode === 200) {
-					resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${slug}.xlf` }));
+					console.log('success: ' + options.path);
+					resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${iso639_2_to_3[language]}/${slug}.xlf` }));
 				}
 				reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
 			});
@@ -1002,6 +1063,7 @@ function retrieveResource(language: Language, resource: Resource, apiHostname, c
 			reject(`Failed to query resource ${slug} with the following error: ${err}. ${options.path}`);
 		});
 		request.end();
+		console.log('started: ' + options.path);
 	}));
 }
 

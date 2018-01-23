@@ -10,7 +10,6 @@
 	"saveAs": "다른 이름으로 저장...",
 	"save": "저장",
 	"saveAll": "모두 저장",
-	"saveFiles": "파일 모두 저장",
 	"removeFolderFromWorkspace": "작업 영역에서 폴더 삭제",
 	"modifiedLabel": "{0}(디스크) ↔ {1}",
 	"openFileToReveal": "첫 번째 파일을 열어서 나타냅니다.",

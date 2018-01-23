@@ -63,6 +63,7 @@
 	"editorWidgetBorder": "Color de borde de los widgets del editor. El color solo se usa si el widget elige tener un borde y no invalida el color.",
 	"editorSelectionBackground": "Color de la selección del editor.",
 	"editorSelectionForeground": "Color del texto seleccionado para alto contraste.",
+	"editorInactiveSelection": "Color de la selección en un editor inactivo. El color no debe ser opaco para no ocultar las decoraciones subyacentes.",
 	"editorFindMatch": "Color de la coincidencia de búsqueda actual.",
 	"hoverBackground": "Color de fondo al mantener el puntero en el editor.",
 	"hoverBorder": "Color del borde al mantener el puntero en el editor.",

@@ -265,7 +265,7 @@ class KeyboardController<T> implements IDisposable {
 	constructor(
 		private list: List<T>,
 		private view: ListView<T>,
-		options: IListCreationOptions<T>
+		options: IListOptions<T>
 	) {
 		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
 		this.disposables = [];
@@ -344,9 +344,23 @@ class KeyboardController<T> implements IDisposable {
 	}
 }
 
+export function isSelectionSingleChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
+	return platform.isMacintosh ? event.browserEvent.metaKey : event.browserEvent.ctrlKey;
+}
+
+export function isSelectionRangeChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
+	return event.browserEvent.shiftKey;
+}
+
+const DefaultMultipleSelectionContoller = {
+	isSelectionSingleChangeEvent,
+	isSelectionRangeChangeEvent
+};
+
 class MouseController<T> implements IDisposable {
 
 	private multipleSelectionSupport: boolean;
+	private multipleSelectionController: IMultipleSelectionController<T> | undefined;
 	private didJustPressContextMenuKey: boolean = false;
 	private disposables: IDisposable[] = [];
 
@@ -384,9 +398,13 @@ class MouseController<T> implements IDisposable {
 	constructor(
 		private list: List<T>,
 		private view: ListView<T>,
-		private options: IListCreationOptions<T> = {}
+		private options: IListOptions<T> = {}
 	) {
-		this.multipleSelectionSupport = options.multipleSelectionSupport !== false;
+		this.multipleSelectionSupport = !(options.multipleSelectionSupport === false);
+
+		if (this.multipleSelectionSupport) {
+			this.multipleSelectionController = options.multipleSelectionController || DefaultMultipleSelectionContoller;
+		}
 
 		view.onMouseDown(this.onMouseDown, this, this.disposables);
 		view.onMouseClick(this.onPointer, this, this.disposables);
@@ -396,19 +414,19 @@ class MouseController<T> implements IDisposable {
 		Gesture.addTarget(view.domNode);
 	}
 
-	updateOptions(options: IListOptions): void {
-		this.options.useAltAsMultiSelectModifier = options.useAltAsMultiSelectModifier;
-	}
-
 	private isSelectionSingleChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
-		if (this.options.useAltAsMultiSelectModifier) {
-			return event.browserEvent.altKey;
+		if (this.multipleSelectionController) {
+			return this.multipleSelectionController.isSelectionSingleChangeEvent(event);
 		}
 
 		return platform.isMacintosh ? event.browserEvent.metaKey : event.browserEvent.ctrlKey;
 	}
 
 	private isSelectionRangeChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
+		if (this.multipleSelectionController) {
+			return this.multipleSelectionController.isSelectionRangeChangeEvent(event);
+		}
+
 		return event.browserEvent.shiftKey;
 	}
 
@@ -500,11 +518,12 @@ class MouseController<T> implements IDisposable {
 	}
 }
 
-export interface IListOptions {
-	useAltAsMultiSelectModifier?: boolean;
+export interface IMultipleSelectionController<T> {
+	isSelectionSingleChangeEvent(event: IListMouseEvent<T> | IListTouchEvent<T>): boolean;
+	isSelectionRangeChangeEvent(event: IListMouseEvent<T> | IListTouchEvent<T>): boolean;
 }
 
-export interface IListCreationOptions<T> extends IListViewOptions, IListStyles, IListOptions {
+export interface IListOptions<T> extends IListViewOptions, IListStyles {
 	identityProvider?: IIdentityProvider<T>;
 	ariaLabel?: string;
 	mouseSupport?: boolean;
@@ -513,6 +532,7 @@ export interface IListCreationOptions<T> extends IListViewOptions, IListStyles, 
 	keyboardSupport?: boolean;
 	verticalScrollMode?: ScrollbarVisibility;
 	multipleSelectionSupport?: boolean;
+	multipleSelectionController?: IMultipleSelectionController<T>;
 }
 
 export interface IListStyles {
@@ -545,7 +565,7 @@ const defaultStyles: IListStyles = {
 	listDropBackground: Color.fromHex('#383B3D')
 };
 
-const DefaultOptions: IListCreationOptions<any> = {
+const DefaultOptions: IListOptions<any> = {
 	keyboardSupport: true,
 	mouseSupport: true,
 	multipleSelectionSupport: true
@@ -722,7 +742,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		container: HTMLElement,
 		delegate: IDelegate<T>,
 		renderers: IRenderer<T, any>[],
-		options: IListCreationOptions<T> = DefaultOptions
+		options: IListOptions<T> = DefaultOptions
 	) {
 		const aria = new Aria();
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
@@ -770,12 +790,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		this.style(options);
-	}
-
-	updateOptions(options: IListOptions): void {
-		if (this.mouseController) {
-			this.mouseController.updateOptions(options);
-		}
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {

@@ -9,6 +9,7 @@
 	"installingOutdatedExtension": "Una versión más nueva de esta extensión ya está instalada. ¿Desea anular esto con la versión anterior?",
 	"override": "Anular",
 	"cancel": "Cancelar",
+	"errorInstallingDependencies": "Error instalando dependencias. {0}",
 	"notFoundCompatibleDependency": "No se puede instalar porque no se encuentra la extensión dependiente '{0}' compatible con la versión actual '{1}' del VS Code.",
 	"uninstallDependeciesConfirmation": "¿Quiere desinstalar solo '{0}' o también sus dependencias?",
 	"uninstallOnly": "Solo",

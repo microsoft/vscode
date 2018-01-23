@@ -641,7 +641,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	// --- quick fix
 
-	test('Quick Fix, data conversion', function () {
+	test('Quick Fix, command data conversion', function () {
 
 		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
 			provideCodeActions(): vscode.Command[] {
@@ -664,6 +664,34 @@ suite('ExtHostLanguageFeatures', function () {
 			});
 		});
 	});
+
+	test('Quick Fix, code action data conversion', function () {
+
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+			provideCodeActions(): vscode.CodeAction[] {
+				return [
+					{
+						title: 'Testing1',
+						command: { title: 'Testing1Command', command: 'test1' },
+						kind: types.CodeActionKind.Empty.append('test.scope')
+					}
+				];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return getCodeActions(model, model.getFullModelRange()).then(value => {
+				assert.equal(value.length, 1);
+
+				const [first] = value;
+				assert.equal(first.title, 'Testing1');
+				assert.equal(first.command.title, 'Testing1Command');
+				assert.equal(first.command.id, 'test1');
+				assert.equal(first.kind, 'test.scope');
+			});
+		});
+	});
+
 
 	test('Cannot read property \'id\' of undefined, #29469', function () {
 

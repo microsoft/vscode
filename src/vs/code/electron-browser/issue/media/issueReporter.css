@@ -1,0 +1,225 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/**
+ * Table
+ */
+
+table {
+	width: 100%;
+	max-width: 100%;
+	margin-bottom: 1rem;
+	background-color: transparent;
+	border-collapse: collapse;
+}
+th {
+	vertical-align: bottom;
+	border-bottom: 2px solid #e9ecef;
+	padding: .75rem;
+	border-top: 1px solid #e9ecef;
+	text-align: inherit;
+}
+tr:nth-of-type(even) {
+	background-color: rgba(0,0,0,.05);
+}
+td {
+	padding: .75rem;
+	vertical-align: top;
+	border-top: 1px solid #e9ecef;
+}
+
+/**
+ * Forms
+ */
+input, textarea {
+	display: block;
+	width: 100%;
+	padding: .375rem .75rem;
+	margin: 0;
+	font-size: 1rem;
+	line-height: 1.5;
+	color: #495057;
+	background-color: #fff;
+	border-radius: .25rem;
+	border: 1px solid #ced4da;
+}
+textarea {
+	overflow: auto;
+	resize: vertical;
+}
+small {
+	color: #868e96;
+	display: block;
+	margin-top: .25rem;
+	font-size: 80%;
+	font-weight: 400;
+}
+
+/**
+ * Button
+ */
+button {
+	display: inline-block;
+	font-weight: 400;
+	line-height: 1.25;
+	text-align: center;
+	white-space: nowrap;
+	vertical-align: middle;
+	user-select: none;
+	padding: .5rem 1rem;
+	font-size: 1rem;
+	border-radius: .25rem;
+	background: none;
+}
+
+select {
+	height: calc(2.25rem + 2px);
+	display: block;
+	width: 100%;
+	padding: 0.375rem 0.75rem;
+	font-size: 1rem;
+	line-height: 1.5;
+	color: #495057;
+	background-color: #fff;
+	border-radius: 0.25rem;
+	border: none;
+}
+
+* {
+	box-sizing: border-box;
+}
+html {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+	color: #CCCCCC;
+}
+
+body {
+	margin: 0;
+	background-color: #1E1E1E;
+}
+
+.hidden {
+	display: none;
+}
+
+#block-container {
+	margin-top: 20px;
+}
+
+.block {
+	margin-bottom: 20px;
+}
+.block summary {
+	margin-bottom: 16px;
+}
+
+.block .block-info {
+	width: 100%;
+	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
+	font-size: 14px;
+	overflow: auto;
+	overflow-wrap: break-word;
+}
+pre {
+	margin: 0;
+}
+pre code {
+	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
+}
+
+button:hover:enabled {
+	cursor: pointer;
+}
+
+button:disabled {
+	cursor: auto;
+}
+
+#issue-reporter {
+	max-width: 80vw;
+	margin-left: auto;
+	margin-right: auto;
+	margin-top: 2em;
+}
+
+#github-submit-btn {
+	float: right;
+	margin-top: 10px;
+	margin-bottom: 10px;
+
+}
+
+.two-col {
+	display: inline-block;
+	width: 49%;
+}
+
+#vscode-version {
+	width: 90%;
+}
+
+.input-group {
+	margin-bottom: 1em;
+}
+
+select, input, textarea {
+	border: 1px solid transparent;
+	margin-top: 10px;
+}
+
+summary {
+	border: 1px solid transparent;
+}
+
+.validation-error {
+	font-size: 12px;
+	font-weight: bold;
+	margin-top: 1em;
+}
+
+.caption {
+	display: inline-block;
+	font-size: 12px;
+}
+
+input[type="checkbox"] {
+	margin-left: 1em;
+	width: auto;
+	display: inline-block;
+}
+
+input:disabled {
+	opacity: 0.6;
+}
+
+.list-title {
+	margin-top: 1em;
+	margin-left: 1em;
+}
+
+/* Default styles, overwritten if a theme is provided */
+input, select, textarea {
+	background-color: #3c3c3c;
+	border: none;
+	color: #cccccc;
+}
+
+a {
+	color: #CCCCCC;
+}
+
+.invalid-input {
+	border: 1px solid #be1100;
+}
+
+.required-input {
+	color: #be1100;
+}
+
+button {
+	background-color: #007ACC;
+	color: #fff;
+	border: none;
+}

@@ -22,5 +22,6 @@
 	"useRipgrep": "控制是否在文本和文件搜索中使用 ripgrep",
 	"useIgnoreFiles": "控制搜索文件时是否使用 .gitignore 和 .ignore 文件。",
 	"search.quickOpen.includeSymbols": "配置为在 Quick Open 文件结果中包括全局符号搜索的结果。",
-	"search.followSymlinks": "控制是否在搜索中跟踪符号链接。"
+	"search.followSymlinks": "控制是否在搜索中跟踪符号链接。",
+	"search.smartCase": "若搜索词全为小写，则不区分大小写进行搜索，否则区分大小写进行搜索"
 }

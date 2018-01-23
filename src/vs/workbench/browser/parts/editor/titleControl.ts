@@ -15,7 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import arrays = require('vs/base/common/arrays');
-import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IStacksModelChangeEvent, toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -170,6 +170,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 	public setContext(group: IEditorGroup): void {
 		this.context = group;
+
+		this.editorActionsToolbar.context = { groupId: group ? group.id : void 0 } as IEditorCommandsContext;
 	}
 
 	public hasContext(): boolean {
@@ -396,7 +398,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => TPromise.as(actions),
-			getActionsContext: () => identifier,
+			getActionsContext: () => ({ groupId: identifier.group.id, editorIndex: identifier.group.indexOf(identifier.editor) } as IEditorCommandsContext),
 			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: (cancel) => {
 

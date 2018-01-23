@@ -49,6 +49,7 @@ const options: minimist.Opts = {
 		'list-extensions',
 		'show-versions',
 		'nolazy',
+		'issue',
 		'skip-getting-started',
 		'skip-release-notes',
 		'sticky-quickopen',
@@ -73,6 +74,7 @@ const options: minimist.Opts = {
 		'new-window': 'n',
 		'reuse-window': 'r',
 		performance: 'p',
+		'issue': 'i',
 		'disable-extensions': 'disableExtensions',
 		'extensions-dir': 'extensionHomePath',
 		'debugPluginHost': 'inspect-extensions',
@@ -165,7 +167,8 @@ const troubleshootingHelp: { [name: string]: string; } = {
 	'--inspect-extensions': localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection uri."),
 	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection uri."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
-	'--upload-logs': localize('uploadLogs', "Uploads logs from current session to a secure endpoint.")
+	'--upload-logs': localize('uploadLogs', "Uploads logs from current session to a secure endpoint."),
+	'-i, --issue': localize('issue', "Report an issue."),
 };
 
 export function formatOptions(options: { [name: string]: string; }, columns: number): string {

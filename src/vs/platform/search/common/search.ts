@@ -112,13 +112,10 @@ export interface ILineMatch {
 export interface IProgress {
 	total?: number;
 	worked?: number;
-}
-
-export interface ISearchLog {
 	message?: string;
 }
 
-export interface ISearchProgressItem extends IFileMatch, IProgress, ISearchLog {
+export interface ISearchProgressItem extends IFileMatch, IProgress {
 	// Marker interface to indicate the possible values for progress calls from the engine
 }
 

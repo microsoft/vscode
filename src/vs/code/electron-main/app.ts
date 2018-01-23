@@ -16,7 +16,6 @@ import { CodeMenu } from 'vs/code/electron-main/menus';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
-import { UpdateService } from 'vs/platform/update/electron-main/updateService';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
@@ -52,6 +51,12 @@ import URI from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { getMachineId } from 'vs/base/node/id';
+import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
+import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
+import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
+import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
+import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 
 export class CodeApplication {
 
@@ -304,10 +309,18 @@ export class CodeApplication {
 	private initServices(machineId: string): IInstantiationService {
 		const services = new ServiceCollection();
 
-		services.set(IUpdateService, new SyncDescriptor(UpdateService));
+		if (process.platform === 'win32') {
+			services.set(IUpdateService, new SyncDescriptor(Win32UpdateService));
+		} else if (process.platform === 'linux') {
+			services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
+		} else if (process.platform === 'darwin') {
+			services.set(IUpdateService, new SyncDescriptor(DarwinUpdateService));
+		}
+
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, machineId));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
+		services.set(IIssueService, new SyncDescriptor(IssueService, machineId));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -351,6 +364,10 @@ export class CodeApplication {
 		const urlService = accessor.get(IURLService);
 		const urlChannel = appInstantiationService.createInstance(URLChannel, urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
+
+		const issueService = accessor.get(IIssueService);
+		const issueChannel = new IssueChannel(issueService);
+		this.electronIpcServer.registerChannel('issue', issueChannel);
 
 		const workspacesService = accessor.get(IWorkspacesMainService);
 		const workspacesChannel = appInstantiationService.createInstance(WorkspacesChannel, workspacesService);
@@ -429,6 +446,12 @@ export class CodeApplication {
 
 		// Start shared process here
 		this.sharedProcess.spawn();
+
+		// Launch Issue BrowserWindow if --issue is specified
+		if (this.environmentService.args.issue) {
+			const issueService = accessor.get(IIssueService);
+			issueService.openReporter();
+		}
 	}
 
 	private dispose(): void {

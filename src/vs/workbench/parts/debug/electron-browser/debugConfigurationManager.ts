@@ -403,6 +403,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 
 			const editor = this.editorService.getActiveEditor();
+			let candidates: Adapter[];
 			if (editor) {
 				const codeEditor = editor.getControl();
 				if (isCodeEditor(codeEditor)) {
@@ -412,10 +413,16 @@ export class ConfigurationManager implements IConfigurationManager {
 					if (adapters.length === 1) {
 						return TPromise.as(adapters[0]);
 					}
+					if (adapters.length > 1) {
+						candidates = adapters;
+					}
 				}
 			}
 
-			return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+			if (!candidates) {
+				candidates = this.adapters.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider);
+			}
+			return this.quickOpenService.pick([...candidates, { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 				.then(picked => {
 					if (picked instanceof Adapter) {
 						return picked;

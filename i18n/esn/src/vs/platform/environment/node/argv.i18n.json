@@ -33,5 +33,7 @@
 	"usage": "Uso",
 	"options": "opciones",
 	"paths": "rutas de acceso",
-	"optionsUpperCase": "Opciones"
+	"optionsUpperCase": "Opciones",
+	"extensionsManagement": "Gestión de extensiones",
+	"troubleshooting": "Solución de problemas"
 }

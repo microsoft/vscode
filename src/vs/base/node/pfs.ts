@@ -101,6 +101,7 @@ const writeFilePathQueue: { [path: string]: Queue<void> } = Object.create(null);
 
 export function writeFile(path: string, data: string, options?: { mode?: number; flag?: string; }): TPromise<void>;
 export function writeFile(path: string, data: NodeBuffer, options?: { mode?: number; flag?: string; }): TPromise<void>;
+export function writeFile(path: string, data: NodeJS.ReadableStream, options?: { mode?: number; flag?: string; }): TPromise<void>;
 export function writeFile(path: string, data: any, options?: { mode?: number; flag?: string; }): TPromise<void> {
 	let queueKey = toQueueKey(path);
 

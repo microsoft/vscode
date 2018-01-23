@@ -10,5 +10,6 @@
 	"editableEditorWithInputAriaLabel": "{0}。文字檔案比較編輯器。",
 	"editableEditorAriaLabel": "文字檔比較編輯器。",
 	"navigate.next.label": "下一個變更",
-	"navigate.prev.label": "上一個變更"
+	"navigate.prev.label": "上一個變更",
+	"toggleIgnoreTrimWhitespace.label": "忽略修剪空白字元"
 }

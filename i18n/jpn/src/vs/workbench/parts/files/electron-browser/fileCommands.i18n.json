@@ -10,7 +10,6 @@
 	"saveAs": "名前を付けて保存...",
 	"save": "保存",
 	"saveAll": "すべて保存",
-	"saveFiles": "すべてのファイルを保存",
 	"removeFolderFromWorkspace": "ワークスペースからフォルダーを削除",
 	"genericRevertError": "元へ戻すことに失敗しました '{0}': {1}",
 	"modifiedLabel": "{0} (ローカル) ↔ {1}",

@@ -48,5 +48,8 @@
 	"moveEditorLeft": "Déplacer l'éditeur vers la gauche",
 	"moveEditorRight": "Déplacer l'éditeur vers la droite",
 	"moveEditorToPreviousGroup": "Déplacer l'éditeur vers le groupe précédent",
-	"moveEditorToNextGroup": "Déplacer l'éditeur vers le groupe suivant"
+	"moveEditorToNextGroup": "Déplacer l'éditeur vers le groupe suivant",
+	"moveEditorToFirstGroup": "Déplacer l'éditeur vers le premier groupe",
+	"moveEditorToSecondGroup": "Déplacer l'éditeur vers le second groupe",
+	"moveEditorToThirdGroup": "Déplacer l'éditeur vers le troisième groupe"
 }

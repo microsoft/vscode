@@ -14,6 +14,16 @@ import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
  */
 const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
 
+/**
+ * Font settings maximum and minimum limits
+ */
+const MINIMUM_FONT_SIZE = 8;
+const MAXIMUM_FONT_SIZE = 100;
+const MINIMUM_LINE_HEIGHT = 8;
+const MAXIMUM_LINE_HEIGHT = 150;
+const MINIMUM_LETTER_SPACING = -5;
+const MAXIMUM_LETTER_SPACING = 20;
+
 function safeParseFloat(n: number | string, defaultValue: number): number {
 	if (typeof n === 'number') {
 		return n;
@@ -70,24 +80,25 @@ export class BareFontInfo {
 		let fontFamily = _string(opts.fontFamily, EDITOR_FONT_DEFAULTS.fontFamily);
 		let fontWeight = _string(opts.fontWeight, EDITOR_FONT_DEFAULTS.fontWeight);
 
+
 		let fontSize = safeParseFloat(opts.fontSize, EDITOR_FONT_DEFAULTS.fontSize);
-		fontSize = clamp(fontSize, 0, 100);
+		fontSize = clamp(fontSize, 0, MAXIMUM_FONT_SIZE);
 		if (fontSize === 0) {
 			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
-		} else if (fontSize < 8) {
-			fontSize = 8;
+		} else if (fontSize < MINIMUM_FONT_SIZE) {
+			fontSize = MINIMUM_FONT_SIZE;
 		}
 
 		let lineHeight = safeParseInt(opts.lineHeight, 0);
-		lineHeight = clamp(lineHeight, 0, 150);
+		lineHeight = clamp(lineHeight, 0, MAXIMUM_LINE_HEIGHT);
 		if (lineHeight === 0) {
 			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
-		} else if (lineHeight < 8) {
-			lineHeight = 8;
+		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
+			lineHeight = MINIMUM_LINE_HEIGHT;
 		}
 
 		let letterSpacing = safeParseFloat(opts.letterSpacing, 0);
-		letterSpacing = clamp(letterSpacing, -20, 20);
+		letterSpacing = clamp(letterSpacing, MINIMUM_LETTER_SPACING, MAXIMUM_LETTER_SPACING);
 
 		let editorZoomLevelMultiplier = 1 + (EditorZoom.getZoomLevel() * 0.1);
 		fontSize *= editorZoomLevelMultiplier;

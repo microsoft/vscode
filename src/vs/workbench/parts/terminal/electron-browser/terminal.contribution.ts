@@ -115,6 +115,11 @@ configurationRegistry.registerConfiguration({
 			},
 			'default': []
 		},
+		'terminal.integrated.macOptionIsMeta': {
+			'description': nls.localize('terminal.integrated.macOptionIsMeta', "Treat the option key as the meta key in the terminal on macOS."),
+			'type': 'boolean',
+			'default': false
+		},
 		'terminal.integrated.rightClickCopyPaste': {
 			'description': nls.localize('terminal.integrated.rightClickCopyPaste', "When set, this will prevent the context menu from appearing when right clicking within the terminal, instead it will copy when there is a selection and paste when there is no selection."),
 			'type': 'boolean',
@@ -389,9 +394,8 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordRightT
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word Right', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(EnterNavigationModeTerminalAction, EnterNavigationModeTerminalAction.ID, EnterNavigationModeTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_N
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Enter Navigation Mode', category);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Enter Screen Reader Navigation Mode', category);
 
 terminalCommands.setup();
 
 registerColors();
-

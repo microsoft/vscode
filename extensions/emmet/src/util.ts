@@ -336,7 +336,9 @@ export function getEmmetConfiguration(syntax: string) {
 		showExpandedAbbreviation: emmetConfig['showExpandedAbbreviation'],
 		showAbbreviationSuggestions: emmetConfig['showAbbreviationSuggestions'],
 		syntaxProfiles,
-		variables: emmetConfig['variables']
+		variables: emmetConfig['variables'],
+		excludeLanguages: emmetConfig['excludeLanguages'],
+		showSuggestionsAsSnippets: emmetConfig['showSuggestionsAsSnippets']
 	};
 }
 
