@@ -21,11 +21,12 @@
 	"deleted by us": "Excluído por nós",
 	"both added": "Ambos adicionados",
 	"both modified": "Ambos modificados",
+	"commitMessage": "Mensagem (tecle {0} para confirmar)",
 	"commit": "Confirmar",
 	"merge changes": "Mesclar Alterações",
 	"staged changes": "Alterações em Etapas",
 	"changes": "Alterações",
 	"ok": "OK",
-	"neveragain": "Nunca Mostrar Novamente",
+	"neveragain": "Não mostrar novamente",
 	"huge": "O repositório git em '{0}' tem muitas atualizações ativas, somente um subconjunto de funcionalidades do Git será habilitado."
 }

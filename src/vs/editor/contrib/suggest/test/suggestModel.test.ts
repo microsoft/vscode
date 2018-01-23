@@ -8,8 +8,7 @@ import * as assert from 'assert';
 import Event from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestResult, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/suggestModel';
@@ -22,14 +21,19 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
 
-function createMockEditor(model: Model): TestCodeEditor {
+function createMockEditor(model: TextModel): TestCodeEditor {
 	const contextKeyService = new MockContextKeyService();
 	const telemetryService = NullTelemetryService;
 	const instantiationService = new InstantiationService(new ServiceCollection(
 		[IContextKeyService, contextKeyService],
-		[ITelemetryService, telemetryService]
+		[ITelemetryService, telemetryService],
+		[IStorageService, NullStorageService]
 	));
 
 	const editor = new TestCodeEditor(new MockScopeLocation(), {}, instantiationService, contextKeyService);
@@ -39,10 +43,10 @@ function createMockEditor(model: Model): TestCodeEditor {
 
 suite('SuggestModel - Context', function () {
 
-	let model: Model;
+	let model: TextModel;
 
 	setup(function () {
-		model = Model.createFromString('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
+		model = TextModel.createFromString('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
 	});
 
 	teardown(function () {
@@ -93,17 +97,17 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	};
 
 	let disposables: IDisposable[] = [];
-	let model: Model;
+	let model: TextModel;
 
 	setup(function () {
 		disposables = dispose(disposables);
-		model = Model.createFromString('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
+		model = TextModel.createFromString('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
 		disposables.push(model);
 	});
 
-	function withOracle(callback: (model: SuggestModel, editor: ICodeEditor) => any): TPromise<any> {
+	function withOracle(callback: (model: SuggestModel, editor: TestCodeEditor) => any): Promise<any> {
 
-		return new TPromise((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 			const editor = createMockEditor(model);
 			const oracle = new SuggestModel(editor);
 			disposables.push(oracle, editor);
@@ -117,7 +121,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	}
 
 	function assertEvent<E>(event: Event<E>, action: () => any, assert: (e: E) => any) {
-		return new TPromise((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 			const sub = event(e => {
 				sub.dispose();
 				try {
@@ -137,7 +141,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('events - cancel/trigger', function () {
 		return withOracle(model => {
 
-			return TPromise.join([
+			return Promise.all([
 				assertEvent(model.onDidCancel, function () {
 					model.cancel();
 				}, function (event) {
@@ -184,7 +188,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, alwaysEmptySupport));
 
 		return withOracle(model => {
-			return TPromise.join([
+			return Promise.all([
 				assertEvent(model.onDidCancel, function () {
 					model.trigger({ auto: true });
 				}, function (event) {
@@ -532,6 +536,84 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 				});
 			});
+		});
+	});
+
+	test('Backspace should not always cancel code completion, #36491', function () {
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+		return withOracle(async (model, editor) => {
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 4 });
+				editor.trigger('keyboard', Handler.Type, { text: 'd' });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+
+				assert.equal(first.support, alwaysSomethingSupport);
+			});
+
+			await assertEvent(model.onDidSuggest, () => {
+				CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+
+				assert.equal(first.support, alwaysSomethingSupport);
+			});
+		});
+	});
+
+	test('Text changes for completion CodeAction are affected by the completion #39893', function () {
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos): ISuggestResult {
+				return {
+					incomplete: true,
+					suggestions: [{
+						label: 'bar',
+						type: 'property',
+						insertText: 'bar',
+						overwriteBefore: 2,
+						additionalTextEdits: [{
+							text: ', bar',
+							range: { startLineNumber: 1, endLineNumber: 1, startColumn: 17, endColumn: 17 }
+						}]
+					}]
+				};
+			}
+		}));
+
+		model.setValue('ba; import { foo } from "./b"');
+
+		return withOracle(async (sugget, editor) => {
+			class TestCtrl extends SuggestController {
+				_onDidSelectItem(item: ISelectedSuggestion) {
+					super._onDidSelectItem(item);
+				}
+			}
+			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl);
+			editor.registerAndInstantiateContribution(SnippetController2);
+
+			await assertEvent(sugget.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 3 });
+				sugget.trigger({ auto: false });
+			}, event => {
+
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+				assert.equal(first.suggestion.label, 'bar');
+
+				ctrl._onDidSelectItem({ item: first, index: 0, model: event.completionModel });
+			});
+
+			assert.equal(
+				model.getValue(),
+				'bar; import { foo, bar } from "./b"'
+			);
 		});
 	});
 });

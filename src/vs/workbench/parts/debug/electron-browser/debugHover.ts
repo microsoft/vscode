@@ -10,7 +10,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DefaultController, ICancelableEvent, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
@@ -20,12 +19,13 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/parts/debug/common/debug';
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
-import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
-import { IListService } from 'vs/platform/list/browser/listService';
+import { renderExpressionValue } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
+import { VariablesDataSource, VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
@@ -38,7 +38,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private _isVisible: boolean;
 	private domNode: HTMLElement;
-	private tree: ITree;
+	private tree: WorkbenchTree;
 	private showAtPosition: Position;
 	private highlightDecorations: string[];
 	private complexValueContainer: HTMLElement;
@@ -52,7 +52,6 @@ export class DebugHoverWidget implements IContentWidget {
 	constructor(
 		private editor: ICodeEditor,
 		private debugService: IDebugService,
-		private listService: IListService,
 		private instantiationService: IInstantiationService,
 		private themeService: IThemeService
 	) {
@@ -69,7 +68,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
-		this.tree = new Tree(this.treeContainer, {
+		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
 			controller: new DebugHoverController(this.editor)
@@ -89,8 +88,6 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.editor.applyFontInfo(this.domNode);
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree));
 		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder }, colors => {
 			this.domNode.style.backgroundColor = colors.editorHoverBackground;
 			if (colors.editorHoverBorder) {

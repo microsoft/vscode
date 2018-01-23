@@ -18,8 +18,9 @@ import { EditorAction, registerEditorAction, registerEditorContribution, Service
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 class JumpToBracketAction extends EditorAction {
 	constructor() {
@@ -216,7 +217,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match'
 	});
 
@@ -226,7 +227,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		}
 		this._recomputeBrackets();
 
-		let newDecorations: editorCommon.IModelDeltaDecoration[] = [], newDecorationsLen = 0;
+		let newDecorations: IModelDeltaDecoration[] = [], newDecorationsLen = 0;
 		for (let i = 0, len = this._lastBracketsData.length; i < len; i++) {
 			let brackets = this._lastBracketsData[i].brackets;
 			if (brackets) {

@@ -15,7 +15,6 @@
 .extension-editor > .header {
 	display: flex;
 	height: 128px;
-	background: rgba(128, 128, 128, 0.15);
 	padding: 20px;
 	overflow: hidden;
 	font-size: 14px;

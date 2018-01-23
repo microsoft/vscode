@@ -11,7 +11,7 @@ import paths = require('vs/base/common/paths');
 import encoding = require('vs/base/node/encoding');
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
-import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, ICreateFileOptions, ITextSnapshot } from 'vs/platform/files/common/files';
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -24,6 +24,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 
 import { shell } from 'electron';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { isMacintosh } from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
 
 export class FileService implements IFileService {
 
@@ -33,7 +35,7 @@ export class FileService implements IFileService {
 	private static readonly NET_VERSION_ERROR = 'System.MissingMethodException';
 	private static readonly NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
 
-	private raw: IFileService;
+	private raw: NodeFileService;
 
 	private toUnbind: IDisposable[];
 
@@ -70,7 +72,12 @@ export class FileService implements IFileService {
 			encodingOverride: this.getEncodingOverrides(),
 			watcherIgnoredPatterns,
 			verboseLogging: environmentService.verbose,
-			useExperimentalFileWatcher: configuration.files.useExperimentalFileWatcher
+			useExperimentalFileWatcher: configuration.files.useExperimentalFileWatcher,
+			elevationSupport: {
+				cliPath: this.environmentService.cliPath,
+				promptTitle: this.environmentService.appNameLong,
+				promptIcnsPath: (isMacintosh && this.environmentService.isBuilt) ? paths.join(paths.dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : void 0
+			}
 		};
 
 		// create service
@@ -89,9 +96,11 @@ export class FileService implements IFileService {
 	}
 
 	private onFileServiceError(msg: string): void {
+
+		// Forward to unexpected error handler
 		errors.onUnexpectedError(msg);
 
-		// Detect if we run < .NET Framework 4.5
+		// Detect if we run < .NET Framework 4.5 (TODO@ben remove with new watcher impl)
 		if (typeof msg === 'string' && msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
 			this.messageService.show(Severity.Warning, <IMessageWithAction>{
 				message: nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
@@ -172,7 +181,7 @@ export class FileService implements IFileService {
 		return this.raw.resolveStreamContent(resource, options);
 	}
 
-	public updateContent(resource: uri, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
+	public updateContent(resource: uri, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		return this.raw.updateContent(resource, value, options);
 	}
 

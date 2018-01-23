@@ -39,6 +39,7 @@
 	"typescript.openTsServerLog.title": "開啟 TS 伺服器記錄",
 	"typescript.restartTsServer": "重新啟動TS伺服器",
 	"typescript.selectTypeScriptVersion.title": "選取 TypeScript 版本",
+	"typescript.reportStyleChecksAsWarnings": "使用警告顯示樣式檢查",
 	"jsDocCompletion.enabled": "啟用/停用自動 JSDoc 註解",
 	"javascript.implicitProjectConfig.checkJs": "啟用/停用 JavaScript 檔案的語意檢查。現有的 jsconfig.json 或 tsconfig.json 檔案會覆寫此設定。需要 TypeScript >=2.3.1。",
 	"typescript.npm": "指定用於自動類型取得的 NPM 可執行檔路徑。TypeScript 必須 >= 2.3.4.",

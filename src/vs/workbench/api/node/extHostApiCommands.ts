@@ -10,12 +10,13 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
 
 export class ExtHostApiCommands {
 
@@ -238,6 +239,15 @@ export class ExtHostApiCommands {
 					{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: v => v === void 0 || typeof v === 'number' || typeof v === 'object' }
 				]
 			});
+
+		this._register('vscode.removeFromRecentlyOpened', (path: string) => {
+			return this._commands.executeCommand('_workbench.removeFromRecentlyOpened', path);
+		}, {
+				description: 'Removes an entry with the given path from the recently opened list.',
+				args: [
+					{ name: 'path', description: 'Path to remove from recently opened.', constraint: value => typeof value === 'string' }
+				]
+			});
 	}
 
 	// --- command impl
@@ -392,16 +402,29 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCodeActionProvider(resource: URI, range: types.Range): Thenable<vscode.Command[]> {
+	private _executeCodeActionProvider(resource: URI, range: types.Range): Thenable<(vscode.CodeAction | vscode.Command)[]> {
 		const args = {
 			resource,
 			range: typeConverters.fromRange(range)
 		};
-		return this._commands.executeCommand<modes.Command[]>('_executeCodeActionProvider', args).then(value => {
+		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args).then(value => {
 			if (!Array.isArray(value)) {
 				return undefined;
 			}
-			return value.map(quickFix => this._commands.converter.fromInternal(quickFix));
+			return value.map(codeAction => {
+				if (codeAction._isSynthetic) {
+					return this._commands.converter.fromInternal(codeAction.command);
+				} else {
+					const ret = new types.CodeAction(
+						codeAction.title,
+						codeAction.kind ? new types.CodeActionKind(codeAction.kind) : undefined
+					);
+					if (codeAction.edit) {
+						ret.edit = typeConverters.WorkspaceEdit.to(codeAction.edit);
+					}
+					return ret;
+				}
+			});
 		});
 	}
 

@@ -14,10 +14,10 @@ import Event from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { ActionItem, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
-import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -38,9 +38,12 @@ import { Color } from 'vs/base/common/color';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 import Severity from 'vs/base/common/severity';
 import { PagedModel } from 'vs/base/common/paging';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 
 export class InstallAction extends Action {
 
@@ -347,7 +350,7 @@ export class DropDownMenuActionItem extends ActionItem {
 
 export class ManageExtensionAction extends Action {
 
-	static ID = 'extensions.manage';
+	static readonly ID = 'extensions.manage';
 
 	private static readonly Class = 'extension-action manage';
 	private static readonly HideManageExtensionClass = `${ManageExtensionAction.Class} hide`;
@@ -410,7 +413,7 @@ export class ManageExtensionAction extends Action {
 
 export class EnableForWorkspaceAction extends Action implements IExtensionAction {
 
-	static ID = 'extensions.enableForWorkspace';
+	static readonly ID = 'extensions.enableForWorkspace';
 	static LABEL = localize('enableForWorkspaceAction', "Enable (Workspace)");
 
 	private disposables: IDisposable[] = [];
@@ -434,7 +437,7 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extensionEnablementService.canChangeEnablement();
+			this.enabled = (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -450,7 +453,7 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 
 export class EnableGloballyAction extends Action implements IExtensionAction {
 
-	static ID = 'extensions.enableGlobally';
+	static readonly ID = 'extensions.enableGlobally';
 	static LABEL = localize('enableGloballyAction', "Enable");
 
 	private disposables: IDisposable[] = [];
@@ -472,7 +475,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extensionEnablementService.canChangeEnablement();
+			this.enabled = (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -488,7 +491,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 
 export class EnableAction extends Action {
 
-	static ID = 'extensions.enable';
+	static readonly ID = 'extensions.enable';
 	private static readonly EnabledClass = 'extension-action prominent enable';
 	private static readonly DisabledClass = `${EnableAction.EnabledClass} disabled`;
 
@@ -546,7 +549,7 @@ export class EnableAction extends Action {
 
 export class DisableForWorkspaceAction extends Action implements IExtensionAction {
 
-	static ID = 'extensions.disableForWorkspace';
+	static readonly ID = 'extensions.disableForWorkspace';
 	static LABEL = localize('disableForWorkspaceAction', "Disable (Workspace)");
 
 	private disposables: IDisposable[] = [];
@@ -557,7 +560,8 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 
 	constructor(label: string,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super(DisableForWorkspaceAction.ID, label);
 
@@ -569,7 +573,7 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 	private update(): void {
 		this.enabled = false;
 		if (this.extension && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			this.enabled = this.extension.type !== LocalExtensionType.System && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled);
+			this.enabled = this.extension.type !== LocalExtensionType.System && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -585,7 +589,7 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 
 export class DisableGloballyAction extends Action implements IExtensionAction {
 
-	static ID = 'extensions.disableGlobally';
+	static readonly ID = 'extensions.disableGlobally';
 	static LABEL = localize('disableGloballyAction', "Disable");
 
 	private disposables: IDisposable[] = [];
@@ -595,7 +599,8 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(label: string,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super(DisableGloballyAction.ID, label);
 
@@ -606,7 +611,7 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = this.extension.type !== LocalExtensionType.System && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled);
+			this.enabled = this.extension.type !== LocalExtensionType.System && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -622,7 +627,7 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 
 export class DisableAction extends Action {
 
-	static ID = 'extensions.disable';
+	static readonly ID = 'extensions.disable';
 
 	private static readonly EnabledClass = 'extension-action disable';
 	private static readonly DisabledClass = `${DisableAction.EnabledClass} disabled`;
@@ -677,7 +682,7 @@ export class DisableAction extends Action {
 
 export class CheckForUpdatesAction extends Action {
 
-	static ID = 'workbench.extensions.action.checkForUpdates';
+	static readonly ID = 'workbench.extensions.action.checkForUpdates';
 	static LABEL = localize('checkForUpdates', "Check for Updates");
 
 	constructor(
@@ -717,7 +722,7 @@ export class ToggleAutoUpdateAction extends Action {
 
 export class EnableAutoUpdateAction extends ToggleAutoUpdateAction {
 
-	static ID = 'workbench.extensions.action.enableAutoUpdate';
+	static readonly ID = 'workbench.extensions.action.enableAutoUpdate';
 	static LABEL = localize('enableAutoUpdate', "Enable Auto Updating Extensions");
 
 	constructor(
@@ -731,7 +736,7 @@ export class EnableAutoUpdateAction extends ToggleAutoUpdateAction {
 
 export class DisableAutoUpdateAction extends ToggleAutoUpdateAction {
 
-	static ID = 'workbench.extensions.action.disableAutoUpdate';
+	static readonly ID = 'workbench.extensions.action.disableAutoUpdate';
 	static LABEL = localize('disableAutoUpdate', "Disable Auto Updating Extensions");
 
 	constructor(
@@ -745,7 +750,7 @@ export class DisableAutoUpdateAction extends ToggleAutoUpdateAction {
 
 export class UpdateAllAction extends Action {
 
-	static ID = 'workbench.extensions.action.updateAllExtensions';
+	static readonly ID = 'workbench.extensions.action.updateAllExtensions';
 	static LABEL = localize('updateAll', "Update All Extensions");
 
 	private disposables: IDisposable[] = [];
@@ -896,7 +901,7 @@ export class InstallExtensionsAction extends OpenExtensionsViewletAction {
 
 export class ShowEnabledExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.showEnabledExtensions';
+	static readonly ID = 'workbench.extensions.action.showEnabledExtensions';
 	static LABEL = localize('showEnabledExtensions', 'Show Enabled Extensions');
 
 	constructor(
@@ -919,7 +924,7 @@ export class ShowEnabledExtensionsAction extends Action {
 
 export class ShowInstalledExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.showInstalledExtensions';
+	static readonly ID = 'workbench.extensions.action.showInstalledExtensions';
 	static LABEL = localize('showInstalledExtensions', "Show Installed Extensions");
 
 	constructor(
@@ -942,7 +947,7 @@ export class ShowInstalledExtensionsAction extends Action {
 
 export class ShowDisabledExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.showDisabledExtensions';
+	static readonly ID = 'workbench.extensions.action.showDisabledExtensions';
 	static LABEL = localize('showDisabledExtensions', "Show Disabled Extensions");
 
 	constructor(
@@ -965,7 +970,7 @@ export class ShowDisabledExtensionsAction extends Action {
 
 export class ClearExtensionsInputAction extends Action {
 
-	static ID = 'workbench.extensions.action.clearExtensionsInput';
+	static readonly ID = 'workbench.extensions.action.clearExtensionsInput';
 	static LABEL = localize('clearExtensionsInput', "Clear Extensions Input");
 
 	private disposables: IDisposable[] = [];
@@ -1001,7 +1006,7 @@ export class ClearExtensionsInputAction extends Action {
 
 export class ShowOutdatedExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.listOutdatedExtensions';
+	static readonly ID = 'workbench.extensions.action.listOutdatedExtensions';
 	static LABEL = localize('showOutdatedExtensions', "Show Outdated Extensions");
 
 	constructor(
@@ -1024,7 +1029,7 @@ export class ShowOutdatedExtensionsAction extends Action {
 
 export class ShowPopularExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.showPopularExtensions';
+	static readonly ID = 'workbench.extensions.action.showPopularExtensions';
 	static LABEL = localize('showPopularExtensions', "Show Popular Extensions");
 
 	constructor(
@@ -1047,7 +1052,7 @@ export class ShowPopularExtensionsAction extends Action {
 
 export class ShowRecommendedExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.showRecommendedExtensions';
+	static readonly ID = 'workbench.extensions.action.showRecommendedExtensions';
 	static LABEL = localize('showRecommendedExtensions', "Show Recommended Extensions");
 
 	constructor(
@@ -1070,7 +1075,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 
 export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.installWorkspaceRecommendedExtensions';
+	static readonly ID = 'workbench.extensions.action.installWorkspaceRecommendedExtensions';
 	static LABEL = localize('installWorkspaceRecommendedExtensions', "Install All Workspace Recommended Extensions");
 
 	private disposables: IDisposable[] = [];
@@ -1147,7 +1152,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 
 export class InstallRecommendedExtensionAction extends Action {
 
-	static ID = 'workbench.extensions.action.installRecommendedExtension';
+	static readonly ID = 'workbench.extensions.action.installRecommendedExtension';
 	static LABEL = localize('installRecommendedExtension', "Install Recommended Extension");
 
 	private extensionId: string;
@@ -1197,7 +1202,7 @@ export class InstallRecommendedExtensionAction extends Action {
 
 export class ShowRecommendedKeymapExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.showRecommendedKeymapExtensions';
+	static readonly ID = 'workbench.extensions.action.showRecommendedKeymapExtensions';
 	static SHORT_LABEL = localize('showRecommendedKeymapExtensionsShort', "Keymaps");
 
 	constructor(
@@ -1220,7 +1225,7 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 
 export class ShowLanguageExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.showLanguageExtensions';
+	static readonly ID = 'workbench.extensions.action.showLanguageExtensions';
 	static SHORT_LABEL = localize('showLanguageExtensionsShort', "Language Extensions");
 
 	constructor(
@@ -1243,7 +1248,7 @@ export class ShowLanguageExtensionsAction extends Action {
 
 export class ShowAzureExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.showAzureExtensions';
+	static readonly ID = 'workbench.extensions.action.showAzureExtensions';
 	static SHORT_LABEL = localize('showAzureExtensionsShort', "Azure Extensions");
 
 	constructor(
@@ -1303,6 +1308,53 @@ export class ChangeSortAction extends Action {
 	}
 }
 
+export class ConfigureRecommendedExtensionsCommandsContributor extends Disposable implements IWorkbenchContribution {
+
+	private workspaceContextKey = new RawContextKey<boolean>('workspaceRecommendations', true);
+	private workspaceFolderContextKey = new RawContextKey<boolean>('workspaceFolderRecommendations', true);
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
+	) {
+		super();
+		const boundWorkspaceContextKey = this.workspaceContextKey.bindTo(contextKeyService);
+		boundWorkspaceContextKey.set(workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
+		this._register(workspaceContextService.onDidChangeWorkbenchState(() => boundWorkspaceContextKey.set(workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE)));
+
+
+		const boundWorkspaceFolderContextKey = this.workspaceFolderContextKey.bindTo(contextKeyService);
+		boundWorkspaceFolderContextKey.set(workspaceContextService.getWorkspace().folders.length > 0);
+		this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => boundWorkspaceFolderContextKey.set(workspaceContextService.getWorkspace().folders.length > 0)));
+
+		this.registerCommands();
+	}
+
+	private registerCommands(): void {
+		CommandsRegistry.registerCommand(ConfigureWorkspaceRecommendedExtensionsAction.ID, serviceAccessor => {
+			serviceAccessor.get(IInstantiationService).createInstance(ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction.ID, ConfigureWorkspaceRecommendedExtensionsAction.LABEL).run();
+		});
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: ConfigureWorkspaceRecommendedExtensionsAction.ID,
+				title: `${ExtensionsLabel}: ${ConfigureWorkspaceRecommendedExtensionsAction.LABEL}`,
+			},
+			when: this.workspaceContextKey
+		});
+
+		CommandsRegistry.registerCommand(ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, serviceAccessor => {
+			serviceAccessor.get(IInstantiationService).createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL).run();
+		});
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: ConfigureWorkspaceFolderRecommendedExtensionsAction.ID,
+				title: `${ExtensionsLabel}: ${ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL}`,
+			},
+			when: this.workspaceFolderContextKey
+		});
+	}
+}
+
 interface IExtensionsContent {
 	recommendations: string[];
 }
@@ -1323,20 +1375,22 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 
 	protected openExtensionsFile(extensionsFileResource: URI): TPromise<any> {
 		return this.getOrCreateExtensionsFile(extensionsFileResource)
-			.then(({ created }) => {
-				return this.editorService.openEditor({
-					resource: extensionsFileResource,
-					options: {
-						forceOpen: true,
-						pinned: created
-					},
-				});
-			}, error => TPromise.wrapError(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
+			.then(({ created, content }) =>
+				this.getSelectionPosition(content, extensionsFileResource, ['recommendations'])
+					.then(selection => this.editorService.openEditor({
+						resource: extensionsFileResource,
+						options: {
+							forceOpen: true,
+							pinned: created,
+							selection
+						}
+					})),
+			error => TPromise.wrapError(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
 	}
 
 	protected openWorkspaceConfigurationFile(workspaceConfigurationFile: URI): TPromise<any> {
 		return this.getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile)
-			.then(content => this.getSelectionPosition(content))
+			.then(content => this.getSelectionPosition(content.value, content.resource, ['extensions', 'recommendations']))
 			.then(selection => this.editorService.openEditor({
 				resource: workspaceConfigurationFile,
 				options: {
@@ -1358,12 +1412,14 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			});
 	}
 
-	private getSelectionPosition(content: IContent): TPromise<ITextEditorSelection> {
-		const tree = json.parseTree(content.value);
-		const node = json.findNodeAtLocation(tree, ['extensions', 'recommendations']);
+	private getSelectionPosition(content: string, resource: URI, path: json.JSONPath): TPromise<ITextEditorSelection> {
+		const tree = json.parseTree(content);
+		const node = json.findNodeAtLocation(tree, path);
 		if (node && node.parent.children[1]) {
-			const offset = node.parent.children[1].offset;
-			return this.textModelResolverService.createModelReference(content.resource)
+			const recommendationsValueNode = node.parent.children[1];
+			const lastExtensionNode = recommendationsValueNode.children && recommendationsValueNode.children.length ? recommendationsValueNode.children[recommendationsValueNode.children.length - 1] : null;
+			const offset = lastExtensionNode ? lastExtensionNode.offset + lastExtensionNode.length : recommendationsValueNode.offset + 1;
+			return this.textModelResolverService.createModelReference(resource)
 				.then(reference => {
 					const position = reference.object.textEditorModel.getPositionAt(offset);
 					reference.dispose();
@@ -1378,12 +1434,12 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		return TPromise.as(null);
 	}
 
-	private getOrCreateExtensionsFile(extensionsFileResource: URI): TPromise<{ created: boolean, extensionsFileResource: URI }> {
+	private getOrCreateExtensionsFile(extensionsFileResource: URI): TPromise<{ created: boolean, extensionsFileResource: URI, content: string }> {
 		return this.fileService.resolveContent(extensionsFileResource).then(content => {
-			return { created: false, extensionsFileResource };
+			return { created: false, extensionsFileResource, content: content.value };
 		}, err => {
 			return this.fileService.updateContent(extensionsFileResource, ExtensionsConfigurationInitialContent).then(() => {
-				return { created: true, extensionsFileResource };
+				return { created: true, extensionsFileResource, content: ExtensionsConfigurationInitialContent };
 			});
 		});
 	}
@@ -1391,7 +1447,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 
 export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfigureRecommendedExtensionsAction {
 
-	static ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
+	static readonly ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
 	static LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Recommended Extensions (Workspace)");
 
 	private disposables: IDisposable[] = [];
@@ -1414,7 +1470,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 		this.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
-	public run(event: any): TPromise<any> {
+	public run(): TPromise<any> {
 		switch (this.contextService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
 				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(paths.join('.vscode', 'extensions.json')));
@@ -1432,7 +1488,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 
 export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends AbstractConfigureRecommendedExtensionsAction {
 
-	static ID = 'workbench.extensions.action.configureWorkspaceFolderRecommendedExtensions';
+	static readonly ID = 'workbench.extensions.action.configureWorkspaceFolderRecommendedExtensions';
 	static LABEL = localize('configureWorkspaceFolderRecommendedExtensions', "Configure Recommended Extensions (Workspace Folder)");
 
 	private disposables: IDisposable[] = [];
@@ -1458,7 +1514,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 
 	public run(): TPromise<any> {
 		const folderCount = this.contextService.getWorkspace().folders.length;
-		const pickFolderPromise = folderCount === 1 ? TPromise.as(this.contextService.getWorkspace().folders[0]) : this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND);
+		const pickFolderPromise = folderCount === 1 ? TPromise.as(this.contextService.getWorkspace().folders[0]) : this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
 		return pickFolderPromise
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
@@ -1476,7 +1532,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 
 export class BuiltinStatusLabelAction extends Action {
 
-	private static readonly Class = 'extension-action built-in-status';
+	private static readonly Class = 'built-in-status';
 
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
@@ -1501,7 +1557,7 @@ export class BuiltinStatusLabelAction extends Action {
 
 export class DisableAllAction extends Action {
 
-	static ID = 'workbench.extensions.action.disableAll';
+	static readonly ID = 'workbench.extensions.action.disableAll';
 	static LABEL = localize('disableAll', "Disable All Installed Extensions");
 
 	private disposables: IDisposable[] = [];
@@ -1531,7 +1587,7 @@ export class DisableAllAction extends Action {
 
 export class DisableAllWorkpsaceAction extends Action {
 
-	static ID = 'workbench.extensions.action.disableAllWorkspace';
+	static readonly ID = 'workbench.extensions.action.disableAllWorkspace';
 	static LABEL = localize('disableAllWorkspace', "Disable All Installed Extensions for this Workspace");
 
 	private disposables: IDisposable[] = [];
@@ -1563,7 +1619,7 @@ export class DisableAllWorkpsaceAction extends Action {
 
 export class EnableAllAction extends Action {
 
-	static ID = 'workbench.extensions.action.enableAll';
+	static readonly ID = 'workbench.extensions.action.enableAll';
 	static LABEL = localize('enableAll', "Enable All Installed Extensions");
 
 	private disposables: IDisposable[] = [];
@@ -1579,7 +1635,7 @@ export class EnableAllAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canChangeEnablement() && (e.enablementState === EnablementState.Disabled || e.enablementState === EnablementState.WorkspaceDisabled));
+		this.enabled = this.extensionsWorkbenchService.local.some(e => e.local && this.extensionEnablementService.canChangeEnablement(e.local) && (e.enablementState === EnablementState.Disabled || e.enablementState === EnablementState.WorkspaceDisabled));
 	}
 
 	run(): TPromise<any> {
@@ -1594,7 +1650,7 @@ export class EnableAllAction extends Action {
 
 export class EnableAllWorkpsaceAction extends Action {
 
-	static ID = 'workbench.extensions.action.enableAllWorkspace';
+	static readonly ID = 'workbench.extensions.action.enableAllWorkspace';
 	static LABEL = localize('enableAllWorkspace', "Enable All Installed Extensions for this Workspace");
 
 	private disposables: IDisposable[] = [];
@@ -1612,7 +1668,7 @@ export class EnableAllWorkpsaceAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canChangeEnablement() && (e.enablementState === EnablementState.Disabled || e.enablementState === EnablementState.WorkspaceDisabled));
+		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.extensionsWorkbenchService.local.some(e => e.local && this.extensionEnablementService.canChangeEnablement(e.local) && (e.enablementState === EnablementState.Disabled || e.enablementState === EnablementState.WorkspaceDisabled));
 	}
 
 	run(): TPromise<any> {
@@ -1632,6 +1688,17 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForL
 		.then(viewlet => viewlet as IExtensionsViewlet)
 		.then(viewlet => {
 			viewlet.search(`ext:${fileExtension.replace(/^\./, '')}`);
+			viewlet.focus();
+		});
+});
+
+CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWithId', function (accessor: ServicesAccessor, extensionId: string) {
+	const viewletService = accessor.get(IViewletService);
+
+	return viewletService.openViewlet(VIEWLET_ID, true)
+		.then(viewlet => viewlet as IExtensionsViewlet)
+		.then(viewlet => {
+			viewlet.search(`@id:${extensionId}`);
 			viewlet.focus();
 		});
 });

@@ -67,6 +67,16 @@
         }
       }
     ],
+    "folding": {
+      "markers": {
+        "start": "^\\s*<!--\\s*#region\\b\\s*(.*?)-->/",
+        "end": "^\\s*<!--\\s*#endregion\\b\\s*(.*?)-->/"
+      }
+    },
+		"snippets": [{
+			"language": "html",
+			"path": "./snippets/html.snippets.json"
+		}],
     "configuration": {
       "id": "html",
       "order": 20,

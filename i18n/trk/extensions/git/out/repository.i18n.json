@@ -21,6 +21,7 @@
 	"deleted by us": "Bizim Tarafımızdan Silindi",
 	"both added": "Her İkimiz de Ekledik",
 	"both modified": "Her İkimiz de Değiştirdik",
+	"commitMessage": "Mesaj (commit'lemek için {0} tuşlarına basın)",
 	"commit": "Commit'le",
 	"merge changes": "Değişiklikleri Birleştir",
 	"staged changes": "Hazırlanmış Değişiklikler",

@@ -12,6 +12,5 @@
 	"globalConsoleActionWin": "Új parancssor megnyitása",
 	"globalConsoleActionMacLinux": "Új terminál megnyitása",
 	"scopedConsoleActionWin": "Megnyitás a parancssorban",
-	"scopedConsoleActionMacLinux": "Megnyitás a terminálban",
-	"openFolderInIntegratedTerminal": "Megnyitás a terminálban"
+	"scopedConsoleActionMacLinux": "Megnyitás a terminálban"
 }

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Build, Builder, MultiBuilder, Binding, Position, $, bindElement, withElement } from 'vs/base/browser/builder';
+import { Build, Builder, MultiBuilder, $, bindElement, withElement, setPropertyOnElement, getPropertyFromElement } from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import * as DomUtils from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -55,12 +55,6 @@ suite('Builder', () => {
 		document.body.removeChild(fixture);
 	});
 
-	test('Position', function () {
-		let p = new Position(200, 100);
-		assert.strictEqual(p.x, 200);
-		assert.strictEqual(p.y, 100);
-	});
-
 	test('Binding', function () {
 		let b = Build.withElementById(fixtureId, false);
 		let element = b.getHTMLElement();
@@ -68,34 +62,17 @@ suite('Builder', () => {
 		assert(element);
 
 		// Properties
-		Binding.setPropertyOnElement(element, 'foo', 'bar');
-		assert.strictEqual(Binding.getPropertyFromElement(element, 'foo'), 'bar');
+		setPropertyOnElement(element, 'foo', 'bar');
+		assert.strictEqual(getPropertyFromElement(element, 'foo'), 'bar');
 
-		Binding.setPropertyOnElement(element, 'foo', { foo: 'bar' });
-		assert.deepEqual(Binding.getPropertyFromElement(element, 'foo'), { foo: 'bar' });
+		setPropertyOnElement(element, 'foo', { foo: 'bar' });
+		assert.deepEqual(getPropertyFromElement(element, 'foo'), { foo: 'bar' });
 
-		Binding.removePropertyFromElement(element, 'foo');
+		setPropertyOnElement(element, 'bar', 'bar');
+		assert.strictEqual(getPropertyFromElement(element, 'bar'), 'bar');
 
-		Binding.setPropertyOnElement(element, 'bar', 'bar');
-		assert.strictEqual(Binding.getPropertyFromElement(element, 'bar'), 'bar');
-
-		Binding.setPropertyOnElement(element, 'bar', { foo: 'bar' });
-		assert.deepEqual(Binding.getPropertyFromElement(element, 'bar'), { foo: 'bar' });
-
-		Binding.removePropertyFromElement(element, 'bar');
-
-		assert(!Binding.getPropertyFromElement(element, 'foo'));
-		assert(!Binding.getPropertyFromElement(element, 'bar'));
-
-		// Binding
-		Binding.bindElement(element, 'bar');
-		assert.strictEqual(Binding.getBindingFromElement(element), 'bar');
-
-		Binding.bindElement(element, { foo: 'bar' });
-		assert.deepEqual(Binding.getBindingFromElement(element), { foo: 'bar' });
-
-		Binding.unbindElement(element);
-		assert(!Binding.getBindingFromElement(element));
+		setPropertyOnElement(element, 'bar', { foo: 'bar' });
+		assert.deepEqual(getPropertyFromElement(element, 'bar'), { foo: 'bar' });
 	});
 
 	test('Select', function () {
@@ -306,8 +283,6 @@ suite('Builder', () => {
 		divBuilder.span({
 			innerHtml: 'see man'
 		});
-
-		assert.strictEqual(divBuilder.parent().attr('id'), 'foobar');
 	});
 
 	test('Builder.clone()', function () {
@@ -390,7 +365,6 @@ suite('Builder', () => {
 
 		// Assert HTML through DOM
 		let root = document.getElementById(fixtureId);
-		assert.strictEqual(b.parent().getHTMLElement(), root);
 		assert.strictEqual(root.childNodes.length, 1);
 
 		let div = root.childNodes[0];
@@ -551,21 +525,18 @@ suite('Builder', () => {
 
 		b.id('foobar');
 		b.title('foobar');
-		b.name('foobar');
 		b.type('foobar');
 		b.value('foobar');
 		b.tabindex(0);
 
 		assert.strictEqual(b.attr('id'), 'foobar');
 		assert.strictEqual(b.attr('title'), 'foobar');
-		assert.strictEqual(b.attr('name'), 'foobar');
 		assert.strictEqual(b.attr('type'), 'foobar');
 		assert.strictEqual(b.attr('value'), 'foobar');
 		assert.strictEqual(b.attr('tabindex'), '0');
 
 		assert.strictEqual(b.getHTMLElement().getAttribute('id'), 'foobar');
 		assert.strictEqual(b.getHTMLElement().getAttribute('title'), 'foobar');
-		assert.strictEqual(b.getHTMLElement().getAttribute('name'), 'foobar');
 		assert.strictEqual(b.getHTMLElement().getAttribute('type'), 'foobar');
 		assert.strictEqual(b.getHTMLElement().getAttribute('value'), 'foobar');
 		assert.strictEqual(b.getHTMLElement().getAttribute('tabindex'), '0');

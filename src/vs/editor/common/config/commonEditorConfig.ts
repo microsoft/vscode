@@ -153,7 +153,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	private static _digitCount(n: number): number {
-		var r = 0;
+		let r = 0;
 		while (n) {
 			n = Math.floor(n / 10);
 			r++;
@@ -211,7 +211,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('lineNumbers.interval', "Line numbers are rendered every 10 lines.")
 			],
 			'default': 'on',
-			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', and 'relative'.")
+			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', 'relative' and 'interval'.")
 		},
 		'editor.rulers': {
 			'type': 'array',
@@ -290,6 +290,12 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.find.autoFindInSelection,
 			'description': nls.localize('find.autoFindInSelection', "Controls if Find in Selection flag is turned on when multiple characters or lines of text are selected in the editor")
 		},
+		'editor.find.globalFindClipboard': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.find.globalFindClipboard,
+			'description': nls.localize('find.globalFindClipboard', "Controls if the Find Widget should read or modify the shared find clipboard on macOS"),
+			'included': platform.isMacintosh
+		},
 		'editor.wordWrap': {
 			'type': 'string',
 			'enum': ['off', 'on', 'wordWrapColumn', 'bounded'],
@@ -346,8 +352,8 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['ctrlCmd', 'alt'],
 			'enumDescriptions': [
-				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on OSX."),
-				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on OSX.")
+				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
+				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
 			],
 			'default': 'alt',
 			'description': nls.localize({
@@ -356,7 +362,7 @@ const editorConfiguration: IConfigurationNode = {
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on OSX. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
+			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
 		},
 		'editor.quickSuggestions': {
 			'anyOf': [
@@ -505,6 +511,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': editorOptions.cursorStyleToString(EDITOR_DEFAULTS.viewInfo.cursorStyle),
 			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'block-outline', 'line', 'line-thin', 'underline' and 'underline-thin'")
 		},
+		'editor.lineCursorWidth': {
+			'type': 'integer',
+			'default': EDITOR_DEFAULTS.viewInfo.lineCursorWidth,
+			'description': nls.localize('lineCursorWidth', "Controls the width of the cursor when editor.cursorStyle is set to 'line'")
+		},
 		'editor.fontLigatures': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.fontLigatures,
@@ -609,6 +620,12 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
 			'description': nls.localize('codeActions', "Enables the code action lightbulb")
 		},
+		'editor.selectionClipboard': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.selectionClipboard,
+			'description': nls.localize('selectionClipboard', "Controls if the Linux primary clipboard should be supported."),
+			'included': platform.isLinux
+		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',
 			'default': true,
@@ -626,13 +643,5 @@ const editorConfiguration: IConfigurationNode = {
 		}
 	}
 };
-
-if (platform.isLinux) {
-	editorConfiguration['properties']['editor.selectionClipboard'] = {
-		'type': 'boolean',
-		'default': EDITOR_DEFAULTS.contribInfo.selectionClipboard,
-		'description': nls.localize('selectionClipboard', "Controls if the Linux primary clipboard should be supported.")
-	};
-}
 
 configurationRegistry.registerConfiguration(editorConfiguration);

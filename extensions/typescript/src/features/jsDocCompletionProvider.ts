@@ -182,7 +182,7 @@ class TryCompleteJsDocCommand implements Command {
 		template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)\s*$/gm, (_param, type, post) => {
 			let out = '* @param ';
 			if (type === ' {any}' || type === ' {*}') {
-				out += `{*\$\{${snippetIndex++}\}} `;
+				out += `{\$\{${snippetIndex++}:*\}} `;
 			} else if (type) {
 				out += type + ' ';
 			}

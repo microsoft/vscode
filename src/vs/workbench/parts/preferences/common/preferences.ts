@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditor, Position, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IRange } from 'vs/editor/common/core/range';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -24,6 +24,7 @@ export interface IWorkbenchSettingsConfiguration {
 			naturalLanguageSearchEndpoint: string;
 			naturalLanguageSearchKey: string;
 			naturalLanguageSearchAutoIngestFeedback: boolean;
+			useNaturalLanguageSearchPost: boolean;
 			enableNaturalLanguageSearch: boolean;
 			enableNaturalLanguageSearchFeedback: boolean;
 		}
@@ -56,17 +57,50 @@ export interface ISetting {
 	overrideOf?: ISetting;
 }
 
-export interface IFilterResult {
-	query: string;
-	filteredGroups: ISettingsGroup[];
-	allGroups: ISettingsGroup[];
-	matches: IRange[];
-	fuzzySearchAvailable?: boolean;
+export interface IExtensionSetting extends ISetting {
+	extensionName: string;
+	extensionPublisher: string;
+}
+
+export interface ISearchResult {
+	filterMatches: ISettingMatch[];
 	metadata?: IFilterMetadata;
 }
 
+export interface ISearchResultGroup {
+	id: string;
+	label: string;
+	result: ISearchResult;
+	order: number;
+}
+
+export interface IFilterResult {
+	query?: string;
+	filteredGroups: ISettingsGroup[];
+	allGroups: ISettingsGroup[];
+	matches: IRange[];
+	metadata?: IFilterMetadata;
+}
+
+export interface ISettingMatch {
+	setting: ISetting;
+	matches: IRange[];
+	score: number;
+}
+
 export interface IScoredResults {
-	[key: string]: number;
+	[key: string]: IRemoteSetting;
+}
+
+export interface IRemoteSetting {
+	score: number;
+	key: string;
+	id: string;
+	defaultValue: string;
+	description: string;
+	packageId: string;
+	extensionName?: string;
+	extensionPublisher?: string;
 }
 
 export interface IFilterMetadata {
@@ -86,14 +120,14 @@ export interface IPreferencesEditorModel<T> {
 }
 
 export type IGroupFilter = (group: ISettingsGroup) => boolean;
-export type ISettingFilter = (setting: ISetting) => IRange[];
+export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[], score: number };
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
 	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
-	groupsTerms: string[];
-	filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult;
+	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
+	updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult;
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
@@ -108,7 +142,7 @@ export interface IPreferencesService {
 	workspaceSettingsResource: URI;
 	getFolderSettingsResource(resource: URI): URI;
 
-	resolveModel(uri: URI): TPromise<IModel>;
+	resolveModel(uri: URI): TPromise<ITextModel>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
 	openRawDefaultSettings(): TPromise<void>;
@@ -133,6 +167,7 @@ export interface IKeybindingsEditor extends IEditor {
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	copyKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 }
 
@@ -159,15 +194,12 @@ export const IPreferencesSearchService = createDecorator<IPreferencesSearchServi
 export interface IPreferencesSearchService {
 	_serviceBrand: any;
 
-	remoteSearchAllowed: boolean;
-	endpoint: IEndpointDetails;
-	onRemoteSearchEnablementChanged: Event<boolean>;
-
-	startSearch(filter: string, remote: boolean): IPreferencesSearchModel;
+	getLocalSearchProvider(filter: string): ISearchProvider;
+	getRemoteSearchProvider(filter: string, newExtensionsOnly?: boolean): ISearchProvider;
 }
 
-export interface IPreferencesSearchModel {
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult>;
+export interface ISearchProvider {
+	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult>;
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
@@ -187,6 +219,7 @@ export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybi
 export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindingEntry';
+export const KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND = 'keybindings.editor.copyCommandKeybindingEntry';
 export const KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS = 'keybindings.editor.showConflicts';
 export const KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS = 'keybindings.editor.focusKeybindings';
 

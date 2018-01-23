@@ -355,10 +355,6 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 					collector.info(localize('dupe.command', "Menu item references the same command as default and alt-command"));
 				}
 
-				if (item.alt && menu !== MenuId.EditorTitle && item.group !== 'navigation') {
-					collector.info(localize('nosupport.altCommand', "Sorry, but currently only the 'navigation' group of the 'editor/title' menu supports alt-commands"));
-				}
-
 				let group: string;
 				let order: number;
 				if (item.group) {

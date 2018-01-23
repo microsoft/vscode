@@ -17,7 +17,7 @@ import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Model, RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
+import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -298,34 +298,46 @@ export class ReplExpressionsRenderer implements IRenderer {
 			if (text.charCodeAt(i) === 27) {
 				let index = i;
 				let chr = (++index < len ? text.charAt(index) : null);
+				let codes = [];
 				if (chr && chr === '[') {
 					let code: string = null;
-					chr = (++index < len ? text.charAt(index) : null);
-
-					if (chr && chr >= '0' && chr <= '9') {
-						code = chr;
+					while (chr !== 'm' && codes.length <= 7) {
 						chr = (++index < len ? text.charAt(index) : null);
-					}
 
-					if (chr && chr >= '0' && chr <= '9') {
-						code += chr;
-						chr = (++index < len ? text.charAt(index) : null);
-					}
+						if (chr && chr >= '0' && chr <= '9') {
+							code = chr;
+							chr = (++index < len ? text.charAt(index) : null);
+						}
 
-					if (code === null) {
-						code = '0';
+						if (chr && chr >= '0' && chr <= '9') {
+							code += chr;
+							chr = (++index < len ? text.charAt(index) : null);
+						}
+
+						if (code === null) {
+							code = '0';
+						}
+
+						codes.push(code);
 					}
 
 					if (chr === 'm') { // set text color/mode.
-
+						code = null;
 						// only respect text-foreground ranges and ignore the values for "black" & "white" because those
 						// only make sense in combination with text-background ranges which we currently not support
-						let parsedMode = parseInt(code, 10);
 						let token = document.createElement('span');
-						if ((parsedMode >= 30 && parsedMode <= 37) || (parsedMode >= 90 && parsedMode <= 97)) {
-							token.className = 'code' + parsedMode;
-						} else if (parsedMode === 1) {
-							token.className = 'code-bold';
+						token.className = '';
+						while (codes.length > 0) {
+							code = codes.pop();
+							let parsedMode = parseInt(code, 10);
+							if (token.className.length > 0) {
+								token.className += ' ';
+							}
+							if ((parsedMode >= 30 && parsedMode <= 37) || (parsedMode >= 90 && parsedMode <= 97)) {
+								token.className += 'code' + parsedMode;
+							} else if (parsedMode === 1) {
+								token.className += 'code-bold';
+							}
 						}
 
 						// we need a tokens container now

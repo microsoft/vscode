@@ -84,6 +84,10 @@ export class FoldingRanges {
 		}
 	}
 
+	public toRegion(index: number): FoldingRegion {
+		return new FoldingRegion(this, index);
+	}
+
 	public getParentIndex(index: number) {
 		this.ensureParentIndices();
 		let parent = ((this._startIndexes[index] & MASK_INDENT) >>> 24) + ((this._endIndexes[index] & MASK_INDENT) >>> 16);
@@ -129,5 +133,41 @@ export class FoldingRanges {
 			}
 		}
 		return -1;
+	}
+}
+
+export class FoldingRegion {
+
+	constructor(private ranges: FoldingRanges, private index: number) {
+	}
+
+	public get startLineNumber() {
+		return this.ranges.getStartLineNumber(this.index);
+	}
+
+	public get endLineNumber() {
+		return this.ranges.getEndLineNumber(this.index);
+	}
+
+	public get regionIndex() {
+		return this.index;
+	}
+
+	public get parentIndex() {
+		return this.ranges.getParentIndex(this.index);
+	}
+
+	public get isCollapsed() {
+		return this.ranges.isCollapsed(this.index);
+	}
+
+	containedBy(range: ILineRange): boolean {
+		return range.startLineNumber <= this.startLineNumber && range.endLineNumber >= this.endLineNumber;
+	}
+	containsLine(lineNumber: number) {
+		return this.startLineNumber <= lineNumber && lineNumber <= this.endLineNumber;
+	}
+	hidesLine(lineNumber: number) {
+		return this.startLineNumber < lineNumber && lineNumber <= this.endLineNumber;
 	}
 }

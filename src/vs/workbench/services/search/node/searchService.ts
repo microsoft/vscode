@@ -22,23 +22,25 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
 
 	private diskSearch: DiskSearch;
 	private readonly searchProvider: ISearchResultProvider[] = [];
+	private forwardingTelemetry: PPromise<void, ITelemetryEvent>;
 
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ILogService private logService: ILogService
 	) {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
 		this.registerSearchResultProvider(this.diskSearch);
-		this.forwardTelemetry();
 	}
 
 	public registerSearchResultProvider(provider: ISearchResultProvider): IDisposable {
@@ -76,6 +78,7 @@ export class SearchService implements ISearchService {
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+		this.forwardTelemetry();
 
 		let combinedPromise: TPromise<void>;
 
@@ -102,6 +105,10 @@ export class SearchService implements ISearchService {
 					} else {
 						// Progress
 						onProgress(<IProgress>progress);
+					}
+
+					if (progress.message) {
+						this.logService.info('SearchService#search', progress.message);
 					}
 				}
 			));
@@ -157,6 +164,9 @@ export class SearchService implements ISearchService {
 				}
 
 				// Don't support other resource schemes than files for now
+				// todo@remote
+				// why is that? we should search for resources from other
+				// schemes
 				else if (resource.scheme !== 'file') {
 					return;
 				}
@@ -210,10 +220,12 @@ export class SearchService implements ISearchService {
 	}
 
 	private forwardTelemetry() {
-		this.diskSearch.fetchTelemetry()
-			.then(null, onUnexpectedError, event => {
-				this.telemetryService.publicLog(event.eventName, event.data);
-			});
+		if (!this.forwardingTelemetry) {
+			this.forwardingTelemetry = this.diskSearch.fetchTelemetry()
+				.then(null, onUnexpectedError, event => {
+					this.telemetryService.publicLog(event.eventName, event.data);
+				});
+		}
 	}
 }
 

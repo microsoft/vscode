@@ -98,10 +98,15 @@ export interface IWindowsService {
 	onWindowFocus: Event<number>;
 	onWindowBlur: Event<number>;
 
+	// Dialogs
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	showMessageBox(windowId: number, options: MessageBoxOptions): TPromise<IMessageBoxResult>;
+	showSaveDialog(windowId: number, options: SaveDialogOptions): TPromise<string>;
+	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]>;
+
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
@@ -191,10 +196,9 @@ export interface IWindowService {
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
-	showMessageBoxSync(options: MessageBoxOptions): number;
 	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
-	showSaveDialog(options: SaveDialogOptions, callback?: (fileName: string) => void): string;
-	showOpenDialog(options: OpenDialogOptions, callback?: (fileNames: string[]) => void): string[];
+	showSaveDialog(options: SaveDialogOptions): TPromise<string>;
+	showOpenDialog(options: OpenDialogOptions): TPromise<string[]>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
@@ -207,7 +211,6 @@ export interface IWindowSettings {
 	openFilesInNewWindow: 'on' | 'off' | 'default';
 	openFoldersInNewWindow: 'on' | 'off' | 'default';
 	restoreWindows: 'all' | 'folders' | 'one' | 'none';
-	reopenFolders: 'all' | 'one' | 'none'; // TODO@Ben deprecated
 	restoreFullscreen: boolean;
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
@@ -292,6 +295,9 @@ export interface IAddFoldersRequest {
 }
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+	machineId: string;
+	windowId: number;
+
 	appRoot: string;
 	execPath: string;
 	isInitialStartup?: boolean;

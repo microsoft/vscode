@@ -30,6 +30,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	//extensions suggestions
 	context.subscriptions.push(...registerExtensionsCompletions());
 
+	//locale suggestions
+	context.subscriptions.push(registerLocaleCompletionsInLanguageDocument());
+
 	// launch.json decorations
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
 	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
@@ -60,12 +63,50 @@ function registerKeybindingsCompletions(): vscode.Disposable {
 }
 
 function registerSettingsCompletions(): vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider({ language: 'json', pattern: '**/settings.json' }, {
+	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern: '**/settings.json' }, {
 		provideCompletionItems(document, position, token) {
 			return new SettingsDocument(document).provideCompletionItems(position, token);
 		}
 	});
 }
+
+function registerLocaleCompletionsInLanguageDocument(): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ pattern: '**/locale.json' }, {
+		provideCompletionItems(document, position, token) {
+			const location = getLocation(document.getText(), document.offsetAt(position));
+			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+			if (location.path[0] === 'locale') {
+				const extensionsContent = <IExtensionsContent>parse(document.getText());
+				return provideContributedLocalesProposals(range);
+			}
+			return [];
+		}
+	});
+}
+
+function provideContributedLocalesProposals(range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
+	const contributedLocales: string[] = [];
+	for (const extension of vscode.extensions.all) {
+		if (extension.packageJSON && extension.packageJSON['contributes'] && extension.packageJSON['contributes']['localizations'] && extension.packageJSON['contributes']['localizations'].length) {
+			const localizations: { languageId: string }[] = extension.packageJSON['contributes']['localizations'];
+			for (const localization of localizations) {
+				if (contributedLocales.indexOf(localization.languageId) === -1) {
+					contributedLocales.push(localization.languageId);
+				}
+			}
+		}
+	}
+	return contributedLocales.map(locale => {
+		const text = `"${locale}"`;
+		const item = new vscode.CompletionItem(text);
+		item.kind = vscode.CompletionItemKind.Value;
+		item.insertText = text;
+		item.range = range;
+		item.filterText = text;
+		return item;
+	});
+}
+
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -173,7 +214,7 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined): voi
 	editor.setDecorations(decoration, ranges);
 }
 
-vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'json' }, {
+vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'jsonc' }, {
 	provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.SymbolInformation[]> {
 		const result: vscode.SymbolInformation[] = [];
 		let name: string = '';

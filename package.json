@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.19.0",
-  "distro": "11ff877087592418b32fc1b49bb18bc5f77341e1",
+  "version": "1.20.0",
+  "distro": "2478cca5311e147817eef29cb81c0995a3517842",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -21,7 +21,7 @@
     "smoketest": "cd test/smoke && mocha"
   },
   "dependencies": {
-    "applicationinsights": "0.17.1",
+    "applicationinsights": "0.18.0",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.0.7",
@@ -32,17 +32,20 @@
     "jschardet": "1.6.0",
     "keytar": "^4.0.5",
     "minimist": "1.2.0",
+    "native-is-elevated": "^0.2.1",
     "native-keymap": "1.2.5",
     "native-watchdog": "0.3.0",
-    "node-pty": "0.7.3",
+    "node-pty": "0.7.4",
     "nsfw": "1.0.16",
     "semver": "4.3.6",
-    "v8-profiler": "jrieken/v8-profiler#vscode",
+    "spdlog": "0.5.0",
+    "sudo-prompt": "^8.0.0",
+    "v8-inspect-profiler": "^0.0.7",
     "vscode-chokidar": "1.6.2",
-    "vscode-debugprotocol": "1.25.0-pre.0",
-    "vscode-ripgrep": "^0.6.0-patch.0.5",
+    "vscode-debugprotocol": "1.25.0",
+    "vscode-ripgrep": "^0.7.1-patch.0",
     "vscode-textmate": "^3.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.19",
+    "vscode-xterm": "3.1.0-beta7",
     "yauzl": "2.8.0"
   },
   "devDependencies": {
@@ -64,7 +67,7 @@
     "flatpak-bundler": "^0.1.1",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
-    "gulp-atom-electron": "^1.11.0",
+    "gulp-atom-electron": "1.15.1",
     "gulp-azure-storage": "^0.7.0",
     "gulp-bom": "^1.0.0",
     "gulp-buffer": "0.0.2",

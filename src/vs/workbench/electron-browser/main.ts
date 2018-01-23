@@ -6,6 +6,7 @@
 'use strict';
 
 import nls = require('vs/nls');
+import * as perf from 'vs/base/common/performance';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
 import * as browser from 'vs/base/browser/browser';
@@ -30,20 +31,22 @@ import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/commo
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
+import { StorageService, inMemoryLocalStorageInstance, IStorage } from 'vs/platform/storage/common/storageService';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
-import { webFrame, remote } from 'electron';
+import { webFrame } from 'electron';
 import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 
 import fs = require('fs');
+import { ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
+import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
+import { IIssueService } from 'vs/platform/issue/common/issue';
 gracefulFs.gracefulify(fs); // enable gracefulFs
-
-const currentWindowId = remote.getCurrentWindow().id;
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
@@ -68,10 +71,15 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
-	const mainProcessClient = new ElectronIPCClient(String(`window${currentWindowId}`));
-	const mainServices = createMainProcessServices(mainProcessClient);
+	const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
+	const mainServices = createMainProcessServices(mainProcessClient, configuration);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
+	const spdlogService = createSpdLogService(`renderer${configuration.windowId}`, environmentService);
+	const consoleLogService = new ConsoleLogService(environmentService);
+	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
+
+	logService.trace('openWorkbench configuration', JSON.stringify(configuration));
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
@@ -79,17 +87,15 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, workspaceService.getWorkbenchState() === WorkbenchState.EMPTY);
 		const storageService = createStorageService(workspaceService, environmentService);
 
-		timerService.beforeDOMContentLoaded = Date.now();
-
 		return domContentLoaded().then(() => {
-			timerService.afterDOMContentLoaded = Date.now();
 
 			// Open Shell
-			timerService.beforeWorkbenchOpen = Date.now();
+			perf.mark('willStartWorkbench');
 			const shell = new WorkbenchShell(document.body, {
 				contextService: workspaceService,
 				configurationService: workspaceService,
 				environmentService,
+				logService,
 				timerService,
 				storageService
 			}, mainServices, configuration);
@@ -180,12 +186,21 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 	}
 
 	const disableStorage = !!environmentService.extensionTestsPath; // never keep any state when running extension tests!
-	const storage = disableStorage ? inMemoryLocalStorageInstance : window.localStorage;
+
+	let storage: IStorage;
+	if (disableStorage) {
+		storage = inMemoryLocalStorageInstance;
+	} else {
+		// TODO@Ben remove me after a while
+		perf.mark('willAccessLocalStorage');
+		storage = window.localStorage;
+		perf.mark('didAccessLocalStorage');
+	}
 
 	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);
 }
 
-function createMainProcessServices(mainProcessClient: ElectronIPCClient): ServiceCollection {
+function createMainProcessServices(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration): ServiceCollection {
 	const serviceCollection = new ServiceCollection();
 
 	const windowsChannel = mainProcessClient.getChannel('windows');
@@ -195,7 +210,10 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient): Servic
 	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
 
 	const urlChannel = mainProcessClient.getChannel('url');
-	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, currentWindowId));
+	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, configuration.windowId));
+
+	const issueChannel = mainProcessClient.getChannel('issue');
+	serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, issueChannel));
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));

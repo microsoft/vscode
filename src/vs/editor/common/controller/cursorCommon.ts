@@ -7,7 +7,7 @@
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { ICommand, TextModelResolvedOptions, IConfiguration, IModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICommand, IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,6 +19,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOption
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
+import { TextModelResolvedOptions, ITextModel } from 'vs/editor/common/model';
 
 export interface IColumnSelectData {
 	toViewLineNumber: number;
@@ -82,7 +83,9 @@ export class CursorConfiguration {
 	public readonly autoClosingPairsOpen: CharacterMap;
 	public readonly autoClosingPairsClose: CharacterMap;
 	public readonly surroundingPairs: CharacterMap;
-	public readonly electricChars: { [key: string]: boolean; };
+
+	private readonly _languageIdentifier: LanguageIdentifier;
+	private _electricChars: { [key: string]: boolean; };
 
 	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
 		return (
@@ -102,6 +105,8 @@ export class CursorConfiguration {
 		modelOptions: TextModelResolvedOptions,
 		configuration: IConfiguration
 	) {
+		this._languageIdentifier = languageIdentifier;
+
 		let c = configuration.editor;
 
 		this.readOnly = c.readOnly;
@@ -119,14 +124,7 @@ export class CursorConfiguration {
 		this.autoClosingPairsOpen = {};
 		this.autoClosingPairsClose = {};
 		this.surroundingPairs = {};
-		this.electricChars = {};
-
-		let electricChars = CursorConfiguration._getElectricCharacters(languageIdentifier);
-		if (electricChars) {
-			for (let i = 0; i < electricChars.length; i++) {
-				this.electricChars[electricChars[i]] = true;
-			}
-		}
+		this._electricChars = null;
 
 		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
 		if (autoClosingPairs) {
@@ -142,6 +140,19 @@ export class CursorConfiguration {
 				this.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
 			}
 		}
+	}
+
+	public get electricChars() {
+		if (!this._electricChars) {
+			this._electricChars = {};
+			let electricChars = CursorConfiguration._getElectricCharacters(this._languageIdentifier);
+			if (electricChars) {
+				for (let i = 0; i < electricChars.length; i++) {
+					this._electricChars[electricChars[i]] = true;
+				}
+			}
+		}
+		return this._electricChars;
 	}
 
 	public normalizeIndentation(str: string): string {
@@ -279,11 +290,11 @@ export class SingleCursorState {
 export class CursorContext {
 	_cursorContextBrand: void;
 
-	public readonly model: IModel;
+	public readonly model: ITextModel;
 	public readonly viewModel: IViewModel;
 	public readonly config: CursorConfiguration;
 
-	constructor(configuration: IConfiguration, model: IModel, viewModel: IViewModel) {
+	constructor(configuration: IConfiguration, model: ITextModel, viewModel: IViewModel) {
 		this.model = model;
 		this.viewModel = viewModel;
 		this.config = new CursorConfiguration(
@@ -369,50 +380,6 @@ export class CursorState {
 			states[i] = this.fromModelSelection(modelSelections[i]);
 		}
 		return states;
-	}
-
-	public static ensureInEditableRange(context: CursorContext, states: CursorState[]): CursorState[] {
-		const model = context.model;
-		if (!model.hasEditableRange()) {
-			return states;
-		}
-
-		const modelEditableRange = model.getEditableRange();
-		const viewEditableRange = context.convertModelRangeToViewRange(modelEditableRange);
-
-		let result: CursorState[] = [];
-		for (let i = 0, len = states.length; i < len; i++) {
-			const state = states[i];
-
-			if (state.modelState) {
-				const newModelState = CursorState._ensureInEditableRange(state.modelState, modelEditableRange);
-				result[i] = newModelState ? CursorState.fromModelState(newModelState) : state;
-			} else {
-				const newViewState = CursorState._ensureInEditableRange(state.viewState, viewEditableRange);
-				result[i] = newViewState ? CursorState.fromViewState(newViewState) : state;
-			}
-		}
-		return result;
-	}
-
-	private static _ensureInEditableRange(state: SingleCursorState, editableRange: Range): SingleCursorState {
-		const position = state.position;
-
-		if (position.lineNumber < editableRange.startLineNumber || (position.lineNumber === editableRange.startLineNumber && position.column < editableRange.startColumn)) {
-			return new SingleCursorState(
-				state.selectionStart, state.selectionStartLeftoverVisibleColumns,
-				new Position(editableRange.startLineNumber, editableRange.startColumn), 0
-			);
-		}
-
-		if (position.lineNumber > editableRange.endLineNumber || (position.lineNumber === editableRange.endLineNumber && position.column > editableRange.endColumn)) {
-			return new SingleCursorState(
-				state.selectionStart, state.selectionStartLeftoverVisibleColumns,
-				new Position(editableRange.endLineNumber, editableRange.endColumn), 0
-			);
-		}
-
-		return null;
 	}
 
 	readonly modelState: SingleCursorState;

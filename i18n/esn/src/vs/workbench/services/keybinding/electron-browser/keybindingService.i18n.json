@@ -22,5 +22,5 @@
 	"keybindings.json.when": "Condición cuando la tecla está activa.",
 	"keybindings.json.args": "Argumentos que se pasan al comando para ejecutar.",
 	"keyboardConfigurationTitle": "Teclado",
-	"dispatch": "Controla la lógica de distribución de las pulsaciones de teclas para usar `keydown.code` (recomendado) o `keydown.keyCode`."
+	"dispatch": "Controla la lógica de distribución de las pulsaciones de teclas para usar `code` (recomendado) o `keyCode`."
 }

@@ -14,7 +14,6 @@ import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext, MainCo
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRelativePattern, isRelativePattern } from 'vs/base/common/glob';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -30,7 +29,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
 	}
@@ -52,17 +51,17 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startSearch(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults: number, requestId: number): Thenable<URI[]> {
+	$startSearch(includePattern: string, includeFolder: string, excludePattern: string, maxResults: number, requestId: number): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
 			return undefined;
 		}
 
 		let folderQueries: IFolderQuery[];
-		if (typeof include === 'string' || !include) {
+		if (typeof includeFolder === 'string') {
+			folderQueries = [{ folder: URI.file(includeFolder) }]; // if base provided, only search in that folder
+		} else {
 			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
-		} else if (isRelativePattern(include)) {
-			folderQueries = [{ folder: URI.file(include.base) }]; // relative pattern: search only in base folder
 		}
 
 		if (!folderQueries) {
@@ -83,8 +82,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			folderQueries,
 			type: QueryType.File,
 			maxResults,
-			includePattern: { [typeof include === 'string' ? include : !!include ? include.pattern : undefined]: true },
-			excludePattern: { [typeof exclude === 'string' ? exclude : !!exclude ? exclude.pattern : undefined]: true },
+			includePattern: { [typeof includePattern === 'string' ? includePattern : undefined]: true },
+			excludePattern: { [typeof excludePattern === 'string' ? excludePattern : undefined]: true },
 			useRipgrep,
 			ignoreSymlinks
 		};
@@ -124,4 +123,3 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 }
-

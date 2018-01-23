@@ -22,6 +22,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export function registerCommands(): void {
 
+	// TODO@Isidor remove in february
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.logToDebugConsole',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
@@ -44,7 +45,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -64,7 +65,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -85,7 +86,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -106,7 +107,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -127,7 +128,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -170,9 +171,9 @@ export function registerCommands(): void {
 			}
 			const launch = manager.getLaunches().filter(l => l.workspace.uri.toString() === workspaceUri).pop() || manager.selectedLaunch;
 
-			return launch.openConfigFile(false).done(editor => {
-				if (editor) {
-					const codeEditor = <ICodeEditor>editor.getControl();
+			return launch.openConfigFile(false).done(result => {
+				if (result.editor && !result.configFileCreated) {
+					const codeEditor = <ICodeEditor>result.editor.getControl();
 					if (codeEditor) {
 						return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
 					}

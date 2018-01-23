@@ -23,6 +23,8 @@ import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { KeyCode } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IDomNodePagePosition } from 'vs/base/browser/dom';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export interface IRow {
 	element: HTMLElement;
@@ -824,7 +826,7 @@ export class TreeView extends HeightMap {
 
 	public getScrollPosition(): number {
 		const height = this.getTotalHeight() - this.viewHeight;
-		return height <= 0 ? 0 : this.scrollTop / height;
+		return height <= 0 ? 1 : this.scrollTop / height;
 	}
 
 	public setScrollPosition(pos: number): void {
@@ -1220,13 +1222,16 @@ export class TreeView extends HeightMap {
 			var keyboardEvent = new Keyboard.StandardKeyboardEvent(<KeyboardEvent>event);
 			element = this.model.getFocus();
 
-			if (!element) {
-				return;
-			}
+			var position: IDomNodePagePosition;
 
-			var id = this.context.dataSource.getId(this.context.tree, element);
-			var viewItem = this.items[id];
-			var position = DOM.getDomNodePagePosition(viewItem.element);
+			if (!element) {
+				element = this.model.getInput();
+				position = DOM.getDomNodePagePosition(this.inputItem.element);
+			} else {
+				var id = this.context.dataSource.getId(this.context.tree, element);
+				var viewItem = this.items[id];
+				position = DOM.getDomNodePagePosition(viewItem.element);
+			}
 
 			resultEvent = new _.KeyboardContextMenuEvent(position.left + position.width, position.top, keyboardEvent);
 
@@ -1287,7 +1292,7 @@ export class TreeView extends HeightMap {
 		}
 
 		e.dataTransfer.effectAllowed = 'copyMove';
-		e.dataTransfer.setData('URL', item.uri);
+		e.dataTransfer.setData(DataTransfers.URL, item.uri);
 		if (e.dataTransfer.setDragImage) {
 			let label: string;
 

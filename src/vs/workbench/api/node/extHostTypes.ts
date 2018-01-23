@@ -12,6 +12,7 @@ import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { relative } from 'path';
+import { startsWith } from 'vs/base/common/strings';
 
 export class Disposable {
 
@@ -91,10 +92,10 @@ export class Position {
 
 	constructor(line: number, character: number) {
 		if (line < 0) {
-			throw illegalArgument('line must be positive');
+			throw illegalArgument('line must be non-negative');
 		}
 		if (character < 0) {
-			throw illegalArgument('character must be positive');
+			throw illegalArgument('character must be non-negative');
 		}
 		this._line = line;
 		this._character = character;
@@ -814,15 +815,42 @@ export class CodeAction {
 
 	command?: vscode.Command;
 
-	edits?: TextEdit[] | WorkspaceEdit;
+	edit?: WorkspaceEdit;
 
 	dianostics?: Diagnostic[];
 
-	constructor(title: string, edits?: TextEdit[] | WorkspaceEdit) {
+	kind?: CodeActionKind;
+
+	constructor(title: string, kind?: CodeActionKind) {
 		this.title = title;
-		this.edits = edits;
+		this.kind = kind;
 	}
 }
+
+
+export class CodeActionKind {
+	private static readonly sep = '.';
+
+	public static readonly Empty = new CodeActionKind('');
+	public static readonly QuickFix = CodeActionKind.Empty.append('quickfix');
+	public static readonly Refactor = CodeActionKind.Empty.append('refactor');
+	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
+	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
+	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
+
+	constructor(
+		public readonly value: string
+	) { }
+
+	public append(parts: string): CodeActionKind {
+		return new CodeActionKind(this.value ? this.value + CodeActionKind.sep + parts : parts);
+	}
+
+	public contains(other: CodeActionKind): boolean {
+		return this.value === other.value || startsWith(other.value, this.value + CodeActionKind.sep);
+	}
+}
+
 
 export class CodeLens {
 
@@ -905,14 +933,10 @@ export class SignatureHelp {
 	}
 }
 
-export enum CodeActionType {
-	QuickFix = 1,
-	Refactoring = 2
-}
-
 export enum CompletionTriggerKind {
 	Invoke = 0,
-	TriggerCharacter = 1
+	TriggerCharacter = 1,
+	TriggerForIncompleteCompletions = 2
 }
 
 export interface CompletionContext {
@@ -1445,11 +1469,20 @@ export enum ProgressLocation {
 
 export class TreeItem {
 
+	label?: string;
+	resourceUri?: URI;
 	iconPath?: string | URI | { light: string | URI; dark: string | URI };
 	command?: vscode.Command;
 	contextValue?: string;
 
-	constructor(public label: string, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+	constructor(label: string, collapsibleState?: vscode.TreeItemCollapsibleState)
+	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState)
+	constructor(arg1: string | URI, public collapsibleState: vscode.TreeItemCollapsibleState = TreeItemCollapsibleState.None) {
+		if (arg1 instanceof URI) {
+			this.resourceUri = arg1;
+		} else {
+			this.label = arg1;
+		}
 	}
 
 }
@@ -1498,3 +1531,62 @@ export class RelativePattern implements IRelativePattern {
 		return relative(from, to);
 	}
 }
+
+export class Breakpoint {
+
+	readonly enabled: boolean;
+	readonly condition?: string;
+	readonly hitCondition?: string;
+
+	protected constructor(enabled: boolean, condition: string, hitCondition: string) {
+		this.enabled = enabled;
+		this.condition = condition;
+		this.hitCondition = hitCondition;
+		this.condition = condition;
+		this.hitCondition = hitCondition;
+	}
+}
+
+export class SourceBreakpoint extends Breakpoint {
+	readonly location: Location;
+
+	constructor(enabled: boolean, condition: string, hitCondition: string, location: Location) {
+		super(enabled, condition, hitCondition);
+		this.location = location;
+	}
+}
+
+export class FunctionBreakpoint extends Breakpoint {
+	readonly functionName: string;
+
+	constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string) {
+		super(enabled, condition, hitCondition);
+		this.functionName = functionName;
+	}
+}
+
+export enum LogLevel {
+	Trace = 1,
+	Debug = 2,
+	Info = 3,
+	Warning = 4,
+	Error = 5,
+	Critical = 6,
+	Off = 7
+}
+
+//#region file api
+// todo@remote
+export enum FileChangeType {
+	Updated = 0,
+	Added = 1,
+	Deleted = 2
+}
+
+export enum FileType {
+	File = 0,
+	Dir = 1,
+	Symlink = 2
+}
+
+//#endregion

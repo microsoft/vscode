@@ -10,6 +10,9 @@
 			"when": "$(basename).ts"
 		}
 	},
+	"files.associations": {
+		"OSSREADME.json": "jsonc"
+	},
 	"search.exclude": {
 		"**/node_modules": true,
 		"**/bower_components": true,
@@ -34,5 +37,6 @@
 				"command": "${workspaceFolder}\\scripts\\test.bat --coverage --run ${file}"
 			}
 		}
-	]
+	],
+	"typescript.tsdk": "node_modules/typescript/lib"
 }

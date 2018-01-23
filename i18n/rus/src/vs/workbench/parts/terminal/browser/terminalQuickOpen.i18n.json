@@ -6,7 +6,7 @@
 {
 	"termEntryAriaLabel": "{0}, средство выбора терминалов",
 	"termCreateEntryAriaLabel": "{0}, создать новый терминал",
-	"'workbench.action.terminal.newplus": "$(plus) Создать новый интегрированный терминал",
+	"workbench.action.terminal.newplus": "$(plus) Создать новый интегрированный терминал",
 	"noTerminalsMatching": "Терминалы, соответствующие условию, отсутствуют",
 	"noTerminalsFound": "Открытые терминалы отсутствуют"
 }

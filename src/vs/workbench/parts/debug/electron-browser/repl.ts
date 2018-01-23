@@ -16,10 +16,9 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITree, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
@@ -38,12 +37,13 @@ import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { clipboard } from 'electron';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { memoize } from 'vs/base/common/decorators';
+import { dispose } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
 
@@ -75,7 +75,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private tree: ITree;
 	private renderer: ReplExpressionsRenderer;
-	private characterWidthSurveyor: HTMLElement;
+	private container: HTMLElement;
 	private treeContainer: HTMLElement;
 	private replInput: ReplInputEditor;
 	private replInputContainer: HTMLElement;
@@ -83,6 +83,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	private actions: IAction[];
 	private dimension: Dimension;
 	private replInputHeight: number;
+	private model: ITextModel;
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
@@ -92,8 +93,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		@IPanelService private panelService: IPanelService,
 		@IThemeService protected themeService: IThemeService,
 		@IModelService private modelService: IModelService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IListService private listService: IListService
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super(debug.REPL_ID, telemetryService, themeService);
 
@@ -119,7 +119,7 @@ export class Repl extends Panel implements IPrivateReplService {
 				this.refreshTimeoutHandle = null;
 				const previousScrollPosition = this.tree.getScrollPosition();
 				this.tree.refresh().then(() => {
-					if (previousScrollPosition === 1 || previousScrollPosition === 0) {
+					if (previousScrollPosition === 1) {
 						// Only scroll if we were scrolled all the way down before tree refreshed #10486
 						this.tree.setScrollPosition(1);
 					}
@@ -130,36 +130,37 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
-		const container = dom.append(parent.getHTMLElement(), $('.repl'));
-		this.treeContainer = dom.append(container, $('.repl-tree'));
-		this.createReplInput(container);
-
-		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
-		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
-		for (let i = 0; i < 10; i++) {
-			this.characterWidthSurveyor.textContent += this.characterWidthSurveyor.textContent;
-		}
-		this.characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
+		this.container = dom.append(parent.getHTMLElement(), $('.repl'));
+		this.treeContainer = dom.append(this.container, $('.repl-tree'));
+		this.createReplInput(this.container);
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
 		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService), MenuId.DebugConsoleContext);
 		controller.toFocusOnClick = this.replInput;
 
-		this.tree = new Tree(this.treeContainer, {
+		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new ReplExpressionsDataSource(),
 			renderer: this.renderer,
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
 			controller
 		}, replTreeOptions);
 
-		this.toUnbind.push(attachListStyler(this.tree, this.themeService));
-		this.toUnbind.push(this.listService.register(this.tree));
-
 		if (!Repl.HISTORY) {
 			Repl.HISTORY = new ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
 		}
 
 		return this.tree.setInput(this.debugService.getModel());
+	}
+
+	public setVisible(visible: boolean): TPromise<void> {
+		if (!visible) {
+			dispose(this.model);
+		} else {
+			this.model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
+			this.replInput.setModel(this.model);
+		}
+
+		return super.setVisible(visible);
 	}
 
 	private createReplInput(container: HTMLElement): void {
@@ -176,12 +177,10 @@ export class Repl extends Panel implements IPrivateReplService {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		this.replInput = scopedInstantiationService.createInstance(ReplInputEditor, this.replInputContainer, this.getReplInputOptions());
-		const model = this.modelService.createModel('', null, uri.parse(`${debug.DEBUG_SCHEME}:input`));
-		this.replInput.setModel(model);
 
 		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
 			triggerCharacters: ['.'],
-			provideCompletionItems: (model: IReadOnlyModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
 				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
@@ -247,7 +246,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
-			this.renderer.setWidth(dimension.width - 25, this.characterWidthSurveyor.clientWidth / this.characterWidthSurveyor.textContent.length);
+			this.renderer.setWidth(dimension.width - 25, this.characterWidth);
 			const treeHeight = dimension.height - this.replInputHeight;
 			this.treeContainer.style.height = `${treeHeight}px`;
 			this.tree.layout(treeHeight);
@@ -255,6 +254,18 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.replInputContainer.style.height = `${this.replInputHeight}px`;
 
 		this.replInput.layout({ width: dimension.width - 20, height: this.replInputHeight });
+	}
+
+	@memoize
+	private get characterWidth(): number {
+		const characterWidthSurveyor = dom.append(this.container, $('.surveyor'));
+		characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
+		for (let i = 0; i < 10; i++) {
+			characterWidthSurveyor.textContent += characterWidthSurveyor.textContent;
+		}
+		characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
+
+		return characterWidthSurveyor.clientWidth / characterWidthSurveyor.textContent.length;
 	}
 
 	public focus(): void {

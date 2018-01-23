@@ -10,7 +10,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
@@ -26,17 +25,18 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { Context as SuggestContext } from './suggest';
 import { SuggestModel, State } from './suggestModel';
 import { ICompletionItem } from './completionModel';
-import { SuggestWidget } from './suggestWidget';
+import { SuggestWidget, ISelectedSuggestion } from './suggestWidget';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
 
 class AcceptOnCharacterOracle {
 
 	private _disposables: IDisposable[] = [];
 
 	private _activeAcceptCharacters = new Set<string>();
-	private _activeItem: ICompletionItem;
+	private _activeItem: ISelectedSuggestion;
 
-	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (item: ICompletionItem) => any) {
+	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (selected: ISelectedSuggestion) => any) {
 
 		this._disposables.push(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
 		this._disposables.push(widget.onDidFocus(this._onItem, this));
@@ -52,14 +52,14 @@ class AcceptOnCharacterOracle {
 		}));
 	}
 
-	private _onItem(item: ICompletionItem): void {
-		if (!item || isFalsyOrEmpty(item.suggestion.commitCharacters)) {
+	private _onItem(selected: ISelectedSuggestion): void {
+		if (!selected || isFalsyOrEmpty(selected.item.suggestion.commitCharacters)) {
 			this.reset();
 			return;
 		}
-		this._activeItem = item;
+		this._activeItem = selected;
 		this._activeAcceptCharacters.clear();
-		for (const ch of item.suggestion.commitCharacters) {
+		for (const ch of selected.item.suggestion.commitCharacters) {
 			if (ch.length > 0) {
 				this._activeAcceptCharacters.add(ch[0]);
 			}
@@ -85,16 +85,17 @@ export class SuggestController implements IEditorContribution {
 
 	private _model: SuggestModel;
 	private _widget: SuggestWidget;
+	private _memory: SuggestMemories;
 	private _toDispose: IDisposable[] = [];
 
 	constructor(
 		private _editor: ICodeEditor,
 		@ICommandService private _commandService: ICommandService,
-		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 	) {
 		this._model = new SuggestModel(this._editor);
+		this._memory = _instantiationService.createInstance(SuggestMemories);
 
 		this._toDispose.push(this._model.onDidTrigger(e => {
 			if (!this._widget) {
@@ -102,13 +103,22 @@ export class SuggestController implements IEditorContribution {
 			}
 			this._widget.showTriggered(e.auto);
 		}));
+		let lastSelectedItem: ICompletionItem;
+		this._toDispose.push(this._model.onDidSuggest(e => {
+			let index = this._memory.select(this._editor.getModel().getLanguageIdentifier(), e.completionModel.items, lastSelectedItem);
+			if (index >= 0) {
+				lastSelectedItem = e.completionModel.items[index];
+			} else {
+				index = 0;
+				lastSelectedItem = undefined;
+			}
+			this._widget.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
+		}));
 		this._toDispose.push(this._model.onDidCancel(e => {
 			if (this._widget && !e.retrigger) {
 				this._widget.hideWidget();
+				lastSelectedItem = undefined;
 			}
-		}));
-		this._toDispose.push(this._model.onDidSuggest(e => {
-			this._widget.showSuggestions(e.completionModel, e.isFrozen, e.auto);
 		}));
 
 		// Manage the acceptSuggestionsOnEnter context key
@@ -138,7 +148,7 @@ export class SuggestController implements IEditorContribution {
 		);
 
 		let makesTextEdit = SuggestContext.MakesTextEdit.bindTo(this._contextKeyService);
-		this._toDispose.push(this._widget.onDidFocus(item => {
+		this._toDispose.push(this._widget.onDidFocus(({ item }) => {
 
 			const position = this._editor.getPosition();
 			const startColumn = item.position.column - item.suggestion.overwriteBefore;
@@ -183,19 +193,27 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	private _onDidSelectItem(item: ICompletionItem): void {
-		if (!item) {
+	protected _onDidSelectItem(event: ISelectedSuggestion): void {
+		if (!event || !event.item) {
 			this._model.cancel();
 			return;
 		}
 
-		const { suggestion, position } = item;
-		const columnDelta = this._editor.getPosition().column - position.column;
+		const { suggestion, position } = event.item;
+		const editorColumn = this._editor.getPosition().column;
+		const columnDelta = editorColumn - position.column;
 
 		if (Array.isArray(suggestion.additionalTextEdits)) {
 			this._editor.pushUndoStop();
 			this._editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 			this._editor.pushUndoStop();
+		}
+
+		// remember this suggestion for future invocations
+		// when it wasn't the first suggestion but from the group
+		// of top suggestions (cons -> const, console, constructor)
+		if (event.model.items[0].score === event.item.score) {
+			this._memory.remember(this._editor.getModel().getLanguageIdentifier(), event.item);
 		}
 
 		let { insertText } = suggestion;
@@ -223,16 +241,7 @@ export class SuggestController implements IEditorContribution {
 			this._model.cancel();
 		}
 
-		this._alertCompletionItem(item);
-		/* __GDPR__
-		"suggestSnippetInsert" : {
-			"suggestionType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"${include}": [
-				"${EditorTelemetryData}"
-			]
-		}
-		*/
-		this._telemetryService.publicLog('suggestSnippetInsert', { ...this._editor.getTelemetryData(), suggestionType: suggestion.type });
+		this._alertCompletionItem(event.item);
 	}
 
 	private _alertCompletionItem({ suggestion }: ICompletionItem): void {

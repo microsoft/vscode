@@ -61,6 +61,7 @@ export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise
 				stream: new ArrayBufferStream(xhr.response)
 			});
 		};
+		xhr.ontimeout = e => reject(new Error(`XHR timeout: ${options.timeout}ms`));
 
 		if (options.timeout) {
 			xhr.timeout = options.timeout;

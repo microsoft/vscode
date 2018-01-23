@@ -7,17 +7,11 @@
 	"openFile": "Datei öffnen...",
 	"openFolder": "Ordner öffnen...",
 	"openFileFolder": "Öffnen...",
-	"addFolderToWorkspace": "Ordner zum Arbeitsbereich hinzufügen...",
-	"add": "&&Hinzufügen",
-	"addFolderToWorkspaceTitle": "Ordner zum Arbeitsbereich hinzufügen",
 	"globalRemoveFolderFromWorkspace": "Ordner aus dem Arbeitsbereich entfernen...",
-	"removeFolderFromWorkspace": "Ordner aus dem Arbeitsbereich entfernen",
-	"openFolderSettings": "Ordnereinstellungen öffnen",
 	"saveWorkspaceAsAction": "Arbeitsbereich speichern unter...",
 	"save": "&&Speichern",
 	"saveWorkspace": "Arbeitsbereich speichern",
 	"openWorkspaceAction": "Arbeitsbereich öffnen...",
 	"openWorkspaceConfigFile": "Konfigurationsdatei des Arbeitsbereichs öffnen",
-	"openFolderAsWorkspaceInNewWindow": "Ordner als Arbeitsbereich in neuem Fenster öffnen",
-	"workspaceFolderPickerPlaceholder": "Arbeitsbereichsordner auswählen"
+	"openFolderAsWorkspaceInNewWindow": "Ordner als Arbeitsbereich in neuem Fenster öffnen"
 }

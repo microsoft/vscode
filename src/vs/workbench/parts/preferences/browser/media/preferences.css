@@ -41,11 +41,23 @@
 	text-transform: uppercase;
 	font-size: 11px;
 	margin-left: 33px;
-	margin-right: 0px;
+	margin-right: 5px;
 	cursor: pointer;
 	display: flex;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not([aria-haspopup]) {
+	display: block;
+}
+
+.settings-tabs-widget > .monaco-action-bar .actions-container {
+	justify-content: flex-start;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item {
+	padding: 3px 0px;
 }
 
 .settings-tabs-widget > .monaco-action-bar .action-item .action-title {
@@ -87,18 +99,6 @@
 .settings-tabs-widget > .monaco-action-bar .action-item:hover .action-label,
 .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
 	opacity: 1;
-}
-
-.settings-tabs-widget > .monaco-action-bar:not(.empty-workbench) .action-item .action-label.checked {
-	border-bottom: 1px solid;
-}
-
-.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-	border-bottom-color: #ccceda;
-}
-
-.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-	border-bottom-color: #404047;
 }
 
 .preferences-header > .settings-header-widget {

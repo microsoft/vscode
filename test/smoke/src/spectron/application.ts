@@ -108,21 +108,24 @@ export class SpectronApplication {
 		this._screenCapturer.suiteName = suiteName;
 	}
 
-	async start(): Promise<any> {
+	async start(waitForWelcome: boolean = true): Promise<any> {
 		await this._start();
-		await this.waitForWelcome();
+
+		if (waitForWelcome) {
+			await this.waitForWelcome();
+		}
 	}
 
-	async restart(codeArgs: string[] = []): Promise<any> {
+	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
 		await this.stop();
 		await new Promise(c => setTimeout(c, 1000));
-		await this._start(codeArgs);
+		await this._start(options.workspaceOrFolder, options.extraArgs);
 	}
 
-	private async _start(codeArgs: string[] = []): Promise<any> {
+	private async _start(workspaceOrFolder = this.options.workspacePath, extraArgs: string[] = []): Promise<any> {
 		await this.retrieveKeybindings();
 		cp.execSync('git checkout .', { cwd: this.options.workspacePath });
-		await this.startApplication(codeArgs);
+		await this.startApplication(workspaceOrFolder, extraArgs);
 		await this.checkWindowReady();
 	}
 
@@ -145,7 +148,7 @@ export class SpectronApplication {
 		}
 	}
 
-	private async startApplication(codeArgs: string[] = []): Promise<any> {
+	private async startApplication(workspaceOrFolder: string, extraArgs: string[] = []): Promise<any> {
 
 		let args: string[] = [];
 		let chromeDriverArgs: string[] = [];
@@ -154,10 +157,13 @@ export class SpectronApplication {
 			args.push(process.env.VSCODE_REPOSITORY as string);
 		}
 
-		args.push(this.options.workspacePath);
+		args.push(workspaceOrFolder);
 
 		// Prevent 'Getting Started' web page from opening on clean user-data-dir
 		args.push('--skip-getting-started');
+
+		// Prevent 'Getting Started' web page from opening on clean user-data-dir
+		args.push('--skip-release-notes');
 
 		// Prevent Quick Open from closing when focus is stolen, this allows concurrent smoketest suite running
 		args.push('--sticky-quickopen');
@@ -176,7 +182,7 @@ export class SpectronApplication {
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
 		args.push(`--extensions-dir=${this.options.extensionsPath}`);
 
-		args.push(...codeArgs);
+		args.push(...extraArgs);
 
 		chromeDriverArgs.push(`--user-data-dir=${this.options.userDataDir}`);
 
@@ -269,11 +275,19 @@ export class SpectronApplication {
 
 	private async checkWindowReady(): Promise<any> {
 		await this.webclient.waitUntilWindowLoaded();
-		// Spectron opens multiple terminals in Windows platform
-		// Workaround to focus the right window - https://github.com/electron/spectron/issues/60
-		await this.client.windowByIndex(1);
-		// await this.app.browserWindow.focus();
-		await this.client.waitForHTML('[id="workbench.main.container"]');
+
+		// Pick the first workbench window here
+		const count = await this.webclient.getWindowCount();
+
+		for (let i = 0; i < count; i++) {
+			await this.webclient.windowByIndex(i);
+
+			if (/bootstrap\/index\.html/.test(await this.webclient.getUrl())) {
+				break;
+			}
+		}
+
+		await this.client.waitForElement('.monaco-workbench');
 	}
 
 	private async waitForWelcome(): Promise<any> {

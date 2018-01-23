@@ -30,7 +30,6 @@
 	"deactivateBreakpoints": "Desativar Pontos de Parada",
 	"reapplyAllBreakpoints": "Reaplicar Todos os Pontos de Parada",
 	"addFunctionBreakpoint": "Adicionar Ponto de Parada de Função",
-	"renameFunctionBreakpoint": "Renomeie o Ponto de Parada de Função",
 	"addConditionalBreakpoint": "Adicionar Ponto de Parada Condicional...",
 	"editConditionalBreakpoint": "Editar o Ponto de Parada...",
 	"setValue": "Definir Valor",

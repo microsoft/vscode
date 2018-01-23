@@ -43,34 +43,15 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
 import { IEditor } from 'vs/platform/editor/common/editor';
+import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder } from 'vs/platform/theme/common/colorRegistry';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 // --- actions
-
-export class CloseEditorAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeActiveEditor';
-	public static readonly LABEL = nls.localize('closeActiveEditor', "Close Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<void> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
-		}
-
-		return TPromise.as(null);
-	}
-}
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -90,7 +71,7 @@ export class CloseCurrentWindowAction extends Action {
 
 export class CloseWorkspaceAction extends Action {
 
-	static ID = 'workbench.action.closeFolder';
+	static readonly ID = 'workbench.action.closeFolder';
 	static LABEL = nls.localize('closeWorkspace', "Close Workspace");
 
 	constructor(
@@ -116,7 +97,7 @@ export class CloseWorkspaceAction extends Action {
 
 export class NewWindowAction extends Action {
 
-	static ID = 'workbench.action.newWindow';
+	static readonly ID = 'workbench.action.newWindow';
 	static LABEL = nls.localize('newWindow', "New Window");
 
 	constructor(
@@ -134,7 +115,7 @@ export class NewWindowAction extends Action {
 
 export class ToggleFullScreenAction extends Action {
 
-	static ID = 'workbench.action.toggleFullScreen';
+	static readonly ID = 'workbench.action.toggleFullScreen';
 	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
 
 	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
@@ -148,7 +129,7 @@ export class ToggleFullScreenAction extends Action {
 
 export class ToggleMenuBarAction extends Action {
 
-	static ID = 'workbench.action.toggleMenuBar';
+	static readonly ID = 'workbench.action.toggleMenuBar';
 	static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
 	private static readonly menuBarVisibilityKey = 'window.menuBarVisibility';
@@ -182,7 +163,7 @@ export class ToggleMenuBarAction extends Action {
 
 export class ToggleDevToolsAction extends Action {
 
-	static ID = 'workbench.action.toggleDevTools';
+	static readonly ID = 'workbench.action.toggleDevTools';
 	static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
 
 	constructor(id: string, label: string, @IWindowService private windowsService: IWindowService) {
@@ -347,19 +328,19 @@ export class ShowStartupPerformance extends Action {
 
 			(<any>console).table(this.getStartupMetricsTable(nodeModuleLoadTime));
 
-			if (this.environmentService.performance) {
-				const data = this.analyzeLoaderStats();
-				for (let type in data) {
-					(<any>console).groupCollapsed(`Loader: ${type}`);
-					(<any>console).table(data[type]);
-					(<any>console).groupEnd();
-				}
-			}
 
 			(<any>console).groupEnd();
 
 			(<any>console).group('Extension Activation Stats');
-			(<any>console).table(this.extensionService.getExtensionsActivationTimes());
+			let extensionsActivationTimes: { [id: string]: ActivationTimes; } = {};
+			let extensionsStatus = this.extensionService.getExtensionsStatus();
+			for (let id in extensionsStatus) {
+				const status = extensionsStatus[id];
+				if (status.activationTimes) {
+					extensionsActivationTimes[id] = status.activationTimes;
+				}
+			}
+			(<any>console).table(extensionsActivationTimes);
 			(<any>console).groupEnd();
 
 			(<any>console).group('Raw Startup Timers (CSV)');
@@ -437,119 +418,11 @@ export class ShowStartupPerformance extends Action {
 
 		return { table: result, duration: Math.round(total) };
 	}
-
-	private analyzeLoaderStats(): { [type: string]: any[] } {
-		const stats = <ILoaderEvent[]>(<any>require).getStats().slice(0).sort((a: ILoaderEvent, b: ILoaderEvent) => {
-			if (a.detail < b.detail) {
-				return -1;
-			} else if (a.detail > b.detail) {
-				return 1;
-			} else if (a.type < b.type) {
-				return -1;
-			} else if (a.type > b.type) {
-				return 1;
-			} else {
-				return 0;
-			}
-		});
-
-		class Tick {
-
-			public readonly duration: number;
-			public readonly detail: string;
-
-			constructor(public readonly start: ILoaderEvent, public readonly end: ILoaderEvent) {
-				console.assert(start.detail === end.detail);
-
-				this.duration = this.end.timestamp - this.start.timestamp;
-				this.detail = start.detail;
-			}
-
-			toTableObject() {
-				return {
-					['Path']: this.start.detail,
-					['Took (ms)']: this.duration.toFixed(2),
-					// ['Start (ms)']: this.start.timestamp,
-					// ['End (ms)']: this.end.timestamp
-				};
-			}
-
-			static compareUsingStartTimestamp(a: Tick, b: Tick): number {
-				if (a.start.timestamp < b.start.timestamp) {
-					return -1;
-				} else if (a.start.timestamp > b.start.timestamp) {
-					return 1;
-				} else {
-					return 0;
-				}
-			}
-		}
-
-		const ticks: { [type: number]: Tick[] } = {
-			[LoaderEventType.BeginLoadingScript]: [],
-			[LoaderEventType.BeginInvokeFactory]: [],
-			[LoaderEventType.NodeBeginEvaluatingScript]: [],
-			[LoaderEventType.NodeBeginNativeRequire]: [],
-		};
-
-		for (let i = 1; i < stats.length - 1; i++) {
-			const stat = stats[i];
-			const nextStat = stats[i + 1];
-
-			if (nextStat.type - stat.type > 2) {
-				//bad?!
-				break;
-			}
-
-			i += 1;
-			ticks[stat.type].push(new Tick(stat, nextStat));
-		}
-
-		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
-		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
-		ticks[LoaderEventType.NodeBeginEvaluatingScript].sort(Tick.compareUsingStartTimestamp);
-		ticks[LoaderEventType.NodeBeginNativeRequire].sort(Tick.compareUsingStartTimestamp);
-
-		const ret = {
-			'Load Script': ticks[LoaderEventType.BeginLoadingScript].map(t => t.toTableObject()),
-			'(Node) Load Script': ticks[LoaderEventType.NodeBeginNativeRequire].map(t => t.toTableObject()),
-			'Eval Script': ticks[LoaderEventType.BeginInvokeFactory].map(t => t.toTableObject()),
-			'(Node) Eval Script': ticks[LoaderEventType.NodeBeginEvaluatingScript].map(t => t.toTableObject()),
-		};
-
-		function total(ticks: Tick[]): number {
-			let sum = 0;
-			for (const tick of ticks) {
-				sum += tick.duration;
-			}
-			return sum;
-		}
-
-		// totals
-		ret['Load Script'].push({
-			['Path']: 'TOTAL TIME',
-			['Took (ms)']: total(ticks[LoaderEventType.BeginLoadingScript]).toFixed(2)
-		});
-		ret['Eval Script'].push({
-			['Path']: 'TOTAL TIME',
-			['Took (ms)']: total(ticks[LoaderEventType.BeginInvokeFactory]).toFixed(2)
-		});
-		ret['(Node) Load Script'].push({
-			['Path']: 'TOTAL TIME',
-			['Took (ms)']: total(ticks[LoaderEventType.NodeBeginNativeRequire]).toFixed(2)
-		});
-		ret['(Node) Eval Script'].push({
-			['Path']: 'TOTAL TIME',
-			['Took (ms)']: total(ticks[LoaderEventType.NodeBeginEvaluatingScript]).toFixed(2)
-		});
-
-		return ret;
-	}
 }
 
 export class ReloadWindowAction extends Action {
 
-	static ID = 'workbench.action.reloadWindow';
+	static readonly ID = 'workbench.action.reloadWindow';
 	static LABEL = nls.localize('reloadWindow', "Reload Window");
 
 	constructor(
@@ -645,7 +518,7 @@ class CloseWindowAction extends Action implements IPickOpenAction {
 
 export class SwitchWindow extends BaseSwitchWindow {
 
-	static ID = 'workbench.action.switchWindow';
+	static readonly ID = 'workbench.action.switchWindow';
 	static LABEL = nls.localize('switchWindow', "Switch Window...");
 
 	constructor(
@@ -667,7 +540,7 @@ export class SwitchWindow extends BaseSwitchWindow {
 
 export class QuickSwitchWindow extends BaseSwitchWindow {
 
-	static ID = 'workbench.action.quickSwitchWindow';
+	static readonly ID = 'workbench.action.quickSwitchWindow';
 	static LABEL = nls.localize('quickSwitchWindow', "Quick Switch Window...");
 
 	constructor(
@@ -874,10 +747,45 @@ export class CloseMessagesAction extends Action {
 	}
 }
 
+export class OpenIssueReporterAction extends Action {
+	public static readonly ID = 'workbench.action.openIssueReporter';
+	public static readonly LABEL = nls.localize('openIssueReporter', "Open Issue Reporter");
+
+	constructor(
+		id: string,
+		label: string,
+		@IIssueService private issueService: IIssueService,
+		@IThemeService private themeService: IThemeService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		const theme = this.themeService.getTheme();
+		const style = {
+			backgroundColor: theme.getColor(SIDE_BAR_BACKGROUND) && theme.getColor(SIDE_BAR_BACKGROUND).toString(),
+			color: theme.getColor(foreground).toString(),
+			textLinkColor: theme.getColor(textLinkForeground) && theme.getColor(textLinkForeground).toString(),
+			inputBackground: theme.getColor(inputBackground) && theme.getColor(inputBackground).toString(),
+			inputForeground: theme.getColor(inputForeground) && theme.getColor(inputForeground).toString(),
+			inputBorder: theme.getColor(inputBorder) && theme.getColor(inputBorder).toString(),
+			inputActiveBorder: theme.getColor(inputActiveOptionBorder) && theme.getColor(inputActiveOptionBorder).toString(),
+			inputErrorBorder: theme.getColor(inputValidationErrorBorder) && theme.getColor(inputValidationErrorBorder).toString(),
+			buttonBackground: theme.getColor(buttonBackground) && theme.getColor(buttonBackground).toString(),
+			buttonForeground: theme.getColor(buttonForeground) && theme.getColor(buttonForeground).toString(),
+			buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString(),
+			zoomLevel: webFrame.getZoomLevel()
+		};
+		return this.issueService.openReporter(style).then(() => {
+			return TPromise.as(true);
+		});
+	}
+}
+
 export class ReportIssueAction extends Action {
 
 	public static readonly ID = 'workbench.action.reportIssues';
-	public static readonly LABEL = nls.localize('reportIssues', "Report Issues");
+	public static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 
 	constructor(
 		id: string,
@@ -919,9 +827,12 @@ export class ReportIssueAction extends Action {
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
-			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
-- OS Version: ${osVersion}
-- Extensions: ${areExtensionsDisabled ? 'Extensions are disabled' : this.generateExtensionTable(extensions)}
+			`<ul>
+	<li>VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})</li>
+	<li>OS Version: ${osVersion}</li>
+	<li>${areExtensionsDisabled ? 'Extensions: Extensions are disabled' : this.generateExtensionTable(extensions)}</li>
+</ul>
+
 ---
 
 Steps to Reproduce:
@@ -947,7 +858,7 @@ Reproduces without extensions: Yes/No` : '')
 		extensions = nonThemes || [];
 
 		if (!extensions.length) {
-			return 'none' + themeExclusionStr;
+			return 'Extensions: none' + themeExclusionStr;
 		}
 
 		let tableHeader = `Extension|Author (truncated)|Version
@@ -956,13 +867,13 @@ Reproduces without extensions: Yes/No` : '')
 			return `${e.manifest.name}|${e.manifest.publisher.substr(0, 3)}|${e.manifest.version}`;
 		}).join('\n');
 
-		const extensionTable = `
+		const extensionTable = `<details><summary>Extensions (${extensions.length})</summary>
 
 ${tableHeader}
 ${table}
 ${themeExclusionStr}
 
-`;
+</details>`;
 
 		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
 		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
@@ -990,13 +901,13 @@ export class ReportPerformanceIssueAction extends Action {
 	}
 
 	public run(appendix?: string): TPromise<boolean> {
-		return this.integrityService.isPure().then(res => {
+		this.integrityService.isPure().then(res => {
 			const issueUrl = this.generatePerformanceIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, appendix);
 
 			window.open(issueUrl);
-
-			return TPromise.as(true);
 		});
+
+		return TPromise.wrap(true);
 	}
 
 	private generatePerformanceIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, appendix?: string): string {
@@ -1180,7 +1091,7 @@ export class OpenTipsAndTricksUrlAction extends Action {
 
 export class ToggleSharedProcessAction extends Action {
 
-	static ID = 'workbench.action.toggleSharedProcess';
+	static readonly ID = 'workbench.action.toggleSharedProcess';
 	static LABEL = nls.localize('toggleSharedProcess', "Toggle Shared Process");
 
 	constructor(id: string, label: string, @IWindowsService private windowsService: IWindowsService) {

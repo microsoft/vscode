@@ -7,12 +7,12 @@
 	"settingsEditorName": "Параметры по умолчанию",
 	"SearchSettingsWidget.AriaLabel": "Параметры поиска",
 	"SearchSettingsWidget.Placeholder": "Параметры поиска",
-	"totalSettingsMessage": "Всего параметров: {0}",
 	"noSettingsFound": "Нет результатов",
 	"oneSettingFound": "Один соответствующий параметр",
 	"settingsFound": "Соответствующих параметров: {0}",
-	"fileEditorWithInputAriaLabel": "{0}. Редактор текстовых файлов.",
-	"fileEditorAriaLabel": "Редактор текстовых файлов.",
+	"totalSettingsMessage": "Всего параметров: {0}",
+	"defaultSettings": "Параметры по умолчанию",
+	"defaultFolderSettings": "Параметры папок по умолчанию",
 	"defaultEditorReadonly": "Редактировать в правой области редактора, чтобы переопределить значения по умолчанию.",
 	"preferencesAriaLabel": "Параметры по умолчанию. Текстовый редактор только для чтения."
 }

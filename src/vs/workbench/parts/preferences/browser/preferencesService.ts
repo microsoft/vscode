@@ -17,7 +17,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { Position as EditorPosition, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -107,11 +107,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, resource);
 	}
 
-	resolveModel(uri: URI): TPromise<IModel> {
+	resolveModel(uri: URI): TPromise<ITextModel> {
 		if (this.isDefaultSettingsResource(uri) || this.isDefaultResourceSettingsResource(uri)) {
 
 			const scope = this.isDefaultSettingsResource(uri) ? ConfigurationScope.WINDOW : ConfigurationScope.RESOURCE;
-			const mode = this.modeService.getOrCreateMode('json');
+			const mode = this.modeService.getOrCreateMode('jsonc');
 			const model = this._register(this.modelService.createModel('', mode, uri));
 
 			let defaultSettings: DefaultSettings;
@@ -139,14 +139,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 		if (this.defaultSettingsRawResource.toString() === uri.toString()) {
 			let defaultSettings: DefaultSettings = this.getDefaultSettings(ConfigurationScope.WINDOW);
-			const mode = this.modeService.getOrCreateMode('json');
+			const mode = this.modeService.getOrCreateMode('jsonc');
 			const model = this._register(this.modelService.createModel(defaultSettings.raw, mode, uri));
 			return TPromise.as(model);
 		}
 
 		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
 			const defaultKeybindingsEditorModel = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
-			const mode = this.modeService.getOrCreateMode('json');
+			const mode = this.modeService.getOrCreateMode('jsonc');
 			const model = this._register(this.modelService.createModel(defaultKeybindingsEditorModel.content, mode, uri));
 			return TPromise.as(model);
 		}

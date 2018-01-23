@@ -14,7 +14,6 @@ import nls = require('vs/nls');
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
 
-import * as plist from 'fast-plist';
 import pfs = require('vs/base/node/pfs');
 
 import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -31,7 +30,7 @@ const tokenGroupToScopesMap: { [setting: string]: string[] } = {
 	keywords: ['keyword', 'keyword.control', 'storage', 'storage.type'],
 	numbers: ['constant.numeric'],
 	types: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'],
-	functions: ['entity.name.function'],
+	functions: ['entity.name.function', 'support.function'],
 	variables: ['variable']
 };
 
@@ -81,10 +80,11 @@ export class ColorThemeData implements IColorTheme {
 
 	public setCustomColors(colors: IColorCustomizations) {
 		this.customColorMap = {};
-		for (let id in colors) {
-			let colorVal = colors[id];
-			if (typeof colorVal === 'string') {
-				this.customColorMap[id] = Color.fromHex(colorVal);
+		this.overwriteCustomColors(colors);
+		if (`[${this.settingsId}]` in colors) {
+			const themeSpecificColors = (colors[`[${this.settingsId}]`] || {}) as IColorCustomizations;
+			if (types.isObject(themeSpecificColors)) {
+				this.overwriteCustomColors(themeSpecificColors);
 			}
 		}
 		if (this.themeTokenColors && this.themeTokenColors.length) {
@@ -92,7 +92,33 @@ export class ColorThemeData implements IColorTheme {
 		}
 	}
 
+	private overwriteCustomColors(colors: IColorCustomizations) {
+		for (let id in colors) {
+			let colorVal = colors[id];
+			if (typeof colorVal === 'string') {
+				this.customColorMap[id] = Color.fromHex(colorVal);
+			}
+		}
+	}
+
 	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
+		this.customTokenColors = [];
+		let customTokenColorsWithoutThemeSpecific: ITokenColorCustomizations = {};
+		for (let key in customTokenColors) {
+			if (key[0] !== '[') {
+				customTokenColorsWithoutThemeSpecific[key] = customTokenColors[key];
+			}
+		}
+		this.addCustomTokenColors(customTokenColorsWithoutThemeSpecific);
+		if (`[${this.settingsId}]` in customTokenColors) {
+			const themeSpecificTokenColors: ITokenColorCustomizations = customTokenColors[`[${this.settingsId}]`];
+			if (types.isObject(themeSpecificTokenColors)) {
+				this.addCustomTokenColors(themeSpecificTokenColors);
+			}
+		}
+	}
+
+	private addCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
 		let generalRules: ITokenColorizationRule[] = [];
 
 		Object.keys(tokenGroupToScopesMap).forEach(key => {
@@ -113,7 +139,7 @@ export class ColorThemeData implements IColorTheme {
 
 		// Put the general customizations such as comments, strings, etc. first so that
 		// they can be overridden by specific customizations like "string.interpolated"
-		this.customTokenColors = generalRules.concat(textMateRules);
+		this.customTokenColors = this.customTokenColors.concat(generalRules, textMateRules);
 	}
 
 	public ensureLoaded(themeService: WorkbenchThemeService): TPromise<void> {
@@ -289,24 +315,30 @@ function _loadColorThemeFromFile(themePath: string, resultRules: ITokenColorizat
 	}
 }
 
+let pListParser: Thenable<{ parse(content: string) }>;
+function getPListParser() {
+	return pListParser || import('fast-plist');
+}
+
 function _loadSyntaxTokensFromFile(themePath: string, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
 	return pfs.readFile(themePath).then(content => {
-		try {
-			let contentValue = plist.parse(content.toString());
-			let settings: ITokenColorizationRule[] = contentValue.settings;
-			if (!Array.isArray(settings)) {
-				return TPromise.wrapError(new Error(nls.localize('error.plist.invalidformat', "Problem parsing tmTheme file: {0}. 'settings' is not array.")));
+		return getPListParser().then(parser => {
+			try {
+				let contentValue = parser.parse(content.toString());
+				let settings: ITokenColorizationRule[] = contentValue.settings;
+				if (!Array.isArray(settings)) {
+					return TPromise.wrapError(new Error(nls.localize('error.plist.invalidformat', "Problem parsing tmTheme file: {0}. 'settings' is not array.")));
+				}
+				convertSettings(settings, resultRules, resultColors);
+				return TPromise.as(null);
+			} catch (e) {
+				return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing tmTheme file: {0}", e.message)));
 			}
-			convertSettings(settings, resultRules, resultColors);
-			return TPromise.as(null);
-		} catch (e) {
-			return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing tmTheme file: {0}", e.message)));
-		}
+		});
 	}, error => {
 		return TPromise.wrapError(new Error(nls.localize('error.cannotload', "Problems loading tmTheme file {0}: {1}", themePath, error.message)));
 	});
 }
-
 
 function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: ColorThemeData): ITokenColorizationRule {
 	let foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground);

@@ -7,7 +7,6 @@
 
 import * as assert from 'assert';
 import { LcsDiff, IDiffChange } from 'vs/base/common/diff/diff';
-import { LcsDiff2 } from 'vs/base/common/diff/diff2';
 
 class StringDiffSequence {
 
@@ -115,11 +114,6 @@ suite('Diff', () => {
 	test('LcsDiff - different strings tests', function () {
 		this.timeout(10000);
 		lcsTests(LcsDiff);
-	});
-
-	test('LcsDiff2 - different strings tests', function () {
-		this.timeout(10000);
-		lcsTests(LcsDiff2);
 	});
 });
 

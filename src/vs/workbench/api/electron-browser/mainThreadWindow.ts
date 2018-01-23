@@ -20,7 +20,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		extHostContext: IExtHostContext,
 		@IWindowService private windowService: IWindowService
 	) {
-		this.proxy = extHostContext.get(ExtHostContext.ExtHostWindow);
+		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
 		windowService.onDidChangeFocus(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 	}

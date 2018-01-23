@@ -72,14 +72,14 @@ export class BackupModelTracker implements IWorkbenchContribution {
 			// Do not backup when auto save after delay is configured
 			if (!this.configuredAutoSaveAfterDelay) {
 				const model = this.textFileService.models.get(event.resource);
-				this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId()).done(null, errors.onUnexpectedError);
+				this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId()).done(null, errors.onUnexpectedError);
 			}
 		}
 	}
 
 	private onUntitledModelChanged(resource: Uri): void {
 		if (this.untitledEditorService.isDirty(resource)) {
-			this.untitledEditorService.loadOrCreate({ resource }).then(model => this.backupFileService.backupResource(resource, model.getValue(), model.getVersionId())).done(null, errors.onUnexpectedError);
+			this.untitledEditorService.loadOrCreate({ resource }).then(model => this.backupFileService.backupResource(resource, model.createSnapshot(), model.getVersionId())).done(null, errors.onUnexpectedError);
 		} else {
 			this.discardBackup(resource);
 		}

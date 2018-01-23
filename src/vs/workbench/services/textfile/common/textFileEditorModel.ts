@@ -30,7 +30,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { ITextBufferFactory } from 'vs/editor/common/model';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**
@@ -85,10 +85,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IHashService private hashService: IHashService
 	) {
 		super(modelService, modeService);
-
-		// TODO@remote
-		// assert.ok(resource.scheme === 'file', 'TextFileEditorModel can only handle file:// resources.');
-
 		this.resource = resource;
 		this.toDispose = [];
 		this._onDidContentChange = new Emitter<StateChange>();
@@ -145,8 +141,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					// We have received reports of users seeing delete events even though the file still
 					// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
 					// Since we do not want to mark the model as orphaned, we have to check if the
-					// file is really gone and not just a faulty file event (TODO@Ben revisit when we
-					// have a more stable file watcher in place for this scenario).
+					// file is really gone and not just a faulty file event.
 					checkOrphanedPromise = TPromise.timeout(100).then(() => {
 						if (this.disposed) {
 							return true;
@@ -193,7 +188,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return;
 		}
 
-		const firstLineText = this.getFirstLineText(this.textEditorModel.getValue());
+		const firstLineText = this.getFirstLineText(this.textEditorModel.createSnapshot());
 		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 
 		this.modelService.setMode(this.textEditorModel, mode);
@@ -394,8 +389,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			mtime: content.mtime,
 			etag: content.etag,
 			isDirectory: false,
-			hasChildren: false,
-			children: void 0,
+			children: void 0
 		};
 		this.updateLastResolvedDiskStat(resolvedStat);
 
@@ -426,7 +420,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.doCreateTextModel(content.resource, content.value, backup);
 	}
 
-	private doUpdateTextModel(value: string | IRawTextSource): TPromise<TextFileEditorModel> {
+	private doUpdateTextModel(value: string | ITextBufferFactory): TPromise<TextFileEditorModel> {
 		diag('load() - updated text editor model', this.resource, new Date());
 
 		// Ensure we are not tracking a stale state
@@ -446,7 +440,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return TPromise.as<TextFileEditorModel>(this);
 	}
 
-	private doCreateTextModel(resource: URI, value: string | IRawTextSource, backup: URI): TPromise<TextFileEditorModel> {
+	private doCreateTextModel(resource: URI, value: string | ITextBufferFactory, backup: URI): TPromise<TextFileEditorModel> {
 		diag('load() - created text editor model', this.resource, new Date());
 
 		this.createTextEditorModelPromise = this.doLoadBackup(backup).then(backupContent => {
@@ -708,12 +702,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save to Disk
 			// mark the save operation as currently pending with the versionId (it might have changed from a save participant triggering)
 			diag(`doSave(${versionId}) - before updateContent()`, this.resource, new Date());
-			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.getValue(), {
+			return this.saveSequentializer.setPending(newVersionId, this.fileService.updateContent(this.lastResolvedDiskStat.resource, this.createSnapshot(), {
 				overwriteReadonly: options.overwriteReadonly,
 				overwriteEncoding: options.overwriteEncoding,
 				mtime: this.lastResolvedDiskStat.mtime,
 				encoding: this.getEncoding(),
-				etag: this.lastResolvedDiskStat.etag
+				etag: this.lastResolvedDiskStat.etag,
+				writeElevated: options.writeElevated
 			}).then(stat => {
 				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
 

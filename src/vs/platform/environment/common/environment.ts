@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { LogLevel } from 'vs/platform/log/common/log';
 
 export interface ParsedArgs {
 	[arg: string]: any;
 	_: string[];
+	_urls?: string[];
 	help?: boolean;
 	version?: boolean;
+	status?: boolean;
+	issue?: boolean;
 	wait?: boolean;
 	waitMarkerFilePath?: string;
 	diff?: boolean;
@@ -22,7 +26,9 @@ export interface ParsedArgs {
 	'user-data-dir'?: string;
 	performance?: boolean;
 	'prof-startup'?: string;
+	'prof-startup-prefix'?: string;
 	verbose?: boolean;
+	log?: string;
 	logExtensionHostCommunication?: boolean;
 	'disable-extensions'?: boolean;
 	'extensions-dir'?: string;
@@ -38,14 +44,20 @@ export interface ParsedArgs {
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
 	'enable-proposed-api'?: string | string[];
-	'open-url'?: string | string[];
+	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
+	'skip-release-notes'?: boolean;
 	'sticky-quickopen'?: boolean;
+	'disable-restore-windows'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
+	'skip-add-to-recently-opened'?: boolean;
+	'file-write'?: boolean;
+	'file-chmod'?: boolean;
+	'upload-logs'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -65,6 +77,7 @@ export interface IEnvironmentService {
 	args: ParsedArgs;
 
 	execPath: string;
+	cliPath: string;
 	appRoot: string;
 
 	userHome: string;
@@ -75,7 +88,7 @@ export interface IEnvironmentService {
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
-	machineUUID: string;
+
 	settingsSearchBuildId: number;
 	settingsSearchUrl: string;
 
@@ -97,19 +110,26 @@ export interface IEnvironmentService {
 	logExtensionHostCommunication: boolean;
 
 	isBuilt: boolean;
-	verbose: boolean;
 	wait: boolean;
+	status: boolean;
 	performance: boolean;
-	profileStartup: { prefix: string, dir: string } | undefined;
+
+	// logging
+	logsPath: string;
+	verbose: boolean;
+	logLevel: LogLevel;
 
 	skipGettingStarted: boolean | undefined;
+	skipReleaseNotes: boolean | undefined;
+
+	skipAddToRecentlyOpened: boolean;
 
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
 
 	nodeCachedDataDir: string;
 
-	installSource: string;
+	installSourcePath: string;
 	disableUpdates: boolean;
 	disableCrashReporter: boolean;
 }

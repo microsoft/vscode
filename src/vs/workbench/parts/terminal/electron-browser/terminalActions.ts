@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
-import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -17,13 +17,14 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -195,6 +196,27 @@ export class DeleteWordRightTerminalAction extends Action {
 	}
 }
 
+export class EnterNavigationModeTerminalAction extends Action {
+
+	public static readonly ID = 'workbench.action.terminal.enterLineNavigationMode';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.enterLineNavigationMode', "Enter Screen Reader Navigation Mode");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this.terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.enterNavigationMode();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.new';
@@ -220,7 +242,10 @@ export class CreateNewTerminalAction extends Action {
 			// single root
 			instancePromise = TPromise.as(this.terminalService.createInstance(undefined, true));
 		} else {
-			instancePromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND).then(workspace => {
+			const options: IPickOptions = {
+				placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
+			};
+			instancePromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
 				if (!workspace) {
 					// Don't create the instance if the workspace picker was canceled
 					return null;
@@ -236,6 +261,28 @@ export class CreateNewTerminalAction extends Action {
 			this.terminalService.setActiveInstance(instance);
 			return this.terminalService.showPanel(true);
 		});
+	}
+}
+
+export class CreateNewInActiveWorkspaceTerminalAction extends Action {
+
+	public static readonly ID = 'workbench.action.terminal.newInActiveWorkspace';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.newInActiveWorkspace', "Create New Integrated Terminal (In Active Workspace)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const instance = this.terminalService.createInstance(undefined, true);
+		if (!instance) {
+			return TPromise.as(void 0);
+		}
+		this.terminalService.setActiveInstance(instance);
+		return this.terminalService.showPanel(true);
 	}
 }
 
@@ -430,9 +477,10 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
 		@ITerminalService private terminalService: ITerminalService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex);
+		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex, contextViewService);
 
 		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onActiveInstanceChanged(this._updateItems, this));

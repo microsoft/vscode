@@ -16,7 +16,7 @@ import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { RawTextSource } from 'vs/editor/common/model/textSource';
+import { createTextBufferFactory, TextModel } from 'vs/editor/common/model/textModel';
 import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -41,8 +41,8 @@ class TestBackupFileService extends BackupFileService {
 		super(workspaceBackupPath, fileService);
 	}
 
-	public getBackupResource(resource: Uri): Uri {
-		return super.getBackupResource(resource);
+	public toBackupResource(resource: Uri): Uri {
+		return super.toBackupResource(resource);
 	}
 }
 
@@ -73,7 +73,7 @@ suite('BackupFileService', () => {
 			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
-			assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
+			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
 
 		test('should get the correct backup path for untitled files', () => {
@@ -82,7 +82,7 @@ suite('BackupFileService', () => {
 			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
-			assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
+			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
 	});
 
@@ -118,6 +118,56 @@ suite('BackupFileService', () => {
 				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
 				assert.equal(fs.existsSync(untitledBackupPath), true);
 				assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
+				done();
+			});
+		});
+
+		test('text file (ITextSnapshot)', function (done: () => void) {
+			const model = TextModel.createFromString('test');
+
+			service.backupResource(fooFile, model.createSnapshot()).then(() => {
+				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+				assert.equal(fs.existsSync(fooBackupPath), true);
+				assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\ntest`);
+				model.dispose();
+				done();
+			});
+		});
+
+		test('untitled file (ITextSnapshot)', function (done: () => void) {
+			const model = TextModel.createFromString('test');
+
+			service.backupResource(untitledFile, model.createSnapshot()).then(() => {
+				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+				assert.equal(fs.existsSync(untitledBackupPath), true);
+				assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\ntest`);
+				model.dispose();
+				done();
+			});
+		});
+
+		test('text file (large file, ITextSnapshot)', function (done: () => void) {
+			const largeString = (new Array(10 * 1024)).join('Large String\n');
+			const model = TextModel.createFromString(largeString);
+
+			service.backupResource(fooFile, model.createSnapshot()).then(() => {
+				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 1);
+				assert.equal(fs.existsSync(fooBackupPath), true);
+				assert.equal(fs.readFileSync(fooBackupPath), `${fooFile.toString()}\n${largeString}`);
+				model.dispose();
+				done();
+			});
+		});
+
+		test('untitled file (large file, ITextSnapshot)', function (done: () => void) {
+			const largeString = (new Array(10 * 1024)).join('Large String\n');
+			const model = TextModel.createFromString(largeString);
+
+			service.backupResource(untitledFile, model.createSnapshot()).then(() => {
+				assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 1);
+				assert.equal(fs.existsSync(untitledBackupPath), true);
+				assert.equal(fs.readFileSync(untitledBackupPath), `${untitledFile.toString()}\n${largeString}`);
+				model.dispose();
 				done();
 			});
 		});
@@ -220,8 +270,8 @@ suite('BackupFileService', () => {
 
 	test('parseBackupContent', () => {
 		test('should separate metadata from content', () => {
-			const textSource = RawTextSource.fromString('metadata\ncontent');
-			assert.equal(service.parseBackupContent(textSource), 'content');
+			const textBufferFactory = createTextBufferFactory('metadata\ncontent');
+			assert.equal(service.parseBackupContent(textBufferFactory), 'content');
 		});
 	});
 });

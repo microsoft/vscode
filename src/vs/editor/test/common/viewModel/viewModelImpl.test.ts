@@ -21,7 +21,6 @@ suite('ViewModel', () => {
 			viewModel.setViewport(1, 1, 1);
 
 			model.applyEdits([{
-				identifier: null,
 				range: new Range(1, 1, 1, 1),
 				text: [
 					'line01',
@@ -34,18 +33,17 @@ suite('ViewModel', () => {
 					'line08',
 					'line09',
 					'line10',
-				].join('\n'),
-				forceMoveMarkers: false
+				].join('\n')
 			}]);
 
 			assert.equal(viewModel.getLineCount(), 10);
 		});
 	});
 
-	function assertGetPlainTextToCopy(text: string[], ranges: Range[], emptySelectionClipboard: boolean, expected: string): void {
+	function assertGetPlainTextToCopy(text: string[], ranges: Range[], emptySelectionClipboard: boolean, expected: string | string[]): void {
 		testViewModel(text, {}, (viewModel, model) => {
 			let actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard);
-			assert.equal(actual, expected);
+			assert.deepEqual(actual, expected);
 		});
 	}
 
@@ -157,7 +155,7 @@ suite('ViewModel', () => {
 				new Range(3, 2, 3, 6),
 			],
 			false,
-			'ine2\nine3'
+			['ine2', 'ine3']
 		);
 	});
 
@@ -169,7 +167,7 @@ suite('ViewModel', () => {
 				new Range(2, 2, 2, 6),
 			],
 			false,
-			'ine2\nine3'
+			['ine2', 'ine3']
 		);
 	});
 

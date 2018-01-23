@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -421,5 +421,23 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, '_lines', 1, '_lineStarts', '_lines');
 		assertTopScore(fuzzyScore, '_lines', 1, '_lineS', '_lines');
 		assertTopScore(fuzzyScore, '_lineS', 0, '_lineS', '_lines');
+	});
+
+	test('HTML closing tag proposal filtered out #38880', function () {
+		assertMatches('\t\t<', '\t\t</body>', '^\t^\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 0));
+		assertMatches('\t\t<', '\t\t</body>', '\t\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 3));
+		assertMatches('\t<', '\t</body>', '\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 2));
+	});
+
+	test('fuzzyScoreGraceful', function () {
+
+		assertMatches('rlut', 'result', undefined, fuzzyScore);
+		assertMatches('rlut', 'result', '^res^u^l^t', fuzzyScoreGraceful);
+
+		assertMatches('cno', 'console', '^co^ns^ole', fuzzyScore);
+		assertMatches('cno', 'console', '^co^ns^ole', fuzzyScoreGraceful);
+		assertMatches('cno', 'console', '^c^o^nsole', fuzzyScoreGracefulAggressive);
+		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGraceful);
+		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGracefulAggressive);
 	});
 });

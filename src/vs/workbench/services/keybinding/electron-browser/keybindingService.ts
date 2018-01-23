@@ -36,6 +36,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { release } from 'os';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -569,25 +570,28 @@ let schema: IJSONSchema = {
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 
-if (OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux) {
-
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigExtensions.Configuration);
-	const keyboardConfiguration: IConfigurationNode = {
-		'id': 'keyboard',
-		'order': 15,
-		'type': 'object',
-		'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-		'overridable': true,
-		'properties': {
-			'keyboard.dispatch': {
-				'type': 'string',
-				'enum': ['code', 'keyCode'],
-				'default': 'code',
-				'description': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`.")
-			}
+const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigExtensions.Configuration);
+const keyboardConfiguration: IConfigurationNode = {
+	'id': 'keyboard',
+	'order': 15,
+	'type': 'object',
+	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
+	'overridable': true,
+	'properties': {
+		'keyboard.dispatch': {
+			'type': 'string',
+			'enum': ['code', 'keyCode'],
+			'default': 'code',
+			'description': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
+			'included': OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
+		},
+		'keyboard.touchbar.enabled': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('touchbar.enabled', "Enables the macOS touchbar buttons on the keyboard if available."),
+			'included': OS === OperatingSystem.Macintosh && parseFloat(release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
 		}
-	};
+	}
+};
 
-	configurationRegistry.registerConfiguration(keyboardConfiguration);
-
-}
+configurationRegistry.registerConfiguration(keyboardConfiguration);

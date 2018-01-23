@@ -83,6 +83,9 @@ export class CompositeBar implements ICompositeBar {
 
 	public activateComposite(id: string): void {
 		if (this.compositeIdToActions[id]) {
+			if (this.compositeIdToActions[this.activeCompositeId]) {
+				this.compositeIdToActions[this.activeCompositeId].deactivate();
+			}
 			this.compositeIdToActions[id].activate();
 		}
 		this.activeCompositeId = id;
@@ -100,14 +103,27 @@ export class CompositeBar implements ICompositeBar {
 		}
 	}
 
-	public showActivity(compositeId: string, badge: IBadge, clazz?: string): IDisposable {
+	public showActivity(compositeId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
 		if (!badge) {
 			throw illegalArgument('badge');
 		}
 
-		const activity = <ICompositeActivity>{ badge, clazz };
+		if (typeof priority !== 'number') {
+			priority = 0;
+		}
+
+		const activity: ICompositeActivity = { badge, clazz, priority };
 		const stack = this.compositeIdToActivityStack[compositeId] || (this.compositeIdToActivityStack[compositeId] = []);
-		stack.unshift(activity);
+
+		for (let i = 0; i <= stack.length; i++) {
+			if (i === stack.length) {
+				stack.push(activity);
+				break;
+			} else if (stack[i].priority <= priority) {
+				stack.splice(i, 0, activity);
+				break;
+			}
+		}
 
 		this.updateActivity(compositeId);
 
@@ -197,7 +213,7 @@ export class CompositeBar implements ICompositeBar {
 			return; // We have not been rendered yet so there is nothing to update.
 		}
 
-		let compositesToShow = this.pinnedComposites;
+		let compositesToShow = this.pinnedComposites.slice(0); // never modify original array
 
 		// Always show the active composite even if it is marked to be hidden
 		if (this.activeCompositeId && !compositesToShow.some(id => id === this.activeCompositeId)) {
@@ -223,14 +239,21 @@ export class CompositeBar implements ICompositeBar {
 		if (overflows) {
 			size -= this.compositeSizeInBar.get(compositesToShow[maxVisible]);
 			compositesToShow = compositesToShow.slice(0, maxVisible);
+			size += this.options.overflowActionSize;
 		}
 		// Check if we need to make extra room for the overflow action
-		if (overflows && (size + this.options.overflowActionSize > limit)) {
-			compositesToShow.pop();
+		if (size > limit) {
+			size -= this.compositeSizeInBar.get(compositesToShow.pop());
 		}
+		// We always try show the active composite
 		if (this.activeCompositeId && compositesToShow.length && compositesToShow.indexOf(this.activeCompositeId) === -1) {
-			compositesToShow.pop();
+			const removedComposite = compositesToShow.pop();
+			size = size - this.compositeSizeInBar.get(removedComposite) + this.compositeSizeInBar.get(this.activeCompositeId);
 			compositesToShow.push(this.activeCompositeId);
+		}
+		// The active composite might have bigger size than the removed composite, check for overflow again
+		if (size > limit) {
+			compositesToShow.length ? compositesToShow.splice(compositesToShow.length - 2, 1) : compositesToShow.pop();
 		}
 
 		const visibleComposites = Object.keys(this.compositeIdToActions);
@@ -349,6 +372,10 @@ export class CompositeBar implements ICompositeBar {
 
 		let unpinPromise: TPromise<any>;
 
+		// remove from pinned
+		const index = this.pinnedComposites.indexOf(compositeId);
+		this.pinnedComposites.splice(index, 1);
+
 		// Case: composite is not the active one or the active one is a different one
 		// Solv: we do nothing
 		if (!this.activeCompositeId || this.activeCompositeId !== compositeId) {
@@ -374,12 +401,11 @@ export class CompositeBar implements ICompositeBar {
 		}
 
 		unpinPromise.then(() => {
-			// then remove from pinned and update switcher
-			const index = this.pinnedComposites.indexOf(compositeId);
-			this.pinnedComposites.splice(index, 1);
-
 			this.updateCompositeSwitcher();
 		});
+
+		// Persist
+		this.savePinnedComposites();
 	}
 
 	public isPinned(compositeId: string): boolean {
@@ -398,6 +424,9 @@ export class CompositeBar implements ICompositeBar {
 			if (update) {
 				this.updateCompositeSwitcher();
 			}
+
+			// Persist
+			this.savePinnedComposites();
 		});
 	}
 
@@ -427,6 +456,9 @@ export class CompositeBar implements ICompositeBar {
 		setTimeout(() => {
 			this.updateCompositeSwitcher();
 		}, 0);
+
+		// Persist
+		this.savePinnedComposites();
 	}
 
 	public layout(dimension: Dimension): void {
@@ -450,7 +482,7 @@ export class CompositeBar implements ICompositeBar {
 		this.updateCompositeSwitcher();
 	}
 
-	public store(): void {
+	private savePinnedComposites(): void {
 		this.storageService.store(this.options.storageId, JSON.stringify(this.pinnedComposites), StorageScope.GLOBAL);
 	}
 

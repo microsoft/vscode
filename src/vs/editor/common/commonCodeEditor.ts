@@ -25,10 +25,11 @@ import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import * as modes from 'vs/editor/common/modes';
 import { Schemas } from 'vs/base/common/network';
+import { ITextModel, EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecorationsChangeAccessor, IModelDecoration, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/model';
 
 let EDITOR_ID = 0;
 
@@ -97,7 +98,7 @@ export abstract class CommonCodeEditor extends Disposable {
 	protected _actions: { [key: string]: editorCommon.IEditorAction; };
 
 	// --- Members logically associated to a model
-	protected model: editorCommon.IModel;
+	protected model: ITextModel;
 	protected listenersToRemove: IDisposable[];
 	protected hasView: boolean;
 
@@ -195,11 +196,11 @@ export abstract class CommonCodeEditor extends Disposable {
 	public getValue(options: { preserveBOM: boolean; lineEnding: string; } = null): string {
 		if (this.model) {
 			let preserveBOM: boolean = (options && options.preserveBOM) ? true : false;
-			let eolPreference = editorCommon.EndOfLinePreference.TextDefined;
+			let eolPreference = EndOfLinePreference.TextDefined;
 			if (options && options.lineEnding && options.lineEnding === '\n') {
-				eolPreference = editorCommon.EndOfLinePreference.LF;
+				eolPreference = EndOfLinePreference.LF;
 			} else if (options && options.lineEnding && options.lineEnding === '\r\n') {
-				eolPreference = editorCommon.EndOfLinePreference.CRLF;
+				eolPreference = EndOfLinePreference.CRLF;
 			}
 			return this.model.getValue(eolPreference, preserveBOM);
 		}
@@ -212,11 +213,11 @@ export abstract class CommonCodeEditor extends Disposable {
 		}
 	}
 
-	public getModel(): editorCommon.IModel {
+	public getModel(): ITextModel {
 		return this.model;
 	}
 
-	public setModel(model: editorCommon.IModel = null): void {
+	public setModel(model: ITextModel = null): void {
 		if (this.model === model) {
 			// Current model is the new model
 			return;
@@ -651,7 +652,6 @@ export abstract class CommonCodeEditor extends Disposable {
 				// Backwards compatibility
 				this.cursor.restoreState([<editorCommon.ICursorState>cursorState]);
 			}
-			this.viewModel.viewLayout.restoreState(codeEditorState.viewState);
 
 			let contributionsState = s.contributionsState || {};
 			let keys = Object.keys(this._contributions);
@@ -780,7 +780,7 @@ export abstract class CommonCodeEditor extends Disposable {
 		return true;
 	}
 
-	public executeEdits(source: string, edits: editorCommon.IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean {
+	public executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean {
 		if (!this.cursor) {
 			// no view, no cursor
 			return false;
@@ -815,7 +815,7 @@ export abstract class CommonCodeEditor extends Disposable {
 		this.cursor.trigger(source, editorCommon.Handler.ExecuteCommands, commands);
 	}
 
-	public changeDecorations(callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => any): any {
+	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
 		if (!this.model) {
 			//			console.warn('Cannot change decorations on editor that is not attached to a model');
 			// callback will not be called
@@ -824,14 +824,14 @@ export abstract class CommonCodeEditor extends Disposable {
 		return this.model.changeDecorations(callback, this.id);
 	}
 
-	public getLineDecorations(lineNumber: number): editorCommon.IModelDecoration[] {
+	public getLineDecorations(lineNumber: number): IModelDecoration[] {
 		if (!this.model) {
 			return null;
 		}
 		return this.model.getLineDecorations(lineNumber, this.id, this._configuration.editor.readOnly);
 	}
 
-	public deltaDecorations(oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[] {
+	public deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
 		if (!this.model) {
 			return [];
 		}
@@ -849,7 +849,7 @@ export abstract class CommonCodeEditor extends Disposable {
 		let oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
 		this._decorationTypeSubtypes[decorationTypeKey] = newDecorationsSubTypes;
 
-		let newModelDecorations: editorCommon.IModelDeltaDecoration[] = [];
+		let newModelDecorations: IModelDeltaDecoration[] = [];
 
 		for (let decorationOption of decorationOptions) {
 			let typeKey = decorationTypeKey;
@@ -895,7 +895,7 @@ export abstract class CommonCodeEditor extends Disposable {
 		this._decorationTypeSubtypes[decorationTypeKey] = {};
 
 		const opts = ModelDecorationOptions.createDynamic(this._resolveDecorationOptions(decorationTypeKey, false));
-		let newModelDecorations: editorCommon.IModelDeltaDecoration[] = new Array<editorCommon.IModelDeltaDecoration>(ranges.length);
+		let newModelDecorations: IModelDeltaDecoration[] = new Array<IModelDeltaDecoration>(ranges.length);
 		for (let i = 0, len = ranges.length; i < len; i++) {
 			newModelDecorations[i] = { range: ranges[i], options: opts };
 		}
@@ -923,7 +923,7 @@ export abstract class CommonCodeEditor extends Disposable {
 		return this._configuration.editor.layoutInfo;
 	}
 
-	protected _attachModel(model: editorCommon.IModel): void {
+	protected _attachModel(model: ITextModel): void {
 		this.model = model ? model : null;
 		this.listenersToRemove = [];
 		this.viewModel = null;
@@ -940,6 +940,9 @@ export abstract class CommonCodeEditor extends Disposable {
 
 			this.listenersToRemove.push(this.model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
 			this.listenersToRemove.push(this.model.onDidChangeLanguage((e) => {
+				if (!this.model) {
+					return;
+				}
 				this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
 				this._onDidChangeModelLanguage.fire(e);
 			}));
@@ -989,13 +992,13 @@ export abstract class CommonCodeEditor extends Disposable {
 	protected abstract _scheduleAtNextAnimationFrame(callback: () => void): IDisposable;
 	protected abstract _createView(): void;
 
-	protected _postDetachModelCleanup(detachedModel: editorCommon.IModel): void {
+	protected _postDetachModelCleanup(detachedModel: ITextModel): void {
 		if (detachedModel) {
 			detachedModel.removeAllDecorationsWithOwnerId(this.id);
 		}
 	}
 
-	protected _detachModel(): editorCommon.IModel {
+	protected _detachModel(): ITextModel {
 		if (this.model) {
 			this.model.onBeforeDetached();
 		}
@@ -1024,7 +1027,7 @@ export abstract class CommonCodeEditor extends Disposable {
 
 	protected abstract _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void;
 	protected abstract _removeDecorationType(key: string): void;
-	protected abstract _resolveDecorationOptions(typeKey: string, writable: boolean): editorCommon.IModelDecorationOptions;
+	protected abstract _resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions;
 
 	/* __GDPR__FRAGMENT__
 		"EditorTelemetryData" : {}

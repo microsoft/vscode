@@ -22,9 +22,11 @@ export const IEditorGroupService = createDecorator<IEditorGroupService>('editorG
 export interface IEditorTabOptions {
 	showTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
+	tabSizing?: 'fit' | 'shrink';
 	showIcons?: boolean;
 	previewEditors?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	iconTheme?: string;
 }
 
 export interface IMoveOptions {

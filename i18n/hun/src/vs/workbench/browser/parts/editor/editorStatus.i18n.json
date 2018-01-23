@@ -53,5 +53,5 @@
 	"screenReaderDetectedExplanation.answerYes": "Igen",
 	"screenReaderDetectedExplanation.answerNo": "Nem",
 	"screenReaderDetectedExplanation.body1": "A VS Code most már optimalizálva van képernyőolvasóval való használathoz.",
-	"screenReaderDetectedExplanation.body2": "Néhány funkció másképp működik. Például a sortörés, kódrészletek bezárása, automatikus záró zárójelek beszúrása stb."
+	"screenReaderDetectedExplanation.body2": "A szerkesztőablakban néhány funkció, például a sortörés, kódrészletek bezárása stb. másképp működik."
 }

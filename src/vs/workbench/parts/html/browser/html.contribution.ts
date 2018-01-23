@@ -17,7 +17,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
-import { WebviewElement } from 'vs/workbench/parts/html/browser/webview';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 
@@ -118,7 +117,7 @@ CommandsRegistry.registerCommand('_webview.openDevTools', function () {
 	const elements = document.querySelectorAll('webview.ready');
 	for (let i = 0; i < elements.length; i++) {
 		try {
-			(elements.item(i) as WebviewElement).openDevTools();
+			(elements.item(i) as Electron.WebviewTag).openDevTools();
 		} catch (e) {
 			console.error(e);
 		}

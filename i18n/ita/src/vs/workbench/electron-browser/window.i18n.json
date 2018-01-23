@@ -9,5 +9,6 @@
 	"cut": "Taglia",
 	"copy": "Copia",
 	"paste": "Incolla",
-	"selectAll": "Seleziona tutto"
+	"selectAll": "Seleziona tutto",
+	"runningAsRoot": "Non è consigliabile eseguire {0} come utente root."
 }

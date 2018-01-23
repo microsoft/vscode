@@ -30,17 +30,17 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 	constructor(
 		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IConfigurationService _configurationService: IConfigurationService,
 		@IPanelService _panelService: IPanelService,
 		@IPartService _partService: IPartService,
 		@ILifecycleService _lifecycleService: ILifecycleService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IQuickOpenService private _quickOpenService: IQuickOpenService,
 		@IChoiceService private _choiceService: IChoiceService,
 		@IStorageService private _storageService: IStorageService,
 		@IMessageService private _messageService: IMessageService
 	) {
-		super(_contextKeyService, _configurationService, _panelService, _partService, _lifecycleService);
+		super(_contextKeyService, _panelService, _partService, _lifecycleService);
 
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 	}
@@ -121,7 +121,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
-		const options = [nls.localize('customize', "Customize"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")];
+		const options = [nls.localize('customize', "Customize"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Don't Show Again")];
 		this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
 			switch (choice) {
 				case 0:
@@ -180,6 +180,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			]
 		};
 		const promises: TPromise<[string, string]>[] = [];
@@ -212,7 +213,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return activeInstance ? activeInstance : this.createInstance(undefined, wasNewTerminalAction);
 	}
 
-	protected _showTerminalCloseConfirmation(): boolean {
+	protected _showTerminalCloseConfirmation(): TPromise<boolean> {
 		let message;
 		if (this.terminalInstances.length === 1) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
@@ -220,10 +221,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
 
-		return !this._messageService.confirmSync({
+		return this._messageService.confirm({
 			message,
 			type: 'warning',
-		});
+		}).then(confirmed => !confirmed);
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {

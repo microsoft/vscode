@@ -40,6 +40,5 @@
 	"menuId.invalid": "\"{0}\" ist kein gültiger Menübezeichner.",
 	"missing.command": "Das Menüelement verweist auf einen Befehl \"{0}\", der im Abschnitt \"commands\" nicht definiert ist.",
 	"missing.altCommand": "Das Menüelement verweist auf einen Alternativbefehl \"{0}\", der im Abschnitt \"commands\" nicht definiert ist.",
-	"dupe.command": "Das Menüelement verweist auf den gleichen Befehl wie der Standard- und der Alternativbefehl.",
-	"nosupport.altCommand": "Leider unterstützt zurzeit nur die Gruppe \"navigation\" des Menüs \"editor/title\" Alternativbefehle."
+	"dupe.command": "Das Menüelement verweist auf den gleichen Befehl wie der Standard- und der Alternativbefehl."
 }

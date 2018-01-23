@@ -39,6 +39,7 @@
 	"typescript.openTsServerLog.title": "Apri il log del server TypeScript",
 	"typescript.restartTsServer": "Riavvia server TS",
 	"typescript.selectTypeScriptVersion.title": "Seleziona la versione di TypeScript",
+	"typescript.reportStyleChecksAsWarnings": "Evidenzia i controlli di stile come warning",
 	"jsDocCompletion.enabled": "Abilita/Disabilita commenti automatici JSDoc",
 	"javascript.implicitProjectConfig.checkJs": "Abilita/disabilita il controllo semantico di file JavaScript. File jsconfig.json o tsconfig.json esistenti sovrascrivono su questa impostazione. Richiede TypeScript >= 2.3.1.",
 	"typescript.npm": "Specifica il percorso dell'eseguibile NPM utilizzato per l'acquisizione automatica delle definizioni di tipi. Richiede TypeScript >= 2.3.4.",

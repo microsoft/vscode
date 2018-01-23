@@ -14,7 +14,7 @@ import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -102,11 +102,11 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 				}
 			},
 			osx: {
-				description: nls.localize('vscode.extension.contributes.debuggers.osx', "OS X specific settings."),
+				description: nls.localize('vscode.extension.contributes.debuggers.osx', "macOS specific settings."),
 				type: 'object',
 				properties: {
 					runtime: {
-						description: nls.localize('vscode.extension.contributes.debuggers.osx.runtime', "Runtime used for OSX."),
+						description: nls.localize('vscode.extension.contributes.debuggers.osx.runtime', "Runtime used for macOS."),
 						type: 'string'
 					}
 				}
@@ -223,7 +223,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommandService private commandService: ICommandService,
 		@IStorageService private storageService: IStorageService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		this.providers = [];
 		this.adapters = [];
@@ -377,10 +378,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 	}
 
-	public canSetBreakpointsIn(model: IModel): boolean {
+	public canSetBreakpointsIn(model: ITextModel): boolean {
 		const modeId = model ? model.getLanguageIdentifier().language : null;
-		if (!modeId || modeId === 'json') {
-			// do not allow breakpoints in our settings files
+		if (!modeId || modeId === 'jsonc' || modeId === 'log') {
+			// do not allow breakpoints in our settings files and output
 			return false;
 		}
 		if (this.configurationService.getValue<IDebugConfiguration>('debug').allowBreakpointsEverywhere) {
@@ -395,34 +396,43 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public guessAdapter(type?: string): TPromise<Adapter> {
-		if (type) {
-			const adapter = this.getAdapter(type);
-			return TPromise.as(adapter);
-		}
+		return this.extensionService.activateByEvent('onDebugInitialConfigurations').then(() => this.extensionService.activateByEvent('onDebug').then(() => {
+			if (type) {
+				const adapter = this.getAdapter(type);
+				return TPromise.as(adapter);
+			}
 
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			const codeEditor = editor.getControl();
-			if (isCodeEditor(codeEditor)) {
-				const model = codeEditor.getModel();
-				const language = model ? model.getLanguageIdentifier().language : undefined;
-				const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
-				if (adapters.length === 1) {
-					return TPromise.as(adapters[0]);
+			const editor = this.editorService.getActiveEditor();
+			let candidates: Adapter[];
+			if (editor) {
+				const codeEditor = editor.getControl();
+				if (isCodeEditor(codeEditor)) {
+					const model = codeEditor.getModel();
+					const language = model ? model.getLanguageIdentifier().language : undefined;
+					const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
+					if (adapters.length === 1) {
+						return TPromise.as(adapters[0]);
+					}
+					if (adapters.length > 1) {
+						candidates = adapters;
+					}
 				}
 			}
-		}
 
-		return this.quickOpenService.pick([...this.adapters.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider), { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
-			.then(picked => {
-				if (picked instanceof Adapter) {
-					return picked;
-				}
-				if (picked) {
-					this.commandService.executeCommand('debug.installAdditionalDebuggers');
-				}
-				return undefined;
-			});
+			if (!candidates) {
+				candidates = this.adapters.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider);
+			}
+			return this.quickOpenService.pick([...candidates, { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+				.then(picked => {
+					if (picked instanceof Adapter) {
+						return picked;
+					}
+					if (picked) {
+						this.commandService.executeCommand('debug.installAdditionalDebuggers');
+					}
+					return undefined;
+				});
+		}));
 	}
 
 	private store(): void {
@@ -445,8 +455,7 @@ class Launch implements ILaunch {
 		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
-		@IExtensionService private extensionService: IExtensionService
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
 	) {
 		// noop
 	}
@@ -513,60 +522,58 @@ class Launch implements ILaunch {
 		return this.workspace.uri.with({ path: paths.join(this.workspace.uri.path, '/.vscode/launch.json') });
 	}
 
-	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		return this.extensionService.activateByEvent('onDebug').then(() => {
-			const resource = this.uri;
-			let configFileCreated = false;
+	public openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor; configFileCreated: boolean; }> {
+		const resource = this.uri;
+		let configFileCreated = false;
 
-			return this.fileService.resolveContent(resource).then(content => content, err => {
+		return this.fileService.resolveContent(resource).then(content => content, err => {
 
-				// launch.json not found: create one by collecting launch configs from debugConfigProviders
+			// launch.json not found: create one by collecting launch configs from debugConfigProviders
 
-				return this.configurationManager.guessAdapter(type).then(adapter => {
-					if (adapter) {
-						return this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type).then(initialConfigs => {
-							return adapter.getInitialConfigurationContent(initialConfigs);
-						});
-					} else {
-						return undefined;
-					}
-				}).then(content => {
-
-					if (!content) {
-						return undefined;
-					}
-
-					configFileCreated = true;
-					return this.fileService.updateContent(resource, content).then(() => {
-						// convert string into IContent; see #32135
-						return { value: content };
+			return this.configurationManager.guessAdapter(type).then(adapter => {
+				if (adapter) {
+					return this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type).then(initialConfigs => {
+						return adapter.getInitialConfigurationContent(initialConfigs);
 					});
-				});
+				} else {
+					return undefined;
+				}
 			}).then(content => {
+
 				if (!content) {
 					return undefined;
 				}
-				const index = content.value.indexOf(`"${this.configurationManager.selectedName}"`);
-				let startLineNumber = 1;
-				for (let i = 0; i < index; i++) {
-					if (content.value.charAt(i) === '\n') {
-						startLineNumber++;
-					}
-				}
-				const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
 
-				return this.editorService.openEditor({
-					resource: resource,
-					options: {
-						forceOpen: true,
-						selection,
-						pinned: configFileCreated, // pin only if config file is created #8727
-						revealIfVisible: true
-					},
-				}, sideBySide);
-			}, (error) => {
-				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
+				configFileCreated = true;
+				return this.fileService.updateContent(resource, content).then(() => {
+					// convert string into IContent; see #32135
+					return { value: content };
+				});
 			});
+		}).then(content => {
+			if (!content) {
+				return { editor: undefined, configFileCreated };
+			}
+			const index = content.value.indexOf(`"${this.configurationManager.selectedName}"`);
+			let startLineNumber = 1;
+			for (let i = 0; i < index; i++) {
+				if (content.value.charAt(i) === '\n') {
+					startLineNumber++;
+				}
+			}
+			const selection = startLineNumber > 1 ? { startLineNumber, startColumn: 4 } : undefined;
+
+			return this.editorService.openEditor({
+				resource: resource,
+				options: {
+					forceOpen: true,
+					selection,
+					pinned: configFileCreated, // pin only if config file is created #8727
+					revealIfVisible: true
+				},
+			}, sideBySide).then(editor => ({ editor, configFileCreated }));
+		}, (error) => {
+			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 		});
 	}
 }

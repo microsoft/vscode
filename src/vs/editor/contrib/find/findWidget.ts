@@ -34,6 +34,7 @@ import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, ac
 export interface IFindController {
 	replace(): void;
 	replaceAll(): void;
+	getGlobalBufferTerm(): string;
 }
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
@@ -109,6 +110,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _viewZoneId: number;
 
 	private _resizeSash: Sash;
+	private _resized: boolean;
 
 	constructor(
 		codeEditor: ICodeEditor,
@@ -132,47 +134,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 		this._buildDomNode();
 		this._updateButtons();
-
-		let checkEditorWidth = () => {
-			let editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
-			let minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
-			let collapsedFindWidget = false;
-			let reducedFindWidget = false;
-			let narrowFindWidget = false;
-			let widgetWidth = dom.getTotalWidth(this._domNode);
-
-			if (widgetWidth > FIND_WIDGET_INITIAL_WIDTH) {
-				// as the widget is resized by users, we may need to change the max width of the widget as the editor width changes.
-				this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
-				this._replaceInputBox.inputElement.style.width = `${dom.getTotalWidth(this._findInput.inputBox.inputElement)}px`;
-				return;
-			}
-
-			if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth >= editorWidth) {
-				reducedFindWidget = true;
-			}
-			if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth - MAX_MATCHES_COUNT_WIDTH >= editorWidth) {
-				narrowFindWidget = true;
-			}
-			if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth - MAX_MATCHES_COUNT_WIDTH >= editorWidth + 50) {
-				collapsedFindWidget = true;
-			}
-			dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
-			dom.toggleClass(this._domNode, 'narrow-find-widget', narrowFindWidget);
-			dom.toggleClass(this._domNode, 'reduced-find-widget', reducedFindWidget);
-
-			if (!narrowFindWidget && !collapsedFindWidget) {
-				// the minimal left offset of findwidget is 15px.
-				this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
-			}
-
-			let findInputWidth = dom.getTotalWidth(this._findInput.inputBox.inputElement);
-			if (findInputWidth > 0) {
-				this._replaceInputBox.inputElement.style.width = `${findInputWidth}px`;
-			}
-
-		};
-		checkEditorWidth();
+		this._tryUpdateWidgetWidth();
 
 		this._register(this._codeEditor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.readOnly) {
@@ -183,12 +145,21 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._updateButtons();
 			}
 			if (e.layoutInfo) {
-				checkEditorWidth();
+				this._tryUpdateWidgetWidth();
 			}
 		}));
 		this._register(this._codeEditor.onDidChangeCursorSelection(() => {
 			if (this._isVisible) {
 				this._updateToggleSelectionFindButton();
+			}
+		}));
+		this._register(this._codeEditor.onDidFocusEditor(() => {
+			if (this._isVisible) {
+				let globalBufferTerm = this._controller.getGlobalBufferTerm();
+				if (globalBufferTerm && globalBufferTerm !== this._state.searchString) {
+					this._state.change({ searchString: globalBufferTerm }, true);
+					this._findInput.select();
+				}
 			}
 		}));
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
@@ -289,6 +260,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (this._state.isReplaceRevealed) {
 				if (!this._codeEditor.getConfiguration().readOnly && !this._isReplaceVisible) {
 					this._isReplaceVisible = true;
+					this._replaceInputBox.width = this._findInput.inputBox.width;
 					this._updateButtons();
 				}
 			} else {
@@ -404,6 +376,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			} else {
 				this._toggleSelectionFind.checked = false;
 			}
+			this._tryUpdateWidgetWidth();
 			this._updateButtons();
 
 			setTimeout(() => {
@@ -532,6 +505,53 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		};
 		this._findInput.style(inputStyles);
 		this._replaceInputBox.style(inputStyles);
+	}
+
+	private _tryUpdateWidgetWidth() {
+		if (!this._isVisible) {
+			return;
+		}
+		let editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
+		let minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
+		let collapsedFindWidget = false;
+		let reducedFindWidget = false;
+		let narrowFindWidget = false;
+
+		if (this._resized) {
+			let widgetWidth = dom.getTotalWidth(this._domNode);
+
+			if (widgetWidth > FIND_WIDGET_INITIAL_WIDTH) {
+				// as the widget is resized by users, we may need to change the max width of the widget as the editor width changes.
+				this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
+				this._replaceInputBox.inputElement.style.width = `${dom.getTotalWidth(this._findInput.inputBox.inputElement)}px`;
+				return;
+			}
+		}
+
+		if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth >= editorWidth) {
+			reducedFindWidget = true;
+		}
+		if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth - MAX_MATCHES_COUNT_WIDTH >= editorWidth) {
+			narrowFindWidget = true;
+		}
+		if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth - MAX_MATCHES_COUNT_WIDTH >= editorWidth + 50) {
+			collapsedFindWidget = true;
+		}
+		dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
+		dom.toggleClass(this._domNode, 'narrow-find-widget', narrowFindWidget);
+		dom.toggleClass(this._domNode, 'reduced-find-widget', reducedFindWidget);
+
+		if (!narrowFindWidget && !collapsedFindWidget) {
+			// the minimal left offset of findwidget is 15px.
+			this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
+		}
+
+		if (this._resized) {
+			let findInputWidth = dom.getTotalWidth(this._findInput.inputBox.inputElement);
+			if (findInputWidth > 0) {
+				this._replaceInputBox.inputElement.style.width = `${findInputWidth}px`;
+			}
+		}
 	}
 
 	// ----- Public
@@ -861,6 +881,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _buildSash() {
 		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL });
+		this._resized = false;
 		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
 
 		this._register(this._resizeSash.onDidStart((e: ISashEvent) => {
@@ -868,6 +889,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}));
 
 		this._register(this._resizeSash.onDidChange((evt: ISashEvent) => {
+			this._resized = true;
 			let width = originalWidth + evt.startX - evt.currentX;
 
 			if (width < FIND_WIDGET_INITIAL_WIDTH) {

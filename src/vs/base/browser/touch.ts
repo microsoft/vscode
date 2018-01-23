@@ -64,13 +64,13 @@ interface TouchEvent extends Event {
 	changedTouches: TouchList;
 }
 
-
 export class Gesture implements IDisposable {
 
 	private static readonly SCROLL_FRICTION = -0.005;
 	private static INSTANCE: Gesture;
 	private static HOLD_DELAY = 700;
 
+	private dispatched: boolean;
 	private targets: HTMLElement[];
 	private toDispose: IDisposable[];
 	private handle: IDisposable;
@@ -82,9 +82,9 @@ export class Gesture implements IDisposable {
 		this.activeTouches = {};
 		this.handle = null;
 		this.targets = [];
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchstart', (e) => this.onTouchStart(e), false, false));
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchend', (e) => this.onTouchEnd(e), false, false));
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchmove', (e) => this.onTouchMove(e), false, false));
+		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchstart', (e) => this.onTouchStart(e)));
+		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchend', (e) => this.onTouchEnd(e)));
+		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchmove', (e) => this.onTouchMove(e)));
 	}
 
 	public static addTarget(element: HTMLElement): void {
@@ -113,7 +113,6 @@ export class Gesture implements IDisposable {
 
 	private onTouchStart(e: TouchEvent): void {
 		let timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
-		e.preventDefault();
 
 		if (this.handle) {
 			this.handle.dispose();
@@ -139,12 +138,16 @@ export class Gesture implements IDisposable {
 			evt.pageY = touch.pageY;
 			this.dispatchEvent(evt);
 		}
+
+		if (this.dispatched) {
+			e.preventDefault();
+			e.stopPropagation();
+			this.dispatched = false;
+		}
 	}
 
 	private onTouchEnd(e: TouchEvent): void {
 		let timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
-		e.preventDefault();
-		e.stopPropagation();
 
 		let activeTouchCount = Object.keys(this.activeTouches).length;
 
@@ -198,8 +201,16 @@ export class Gesture implements IDisposable {
 				);
 			}
 
+
+			this.dispatchEvent(this.newGestureEvent(EventType.End, data.initialTarget));
 			// forget about this touch
 			delete this.activeTouches[touch.identifier];
+		}
+
+		if (this.dispatched) {
+			e.preventDefault();
+			e.stopPropagation();
+			this.dispatched = false;
 		}
 	}
 
@@ -214,6 +225,7 @@ export class Gesture implements IDisposable {
 		this.targets.forEach(target => {
 			if (event.initialTarget instanceof Node && target.contains(event.initialTarget)) {
 				target.dispatchEvent(event);
+				this.dispatched = true;
 			}
 		});
 	}
@@ -254,8 +266,6 @@ export class Gesture implements IDisposable {
 
 	private onTouchMove(e: TouchEvent): void {
 		let timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
-		e.preventDefault();
-		e.stopPropagation();
 
 		for (let i = 0, len = e.changedTouches.length; i < len; i++) {
 
@@ -285,6 +295,12 @@ export class Gesture implements IDisposable {
 			data.rollingPageX.push(touch.pageX);
 			data.rollingPageY.push(touch.pageY);
 			data.rollingTimestamps.push(timestamp);
+		}
+
+		if (this.dispatched) {
+			e.preventDefault();
+			e.stopPropagation();
+			this.dispatched = false;
 		}
 	}
 }

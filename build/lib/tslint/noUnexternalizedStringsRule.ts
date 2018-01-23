@@ -169,6 +169,15 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 
 	private recordKey(keyNode: ts.StringLiteral, messageNode: ts.Node) {
 		let text = keyNode.getText();
+		// We have an empty key
+		if (text.match(/(['"]) *\1/)) {
+			if (messageNode) {
+				this.addFailureAtNode(keyNode, `Key is empty for message: ${messageNode.getText()}`);
+			} else {
+				this.addFailureAtNode(keyNode, `Key is empty.`);
+			}
+			return;
+		}
 		let occurrences: KeyMessagePair[] = this.usedKeys[text];
 		if (!occurrences) {
 			occurrences = [];

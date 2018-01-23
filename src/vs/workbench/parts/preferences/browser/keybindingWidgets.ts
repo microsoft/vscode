@@ -203,7 +203,7 @@ export class DefineKeybindingWidget extends Widget {
 		this._domNode.setClassName('defineKeybindingWidget');
 		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
 		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
-		dom.append(this._domNode.domNode, dom.$('.message', null, nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER. ESCAPE to cancel.")));
+		dom.append(this._domNode.domNode, dom.$('.message', null, nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.")));
 
 		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, widgetShadow }, colors => {
 			this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground;

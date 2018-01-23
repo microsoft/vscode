@@ -11,7 +11,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import paths = require('vs/base/common/paths');
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
-import { SaveFileAsAction, RevertFileAction, SaveFileAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -30,6 +29,9 @@ import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/cont
 import { FileOnDiskContentProvider } from 'vs/workbench/parts/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { SAVE_FILE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -50,7 +52,8 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextModelService textModelService: ITextModelService
+		@ITextModelService textModelService: ITextModelService,
+		@ICommandService private commandService: ICommandService
 	) {
 		this.toUnbind = [];
 		this.messages = new ResourceMap<() => void>();
@@ -101,10 +104,12 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 	public onSaveError(error: any, model: ITextFileEditorModel): void {
 		let message: IMessageWithAction | string;
+
+		const fileOperationError = error as FileOperationError;
 		const resource = model.getResource();
 
 		// Dirty write prevention
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 
 			// If the user tried to save from the opened conflict editor, show its message again
 			// Otherwise show the message that will lead the user into the save conflict editor.
@@ -117,29 +122,28 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 		// Any other save error
 		else {
-			const isReadonly = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_READ_ONLY;
 			const actions: Action[] = [];
 
-			// Save As
-			actions.push(new Action('workbench.files.action.saveAs', SaveFileAsAction.LABEL, null, true, () => {
-				const saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
-				saveAsAction.setResource(resource);
-				saveAsAction.run().done(() => saveAsAction.dispose(), errors.onUnexpectedError);
+			const isReadonly = fileOperationError.fileOperationResult === FileOperationResult.FILE_READ_ONLY;
+			const triedToMakeWriteable = isReadonly && fileOperationError.options && fileOperationError.options.overwriteReadonly;
+			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 
-				return TPromise.as(true);
-			}));
+			// Save Elevated
+			if (isPermissionDenied || triedToMakeWriteable) {
+				actions.push(new Action('workbench.files.action.saveElevated', triedToMakeWriteable ? nls.localize('overwriteElevated', "Overwrite as Admin...") : nls.localize('saveElevated', "Retry as Admin..."), null, true, () => {
+					if (!model.isDisposed()) {
+						model.save({
+							writeElevated: true,
+							overwriteReadonly: triedToMakeWriteable
+						}).done(null, errors.onUnexpectedError);
+					}
 
-			// Discard
-			actions.push(new Action('workbench.files.action.discard', nls.localize('discard', "Discard"), null, true, () => {
-				const revertFileAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
-				revertFileAction.setResource(resource);
-				revertFileAction.run().done(() => revertFileAction.dispose(), errors.onUnexpectedError);
+					return TPromise.as(true);
+				}));
+			}
 
-				return TPromise.as(true);
-			}));
-
-			// Retry
-			if (isReadonly) {
+			// Overwrite
+			else if (isReadonly) {
 				actions.push(new Action('workbench.files.action.overwrite', nls.localize('overwrite', "Overwrite"), null, true, () => {
 					if (!model.isDisposed()) {
 						model.save({ overwriteReadonly: true }).done(null, errors.onUnexpectedError);
@@ -147,22 +151,37 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 					return TPromise.as(true);
 				}));
-			} else {
-				actions.push(new Action('workbench.files.action.retry', nls.localize('retry', "Retry"), null, true, () => {
-					const saveFileAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
-					saveFileAction.setResource(resource);
-					saveFileAction.run().done(() => saveFileAction.dispose(), errors.onUnexpectedError);
+			}
 
-					return TPromise.as(true);
+			// Retry
+			else {
+				actions.push(new Action('workbench.files.action.retry', nls.localize('retry', "Retry"), null, true, () => {
+					return this.commandService.executeCommand(SAVE_FILE_COMMAND_ID, resource);
 				}));
 			}
+
+			// Save As
+			actions.push(new Action('workbench.files.action.saveAs', SAVE_FILE_AS_LABEL, null, true, () => {
+				return this.commandService.executeCommand(SAVE_FILE_AS_COMMAND_ID, resource);
+			}));
+
+			// Discard
+			actions.push(new Action('workbench.files.action.discard', nls.localize('discard', "Discard"), null, true, () => {
+				return this.commandService.executeCommand(REVERT_FILE_COMMAND_ID, resource);
+			}));
 
 			// Cancel
 			actions.push(CancelAction);
 
 			let errorMessage: string;
 			if (isReadonly) {
-				errorMessage = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to remove protection.", paths.basename(resource.fsPath));
+				if (triedToMakeWriteable) {
+					errorMessage = nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is write protected. Select 'Overwrite as Admin' to retry as administrator.", paths.basename(resource.fsPath));
+				} else {
+					errorMessage = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to attempt to remove protection.", paths.basename(resource.fsPath));
+				}
+			} else if (isPermissionDenied) {
+				errorMessage = nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", paths.basename(resource.fsPath));
 			} else {
 				errorMessage = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(resource.fsPath), toErrorMessage(error, false));
 			}
@@ -244,7 +263,7 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 
 	resolverService.createModelReference(resource).then(reference => {
 		const model = reference.object as ITextFileEditorModel;
-		const localModelValue = model.getValue();
+		const localModelSnapshot = model.createSnapshot();
 
 		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
@@ -252,7 +271,7 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 		return model.revert().then(() => {
 
 			// Restore user value (without loosing undo stack)
-			modelService.updateModel(model.textEditorModel, localModelValue);
+			modelService.updateModel(model.textEditorModel, createTextBufferFactoryFromSnapshot(localModelSnapshot));
 
 			// Trigger save
 			return model.save().then(() => {

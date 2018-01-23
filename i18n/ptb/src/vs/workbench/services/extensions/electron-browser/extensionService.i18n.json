@@ -9,5 +9,6 @@
 	"extensionHostProcess.crash": "Host de extensão foi encerrado inesperadamente.",
 	"extensionHostProcess.unresponsiveCrash": "Host de extensão encerrado porque não foi responsivo.",
 	"overwritingExtension": "Sobrescrevendo extensão {0} por {1}.",
-	"extensionUnderDevelopment": "Carregando extensão de desenvolvimento em {0}"
+	"extensionUnderDevelopment": "Carregando extensão de desenvolvimento em {0}",
+	"extensionCache.invalid": "Extensões foram modificadas no disco. Por favor atualize a janela."
 }

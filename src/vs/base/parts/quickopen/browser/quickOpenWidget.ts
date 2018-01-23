@@ -13,7 +13,7 @@ import errors = require('vs/base/common/errors');
 import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode, IKeyMods } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent, IActionProvider, ITreeStyles } from 'vs/base/parts/tree/browser/tree';
+import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent, IActionProvider, ITreeStyles, ITreeOptions, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, MessageType, IInputBoxStyles, IRange } from 'vs/base/browser/ui/inputbox/inputBox';
 import Severity from 'vs/base/common/severity';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
@@ -43,6 +43,7 @@ export interface IQuickOpenOptions extends IQuickOpenStyles {
 	inputAriaLabel?: string;
 	actionProvider?: IActionProvider;
 	keyboardSupport?: boolean;
+	treeCreator?: (container: HTMLElement, configuration: ITreeConfiguration, options?: ITreeOptions) => ITree;
 }
 
 export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
@@ -59,10 +60,6 @@ export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	autoFocus?: IAutoFocus;
 	inputSelection?: IRange;
-}
-
-export interface IQuickOpenUsageLogger {
-	publicLog(eventName: string, data?: any): void;
 }
 
 export class QuickOpenController extends DefaultController {
@@ -115,14 +112,13 @@ export class QuickOpenWidget implements IModelProvider {
 	private container: HTMLElement;
 	private treeElement: HTMLElement;
 	private inputElement: HTMLElement;
-	private usageLogger: IQuickOpenUsageLogger;
 	private layoutDimensions: Dimension;
 	private model: IModel<any>;
 	private inputChangingTimeoutHandle: number;
 	private styles: IQuickOpenStyles;
 	private renderer: Renderer;
 
-	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions, usageLogger?: IQuickOpenUsageLogger) {
+	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions) {
 		this.isDisposed = false;
 		this.toUnbind = [];
 		this.container = container;
@@ -130,7 +126,6 @@ export class QuickOpenWidget implements IModelProvider {
 		this.options = options;
 		this.styles = options || Object.create(null);
 		mixin(this.styles, defaultStyles, false);
-		this.usageLogger = usageLogger;
 		this.model = null;
 	}
 
@@ -231,7 +226,9 @@ export class QuickOpenWidget implements IModelProvider {
 			this.treeContainer = div.div({
 				'class': 'quick-open-tree'
 			}, (div: Builder) => {
-				this.tree = new Tree(div.getHTMLElement(), {
+				const createTree = this.options.treeCreator || ((container, config, opts) => new Tree(container, config, opts));
+
+				this.tree = createTree(div.getHTMLElement(), {
 					dataSource: new DataSource(this),
 					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: this.options.keyboardSupport }),
 					renderer: (this.renderer = new Renderer(this, this.styles)),
@@ -393,7 +390,7 @@ export class QuickOpenWidget implements IModelProvider {
 			});
 		}
 
-		if (this.tree) {
+		if (this.tree && !this.options.treeCreator) {
 			this.tree.style(this.styles);
 		}
 
@@ -524,21 +521,6 @@ export class QuickOpenWidget implements IModelProvider {
 			const context: IEntryRunContext = { event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
 
 			hide = this.model.runner.run(value, mode, context);
-		}
-
-		// add telemetry when an item is accepted, logging the index of the item in the list and the length of the list
-		// to measure the rate of the success and the relevance of the order
-		if (this.usageLogger) {
-			const indexOfAcceptedElement = this.model.entries.indexOf(value);
-			const entriesCount = this.model.entries.length;
-			/* __GDPR__
-				"quickOpenWidgetItemAccepted" : {
-					"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"count": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"isQuickNavigate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.usageLogger.publicLog('quickOpenWidgetItemAccepted', { index: indexOfAcceptedElement, count: entriesCount, isQuickNavigate: this.quickNavigateConfiguration ? true : false });
 		}
 
 		// Hide if command was run successfully
@@ -775,22 +757,6 @@ export class QuickOpenWidget implements IModelProvider {
 		this.builder.hide();
 		this.builder.domBlur();
 
-		// report failure cases
-		if (reason === HideReason.CANCELED) {
-			if (this.model) {
-				const entriesCount = this.model.entries.filter(e => this.isElementVisible(this.model, e)).length;
-				if (this.usageLogger) {
-					/* __GDPR__
-						"quickOpenWidgetCancelled" : {
-							"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"isQuickNavigate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.usageLogger.publicLog('quickOpenWidgetCancelled', { count: entriesCount, isQuickNavigate: this.quickNavigateConfiguration ? true : false });
-				}
-			}
-		}
-
 		// Clear input field and clear tree
 		this.inputBox.value = '';
 		this.tree.setInput(null);
@@ -886,10 +852,6 @@ export class QuickOpenWidget implements IModelProvider {
 
 	public getInput(): IModel<any> {
 		return this.tree.getInput();
-	}
-
-	public getTree(): ITree {
-		return this.tree;
 	}
 
 	public showInputDecoration(decoration: Severity): void {

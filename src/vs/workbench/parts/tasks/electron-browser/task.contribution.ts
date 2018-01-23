@@ -681,7 +681,7 @@ class TaskService implements ITaskService {
 	}
 
 	private showOutput(): void {
-		this._outputChannel.show(true);
+		this.outputService.showChannel(this._outputChannel.id, true);
 	}
 
 	private disposeTaskSystemListeners(): void {
@@ -1278,7 +1278,7 @@ class TaskService implements ITaskService {
 							this._outputChannel.append('Error: ');
 							this._outputChannel.append(error.message);
 							this._outputChannel.append('\n');
-							this._outputChannel.show(true);
+							this.outputService.showChannel(this._outputChannel.id, true);
 						}
 					} finally {
 						if (--counter === 0) {
@@ -1616,7 +1616,7 @@ class TaskService implements ITaskService {
 				result = true;
 				this._outputChannel.append(line + '\n');
 			});
-			this._outputChannel.show(true);
+			this.outputService.showChannel(this._outputChannel.id, true);
 		}
 		return result;
 	}
@@ -1666,40 +1666,50 @@ class TaskService implements ITaskService {
 		if (this._taskSystem instanceof TerminalTaskSystem) {
 			return false;
 		}
-		if (this._taskSystem.canAutoTerminate() || this.messageService.confirmSync({
-			message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
-			primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
-			type: 'question'
-		})) {
-			return this._taskSystem.terminateAll().then((responses) => {
-				let success = true;
-				let code: number = undefined;
-				for (let response of responses) {
-					success = success && response.success;
-					// We only have a code in the old output runner which only has one task
-					// So we can use the first code.
-					if (code === void 0 && response.code !== void 0) {
-						code = response.code;
-					}
-				}
-				if (success) {
-					this._taskSystem = null;
-					this.disposeTaskSystemListeners();
-					return false; // no veto
-				} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-					return !this.messageService.confirmSync({
-						message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
-						primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
-						type: 'info'
-					});
-				}
-				return true; // veto
-			}, (err) => {
-				return true; // veto
-			});
+
+		let terminatePromise: TPromise<boolean>;
+		if (this._taskSystem.canAutoTerminate()) {
+			terminatePromise = TPromise.wrap(true);
 		} else {
-			return true; // veto
+			terminatePromise = this.messageService.confirm({
+				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
+				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
+				type: 'question'
+			});
 		}
+
+		return terminatePromise.then(terminate => {
+			if (terminate) {
+				return this._taskSystem.terminateAll().then((responses) => {
+					let success = true;
+					let code: number = undefined;
+					for (let response of responses) {
+						success = success && response.success;
+						// We only have a code in the old output runner which only has one task
+						// So we can use the first code.
+						if (code === void 0 && response.code !== void 0) {
+							code = response.code;
+						}
+					}
+					if (success) {
+						this._taskSystem = null;
+						this.disposeTaskSystemListeners();
+						return false; // no veto
+					} else if (code && code === TerminateResponseCode.ProcessNotFound) {
+						return this.messageService.confirm({
+							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
+							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
+							type: 'info'
+						}).then(confirmed => !confirmed);
+					}
+					return true; // veto
+				}, (err) => {
+					return true; // veto
+				});
+			}
+
+			return true; // veto
+		});
 	}
 
 	private getConfigureAction(code: TaskErrors): Action {
@@ -1738,7 +1748,7 @@ class TaskService implements ITaskService {
 			this.messageService.show(Severity.Error, nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
-			this._outputChannel.show(true);
+			this.outputService.showChannel(this._outputChannel.id, true);
 		}
 	}
 
@@ -2348,6 +2358,10 @@ MenuRegistry.addCommand({ id: 'workbench.action.tasks.configureDefaultTestTask',
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
 
+// Tasks Output channel. Register it before using it in Task Service.
+let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
+outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
+
 // Task Service
 registerSingleton(ITaskService, TaskService);
 
@@ -2372,10 +2386,6 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionCont
 let statusbarRegistry = <IStatusbarRegistry>Registry.as(StatusbarExtensions.Statusbar);
 statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(BuildStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(TaskStatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-
-// Output channel
-let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
-outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
 
 // tasks.json validation
 let schemaId = 'vscode://schemas/tasks';

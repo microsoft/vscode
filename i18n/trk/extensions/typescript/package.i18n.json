@@ -39,6 +39,7 @@
 	"typescript.openTsServerLog.title": "TS Sunucu günlüğünü aç",
 	"typescript.restartTsServer": "TS sunucusunu yeniden başlat",
 	"typescript.selectTypeScriptVersion.title": "TypeScript Sürümünü Seç",
+	"typescript.reportStyleChecksAsWarnings": "Stil kontrollerini uyarı olarak bildir",
 	"jsDocCompletion.enabled": "Otomatik JSDoc yorumlarını etkinleştir veya devre dışı bırak.",
 	"javascript.implicitProjectConfig.checkJs": "JavaScript dosyalarının anlamsal kontrolünü etkinleştir veya devre dışı bırak. Mevcut jsconfig.json veya tsconfig.json dosyaları bu ayarı geçersiz kılar. TypeScript >= 2.3.1 gerektirir.",
 	"typescript.npm": "Otomatik Tür Kazanımı için kullanılacak NPM yürütülebilir dosyasının yolunu belirtir. TypeScript >= 2.3.4 gerektirir.",

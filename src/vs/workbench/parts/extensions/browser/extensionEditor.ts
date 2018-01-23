@@ -42,17 +42,17 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Position } from 'vs/platform/editor/common/editor';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -64,14 +64,18 @@ export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED = new 
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 function renderBody(body: string): string {
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https:; media-src https:; script-src 'none'; style-src file:; child-src 'none'; frame-src 'none';">
-				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src vscode-core-resource:; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${styleSheetPath}">
 			</head>
-			<body>${body}</body>
+			<body>
+				<a id="scroll-to-top" role="button" aria-label="scroll to top" href="#"><span class="icon"></span></a>
+				${body}
+			</body>
 		</html>`;
 }
 
@@ -188,11 +192,12 @@ export class ExtensionEditor extends BaseEditor {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
 		@IOpenerService private openerService: IOpenerService,
-		@IListService private listService: IListService,
 		@IPartService private partService: IPartService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
 		this.disposables = [];
@@ -379,12 +384,6 @@ export class ExtensionEditor extends BaseEditor {
 		}
 	}
 
-	hideFind(): void {
-		if (this.activeWebview) {
-			this.activeWebview.hideFind();
-		}
-	}
-
 	public showNextFindTerm() {
 		if (this.activeWebview) {
 			this.activeWebview.showNextFindTerm();
@@ -416,8 +415,8 @@ export class ExtensionEditor extends BaseEditor {
 			.then(removeEmbeddedSVGs)
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
-				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : undefined;
-				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
+				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : {};
+				this.activeWebview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.environmentService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions, false);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
@@ -518,7 +517,7 @@ export class ExtensionEditor extends BaseEditor {
 	private renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): Tree {
 		const renderer = this.instantiationService.createInstance(Renderer);
 		const controller = this.instantiationService.createInstance(Controller);
-		const tree = new Tree(container, {
+		const tree = this.instantiationService.createInstance(WorkbenchTree, container, {
 			dataSource: new DataSource(),
 			renderer,
 			controller
@@ -528,8 +527,6 @@ export class ExtensionEditor extends BaseEditor {
 				keyboardSupport: false
 			});
 
-		this.contentDisposables.push(attachListStyler(tree, this.themeService));
-
 		tree.setInput(extensionDependencies);
 
 		this.contentDisposables.push(tree.onDidChangeSelection(event => {
@@ -537,8 +534,6 @@ export class ExtensionEditor extends BaseEditor {
 				controller.openExtension(tree, false);
 			}
 		}));
-
-		this.contentDisposables.push(this.listService.register(tree));
 
 		return tree;
 	}
@@ -940,15 +935,6 @@ const showCommand = new ShowExtensionEditorFindCommand({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-const hideCommand = new ShowExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.hidefind',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
-	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
 class ShowExtensionEditorFindTermCommand extends Command {
 	constructor(opts: ICommandOptions, private _next: boolean) {

@@ -14,19 +14,27 @@ import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspace
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { IRelativePattern } from 'vs/base/common/glob';
 
 class Workspace2 extends Workspace {
 
 	static fromData(data: IWorkspaceData) {
-		return data ? new Workspace2(data) : null;
+		if (!data) {
+			return null;
+		} else {
+			const { id, name, folders } = data;
+			return new Workspace2(
+				id,
+				name,
+				folders.map(({ uri, name, index }) => new WorkspaceFolder({ name, index, uri: URI.revive(uri) }))
+			);
+		}
 	}
 
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
 	private readonly _structure = TernarySearchTree.forPaths<vscode.WorkspaceFolder>();
 
-	private constructor(data: IWorkspaceData) {
-		super(data.id, data.name, data.folders.map(folder => new WorkspaceFolder(folder)));
+	private constructor(id: string, name: string, folders: WorkspaceFolder[]) {
+		super(id, name, folders);
 
 		// setup the workspace folder data structure
 		this.folders.forEach(({ name, uri, index }) => {
@@ -60,7 +68,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
 	constructor(mainContext: IMainContext, data: IWorkspaceData) {
-		this._proxy = mainContext.get(MainContext.MainThreadWorkspace);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);
 		this._workspace = Workspace2.fromData(data);
 	}
 
@@ -155,13 +163,34 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	// --- search ---
 
-	findFiles(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
+	findFiles(include: vscode.GlobPattern, exclude: vscode.GlobPattern, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const requestId = ExtHostWorkspace._requestIdPool++;
-		const result = this._proxy.$startSearch(include, exclude, maxResults, requestId);
+
+		let includePattern: string;
+		let includeFolder: string;
+		if (include) {
+			if (typeof include === 'string') {
+				includePattern = include;
+			} else {
+				includePattern = include.pattern;
+				includeFolder = include.base;
+			}
+		}
+
+		let excludePattern: string;
+		if (exclude) {
+			if (typeof exclude === 'string') {
+				excludePattern = exclude;
+			} else {
+				excludePattern = exclude.pattern;
+			}
+		}
+
+		const result = this._proxy.$startSearch(includePattern, includeFolder, excludePattern, maxResults, requestId);
 		if (token) {
 			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
 		}
-		return result;
+		return result.then(data => data.map(URI.revive));
 	}
 
 	saveAll(includeUntitled?: boolean): Thenable<boolean> {

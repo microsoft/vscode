@@ -7,12 +7,12 @@
 	"settingsEditorName": "Impostazioni predefinite",
 	"SearchSettingsWidget.AriaLabel": "Cerca impostazioni",
 	"SearchSettingsWidget.Placeholder": "Cerca impostazioni",
-	"totalSettingsMessage": "{0} impostazioni in totale",
 	"noSettingsFound": "Nessun risultato",
 	"oneSettingFound": "1 impostazione corrispondente",
 	"settingsFound": "{0} impostazioni corrispondenti",
-	"fileEditorWithInputAriaLabel": "{0}. Editor file di testo.",
-	"fileEditorAriaLabel": "Editor file di testo.",
+	"totalSettingsMessage": "{0} impostazioni in totale",
+	"defaultSettings": "Impostazioni predefinite",
+	"defaultFolderSettings": "Impostazioni cartella predefinite",
 	"defaultEditorReadonly": "Modificare nell'editor a destra per ignorare le impostazioni predefinite.",
 	"preferencesAriaLabel": "Preferenze predefinite. Editor di testo di sola lettura."
 }

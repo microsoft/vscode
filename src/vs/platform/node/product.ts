@@ -31,6 +31,7 @@ export interface IProductConfiguration {
 	exeBasedExtensionTips: { [id: string]: any; };
 	extensionKeywords: { [extension: string]: string[]; };
 	extensionAllowedBadgeProviders: string[];
+	extensionAllowedProposedApi: string[];
 	keymapExtensionTips: string[];
 	crashReporter: {
 		companyName: string;
@@ -68,6 +69,7 @@ export interface IProductConfiguration {
 		'linux-x64': string;
 		'darwin': string;
 	};
+	logUploaderUrl: string;
 }
 
 export interface ISurveyData {

@@ -10,30 +10,29 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorService } from 'vs/platform/editor/common/editor';
-import { fromPromise, stopwatch } from 'vs/base/common/event';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ReferencesModel, OneReference } from './referencesModel';
+import { ReferencesModel } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Location } from 'vs/editor/common/modes';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
 export interface RequestOptions {
 	getMetaTitle(model: ReferencesModel): string;
-	onGoto?: (reference: OneReference) => TPromise<any>;
+	onGoto?: (reference: Location) => TPromise<any>;
 }
 
 export class ReferencesController implements editorCommon.IEditorContribution {
@@ -58,7 +57,6 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private _editorService: IEditorService,
 		@ITextModelService private _textModelResolverService: ITextModelService,
-		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IMessageService private _messageService: IMessageService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
@@ -129,7 +127,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 						break;
 					}
 				case 'side':
-					this._openReference(element, kind === 'side');
+					this.openReference(element, kind === 'side');
 					break;
 				case 'goto':
 					if (options.onGoto) {
@@ -143,7 +141,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		const requestId = ++this._requestIdPool;
 
-		const promise = modelPromise.then(model => {
+		modelPromise.then(model => {
 
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
@@ -155,23 +153,6 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			}
 
 			this._model = model;
-
-			// measure time it stays open
-			const startTime = Date.now();
-			this._disposables.push({
-				dispose: () => {
-					/* __GDPR__
-						"zoneWidgetShown" : {
-							"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"elapsedTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this._telemetryService.publicLog('zoneWidgetShown', {
-						mode: 'reference search',
-						elapsedTime: Date.now() - startTime
-					});
-				}
-			});
 
 			// show widget
 			return this._widget.setModel(this._model).then(() => {
@@ -192,20 +173,6 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}, error => {
 			this._messageService.show(Severity.Error, error);
 		});
-
-		const onDone = stopwatch(fromPromise(promise));
-		const mode = this._editor.getModel().getLanguageIdentifier().language;
-
-		/* __GDPR__
-			"findReferences" : {
-				"durarion" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		onDone(duration => this._telemetryService.publicLog('findReferences', {
-			duration,
-			mode
-		}));
 	}
 
 	public closeWidget(): void {
@@ -223,7 +190,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
-	private _gotoReference(ref: OneReference): void {
+	private _gotoReference(ref: Location): void {
 		this._widget.hide();
 
 		this._ignoreModelChangeEvent = true;
@@ -256,7 +223,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		});
 	}
 
-	private _openReference(ref: OneReference, sideBySide: boolean): void {
+	public openReference(ref: Location, sideBySide: boolean): void {
 		const { uri, range } = ref;
 		this._editorService.openEditor({
 			resource: uri,

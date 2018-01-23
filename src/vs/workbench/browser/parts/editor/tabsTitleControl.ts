@@ -30,22 +30,24 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { TitleControl, handleWorkspaceExternalDrop } from 'vs/workbench/browser/parts/editor/titleControl';
+import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { extractResources } from 'vs/workbench/browser/editor';
+import { CodeDataTransfers, ISerializedDraggedEditor } from 'vs/workbench/browser/editor';
 import { getOrSet } from 'vs/base/common/map';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Dimension } from 'vs/base/browser/builder';
 import { scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { DataTransfers } from 'vs/base/browser/dnd';
+import { EditorAreaDropHandler } from 'vs/workbench/browser/parts/editor/editorAreaDropHandler';
+import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 
 interface IEditorInputLabel {
 	name: string;
@@ -78,11 +80,9 @@ export class TabsTitleControl extends TitleControl {
 		@IMessageService messageService: IMessageService,
 		@IMenuService menuService: IMenuService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IWindowService private windowService: IWindowService,
-		@IWindowsService private windowsService: IWindowsService,
 		@IThemeService themeService: IThemeService,
-		@IFileService private fileService: IFileService,
-		@IWorkspacesService private workspacesService: IWorkspacesService
+		@ITextFileService private textFileService: ITextFileService,
+		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, messageService, menuService, quickOpenService, themeService);
 
@@ -118,12 +118,6 @@ export class TabsTitleControl extends TitleControl {
 		return this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 	}
 
-	public setContext(group: IEditorGroup): void {
-		super.setContext(group);
-
-		this.editorActionsToolbar.context = { group };
-	}
-
 	public create(parent: HTMLElement): void {
 		super.create(parent);
 
@@ -153,6 +147,12 @@ export class TabsTitleControl extends TitleControl {
 				if (group) {
 					this.editorService.openEditor({ options: { pinned: true, index: group.count /* always at the end */ } } as IUntitledResourceInput).done(null, errors.onUnexpectedError); // untitled are always pinned
 				}
+			}
+		}));
+
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			if (e.button === 1) {
+				e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
 			}
 		}));
 
@@ -275,7 +275,9 @@ export class TabsTitleControl extends TitleControl {
 		const isGroupActive = this.stacks.isActive(group);
 		if (isGroupActive) {
 			DOM.addClass(this.titleContainer, 'active');
+			DOM.removeClass(this.titleContainer, 'inactive');
 		} else {
+			DOM.addClass(this.titleContainer, 'inactive');
 			DOM.removeClass(this.titleContainer, 'active');
 		}
 
@@ -286,6 +288,10 @@ export class TabsTitleControl extends TitleControl {
 		// Tab label and styles
 		editorsOfGroup.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
+			if (!tabContainer) {
+				return; // could be a race condition between updating tabs and creating tabs
+			}
+
 			const isPinned = group.isPinned(index);
 			const isTabActive = group.isActive(editor);
 			const isDirty = editor.isDirty();
@@ -303,10 +309,22 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
 			const tabOptions = this.editorGroupService.getTabOptions();
-			['off', 'left'].forEach(option => {
+
+			['off', 'left', 'right'].forEach(option => {
 				const domAction = tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
 				domAction(tabContainer, `close-button-${option}`);
 			});
+
+			['fit', 'shrink'].forEach(option => {
+				const domAction = tabOptions.tabSizing === option ? DOM.addClass : DOM.removeClass;
+				domAction(tabContainer, `sizing-${option}`);
+			});
+
+			if (tabOptions.showIcons && !!tabOptions.iconTheme) {
+				DOM.addClass(tabContainer, 'has-icon-theme');
+			} else {
+				DOM.removeClass(tabContainer, 'has-icon-theme');
+			}
 
 			// Label
 			const tabLabel = this.editorLabels[index];
@@ -611,14 +629,14 @@ export class TabsTitleControl extends TitleControl {
 
 			if (e instanceof MouseEvent && e.button !== 0) {
 				if (e.button === 1) {
-					return false; // required due to https://github.com/Microsoft/vscode/issues/16690
+					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
 				}
 
 				return void 0; // only for left mouse click
 			}
 
 			const { editor, position } = this.toTabContext(index);
-			if (!this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
+			if (!this.isTabActionBar(((e as GestureEvent).initialTarget || e.target || e.srcElement) as HTMLElement)) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
 
@@ -739,12 +757,22 @@ export class TabsTitleControl extends TitleControl {
 			const resource = toResource(editor, { supportSideBySide: true });
 			if (resource) {
 				const resourceStr = resource.toString();
-				e.dataTransfer.setData('URL', resourceStr); // enables cross window DND of tabs
-				e.dataTransfer.setData('text/plain', getPathLabel(resource)); // enables dropping tab resource path into text controls
+
+				e.dataTransfer.setData(DataTransfers.TEXT, getPathLabel(resource)); // enables dropping tab resource path into text controls
 
 				if (resource.scheme === 'file') {
-					e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), resourceStr].join(':')); // enables support to drag a tab as file to desktop
+					e.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, editor.getName(), resourceStr].join(':')); // enables support to drag a tab as file to desktop
 				}
+
+				// Prepare IDraggedEditor transfer
+				const activeEditor = this.editorService.getActiveEditor();
+				const draggedEditor: ISerializedDraggedEditor = {
+					resource: resourceStr,
+					backupResource: this.textFileService.isDirty(resource) ? this.backupFileService.toBackupResource(resource).toString() : void 0,
+					viewState: activeEditor instanceof BaseTextEditor ? activeEditor.getControl().saveViewState() : void 0
+				};
+
+				e.dataTransfer.setData(CodeDataTransfers.EDITOR, JSON.stringify(draggedEditor)); // enables cross window DND of tabs into the editor area
 			}
 
 			// Fixes https://github.com/Microsoft/vscode/issues/18733
@@ -773,6 +801,8 @@ export class TabsTitleControl extends TitleControl {
 				}
 			}
 
+			DOM.addClass(tab, 'dragged-over');
+
 			if (!draggedEditorIsTab) {
 				this.updateDropFeedback(tab, true, index);
 			}
@@ -782,6 +812,7 @@ export class TabsTitleControl extends TitleControl {
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			counter--;
 			if (counter === 0) {
+				DOM.removeClass(tab, 'dragged-over');
 				this.updateDropFeedback(tab, false, index);
 			}
 		}));
@@ -789,6 +820,7 @@ export class TabsTitleControl extends TitleControl {
 		// Drag end
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
 			counter = 0;
+			DOM.removeClass(tab, 'dragged-over');
 			this.updateDropFeedback(tab, false, index);
 
 			this.onEditorDragEnd();
@@ -797,6 +829,7 @@ export class TabsTitleControl extends TitleControl {
 		// Drop
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
 			counter = 0;
+			DOM.removeClass(tab, 'dragged-over');
 			this.updateDropFeedback(tab, false, index);
 
 			const { group, position } = this.toTabContext(index);
@@ -820,13 +853,14 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private onDrop(e: DragEvent, group: IEditorGroup, targetPosition: Position, targetIndex: number): void {
+		DOM.EventHelper.stop(e, true);
+
 		this.updateDropFeedback(this.tabsContainer, false);
 		DOM.removeClass(this.tabsContainer, 'scroll');
 
 		// Local DND
 		const draggedEditor = TabsTitleControl.getDraggedEditor();
 		if (draggedEditor) {
-			DOM.EventHelper.stop(e, true);
 
 			// Move editor to target position and index
 			if (this.isMoveOperation(e, draggedEditor.group, group)) {
@@ -843,37 +877,8 @@ export class TabsTitleControl extends TitleControl {
 
 		// External DND
 		else {
-			this.handleExternalDrop(e, targetPosition, targetIndex);
-		}
-	}
-
-	private handleExternalDrop(e: DragEvent, targetPosition: Position, targetIndex: number): void {
-		const droppedResources = extractResources(e).filter(r => r.resource.scheme === 'file' || r.resource.scheme === 'untitled');
-		if (droppedResources.length) {
-			DOM.EventHelper.stop(e, true);
-
-			handleWorkspaceExternalDrop(droppedResources, this.fileService, this.messageService, this.windowsService, this.windowService, this.workspacesService).then(handled => {
-				if (handled) {
-					return;
-				}
-
-				// Add external ones to recently open list
-				const externalResources = droppedResources.filter(d => d.isExternal).map(d => d.resource);
-				if (externalResources.length) {
-					this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
-				}
-
-				// Open in Editor
-				this.windowService.focusWindow()
-					.then(() => this.editorService.openEditors(droppedResources.map(d => {
-						return {
-							input: { resource: d.resource, options: { pinned: true, index: targetIndex } },
-							position: targetPosition
-						};
-					}))).then(() => {
-						this.editorGroupService.focusGroup(targetPosition);
-					}).done(null, errors.onUnexpectedError);
-			});
+			const dropHandler = this.instantiationService.createInstance(EditorAreaDropHandler);
+			dropHandler.handleDrop(e, () => this.editorGroupService.focusGroup(targetPosition), targetPosition, targetIndex);
 		}
 	}
 
@@ -928,6 +933,44 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty > .tab-close .action-label,
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab:hover > .tab-close .action-label {
 				opacity: 1 !important;
+			}
+		`);
+	}
+
+	// Hover Background
+	const tabHoverBackground = theme.getColor(TAB_HOVER_BACKGROUND);
+	if (tabHoverBackground) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab:hover  {
+				background: ${tabHoverBackground} !important;
+			}
+		`);
+	}
+
+	const tabUnfocusedHoverBackground = theme.getColor(TAB_UNFOCUSED_HOVER_BACKGROUND);
+	if (tabUnfocusedHoverBackground) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.inactive .tabs-container > .tab:hover  {
+				background: ${tabUnfocusedHoverBackground} !important;
+			}
+		`);
+	}
+
+	// Hover Border
+	const tabHoverBorder = theme.getColor(TAB_HOVER_BORDER);
+	if (tabHoverBorder) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab:hover  {
+				box-shadow: ${tabHoverBorder} 0 -1px inset !important;
+			}
+		`);
+	}
+
+	const tabUnfocusedHoverBorder = theme.getColor(TAB_UNFOCUSED_HOVER_BORDER);
+	if (tabUnfocusedHoverBorder) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.inactive .tabs-container > .tab:hover  {
+				box-shadow: ${tabUnfocusedHoverBorder} 0 -1px inset !important;
 			}
 		`);
 	}

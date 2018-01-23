@@ -19,7 +19,7 @@ function create(relativePath: string): StatResolver {
 	let absolutePath = relativePath ? path.join(basePath, relativePath) : basePath;
 	let fsStat = fs.statSync(absolutePath);
 
-	return new StatResolver(uri.file(absolutePath), fsStat.isDirectory(), fsStat.mtime.getTime(), fsStat.size, false);
+	return new StatResolver(uri.file(absolutePath), fsStat.isDirectory(), fsStat.mtime.getTime(), fsStat.size, void 0);
 }
 
 function toResource(relativePath: string): uri {
@@ -54,7 +54,7 @@ suite('Stat Resolver', () => {
 		resolver.resolve(null).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
-			assert.ok(result.hasChildren);
+			assert.ok(result.children.length > 0);
 			assert.ok(result.isDirectory);
 			assert.equal(result.children.length, testsElements.length);
 
@@ -68,13 +68,12 @@ suite('Stat Resolver', () => {
 				assert.ok(path.basename(value.resource.fsPath));
 				if (['examples', 'other'].indexOf(path.basename(value.resource.fsPath)) >= 0) {
 					assert.ok(value.isDirectory);
-					assert.ok(value.hasChildren);
 				} else if (path.basename(value.resource.fsPath) === 'index.html') {
 					assert.ok(!value.isDirectory);
-					assert.ok(value.hasChildren === false);
+					assert.ok(!value.children);
 				} else if (path.basename(value.resource.fsPath) === 'site.css') {
 					assert.ok(!value.isDirectory);
-					assert.ok(value.hasChildren === false);
+					assert.ok(!value.children);
 				} else {
 					assert.ok(!'Unexpected value ' + path.basename(value.resource.fsPath));
 				}
@@ -89,7 +88,7 @@ suite('Stat Resolver', () => {
 		resolver.resolve({ resolveTo: [toResource('other/deep')] }).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
-			assert.ok(result.hasChildren);
+			assert.ok(result.children.length > 0);
 			assert.ok(result.isDirectory);
 
 			let children = result.children;
@@ -97,11 +96,11 @@ suite('Stat Resolver', () => {
 
 			let other = utils.getByName(result, 'other');
 			assert.ok(other);
-			assert.ok(other.hasChildren);
+			assert.ok(other.children.length > 0);
 
 			let deep = utils.getByName(other, 'deep');
 			assert.ok(deep);
-			assert.ok(deep.hasChildren);
+			assert.ok(deep.children.length > 0);
 			assert.equal(deep.children.length, 4);
 		})
 			.done(() => done(), done);
@@ -113,7 +112,7 @@ suite('Stat Resolver', () => {
 		resolver.resolve({ resolveTo: [toResource('other/Deep')] }).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
-			assert.ok(result.hasChildren);
+			assert.ok(result.children.length > 0);
 			assert.ok(result.isDirectory);
 
 			let children = result.children;
@@ -121,16 +120,15 @@ suite('Stat Resolver', () => {
 
 			let other = utils.getByName(result, 'other');
 			assert.ok(other);
-			assert.ok(other.hasChildren);
+			assert.ok(other.children.length > 0);
 
 			let deep = utils.getByName(other, 'deep');
 			if (isLinux) { // Linux has case sensitive file system
 				assert.ok(deep);
-				assert.ok(deep.hasChildren);
 				assert.ok(!deep.children); // not resolved because we got instructed to resolve other/Deep with capital D
 			} else {
 				assert.ok(deep);
-				assert.ok(deep.hasChildren);
+				assert.ok(deep.children.length > 0);
 				assert.equal(deep.children.length, 4);
 			}
 		})
@@ -143,7 +141,7 @@ suite('Stat Resolver', () => {
 		resolver.resolve({ resolveTo: [toResource('other/deep'), toResource('examples')] }).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
-			assert.ok(result.hasChildren);
+			assert.ok(result.children.length > 0);
 			assert.ok(result.isDirectory);
 
 			let children = result.children;
@@ -151,16 +149,16 @@ suite('Stat Resolver', () => {
 
 			let other = utils.getByName(result, 'other');
 			assert.ok(other);
-			assert.ok(other.hasChildren);
+			assert.ok(other.children.length > 0);
 
 			let deep = utils.getByName(other, 'deep');
 			assert.ok(deep);
-			assert.ok(deep.hasChildren);
+			assert.ok(deep.children.length > 0);
 			assert.equal(deep.children.length, 4);
 
 			let examples = utils.getByName(result, 'examples');
 			assert.ok(examples);
-			assert.ok(examples.hasChildren);
+			assert.ok(examples.children.length > 0);
 			assert.equal(examples.children.length, 4);
 		})
 			.done(() => done(), done);
@@ -172,7 +170,7 @@ suite('Stat Resolver', () => {
 		resolver.resolve({ resolveSingleChildDescendants: true }).then(result => {
 			assert.ok(result);
 			assert.ok(result.children);
-			assert.ok(result.hasChildren);
+			assert.ok(result.children.length > 0);
 			assert.ok(result.isDirectory);
 
 			let children = result.children;
@@ -180,7 +178,7 @@ suite('Stat Resolver', () => {
 
 			let deep = utils.getByName(result, 'deep');
 			assert.ok(deep);
-			assert.ok(deep.hasChildren);
+			assert.ok(deep.children.length > 0);
 			assert.equal(deep.children.length, 4);
 		})
 			.done(() => done(), done);

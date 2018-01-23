@@ -10,6 +10,7 @@ import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { IViewModelLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
+import { ITextModel, IModelDecoration } from 'vs/editor/common/model';
 
 export interface IDecorationsViewportData {
 	/**
@@ -25,7 +26,7 @@ export interface IDecorationsViewportData {
 export class ViewModelDecorations implements IDisposable {
 
 	private readonly editorId: number;
-	private readonly model: editorCommon.IModel;
+	private readonly model: ITextModel;
 	private readonly configuration: editorCommon.IConfiguration;
 	private readonly _linesCollection: IViewModelLinesCollection;
 	private readonly _coordinatesConverter: ICoordinatesConverter;
@@ -35,7 +36,7 @@ export class ViewModelDecorations implements IDisposable {
 	private _cachedModelDecorationsResolver: IDecorationsViewportData;
 	private _cachedModelDecorationsResolverViewRange: Range;
 
-	constructor(editorId: number, model: editorCommon.IModel, configuration: editorCommon.IConfiguration, linesCollection: IViewModelLinesCollection, coordinatesConverter: ICoordinatesConverter) {
+	constructor(editorId: number, model: ITextModel, configuration: editorCommon.IConfiguration, linesCollection: IViewModelLinesCollection, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;
@@ -71,7 +72,7 @@ export class ViewModelDecorations implements IDisposable {
 		this._clearCachedModelDecorationsResolver();
 	}
 
-	private _getOrCreateViewModelDecoration(modelDecoration: editorCommon.IModelDecoration): ViewModelDecoration {
+	private _getOrCreateViewModelDecoration(modelDecoration: IModelDecoration): ViewModelDecoration {
 		const id = modelDecoration.id;
 		let r = this._decorationsCache[id];
 		if (!r) {
@@ -92,7 +93,7 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
-		var cacheIsValid = true;
+		let cacheIsValid = true;
 		cacheIsValid = cacheIsValid && (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
 		if (!cacheIsValid) {

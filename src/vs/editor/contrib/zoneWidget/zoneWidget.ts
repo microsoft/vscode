@@ -15,9 +15,10 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZo
 import { Color, RGBA } from 'vs/base/common/color';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { ScrollType, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -28,6 +29,7 @@ export interface IOptions {
 	isResizeable?: boolean;
 	frameColor?: Color;
 	arrowColor?: Color;
+	keepEditorSelection?: boolean;
 }
 
 export interface IStyles {
@@ -42,7 +44,8 @@ const defaultOptions: IOptions = {
 	showFrame: true,
 	className: '',
 	frameColor: defaultColor,
-	arrowColor: defaultColor
+	arrowColor: defaultColor,
+	keepEditorSelection: false
 };
 
 const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
@@ -391,7 +394,9 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		this._doLayout(containerHeight, width);
 
-		this.editor.setSelection(where);
+		if (!this.options.keepEditorSelection) {
+			this.editor.setSelection(where);
+		}
 
 		// Reveal the line above or below the zone widget, to get the zone widget in the viewport
 		const revealLineNumber = Math.min(this.editor.getModel().getLineCount(), Math.max(1, where.endLineNumber + 1));
