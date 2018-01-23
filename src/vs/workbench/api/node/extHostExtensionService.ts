@@ -128,7 +128,6 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _storage: ExtHostStorage;
 	private readonly _storagePath: ExtensionStoragePath;
 	private readonly _proxy: MainThreadExtensionServiceShape;
-	private readonly _logService: ILogService;
 	private readonly _extHostLogService: ExtHostLogService;
 	private _activator: ExtensionsActivator;
 	private _extensionPathIndex: TPromise<TernarySearchTree<IExtensionDescription>>;
@@ -139,21 +138,20 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		extHostContext: IExtHostContext,
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
-		logService: ILogService,
+		extHostLogService: ExtHostLogService,
 		environmentService: IEnvironmentService
 	) {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
-		this._logService = logService;
+		this._extHostLogService = extHostLogService;
 		this._mainThreadTelemetry = extHostContext.getProxy(MainContext.MainThreadTelemetry);
 		this._storage = new ExtHostStorage(extHostContext);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
 		this._proxy = extHostContext.getProxy(MainContext.MainThreadExtensionService);
 		this._activator = null;
-		this._extHostLogService = new ExtHostLogService(environmentService, this._logService);
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		const apiFactory = createApiFactory(initData, extHostContext, extHostWorkspace, extHostConfiguration, this, logService);
+		const apiFactory = createApiFactory(initData, extHostContext, extHostWorkspace, extHostConfiguration, this, this._extHostLogService);
 
 		initializeExtensionApi(this, apiFactory).then(() => {
 
@@ -314,14 +312,14 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			return TPromise.as(new EmptyExtension(ExtensionActivationTimes.NONE));
 		}
 
-		this._logService.info(`ExtensionService#_doActivateExtension ${extensionDescription.id} ${JSON.stringify(reason)}`);
+		this._extHostLogService.info(`ExtensionService#_doActivateExtension ${extensionDescription.id} ${JSON.stringify(reason)}`);
 
 		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
 		return TPromise.join<any>([
-			loadCommonJSModule(this._logService, extensionDescription.main, activationTimesBuilder),
+			loadCommonJSModule(this._extHostLogService, extensionDescription.main, activationTimesBuilder),
 			this._loadExtensionContext(extensionDescription)
 		]).then(values => {
-			return ExtHostExtensionService._callActivate(this._logService, extensionDescription.id, <IExtensionModule>values[0], <IExtensionContext>values[1], activationTimesBuilder);
+			return ExtHostExtensionService._callActivate(this._extHostLogService, extensionDescription.id, <IExtensionModule>values[0], <IExtensionContext>values[1], activationTimesBuilder);
 		}, (errors: any[]) => {
 			// Avoid failing with an array of errors, fail with a single error
 			if (errors[0]) {
@@ -339,7 +337,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		let globalState = new ExtensionMemento(extensionDescription.id, true, this._storage);
 		let workspaceState = new ExtensionMemento(extensionDescription.id, false, this._storage);
 
-		this._logService.trace(`ExtensionService#loadExtensionContext ${extensionDescription.id}`);
+		this._extHostLogService.trace(`ExtensionService#loadExtensionContext ${extensionDescription.id}`);
 		return TPromise.join([
 			globalState.whenReady,
 			workspaceState.whenReady,

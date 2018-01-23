@@ -10,25 +10,26 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mkdirp, dirExists } from 'vs/base/node/pfs';
 import Event from 'vs/base/common/event';
 import { LogLevel } from 'vs/workbench/api/node/extHostTypes';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
 import { ExtHostLogServiceShape } from 'vs/workbench/api/node/extHost.protocol';
-import { Disposable } from 'vs/base/common/lifecycle';
 
-export class ExtHostLogService extends Disposable implements ExtHostLogServiceShape {
+
+export class ExtHostLogService extends DelegatedLogService implements ILogService, ExtHostLogServiceShape {
+
 	private _loggers: Map<string, ExtHostLogger> = new Map();
 
 	constructor(
-		private _environmentService: IEnvironmentService,
-		private _logService: ILogService
+		windowId: number,
+		private _environmentService: IEnvironmentService
 	) {
-		super();
+		super(createSpdLogService(`exthost${windowId}`, _environmentService));
 	}
 
-	$setLogLevel(level: LogLevel) {
-		this._logService.setLevel(level);
+	$setLevel(level: LogLevel): void {
+		this.setLevel(level);
 	}
 
 	getExtLogger(extensionID: string): ExtHostLogger {
@@ -43,7 +44,7 @@ export class ExtHostLogService extends Disposable implements ExtHostLogServiceSh
 	private createLogger(extensionID: string): ExtHostLogger {
 		const logService = createSpdLogService(extensionID, this._environmentService, extensionID);
 		const logsDirPath = path.join(this._environmentService.logsPath, extensionID);
-		this._register(this._logService.onDidChangeLogLevel(level => logService.setLevel(level)));
+		this._register(this.onDidChangeLogLevel(level => logService.setLevel(level)));
 		return new ExtHostLogger(logService, logsDirPath);
 	}
 }

@@ -239,12 +239,11 @@ export class MultiplexLogService extends AbstractLogService implements ILogServi
 	}
 }
 
-export class FollowerLogService extends Disposable implements ILogService {
+export class DelegatedLogService extends Disposable implements ILogService {
 	_serviceBrand: any;
 
-	constructor(private master: ILogLevelSetter, private logService: ILogService) {
+	constructor(private logService: ILogService) {
 		super();
-		this._register(master.onDidChangeLogLevel(level => logService.setLevel(level)));
 	}
 
 	get onDidChangeLogLevel(): Event<LogLevel> {
@@ -252,7 +251,7 @@ export class FollowerLogService extends Disposable implements ILogService {
 	}
 
 	setLevel(level: LogLevel): void {
-		this.master.setLevel(level);
+		this.logService.setLevel(level);
 	}
 
 	getLevel(): LogLevel {
@@ -285,6 +284,19 @@ export class FollowerLogService extends Disposable implements ILogService {
 
 	dispose(): void {
 		this.logService.dispose();
+	}
+}
+
+export class FollowerLogService extends DelegatedLogService implements ILogService {
+	_serviceBrand: any;
+
+	constructor(private master: ILogLevelSetter, logService: ILogService) {
+		super(logService);
+		this._register(master.onDidChangeLogLevel(level => logService.setLevel(level)));
+	}
+
+	setLevel(level: LogLevel): void {
+		this.master.setLevel(level);
 	}
 }
 

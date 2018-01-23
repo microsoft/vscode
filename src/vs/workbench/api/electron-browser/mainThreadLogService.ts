@@ -5,20 +5,20 @@
 
 'use strict';
 
-import { IExtHostContext } from '../node/extHost.protocol';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IExtHostContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 
 @extHostCustomer
-export class MainThreadLogLevelManagementChannel extends Disposable {
+export class MainThreadLogService extends Disposable {
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ILogService logService: ILogService,
 	) {
 		super();
-		// this._register(logService.onDidChangeLogLevel(level => extHostContext.getProxy(ExtHostContext.ExtHostLogService).$setLogLevel(level)));
+		this._register(logService.onDidChangeLogLevel(level => extHostContext.getProxy(ExtHostContext.ExtHostLogService).$setLevel(level)));
 	}
 
 }
