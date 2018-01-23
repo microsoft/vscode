@@ -86,7 +86,7 @@ export interface IColor {
 }
 
 export interface ILocalization {
-	languagId: string;
+	languageId: string;
 	languageName?: string;
 	translations: string;
 }

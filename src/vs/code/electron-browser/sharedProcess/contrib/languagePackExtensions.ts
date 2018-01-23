@@ -71,10 +71,10 @@ export class LanguagePackExtensions extends Disposable {
 			if (extension && extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
 				const extensionIdentifier = { id: getGalleryExtensionIdFromLocal(extension), uuid: extension.identifier.uuid };
 				for (const localizationContribution of extension.manifest.contributes.localizations) {
-					if (localizationContribution.languagId && localizationContribution.translations) {
-						const languageSources = languagePacks[localizationContribution.languagId] || [];
+					if (localizationContribution.languageId && localizationContribution.translations) {
+						const languageSources = languagePacks[localizationContribution.languageId] || [];
 						languageSources.splice(0, 0, { extensionIdentifier, translations: join(extension.path, localizationContribution.translations), version: extension.manifest.version });
-						languagePacks[localizationContribution.languagId] = languageSources;
+						languagePacks[localizationContribution.languageId] = languageSources;
 					}
 				}
 			}
