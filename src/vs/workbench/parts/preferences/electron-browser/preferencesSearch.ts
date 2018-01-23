@@ -215,6 +215,9 @@ class RemoteSearchProvider implements ISearchProvider {
 						const packageId = r['packageid'];
 						const id = getSettingKey(key, packageId);
 
+						const value = r['value'];
+						const defaultValue = value ? JSON.parse(value) : value;
+
 						const packageName = r['packagename'];
 						let extensionName: string;
 						let extensionPublisher: string;
@@ -225,7 +228,7 @@ class RemoteSearchProvider implements ISearchProvider {
 						return <IRemoteSetting>{
 							key,
 							id,
-							defaultValue: r['value'],
+							defaultValue,
 							score: r['@search.score'],
 							description: JSON.parse(r['details']),
 							packageId,
