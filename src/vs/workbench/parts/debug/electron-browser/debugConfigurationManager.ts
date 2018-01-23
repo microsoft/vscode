@@ -187,7 +187,12 @@ const schema: IJSONSchema = {
 						type: 'array',
 						default: [],
 						items: {
-							type: 'string'
+							oneOf: [{
+								enum: [],
+								description: nls.localize('useUniqueNames', "Please use unique configuration names.")
+							}, {
+								type: 'object'
+							}]
 						},
 						description: nls.localize('app.launch.json.compounds.configurations', "Names of configurations that will be started as part of this compound.")
 					}
@@ -311,6 +316,8 @@ export class ConfigurationManager implements IConfigurationManager {
 					items.defaultSnippets.push(...configurationSnippets);
 				}
 			});
+
+			this.setCompoundSchemaValues();
 		});
 
 		breakpointsExtPoint.setHandler(extensions => {
@@ -328,6 +335,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('launch')) {
 				this.selectConfiguration();
+				this.setCompoundSchemaValues();
 			}
 		}));
 
@@ -343,6 +351,13 @@ export class ConfigurationManager implements IConfigurationManager {
 		if (this.launches.indexOf(this._selectedLaunch) === -1) {
 			this._selectedLaunch = undefined;
 		}
+	}
+
+	private setCompoundSchemaValues(): void {
+		const compoundConfigurationsSchema = (<IJSONSchema>schema.properties['compounds'].items).properties['configurations'];
+		(<IJSONSchema>compoundConfigurationsSchema.items).oneOf[0].enum = this.launches.map(l =>
+			l.getConfigurationNames(false)).reduce((first, second) => first.concat(second), []);
+		jsonRegistry.registerSchema(launchSchemaId, schema);
 	}
 
 	public getLaunches(): ILaunch[] {
@@ -495,13 +510,13 @@ class Launch implements ILaunch {
 		return config.compounds.filter(compound => compound.name === name).pop();
 	}
 
-	public getConfigurationNames(): string[] {
+	public getConfigurationNames(includeCompounds = true): string[] {
 		const config = this.getConfig();
 		if (!config || !config.configurations || !Array.isArray(config.configurations)) {
 			return [];
 		} else {
 			const names = config.configurations.filter(cfg => cfg && typeof cfg.name === 'string').map(cfg => cfg.name);
-			if (names.length > 0 && config.compounds) {
+			if (includeCompounds && names.length > 0 && config.compounds) {
 				if (config.compounds) {
 					names.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length)
 						.map(compound => compound.name));

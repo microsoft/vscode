@@ -699,12 +699,9 @@ export class DebugService implements debug.IDebugService {
 						}
 
 						let rootForName = root;
-						if (launch === this.configurationManager.getWorkspaceLaunch()) {
-							// For workspace launches allow comound referencing configurations across folder
-							const launchContainingName = this.configurationManager.getLaunches().filter(l => !!l.getConfiguration(name)).pop();
-							if (launchContainingName) {
-								rootForName = launchContainingName.workspace;
-							}
+						const launchesContainingName = this.configurationManager.getLaunches().filter(l => !!l.getConfiguration(name));
+						if (launchesContainingName && launchesContainingName.length === 1) {
+							rootForName = launchesContainingName[0].workspace;
 						}
 
 						return this.startDebugging(rootForName, name, noDebug, topCompoundName || compound.name);
