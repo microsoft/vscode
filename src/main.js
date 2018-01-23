@@ -235,34 +235,38 @@ function getNLSConfiguration(locale) {
 	if (isCoreLangaguage) {
 		return Promise.resolve(resolveLocale(locale));
 	} else {
-		let defaultResult = Promise.resolve({ locale: locale, availableLanguages: {} });
+		perf.mark('nlsGeneration:start');
+		let defaultResult = function() {
+			perf.mark('nlsGeneration:end');
+			return Promise.resolve({ locale: locale, availableLanguages: {} });
+		};
 		try {
 			let commit = getCommit();
 			if (!commit) {
-				return defaultResult;
+				return defaultResult();
 			}
 			let configs = getLanguagePackConfigurations();
 			if (!configs) {
-				return defaultResult;
+				return defaultResult();
 			}
 			let initialLocale = locale;
 			locale = resolveLanguagePackLocale(configs, locale);
 			if (!locale) {
-				return defaultResult;
+				return defaultResult();
 			}
 			let packConfigs = configs[locale];
 			if (!packConfigs || !Array.isArray(packConfigs) || packConfigs.length === 0) {
-				return defaultResult;
+				return defaultResult();
 			}
 			// We take the first install language pack. No idea what to do if we have more
 			// than one :-)
 			let packConfig = packConfigs[0];
-			if (typeof packConfig.path !== 'string' || typeof packConfig.version !== 'string' || packConfig.version.match(/\d+\.\d+\.\d+/) === null) {
-				return defaultResult;
+			if (typeof packConfig.translations !== 'string' || typeof packConfig.version !== 'string' || packConfig.version.match(/\d+\.\d+\.\d+/) === null) {
+				return defaultResult();
 			}
-			return exists(packConfig.path).then((fileExists) => {
+			return exists(packConfig.translations).then((fileExists) => {
 				if (!fileExists) {
-					return defaultResult;
+					return defaultResult();
 				}
 				let cacheRoot = path.join(userData, 'CachedLanguagePacks');
 				let id = commit + '_' + packConfig.version + '_' + locale;
@@ -271,7 +275,7 @@ function getNLSConfiguration(locale) {
 				let result = {
 					locale: initialLocale,
 					availableLanguages: { '*': locale },
-					_languagePackLocation: packConfig.path,
+					_languagePackLocation: packConfig.translations,
 					_cacheRoot: cacheRoot,
 					_resolvedLanguagePackCoreLocation: coreLocation,
 					_resolvedLanguagePackExtensionLocation: extLocation
@@ -280,10 +284,11 @@ function getNLSConfiguration(locale) {
 					if (fileExists) {
 						// We don't wait for this. No big harm if we can't write it.
 						writeFile(path.join(cacheRoot, 'vscode', id, 'lastUsed.touch'), '').catch(() => {});
+						perf.mark('nlsGeneration:end');
 						return result;
 					}
 					return mkdirp(coreLocation).then(() => {
-						return Promise.all([readFile(path.join(__dirname, 'nls.metadata.json')), readFile(path.join(packConfig.path, 'translations', 'main.i18n.json'))]);
+						return Promise.all([readFile(path.join(__dirname, 'nls.metadata.json')), readFile(path.join(packConfig.translations, 'main.i18n.json'))]);
 					}).then((values) => {
 						let metadata = JSON.parse(values[0]);
 						let packData = JSON.parse(values[1]).contents;
@@ -317,16 +322,17 @@ function getNLSConfiguration(locale) {
 						}
 						return Promise.all(writes);
 					}).then(() => {
+						perf.mark('nlsGeneration:end');
 						return result;
 					}).catch((err) => {
 						console.error('Generating translation files failed.', err);
-						return defaultResult;
+						return defaultResult();
 					});
 				});
 			});
 		} catch (err) {
 			console.error('Generating translation files failed.', err);
-			return defaultResult;
+			return defaultResult();
 		}
 	}
 }
