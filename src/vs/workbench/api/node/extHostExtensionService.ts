@@ -22,7 +22,6 @@ import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
-import URI from 'vs/base/common/uri';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -109,7 +108,6 @@ class ExtensionStoragePath {
 				join(storagePath, 'meta.json'),
 				JSON.stringify({
 					id: this._workspace.id,
-					configuration: URI.revive(this._workspace.configuration).toString(),
 					name: this._workspace.name
 				}, undefined, 2)
 			);
