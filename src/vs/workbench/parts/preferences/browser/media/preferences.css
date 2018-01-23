@@ -276,13 +276,6 @@
 	cursor: pointer;
 }
 
-.monaco-editor .newExtensionInstall {
-	background: url('info.svg') center center no-repeat;
-	width: 16px;
-	height: 16px;
-	cursor: pointer;
-}
-
 .monaco-editor .edit-preferences-widget.hidden {
 	display: none;
 	visibility: hidden;
