@@ -252,7 +252,9 @@ class RemoteSearchProvider implements ISearchProvider {
 
 	private getRemoteSettingMatcher(scoredResults: IScoredResults, minScore: number, preferencesModel: ISettingsEditorModel): ISettingMatcher {
 		return (setting: ISetting, group: ISettingsGroup) => {
-			const remoteSetting = scoredResults[getSettingKey(setting.key, group.id)] || scoredResults[getSettingKey(setting.key)];
+			const remoteSetting = scoredResults[getSettingKey(setting.key, group.id)] || // extension setting
+				scoredResults[getSettingKey(setting.key, 'core')] || // core setting
+				scoredResults[getSettingKey(setting.key)]; // core setting from original prod endpoint
 			if (remoteSetting && remoteSetting.score >= minScore) {
 				const settingMatches = new SettingMatches(this.options.filter, setting, false, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 				return { matches: settingMatches, score: remoteSetting.score };
