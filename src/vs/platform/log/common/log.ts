@@ -244,6 +244,7 @@ export class DelegatedLogService extends Disposable implements ILogService {
 
 	constructor(private logService: ILogService) {
 		super();
+		this._register(logService);
 	}
 
 	get onDidChangeLogLevel(): Event<LogLevel> {
@@ -280,10 +281,6 @@ export class DelegatedLogService extends Disposable implements ILogService {
 
 	critical(message: string | Error, ...args: any[]): void {
 		this.logService.critical(message, ...args);
-	}
-
-	dispose(): void {
-		this.logService.dispose();
 	}
 }
 
