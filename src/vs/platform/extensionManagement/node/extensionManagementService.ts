@@ -254,10 +254,20 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.getInstalled(LocalExtensionType.User)
 			.then(
 			installed => TPromise.join(extensions.map(extensionToInstall =>
-				this.downloadInstallableExtension(extensionToInstall, installed)
-					.then(installableExtension => this.installExtension(installableExtension).then(null, e => TPromise.wrapError(new InstallationError(this.joinErrors(e).message, INSTALL_ERROR_EXTRACTING))))
+				this.downloadAndInstallExtension(extensionToInstall, installed)
 			)).then(null, errors => this.rollback(extensions).then(() => TPromise.wrapError(errors), () => TPromise.wrapError(errors))),
 			error => TPromise.wrapError<ILocalExtension[]>(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_LOCAL)));
+	}
+
+	private downloadAndInstallExtension(extensionToInstall: IGalleryExtension, installed: ILocalExtension[]): TPromise<ILocalExtension> {
+		return this.getMaliciousExtensionSet().then(maliciousSet => {
+			if (maliciousSet.has(extensionToInstall.identifier.id)) {
+				throw new Error(nls.localize('malicious extension', "Can't install extension since it was reported to be malicious."));
+			}
+
+			return this.downloadInstallableExtension(extensionToInstall, installed)
+				.then(installableExtension => this.installExtension(installableExtension).then(null, e => TPromise.wrapError(new InstallationError(this.joinErrors(e).message, INSTALL_ERROR_EXTRACTING))));
+		});
 	}
 
 	private checkForObsolete(extensionsToInstall: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
@@ -774,6 +784,20 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						return result;
 					});
 			});
+	}
+
+	private getMaliciousExtensionSet(): TPromise<Set<string>> {
+		return this.reportedExtensions.then(report => {
+			const result = new Set<string>();
+
+			for (const extension of report) {
+				if (extension.malicious) {
+					result.add(extension.id.id);
+				}
+			}
+
+			return result;
+		});
 	}
 
 	dispose() {
