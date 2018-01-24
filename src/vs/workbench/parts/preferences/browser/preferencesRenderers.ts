@@ -311,7 +311,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 		if (filterResult) {
 			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);
-			this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
+			this.settingsGroupTitleRenderer.render(null);
 			this.feedbackWidgetRenderer.render(filterResult);
 			this.settingsHeaderRenderer.render(filterResult);
 			this.settingHighlighter.clear(true);
@@ -407,12 +407,12 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 			}
 		];
 
-		const hideBraces = group => {
+		const hideBraces = (group: ISettingsGroup, hideExtraLine?: boolean) => {
 			// Opening curly brace
 			hiddenAreas.push({
 				startLineNumber: group.range.startLineNumber - 3,
 				startColumn: 1,
-				endLineNumber: group.range.startLineNumber - 3,
+				endLineNumber: group.range.startLineNumber - (hideExtraLine ? 1 : 2),
 				endColumn: 1
 			});
 
@@ -425,9 +425,9 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 			});
 		};
 
-		this._settingsGroups.forEach(hideBraces);
+		this._settingsGroups.forEach(g => hideBraces(g));
 		if (this._result) {
-			this._result.filteredGroups.forEach(hideBraces);
+			this._result.filteredGroups.forEach((g, i) => hideBraces(g, true));
 		}
 
 		// Closing square brace
