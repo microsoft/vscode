@@ -109,7 +109,7 @@ class ExtensionStoragePath {
 				join(storagePath, 'meta.json'),
 				JSON.stringify({
 					id: this._workspace.id,
-					configuration: URI.revive(this._workspace.configuration).toString(),
+					configuration: this._workspace.configuration && URI.revive(this._workspace.configuration).toString(),
 					name: this._workspace.name
 				}, undefined, 2)
 			);
