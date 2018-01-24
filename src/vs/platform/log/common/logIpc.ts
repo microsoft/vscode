@@ -5,7 +5,7 @@
 
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { LogLevel, ILogService, ILogLevelSetter } from 'vs/platform/log/common/log';
+import { LogLevel, ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
 import Event, { buffer } from 'vs/base/common/event';
 
 export interface ILogLevelSetterChannel extends IChannel {
@@ -30,7 +30,7 @@ export class LogLevelSetterChannel implements ILogLevelSetterChannel {
 	}
 }
 
-export class LogLevelSetterChannelClient implements ILogLevelSetter {
+export class LogLevelSetterChannelClient {
 
 	constructor(private channel: ILogLevelSetterChannel) { }
 
@@ -39,5 +39,18 @@ export class LogLevelSetterChannelClient implements ILogLevelSetter {
 
 	setLevel(level: LogLevel): TPromise<void> {
 		return this.channel.call('setLevel', level);
+	}
+}
+
+export class FollowerLogService extends DelegatedLogService implements ILogService {
+	_serviceBrand: any;
+
+	constructor(private master: LogLevelSetterChannelClient, logService: ILogService) {
+		super(logService);
+		this._register(master.onDidChangeLogLevel(level => logService.setLevel(level)));
+	}
+
+	setLevel(level: LogLevel): void {
+		this.master.setLevel(level);
 	}
 }

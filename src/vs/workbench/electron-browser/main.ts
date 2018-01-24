@@ -43,10 +43,10 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 
 import fs = require('fs');
-import { ConsoleLogService, MultiplexLogService, ILogService, FollowerLogService } from 'vs/platform/log/common/log';
+import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
-import { LogLevelSetterChannelClient } from 'vs/platform/log/common/logIpc';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {

@@ -38,8 +38,8 @@ import { ipcRenderer } from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createSharedProcessContributions } from 'vs/code/electron-browser/sharedProcess/contrib/contributions';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { ILogService, FollowerLogService, LogLevel } from 'vs/platform/log/common/log';
-import { LogLevelSetterChannelClient } from 'vs/platform/log/common/logIpc';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;

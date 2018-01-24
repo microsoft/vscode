@@ -23,15 +23,12 @@ export enum LogLevel {
 	Off
 }
 
-export interface ILogLevelSetter {
-	onDidChangeLogLevel: Event<LogLevel>;
-	setLevel(level: LogLevel): void;
-}
-
-export interface ILogService extends ILogLevelSetter, IDisposable {
+export interface ILogService extends IDisposable {
 	_serviceBrand: any;
+	onDidChangeLogLevel: Event<LogLevel>;
 
 	getLevel(): LogLevel;
+	setLevel(level: LogLevel): void;
 	trace(message: string, ...args: any[]): void;
 	debug(message: string, ...args: any[]): void;
 	info(message: string, ...args: any[]): void;
@@ -287,19 +284,6 @@ export class DelegatedLogService extends Disposable implements ILogService {
 
 	dispose(): void {
 		this.logService.dispose();
-	}
-}
-
-export class FollowerLogService extends DelegatedLogService implements ILogService {
-	_serviceBrand: any;
-
-	constructor(private master: ILogLevelSetter, logService: ILogService) {
-		super(logService);
-		this._register(master.onDidChangeLogLevel(level => logService.setLevel(level)));
-	}
-
-	setLevel(level: LogLevel): void {
-		this.master.setLevel(level);
 	}
 }
 
