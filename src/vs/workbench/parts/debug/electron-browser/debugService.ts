@@ -693,21 +693,31 @@ export class DebugService implements debug.IDebugService {
 							"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 					}
 
-					return sequence(compound.configurations.map(name => () => {
+					return TPromise.join(compound.configurations.map(configData => {
+						const name = typeof configData === 'string' ? configData : configData.name;
 						if (name === compound.name) {
 							return TPromise.as(null);
 						}
 
 						let rootForName: IWorkspaceFolder;
-						const launchesContainingName = this.configurationManager.getLaunches().filter(l => !!l.getConfiguration(name));
-						if (launchesContainingName.length === 1) {
-							rootForName = launchesContainingName[0].workspace;
-						} else if (launchesContainingName.length > 1 && launchesContainingName.indexOf(launch) >= 0) {
-							// If there are multiple launches containing the configuration give priority to the configuration in the current launch
-							rootForName = launch.workspace;
-						} else {
-							return TPromise.wrapError(new Error(launchesContainingName.length === 0 ? nls.localize('noConfigurationNameInWorkspace', "Could not find launch configuration '{0}' in the workspace.", name)
-								: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurates `{0}` in the workspace. Use folder name to qualify the configuration.", name)));
+						if (typeof configData === 'string') {
+							const launchesContainingName = this.configurationManager.getLaunches().filter(l => !!l.getConfiguration(name));
+							if (launchesContainingName.length === 1) {
+								rootForName = launchesContainingName[0].workspace;
+							} else if (launchesContainingName.length > 1 && launchesContainingName.indexOf(launch) >= 0) {
+								// If there are multiple launches containing the configuration give priority to the configuration in the current launch
+								rootForName = launch.workspace;
+							} else {
+								return TPromise.wrapError(new Error(launchesContainingName.length === 0 ? nls.localize('noConfigurationNameInWorkspace', "Could not find launch configuration '{0}' in the workspace.", name)
+									: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurates `{0}` in the workspace. Use folder name to qualify the configuration.", name)));
+							}
+						} else if (configData.folder) {
+							const root = this.contextService.getWorkspace().folders.filter(f => f.name === configData.folder).pop();
+							if (root) {
+								rootForName = root;
+							} else {
+								return TPromise.wrapError(new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound.name)));
+							}
 						}
 
 						return this.startDebugging(rootForName, name, noDebug, topCompoundName || compound.name);

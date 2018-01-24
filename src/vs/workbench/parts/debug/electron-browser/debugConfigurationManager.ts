@@ -191,7 +191,18 @@ const schema: IJSONSchema = {
 								enum: [],
 								description: nls.localize('useUniqueNames', "Please use unique configuration names.")
 							}, {
-								type: 'object'
+								type: 'object',
+								required: ['name'],
+								properties: {
+									name: {
+										type: 'string',
+										description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
+									},
+									folder: {
+										type: 'string',
+										description: nls.localize('app.launch.json.compound.folder', "Name of folder in which the compound is located.")
+									}
+								}
 							}]
 						},
 						description: nls.localize('app.launch.json.compounds.configurations', "Names of configurations that will be started as part of this compound.")

@@ -363,7 +363,7 @@ export interface IConfig extends IEnvConfig {
 
 export interface ICompound {
 	name: string;
-	configurations: string[];
+	configurations: (string | { name: string, folder: string })[];
 }
 
 export interface IAdapterExecutable {
