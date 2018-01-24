@@ -2559,6 +2559,42 @@ declare module 'vscode' {
 		 * @return An array of `[Uri, TextEdit[]]`-tuples.
 		 */
 		entries(): [Uri, TextEdit[]][];
+
+		/**
+		 * Renames a given resource in the workspace.
+		 *
+		 * @param from Uri of current resource.
+		 * @param to Uri of renamed resource.
+		 */
+		renameResource(from: Uri, to: Uri): void;
+
+		/**
+		 * Create a new resource in the workspace.
+		 *
+		 * @param uri Uri of resource to create.
+		 */
+		createResource(uri: Uri): void;
+
+		/**
+		 * Delete a given resource in the workspace.
+		 *
+		 * @param uri Uri of resource to delete.
+		 */
+		deleteResource(uri: Uri): void;
+
+		/**
+		 * Get the resource edits for this workspace edit.
+		 *
+		 * @returns A array of uri-tuples in which a rename-edit
+		 * is represented as `[from, to]`, a delete-operation as `[from, null]`,
+		 * and a create-operation as `[null, to]`;
+		 */
+		resourceEdits(): [Uri, Uri][];
+
+		/**
+		 *
+		 */
+		allEntries(): ([Uri, TextEdit[]] | [Uri, Uri])[];
 	}
 
 	/**
