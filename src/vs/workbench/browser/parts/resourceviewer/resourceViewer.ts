@@ -390,6 +390,7 @@ class InlineImageView {
 					if (newScale === 'fit') {
 						scale = 'fit';
 						img.addClass('scale-to-fit');
+						img.removeClass('pixelated');
 						img.style('width', 'auto');
 						InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, null);
 					} else {
