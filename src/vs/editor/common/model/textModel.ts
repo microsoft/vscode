@@ -57,12 +57,16 @@ export function createTextBufferFactory(text: string): model.ITextBufferFactory 
 	return builder.finish();
 }
 
-export function createTextBufferFactoryFromStream(stream: IStringStream): TPromise<model.ITextBufferFactory> {
+export function createTextBufferFactoryFromStream(stream: IStringStream, filter?: (chunk: string) => string): TPromise<model.ITextBufferFactory> {
 	return new TPromise<model.ITextBufferFactory>((c, e, p) => {
 		let done = false;
 		let builder = createTextBufferBuilder();
 
 		stream.on('data', (chunk) => {
+			if (filter) {
+				chunk = filter(chunk);
+			}
+
 			builder.acceptChunk(chunk);
 		});
 

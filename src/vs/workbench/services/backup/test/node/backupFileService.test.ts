@@ -16,10 +16,12 @@ import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { createTextBufferFactory, TextModel } from 'vs/editor/common/model/textModel';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { snapshotToString } from 'vs/platform/files/common/files';
 
 const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');
@@ -268,10 +270,29 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	test('parseBackupContent', () => {
-		test('should separate metadata from content', () => {
-			const textBufferFactory = createTextBufferFactory('metadata\ncontent');
-			assert.equal(service.parseBackupContent(textBufferFactory), 'content');
+	test('resolveBackupContent', () => {
+		test('should restore the original contents (untitled file)', () => {
+			const contents = 'test\nand more stuff';
+			service.backupResource(untitledFile, contents).then(() => {
+				service.resolveBackupContent(service.toBackupResource(untitledFile)).then(factory => {
+					assert.equal(contents, snapshotToString(factory.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+				});
+			});
+		});
+
+		test('should restore the original contents (text file)', () => {
+			const contents = [
+				'Lorem ipsum ',
+				'dolor öäü sit amet ',
+				'consectetur ',
+				'adipiscing ßß elit',
+			].join('');
+
+			service.backupResource(fooFile, contents).then(() => {
+				service.resolveBackupContent(service.toBackupResource(untitledFile)).then(factory => {
+					assert.equal(contents, snapshotToString(factory.create(platform.isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).createSnapshot(true)));
+				});
+			});
 		});
 	});
 });

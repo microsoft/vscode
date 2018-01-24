@@ -65,13 +65,12 @@ export interface IBackupFileService {
 	getWorkspaceFileBackups(): TPromise<Uri[]>;
 
 	/**
-	 * Parses backup raw text content into the content, removing the metadata that is also stored
-	 * in the file.
+	 * Resolves the backup for the given resource.
 	 *
-	 * @param textBufferFactory The ITextBufferFactory from a backup resource.
-	 * @return The backup file's backed up content.
+	 * @param value The contents from a backup resource as stream.
+	 * @return The backup file's backed up content as text buffer factory.
 	 */
-	parseBackupContent(textBufferFactory: ITextBufferFactory): string;
+	resolveBackupContent(backup: Uri): TPromise<ITextBufferFactory>;
 
 	/**
 	 * Discards the backup associated with a resource if it exists..
