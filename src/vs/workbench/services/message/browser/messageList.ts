@@ -191,7 +191,7 @@ export class MessageList {
 	private doShowMessage(id: IMessageWithAction, message: string, severity: Severity, onHide: () => void): () => void;
 	private doShowMessage(id: any, message: string, severity: Severity, onHide: () => void): () => void {
 		const actions = (<IMessageWithAction>id).actions;
-		const source = (<IMessageWithAction>id).source;
+		const source = (<IMessageWithAction>id).source || 'vscode';
 
 		// Telemetry (TODO@Ben remove me later)
 		/* __GDPR__
