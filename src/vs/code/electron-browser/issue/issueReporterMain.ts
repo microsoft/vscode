@@ -12,6 +12,7 @@ import { $ } from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browser';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
+import * as os from 'os';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -27,7 +28,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IssueReporterModel, IssueReporterData } from 'vs/code/electron-browser/issue/issueReporterModel';
+import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
 import { IssueReporterStyles } from 'vs/platform/issue/common/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 
@@ -54,7 +55,11 @@ export class IssueReporter extends Disposable {
 			issueType: 0,
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,
-			includeProcessInfo: true
+			includeProcessInfo: true,
+			versionInfo: {
+				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
+				os: `${os.type()} ${os.arch()} ${os.release()}`
+			}
 		});
 
 		ipcRenderer.on('issueStyleResponse', (event, styles: IssueReporterStyles) => {
@@ -352,18 +357,9 @@ export class IssueReporter extends Disposable {
 	 */
 
 	private updateAllBlocks(state) {
-		this.updateVersionInfo(state);
 		this.updateSystemInfo(state);
 		this.updateProcessInfo(state);
 		this.updateWorkspaceInfo(state);
-	}
-
-	private updateVersionInfo = (state: IssueReporterData) => {
-		const version = document.getElementById('vscode-version');
-		(<HTMLInputElement>version).value = state.versionInfo.vscodeVersion;
-
-		const osversion = document.getElementById('os');
-		(<HTMLInputElement>osversion).value = state.versionInfo.os;
 	}
 
 	private updateSystemInfo = (state) => {

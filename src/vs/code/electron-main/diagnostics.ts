@@ -39,7 +39,6 @@ export interface ProcessInfo {
 }
 
 export interface DiagnosticInfo {
-	versionInfo?: VersionInfo;
 	systemInfo?: SystemInfo;
 	processInfo?: ProcessInfo[];
 	workspaceInfo?: string;
@@ -80,7 +79,6 @@ export function buildDiagnostics(info: IMainProcessInfo): Promise<DiagnosticInfo
 		}
 
 		return {
-			versionInfo: getVersionInfo(),
 			systemInfo: getSystemInfo(info),
 			processInfo: getProcessList(info, rootProcess),
 			workspaceInfo: workspaceInfoMessages.join('\n')
@@ -186,13 +184,6 @@ function formatLaunchConfigs(configs: WorkspaceStatItem[]): string {
 	});
 	output.push(line);
 	return output.join('\n');
-}
-
-function getVersionInfo(): VersionInfo {
-	return {
-		vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
-		os: `${os.type()} ${os.arch()} ${os.release()}`
-	};
 }
 
 function getSystemInfo(info: IMainProcessInfo): SystemInfo {

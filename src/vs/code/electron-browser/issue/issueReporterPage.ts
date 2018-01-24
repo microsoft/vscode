@@ -6,6 +6,8 @@
 
 import { escape } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
+import * as os from 'os';
+import pkg from 'vs/platform/node/package';
 
 export default (): string => `
 <div id="issue-reporter">
@@ -32,11 +34,11 @@ export default (): string => `
 	<div class="input-group">
 		<div class="two-col">
 			<label for="vscode-version">${escape(localize('vscodeVersion', "VS Code Version"))} <span class="required-input">*</span></label>
-			<input id="vscode-version" type="text" value="${escape(localize('loading', "Loading..."))}" disabled/>
+			<input id="vscode-version" type="text" value="${pkg.name} ${pkg.version}" disabled/>
 		</div>
 		<div class="two-col">
 			<label for="os">${escape(localize('osVersion', "OS Version"))} <span class="required-input">*</span></label>
-			<input id="os" type="text" value="${escape(localize('loading', "Loading..."))}" disabled/>
+			<input id="os" type="text" value="${os.type()} ${os.arch()} ${os.release()}" disabled/>
 		</div>
 	</div>
 
@@ -89,7 +91,7 @@ export default (): string => `
 			<!-- To be dynamically filled -->
 		</small>
 		<div class="block-info-text">
-			<small>${escape(localize('githubMarkdown', "We support GitHub-flavored Markdown. You will still be able to edit your issue when we preview it on GitHub."))}</small>
+			<small>${escape(localize('githubMarkdown', "We support GitHub-flavored Markdown. You will still be able to edit your issue and add screenshots when we preview it on GitHub."))}</small>
 			<div id="description-validation-error" class="validation-error hidden">${escape(localize('issueDescriptionRequired', "Please enter a description."))}</div>
 			<textarea name="description" id="description" cols="100" rows="15" required></textarea>
 		</div>
