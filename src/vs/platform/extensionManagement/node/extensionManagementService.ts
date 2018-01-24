@@ -102,7 +102,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private extensionsPath: string;
 	private obsoletePath: string;
-	private reportedPath: string;
 	private obsoleteFileLimiter: Limiter<void>;
 	private reportedExtensions: TPromise<IReportedExtension[]>;
 	private disposables: IDisposable[] = [];
@@ -128,10 +127,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		this.extensionsPath = environmentService.extensionsPath;
 		this.obsoletePath = path.join(this.extensionsPath, '.obsolete');
 		this.obsoleteFileLimiter = new Limiter(1);
-		this.reportedPath = path.join(this.extensionsPath, '.reported');
-		this.reportedExtensions = this.loadReportFromCache();
-
-		setTimeout(() => this.loopRefreshReportCache(), 1000 * 10); // 10 seconds after boot
 	}
 
 	private deleteExtensionsManifestCache(): void {
@@ -744,45 +739,29 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		});
 	}
 
+	private lastReportTimestamp = 0;
+
 	getExtensionsReport(): TPromise<IReportedExtension[]> {
+		const now = new Date().getTime();
+
+		if (!this.reportedExtensions || now - this.lastReportTimestamp > 1000 * 60 * 5) { // 5 minute cache freshness
+			this.reportedExtensions = this.updateReportCache();
+			this.lastReportTimestamp = now;
+		}
+
 		return this.reportedExtensions;
 	}
 
-	private loadReportFromCache(): TPromise<IReportedExtension[]> {
-		this.logService.trace('ExtensionManagementService.loadReportedFromCache');
-
-		return pfs.readFile(this.reportedPath, 'utf8')
-			.then(raw => JSON.parse(raw))
-			.then(result => {
-				this.logService.trace(`ExtensionManagementService.loadReportedFromCache - loaded ${result.length} reported extensions from cache`);
-				return result;
-			}, () => {
-				this.logService.trace(`ExtensionManagementService.loadReportedFromCache - no cache found`);
-			});
-	}
-
-	private loopRefreshReportCache(): void {
-		this.refreshReportCache()
-			.then(() => TPromise.timeout(1000 * 60 * 5)) // every five minutes
-			.then(() => this.loopRefreshReportCache());
-	}
-
-	private refreshReportCache(): TPromise<any> {
+	private updateReportCache(): TPromise<IReportedExtension[]> {
 		this.logService.trace('ExtensionManagementService.refreshReportedCache');
 
-		return this.reportedExtensions = this.galleryService.getExtensionsReport()
-			.then(null, err => {
-				this.logService.trace('ExtensionManagementService.refreshReportedCache - failed to get extension report');
-				return [];
-			})
+		return this.galleryService.getExtensionsReport()
 			.then(result => {
 				this.logService.trace(`ExtensionManagementService.refreshReportedCache - got ${result.length} reported extensions from service`);
-
-				return pfs.writeFile(this.reportedPath, JSON.stringify(result))
-					.then(() => result, err => {
-						this.logService.trace('ExtensionManagementService.refreshReportedCache - failed to cache extension report');
-						return result;
-					});
+				return result;
+			}, err => {
+				this.logService.trace('ExtensionManagementService.refreshReportedCache - failed to get extension report');
+				return [];
 			});
 	}
 
