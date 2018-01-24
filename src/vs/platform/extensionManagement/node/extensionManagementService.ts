@@ -22,7 +22,7 @@ import {
 	IExtensionIdentifier,
 	IReportedExtension
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter } from 'vs/base/common/async';
@@ -269,13 +269,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private downloadAndInstallExtension(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		let installingExtension = this.installingExtensions.get(extension.identifier.id);
 		if (!installingExtension) {
-			installingExtension = this.getMaliciousExtensionSet().then(maliciousSet => {
-				if (maliciousSet.has(extension.identifier.id)) {
-					throw new Error(nls.localize('malicious extension', "Can't install extension since it was reported to be malicious."));
-				} else {
-					return extension;
-				}
-			})
+			installingExtension = this.reportedExtensions
+				.then(report => {
+					if (getMaliciousExtensionsSet(report).has(extension.identifier.id)) {
+						throw new Error(nls.localize('malicious extension', "Can't install extension since it was reported to be malicious."));
+					} else {
+						return extension;
+					}
+				})
 				.then(extension => this.downloadInstallableExtension(extension))
 				.then(installableExtension => this.installExtension(installableExtension));
 
@@ -814,20 +815,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				this.logService.trace('ExtensionManagementService.refreshReportedCache - failed to get extension report');
 				return [];
 			});
-	}
-
-	private getMaliciousExtensionSet(): TPromise<Set<string>> {
-		return this.reportedExtensions.then(report => {
-			const result = new Set<string>();
-
-			for (const extension of report) {
-				if (extension.malicious) {
-					result.add(extension.id.id);
-				}
-			}
-
-			return result;
-		});
 	}
 
 	dispose() {

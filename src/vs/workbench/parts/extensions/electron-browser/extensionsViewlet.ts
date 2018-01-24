@@ -51,7 +51,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionIdFromLocal, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 
@@ -476,7 +476,9 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 	}
 
 	private checkForMaliciousExtensions(): TPromise<any> {
-		return this.getMaliciousExtensionSet().then(maliciousSet => {
+		return this.extensionsManagementService.getExtensionsReport().then(report => {
+			const maliciousSet = getMaliciousExtensionsSet(report);
+
 			return this.extensionsManagementService.getInstalled(LocalExtensionType.User).then(installed => {
 				const maliciousExtensions = installed
 					.filter(e => maliciousSet.has(getGalleryExtensionIdFromLocal(e)));
@@ -493,20 +495,6 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 				}
 			});
 		}, err => this.logService.error(err));
-	}
-
-	private getMaliciousExtensionSet(): TPromise<Set<string>> {
-		return this.extensionsManagementService.getExtensionsReport().then(report => {
-			const result = new Set<string>();
-
-			for (const extension of report) {
-				if (extension.malicious) {
-					result.add(extension.id.id);
-				}
-			}
-
-			return result;
-		});
 	}
 
 	dispose(): void {

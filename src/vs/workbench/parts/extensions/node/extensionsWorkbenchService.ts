@@ -22,7 +22,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
 	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -386,24 +386,24 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	queryLocal(): TPromise<IExtension[]> {
-		return this.getMaliciousExtensionSet().then(() => {
-			return this.extensionService.getInstalled().then(result => {
-				const installedById = index(this.installed, e => e.local.identifier.id);
-				this.installed = result.map(local => {
-					const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, local, null, this.telemetryService);
-					extension.local = local;
-					extension.enablementState = this.extensionEnablementService.getEnablementState({ id: extension.id, uuid: extension.uuid });
-					return extension;
-				});
-
-				this._onChange.fire();
-				return this.local;
+		return this.extensionService.getInstalled().then(result => {
+			const installedById = index(this.installed, e => e.local.identifier.id);
+			this.installed = result.map(local => {
+				const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, local, null, this.telemetryService);
+				extension.local = local;
+				extension.enablementState = this.extensionEnablementService.getEnablementState({ id: extension.id, uuid: extension.uuid });
+				return extension;
 			});
+
+			this._onChange.fire();
+			return this.local;
 		});
 	}
 
 	queryGallery(options: IQueryOptions = {}): TPromise<IPager<IExtension>> {
-		return this.getMaliciousExtensionSet().then(maliciousSet => {
+		return this.extensionService.getExtensionsReport().then(report => {
+			const maliciousSet = getMaliciousExtensionsSet(report);
+
 			return this.galleryService.query(options)
 				.then(result => mapPager(result, gallery => this.fromGallery(gallery, maliciousSet)))
 				.then(null, err => {
@@ -421,7 +421,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrap<IExtensionDependencies>(null);
 		}
 
-		return this.getMaliciousExtensionSet().then(maliciousSet => {
+		return this.extensionService.getExtensionsReport().then(report => {
+			const maliciousSet = getMaliciousExtensionsSet(report);
+
 			return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(id => <IExtensionIdentifier>{ id }))
 				.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension, maliciousSet)))
 				.then(extensions => [...this.local, ...extensions])
@@ -961,20 +963,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				});
 			});
 		}).done(undefined, error => this.onError(error));
-	}
-
-	private getMaliciousExtensionSet(): TPromise<Set<string>> {
-		return this.extensionService.getExtensionsReport().then(report => {
-			const result = new Set<string>();
-
-			for (const extension of report) {
-				if (extension.malicious) {
-					result.add(extension.id.id);
-				}
-			}
-
-			return result;
-		});
 	}
 
 	dispose(): void {
