@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { distinctParents } from 'vs/base/common/resources';
+import { distinctParents, dirname } from 'vs/base/common/resources';
 
 suite('Resources', () => {
 
@@ -39,5 +39,15 @@ suite('Resources', () => {
 		assert.equal(distinct[0].toString(), resources[0].toString());
 		assert.equal(distinct[1].toString(), resources[3].toString());
 		assert.equal(distinct[2].toString(), resources[4].toString());
+	});
+
+	test('dirname', (done) => {
+		const f = URI.file('/some/file/test.txt');
+		const d = dirname(f);
+		assert.equal(d.fsPath, '/some/file');
+
+		// does not explode (https://github.com/Microsoft/vscode/issues/41987)
+		URI.from({ scheme: 'file', authority: '/users/someone/portal.h' });
+		done();
 	});
 });
