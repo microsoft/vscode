@@ -52,10 +52,10 @@ export interface IBackupFileService {
 	 * Backs up a resource.
 	 *
 	 * @param resource The resource to back up.
-	 * @param content The content of the resource as value or snapshot.
+	 * @param content The content of the resource as snapshot.
 	 * @param versionId The version id of the resource to backup.
 	 */
-	backupResource(resource: Uri, content: string | ITextSnapshot, versionId?: number): TPromise<void>;
+	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): TPromise<void>;
 
 	/**
 	 * Gets a list of file backups for the current workspace.

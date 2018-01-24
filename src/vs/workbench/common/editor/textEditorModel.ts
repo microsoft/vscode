@@ -67,13 +67,13 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: string | ITextBufferFactory, resource?: URI, modeId?: string): TPromise<EditorModel> {
+	protected createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string): TPromise<EditorModel> {
 		const firstLineText = this.getFirstLineText(value);
 		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 		return TPromise.as(this.doCreateTextEditorModel(value, mode, resource));
 	}
 
-	private doCreateTextEditorModel(value: string | ITextBufferFactory, mode: TPromise<IMode>, resource: URI): EditorModel {
+	private doCreateTextEditorModel(value: ITextBufferFactory, mode: TPromise<IMode>, resource: URI): EditorModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
 			model = this.modelService.createModel(value, mode, resource);
@@ -91,24 +91,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this;
 	}
 
-	protected getFirstLineText(value: string | ITextBufferFactory | ITextSnapshot): string {
-
-		// string
-		if (typeof value === 'string') {
-			const firstLineText = value.substr(0, 100);
-
-			let crIndex = firstLineText.indexOf('\r');
-			if (crIndex < 0) {
-				crIndex = firstLineText.length;
-			}
-
-			let lfIndex = firstLineText.indexOf('\n');
-			if (lfIndex < 0) {
-				lfIndex = firstLineText.length;
-			}
-
-			return firstLineText.substr(0, Math.min(crIndex, lfIndex));
-		}
+	protected getFirstLineText(value: ITextBufferFactory | ITextSnapshot): string {
 
 		// text buffer factory
 		const textBufferFactory = value as ITextBufferFactory;
@@ -118,7 +101,19 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 		// text snapshot
 		const textSnapshot = value as ITextSnapshot;
-		return this.getFirstLineText(textSnapshot.read() || '');
+		const firstLineText = textSnapshot.read().substr(0, 100);
+
+		let crIndex = firstLineText.indexOf('\r');
+		if (crIndex < 0) {
+			crIndex = firstLineText.length;
+		}
+
+		let lfIndex = firstLineText.indexOf('\n');
+		if (lfIndex < 0) {
+			lfIndex = firstLineText.length;
+		}
+
+		return firstLineText.substr(0, Math.min(crIndex, lfIndex));
 	}
 
 	/**
@@ -133,7 +128,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	protected updateTextEditorModel(newValue: string | ITextBufferFactory): void {
+	protected updateTextEditorModel(newValue: ITextBufferFactory): void {
 		if (!this.textEditorModel) {
 			return;
 		}

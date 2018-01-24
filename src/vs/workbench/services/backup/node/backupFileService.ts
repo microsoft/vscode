@@ -11,7 +11,7 @@ import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { ResourceQueue } from 'vs/base/common/async';
 import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IFileService, ITextSnapshot, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, ITextSnapshot } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
 import { ITextBufferFactory } from 'vs/editor/common/model';
@@ -171,7 +171,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public backupResource(resource: Uri, content: string | ITextSnapshot, versionId?: number): TPromise<void> {
+	public backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): TPromise<void> {
 		if (this.isShuttingDown) {
 			return TPromise.as(void 0);
 		}
@@ -190,17 +190,7 @@ export class BackupFileService implements IBackupFileService {
 				const preamble = `${resource.toString()}${BackupFileService.META_MARKER}`;
 
 				// Update content with value
-				let updateContentPromise: TPromise<IFileStat>;
-				if (typeof content === 'string') {
-					updateContentPromise = this.fileService.updateContent(backupResource, `${preamble}${content}`, BACKUP_FILE_UPDATE_OPTIONS);
-				}
-
-				// Update content with snapshot
-				else {
-					updateContentPromise = this.fileService.updateContent(backupResource, new BackupSnapshot(content, preamble), BACKUP_FILE_UPDATE_OPTIONS);
-				}
-
-				return updateContentPromise.then(() => model.add(backupResource, versionId));
+				return this.fileService.updateContent(backupResource, new BackupSnapshot(content, preamble), BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
 			});
 		});
 	}
