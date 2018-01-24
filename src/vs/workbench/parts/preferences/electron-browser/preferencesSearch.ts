@@ -69,13 +69,10 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	}
 
 	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider {
-		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-
 		const opts: IRemoteSearchProviderOptions = {
 			filter,
 			newExtensionsOnly,
-			endpoint: this._endpoint,
-			usePost: workbenchSettings.useNaturalLanguageSearchPost
+			endpoint: this._endpoint
 		};
 
 		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, opts, this._installedExtensions);
@@ -127,7 +124,6 @@ interface IRemoteSearchProviderOptions {
 	filter: string;
 	endpoint: IEndpointDetails;
 	newExtensionsOnly: boolean;
-	usePost: boolean;
 }
 
 class RemoteSearchProvider implements ISearchProvider {
@@ -138,10 +134,9 @@ class RemoteSearchProvider implements ISearchProvider {
 		@IRequestService private requestService: IRequestService,
 		@ILogService private logService: ILogService
 	) {
-		this._remoteSearchP = (this.options.newExtensionsOnly && !this.options.usePost) ? TPromise.wrap(null) :
-			this.options.filter ?
-				this.getSettingsFromBing(this.options.filter) :
-				TPromise.wrap(null);
+		this._remoteSearchP = this.options.filter ?
+			this.getSettingsFromBing(this.options.filter) :
+			TPromise.wrap(null);
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
@@ -284,30 +279,20 @@ class RemoteSearchProvider implements ISearchProvider {
 			url += `${API_VERSION}&${QUERY_TYPE}`;
 		}
 
-		if (this.options.usePost) {
-			const filters = this.options.newExtensionsOnly ?
-				[`diminish eq 'latest'`] :
-				await this.getVersionFilters(buildNumber);
+		const filters = this.options.newExtensionsOnly ?
+			[`diminish eq 'latest'`] :
+			await this.getVersionFilters(buildNumber);
 
-			const filterStr = encodeURIComponent(filters.join(' or '));
-			const body = JSON.stringify({
-				query: encodedQuery,
-				filters: filterStr
-			});
+		const filterStr = encodeURIComponent(filters.join(' or '));
+		const body = JSON.stringify({
+			query: encodedQuery,
+			filters: filterStr
+		});
 
-			return {
-				url,
-				body
-			};
-		} else {
-			url += `query=${encodedQuery}`;
-
-			if (buildNumber) {
-				url += `&build=${buildNumber}`;
-			}
-		}
-
-		return TPromise.wrap({ url });
+		return {
+			url,
+			body
+		};
 	}
 
 	private getVersionFilters(buildNumber?: number): TPromise<string[]> {
