@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./media/codeEditor';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -42,18 +42,18 @@ interface IWordWrapState {
 /**
  * Store (in memory) the word wrap state for a particular model.
  */
-function writeTransientState(model: IModel, state: IWordWrapTransientState, codeEditorService: ICodeEditorService): void {
+function writeTransientState(model: ITextModel, state: IWordWrapTransientState, codeEditorService: ICodeEditorService): void {
 	codeEditorService.setTransientModelProperty(model, transientWordWrapState, state);
 }
 
 /**
  * Read (in memory) the word wrap state for a particular model.
  */
-function readTransientState(model: IModel, codeEditorService: ICodeEditorService): IWordWrapTransientState {
+function readTransientState(model: ITextModel, codeEditorService: ICodeEditorService): IWordWrapTransientState {
 	return codeEditorService.getTransientModelProperty(model, transientWordWrapState);
 }
 
-function readWordWrapState(model: IModel, configurationService: ITextResourceConfigurationService, codeEditorService: ICodeEditorService): IWordWrapState {
+function readWordWrapState(model: ITextModel, configurationService: ITextResourceConfigurationService, codeEditorService: ICodeEditorService): IWordWrapState {
 	const editorConfig = configurationService.getValue(model.uri, 'editor') as { wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded'; wordWrapMinified: boolean };
 	let _configuredWordWrap = editorConfig && (typeof editorConfig.wordWrap === 'string' || typeof editorConfig.wordWrap === 'boolean') ? editorConfig.wordWrap : void 0;
 
@@ -258,7 +258,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'editor.action.toggleWordWrap',
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
-		iconClass: 'toggle-word-wrap-action'
+		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/WordWrap_16x.svg')).fsPath }
 	},
 	group: 'navigation',
 	order: 1,
@@ -272,7 +272,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'editor.action.toggleWordWrap',
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
-		iconClass: 'toggle-word-wrap-action'
+		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/WordWrap_16x.svg')).fsPath }
 	},
 	group: 'navigation',
 	order: 1,

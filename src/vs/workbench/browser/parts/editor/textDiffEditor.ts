@@ -300,20 +300,6 @@ export class TextDiffEditor extends BaseTextEditor {
 		];
 	}
 
-	public getSecondaryActions(): IAction[] {
-		const actions = super.getSecondaryActions();
-
-		// Action to toggle editor mode from inline to side by side
-		const toggleEditorModeAction = new ToggleEditorModeAction(this);
-		toggleEditorModeAction.order = 50; // Closer to the end
-
-		actions.push(...[
-			toggleEditorModeAction
-		]);
-
-		return actions;
-	}
-
 	public getControl(): IDiffEditor {
 		return super.getControl() as IDiffEditor;
 	}
@@ -384,36 +370,5 @@ class ToggleIgnoreTrimWhitespaceAction extends Action {
 	public run(): TPromise<any> {
 		this._configurationService.updateValue(`diffEditor.ignoreTrimWhitespace`, !this._isChecked);
 		return null;
-	}
-}
-
-class ToggleEditorModeAction extends Action {
-	private static readonly ID = 'toggle.diff.editorMode';
-	private static readonly INLINE_LABEL = nls.localize('inlineDiffLabel', "Switch to Inline View");
-	private static readonly SIDEBYSIDE_LABEL = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
-
-	constructor(private editor: TextDiffEditor) {
-		super(ToggleEditorModeAction.ID);
-	}
-
-	public get label(): string {
-		return ToggleEditorModeAction.isInlineMode(this.editor) ? ToggleEditorModeAction.SIDEBYSIDE_LABEL : ToggleEditorModeAction.INLINE_LABEL;
-	}
-
-	public run(): TPromise<boolean> {
-		const inlineModeActive = ToggleEditorModeAction.isInlineMode(this.editor);
-
-		const control = this.editor.getControl();
-		control.updateOptions(<IDiffEditorOptions>{
-			renderSideBySide: inlineModeActive
-		});
-
-		return TPromise.as(true);
-	}
-
-	private static isInlineMode(editor: TextDiffEditor): boolean {
-		const control = editor.getControl();
-
-		return control && !control.renderSideBySide;
 	}
 }

@@ -8,7 +8,8 @@ import * as nls from 'vs/nls';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { ScrollType, IEditorContribution, FindMatch, TrackedRangeStickiness, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
+import { ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { FindMatch, TrackedRangeStickiness, OverviewRulerLane, ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,7 +20,7 @@ import { RevealTarget } from 'vs/editor/common/controller/cursorCommon';
 import { Constants } from 'vs/editor/common/core/uint';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find/findState';
@@ -381,7 +382,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		this._ignoreSelectionChange = false;
 	}
 
-	private _expandEmptyToWord(model: IModel, selection: Selection): Selection {
+	private _expandEmptyToWord(model: ITextModel, selection: Selection): Selection {
 		if (!selection.isEmpty()) {
 			return selection;
 		}
@@ -875,7 +876,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	}
 }
 
-function modelRangesContainSameText(model: IModel, ranges: Range[], matchCase: boolean): boolean {
+function modelRangesContainSameText(model: ITextModel, ranges: Range[], matchCase: boolean): boolean {
 	const selectedText = getValueInRange(model, ranges[0], !matchCase);
 	for (let i = 1, len = ranges.length; i < len; i++) {
 		const range = ranges[i];
@@ -890,7 +891,7 @@ function modelRangesContainSameText(model: IModel, ranges: Range[], matchCase: b
 	return true;
 }
 
-function getValueInRange(model: IModel, range: Range, toLowerCase: boolean): string {
+function getValueInRange(model: ITextModel, range: Range, toLowerCase: boolean): string {
 	const text = model.getValueInRange(range);
 	return (toLowerCase ? text.toLowerCase() : text);
 }

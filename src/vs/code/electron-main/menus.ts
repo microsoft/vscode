@@ -14,7 +14,7 @@ import { OpenContext, IRunActionInWindowRequest } from 'vs/platform/windows/comm
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
+import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -327,7 +327,7 @@ export class CodeMenu {
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
 		const quit = new MenuItem(this.likeAction('workbench.action.quit', {
 			label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => {
-				if (this.windowsMainService.getWindowCount() === 0 || !!this.windowsMainService.getFocusedWindow()) {
+				if (this.windowsMainService.getWindowCount() === 0 || !!BrowserWindow.getFocusedWindow()) {
 					this.windowsMainService.quit(); // fix for https://github.com/Microsoft/vscode/issues/39191
 				}
 			}
@@ -683,6 +683,7 @@ export class CodeMenu {
 		}
 
 		const commands = this.createMenuItem(nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette..."), 'workbench.action.showCommands');
+		const openView = this.createMenuItem(nls.localize({ key: 'miOpenView', comment: ['&& denotes a mnemonic'] }, "&&Open View..."), 'workbench.action.openView');
 
 		const fullscreen = new MenuItem(this.withKeybinding('workbench.action.toggleFullScreen', { label: this.mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), click: () => this.windowsMainService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsMainService.getWindowCount() > 0 }));
 		const toggleZenMode = this.createMenuItem(nls.localize('miToggleZenMode', "Toggle Zen Mode"), 'workbench.action.toggleZenMode');
@@ -729,6 +730,7 @@ export class CodeMenu {
 
 		arrays.coalesce([
 			commands,
+			openView,
 			__separator__(),
 			explorer,
 			search,
@@ -1040,45 +1042,51 @@ export class CodeMenu {
 	}
 
 	private getUpdateMenuItems(): Electron.MenuItem[] {
-		switch (this.updateService.state) {
-			case UpdateState.Uninitialized:
+		const state = this.updateService.state;
+
+		switch (state.type) {
+			case StateType.Uninitialized:
 				return [];
 
-			case UpdateState.UpdateDownloaded:
+			case StateType.Idle:
 				return [new MenuItem({
-					label: nls.localize('miRestartToUpdate', "Restart to Update..."), click: () => {
-						this.reportMenuActionTelemetry('RestartToUpdate');
-						this.updateService.quitAndInstall();
-					}
-				})];
-
-			case UpdateState.CheckingForUpdate:
-				return [new MenuItem({ label: nls.localize('miCheckingForUpdates', "Checking For Updates..."), enabled: false })];
-
-			case UpdateState.UpdateAvailable:
-				if (isLinux) {
-					return [new MenuItem({
-						label: nls.localize('miDownloadUpdate', "Download Available Update"), click: () => {
-							this.updateService.quitAndInstall();
-						}
-					})];
-				}
-
-				const updateAvailableLabel = isWindows
-					? nls.localize('miDownloadingUpdate', "Downloading Update...")
-					: nls.localize('miInstallingUpdate', "Installing Update...");
-
-				return [new MenuItem({ label: updateAvailableLabel, enabled: false })];
-
-			default:
-				const result = [new MenuItem({
 					label: nls.localize('miCheckForUpdates', "Check for Updates..."), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
 						this.updateService.checkForUpdates(true);
 					}, 0)
 				})];
 
-				return result;
+			case StateType.CheckingForUpdates:
+				return [new MenuItem({ label: nls.localize('miCheckingForUpdates', "Checking For Updates..."), enabled: false })];
+
+			case StateType.AvailableForDownload:
+				return [new MenuItem({
+					label: nls.localize('miDownloadUpdate', "Download Available Update"), click: () => {
+						this.updateService.downloadUpdate();
+					}
+				})];
+
+			case StateType.Downloading:
+				return [new MenuItem({ label: nls.localize('miDownloadingUpdate', "Downloading Update..."), enabled: false })];
+
+			case StateType.Downloaded:
+				return [new MenuItem({
+					label: nls.localize('miInstallUpdate', "Install Update..."), click: () => {
+						this.reportMenuActionTelemetry('InstallUpdate');
+						this.updateService.applyUpdate();
+					}
+				})];
+
+			case StateType.Updating:
+				return [new MenuItem({ label: nls.localize('miInstallingUpdate', "Installing Update..."), enabled: false })];
+
+			case StateType.Ready:
+				return [new MenuItem({
+					label: nls.localize('miRestartToUpdate', "Restart to Update..."), click: () => {
+						this.reportMenuActionTelemetry('RestartToUpdate');
+						this.updateService.quitAndInstall();
+					}
+				})];
 		}
 	}
 

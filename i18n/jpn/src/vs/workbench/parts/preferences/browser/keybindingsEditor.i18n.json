@@ -17,6 +17,7 @@
 	"resetLabel": "キー バインドのリセット",
 	"showConflictsLabel": "競合の表示",
 	"copyLabel": "コピー",
+	"copyCommandLabel": "コピー コマンド",
 	"error": "キー バインドの編集中にエラー '{0}' が発生しました。'keybindings.json' ファイルを開いてご確認ください。",
 	"command": "コマンド",
 	"keybinding": "キー バインド",
@@ -31,6 +32,6 @@
 	"keybindingAriaLabel": "キー バインドは {0} です。",
 	"noKeybinding": "キー バインドが割り当てられていません。",
 	"sourceAriaLabel": "ソースは {0} です。",
-	"whenAriaLabel": "時間は {0} です。",
-	"noWhen": "時間コンテキストがありません。"
+	"whenAriaLabel": "タイミングは {0} です。",
+	"noWhen": "タイミングのコンテキストがありません。"
 }

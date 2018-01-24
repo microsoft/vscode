@@ -9,7 +9,6 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -43,7 +42,6 @@ export abstract class TerminalService implements ITerminalService {
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IConfigurationService protected _configurationService: IConfigurationService,
 		@IPanelService protected _panelService: IPanelService,
 		@IPartService private _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService
@@ -59,11 +57,6 @@ export abstract class TerminalService implements ITerminalService {
 		this._onInstanceTitleChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
 
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('terminal.integrated')) {
-				this.updateConfig();
-			}
-		});
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
 		lifecycleService.onShutdown(() => this._onShutdown());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
@@ -97,7 +90,6 @@ export abstract class TerminalService implements ITerminalService {
 
 	private _onShutdown(): void {
 		this.terminalInstances.forEach(instance => {
-			console.log('kill!');
 			instance.dispose();
 		});
 	}
@@ -235,10 +227,6 @@ export abstract class TerminalService implements ITerminalService {
 			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
 		}
 		return terminalIndex;
-	}
-
-	public updateConfig(): void {
-		this.terminalInstances.forEach(instance => instance.updateConfig());
 	}
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {

@@ -50,9 +50,6 @@ export class QuickOpen {
 
 	async waitForQuickOpenOpened(): Promise<void> {
 		await this.spectron.client.waitForActiveElement(QuickOpen.QUICK_OPEN_INPUT);
-
-		// we gotta wait 50 milliseconds due to https://github.com/Microsoft/vscode/blob/master/src/vs/platform/list/browser/listService.ts#L59
-		await new Promise(c => setTimeout(c, 50));
 	}
 
 	private async waitForQuickOpenClosed(): Promise<void> {

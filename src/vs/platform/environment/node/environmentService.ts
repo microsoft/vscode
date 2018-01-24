@@ -12,7 +12,6 @@ import URI from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
-import { LogLevel } from 'vs/platform/log/common/log';
 import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 
@@ -152,38 +151,12 @@ export class EnvironmentService implements IEnvironmentService {
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
 
-	@memoize
-	get logLevel(): LogLevel {
-		if (this.verbose) {
-			return LogLevel.Trace;
-		}
-		if (typeof this._args.log === 'string') {
-			const logLevel = this._args.log.toLowerCase();
-			switch (logLevel) {
-				case 'trace':
-					return LogLevel.Trace;
-				case 'debug':
-					return LogLevel.Debug;
-				case 'info':
-					return LogLevel.Info;
-				case 'warn':
-					return LogLevel.Warning;
-				case 'error':
-					return LogLevel.Error;
-				case 'critical':
-					return LogLevel.Critical;
-				case 'off':
-					return LogLevel.Off;
-			}
-		}
-		return LogLevel.Info;
-	}
-
 	get wait(): boolean { return this._args.wait; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
 	get performance(): boolean { return this._args.performance; }
 	get status(): boolean { return this._args.status; }
+	get issue(): boolean { return this._args.issue; }
 
 	@memoize
 	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }

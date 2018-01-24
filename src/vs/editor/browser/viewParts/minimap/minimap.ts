@@ -876,10 +876,9 @@ export class Minimap extends ViewPart {
 		let charIndex = 0;
 		let tabsCharDelta = 0;
 
-		for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
-			const token = tokens[tokenIndex];
-			const tokenEndIndex = token.endIndex;
-			const tokenColorId = token.getForeground();
+		for (let tokenIndex = 0, tokensLen = tokens.getCount(); tokenIndex < tokensLen; tokenIndex++) {
+			const tokenEndIndex = tokens.getEndOffset(tokenIndex);
+			const tokenColorId = tokens.getForeground(tokenIndex);
 			const tokenColor = colorTracker.getColor(tokenColorId);
 
 			for (; charIndex < tokenEndIndex; charIndex++) {

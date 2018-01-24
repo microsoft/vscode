@@ -11,6 +11,5 @@
 	"editableEditorAriaLabel": "文本文件比较编辑器。",
 	"navigate.next.label": "下一个更改",
 	"navigate.prev.label": "上一个更改",
-	"inlineDiffLabel": "切换到内联视图",
-	"sideBySideDiffLabel": "切换到并行视图"
+	"toggleIgnoreTrimWhitespace.label": "忽略可裁剪的空白字符"
 }

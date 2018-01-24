@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { CursorMove } from 'vs/editor/common/controller/cursorMoveCommands';
 import { Range } from 'vs/editor/common/core/range';
@@ -17,7 +17,7 @@ import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 
 suite('Cursor move command test', () => {
 
-	let thisModel: Model;
+	let thisModel: TextModel;
 	let thisConfiguration: TestConfiguration;
 	let thisViewModel: ViewModel;
 	let thisCursor: Cursor;
@@ -31,7 +31,7 @@ suite('Cursor move command test', () => {
 			'1'
 		].join('\n');
 
-		thisModel = Model.createFromString(text);
+		thisModel = TextModel.createFromString(text);
 		thisConfiguration = new TestConfiguration(null);
 		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null);
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);

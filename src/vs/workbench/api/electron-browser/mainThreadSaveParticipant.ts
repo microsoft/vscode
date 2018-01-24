@@ -10,7 +10,7 @@ import * as strings from 'vs/base/common/strings';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModel, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ITextModel, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
@@ -26,6 +26,8 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface ISaveParticipantParticipant extends ISaveParticipant {
 	// progressMessage: string;
@@ -46,7 +48,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 		}
 	}
 
-	private doTrimTrailingWhitespace(model: IModel, isAutoSaved: boolean): void {
+	private doTrimTrailingWhitespace(model: ITextModel, isAutoSaved: boolean): void {
 		let prevSelection: Selection[] = [new Selection(1, 1, 1, 1)];
 		const cursors: Position[] = [];
 
@@ -69,7 +71,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 	}
 }
 
-function findEditor(model: IModel, codeEditorService: ICodeEditorService): ICodeEditor {
+function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): ICodeEditor {
 	let candidate: ICodeEditor = null;
 
 	if (model.isAttachedToEditor()) {
@@ -102,7 +104,7 @@ export class FinalNewLineParticipant implements ISaveParticipantParticipant {
 		}
 	}
 
-	private doInsertFinalNewLine(model: IModel): void {
+	private doInsertFinalNewLine(model: ITextModel): void {
 		const lineCount = model.getLineCount();
 		const lastLine = model.getLineContent(lineCount);
 		const lastLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(lastLine) === -1;
@@ -140,11 +142,11 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 		}
 	}
 
-	private doTrimFinalNewLines(model: IModel): void {
+	private doTrimFinalNewLines(model: ITextModel): void {
 		const lineCount = model.getLineCount();
 
 		// Do not insert new line if file does not end with new line
-		if (!lineCount) {
+		if (lineCount === 1) {
 			return;
 		}
 
@@ -208,7 +210,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 				});
 
 		}).then(edits => {
-			if (edits && versionNow === model.getVersionId()) {
+			if (!isFalsyOrEmpty(edits) && versionNow === model.getVersionId()) {
 				const editor = findEditor(model, this._editorService);
 				if (editor) {
 					this._editsWithEditor(editor, edits);
@@ -220,10 +222,10 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 	}
 
 	private _editsWithEditor(editor: ICodeEditor, edits: ISingleEditOperation[]): void {
-		EditOperationsCommand.execute(editor, edits);
+		EditOperationsCommand.execute(editor, edits, false);
 	}
 
-	private _editWithModel(model: IModel, edits: ISingleEditOperation[]): void {
+	private _editWithModel(model: ITextModel, edits: ISingleEditOperation[]): void {
 
 		const [{ range }] = edits;
 		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
@@ -242,7 +244,6 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		return {
 			text,
 			range: Range.lift(range),
-			identifier: undefined,
 			forceMoveMarkers: true
 		};
 	}
@@ -279,8 +280,9 @@ export class SaveParticipant implements ISaveParticipant {
 
 	constructor(
 		extHostContext: IExtHostContext,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IProgressService2 private _progressService: IProgressService2,
-		@IInstantiationService instantiationService: IInstantiationService
+		@ILogService private _logService: ILogService
 	) {
 		this._saveParticipants = [
 			instantiationService.createInstance(TrimWhitespaceParticipant),
@@ -303,7 +305,7 @@ export class SaveParticipant implements ISaveParticipant {
 			const promiseFactory = this._saveParticipants.map(p => () => {
 				return Promise.resolve(p.participate(model, env));
 			});
-			return sequence(promiseFactory).then(() => { });
+			return sequence(promiseFactory).then(() => { }, err => this._logService.error(err));
 		});
 	}
 }

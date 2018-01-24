@@ -21,7 +21,6 @@ suite('ViewModel', () => {
 			viewModel.setViewport(1, 1, 1);
 
 			model.applyEdits([{
-				identifier: null,
 				range: new Range(1, 1, 1, 1),
 				text: [
 					'line01',
@@ -34,8 +33,7 @@ suite('ViewModel', () => {
 					'line08',
 					'line09',
 					'line10',
-				].join('\n'),
-				forceMoveMarkers: false
+				].join('\n')
 			}]);
 
 			assert.equal(viewModel.getLineCount(), 10);

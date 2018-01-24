@@ -25,6 +25,7 @@ export interface IProductConfiguration {
 	extensionsGallery: {
 		serviceUrl: string;
 		itemUrl: string;
+		controlUrl: string;
 	};
 	extensionTips: { [id: string]: string; };
 	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
@@ -69,6 +70,7 @@ export interface IProductConfiguration {
 		'linux-x64': string;
 		'darwin': string;
 	};
+	logUploaderUrl: string;
 }
 
 export interface ISurveyData {

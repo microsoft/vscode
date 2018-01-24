@@ -104,7 +104,7 @@ export function activate(context: ExtensionContext) {
 		indentationRules: indentationRules
 	});
 
-	const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?/;
+	const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?$/;
 	languages.registerCompletionItemProvider(documentSelector, {
 		provideCompletionItems(doc, pos) {
 			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));

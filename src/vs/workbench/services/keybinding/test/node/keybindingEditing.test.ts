@@ -37,13 +37,14 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { mkdirp } from 'vs/base/node/pfs';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -73,6 +74,7 @@ suite('Keybindings Editing', () => {
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			const lifecycleService = new TestLifecycleService();
 			instantiationService.stub(ILifecycleService, lifecycleService);
+			instantiationService.stub(IContextKeyService, <IContextKeyService>instantiationService.createInstance(MockContextKeyService));
 			instantiationService.stub(IHashService, new TestHashService());
 			instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
 			instantiationService.stub(ITelemetryService, NullTelemetryService);

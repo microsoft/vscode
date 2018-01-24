@@ -262,6 +262,10 @@ export interface IEditorOptions {
 	 */
 	cursorStyle?: string;
 	/**
+	 * Control the width of the cursor when cursorStyle is set to 'line'
+	 */
+	lineCursorWidth?: number;
+	/**
 	 * Enable font ligatures.
 	 * Defaults to false.
 	 */
@@ -792,6 +796,7 @@ export interface InternalEditorViewOptions {
 	readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 	readonly mouseWheelZoom: boolean;
 	readonly cursorStyle: TextEditorCursorStyle;
+	readonly lineCursorWidth: number;
 	readonly hideCursorInOverviewRuler: boolean;
 	readonly scrollBeyondLastLine: boolean;
 	readonly smoothScrolling: boolean;
@@ -1060,6 +1065,7 @@ export class InternalEditorOptions {
 			&& a.cursorBlinking === b.cursorBlinking
 			&& a.mouseWheelZoom === b.mouseWheelZoom
 			&& a.cursorStyle === b.cursorStyle
+			&& a.lineCursorWidth === b.lineCursorWidth
 			&& a.hideCursorInOverviewRuler === b.hideCursorInOverviewRuler
 			&& a.scrollBeyondLastLine === b.scrollBeyondLastLine
 			&& a.smoothScrolling === b.smoothScrolling
@@ -1655,6 +1661,7 @@ export class EditorOptionsValidator {
 			cursorBlinking: _cursorBlinkingStyleFromString(opts.cursorBlinking, defaults.cursorBlinking),
 			mouseWheelZoom: _boolean(opts.mouseWheelZoom, defaults.mouseWheelZoom),
 			cursorStyle: _cursorStyleFromString(opts.cursorStyle, defaults.cursorStyle),
+			lineCursorWidth: _clampedInt(opts.lineCursorWidth, defaults.lineCursorWidth, 1, Number.MAX_VALUE),
 			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: _boolean(opts.scrollBeyondLastLine, defaults.scrollBeyondLastLine),
 			smoothScrolling: _boolean(opts.smoothScrolling, defaults.smoothScrolling),
@@ -1757,6 +1764,7 @@ export class InternalEditorOptionsFactory {
 				cursorBlinking: opts.viewInfo.cursorBlinking,
 				mouseWheelZoom: opts.viewInfo.mouseWheelZoom,
 				cursorStyle: opts.viewInfo.cursorStyle,
+				lineCursorWidth: opts.viewInfo.lineCursorWidth,
 				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
 				scrollBeyondLastLine: opts.viewInfo.scrollBeyondLastLine,
 				smoothScrolling: opts.viewInfo.smoothScrolling,
@@ -2200,6 +2208,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		cursorBlinking: TextEditorCursorBlinkingStyle.Blink,
 		mouseWheelZoom: false,
 		cursorStyle: TextEditorCursorStyle.Line,
+		lineCursorWidth: 2,
 		hideCursorInOverviewRuler: false,
 		scrollBeyondLastLine: true,
 		smoothScrolling: false,

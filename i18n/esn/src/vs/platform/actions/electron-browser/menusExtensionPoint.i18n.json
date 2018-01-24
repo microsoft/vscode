@@ -40,6 +40,5 @@
 	"menuId.invalid": "`{0}` no es un identificador de menú válido",
 	"missing.command": "El elemento de menú hace referencia a un comando `{0}` que no está definido en la sección 'commands'.",
 	"missing.altCommand": "El elemento de menú hace referencia a un comando alternativo `{0}` que no está definido en la sección 'commands'.",
-	"dupe.command": "El elemento de menú hace referencia al mismo comando que el comando predeterminado y el comando alternativo",
-	"nosupport.altCommand": "Actualmente, solo el grupo 'navigation' del menú 'editor/title' es compatible con los comandos alternativos"
+	"dupe.command": "El elemento de menú hace referencia al mismo comando que el comando predeterminado y el comando alternativo"
 }

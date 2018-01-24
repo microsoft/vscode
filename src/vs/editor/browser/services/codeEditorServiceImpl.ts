@@ -7,10 +7,8 @@
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
-import {
-	IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions,
-	IContentDecorationRenderOptions, OverviewRulerLane, TrackedRangeStickiness, isThemeColor
-} from 'vs/editor/common/editorCommon';
+import { IDecorationRenderOptions, IThemeDecorationRenderOptions, IContentDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';

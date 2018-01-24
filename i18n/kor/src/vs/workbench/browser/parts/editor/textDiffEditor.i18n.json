@@ -11,6 +11,5 @@
 	"editableEditorAriaLabel": "텍스트 파일 비교 편집기입니다.",
 	"navigate.next.label": "다음 변경 내용",
 	"navigate.prev.label": "이전 변경 내용",
-	"inlineDiffLabel": "인라인 보기로 전환",
-	"sideBySideDiffLabel": "세로 정렬 보기로 전환"
+	"toggleIgnoreTrimWhitespace.label": "자르기 공백 무시"
 }

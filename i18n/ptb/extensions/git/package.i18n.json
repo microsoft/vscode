@@ -54,12 +54,12 @@
 	"command.stashPopLatest": "Pop mais recente Stash",
 	"config.enabled": "Se o git estiver habilitado",
 	"config.path": "Caminho para o executável do git",
+	"config.autoRepositoryDetection": "Se os repositórios devem ser detectados automaticamente",
 	"config.autorefresh": "Se a atualização automática estiver habilitada",
 	"config.autofetch": "Se a recuperação automática estiver habilitada",
 	"config.enableLongCommitWarning": "Se mensagens longas de confirmação devem ter aviso",
 	"config.confirmSync": "Confirmar antes de sincronizar repositórios git",
 	"config.countBadge": "Controla o contador de distintivos do git. 'todos' considera todas as alterações. 'rastreado' considera apenas as alterações controladas. 'desligado' desliga o contador.",
-	"config.checkoutType": "Controla quais tipos de ramos são listados quando executando `Checkout para... `. `todos` mostra todas as referências, `local` mostra apenas os ramos locais, `etiqueta` mostra apenas etiquetas e `remoto` mostra apenas os ramos remotos.",
 	"config.ignoreLegacyWarning": "Ignora o aviso de Git legado",
 	"config.ignoreMissingGitWarning": "Ignora o aviso quando Git não existir.",
 	"config.ignoreLimitWarning": "Ignora o aviso quando houver muitas alterações em um repositório",
@@ -72,5 +72,6 @@
 	"colors.deleted": "Cor para recursos excluídos.",
 	"colors.untracked": "Cor para recursos não controlados.",
 	"colors.ignored": "Cor para recursos ignorados.",
-	"colors.conflict": "Cor para recursos com conflitos."
+	"colors.conflict": "Cor para recursos com conflitos.",
+	"colors.submodule": "Cor para recursos de sub-módulos."
 }

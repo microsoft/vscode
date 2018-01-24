@@ -118,12 +118,6 @@ export class TabsTitleControl extends TitleControl {
 		return this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 	}
 
-	public setContext(group: IEditorGroup): void {
-		super.setContext(group);
-
-		this.editorActionsToolbar.context = { group };
-	}
-
 	public create(parent: HTMLElement): void {
 		super.create(parent);
 
@@ -642,7 +636,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			const { editor, position } = this.toTabContext(index);
-			if (!this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
+			if (!this.isTabActionBar(((e as GestureEvent).initialTarget || e.target || e.srcElement) as HTMLElement)) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
 

@@ -12,7 +12,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { IFileStat, isParent } from 'vs/platform/files/common/files';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
+import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
 
@@ -73,17 +73,15 @@ export class FileStat implements IFileStat {
 	public mtime: number;
 	public etag: string;
 	private _isDirectory: boolean;
-	public hasChildren: boolean;
 	public children: FileStat[];
 	public parent: FileStat;
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, hasChildren?: boolean, name: string = getPathLabel(resource), mtime?: number, etag?: string) {
+	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, name: string = getPathLabel(resource), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;
-		this.hasChildren = isDirectory && hasChildren;
 		this.etag = etag;
 		this.mtime = mtime;
 
@@ -123,7 +121,7 @@ export class FileStat implements IFileStat {
 	}
 
 	public static create(raw: IFileStat, root: FileStat, resolveTo?: URI[]): FileStat {
-		const stat = new FileStat(raw.resource, root, raw.isDirectory, raw.hasChildren, raw.name, raw.mtime, raw.etag);
+		const stat = new FileStat(raw.resource, root, raw.isDirectory, raw.name, raw.mtime, raw.etag);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -141,7 +139,6 @@ export class FileStat implements IFileStat {
 					const child = FileStat.create(raw.children[i], root, resolveTo);
 					child.parent = stat;
 					stat.children.push(child);
-					stat.hasChildren = stat.children.length > 0;
 				}
 			}
 		}
@@ -169,7 +166,6 @@ export class FileStat implements IFileStat {
 		local.resource = disk.resource;
 		local.name = disk.name;
 		local.isDirectory = disk.isDirectory;
-		local.hasChildren = disk.isDirectory && disk.hasChildren;
 		local.mtime = disk.mtime;
 		local.isDirectoryResolved = disk.isDirectoryResolved;
 
@@ -217,7 +213,6 @@ export class FileStat implements IFileStat {
 		child.updateResource(false);
 
 		this.children.push(child);
-		this.hasChildren = this.children.length > 0;
 	}
 
 	/**
@@ -230,8 +225,6 @@ export class FileStat implements IFileStat {
 				break;
 			}
 		}
-
-		this.hasChildren = this.children.length > 0;
 	}
 
 	/**
@@ -256,10 +249,9 @@ export class FileStat implements IFileStat {
 
 	private updateResource(recursive: boolean): void {
 		this.resource = this.parent.resource.with({ path: paths.join(this.parent.resource.path, this.name) });
-		// this.resource = URI.file(paths.join(this.parent.resource.fsPath, this.name));
 
 		if (recursive) {
-			if (this.isDirectory && this.hasChildren && this.children) {
+			if (this.isDirectory && this.children) {
 				this.children.forEach((child: FileStat) => {
 					child.updateResource(true);
 				});
@@ -293,7 +285,7 @@ export class FileStat implements IFileStat {
 		}
 
 		// Return if not having any children
-		if (!this.hasChildren) {
+		if (!this.children) {
 			return null;
 		}
 
@@ -322,7 +314,7 @@ export class NewStatPlaceholder extends FileStat {
 	private directoryPlaceholder: boolean;
 
 	constructor(isDirectory: boolean, root: FileStat) {
-		super(URI.file(''), root, false, false, '');
+		super(URI.file(''), root, false, '');
 
 		this.id = NewStatPlaceholder.ID++;
 		this.isDirectoryResolved = isDirectory;
@@ -335,7 +327,6 @@ export class NewStatPlaceholder extends FileStat {
 		this.isDirectoryResolved = void 0;
 		this.name = void 0;
 		this.isDirectory = void 0;
-		this.hasChildren = void 0;
 		this.mtime = void 0;
 	}
 
@@ -374,24 +365,22 @@ export class NewStatPlaceholder extends FileStat {
 		child.parent = parent;
 		parent.children.push(child);
 
-		parent.hasChildren = parent.children.length > 0;
-
 		return child;
 	}
 }
 
-export class OpenEditor {
+export class OpenEditor implements IEditorIdentifier {
 
-	constructor(private editor: IEditorInput, private group: IEditorGroup) {
+	constructor(private _editor: IEditorInput, private _group: IEditorGroup) {
 		// noop
 	}
 
-	public get editorInput() {
-		return this.editor;
+	public get editor() {
+		return this._editor;
 	}
 
-	public get editorGroup() {
-		return this.group;
+	public get group() {
+		return this._group;
 	}
 
 	public getId(): string {

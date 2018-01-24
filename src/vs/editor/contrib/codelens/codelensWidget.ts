@@ -13,14 +13,14 @@ import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeLensSymbol, Command } from 'vs/editor/common/modes';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeLensData } from './codelens';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
 
@@ -181,7 +181,7 @@ export interface IDecorationIdCallback {
 export class CodeLensHelper {
 
 	private _removeDecorations: string[];
-	private _addDecorations: editorCommon.IModelDeltaDecoration[];
+	private _addDecorations: IModelDeltaDecoration[];
 	private _addDecorationsCallbacks: IDecorationIdCallback[];
 
 	constructor() {
@@ -190,7 +190,7 @@ export class CodeLensHelper {
 		this._addDecorationsCallbacks = [];
 	}
 
-	addDecoration(decoration: editorCommon.IModelDeltaDecoration, callback: IDecorationIdCallback): void {
+	addDecoration(decoration: IModelDeltaDecoration, callback: IDecorationIdCallback): void {
 		this._addDecorations.push(decoration);
 		this._addDecorationsCallbacks.push(callback);
 	}
@@ -199,7 +199,7 @@ export class CodeLensHelper {
 		this._removeDecorations.push(decorationId);
 	}
 
-	commit(changeAccessor: editorCommon.IModelDecorationsChangeAccessor): void {
+	commit(changeAccessor: IModelDecorationsChangeAccessor): void {
 		var resultingDecorations = changeAccessor.deltaDecorations(this._removeDecorations, this._addDecorations);
 		for (let i = 0, len = resultingDecorations.length; i < len; i++) {
 			this._addDecorationsCallbacks[i](resultingDecorations[i]);
@@ -285,7 +285,7 @@ export class CodeLens {
 		});
 	}
 
-	computeIfNecessary(model: editorCommon.IModel): ICodeLensData[] {
+	computeIfNecessary(model: ITextModel): ICodeLensData[] {
 		this._contentWidget.updateVisibility(); // trigger the fade in
 		if (!this._contentWidget.isVisible()) {
 			return null;

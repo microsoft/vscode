@@ -7,7 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { FindMatch, EndOfLinePreference } from 'vs/editor/common/model';
 import { CharCode } from 'vs/base/common/charCode';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { getMapForWordSeparators, WordCharacterClassifier, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
@@ -136,6 +136,23 @@ export class TextModelSearch {
 		}
 
 		if (searchData.regex.multiline) {
+			if (searchData.regex.source === '\\n') {
+				// Fast path for searching for EOL
+				let result: FindMatch[] = [], resultLen = 0;
+				for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber < lineCount; lineNumber++) {
+					const range = new Range(lineNumber, model.getLineMaxColumn(lineNumber), lineNumber + 1, 1);
+					if (captureMatches) {
+						result[resultLen++] = new FindMatch(range, null);
+					} else {
+						result[resultLen++] = new FindMatch(range, ['\n']);
+					}
+
+					if (resultLen >= limitResultCount) {
+						break;
+					}
+				}
+				return result;
+			}
 			return this._doFindMatchesMultiline(model, searchRange, new Searcher(searchData.wordSeparators, searchData.regex), captureMatches, limitResultCount);
 		}
 		return this._doFindMatchesLineByLine(model, searchRange, searchData, captureMatches, limitResultCount);

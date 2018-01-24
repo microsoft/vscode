@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/1d2625adfc812f02e7dd5e7b06a859b9ef2a2de2",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/8b44958a27860957872cc6f628d843a71686af63",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"fileTypes": [
@@ -110,35 +110,35 @@
 				},
 				{
 					"name": "keyword.control.trycatch.js",
-					"match": "(?<!\\.|\\$)\\b(catch|finally|throw|try)\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(catch|finally|throw|try)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.control.loop.js",
-					"match": "(?<!\\.|\\$)\\b(break|continue|do|goto|while)\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(break|continue|do|goto|while)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.control.flow.js",
-					"match": "(?<!\\.|\\$)\\b(return)\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(return)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.control.switch.js",
-					"match": "(?<!\\.|\\$)\\b(case|default|switch)\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(case|default|switch)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.control.conditional.js",
-					"match": "(?<!\\.|\\$)\\b(else|if)\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(else|if)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.control.with.js",
-					"match": "(?<!\\.|\\$)\\b(with)\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(with)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.other.debugger.js",
-					"match": "(?<!\\.|\\$)\\b(debugger)\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(debugger)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "storage.modifier.js",
-					"match": "(?<!\\.|\\$)\\b(declare)\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(declare)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				}
 			]
 		},
@@ -222,7 +222,7 @@
 		},
 		"decorator": {
 			"name": "meta.decorator.js",
-			"begin": "(?<!\\.|\\$)\\@",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))\\@",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.decorator.js"
@@ -237,7 +237,7 @@
 		},
 		"var-expr": {
 			"name": "meta.var.expr.js",
-			"begin": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?\\b(var|let|const(?!\\s+enum\\b))\\b(?!\\$|\\.)",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(\\bexport)\\s+)?\\b(var|let|const(?!\\s+enum\\b))(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.export.js"
@@ -526,7 +526,7 @@
 					}
 				},
 				{
-					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)(?:(this)|([_$[:alpha:]][_$[:alnum:]]*))\\s*(\\??)(?=\\s*\n# function assignment |\n(=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?                                                           # typeparameters\n  \\(\\s*([_$[:alpha:]\\{\\[]([^()]|\\((\\s*[^()]*)?\\))*)?\\)                          # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n)) |\n# typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>\n(:\\s*(\n  (<) |\n  ([(]\\s*(\n    ([)]) |\n    (\\.\\.\\.) |\n    ([_$[:alnum:]]+\\s*(\n      ([:,?=])|\n      ([)]\\s*=>)\n    ))\n  ))\n)))",
+					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(this)|([_$[:alpha:]][_$[:alnum:]]*))(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))\\s*(\\??)(?=\\s*\n# function assignment |\n(=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?                                                           # typeparameters\n  \\(\\s*([_$[:alpha:]\\{\\[]([^()]|\\((\\s*[^()]*)?\\))*)?\\)                          # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n)) |\n# typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>\n(:\\s*(\n  (<) |\n  ([(]\\s*(\n    ([)]) |\n    (\\.\\.\\.) |\n    ([_$[:alnum:]]+\\s*(\n      ([:,?=])|\n      ([)]\\s*=>)\n    ))\n  ))\n)))",
 					"captures": {
 						"1": {
 							"name": "storage.modifier.js"
@@ -546,7 +546,7 @@
 					}
 				},
 				{
-					"match": "(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)(?:((?<!\\.|\\$)\\bthis\\b(?!\\.|\\$))|([_$[:alpha:]][_$[:alnum:]]*))\\s*(\\??)",
+					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(this)|([_$[:alpha:]][_$[:alnum:]]*))(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))\\s*(\\??)",
 					"captures": {
 						"1": {
 							"name": "storage.modifier.js"
@@ -724,7 +724,7 @@
 		},
 		"field-declaration": {
 			"name": "meta.field.declaration.js",
-			"begin": "(?<!\\()(?:(?<!\\.|\\$)\\b(readonly)\\s+)?(?=(([_$[:alpha:]][_$[:alnum:]]*)|(\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\?\\s*)?(=|:))",
+			"begin": "(?<!\\()(?:(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(readonly)\\s+)?(?=(([_$[:alpha:]][_$[:alnum:]]*)|(\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\?\\s*)?(=|:))",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.js"
@@ -801,7 +801,7 @@
 		},
 		"function-declaration": {
 			"name": "meta.function.js",
-			"begin": "(?<!\\.|\\$)\\b(?:(export)\\s+)?(?:(async)\\s+)?(function\\b)(?:\\s*(\\*))?(?:(?:\\s+|(?<=\\*))([_$[:alpha:]][_$[:alnum:]]*))?\\s*",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(export)\\s+)?(?:(async)\\s+)?(function\\b)(?:\\s*(\\*))?(?:(?:\\s+|(?<=\\*))([_$[:alpha:]][_$[:alnum:]]*))?\\s*",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.export.js"
@@ -828,7 +828,7 @@
 		},
 		"function-expression": {
 			"name": "meta.function.expression.js",
-			"begin": "(?<!\\.|\\$)\\b(?:(async)\\s+)?(function\\b)(?:\\s*(\\*))?(?:(?:\\s+|(?<=\\*))([_$[:alpha:]][_$[:alnum:]]*))?\\s*",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(async)\\s+)?(function\\b)(?:\\s*(\\*))?(?:(?:\\s+|(?<=\\*))([_$[:alpha:]][_$[:alnum:]]*))?\\s*",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.async.js"
@@ -873,7 +873,7 @@
 			"patterns": [
 				{
 					"name": "meta.method.declaration.js",
-					"begin": "(?<!\\.|\\$)(?:\\b(public|private|protected)\\s+)?(?:\\b(abstract)\\s+)?(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))\\s*[\\(\\<])",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:\\b(public|private|protected)\\s+)?(?:\\b(abstract)\\s+)?(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))\\s*[\\(\\<])",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.js"
@@ -903,7 +903,7 @@
 				},
 				{
 					"name": "meta.method.declaration.js",
-					"begin": "(?<!\\.|\\$)(?:\\b(public|private|protected)\\s+)?(?:\\b(abstract)\\s+)?(?:\\b(async)\\s+)?(?:(?:\\b(?:(new)|(constructor))\\b(?!\\$|\\.|:))|(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))?\\s*[\\(\\<]))",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:\\b(public|private|protected)\\s+)?(?:\\b(abstract)\\s+)?(?:\\b(async)\\s+)?(?:(?:\\b(?:(new)|(constructor))\\b(?!:)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.)))|(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))?\\s*[\\(\\<]))",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.js"
@@ -938,7 +938,7 @@
 		},
 		"object-literal-method-declaration": {
 			"name": "meta.method.declaration.js",
-			"begin": "(?<!\\.|\\$)(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))\\s*[\\(\\<])",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))\\s*[\\(\\<])",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.async.js"
@@ -959,7 +959,7 @@
 					"include": "#function-body"
 				},
 				{
-					"begin": "(?<!\\.|\\$)(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))\\s*[\\(\\<])",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:\\b(async)\\s+)?(?:\\b(get|set)\\s+)?(?:(\\*)\\s*)?(?=((([_$[:alpha:]][_$[:alnum:]]*)|(\\'([^\\'\\\\]|\\\\\\'|\\\\)*\\')|(\\\"([^\\\"\\\\]|\\\\\\\"|\\\\)*\\\")|(\\[([^\\[\\]]|\\[[^\\[\\]]*\\])+\\]))\\s*(\\??))\\s*[\\(\\<])",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.async.js"
@@ -1004,7 +1004,7 @@
 			"patterns": [
 				{
 					"name": "meta.arrow.js",
-					"match": "(?:(?<!\\.|\\$)(\\basync)\\s+)?([_$[:alpha:]][_$[:alnum:]]*)\\s*(?==>)",
+					"match": "(?:(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(\\basync)\\s+)?([_$[:alpha:]][_$[:alnum:]]*)\\s*(?==>)",
 					"captures": {
 						"1": {
 							"name": "storage.modifier.async.js"
@@ -1016,7 +1016,7 @@
 				},
 				{
 					"name": "meta.arrow.js",
-					"begin": "(?x) (?:\n  (?<!\\.|\\$)(\\basync)\n)? ((?<![})!\\]])\\s*\n  (?=\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?                                                           # typeparameters\n  \\(\\s*([_$[:alpha:]\\{\\[]([^()]|\\((\\s*[^()]*)?\\))*)?\\)                          # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  )\n)",
+					"begin": "(?x) (?:\n  (?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(\\basync)\n)? ((?<![})!\\]])\\s*\n  (?=\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?                                                           # typeparameters\n  \\(\\s*([_$[:alpha:]\\{\\[]([^()]|\\((\\s*[^()]*)?\\))*)?\\)                          # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  )\n)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.async.js"
@@ -1060,7 +1060,7 @@
 		},
 		"indexer-declaration": {
 			"name": "meta.indexer.declaration.js",
-			"begin": "(?:(?<!\\.|\\$)\\b(readonly)\\s*)?(\\[)\\s*([_$[:alpha:]][_$[:alnum:]]*)\\s*(?=:)",
+			"begin": "(?:(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(readonly)\\s*)?(\\[)\\s*([_$[:alpha:]][_$[:alnum:]]*)\\s*(?=:)",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.js"
@@ -1089,7 +1089,7 @@
 		},
 		"indexer-mapped-type-declaration": {
 			"name": "meta.indexer.mappedtype.declaration.js",
-			"begin": "(?:(?<!\\.|\\$)\\b(readonly)\\s*)?(\\[)\\s*([_$[:alpha:]][_$[:alnum:]]*)\\s+(in)\\s+",
+			"begin": "(?:(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(readonly)\\s*)?(\\[)\\s*([_$[:alpha:]][_$[:alnum:]]*)\\s+(in)\\s+",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.js"
@@ -1160,7 +1160,7 @@
 		},
 		"class-declaration": {
 			"name": "meta.class.js",
-			"begin": "(?<!\\.|\\$)\\b(?:(export)\\s+)?\\b(?:(abstract)\\s+)?\\b(class)\\b(?=\\s+|/[/*])",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(export)\\s+)?\\b(?:(abstract)\\s+)?\\b(class)\\b(?=\\s+|/[/*])",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.export.js"
@@ -1181,7 +1181,7 @@
 		},
 		"class-expression": {
 			"name": "meta.class.js",
-			"begin": "(?<!\\.|\\$)\\b(class)\\b(?=\\s+|[<{]|/[/*])",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(class)\\b(?=\\s+|[<{]|/[/*])",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.type.class.js"
@@ -1220,7 +1220,7 @@
 		},
 		"interface-declaration": {
 			"name": "meta.interface.js",
-			"begin": "(?<!\\.|\\$)\\b(?:(export)\\s+)?\\b(?:(abstract)\\s+)?\\b(interface)\\b(?=\\s+|/[/*])",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(export)\\s+)?\\b(?:(abstract)\\s+)?\\b(interface)\\b(?=\\s+|/[/*])",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.export.js"
@@ -1257,7 +1257,7 @@
 			]
 		},
 		"class-or-interface-heritage": {
-			"begin": "(?<!\\.|\\$)(?:\\b(extends|implements)\\b)(?!\\$|\\.)",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:\\b(extends|implements)\\b)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.js"
@@ -1278,13 +1278,16 @@
 					"include": "#expressionWithoutIdentifiers"
 				},
 				{
-					"match": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\.)(?=\\s*[_$[:alpha:]][_$[:alnum:]]*(\\s*\\.\\s*[_$[:alpha:]][_$[:alnum:]]*)*\\s*)",
+					"match": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))(?=\\s*[_$[:alpha:]][_$[:alnum:]]*(\\s*\\??\\.\\s*[_$[:alpha:]][_$[:alnum:]]*)*\\s*)",
 					"captures": {
 						"1": {
 							"name": "entity.name.type.module.js"
 						},
 						"2": {
 							"name": "punctuation.accessor.js"
+						},
+						"3": {
+							"name": "punctuation.accessor.optional.js"
 						}
 					}
 				},
@@ -1364,15 +1367,15 @@
 		},
 		"access-modifier": {
 			"name": "storage.modifier.js",
-			"match": "(?<!\\.|\\$)\\b(abstract|public|protected|private|readonly|static)\\b(?!\\$|\\.)"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(abstract|public|protected|private|readonly|static)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 		},
 		"property-accessor": {
 			"name": "storage.type.property.js",
-			"match": "(?<!\\.|\\$)\\b(get|set)\\b(?!\\$|\\.)"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(get|set)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 		},
 		"enum-declaration": {
 			"name": "meta.enum.declaration.js",
-			"begin": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?(?:\\b(const)\\s+)?\\b(enum)\\s+([_$[:alpha:]][_$[:alnum:]]*)",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(\\bexport)\\s+)?(?:\\b(const)\\s+)?\\b(enum)\\s+([_$[:alpha:]][_$[:alnum:]]*)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.export.js"
@@ -1453,7 +1456,7 @@
 		},
 		"namespace-declaration": {
 			"name": "meta.namespace.declaration.js",
-			"begin": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?\\b(namespace|module)\\s+(?=[_$[:alpha:]\"'`])",
+			"begin": "(?:(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(\\bexport)\\s+)?\\b(namespace|module)\\s+(?=[_$[:alpha:]\"'`]))",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.export.js"
@@ -1484,7 +1487,7 @@
 		},
 		"type-alias-declaration": {
 			"name": "meta.type.declaration.js",
-			"begin": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?\\b(type)\\b\\s+([_$[:alpha:]][_$[:alnum:]]*)\\s*",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(\\bexport)\\s+)?\\b(type)\\b\\s+([_$[:alpha:]][_$[:alnum:]]*)\\s*",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.export.js"
@@ -1521,7 +1524,7 @@
 			"patterns": [
 				{
 					"name": "meta.import-equals.external.js",
-					"begin": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?\\b(import)\\s+([_$[:alpha:]][_$[:alnum:]]*)\\s*(=)\\s*(require)\\s*(\\()",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(\\bexport)\\s+)?\\b(import)\\s+([_$[:alpha:]][_$[:alnum:]]*)\\s*(=)\\s*(require)\\s*(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.export.js"
@@ -1559,7 +1562,7 @@
 				},
 				{
 					"name": "meta.import-equals.internal.js",
-					"begin": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?\\b(import)\\s+([_$[:alpha:]][_$[:alnum:]]*)\\s*(=)\\s*(?!require\\b)",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(\\bexport)\\s+)?\\b(import)\\s+([_$[:alpha:]][_$[:alnum:]]*)\\s*(=)\\s*(?!require\\b)",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.export.js"
@@ -1580,13 +1583,16 @@
 							"include": "#comment"
 						},
 						{
-							"match": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\.)",
+							"match": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))",
 							"captures": {
 								"1": {
 									"name": "entity.name.type.module.js"
 								},
 								"2": {
 									"name": "punctuation.accessor.js"
+								},
+								"3": {
+									"name": "punctuation.accessor.optional.js"
 								}
 							}
 						},
@@ -1600,7 +1606,7 @@
 		},
 		"import-declaration": {
 			"name": "meta.import.js",
-			"begin": "(?<!\\.|\\$)(?:(\\bexport)\\s+)?\\b(import)(?!(\\s*[:\\(])|(\\$|\\.))\\b",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(\\bexport)\\s+)?\\b(import)(?!\\s*[:\\(])(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.export.js"
@@ -1619,7 +1625,7 @@
 		"export-declaration": {
 			"patterns": [
 				{
-					"match": "(?<!\\.|\\$)\\b(export)\\s+(as)\\s+(namespace)\\s+([_$[:alpha:]][_$[:alnum:]]*)",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(export)\\s+(as)\\s+(namespace)\\s+([_$[:alpha:]][_$[:alnum:]]*)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.export.js"
@@ -1637,7 +1643,7 @@
 				},
 				{
 					"name": "meta.export.default.js",
-					"begin": "(?<!\\.|\\$)\\b(export)(?:(?:\\s*(=))|(?:\\s+(default)(?=\\s+)))",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(export)(?:(?:\\s*(=))|(?:\\s+(default)(?=\\s+)))",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.export.js"
@@ -1658,7 +1664,7 @@
 				},
 				{
 					"name": "meta.export.js",
-					"begin": "(?<!\\.|\\$)\\b(export)(?!(\\s*:)|(\\$))\\b",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(export)(?!\\s*:)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))",
 					"beginCaptures": {
 						"0": {
 							"name": "keyword.control.export.js"
@@ -1719,7 +1725,7 @@
 					"include": "#comment"
 				},
 				{
-					"match": "(?<!\\.|\\$)(?:(\\bdefault)|(\\*)|(\\b[_$[:alpha:]][_$[:alnum:]]*))\\s+(as)\\s+(\\b[_$[:alpha:]][_$[:alnum:]]*)",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(\\bdefault)|(\\*)|(\\b[_$[:alpha:]][_$[:alnum:]]*))\\s+(as)\\s+(\\b[_$[:alpha:]][_$[:alnum:]]*)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.default.js"
@@ -1757,7 +1763,7 @@
 		},
 		"switch-statement": {
 			"name": "switch-statement.expr.js",
-			"begin": "(?<!\\.|\\$)(?=\\bswitch\\s*\\()",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?=\\bswitch\\s*\\()",
 			"end": "\\}",
 			"endCaptures": {
 				"0": {
@@ -1767,7 +1773,7 @@
 			"patterns": [
 				{
 					"name": "switch-expression.expr.js",
-					"begin": "(?<!\\.|\\$)\\b(switch)\\s*(\\()",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(switch)\\s*(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.switch.js"
@@ -1800,7 +1806,7 @@
 					"patterns": [
 						{
 							"name": "case-clause.expr.js",
-							"begin": "(?<!\\.|\\$)\\b(case|default(?=:))\\b(?!\\$|\\.)",
+							"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(case|default(?=:))(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))",
 							"beginCaptures": {
 								"1": {
 									"name": "keyword.control.switch.js"
@@ -1826,7 +1832,7 @@
 			]
 		},
 		"for-loop": {
-			"begin": "(?<!\\.|\\$)\\b(for)(?:\\s+(await))?\\s*(\\()",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(for)(?:\\s+(await))?\\s*(\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.loop.js"
@@ -2032,9 +2038,9 @@
 			]
 		},
 		"ternary-expression": {
-			"begin": "(\\?)",
+			"begin": "(?!\\?\\.\\s*[^[:digit:]])(\\?)",
 			"beginCaptures": {
-				"0": {
+				"1": {
 					"name": "keyword.operator.ternary.js"
 				}
 			},
@@ -2051,13 +2057,13 @@
 			]
 		},
 		"function-call": {
-			"begin": "(?=(([_$[:alpha:]][_$[:alnum:]]*\\s*\\.\\s*)*|(\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*)\\s*(<\\s*(([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))|(\\'[^\\']*\\')|(\\\"[^\\\"]*\\\")|(\\`[^\\`]*\\`))([^<>\\(]|(\\([^\\(\\)]*\\))|\\<\\s*(([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))|(\\'[^\\']*\\')|(\\\"[^\\\"]*\\\")|(\\`[^\\`]*\\`))([^<>\\(]|(\\([^\\(\\)]*\\)))*\\>)*>\\s*)?\\()",
-			"end": "(?<=\\))(?!(([_$[:alpha:]][_$[:alnum:]]*\\s*\\.\\s*)*|(\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*)\\s*(<\\s*(([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))|(\\'[^\\']*\\')|(\\\"[^\\\"]*\\\")|(\\`[^\\`]*\\`))([^<>\\(]|(\\([^\\(\\)]*\\))|\\<\\s*(([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))|(\\'[^\\']*\\')|(\\\"[^\\\"]*\\\")|(\\`[^\\`]*\\`))([^<>\\(]|(\\([^\\(\\)]*\\)))*\\>)*>\\s*)?\\()",
+			"begin": "(?=(([_$[:alpha:]][_$[:alnum:]]*\\s*\\??\\.\\s*)*|(\\??\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\?\\.\\s*)?(<\\s*(([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))|(\\'[^\\']*\\')|(\\\"[^\\\"]*\\\")|(\\`[^\\`]*\\`))([^<>\\(]|(\\([^\\(\\)]*\\))|\\<\\s*(([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))|(\\'[^\\']*\\')|(\\\"[^\\\"]*\\\")|(\\`[^\\`]*\\`))([^<>\\(]|(\\([^\\(\\)]*\\)))*\\>)*>\\s*)?\\()",
+			"end": "(?<=\\))(?!(([_$[:alpha:]][_$[:alnum:]]*\\s*\\??\\.\\s*)*|(\\??\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\?\\.\\s*)?(<\\s*(([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))|(\\'[^\\']*\\')|(\\\"[^\\\"]*\\\")|(\\`[^\\`]*\\`))([^<>\\(]|(\\([^\\(\\)]*\\))|\\<\\s*(([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))|(\\'[^\\']*\\')|(\\\"[^\\\"]*\\\")|(\\`[^\\`]*\\`))([^<>\\(]|(\\([^\\(\\)]*\\)))*\\>)*>\\s*)?\\()",
 			"patterns": [
 				{
 					"name": "meta.function-call.js",
-					"begin": "(?=(([_$[:alpha:]][_$[:alnum:]]*\\s*\\.\\s*)*|(\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*))",
-					"end": "(?=\\s*(<\\s*(([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))|(\\'[^\\']*\\')|(\\\"[^\\\"]*\\\")|(\\`[^\\`]*\\`))([^<>\\(]|(\\([^\\(\\)]*\\))|\\<\\s*(([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))|(\\'[^\\']*\\')|(\\\"[^\\\"]*\\\")|(\\`[^\\`]*\\`))([^<>\\(]|(\\([^\\(\\)]*\\)))*\\>)*>\\s*)?\\()",
+					"begin": "(?=(([_$[:alpha:]][_$[:alnum:]]*\\s*\\??\\.\\s*)*|(\\??\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*))",
+					"end": "(?=\\s*(\\?\\.\\s*)?(<\\s*(([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))|(\\'[^\\']*\\')|(\\\"[^\\\"]*\\\")|(\\`[^\\`]*\\`))([^<>\\(]|(\\([^\\(\\)]*\\))|\\<\\s*(([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))|(\\'[^\\']*\\')|(\\\"[^\\\"]*\\\")|(\\`[^\\`]*\\`))([^<>\\(]|(\\([^\\(\\)]*\\)))*\\>)*>\\s*)?\\()",
 					"patterns": [
 						{
 							"include": "#literal"
@@ -2073,7 +2079,7 @@
 						},
 						{
 							"name": "keyword.operator.expression.import.js",
-							"match": "(?![\\.\\$])\\bimport(?=\\s*[\\(]\\s*[\\\"\\'\\`])"
+							"match": "(?:(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))import(?=\\s*[\\(]\\s*[\\\"\\'\\`]))"
 						},
 						{
 							"name": "entity.name.function.js",
@@ -2083,6 +2089,10 @@
 				},
 				{
 					"include": "#comment"
+				},
+				{
+					"name": "meta.function-call.js punctuation.accessor.optional.js",
+					"match": "\\?\\."
 				},
 				{
 					"name": "meta.type.parameters.js",
@@ -2114,13 +2124,13 @@
 		},
 		"new-expr": {
 			"name": "new.expr.js",
-			"begin": "(?<!\\.|\\$)\\b(new)\\b(?!\\$|\\.)",
+			"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(new)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.operator.new.js"
 				}
 			},
-			"end": "(?<=\\))|(?=[;),}\\]]|$|((?<!\\.|\\$)\\bnew\\b(?!\\$|\\.))|((?<!\\.|\\$)\\bfunction((\\s+[_$[:alpha:]][_$[:alnum:]]*)|(\\s*[\\(]))))",
+			"end": "(?<=\\))|(?=[;),}\\]]|$|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))new(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.)))|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))function((\\s+[_$[:alpha:]][_$[:alnum:]]*)|(\\s*[\\(]))))",
 			"patterns": [
 				{
 					"include": "#paren-expression"
@@ -2166,10 +2176,10 @@
 			"patterns": [
 				{
 					"name": "keyword.control.flow.js",
-					"match": "(?<!\\.|\\$)\\b(await)\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(await)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
-					"match": "(?<!\\.|\\$)\\b(yield)\\b(?!\\$|\\.)(?:\\s*(\\*))?",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(yield)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))(?:\\s*(\\*))?",
 					"captures": {
 						"1": {
 							"name": "keyword.control.flow.js"
@@ -2181,39 +2191,39 @@
 				},
 				{
 					"name": "keyword.operator.expression.delete.js",
-					"match": "(?<!\\.|\\$)\\bdelete\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))delete(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.operator.expression.in.js",
-					"match": "(?<!\\.|\\$)\\bin\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))in(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.operator.expression.of.js",
-					"match": "(?<!\\.|\\$)\\bof\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))of(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.operator.expression.instanceof.js",
-					"match": "(?<!\\.|\\$)\\binstanceof\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))instanceof(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.operator.new.js",
-					"match": "(?<!\\.|\\$)\\bnew\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))new(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"include": "#typeof-operator"
 				},
 				{
 					"name": "keyword.operator.expression.void.js",
-					"match": "(?<!\\.|\\$)\\bvoid\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))void(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
-					"begin": "(?<!\\.|\\$)\\b(as)\\s+",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(as)\\s+",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.as.js"
 						}
 					},
-					"end": "(?=$|^|[;,:})\\]]|((?<!\\.|\\$)\\b(as)\\s+))",
+					"end": "(?=$|^|[;,:})\\]]|((?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(as)\\s+))",
 					"patterns": [
 						{
 							"include": "#type"
@@ -2280,7 +2290,7 @@
 		},
 		"typeof-operator": {
 			"name": "keyword.operator.expression.typeof.js",
-			"match": "(?<!\\.|\\$)\\btypeof\\b(?!\\$|\\.)"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))typeof(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 		},
 		"literal": {
 			"patterns": [
@@ -2379,39 +2389,39 @@
 			"patterns": [
 				{
 					"name": "constant.language.boolean.true.js",
-					"match": "(?<!\\.|\\$)\\btrue\\b(?!\\$)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))true(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "constant.language.boolean.false.js",
-					"match": "(?<!\\.|\\$)\\bfalse\\b(?!\\$)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))false(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				}
 			]
 		},
 		"null-literal": {
 			"name": "constant.language.null.js",
-			"match": "(?<!\\.|\\$)\\bnull\\b(?!\\$)"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))null(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 		},
 		"this-literal": {
 			"name": "variable.language.this.js",
-			"match": "(?<!\\$)((?<=\\.\\.\\.)|(?<!\\.))\\bthis\\b(?!\\$)"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))this\\b(?!\\$)"
 		},
 		"super-literal": {
 			"name": "variable.language.super.js",
-			"match": "(?<!\\.|\\$)\\bsuper\\b(?!\\$)"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))super\\b(?!\\$)"
 		},
 		"undefined-literal": {
 			"name": "constant.language.undefined.js",
-			"match": "(?<!\\.|\\$)\\bundefined\\b(?!\\$)"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))undefined(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 		},
 		"numericConstant-literal": {
 			"patterns": [
 				{
 					"name": "constant.language.nan.js",
-					"match": "(?<!\\.|\\$)\\bNaN\\b(?!\\$)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))NaN(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "constant.language.infinity.js",
-					"match": "(?<!\\.|\\$)\\bInfinity\\b(?!\\$)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))Infinity(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				}
 			]
 		},
@@ -2419,22 +2429,22 @@
 			"patterns": [
 				{
 					"name": "variable.language.arguments.js",
-					"match": "(?<!\\.|\\$)\\b(arguments)\\b(?!\\$)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(arguments)\\b(?!\\$)"
 				},
 				{
 					"name": "support.class.builtin.js",
-					"match": "(?x)(?<!\\.|\\$)\\b(Array|ArrayBuffer|Atomics|Boolean|DataView|Date|Float32Array|Float64Array|Function|Generator\n  |GeneratorFunction|Int8Array|Int16Array|Int32Array|Intl|Map|Number|Object|Promise|Proxy\n  |Reflect|RegExp|Set|SharedArrayBuffer|SIMD|String|Symbol|TypedArray\n  |Uint8Array|Uint16Array|Uint32Array|Uint8ClampedArray|WeakMap|WeakSet)\\b(?!\\$)"
+					"match": "(?x)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(Array|ArrayBuffer|Atomics|Boolean|DataView|Date|Float32Array|Float64Array|Function|Generator\n  |GeneratorFunction|Int8Array|Int16Array|Int32Array|Intl|Map|Number|Object|Promise|Proxy\n  |Reflect|RegExp|Set|SharedArrayBuffer|SIMD|String|Symbol|TypedArray\n  |Uint8Array|Uint16Array|Uint32Array|Uint8ClampedArray|WeakMap|WeakSet)\\b(?!\\$)"
 				},
 				{
 					"name": "support.class.error.js",
-					"match": "(?<!\\.|\\$)\\b((Eval|Internal|Range|Reference|Syntax|Type|URI)?Error)\\b(?!\\$)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))((Eval|Internal|Range|Reference|Syntax|Type|URI)?Error)\\b(?!\\$)"
 				},
 				{
 					"name": "support.function.js",
-					"match": "(?x)(?<!\\.|\\$)\\b(clear(Interval|Timeout)|decodeURI|decodeURIComponent|encodeURI|encodeURIComponent|escape|eval|\n  isFinite|isNaN|parseFloat|parseInt|require|set(Interval|Timeout)|super|unescape|uneval)(?=\\s*\\()"
+					"match": "(?x)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(clear(Interval|Timeout)|decodeURI|decodeURIComponent|encodeURI|encodeURIComponent|escape|eval|\n  isFinite|isNaN|parseFloat|parseInt|require|set(Interval|Timeout)|super|unescape|uneval)(?=\\s*\\()"
 				},
 				{
-					"match": "(?x)(?<!\\.|\\$)\\b(Math)(?:\\s*(\\.)\\s*(?:\n  (abs|acos|acosh|asin|asinh|atan|atan2|atanh|cbrt|ceil|clz32|cos|cosh|exp|\n  expm1|floor|fround|hypot|imul|log|log10|log1p|log2|max|min|pow|random|\n  round|sign|sin|sinh|sqrt|tan|tanh|trunc)\n  |\n  (E|LN10|LN2|LOG10E|LOG2E|PI|SQRT1_2|SQRT2)))?\\b(?!\\$)",
+					"match": "(?x)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(Math)(?:\\s*(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))\\s*(?:\n  (abs|acos|acosh|asin|asinh|atan|atan2|atanh|cbrt|ceil|clz32|cos|cosh|exp|\n  expm1|floor|fround|hypot|imul|log|log10|log1p|log2|max|min|pow|random|\n  round|sign|sin|sinh|sqrt|tan|tanh|trunc)\n  |\n  (E|LN10|LN2|LOG10E|LOG2E|PI|SQRT1_2|SQRT2)))?\\b(?!\\$)",
 					"captures": {
 						"1": {
 							"name": "support.constant.math.js"
@@ -2443,15 +2453,18 @@
 							"name": "punctuation.accessor.js"
 						},
 						"3": {
-							"name": "support.function.math.js"
+							"name": "punctuation.accessor.optional.js"
 						},
 						"4": {
+							"name": "support.function.math.js"
+						},
+						"5": {
 							"name": "support.constant.property.math.js"
 						}
 					}
 				},
 				{
-					"match": "(?x)(?<!\\.|\\$)\\b(console)(?:\\s*(\\.)\\s*(\n  assert|clear|count|debug|dir|error|group|groupCollapsed|groupEnd|info|log\n  |profile|profileEnd|table|time|timeEnd|timeStamp|trace|warn))?\\b(?!\\$)",
+					"match": "(?x)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(console)(?:\\s*(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))\\s*(\n  assert|clear|count|debug|dir|error|group|groupCollapsed|groupEnd|info|log\n  |profile|profileEnd|table|time|timeEnd|timeStamp|trace|warn))?\\b(?!\\$)",
 					"captures": {
 						"1": {
 							"name": "support.class.console.js"
@@ -2460,12 +2473,15 @@
 							"name": "punctuation.accessor.js"
 						},
 						"3": {
+							"name": "punctuation.accessor.optional.js"
+						},
+						"4": {
 							"name": "support.function.console.js"
 						}
 					}
 				},
 				{
-					"match": "(?<!\\.|\\$)\\b(JSON)(?:\\s*(\\.)\\s*(parse|stringify))?\\b(?!\\$)",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(JSON)(?:\\s*(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))\\s*(parse|stringify))?\\b(?!\\$)",
 					"captures": {
 						"1": {
 							"name": "support.constant.json.js"
@@ -2474,26 +2490,32 @@
 							"name": "punctuation.accessor.js"
 						},
 						"3": {
+							"name": "punctuation.accessor.optional.js"
+						},
+						"4": {
 							"name": "support.function.json.js"
 						}
 					}
 				},
 				{
-					"match": "(?x) (\\.) \\s* (?:\n  (constructor|length|prototype|__proto__)\n  |\n  (EPSILON|MAX_SAFE_INTEGER|MAX_VALUE|MIN_SAFE_INTEGER|MIN_VALUE|NEGATIVE_INFINITY|POSITIVE_INFINITY))\\b(?!\\$)",
+					"match": "(?x) (?:(\\.)|(\\?\\.(?!\\s*[[:digit:]]))) \\s* (?:\n  (constructor|length|prototype|__proto__)\n  |\n  (EPSILON|MAX_SAFE_INTEGER|MAX_VALUE|MIN_SAFE_INTEGER|MIN_VALUE|NEGATIVE_INFINITY|POSITIVE_INFINITY))\\b(?!\\$)",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.js"
 						},
 						"2": {
-							"name": "support.variable.property.js"
+							"name": "punctuation.accessor.optional.js"
 						},
 						"3": {
+							"name": "support.variable.property.js"
+						},
+						"4": {
 							"name": "support.constant.js"
 						}
 					}
 				},
 				{
-					"match": "(?x) (?<!\\.|\\$) \\b (?:\n  (document|event|navigator|performance|screen|window)\n  |\n  (AnalyserNode|ArrayBufferView|Attr|AudioBuffer|AudioBufferSourceNode|AudioContext|AudioDestinationNode|AudioListener\n  |AudioNode|AudioParam|BatteryManager|BeforeUnloadEvent|BiquadFilterNode|Blob|BufferSource|ByteString|CSS|CSSConditionRule\n  |CSSCounterStyleRule|CSSGroupingRule|CSSMatrix|CSSMediaRule|CSSPageRule|CSSPrimitiveValue|CSSRule|CSSRuleList|CSSStyleDeclaration\n  |CSSStyleRule|CSSStyleSheet|CSSSupportsRule|CSSValue|CSSValueList|CanvasGradient|CanvasImageSource|CanvasPattern\n  |CanvasRenderingContext2D|ChannelMergerNode|ChannelSplitterNode|CharacterData|ChromeWorker|CloseEvent|Comment|CompositionEvent\n  |Console|ConvolverNode|Coordinates|Credential|CredentialsContainer|Crypto|CryptoKey|CustomEvent|DOMError|DOMException\n  |DOMHighResTimeStamp|DOMImplementation|DOMString|DOMStringList|DOMStringMap|DOMTimeStamp|DOMTokenList|DataTransfer\n  |DataTransferItem|DataTransferItemList|DedicatedWorkerGlobalScope|DelayNode|DeviceProximityEvent|DirectoryEntry\n  |DirectoryEntrySync|DirectoryReader|DirectoryReaderSync|Document|DocumentFragment|DocumentTouch|DocumentType|DragEvent\n  |DynamicsCompressorNode|Element|Entry|EntrySync|ErrorEvent|Event|EventListener|EventSource|EventTarget|FederatedCredential\n  |FetchEvent|File|FileEntry|FileEntrySync|FileException|FileList|FileReader|FileReaderSync|FileSystem|FileSystemSync\n  |FontFace|FormData|GainNode|Gamepad|GamepadButton|GamepadEvent|Geolocation|GlobalEventHandlers|HTMLAnchorElement\n  |HTMLAreaElement|HTMLAudioElement|HTMLBRElement|HTMLBaseElement|HTMLBodyElement|HTMLButtonElement|HTMLCanvasElement\n  |HTMLCollection|HTMLContentElement|HTMLDListElement|HTMLDataElement|HTMLDataListElement|HTMLDialogElement|HTMLDivElement\n  |HTMLDocument|HTMLElement|HTMLEmbedElement|HTMLFieldSetElement|HTMLFontElement|HTMLFormControlsCollection|HTMLFormElement\n  |HTMLHRElement|HTMLHeadElement|HTMLHeadingElement|HTMLHtmlElement|HTMLIFrameElement|HTMLImageElement|HTMLInputElement\n  |HTMLKeygenElement|HTMLLIElement|HTMLLabelElement|HTMLLegendElement|HTMLLinkElement|HTMLMapElement|HTMLMediaElement\n  |HTMLMetaElement|HTMLMeterElement|HTMLModElement|HTMLOListElement|HTMLObjectElement|HTMLOptGroupElement|HTMLOptionElement\n  |HTMLOptionsCollection|HTMLOutputElement|HTMLParagraphElement|HTMLParamElement|HTMLPreElement|HTMLProgressElement\n  |HTMLQuoteElement|HTMLScriptElement|HTMLSelectElement|HTMLShadowElement|HTMLSourceElement|HTMLSpanElement|HTMLStyleElement\n  |HTMLTableCaptionElement|HTMLTableCellElement|HTMLTableColElement|HTMLTableDataCellElement|HTMLTableElement|HTMLTableHeaderCellElement\n  |HTMLTableRowElement|HTMLTableSectionElement|HTMLTextAreaElement|HTMLTimeElement|HTMLTitleElement|HTMLTrackElement\n  |HTMLUListElement|HTMLUnknownElement|HTMLVideoElement|HashChangeEvent|History|IDBCursor|IDBCursorWithValue|IDBDatabase\n  |IDBEnvironment|IDBFactory|IDBIndex|IDBKeyRange|IDBMutableFile|IDBObjectStore|IDBOpenDBRequest|IDBRequest|IDBTransaction\n  |IDBVersionChangeEvent|IIRFilterNode|IdentityManager|ImageBitmap|ImageBitmapFactories|ImageData|Index|InputDeviceCapabilities\n  |InputEvent|InstallEvent|InstallTrigger|KeyboardEvent|LinkStyle|LocalFileSystem|LocalFileSystemSync|Location|MIDIAccess\n  |MIDIConnectionEvent|MIDIInput|MIDIInputMap|MIDIOutputMap|MediaElementAudioSourceNode|MediaError|MediaKeyMessageEvent\n  |MediaKeySession|MediaKeyStatusMap|MediaKeySystemAccess|MediaKeySystemConfiguration|MediaKeys|MediaRecorder|MediaStream\n  |MediaStreamAudioDestinationNode|MediaStreamAudioSourceNode|MessageChannel|MessageEvent|MessagePort|MouseEvent\n  |MutationObserver|MutationRecord|NamedNodeMap|Navigator|NavigatorConcurrentHardware|NavigatorGeolocation|NavigatorID\n  |NavigatorLanguage|NavigatorOnLine|Node|NodeFilter|NodeIterator|NodeList|NonDocumentTypeChildNode|Notification\n  |OfflineAudioCompletionEvent|OfflineAudioContext|OscillatorNode|PageTransitionEvent|PannerNode|ParentNode|PasswordCredential\n  |Path2D|PaymentAddress|PaymentRequest|PaymentResponse|Performance|PerformanceEntry|PerformanceFrameTiming|PerformanceMark\n  |PerformanceMeasure|PerformanceNavigation|PerformanceNavigationTiming|PerformanceObserver|PerformanceObserverEntryList\n  |PerformanceResourceTiming|PerformanceTiming|PeriodicSyncEvent|PeriodicWave|Plugin|Point|PointerEvent|PopStateEvent\n  |PortCollection|Position|PositionError|PositionOptions|PresentationConnectionClosedEvent|PresentationConnectionList\n  |PresentationReceiver|ProcessingInstruction|ProgressEvent|PromiseRejectionEvent|PushEvent|PushRegistrationManager\n  |RTCCertificate|RTCConfiguration|RTCPeerConnection|RTCSessionDescriptionCallback|RTCStatsReport|RadioNodeList|RandomSource\n  |Range|ReadableByteStream|RenderingContext|SVGAElement|SVGAngle|SVGAnimateColorElement|SVGAnimateElement|SVGAnimateMotionElement\n  |SVGAnimateTransformElement|SVGAnimatedAngle|SVGAnimatedBoolean|SVGAnimatedEnumeration|SVGAnimatedInteger|SVGAnimatedLength\n  |SVGAnimatedLengthList|SVGAnimatedNumber|SVGAnimatedNumberList|SVGAnimatedPoints|SVGAnimatedPreserveAspectRatio\n  |SVGAnimatedRect|SVGAnimatedString|SVGAnimatedTransformList|SVGAnimationElement|SVGCircleElement|SVGClipPathElement\n  |SVGCursorElement|SVGDefsElement|SVGDescElement|SVGElement|SVGEllipseElement|SVGEvent|SVGFilterElement|SVGFontElement\n  |SVGFontFaceElement|SVGFontFaceFormatElement|SVGFontFaceNameElement|SVGFontFaceSrcElement|SVGFontFaceUriElement\n  |SVGForeignObjectElement|SVGGElement|SVGGlyphElement|SVGGradientElement|SVGHKernElement|SVGImageElement|SVGLength\n  |SVGLengthList|SVGLineElement|SVGLinearGradientElement|SVGMPathElement|SVGMaskElement|SVGMatrix|SVGMissingGlyphElement\n  |SVGNumber|SVGNumberList|SVGPathElement|SVGPatternElement|SVGPoint|SVGPolygonElement|SVGPolylineElement|SVGPreserveAspectRatio\n  |SVGRadialGradientElement|SVGRect|SVGRectElement|SVGSVGElement|SVGScriptElement|SVGSetElement|SVGStopElement|SVGStringList\n  |SVGStylable|SVGStyleElement|SVGSwitchElement|SVGSymbolElement|SVGTRefElement|SVGTSpanElement|SVGTests|SVGTextElement\n  |SVGTextPositioningElement|SVGTitleElement|SVGTransform|SVGTransformList|SVGTransformable|SVGUseElement|SVGVKernElement\n  |SVGViewElement|ServiceWorker|ServiceWorkerContainer|ServiceWorkerGlobalScope|ServiceWorkerRegistration|ServiceWorkerState\n  |ShadowRoot|SharedWorker|SharedWorkerGlobalScope|SourceBufferList|StereoPannerNode|Storage|StorageEvent|StyleSheet\n  |StyleSheetList|SubtleCrypto|SyncEvent|Text|TextMetrics|TimeEvent|TimeRanges|Touch|TouchEvent|TouchList|Transferable\n  |TreeWalker|UIEvent|USVString|VRDisplayCapabilities|ValidityState|WaveShaperNode|WebGL|WebGLActiveInfo|WebGLBuffer\n  |WebGLContextEvent|WebGLFramebuffer|WebGLProgram|WebGLRenderbuffer|WebGLRenderingContext|WebGLShader|WebGLShaderPrecisionFormat\n  |WebGLTexture|WebGLTimerQueryEXT|WebGLTransformFeedback|WebGLUniformLocation|WebGLVertexArrayObject|WebGLVertexArrayObjectOES\n  |WebSocket|WebSockets|WebVTT|WheelEvent|Window|WindowBase64|WindowEventHandlers|WindowTimers|Worker|WorkerGlobalScope\n  |WorkerLocation|WorkerNavigator|XMLHttpRequest|XMLHttpRequestEventTarget|XMLSerializer|XPathExpression|XPathResult\n  |XSLTProcessor))\\b(?!\\$)",
+					"match": "(?x) (?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.)) \\b (?:\n  (document|event|navigator|performance|screen|window)\n  |\n  (AnalyserNode|ArrayBufferView|Attr|AudioBuffer|AudioBufferSourceNode|AudioContext|AudioDestinationNode|AudioListener\n  |AudioNode|AudioParam|BatteryManager|BeforeUnloadEvent|BiquadFilterNode|Blob|BufferSource|ByteString|CSS|CSSConditionRule\n  |CSSCounterStyleRule|CSSGroupingRule|CSSMatrix|CSSMediaRule|CSSPageRule|CSSPrimitiveValue|CSSRule|CSSRuleList|CSSStyleDeclaration\n  |CSSStyleRule|CSSStyleSheet|CSSSupportsRule|CSSValue|CSSValueList|CanvasGradient|CanvasImageSource|CanvasPattern\n  |CanvasRenderingContext2D|ChannelMergerNode|ChannelSplitterNode|CharacterData|ChromeWorker|CloseEvent|Comment|CompositionEvent\n  |Console|ConvolverNode|Coordinates|Credential|CredentialsContainer|Crypto|CryptoKey|CustomEvent|DOMError|DOMException\n  |DOMHighResTimeStamp|DOMImplementation|DOMString|DOMStringList|DOMStringMap|DOMTimeStamp|DOMTokenList|DataTransfer\n  |DataTransferItem|DataTransferItemList|DedicatedWorkerGlobalScope|DelayNode|DeviceProximityEvent|DirectoryEntry\n  |DirectoryEntrySync|DirectoryReader|DirectoryReaderSync|Document|DocumentFragment|DocumentTouch|DocumentType|DragEvent\n  |DynamicsCompressorNode|Element|Entry|EntrySync|ErrorEvent|Event|EventListener|EventSource|EventTarget|FederatedCredential\n  |FetchEvent|File|FileEntry|FileEntrySync|FileException|FileList|FileReader|FileReaderSync|FileSystem|FileSystemSync\n  |FontFace|FormData|GainNode|Gamepad|GamepadButton|GamepadEvent|Geolocation|GlobalEventHandlers|HTMLAnchorElement\n  |HTMLAreaElement|HTMLAudioElement|HTMLBRElement|HTMLBaseElement|HTMLBodyElement|HTMLButtonElement|HTMLCanvasElement\n  |HTMLCollection|HTMLContentElement|HTMLDListElement|HTMLDataElement|HTMLDataListElement|HTMLDialogElement|HTMLDivElement\n  |HTMLDocument|HTMLElement|HTMLEmbedElement|HTMLFieldSetElement|HTMLFontElement|HTMLFormControlsCollection|HTMLFormElement\n  |HTMLHRElement|HTMLHeadElement|HTMLHeadingElement|HTMLHtmlElement|HTMLIFrameElement|HTMLImageElement|HTMLInputElement\n  |HTMLKeygenElement|HTMLLIElement|HTMLLabelElement|HTMLLegendElement|HTMLLinkElement|HTMLMapElement|HTMLMediaElement\n  |HTMLMetaElement|HTMLMeterElement|HTMLModElement|HTMLOListElement|HTMLObjectElement|HTMLOptGroupElement|HTMLOptionElement\n  |HTMLOptionsCollection|HTMLOutputElement|HTMLParagraphElement|HTMLParamElement|HTMLPreElement|HTMLProgressElement\n  |HTMLQuoteElement|HTMLScriptElement|HTMLSelectElement|HTMLShadowElement|HTMLSourceElement|HTMLSpanElement|HTMLStyleElement\n  |HTMLTableCaptionElement|HTMLTableCellElement|HTMLTableColElement|HTMLTableDataCellElement|HTMLTableElement|HTMLTableHeaderCellElement\n  |HTMLTableRowElement|HTMLTableSectionElement|HTMLTextAreaElement|HTMLTimeElement|HTMLTitleElement|HTMLTrackElement\n  |HTMLUListElement|HTMLUnknownElement|HTMLVideoElement|HashChangeEvent|History|IDBCursor|IDBCursorWithValue|IDBDatabase\n  |IDBEnvironment|IDBFactory|IDBIndex|IDBKeyRange|IDBMutableFile|IDBObjectStore|IDBOpenDBRequest|IDBRequest|IDBTransaction\n  |IDBVersionChangeEvent|IIRFilterNode|IdentityManager|ImageBitmap|ImageBitmapFactories|ImageData|Index|InputDeviceCapabilities\n  |InputEvent|InstallEvent|InstallTrigger|KeyboardEvent|LinkStyle|LocalFileSystem|LocalFileSystemSync|Location|MIDIAccess\n  |MIDIConnectionEvent|MIDIInput|MIDIInputMap|MIDIOutputMap|MediaElementAudioSourceNode|MediaError|MediaKeyMessageEvent\n  |MediaKeySession|MediaKeyStatusMap|MediaKeySystemAccess|MediaKeySystemConfiguration|MediaKeys|MediaRecorder|MediaStream\n  |MediaStreamAudioDestinationNode|MediaStreamAudioSourceNode|MessageChannel|MessageEvent|MessagePort|MouseEvent\n  |MutationObserver|MutationRecord|NamedNodeMap|Navigator|NavigatorConcurrentHardware|NavigatorGeolocation|NavigatorID\n  |NavigatorLanguage|NavigatorOnLine|Node|NodeFilter|NodeIterator|NodeList|NonDocumentTypeChildNode|Notification\n  |OfflineAudioCompletionEvent|OfflineAudioContext|OscillatorNode|PageTransitionEvent|PannerNode|ParentNode|PasswordCredential\n  |Path2D|PaymentAddress|PaymentRequest|PaymentResponse|Performance|PerformanceEntry|PerformanceFrameTiming|PerformanceMark\n  |PerformanceMeasure|PerformanceNavigation|PerformanceNavigationTiming|PerformanceObserver|PerformanceObserverEntryList\n  |PerformanceResourceTiming|PerformanceTiming|PeriodicSyncEvent|PeriodicWave|Plugin|Point|PointerEvent|PopStateEvent\n  |PortCollection|Position|PositionError|PositionOptions|PresentationConnectionClosedEvent|PresentationConnectionList\n  |PresentationReceiver|ProcessingInstruction|ProgressEvent|PromiseRejectionEvent|PushEvent|PushRegistrationManager\n  |RTCCertificate|RTCConfiguration|RTCPeerConnection|RTCSessionDescriptionCallback|RTCStatsReport|RadioNodeList|RandomSource\n  |Range|ReadableByteStream|RenderingContext|SVGAElement|SVGAngle|SVGAnimateColorElement|SVGAnimateElement|SVGAnimateMotionElement\n  |SVGAnimateTransformElement|SVGAnimatedAngle|SVGAnimatedBoolean|SVGAnimatedEnumeration|SVGAnimatedInteger|SVGAnimatedLength\n  |SVGAnimatedLengthList|SVGAnimatedNumber|SVGAnimatedNumberList|SVGAnimatedPoints|SVGAnimatedPreserveAspectRatio\n  |SVGAnimatedRect|SVGAnimatedString|SVGAnimatedTransformList|SVGAnimationElement|SVGCircleElement|SVGClipPathElement\n  |SVGCursorElement|SVGDefsElement|SVGDescElement|SVGElement|SVGEllipseElement|SVGEvent|SVGFilterElement|SVGFontElement\n  |SVGFontFaceElement|SVGFontFaceFormatElement|SVGFontFaceNameElement|SVGFontFaceSrcElement|SVGFontFaceUriElement\n  |SVGForeignObjectElement|SVGGElement|SVGGlyphElement|SVGGradientElement|SVGHKernElement|SVGImageElement|SVGLength\n  |SVGLengthList|SVGLineElement|SVGLinearGradientElement|SVGMPathElement|SVGMaskElement|SVGMatrix|SVGMissingGlyphElement\n  |SVGNumber|SVGNumberList|SVGPathElement|SVGPatternElement|SVGPoint|SVGPolygonElement|SVGPolylineElement|SVGPreserveAspectRatio\n  |SVGRadialGradientElement|SVGRect|SVGRectElement|SVGSVGElement|SVGScriptElement|SVGSetElement|SVGStopElement|SVGStringList\n  |SVGStylable|SVGStyleElement|SVGSwitchElement|SVGSymbolElement|SVGTRefElement|SVGTSpanElement|SVGTests|SVGTextElement\n  |SVGTextPositioningElement|SVGTitleElement|SVGTransform|SVGTransformList|SVGTransformable|SVGUseElement|SVGVKernElement\n  |SVGViewElement|ServiceWorker|ServiceWorkerContainer|ServiceWorkerGlobalScope|ServiceWorkerRegistration|ServiceWorkerState\n  |ShadowRoot|SharedWorker|SharedWorkerGlobalScope|SourceBufferList|StereoPannerNode|Storage|StorageEvent|StyleSheet\n  |StyleSheetList|SubtleCrypto|SyncEvent|Text|TextMetrics|TimeEvent|TimeRanges|Touch|TouchEvent|TouchList|Transferable\n  |TreeWalker|UIEvent|USVString|VRDisplayCapabilities|ValidityState|WaveShaperNode|WebGL|WebGLActiveInfo|WebGLBuffer\n  |WebGLContextEvent|WebGLFramebuffer|WebGLProgram|WebGLRenderbuffer|WebGLRenderingContext|WebGLShader|WebGLShaderPrecisionFormat\n  |WebGLTexture|WebGLTimerQueryEXT|WebGLTransformFeedback|WebGLUniformLocation|WebGLVertexArrayObject|WebGLVertexArrayObjectOES\n  |WebSocket|WebSockets|WebVTT|WheelEvent|Window|WindowBase64|WindowEventHandlers|WindowTimers|Worker|WorkerGlobalScope\n  |WorkerLocation|WorkerNavigator|XMLHttpRequest|XMLHttpRequestEventTarget|XMLSerializer|XPathExpression|XPathResult\n  |XSLTProcessor))\\b(?!\\$)",
 					"captures": {
 						"1": {
 							"name": "support.variable.dom.js"
@@ -2504,25 +2526,28 @@
 					}
 				},
 				{
-					"match": "(?x) (\\.) \\s* (?:\n  (ATTRIBUTE_NODE|CDATA_SECTION_NODE|COMMENT_NODE|DOCUMENT_FRAGMENT_NODE|DOCUMENT_NODE|DOCUMENT_TYPE_NODE\n  |DOMSTRING_SIZE_ERR|ELEMENT_NODE|ENTITY_NODE|ENTITY_REFERENCE_NODE|HIERARCHY_REQUEST_ERR|INDEX_SIZE_ERR\n  |INUSE_ATTRIBUTE_ERR|INVALID_CHARACTER_ERR|NO_DATA_ALLOWED_ERR|NO_MODIFICATION_ALLOWED_ERR|NOT_FOUND_ERR\n  |NOT_SUPPORTED_ERR|NOTATION_NODE|PROCESSING_INSTRUCTION_NODE|TEXT_NODE|WRONG_DOCUMENT_ERR)\n  |\n  (_content|[xyz]|abbr|above|accept|acceptCharset|accessKey|action|align|[av]Link(?:color)?|all|alt|anchors|appCodeName\n  |appCore|applets|appMinorVersion|appName|appVersion|archive|areas|arguments|attributes|availHeight|availLeft|availTop\n  |availWidth|axis|background|backgroundColor|backgroundImage|below|bgColor|body|border|borderBottomWidth|borderColor\n  |borderLeftWidth|borderRightWidth|borderStyle|borderTopWidth|borderWidth|bottom|bufferDepth|callee|caller|caption\n  |cellPadding|cells|cellSpacing|ch|characterSet|charset|checked|childNodes|chOff|cite|classes|className|clear\n  |clientInformation|clip|clipBoardData|closed|code|codeBase|codeType|color|colorDepth|cols|colSpan|compact|complete\n  |components|content|controllers|cookie|cookieEnabled|cords|cpuClass|crypto|current|data|dateTime|declare|defaultCharset\n  |defaultChecked|defaultSelected|defaultStatus|defaultValue|defaultView|defer|description|dialogArguments|dialogHeight\n  |dialogLeft|dialogTop|dialogWidth|dir|directories|disabled|display|docmain|doctype|documentElement|elements|embeds\n  |enabledPlugin|encoding|enctype|entities|event|expando|external|face|fgColor|filename|firstChild|fontFamily|fontSize\n  |fontWeight|form|formName|forms|frame|frameBorder|frameElement|frames|hasFocus|hash|headers|height|history|host\n  |hostname|href|hreflang|hspace|htmlFor|httpEquiv|id|ids|ignoreCase|images|implementation|index|innerHeight|innerWidth\n  |input|isMap|label|lang|language|lastChild|lastIndex|lastMatch|lastModified|lastParen|layer[sXY]|left|leftContext\n  |lineHeight|link|linkColor|links|listStyleType|localName|location|locationbar|longDesc|lowsrc|lowSrc|marginBottom\n  |marginHeight|marginLeft|marginRight|marginTop|marginWidth|maxLength|media|menubar|method|mimeTypes|multiline|multiple\n  |name|nameProp|namespaces|namespaceURI|next|nextSibling|nodeName|nodeType|nodeValue|noHref|noResize|noShade|notationName\n  |notations|noWrap|object|offscreenBuffering|onLine|onreadystatechange|opener|opsProfile|options|oscpu|outerHeight\n  |outerWidth|ownerDocument|paddingBottom|paddingLeft|paddingRight|paddingTop|page[XY]|page[XY]Offset|parent|parentLayer\n  |parentNode|parentWindow|pathname|personalbar|pixelDepth|pkcs11|platform|plugins|port|prefix|previous|previousDibling\n  |product|productSub|profile|profileend|prompt|prompter|protocol|publicId|readOnly|readyState|referrer|rel|responseText\n  |responseXML|rev|right|rightContext|rowIndex|rows|rowSpan|rules|scheme|scope|screen[XY]|screenLeft|screenTop|scripts\n  |scrollbars|scrolling|sectionRowIndex|security|securityPolicy|selected|selectedIndex|selection|self|shape|siblingAbove\n  |siblingBelow|size|source|specified|standby|start|status|statusbar|statusText|style|styleSheets|suffixes|summary\n  |systemId|systemLanguage|tagName|tags|target|tBodies|text|textAlign|textDecoration|textIndent|textTransform|tFoot|tHead\n  |title|toolbar|top|type|undefined|uniqueID|updateInterval|URL|URLUnencoded|useMap|userAgent|userLanguage|userProfile\n  |vAlign|value|valueType|vendor|vendorSub|version|visibility|vspace|whiteSpace|width|X[MS]LDocument|zIndex))\\b(?!\\$|\\s*(<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?\\()",
+					"match": "(?x) (?:(\\.)|(\\?\\.(?!\\s*[[:digit:]]))) \\s* (?:\n  (ATTRIBUTE_NODE|CDATA_SECTION_NODE|COMMENT_NODE|DOCUMENT_FRAGMENT_NODE|DOCUMENT_NODE|DOCUMENT_TYPE_NODE\n  |DOMSTRING_SIZE_ERR|ELEMENT_NODE|ENTITY_NODE|ENTITY_REFERENCE_NODE|HIERARCHY_REQUEST_ERR|INDEX_SIZE_ERR\n  |INUSE_ATTRIBUTE_ERR|INVALID_CHARACTER_ERR|NO_DATA_ALLOWED_ERR|NO_MODIFICATION_ALLOWED_ERR|NOT_FOUND_ERR\n  |NOT_SUPPORTED_ERR|NOTATION_NODE|PROCESSING_INSTRUCTION_NODE|TEXT_NODE|WRONG_DOCUMENT_ERR)\n  |\n  (_content|[xyz]|abbr|above|accept|acceptCharset|accessKey|action|align|[av]Link(?:color)?|all|alt|anchors|appCodeName\n  |appCore|applets|appMinorVersion|appName|appVersion|archive|areas|arguments|attributes|availHeight|availLeft|availTop\n  |availWidth|axis|background|backgroundColor|backgroundImage|below|bgColor|body|border|borderBottomWidth|borderColor\n  |borderLeftWidth|borderRightWidth|borderStyle|borderTopWidth|borderWidth|bottom|bufferDepth|callee|caller|caption\n  |cellPadding|cells|cellSpacing|ch|characterSet|charset|checked|childNodes|chOff|cite|classes|className|clear\n  |clientInformation|clip|clipBoardData|closed|code|codeBase|codeType|color|colorDepth|cols|colSpan|compact|complete\n  |components|content|controllers|cookie|cookieEnabled|cords|cpuClass|crypto|current|data|dateTime|declare|defaultCharset\n  |defaultChecked|defaultSelected|defaultStatus|defaultValue|defaultView|defer|description|dialogArguments|dialogHeight\n  |dialogLeft|dialogTop|dialogWidth|dir|directories|disabled|display|docmain|doctype|documentElement|elements|embeds\n  |enabledPlugin|encoding|enctype|entities|event|expando|external|face|fgColor|filename|firstChild|fontFamily|fontSize\n  |fontWeight|form|formName|forms|frame|frameBorder|frameElement|frames|hasFocus|hash|headers|height|history|host\n  |hostname|href|hreflang|hspace|htmlFor|httpEquiv|id|ids|ignoreCase|images|implementation|index|innerHeight|innerWidth\n  |input|isMap|label|lang|language|lastChild|lastIndex|lastMatch|lastModified|lastParen|layer[sXY]|left|leftContext\n  |lineHeight|link|linkColor|links|listStyleType|localName|location|locationbar|longDesc|lowsrc|lowSrc|marginBottom\n  |marginHeight|marginLeft|marginRight|marginTop|marginWidth|maxLength|media|menubar|method|mimeTypes|multiline|multiple\n  |name|nameProp|namespaces|namespaceURI|next|nextSibling|nodeName|nodeType|nodeValue|noHref|noResize|noShade|notationName\n  |notations|noWrap|object|offscreenBuffering|onLine|onreadystatechange|opener|opsProfile|options|oscpu|outerHeight\n  |outerWidth|ownerDocument|paddingBottom|paddingLeft|paddingRight|paddingTop|page[XY]|page[XY]Offset|parent|parentLayer\n  |parentNode|parentWindow|pathname|personalbar|pixelDepth|pkcs11|platform|plugins|port|prefix|previous|previousDibling\n  |product|productSub|profile|profileend|prompt|prompter|protocol|publicId|readOnly|readyState|referrer|rel|responseText\n  |responseXML|rev|right|rightContext|rowIndex|rows|rowSpan|rules|scheme|scope|screen[XY]|screenLeft|screenTop|scripts\n  |scrollbars|scrolling|sectionRowIndex|security|securityPolicy|selected|selectedIndex|selection|self|shape|siblingAbove\n  |siblingBelow|size|source|specified|standby|start|status|statusbar|statusText|style|styleSheets|suffixes|summary\n  |systemId|systemLanguage|tagName|tags|target|tBodies|text|textAlign|textDecoration|textIndent|textTransform|tFoot|tHead\n  |title|toolbar|top|type|undefined|uniqueID|updateInterval|URL|URLUnencoded|useMap|userAgent|userLanguage|userProfile\n  |vAlign|value|valueType|vendor|vendorSub|version|visibility|vspace|whiteSpace|width|X[MS]LDocument|zIndex))\\b(?!\\$|\\s*(<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?\\()",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.js"
 						},
 						"2": {
-							"name": "support.constant.dom.js"
+							"name": "punctuation.accessor.optional.js"
 						},
 						"3": {
+							"name": "support.constant.dom.js"
+						},
+						"4": {
 							"name": "support.variable.property.dom.js"
 						}
 					}
 				},
 				{
 					"name": "support.class.node.js",
-					"match": "(?x)(?<!\\.|\\$)\\b(Buffer|EventEmitter|Server|Pipe|Socket|REPLServer|ReadStream|WriteStream|Stream\n  |Inflate|Deflate|InflateRaw|DeflateRaw|GZip|GUnzip|Unzip|Zip)\\b(?!\\$)"
+					"match": "(?x)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(Buffer|EventEmitter|Server|Pipe|Socket|REPLServer|ReadStream|WriteStream|Stream\n  |Inflate|Deflate|InflateRaw|DeflateRaw|GZip|GUnzip|Unzip|Zip)\\b(?!\\$)"
 				},
 				{
-					"match": "(?x)(?<!\\.|\\$)\\b(process)(?:(\\.)(?:\n  (arch|argv|config|connected|env|execArgv|execPath|exitCode|mainModule|pid|platform|release|stderr|stdin|stdout|title|version|versions)\n  |\n  (abort|chdir|cwd|disconnect|exit|[sg]ete?[gu]id|send|[sg]etgroups|initgroups|kill|memoryUsage|nextTick|umask|uptime|hrtime)\n))?\\b(?!\\$)",
+					"match": "(?x)(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(process)(?:(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))(?:\n  (arch|argv|config|connected|env|execArgv|execPath|exitCode|mainModule|pid|platform|release|stderr|stdin|stdout|title|version|versions)\n  |\n  (abort|chdir|cwd|disconnect|exit|[sg]ete?[gu]id|send|[sg]etgroups|initgroups|kill|memoryUsage|nextTick|umask|uptime|hrtime)\n))?\\b(?!\\$)",
 					"captures": {
 						"1": {
 							"name": "support.variable.object.process.js"
@@ -2531,15 +2556,18 @@
 							"name": "punctuation.accessor.js"
 						},
 						"3": {
-							"name": "support.variable.property.process.js"
+							"name": "punctuation.accessor.optional.js"
 						},
 						"4": {
+							"name": "support.variable.property.process.js"
+						},
+						"5": {
 							"name": "support.function.process.js"
 						}
 					}
 				},
 				{
-					"match": "(?<!\\.|\\$)\\b(?:(exports)|(module)(?:(\\.)(exports|id|filename|loaded|parent|children))?)\\b(?!\\$)",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(exports)|(module)(?:(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))(exports|id|filename|loaded|parent|children))?)\\b(?!\\$)",
 					"captures": {
 						"1": {
 							"name": "support.type.object.module.js"
@@ -2551,27 +2579,33 @@
 							"name": "punctuation.accessor.js"
 						},
 						"4": {
+							"name": "punctuation.accessor.optional.js"
+						},
+						"5": {
 							"name": "support.type.object.module.js"
 						}
 					}
 				},
 				{
 					"name": "support.variable.object.node.js",
-					"match": "(?<!\\.|\\$)\\b(global|GLOBAL|root|__dirname|__filename)\\b(?!\\$)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(global|GLOBAL|root|__dirname|__filename)\\b(?!\\$)"
 				},
 				{
-					"match": "(?x) (\\.) \\s*\n(?:\n (on(?:Rowsinserted|Rowsdelete|Rowenter|Rowexit|Resize|Resizestart|Resizeend|Reset|\n   Readystatechange|Mouseout|Mouseover|Mousedown|Mouseup|Mousemove|\n   Before(?:cut|deactivate|unload|update|paste|print|editfocus|activate)|\n   Blur|Scrolltop|Submit|Select|Selectstart|Selectionchange|Hover|Help|\n   Change|Contextmenu|Controlselect|Cut|Cellchange|Clock|Close|Deactivate|\n   Datasetchanged|Datasetcomplete|Dataavailable|Drop|Drag|Dragstart|Dragover|\n   Dragdrop|Dragenter|Dragend|Dragleave|Dblclick|Unload|Paste|Propertychange|Error|\n   Errorupdate|Keydown|Keyup|Keypress|Focus|Load|Activate|Afterupdate|Afterprint|Abort)\n ) |\n (shift|showModelessDialog|showModalDialog|showHelp|scroll|scrollX|scrollByPages|\n   scrollByLines|scrollY|scrollTo|stop|strike|sizeToContent|sidebar|signText|sort|\n   sup|sub|substr|substring|splice|split|send|set(?:Milliseconds|Seconds|Minutes|Hours|\n   Month|Year|FullYear|Date|UTC(?:Milliseconds|Seconds|Minutes|Hours|Month|FullYear|Date)|\n   Time|Hotkeys|Cursor|ZOptions|Active|Resizable|RequestHeader)|search|slice|\n   savePreferences|small|home|handleEvent|navigate|char|charCodeAt|charAt|concat|\n   contextual|confirm|compile|clear|captureEvents|call|createStyleSheet|createPopup|\n   createEventObject|to(?:GMTString|UTCString|String|Source|UpperCase|LowerCase|LocaleString)|\n   test|taint|taintEnabled|indexOf|italics|disableExternalCapture|dump|detachEvent|unshift|\n   untaint|unwatch|updateCommands|join|javaEnabled|pop|push|plugins.refresh|paddings|parse|\n   print|prompt|preference|enableExternalCapture|exec|execScript|valueOf|UTC|find|file|\n   fileModifiedDate|fileSize|fileCreatedDate|fileUpdatedDate|fixed|fontsize|fontcolor|\n   forward|fromCharCode|watch|link|load|lastIndexOf|anchor|attachEvent|atob|apply|alert|\n   abort|routeEvents|resize|resizeBy|resizeTo|recalc|returnValue|replace|reverse|reload|\n   releaseCapture|releaseEvents|go|get(?:Milliseconds|Seconds|Minutes|Hours|Month|Day|Year|FullYear|\n   Time|Date|TimezoneOffset|UTC(?:Milliseconds|Seconds|Minutes|Hours|Day|Month|FullYear|Date)|\n   Attention|Selection|ResponseHeader|AllResponseHeaders)|moveBy|moveBelow|moveTo|\n   moveToAbsolute|moveAbove|mergeAttributes|match|margins|btoa|big|bold|borderWidths|blink|back\n ) |\n (acceptNode|add|addEventListener|addTextTrack|adoptNode|after|animate|append|\n   appendChild|appendData|before|blur|canPlayType|captureStream|\n   caretPositionFromPoint|caretRangeFromPoint|checkValidity|clear|click|\n   cloneContents|cloneNode|cloneRange|close|closest|collapse|\n   compareBoundaryPoints|compareDocumentPosition|comparePoint|contains|\n   convertPointFromNode|convertQuadFromNode|convertRectFromNode|createAttribute|\n   createAttributeNS|createCaption|createCDATASection|createComment|\n   createContextualFragment|createDocument|createDocumentFragment|\n   createDocumentType|createElement|createElementNS|createEntityReference|\n   createEvent|createExpression|createHTMLDocument|createNodeIterator|\n   createNSResolver|createProcessingInstruction|createRange|createShadowRoot|\n   createTBody|createTextNode|createTFoot|createTHead|createTreeWalker|delete|\n   deleteCaption|deleteCell|deleteContents|deleteData|deleteRow|deleteTFoot|\n   deleteTHead|detach|disconnect|dispatchEvent|elementFromPoint|elementsFromPoint|\n   enableStyleSheetsForSet|entries|evaluate|execCommand|exitFullscreen|\n   exitPointerLock|expand|extractContents|fastSeek|firstChild|focus|forEach|get|\n   getAll|getAnimations|getAttribute|getAttributeNames|getAttributeNode|\n   getAttributeNodeNS|getAttributeNS|getBoundingClientRect|getBoxQuads|\n   getClientRects|getContext|getDestinationInsertionPoints|getElementById|\n   getElementsByClassName|getElementsByName|getElementsByTagName|\n   getElementsByTagNameNS|getItem|getNamedItem|getSelection|getStartDate|\n   getVideoPlaybackQuality|has|hasAttribute|hasAttributeNS|hasAttributes|\n   hasChildNodes|hasFeature|hasFocus|importNode|initEvent|insertAdjacentElement|\n   insertAdjacentHTML|insertAdjacentText|insertBefore|insertCell|insertData|\n   insertNode|insertRow|intersectsNode|isDefaultNamespace|isEqualNode|\n   isPointInRange|isSameNode|item|key|keys|lastChild|load|lookupNamespaceURI|\n   lookupPrefix|matches|move|moveAttribute|moveAttributeNode|moveChild|\n   moveNamedItem|namedItem|nextNode|nextSibling|normalize|observe|open|\n   parentNode|pause|play|postMessage|prepend|preventDefault|previousNode|\n   previousSibling|probablySupportsContext|queryCommandEnabled|\n   queryCommandIndeterm|queryCommandState|queryCommandSupported|queryCommandValue|\n   querySelector|querySelectorAll|registerContentHandler|registerElement|\n   registerProtocolHandler|releaseCapture|releaseEvents|remove|removeAttribute|\n   removeAttributeNode|removeAttributeNS|removeChild|removeEventListener|\n   removeItem|replace|replaceChild|replaceData|replaceWith|reportValidity|\n   requestFullscreen|requestPointerLock|reset|scroll|scrollBy|scrollIntoView|\n   scrollTo|seekToNextFrame|select|selectNode|selectNodeContents|set|setAttribute|\n   setAttributeNode|setAttributeNodeNS|setAttributeNS|setCapture|\n   setCustomValidity|setEnd|setEndAfter|setEndBefore|setItem|setNamedItem|\n   setRangeText|setSelectionRange|setSinkId|setStart|setStartAfter|setStartBefore|\n   slice|splitText|stepDown|stepUp|stopImmediatePropagation|stopPropagation|\n   submit|substringData|supports|surroundContents|takeRecords|terminate|toBlob|\n   toDataURL|toggle|toString|values|write|writeln\n )\n)(?=\\s*\\()",
+					"match": "(?x) (?:(\\.)|(\\?\\.(?!\\s*[[:digit:]]))) \\s*\n(?:\n (on(?:Rowsinserted|Rowsdelete|Rowenter|Rowexit|Resize|Resizestart|Resizeend|Reset|\n   Readystatechange|Mouseout|Mouseover|Mousedown|Mouseup|Mousemove|\n   Before(?:cut|deactivate|unload|update|paste|print|editfocus|activate)|\n   Blur|Scrolltop|Submit|Select|Selectstart|Selectionchange|Hover|Help|\n   Change|Contextmenu|Controlselect|Cut|Cellchange|Clock|Close|Deactivate|\n   Datasetchanged|Datasetcomplete|Dataavailable|Drop|Drag|Dragstart|Dragover|\n   Dragdrop|Dragenter|Dragend|Dragleave|Dblclick|Unload|Paste|Propertychange|Error|\n   Errorupdate|Keydown|Keyup|Keypress|Focus|Load|Activate|Afterupdate|Afterprint|Abort)\n ) |\n (shift|showModelessDialog|showModalDialog|showHelp|scroll|scrollX|scrollByPages|\n   scrollByLines|scrollY|scrollTo|stop|strike|sizeToContent|sidebar|signText|sort|\n   sup|sub|substr|substring|splice|split|send|set(?:Milliseconds|Seconds|Minutes|Hours|\n   Month|Year|FullYear|Date|UTC(?:Milliseconds|Seconds|Minutes|Hours|Month|FullYear|Date)|\n   Time|Hotkeys|Cursor|ZOptions|Active|Resizable|RequestHeader)|search|slice|\n   savePreferences|small|home|handleEvent|navigate|char|charCodeAt|charAt|concat|\n   contextual|confirm|compile|clear|captureEvents|call|createStyleSheet|createPopup|\n   createEventObject|to(?:GMTString|UTCString|String|Source|UpperCase|LowerCase|LocaleString)|\n   test|taint|taintEnabled|indexOf|italics|disableExternalCapture|dump|detachEvent|unshift|\n   untaint|unwatch|updateCommands|join|javaEnabled|pop|push|plugins.refresh|paddings|parse|\n   print|prompt|preference|enableExternalCapture|exec|execScript|valueOf|UTC|find|file|\n   fileModifiedDate|fileSize|fileCreatedDate|fileUpdatedDate|fixed|fontsize|fontcolor|\n   forward|fromCharCode|watch|link|load|lastIndexOf|anchor|attachEvent|atob|apply|alert|\n   abort|routeEvents|resize|resizeBy|resizeTo|recalc|returnValue|replace|reverse|reload|\n   releaseCapture|releaseEvents|go|get(?:Milliseconds|Seconds|Minutes|Hours|Month|Day|Year|FullYear|\n   Time|Date|TimezoneOffset|UTC(?:Milliseconds|Seconds|Minutes|Hours|Day|Month|FullYear|Date)|\n   Attention|Selection|ResponseHeader|AllResponseHeaders)|moveBy|moveBelow|moveTo|\n   moveToAbsolute|moveAbove|mergeAttributes|match|margins|btoa|big|bold|borderWidths|blink|back\n ) |\n (acceptNode|add|addEventListener|addTextTrack|adoptNode|after|animate|append|\n   appendChild|appendData|before|blur|canPlayType|captureStream|\n   caretPositionFromPoint|caretRangeFromPoint|checkValidity|clear|click|\n   cloneContents|cloneNode|cloneRange|close|closest|collapse|\n   compareBoundaryPoints|compareDocumentPosition|comparePoint|contains|\n   convertPointFromNode|convertQuadFromNode|convertRectFromNode|createAttribute|\n   createAttributeNS|createCaption|createCDATASection|createComment|\n   createContextualFragment|createDocument|createDocumentFragment|\n   createDocumentType|createElement|createElementNS|createEntityReference|\n   createEvent|createExpression|createHTMLDocument|createNodeIterator|\n   createNSResolver|createProcessingInstruction|createRange|createShadowRoot|\n   createTBody|createTextNode|createTFoot|createTHead|createTreeWalker|delete|\n   deleteCaption|deleteCell|deleteContents|deleteData|deleteRow|deleteTFoot|\n   deleteTHead|detach|disconnect|dispatchEvent|elementFromPoint|elementsFromPoint|\n   enableStyleSheetsForSet|entries|evaluate|execCommand|exitFullscreen|\n   exitPointerLock|expand|extractContents|fastSeek|firstChild|focus|forEach|get|\n   getAll|getAnimations|getAttribute|getAttributeNames|getAttributeNode|\n   getAttributeNodeNS|getAttributeNS|getBoundingClientRect|getBoxQuads|\n   getClientRects|getContext|getDestinationInsertionPoints|getElementById|\n   getElementsByClassName|getElementsByName|getElementsByTagName|\n   getElementsByTagNameNS|getItem|getNamedItem|getSelection|getStartDate|\n   getVideoPlaybackQuality|has|hasAttribute|hasAttributeNS|hasAttributes|\n   hasChildNodes|hasFeature|hasFocus|importNode|initEvent|insertAdjacentElement|\n   insertAdjacentHTML|insertAdjacentText|insertBefore|insertCell|insertData|\n   insertNode|insertRow|intersectsNode|isDefaultNamespace|isEqualNode|\n   isPointInRange|isSameNode|item|key|keys|lastChild|load|lookupNamespaceURI|\n   lookupPrefix|matches|move|moveAttribute|moveAttributeNode|moveChild|\n   moveNamedItem|namedItem|nextNode|nextSibling|normalize|observe|open|\n   parentNode|pause|play|postMessage|prepend|preventDefault|previousNode|\n   previousSibling|probablySupportsContext|queryCommandEnabled|\n   queryCommandIndeterm|queryCommandState|queryCommandSupported|queryCommandValue|\n   querySelector|querySelectorAll|registerContentHandler|registerElement|\n   registerProtocolHandler|releaseCapture|releaseEvents|remove|removeAttribute|\n   removeAttributeNode|removeAttributeNS|removeChild|removeEventListener|\n   removeItem|replace|replaceChild|replaceData|replaceWith|reportValidity|\n   requestFullscreen|requestPointerLock|reset|scroll|scrollBy|scrollIntoView|\n   scrollTo|seekToNextFrame|select|selectNode|selectNodeContents|set|setAttribute|\n   setAttributeNode|setAttributeNodeNS|setAttributeNS|setCapture|\n   setCustomValidity|setEnd|setEndAfter|setEndBefore|setItem|setNamedItem|\n   setRangeText|setSelectionRange|setSinkId|setStart|setStartAfter|setStartBefore|\n   slice|splitText|stepDown|stepUp|stopImmediatePropagation|stopPropagation|\n   submit|substringData|supports|surroundContents|takeRecords|terminate|toBlob|\n   toDataURL|toggle|toString|values|write|writeln\n )\n)(?=\\s*\\()",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.js"
 						},
 						"2": {
-							"name": "support.function.event-handler.js"
+							"name": "punctuation.accessor.optional.js"
 						},
 						"3": {
-							"name": "support.function.js"
+							"name": "support.function.event-handler.js"
 						},
 						"4": {
+							"name": "support.function.js"
+						},
+						"5": {
 							"name": "support.function.dom.js"
 						}
 					}
@@ -2584,34 +2618,43 @@
 					"include": "#object-identifiers"
 				},
 				{
-					"match": "(?x)(?:(\\.)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?                                                           # typeparameters\n  \\(\\s*([_$[:alpha:]\\{\\[]([^()]|\\((\\s*[^()]*)?\\))*)?\\)                          # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n))",
+					"match": "(?x)(?:(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))\\s*)?([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<]|\\<\\s*([_$[:alpha:]]|(\\{[^\\{\\}]*\\})|(\\([^\\(\\)]*\\))|(\\[[^\\[\\]]*\\]))([^=<>]|=[^<])*\\>)*>\\s*)?                                                           # typeparameters\n  \\(\\s*([_$[:alpha:]\\{\\[]([^()]|\\((\\s*[^()]*)?\\))*)?\\)                          # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n))",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.js"
 						},
 						"2": {
+							"name": "punctuation.accessor.optional.js"
+						},
+						"3": {
 							"name": "entity.name.function.js"
 						}
 					}
 				},
 				{
-					"match": "(\\.)\\s*([[:upper:]][_$[:digit:][:upper:]]*)(?![_$[:alnum:]])",
+					"match": "(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))\\s*([[:upper:]][_$[:digit:][:upper:]]*)(?![_$[:alnum:]])",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.js"
 						},
 						"2": {
+							"name": "punctuation.accessor.optional.js"
+						},
+						"3": {
 							"name": "variable.other.constant.property.js"
 						}
 					}
 				},
 				{
-					"match": "(\\.)\\s*([_$[:alpha:]][_$[:alnum:]]*)",
+					"match": "(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))\\s*([_$[:alpha:]][_$[:alnum:]]*)",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.js"
 						},
 						"2": {
+							"name": "punctuation.accessor.optional.js"
+						},
+						"3": {
 							"name": "variable.other.property.js"
 						}
 					}
@@ -2630,24 +2673,27 @@
 			"patterns": [
 				{
 					"name": "support.class.js",
-					"match": "([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*\\.\\s*prototype\\b(?!\\$))"
+					"match": "([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*\\??\\.\\s*prototype\\b(?!\\$))"
 				},
 				{
-					"match": "(?x)(\\.)\\s*(?:\n  ([[:upper:]][_$[:digit:][:upper:]]*) |\n  ([_$[:alpha:]][_$[:alnum:]]*)\n)(?=\\s*\\.\\s*[_$[:alpha:]][_$[:alnum:]]*)",
+					"match": "(?x)(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))\\s*(?:\n  ([[:upper:]][_$[:digit:][:upper:]]*) |\n  ([_$[:alpha:]][_$[:alnum:]]*)\n)(?=\\s*\\??\\.\\s*[_$[:alpha:]][_$[:alnum:]]*)",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.js"
 						},
 						"2": {
-							"name": "variable.other.constant.object.property.js"
+							"name": "punctuation.accessor.optional.js"
 						},
 						"3": {
+							"name": "variable.other.constant.object.property.js"
+						},
+						"4": {
 							"name": "variable.other.object.property.js"
 						}
 					}
 				},
 				{
-					"match": "(?x)(?:\n  ([[:upper:]][_$[:digit:][:upper:]]*) |\n  ([_$[:alpha:]][_$[:alnum:]]*)\n)(?=\\s*\\.\\s*[_$[:alpha:]][_$[:alnum:]]*)",
+					"match": "(?x)(?:\n  ([[:upper:]][_$[:digit:][:upper:]]*) |\n  ([_$[:alpha:]][_$[:alnum:]]*)\n)(?=\\s*\\??\\.\\s*[_$[:alpha:]][_$[:alnum:]]*)",
 					"captures": {
 						"1": {
 							"name": "variable.other.constant.object.js"
@@ -2796,7 +2842,7 @@
 				},
 				{
 					"name": "storage.modifier.js",
-					"match": "(?<!\\.|\\$)\\b(extends)\\b(?!\\$)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(extends)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				},
 				{
 					"name": "keyword.operator.assignment.js",
@@ -2855,11 +2901,11 @@
 		},
 		"type-primitive": {
 			"name": "support.type.primitive.js",
-			"match": "(?<!\\.|\\$)\\b(string|number|boolean|symbol|any|void|never)\\b(?!\\$|\\.)"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(string|number|boolean|symbol|any|void|never)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 		},
 		"type-builtin-literals": {
 			"name": "support.type.builtin.js",
-			"match": "(?<!\\.|\\$)\\b(this|true|false|undefined|null|object)\\b(?!\\$|\\.)"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(this|true|false|undefined|null|object)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 		},
 		"type-tuple": {
 			"name": "meta.type.tuple.js",
@@ -2969,7 +3015,7 @@
 			"patterns": [
 				{
 					"name": "meta.type.constructor.js",
-					"match": "(?<!\\.|\\$)\\b(new)\\b(?=\\s*\\<)",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(new)\\b(?=\\s*\\<)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.new.js"
@@ -2978,7 +3024,7 @@
 				},
 				{
 					"name": "meta.type.constructor.js",
-					"begin": "(?<!\\.|\\$)\\b(new)\\b\\s*(?=\\()",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(new)\\b\\s*(?=\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.new.js"
@@ -3089,24 +3135,27 @@
 				},
 				{
 					"name": "keyword.operator.expression.keyof.js",
-					"match": "(?<!\\.|\\$)\\bkeyof\\b(?!\\$|\\.)"
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))keyof(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 				}
 			]
 		},
 		"type-predicate-operator": {
 			"name": "keyword.operator.expression.is.js",
-			"match": "(?<!\\.|\\$)\\bis\\b(?!\\$|\\.)"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))is(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 		},
 		"type-name": {
 			"patterns": [
 				{
-					"match": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(\\.)",
+					"match": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))",
 					"captures": {
 						"1": {
 							"name": "entity.name.type.module.js"
 						},
 						"2": {
 							"name": "punctuation.accessor.js"
+						},
+						"3": {
+							"name": "punctuation.accessor.optional.js"
 						}
 					}
 				},
@@ -3125,8 +3174,15 @@
 			"match": ";"
 		},
 		"punctuation-accessor": {
-			"name": "punctuation.accessor.js",
-			"match": "\\."
+			"match": "(?:(\\.)|(\\?\\.(?!\\s*[[:digit:]])))",
+			"captures": {
+				"1": {
+					"name": "punctuation.accessor.js"
+				},
+				"2": {
+					"name": "punctuation.accessor.optional.js"
+				}
+			}
 		},
 		"string": {
 			"patterns": [

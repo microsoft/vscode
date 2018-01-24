@@ -14,6 +14,7 @@
 	"terminal.integrated.shell.windows": "Der Pfad der Shell, den das Terminal unter Windows verwendet, wenn in Windows enthaltene Terminals verwendet werden  (cmd, PowerShell oder Bash unter Ubuntu).",
 	"terminal.integrated.shellArgs.windows": "Die Befehlszeilenargumente, die im Windows-Terminal verwendet werden sollen.",
 	"terminal.integrated.rightClickCopyPaste": "Wenn dies festgelegt ist, erscheint das Kontextmenü bei einem Rechtsklick im Terminal nicht mehr. Stattdessen erfolgen die Vorgänge Kopieren, wenn eine Auswahl vorgenommen wurde, sowie Einfügen, wenn keine Auswahl vorgenommen wurde.",
+	"terminal.integrated.copyOnSelection": "Wenn gesetzt, wird der im Terminal ausgewählte Text in die Zwischenablage kopiert.",
 	"terminal.integrated.fontFamily": "Steuert die Schriftartfamilie des Terminals. Der Standardwert ist \"editor.fontFamily\".",
 	"terminal.integrated.fontSize": "Steuert den Schriftgrad des Terminals in Pixeln.",
 	"terminal.integrated.lineHeight": "Steuert die Zeilenhöhe für das Terminal. Dieser Wert wird mit dem Schriftgrad des Terminals multipliziert, um die tatsächliche Zeilenhöhe in Pixeln zu erhalten.",

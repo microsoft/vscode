@@ -13,7 +13,6 @@ import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/i
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/functional';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -199,7 +198,6 @@ export class BaseDebugController extends DefaultController {
 		private actionProvider: IActionProvider,
 		menuId: MenuId,
 		@IDebugService protected debugService: IDebugService,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService
@@ -226,7 +224,7 @@ export class BaseDebugController extends DefaultController {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {
-					fillInActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions);
+					fillInActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
 					return actions;
 				}),
 				onHide: (wasCancelled?: boolean) => {

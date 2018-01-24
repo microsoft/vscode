@@ -14,7 +14,7 @@ import { ITextModelContentProvider } from 'vs/editor/common/services/resolverSer
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -44,9 +44,11 @@ const openEditorsVisibleId = 'openEditorsVisible';
 const openEditorsFocusId = 'openEditorsFocus';
 const explorerViewletFocusId = 'explorerViewletFocus';
 const explorerResourceIsFolderId = 'explorerResourceIsFolder';
+const explorerResourceIsRootId = 'explorerResourceIsRoot';
 
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
 export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
+export const ExplorerRootContext = new RawContextKey<boolean>(explorerResourceIsRootId, false);
 export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, true);
 export const OpenEditorsVisibleContext = new RawContextKey<boolean>(openEditorsVisibleId, false);
 export const OpenEditorsFocusedContext = new RawContextKey<boolean>(openEditorsFocusId, true);
@@ -75,7 +77,6 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 	explorer: {
 		openEditors: {
 			visible: number;
-			dynamicHeight: boolean;
 		};
 		autoReveal: boolean;
 		enableDragAndDrop: boolean;
@@ -141,7 +142,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	) {
 	}
 
-	public provideTextContent(resource: URI): TPromise<IModel> {
+	public provideTextContent(resource: URI): TPromise<ITextModel> {
 		const fileOnDiskResource = URI.file(resource.fsPath);
 
 		// Make sure our file from disk is resolved up to date
@@ -165,7 +166,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 		});
 	}
 
-	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<IModel> {
+	private resolveEditorModel(resource: URI, createAsNeeded = true): TPromise<ITextModel> {
 		const fileOnDiskResource = URI.file(resource.fsPath);
 
 		return this.textFileService.resolveTextContent(fileOnDiskResource).then(content => {

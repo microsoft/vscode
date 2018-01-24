@@ -16,6 +16,7 @@
 	padding: 10px 10px 0 10px;
 	background-position: 0 0, 8px 8px;
 	background-size: 16px 16px;
+	display: grid;
 }
 
 .monaco-resource-viewer.image.full-size {
@@ -34,18 +35,24 @@
 		linear-gradient(45deg, rgb(20, 20, 20) 25%, transparent 25%, transparent 75%, rgb(20, 20, 20) 75%, rgb(20, 20, 20));
 }
 
-.monaco-resource-viewer img {
-	max-width: 100%;
-	max-height: calc(100% - 10px); /* somehow this prevents scrollbars from showing up */
+.monaco-resource-viewer img.pixelated {
+	image-rendering: pixelated;
 }
 
-.monaco-resource-viewer.oversized img {
+.monaco-resource-viewer img.untouched {
+	max-width: 100%;
+	object-fit: contain;
+}
+
+.monaco-resource-viewer img {
+	margin: auto; /* centers the image */
+}
+
+.monaco-resource-viewer.zoom-in {
 	cursor: zoom-in;
 }
 
-.monaco-resource-viewer.full-size img {
-	max-width: initial;
-	max-height: initial;
+.monaco-resource-viewer.zoom-out {
 	cursor: zoom-out;
 }
 

@@ -153,7 +153,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	private static _digitCount(n: number): number {
-		var r = 0;
+		let r = 0;
 		while (n) {
 			n = Math.floor(n / 10);
 			r++;
@@ -358,8 +358,8 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['ctrlCmd', 'alt'],
 			'enumDescriptions': [
-				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on OSX."),
-				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on OSX.")
+				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
+				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
 			],
 			'default': 'alt',
 			'description': nls.localize({
@@ -368,7 +368,7 @@ const editorConfiguration: IConfigurationNode = {
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on OSX. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
+			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
 		},
 		'editor.quickSuggestions': {
 			'anyOf': [
@@ -516,6 +516,11 @@ const editorConfiguration: IConfigurationNode = {
 			'enum': ['block', 'block-outline', 'line', 'line-thin', 'underline', 'underline-thin'],
 			'default': editorOptions.cursorStyleToString(EDITOR_DEFAULTS.viewInfo.cursorStyle),
 			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'block-outline', 'line', 'line-thin', 'underline' and 'underline-thin'")
+		},
+		'editor.lineCursorWidth': {
+			'type': 'integer',
+			'default': EDITOR_DEFAULTS.viewInfo.lineCursorWidth,
+			'description': nls.localize('lineCursorWidth', "Controls the width of the cursor when editor.cursorStyle is set to 'line'")
 		},
 		'editor.fontLigatures': {
 			'type': 'boolean',

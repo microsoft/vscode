@@ -38,12 +38,12 @@ import { Color } from 'vs/base/common/color';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 import Severity from 'vs/base/common/severity';
 import { PagedModel } from 'vs/base/common/paging';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 
 export class InstallAction extends Action {
 
@@ -437,7 +437,7 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extensionEnablementService.canChangeEnablement();
+			this.enabled = (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -475,7 +475,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extensionEnablementService.canChangeEnablement();
+			this.enabled = (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -560,7 +560,8 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 
 	constructor(label: string,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super(DisableForWorkspaceAction.ID, label);
 
@@ -572,7 +573,7 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 	private update(): void {
 		this.enabled = false;
 		if (this.extension && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			this.enabled = this.extension.type !== LocalExtensionType.System && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled);
+			this.enabled = this.extension.type !== LocalExtensionType.System && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -598,7 +599,8 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(label: string,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super(DisableGloballyAction.ID, label);
 
@@ -609,7 +611,7 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 	private update(): void {
 		this.enabled = false;
 		if (this.extension) {
-			this.enabled = this.extension.type !== LocalExtensionType.System && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled);
+			this.enabled = this.extension.type !== LocalExtensionType.System && (this.extension.enablementState === EnablementState.Enabled || this.extension.enablementState === EnablementState.WorkspaceEnabled) && this.extension.local && this.extensionEnablementService.canChangeEnablement(this.extension.local);
 		}
 	}
 
@@ -1512,7 +1514,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 
 	public run(): TPromise<any> {
 		const folderCount = this.contextService.getWorkspace().folders.length;
-		const pickFolderPromise = folderCount === 1 ? TPromise.as(this.contextService.getWorkspace().folders[0]) : this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND);
+		const pickFolderPromise = folderCount === 1 ? TPromise.as(this.contextService.getWorkspace().folders[0]) : this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
 		return pickFolderPromise
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
@@ -1545,6 +1547,34 @@ export class BuiltinStatusLabelAction extends Action {
 			this.class = `${BuiltinStatusLabelAction.Class} system`;
 		} else {
 			this.class = `${BuiltinStatusLabelAction.Class} user`;
+		}
+	}
+
+	run(): TPromise<any> {
+		return TPromise.as(null);
+	}
+}
+
+export class MaliciousStatusLabelAction extends Action {
+
+	private static readonly Class = 'malicious-status';
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	constructor(long: boolean) {
+		const tooltip = localize('malicious tooltip', "This extension was reported to be malicious.");
+		const label = long ? tooltip : localize('malicious', "Malicious");
+		super('extensions.install', label, '', false);
+		this.tooltip = localize('malicious tooltip', "This extension was reported to be malicious.");
+	}
+
+	private update(): void {
+		if (this.extension && this.extension.isMalicious) {
+			this.class = `${MaliciousStatusLabelAction.Class} malicious`;
+		} else {
+			this.class = `${MaliciousStatusLabelAction.Class} not-malicious`;
 		}
 	}
 
@@ -1633,7 +1663,7 @@ export class EnableAllAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canChangeEnablement() && (e.enablementState === EnablementState.Disabled || e.enablementState === EnablementState.WorkspaceDisabled));
+		this.enabled = this.extensionsWorkbenchService.local.some(e => e.local && this.extensionEnablementService.canChangeEnablement(e.local) && (e.enablementState === EnablementState.Disabled || e.enablementState === EnablementState.WorkspaceDisabled));
 	}
 
 	run(): TPromise<any> {
@@ -1666,7 +1696,7 @@ export class EnableAllWorkpsaceAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.extensionsWorkbenchService.local.some(e => this.extensionEnablementService.canChangeEnablement() && (e.enablementState === EnablementState.Disabled || e.enablementState === EnablementState.WorkspaceDisabled));
+		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.extensionsWorkbenchService.local.some(e => e.local && this.extensionEnablementService.canChangeEnablement(e.local) && (e.enablementState === EnablementState.Disabled || e.enablementState === EnablementState.WorkspaceDisabled));
 	}
 
 	run(): TPromise<any> {
@@ -1686,6 +1716,17 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForL
 		.then(viewlet => viewlet as IExtensionsViewlet)
 		.then(viewlet => {
 			viewlet.search(`ext:${fileExtension.replace(/^\./, '')}`);
+			viewlet.focus();
+		});
+});
+
+CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWithId', function (accessor: ServicesAccessor, extensionId: string) {
+	const viewletService = accessor.get(IViewletService);
+
+	return viewletService.openViewlet(VIEWLET_ID, true)
+		.then(viewlet => viewlet as IExtensionsViewlet)
+		.then(viewlet => {
+			viewlet.search(`@id:${extensionId}`);
 			viewlet.focus();
 		});
 });

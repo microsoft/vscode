@@ -83,6 +83,9 @@ export class CompositeBar implements ICompositeBar {
 
 	public activateComposite(id: string): void {
 		if (this.compositeIdToActions[id]) {
+			if (this.compositeIdToActions[this.activeCompositeId]) {
+				this.compositeIdToActions[this.activeCompositeId].deactivate();
+			}
 			this.compositeIdToActions[id].activate();
 		}
 		this.activeCompositeId = id;
@@ -368,6 +371,7 @@ export class CompositeBar implements ICompositeBar {
 		const visibleComposites = this.getVisibleComposites();
 
 		let unpinPromise: TPromise<any>;
+
 		// remove from pinned
 		const index = this.pinnedComposites.indexOf(compositeId);
 		this.pinnedComposites.splice(index, 1);
@@ -399,6 +403,9 @@ export class CompositeBar implements ICompositeBar {
 		unpinPromise.then(() => {
 			this.updateCompositeSwitcher();
 		});
+
+		// Persist
+		this.savePinnedComposites();
 	}
 
 	public isPinned(compositeId: string): boolean {
@@ -417,6 +424,9 @@ export class CompositeBar implements ICompositeBar {
 			if (update) {
 				this.updateCompositeSwitcher();
 			}
+
+			// Persist
+			this.savePinnedComposites();
 		});
 	}
 
@@ -446,6 +456,9 @@ export class CompositeBar implements ICompositeBar {
 		setTimeout(() => {
 			this.updateCompositeSwitcher();
 		}, 0);
+
+		// Persist
+		this.savePinnedComposites();
 	}
 
 	public layout(dimension: Dimension): void {
@@ -469,7 +482,7 @@ export class CompositeBar implements ICompositeBar {
 		this.updateCompositeSwitcher();
 	}
 
-	public store(): void {
+	private savePinnedComposites(): void {
 		this.storageService.store(this.options.storageId, JSON.stringify(this.pinnedComposites), StorageScope.GLOBAL);
 	}
 

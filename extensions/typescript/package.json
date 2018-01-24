@@ -548,7 +548,7 @@
     "jsonValidation": [
       {
         "fileMatch": "tsconfig.json",
-        "url": "http://json.schemastore.org/tsconfig"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
       },
       {
         "fileMatch": "tsconfig.json",
@@ -556,7 +556,7 @@
       },
       {
         "fileMatch": "tsconfig.*.json",
-        "url": "http://json.schemastore.org/tsconfig"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
       },
       {
         "fileMatch": "tsconfig.*.json",
@@ -564,7 +564,7 @@
       },
       {
         "fileMatch": "typings.json",
-        "url": "http://json.schemastore.org/typings"
+        "url": "https://schemastore.azurewebsites.net/schemas/json/typings.json"
       }
     ],
     "taskDefinitions": [

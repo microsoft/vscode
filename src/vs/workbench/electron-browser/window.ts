@@ -273,7 +273,6 @@ export class ElectronWindow extends Themable {
 	}
 
 	private updateWindowZoomLevel(): void {
-
 		const windowConfig: IWindowsConfiguration = this.configurationService.getValue<IWindowsConfiguration>();
 
 		let newZoomLevel = 0;
@@ -377,7 +376,7 @@ export class ElectronWindow extends Themable {
 		const actions: (MenuItemAction | Separator)[] = [];
 
 		// Fill actions into groups respecting order
-		fillInActions(this.touchBarMenu, void 0, actions);
+		fillInActions(this.touchBarMenu, void 0, actions, this.contextMenuService);
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];

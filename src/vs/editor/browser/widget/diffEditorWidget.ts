@@ -24,7 +24,7 @@ import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
@@ -38,14 +38,15 @@ import { scrollbarShadow, diffInserted, diffRemoved, defaultInsertColor, default
 import { Color } from 'vs/base/common/color';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import URI from 'vs/base/common/uri';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
 
 interface IEditorDiffDecorations {
-	decorations: editorCommon.IModelDeltaDecoration[];
+	decorations: IModelDeltaDecoration[];
 	overviewZones: OverviewRulerZone[];
 }
 
@@ -100,7 +101,7 @@ class VisualEditorState {
 
 		// (2) Model decorations
 		if (this._decorations.length > 0) {
-			editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
+			editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 				changeAccessor.deltaDecorations(this._decorations, []);
 			});
 		}
@@ -746,7 +747,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this.modifiedEditor.trigger(source, handlerId, payload);
 	}
 
-	public changeDecorations(callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => any): any {
+	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
 		return this.modifiedEditor.changeDecorations(callback);
 	}
 
@@ -1871,7 +1872,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 
 class InlineViewZonesComputer extends ViewZonesComputer {
 
-	private originalModel: editorCommon.IModel;
+	private originalModel: ITextModel;
 	private modifiedEditorConfiguration: editorOptions.InternalEditorOptions;
 	private modifiedEditorTabSize: number;
 	private renderIndicators: boolean;
@@ -1946,7 +1947,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 	}
 
-	private renderOriginalLine(count: number, originalModel: editorCommon.IModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): void {
+	private renderOriginalLine(count: number, originalModel: ITextModel, config: editorOptions.InternalEditorOptions, tabSize: number, lineNumber: number, decorations: InlineDecoration[], sb: IStringBuilder): void {
 		let lineContent = originalModel.getLineContent(lineNumber);
 
 		let actualDecorations = LineDecoration.filter(decorations, lineNumber, 1, lineContent.length + 1);
@@ -1956,6 +1957,12 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
 			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 		) >>> 0;
+
+		const tokens = new Uint32Array(2);
+		tokens[0] = lineContent.length;
+		tokens[1] = defaultMetadata;
+
+		const lineTokens = new LineTokens(tokens, lineContent);
 
 		sb.appendASCIIString('<div class="view-line');
 		if (decorations.length === 0) {
@@ -1971,7 +1978,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			lineContent,
 			originalModel.mightContainRTL(),
 			0,
-			[new ViewLineToken(lineContent.length, defaultMetadata)],
+			lineTokens,
 			actualDecorations,
 			tabSize,
 			config.fontInfo.spaceWidth,

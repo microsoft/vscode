@@ -378,7 +378,9 @@ export class SearchWidget extends Widget {
 	}
 
 	private submitSearch(refresh: boolean = true): void {
-		if (this.searchInput.getValue()) {
+		const value = this.searchInput.getValue();
+		if (value) {
+			this.clipboardServce.writeFindText(value);
 			this._onSearchSubmit.fire(refresh);
 		}
 	}

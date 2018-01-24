@@ -826,7 +826,7 @@ export class TreeView extends HeightMap {
 
 	public getScrollPosition(): number {
 		const height = this.getTotalHeight() - this.viewHeight;
-		return height <= 0 ? 0 : this.scrollTop / height;
+		return height <= 0 ? 1 : this.scrollTop / height;
 	}
 
 	public setScrollPosition(pos: number): void {

@@ -6,5 +6,7 @@
 {
 	"close": "Kapat",
 	"later": "Daha Sonra",
-	"cancel": "İptal"
+	"cancel": "İptal",
+	"moreFile": "...1 ek dosya gösterilmiyor",
+	"moreFiles": "...{0} ek dosya gösterilmiyor"
 }

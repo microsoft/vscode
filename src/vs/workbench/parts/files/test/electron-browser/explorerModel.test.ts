@@ -14,7 +14,7 @@ import { validateFileName } from 'vs/workbench/parts/files/electron-browser/file
 import { FileStat } from 'vs/workbench/parts/files/common/explorerModel';
 
 function createStat(path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): FileStat {
-	return new FileStat(toResource(path), undefined, isFolder, hasChildren, name, mtime);
+	return new FileStat(toResource(path), undefined, isFolder, name, mtime);
 }
 
 function toResource(path) {
@@ -31,7 +31,6 @@ suite('Files - View Model', () => {
 		assert.strictEqual(s.resource.fsPath, toResource('/path/to/stat').fsPath);
 		assert.strictEqual(s.name, 'sName');
 		assert.strictEqual(s.isDirectory, true);
-		assert.strictEqual(s.hasChildren, true);
 		assert.strictEqual(s.mtime, new Date(d).getTime());
 		assert(isArray(s.children) && s.children.length === 0);
 
@@ -49,14 +48,12 @@ suite('Files - View Model', () => {
 		s.addChild(child1);
 
 		assert(s.children.length === 1);
-		assert(s.hasChildren);
 
 		s.removeChild(child1);
 		s.addChild(child1);
 		assert(s.children.length === 1);
 
 		s.removeChild(child1);
-		assert(!s.hasChildren);
 		assert(s.children.length === 0);
 
 		// Assert that adding a child updates its path properly
@@ -79,7 +76,6 @@ suite('Files - View Model', () => {
 		s4.move(s1);
 
 		assert.strictEqual(s3.children.length, 0);
-		assert.strictEqual(s3.hasChildren, false);
 
 		assert.strictEqual(s1.children.length, 2);
 
@@ -239,20 +235,20 @@ suite('Files - View Model', () => {
 	test('Merge Local with Disk', function () {
 		const d = new Date().toUTCString();
 
-		const merge1 = new FileStat(URI.file(join('C:\\', '/path/to')), undefined, true, false, 'to', Date.now(), d);
-		const merge2 = new FileStat(URI.file(join('C:\\', '/path/to')), undefined, true, false, 'to', Date.now(), new Date(0).toUTCString());
+		const merge1 = new FileStat(URI.file(join('C:\\', '/path/to')), undefined, true, 'to', Date.now(), d);
+		const merge2 = new FileStat(URI.file(join('C:\\', '/path/to')), undefined, true, 'to', Date.now(), new Date(0).toUTCString());
 
 		// Merge Properties
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.mtime, merge2.mtime);
 
 		// Merge Child when isDirectoryResolved=false is a no-op
-		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), undefined, true, false, 'foo.html', Date.now(), d));
+		merge2.addChild(new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), undefined, true, 'foo.html', Date.now(), d));
 		FileStat.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.children.length, 0);
 
 		// Merge Child with isDirectoryResolved=true
-		const child = new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), undefined, true, false, 'foo.html', Date.now(), d);
+		const child = new FileStat(URI.file(join('C:\\', '/path/to/foo.html')), undefined, true, 'foo.html', Date.now(), d);
 		merge2.removeChild(child);
 		merge2.addChild(child);
 		merge2.isDirectoryResolved = true;

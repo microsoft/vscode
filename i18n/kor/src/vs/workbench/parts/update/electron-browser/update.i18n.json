@@ -23,6 +23,7 @@
 	"commandPalette": "명령 팔레트...",
 	"settings": "설정",
 	"keyboardShortcuts": "바로 가기 키(&&K)",
+	"userSnippets": "사용자 코드 조각",
 	"selectTheme.label": "색 테마",
 	"themes.selectIconTheme.label": "파일 아이콘 테마",
 	"not available": "업데이트를 사용할 수 없음",
