@@ -16,6 +16,17 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
+import { Themable } from 'vs/workbench/common/theme';
+import { IStatusbarItem, StatusbarItemDescriptor, IStatusbarRegistry, Extensions, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { } from 'vs/platform/workspace/common/workspace';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Action } from 'vs/base/common/actions';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { memoize } from 'vs/base/common/decorators';
 
 interface MapExtToMediaMimes {
 	[index: string]: string;
@@ -236,8 +247,91 @@ class GenericBinaryFileView {
 	}
 }
 
+type Scale = number | 'fit';
+
+class ZoomStatusbarItem extends Themable implements IStatusbarItem {
+	showTimeout: number;
+	public static instance: ZoomStatusbarItem;
+
+	private statusBarItem: HTMLElement;
+
+	private onSelectScale?: (scale: Scale) => void;
+
+	constructor(
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IThemeService themeService: IThemeService
+	) {
+		super(themeService);
+		ZoomStatusbarItem.instance = this;
+		this.toUnbind.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+	}
+
+	private onEditorsChanged(): void {
+		this.hide();
+		this.onSelectScale = undefined;
+	}
+
+	public show(scale: Scale, onSelectScale: (scale: number) => void) {
+		clearTimeout(this.showTimeout);
+		this.showTimeout = setTimeout(() => {
+			this.onSelectScale = onSelectScale;
+			this.statusBarItem.style.display = 'block';
+			this.updateLabel(scale);
+		}, 0);
+	}
+
+	public hide() {
+		this.statusBarItem.style.display = 'none';
+	}
+
+	public render(container: HTMLElement): IDisposable {
+		if (!this.statusBarItem && container) {
+			this.statusBarItem = $(container).a()
+				.addClass('.zoom-statusbar-item')
+				.on('click', () => {
+					this.contextMenuService.showContextMenu({
+						getAnchor: () => container,
+						getActions: () => TPromise.as(this.zoomActions)
+					});
+				})
+				.getHTMLElement();
+			this.statusBarItem.style.display = 'none';
+		}
+		return this;
+	}
+
+	private updateLabel(scale: Scale) {
+		this.statusBarItem.textContent = scale === 'fit'
+			? nls.localize('zoom.fit.label', 'Fit')
+			: `${+(scale * 100).toFixed(2)}%`;
+	}
+
+	@memoize
+	private get zoomActions(): Action[] {
+		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.25, 'fit'];
+		return scales.map(scale =>
+			new Action('zoom.' + scale, ZoomStatusbarItem.zoomActionLabel(scale), undefined, undefined, () => {
+				if (this.onSelectScale) {
+					this.onSelectScale(scale);
+				}
+				return null;
+			}));
+	}
+
+	private static zoomActionLabel(scale: Scale): string {
+		return scale === 'fit'
+			? nls.localize('zoom.action.fit.label', 'Reset')
+			: `${+(scale * 100).toFixed(2)}%`;
+	}
+}
+
+Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
+	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, -1)
+);
+
 class InlineImageView {
-	private static readonly SCALE_PINCH_FACTOR = 0.1;
+	private static readonly SCALE_PINCH_FACTOR = 0.05;
 	private static readonly SCALE_FACTOR = 1.5;
 	private static readonly MAX_SCALE = 20;
 	private static readonly MIN_SCALE = 0.1;
@@ -274,42 +368,54 @@ class InlineImageView {
 			.addClass('image', 'zoom-in')
 			.img({ src: InlineImageView.imageSrc(descriptor) })
 			.addClass('untouched')
+			.on(DOM.EventType.BLUR, () => {
+				ZoomStatusbarItem.instance.hide();
+			})
 			.on(DOM.EventType.LOAD, (e, img) => {
-				const imgElement = <HTMLImageElement>img.getHTMLElement();
+				const imgElement = img.getHTMLElement() as HTMLImageElement;
 				const cacheKey = descriptor.resource.toString();
 				let scaleDirection = ScaleDirection.IN;
-				let scale = InlineImageView.IMAGE_SCALE_CACHE.get(cacheKey) || null;
+				let scale: Scale = InlineImageView.IMAGE_SCALE_CACHE.get(cacheKey) || 'fit';
 				if (scale) {
 					img.removeClass('untouched');
 					updateScale(scale);
 				}
+				ZoomStatusbarItem.instance.show(scale || 'fit', updateScale);
+
 				function setImageWidth(width) {
 					img.style('width', `${width}px`);
 					img.style('height', 'auto');
 				}
-				function updateScale(newScale) {
-					scale = clamp(newScale, InlineImageView.MIN_SCALE, InlineImageView.MAX_SCALE);
-					if (scale >= InlineImageView.PIXELATION_THRESHOLD) {
-						img.addClass('pixelated');
+				function updateScale(newScale: Scale) {
+					if (newScale === 'fit') {
+						scale = 'fit';
+						img.addClass('untouched');
+						img.style('width', 'auto');
+						InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, null);
 					} else {
-						img.removeClass('pixelated');
+						scale = clamp(newScale, InlineImageView.MIN_SCALE, InlineImageView.MAX_SCALE);
+						if (scale >= InlineImageView.PIXELATION_THRESHOLD) {
+							img.addClass('pixelated');
+						} else {
+							img.removeClass('pixelated');
+						}
+						img.removeClass('untouched');
+						setImageWidth(Math.floor(imgElement.naturalWidth * scale));
+						InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, scale);
 					}
-					setImageWidth(Math.floor(imgElement.naturalWidth * scale));
-					InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, scale);
+					ZoomStatusbarItem.instance.show(scale, updateScale);
 					scrollbar.scanDomNode();
 					updateMetadata();
 				}
 				function updateMetadata() {
 					if (metadataClb) {
-						const scale = Math.round((imgElement.width / imgElement.naturalWidth) * 10000) / 100;
-						metadataClb(nls.localize('imgMeta', '{0}% {1}x{2} {3}', scale, imgElement.naturalWidth, imgElement.naturalHeight, BinarySize.formatSize(descriptor.size)));
+						metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', imgElement.naturalWidth, imgElement.naturalHeight, BinarySize.formatSize(descriptor.size)));
 					}
 				}
 				context.layout = updateMetadata;
 				function firstZoom() {
 					const { clientWidth, naturalWidth } = imgElement;
 					setImageWidth(clientWidth);
-					img.removeClass('untouched');
 					scale = clientWidth / naturalWidth;
 				}
 				$(container)
@@ -326,18 +432,15 @@ class InlineImageView {
 						}
 					});
 				$(container).on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-					if (scale === null) {
-						firstZoom();
-					}
-					// right click
-					if (e.button === 2) {
-						updateScale(1);
-					}
-					else {
+					// left click
+					if (e.button === 0) {
+						if (scale === 'fit') {
+							firstZoom();
+						}
 						const scaleFactor = scaleDirection === ScaleDirection.IN
 							? InlineImageView.SCALE_FACTOR
 							: 1 / InlineImageView.SCALE_FACTOR;
-						updateScale(scale * scaleFactor);
+						updateScale(scale as number * scaleFactor);
 					}
 				});
 				$(container).on(DOM.EventType.WHEEL, (e: WheelEvent) => {
@@ -345,16 +448,17 @@ class InlineImageView {
 					if (!e.ctrlKey) {
 						return;
 					}
-					if (scale === null) {
+					if (scale === 'fit') {
 						firstZoom();
 					}
 					// scrolling up, pinching out should increase the scale
 					const delta = -e.deltaY;
-					updateScale(scale + delta * InlineImageView.SCALE_PINCH_FACTOR);
+					updateScale(scale as number + delta * InlineImageView.SCALE_PINCH_FACTOR);
 				});
 				updateMetadata();
 				scrollbar.scanDomNode();
 			});
+
 		return context;
 	}
 
@@ -379,3 +483,5 @@ class InlineImageView {
 		return cached.src;
 	}
 }
+
+
