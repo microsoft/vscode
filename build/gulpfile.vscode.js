@@ -585,18 +585,15 @@ gulp.task('generate-vscode-configuration', () => {
 });
 
 //#region Built-In Extensions
-gulp.task('clean-builtInExtensions', util.rimraf('.build/builtInExtensions'));
-
-gulp.task('builtInExtensions', ['clean-builtInExtensions'], function() {
+gulp.task('clean-builtin-extensions', util.rimraf('.build/builtInExtensions'));
+gulp.task('download-builtin-extensions', ['clean-builtin-extensions'], function () {
 	const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
 		return ext.fromMarketplace(extension.name, extension.version)
 			.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
 	}));
 
-	return (
-		marketplaceExtensions
+	return marketplaceExtensions
 		.pipe(util.setExecutableBit(['**/*.sh']))
-		.pipe(vfs.dest('.build/builtInExtensions'))
-	);
+		.pipe(vfs.dest('.build/builtInExtensions'));
 });
 //#endregion
