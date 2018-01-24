@@ -568,7 +568,7 @@ function createXlfFilesForExtensions() {
             }
             return _xlf;
         }
-        gulp.src(["./extensions/" + extensionName + "/package.nls.json", "./extensions/" + extensionName + "/out/nls.metadata.json"]).pipe(event_stream_1.through(function (file) {
+        gulp.src(["./extensions/" + extensionName + "/package.nls.json", "./extensions/" + extensionName + "/**/nls.metadata.json"]).pipe(event_stream_1.through(function (file) {
             if (file.isBuffer()) {
                 var buffer = file.contents;
                 var basename = path.basename(file.path);
@@ -591,9 +591,10 @@ function createXlfFilesForExtensions() {
                 }
                 else if (basename === 'nls.metadata.json') {
                     var json = JSON.parse(buffer.toString('utf8'));
-                    for (var file_1 in json.content) {
-                        var fileContent = json.content[file_1];
-                        getXlf().addFile("extensions/" + extensionName + "/" + json.rootPath + "/" + file_1, fileContent.keys, fileContent.messages);
+                    var relPath = path.relative("./extensions/" + extensionName, path.dirname(file.path));
+                    for (var file_1 in json) {
+                        var fileContent = json[file_1];
+                        getXlf().addFile("extensions/" + extensionName + "/" + relPath + "/" + file_1, fileContent.keys, fileContent.messages);
                     }
                 }
                 else {
