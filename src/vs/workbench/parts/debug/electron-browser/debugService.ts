@@ -698,10 +698,16 @@ export class DebugService implements debug.IDebugService {
 							return TPromise.as(null);
 						}
 
-						let rootForName = root;
+						let rootForName: IWorkspaceFolder;
 						const launchesContainingName = this.configurationManager.getLaunches().filter(l => !!l.getConfiguration(name));
-						if (launchesContainingName && launchesContainingName.length === 1) {
+						if (launchesContainingName.length === 1) {
 							rootForName = launchesContainingName[0].workspace;
+						} else if (launchesContainingName.length > 1 && launchesContainingName.indexOf(launch) >= 0) {
+							// If there are multiple launches containing the configuration give priority to the configuration in the current launch
+							rootForName = launch.workspace;
+						} else {
+							return TPromise.wrapError(new Error(launchesContainingName.length === 0 ? nls.localize('noConfigurationNameInWorkspace', "Could not find launch configuration '{0}' in the workspace.", name)
+								: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurates `{0}` in the workspace. Use folder name to qualify the configuration.", name)));
 						}
 
 						return this.startDebugging(rootForName, name, noDebug, topCompoundName || compound.name);
