@@ -48,7 +48,6 @@ class Extension implements IExtension {
 	constructor(
 		private galleryService: IExtensionGalleryService,
 		private stateProvider: IExtensionStateProvider<ExtensionState>,
-		private maliciousStateProvider: IExtensionStateProvider<boolean>,
 		public local: ILocalExtension,
 		public gallery: IGalleryExtension,
 		private telemetryService: ITelemetryService
@@ -154,9 +153,7 @@ class Extension implements IExtension {
 		return this.stateProvider(this);
 	}
 
-	get isMalicious(): boolean {
-		return this.maliciousStateProvider(this);
-	}
+	public isMalicious: boolean = false;
 
 	get installCount(): number {
 		return this.gallery ? this.gallery.installCount : null;
@@ -337,9 +334,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
 
-	private maliciousExtensions = new Set<string>();
-	private maliciousStateProvider: IExtensionStateProvider<boolean>;
-
 	private _extensionAllowedBadgeProviders: string[];
 
 	constructor(
@@ -358,7 +352,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IProgressService2 private progressService: IProgressService2
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
-		this.maliciousStateProvider = ext => this.maliciousExtensions.has(ext.id);
 
 		extensionService.onInstallExtension(this.onInstallExtension, this, this.disposables);
 		extensionService.onDidInstallExtension(this.onDidInstallExtension, this, this.disposables);
@@ -393,11 +386,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	queryLocal(): TPromise<IExtension[]> {
-		return this.updateExtensionsReport().then(() => {
+		return this.getMaliciousExtensionSet().then(() => {
 			return this.extensionService.getInstalled().then(result => {
 				const installedById = index(this.installed, e => e.local.identifier.id);
 				this.installed = result.map(local => {
-					const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, this.maliciousStateProvider, local, null, this.telemetryService);
+					const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, local, null, this.telemetryService);
 					extension.local = local;
 					extension.enablementState = this.extensionEnablementService.getEnablementState({ id: extension.id, uuid: extension.uuid });
 					return extension;
@@ -410,9 +403,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	queryGallery(options: IQueryOptions = {}): TPromise<IPager<IExtension>> {
-		return this.updateExtensionsReport().then(() => {
+		return this.getMaliciousExtensionSet().then(maliciousSet => {
 			return this.galleryService.query(options)
-				.then(result => mapPager(result, gallery => this.fromGallery(gallery)))
+				.then(result => mapPager(result, gallery => this.fromGallery(gallery, maliciousSet)))
 				.then(null, err => {
 					if (/No extension gallery service configured/.test(err.message)) {
 						return TPromise.as(singlePagePager([]));
@@ -428,38 +421,45 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrap<IExtensionDependencies>(null);
 		}
 
-		return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(id => <IExtensionIdentifier>{ id }))
-			.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension)))
-			.then(extensions => [...this.local, ...extensions])
-			.then(extensions => {
-				const map = new Map<string, IExtension>();
-				for (const extension of extensions) {
-					map.set(extension.id, extension);
-				}
-				return new ExtensionDependencies(extension, extension.id, map);
-			});
+		return this.getMaliciousExtensionSet().then(maliciousSet => {
+			return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(id => <IExtensionIdentifier>{ id }))
+				.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension, maliciousSet)))
+				.then(extensions => [...this.local, ...extensions])
+				.then(extensions => {
+					const map = new Map<string, IExtension>();
+					for (const extension of extensions) {
+						map.set(extension.id, extension);
+					}
+					return new ExtensionDependencies(extension, extension.id, map);
+				});
+		});
 	}
 
 	open(extension: IExtension, sideByside: boolean = false): TPromise<any> {
 		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside);
 	}
 
-	private fromGallery(gallery: IGalleryExtension): Extension {
-		const installed = this.getInstalledExtensionMatchingGallery(gallery);
+	private fromGallery(gallery: IGalleryExtension, maliciousExtensionSet: Set<string>): Extension {
+		let result = this.getInstalledExtensionMatchingGallery(gallery);
 
-		if (installed) {
+		if (result) {
 			// Loading the compatible version only there is an engine property
 			// Otherwise falling back to old way so that we will not make many roundtrips
 			if (gallery.properties.engine) {
 				this.galleryService.loadCompatibleVersion(gallery)
-					.then(compatible => compatible ? this.syncLocalWithGalleryExtension(installed, compatible) : null);
+					.then(compatible => compatible ? this.syncLocalWithGalleryExtension(result, compatible) : null);
 			} else {
-				this.syncLocalWithGalleryExtension(installed, gallery);
+				this.syncLocalWithGalleryExtension(result, gallery);
 			}
-			return installed;
+		} else {
+			result = new Extension(this.galleryService, this.stateProvider, null, gallery, this.telemetryService);
 		}
 
-		return new Extension(this.galleryService, this.stateProvider, this.maliciousStateProvider, null, gallery, this.telemetryService);
+		if (maliciousExtensionSet.has(result.id)) {
+			result.isMalicious = true;
+		}
+
+		return result;
 	}
 
 	private getInstalledExtensionMatchingGallery(gallery: IGalleryExtension): Extension {
@@ -546,7 +546,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return false;
 		}
 
-		if (this.maliciousStateProvider(extension)) {
+		if (extension.isMalicious) {
 			return false;
 		}
 
@@ -566,7 +566,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return undefined;
 		}
 
-		if (this.maliciousStateProvider(extension)) {
+		if (extension.isMalicious) {
 			return TPromise.wrapError<void>(new Error(nls.localize('malicious', "This extension is reported to be malicious.")));
 		}
 
@@ -763,7 +763,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		let extension = this.installed.filter(e => areSameExtensions(e, gallery.identifier))[0];
 
 		if (!extension) {
-			extension = new Extension(this.galleryService, this.stateProvider, this.maliciousStateProvider, null, gallery, this.telemetryService);
+			extension = new Extension(this.galleryService, this.stateProvider, null, gallery, this.telemetryService);
 		}
 
 		extension.gallery = gallery;
@@ -778,7 +778,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private onDidInstallExtension(event: DidInstallExtensionEvent): void {
 		const { local, zipPath, error, gallery } = event;
 		const installingExtension = gallery ? this.installing.filter(e => areSameExtensions(e.extension, gallery.identifier))[0] : null;
-		const extension: Extension = installingExtension ? installingExtension.extension : zipPath ? new Extension(this.galleryService, this.stateProvider, this.maliciousStateProvider, null, null, this.telemetryService) : null;
+		const extension: Extension = installingExtension ? installingExtension.extension : zipPath ? new Extension(this.galleryService, this.stateProvider, null, null, this.telemetryService) : null;
 		if (extension) {
 			this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
 
@@ -963,15 +963,17 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}).done(undefined, error => this.onError(error));
 	}
 
-	private updateExtensionsReport(): TPromise<void> {
+	private getMaliciousExtensionSet(): TPromise<Set<string>> {
 		return this.extensionService.getExtensionsReport().then(report => {
-			this.maliciousExtensions.clear();
+			const result = new Set<string>();
 
 			for (const extension of report) {
 				if (extension.malicious) {
-					this.maliciousExtensions.add(extension.id.id);
+					result.add(extension.id.id);
 				}
 			}
+
+			return result;
 		});
 	}
 
