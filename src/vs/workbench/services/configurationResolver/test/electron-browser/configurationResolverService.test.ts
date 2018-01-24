@@ -15,7 +15,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestEnvironmentService, TestEditorService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
-suite.only('Configuration Resolver Service', () => {
+suite('Configuration Resolver Service', () => {
 	let configurationResolverService: IConfigurationResolverService;
 	let envVariables: { [key: string]: string } = { key1: 'Value for key1', key2: 'Value for key2' };
 	let mockCommandService: MockCommandService;
