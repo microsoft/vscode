@@ -56,6 +56,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
 				viewportColumn: 99,
 
@@ -113,6 +114,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
 				viewportColumn: 97,
 
@@ -170,6 +172,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
 				viewportColumn: 89,
 
@@ -227,6 +230,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
 				viewportColumn: 89,
 
@@ -284,6 +288,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
 				viewportColumn: 89,
 
@@ -341,6 +346,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
 				viewportColumn: 84,
 
@@ -398,6 +404,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
 				viewportColumn: 84,
 
@@ -455,6 +462,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
 				viewportColumn: 83,
 
@@ -512,6 +520,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
 				viewportColumn: 172,
 
@@ -569,6 +578,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
 				viewportColumn: 170,
 
@@ -626,6 +636,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.Small,
+				minimapLeft: 910,
 				minimapWidth: 90,
 				viewportColumn: 90,
 
@@ -683,6 +694,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.Large,
+				minimapLeft: 910,
 				minimapWidth: 90,
 				viewportColumn: 90,
 
@@ -740,6 +752,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.Large,
+				minimapLeft: 953,
 				minimapWidth: 47,
 				viewportColumn: 94,
 
@@ -797,6 +810,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.Large,
+				minimapLeft: 0,
 				minimapWidth: 47,
 				viewportColumn: 94,
 

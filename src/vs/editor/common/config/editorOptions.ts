@@ -1025,6 +1025,7 @@ export class InternalEditorOptions {
 			&& a.contentWidth === b.contentWidth
 			&& a.contentHeight === b.contentHeight
 			&& a.renderMinimap === b.renderMinimap
+			&& a.minimapLeft === b.minimapLeft
 			&& a.minimapWidth === b.minimapWidth
 			&& a.viewportColumn === b.viewportColumn
 			&& a.verticalScrollbarWidth === b.verticalScrollbarWidth
@@ -1295,6 +1296,10 @@ export interface EditorLayoutInfo {
 	 */
 	readonly contentHeight: number;
 
+	/**
+	 * The position for the minimap
+	 */
+	readonly minimapLeft: number;
 	/**
 	 * The width of the minimap
 	 */
@@ -2042,9 +2047,11 @@ export class EditorLayoutProvider {
 		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
 		let renderMinimap: RenderMinimap;
+		let minimapLeft: number;
 		let minimapWidth: number;
 		let contentWidth: number;
 		if (!minimap) {
+			minimapLeft = 0;
 			minimapWidth = 0;
 			renderMinimap = RenderMinimap.None;
 			contentWidth = remainingWidth;
@@ -2078,10 +2085,13 @@ export class EditorLayoutProvider {
 			contentWidth = remainingWidth - minimapWidth;
 
 			if (minimapSide === 'left') {
+				minimapLeft = 0;
 				glyphMarginLeft += minimapWidth;
 				lineNumbersLeft += minimapWidth;
 				decorationsLeft += minimapWidth;
 				contentLeft += minimapWidth;
+			} else {
+				minimapLeft = outerWidth - minimapWidth - verticalScrollbarWidth;
 			}
 		}
 
@@ -2110,6 +2120,7 @@ export class EditorLayoutProvider {
 			contentHeight: outerHeight,
 
 			renderMinimap: renderMinimap,
+			minimapLeft: minimapLeft,
 			minimapWidth: minimapWidth,
 
 			viewportColumn: viewportColumn,

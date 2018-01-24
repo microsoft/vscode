@@ -76,14 +76,16 @@ class MinimapOptions {
 
 	public readonly showSlider: 'always' | 'mouseover';
 
-	public readonly side: 'right' | 'left';
-
 	public readonly pixelRatio: number;
 
 	public readonly typicalHalfwidthCharacterWidth: number;
 
 	public readonly lineHeight: number;
 
+	/**
+	 * container dom node left position (in CSS px)
+	 */
+	public readonly minimapLeft: number;
 	/**
 	 * container dom node width (in CSS px)
 	 */
@@ -120,10 +122,10 @@ class MinimapOptions {
 		this.renderMinimap = layoutInfo.renderMinimap | 0;
 		this.scrollBeyondLastLine = viewInfo.scrollBeyondLastLine;
 		this.showSlider = viewInfo.minimap.showSlider;
-		this.side = viewInfo.minimap.side;
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this.lineHeight = configuration.editor.lineHeight;
+		this.minimapLeft = layoutInfo.minimapLeft;
 		this.minimapWidth = layoutInfo.minimapWidth;
 		this.minimapHeight = layoutInfo.height;
 
@@ -138,10 +140,10 @@ class MinimapOptions {
 		return (this.renderMinimap === other.renderMinimap
 			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
 			&& this.showSlider === other.showSlider
-			&& this.side === other.side
 			&& this.pixelRatio === other.pixelRatio
 			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
 			&& this.lineHeight === other.lineHeight
+			&& this.minimapLeft === other.minimapLeft
 			&& this.minimapWidth === other.minimapWidth
 			&& this.minimapHeight === other.minimapHeight
 			&& this.canvasInnerWidth === other.canvasInnerWidth
@@ -460,11 +462,6 @@ export class Minimap extends ViewPart {
 		this._domNode.setPosition('absolute');
 		this._domNode.setAttribute('role', 'presentation');
 		this._domNode.setAttribute('aria-hidden', 'true');
-		if (this._options.side === 'right') {
-			this._domNode.setRight(this._context.configuration.editor.layoutInfo.verticalScrollbarWidth);
-		} else {
-			this._domNode.setLeft(0);
-		}
 
 		this._shadow = createFastDomNode(document.createElement('div'));
 		this._shadow.setClassName('minimap-shadow-hidden');
@@ -571,6 +568,7 @@ export class Minimap extends ViewPart {
 	}
 
 	private _applyLayout(): void {
+		this._domNode.setLeft(this._options.minimapLeft);
 		this._domNode.setWidth(this._options.minimapWidth);
 		this._domNode.setHeight(this._options.minimapHeight);
 		this._shadow.setHeight(this._options.minimapHeight);

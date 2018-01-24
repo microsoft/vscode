@@ -3169,6 +3169,10 @@ declare module monaco.editor {
 		 */
 		readonly contentHeight: number;
 		/**
+		 * The position for the minimap
+		 */
+		readonly minimapLeft: number;
+		/**
 		 * The width of the minimap
 		 */
 		readonly minimapWidth: number;
