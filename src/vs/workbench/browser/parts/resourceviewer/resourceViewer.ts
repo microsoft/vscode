@@ -371,11 +371,6 @@ class InlineImageView {
 		let img: Builder | null = null;
 		let imgElement: HTMLImageElement | null = null;
 
-		function setImageScale(scale: number) {
-			img.style('width', `${(imgElement.naturalWidth * scale)}px`);
-			img.style('height', 'auto');
-		}
-
 		function updateScale(newScale: Scale) {
 			if (newScale === 'fit') {
 				scale = 'fit';
@@ -399,7 +394,8 @@ class InlineImageView {
 				const dy = (scrollTop + imgElement.parentElement.clientHeight / 2) / imgElement.parentElement.scrollHeight;
 
 				img.removeClass('scale-to-fit');
-				setImageScale(scale);
+				img.style('width', `${(imgElement.naturalWidth * scale)}px`);
+				img.style('height', 'auto');
 				InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, scale);
 
 				const newWidth = imgElement.width;
@@ -416,7 +412,7 @@ class InlineImageView {
 
 		function firstZoom() {
 			scale = imgElement.clientWidth / imgElement.naturalWidth;
-			setImageScale(scale);
+			updateScale(scale);
 		}
 
 		$(container)
