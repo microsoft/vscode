@@ -51,6 +51,7 @@ export interface IExtension {
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
 	getChangelog(): TPromise<string>;
+	isMalicious: boolean;
 }
 
 export interface IExtensionDependencies {

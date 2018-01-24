@@ -35,8 +35,8 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
 
-interface IExtensionStateProvider {
-	(extension: Extension): ExtensionState;
+interface IExtensionStateProvider<T> {
+	(extension: Extension): T;
 }
 
 class Extension implements IExtension {
@@ -45,7 +45,8 @@ class Extension implements IExtension {
 
 	constructor(
 		private galleryService: IExtensionGalleryService,
-		private stateProvider: IExtensionStateProvider,
+		private stateProvider: IExtensionStateProvider<ExtensionState>,
+		private maliciousStateProvider: IExtensionStateProvider<boolean>,
 		public local: ILocalExtension,
 		public gallery: IGalleryExtension,
 		private telemetryService: ITelemetryService
@@ -149,6 +150,10 @@ class Extension implements IExtension {
 
 	get state(): ExtensionState {
 		return this.stateProvider(this);
+	}
+
+	get isMalicious(): boolean {
+		return this.maliciousStateProvider(this);
 	}
 
 	get installCount(): number {
@@ -319,7 +324,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private static readonly SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
 
 	_serviceBrand: any;
-	private stateProvider: IExtensionStateProvider;
+	private stateProvider: IExtensionStateProvider<ExtensionState>;
 	private installing: IActiveExtension[] = [];
 	private uninstalling: IActiveExtension[] = [];
 	private installed: Extension[] = [];
@@ -329,6 +334,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
+
+	private maliciousExtensions = new Set<string>();
+	private maliciousStateProvider: IExtensionStateProvider<boolean>;
 
 	private _extensionAllowedBadgeProviders: string[];
 
@@ -346,6 +354,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IWindowService private windowService: IWindowService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
+		this.maliciousStateProvider = ext => this.maliciousExtensions.has(ext.id);
 
 		extensionService.onInstallExtension(this.onInstallExtension, this, this.disposables);
 		extensionService.onDidInstallExtension(this.onDidInstallExtension, this, this.disposables);
@@ -380,30 +389,34 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	queryLocal(): TPromise<IExtension[]> {
-		return this.extensionService.getInstalled().then(result => {
-			const installedById = index(this.installed, e => e.local.identifier.id);
-			this.installed = result.map(local => {
-				const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, local, null, this.telemetryService);
-				extension.local = local;
-				extension.enablementState = this.extensionEnablementService.getEnablementState({ id: extension.id, uuid: extension.uuid });
-				return extension;
-			});
+		return this.updateExtensionsReport().then(() => {
+			return this.extensionService.getInstalled().then(result => {
+				const installedById = index(this.installed, e => e.local.identifier.id);
+				this.installed = result.map(local => {
+					const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, this.maliciousStateProvider, local, null, this.telemetryService);
+					extension.local = local;
+					extension.enablementState = this.extensionEnablementService.getEnablementState({ id: extension.id, uuid: extension.uuid });
+					return extension;
+				});
 
-			this._onChange.fire();
-			return this.local;
+				this._onChange.fire();
+				return this.local;
+			});
 		});
 	}
 
 	queryGallery(options: IQueryOptions = {}): TPromise<IPager<IExtension>> {
-		return this.galleryService.query(options)
-			.then(result => mapPager(result, gallery => this.fromGallery(gallery)))
-			.then(null, err => {
-				if (/No extension gallery service configured/.test(err.message)) {
-					return TPromise.as(singlePagePager([]));
-				}
+		return this.updateExtensionsReport().then(() => {
+			return this.galleryService.query(options)
+				.then(result => mapPager(result, gallery => this.fromGallery(gallery)))
+				.then(null, err => {
+					if (/No extension gallery service configured/.test(err.message)) {
+						return TPromise.as(singlePagePager([]));
+					}
 
-				return TPromise.wrapError<IPager<IExtension>>(err);
-			});
+					return TPromise.wrapError<IPager<IExtension>>(err);
+				});
+		});
 	}
 
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies> {
@@ -442,7 +455,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return installed;
 		}
 
-		return new Extension(this.galleryService, this.stateProvider, null, gallery, this.telemetryService);
+		return new Extension(this.galleryService, this.stateProvider, this.maliciousStateProvider, null, gallery, this.telemetryService);
 	}
 
 	private getInstalledExtensionMatchingGallery(gallery: IGalleryExtension): Extension {
@@ -529,6 +542,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return false;
 		}
 
+		if (this.maliciousStateProvider(extension)) {
+			return false;
+		}
+
 		return !!(extension as Extension).gallery;
 	}
 
@@ -539,6 +556,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		if (!(extension instanceof Extension)) {
 			return undefined;
+		}
+
+		if (this.maliciousStateProvider(extension)) {
+			return TPromise.wrapError<void>(new Error(nls.localize('malicious', "This extension is reported to be malicious.")));
 		}
 
 		const ext = extension as Extension;
@@ -726,7 +747,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		let extension = this.installed.filter(e => areSameExtensions(e, gallery.identifier))[0];
 
 		if (!extension) {
-			extension = new Extension(this.galleryService, this.stateProvider, null, gallery, this.telemetryService);
+			extension = new Extension(this.galleryService, this.stateProvider, this.maliciousStateProvider, null, gallery, this.telemetryService);
 		}
 
 		extension.gallery = gallery;
@@ -741,7 +762,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private onDidInstallExtension(event: DidInstallExtensionEvent): void {
 		const { local, zipPath, error, gallery } = event;
 		const installing = gallery ? this.installing.filter(e => areSameExtensions(e.extension, gallery.identifier))[0] : null;
-		const extension: Extension = installing ? installing.extension : zipPath ? new Extension(this.galleryService, this.stateProvider, null, null, this.telemetryService) : null;
+		const extension: Extension = installing ? installing.extension : zipPath ? new Extension(this.galleryService, this.stateProvider, this.maliciousStateProvider, null, null, this.telemetryService) : null;
 		if (extension) {
 			this.installing = installing ? this.installing.filter(e => e !== installing) : this.installing;
 
@@ -923,6 +944,18 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				});
 			});
 		}).done(undefined, error => this.onError(error));
+	}
+
+	private updateExtensionsReport(): TPromise<void> {
+		return this.extensionService.getExtensionsReport().then(report => {
+			this.maliciousExtensions.clear();
+
+			for (const extension of report) {
+				if (extension.malicious) {
+					this.maliciousExtensions.add(extension.id.id);
+				}
+			}
+		});
 	}
 
 	dispose(): void {
