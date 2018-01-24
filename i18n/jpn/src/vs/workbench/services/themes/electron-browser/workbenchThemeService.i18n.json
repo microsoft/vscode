@@ -11,7 +11,6 @@
 	"noIconThemeDesc": "ファイル アイコンがありません",
 	"iconThemeError": "ファイル アイコンのテーマが不明、またはインストールされていません。",
 	"workbenchColors": "現在選択している配色テーマで配色を上書きします。",
-	"editorColors": "現在選択している配色テーマで配色とフォント スタイルを上書きします。",
 	"editorColors.comments": "コメントの色とスタイルを設定します",
 	"editorColors.strings": "文字列リテラルの色とスタイルを設定します。",
 	"editorColors.keywords": "キーワードの色とスタイルを設定します。",
@@ -19,5 +18,6 @@
 	"editorColors.types": "型定義と参照の色とスタイルを設定します。",
 	"editorColors.functions": "関数定義と参照の色とスタイルを設定します。",
 	"editorColors.variables": "変数定義と参照の色とスタイルを設定します。",
-	"editorColors.textMateRules": "textmate テーマ規則 (高度) を使っての色とスタイルを設定します。"
+	"editorColors.textMateRules": "textmate テーマ規則 (高度) を使っての色とスタイルを設定します。",
+	"editorColors": "現在選択している配色テーマで配色とフォント スタイルを上書きします。"
 }

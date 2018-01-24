@@ -22,7 +22,8 @@ import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITheme } from 'vs/platform/theme/common/themeService';
-import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
+import { ITextModel, EndOfLinePreference } from 'vs/editor/common/model';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -30,7 +31,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	private readonly editorId: number;
 	private readonly configuration: editorCommon.IConfiguration;
-	private readonly model: editorCommon.IModel;
+	private readonly model: ITextModel;
 	private readonly lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
@@ -39,7 +40,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	private _centeredViewLine: number;
 
-	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
+	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: ITextModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
 
 		this.editorId = editorId;
@@ -183,7 +184,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 						break;
 					}
 					case textModelEvents.RawContentChangedType.LinesInserted: {
-						const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, change.detail.split('\n'));
+						const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, change.detail);
 						if (linesInsertedEvent !== null) {
 							eventsCollector.emit(linesInsertedEvent);
 							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
@@ -339,7 +340,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
-		var result = strings.firstNonWhitespaceIndex(this.getLineContent(lineNumber));
+		const result = strings.firstNonWhitespaceIndex(this.getLineContent(lineNumber));
 		if (result === -1) {
 			return 0;
 		}
@@ -347,7 +348,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
-		var result = strings.lastNonWhitespaceIndex(this.getLineContent(lineNumber));
+		const result = strings.lastNonWhitespaceIndex(this.getLineContent(lineNumber));
 		if (result === -1) {
 			return 0;
 		}
@@ -399,8 +400,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}
 	}
 
-	public getValueInRange(range: Range, eol: editorCommon.EndOfLinePreference): string {
-		var modelRange = this.coordinatesConverter.convertViewRangeToModelRange(range);
+	public getValueInRange(range: Range, eol: EndOfLinePreference): string {
+		const modelRange = this.coordinatesConverter.convertViewRangeToModelRange(range);
 		return this.model.getValueInRange(modelRange, eol);
 	}
 
@@ -461,7 +462,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		let result: string[] = [];
 		for (let i = 0; i < nonEmptyRanges.length; i++) {
-			result.push(this.getValueInRange(nonEmptyRanges[i], editorCommon.EndOfLinePreference.TextDefined));
+			result.push(this.getValueInRange(nonEmptyRanges[i], EndOfLinePreference.TextDefined));
 		}
 		return result.length === 1 ? result[0] : result;
 	}

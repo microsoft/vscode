@@ -13,7 +13,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { registerEditorContribution, IActionOptions, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;
@@ -99,14 +100,14 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 	});
 
 	public decorateLine(range: Range, editor: ICodeEditor): void {
-		editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
+		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			const oldDecorations: string[] = [];
 			if (this.rangeHighlightDecorationId) {
 				oldDecorations.push(this.rangeHighlightDecorationId);
 				this.rangeHighlightDecorationId = null;
 			}
 
-			const newDecorations: editorCommon.IModelDeltaDecoration[] = [
+			const newDecorations: IModelDeltaDecoration[] = [
 				{
 					range: range,
 					options: QuickOpenController._RANGE_HIGHLIGHT_DECORATION
@@ -120,7 +121,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 
 	public clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
-			this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
+			this.editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 				changeAccessor.deltaDecorations([this.rangeHighlightDecorationId], []);
 				this.rangeHighlightDecorationId = null;
 			});

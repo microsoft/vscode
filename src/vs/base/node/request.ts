@@ -28,7 +28,7 @@ export interface IRequestOptions {
 	password?: string;
 	headers?: any;
 	timeout?: number;
-	data?: any;
+	data?: string | Stream;
 	agent?: Agent;
 	followRedirects?: number;
 	strictSSL?: boolean;
@@ -63,6 +63,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 		: getNodeRequest(options);
 
 	return rawRequestPromise.then(rawRequest => {
+
 		return new TPromise<IRequestContext>((c, e) => {
 			const endpoint = parseUrl(options.url);
 
@@ -83,7 +84,6 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 
 			req = rawRequest(opts, (res: http.ClientResponse) => {
 				const followRedirects = isNumber(options.followRedirects) ? options.followRedirects : 3;
-
 				if (res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
 					request(assign({}, options, {
 						url: res.headers['location'],
@@ -107,7 +107,12 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 			}
 
 			if (options.data) {
-				req.write(options.data);
+				if (typeof options.data === 'string') {
+					req.write(options.data);
+				} else {
+					options.data.pipe(req);
+					return;
+				}
 			}
 
 			req.end();

@@ -255,7 +255,7 @@ export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
 		this.throttler = new Throttler();
 	}
 
-	trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
+	trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): TPromise {
 		return super.trigger(() => this.throttler.queue(promiseFactory), delay);
 	}
 }
@@ -312,6 +312,13 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 
 		outer.then(completeCallback, errorCallback, progressCallback);
 	}
+}
+
+/**
+ * Replacement for `WinJS.Promise.timeout`.
+ */
+export function timeout(n: number): Promise<void> {
+	return new Promise(resolve => setTimeout(resolve, n));
 }
 
 /**

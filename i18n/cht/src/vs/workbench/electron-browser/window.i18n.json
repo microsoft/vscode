@@ -9,5 +9,6 @@
 	"cut": "剪下",
 	"copy": "複製",
 	"paste": "貼上",
-	"selectAll": "全選"
+	"selectAll": "全選",
+	"runningAsRoot": "不建議以 root 身分執行 {0}。"
 }

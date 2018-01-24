@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/notabstitle';
 import errors = require('vs/base/common/errors');
-import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import DOM = require('vs/base/browser/dom');
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
@@ -18,12 +18,6 @@ import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/brow
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
 	private editorLabel: ResourceLabel;
-
-	public setContext(group: IEditorGroup): void {
-		super.setContext(group);
-
-		this.editorActionsToolbar.context = { group };
-	}
 
 	public create(parent: HTMLElement): void {
 		super.create(parent);
@@ -94,7 +88,7 @@ export class NoTabsTitleControl extends TitleControl {
 		// - click on toolbar: should trigger actions within
 		// - mouse click: do not focus group if there are more than one as it otherwise makes group DND funky
 		// - touch: always focus
-		else if ((this.stacks.groups.length === 1 || !(e instanceof MouseEvent)) && !DOM.isAncestor((e.target || e.srcElement) as HTMLElement, this.editorActionsToolbar.getContainer().getHTMLElement())) {
+		else if ((this.stacks.groups.length === 1 || !(e instanceof MouseEvent)) && !DOM.isAncestor(((e as GestureEvent).initialTarget || e.target || e.srcElement) as HTMLElement, this.editorActionsToolbar.getContainer().getHTMLElement())) {
 			this.editorGroupService.focusGroup(group);
 		}
 	}

@@ -82,21 +82,21 @@ function once<T, R>(keyFn: (input: T) => string, computeFn: (input: T) => R): (i
 	};
 }
 
-var getRegexForBracketPair = once<ISimpleInternalBracket, RegExp>(
+const getRegexForBracketPair = once<ISimpleInternalBracket, RegExp>(
 	(input) => `${input.open};${input.close}`,
 	(input) => {
 		return createOrRegex([input.open, input.close]);
 	}
 );
 
-var getReversedRegexForBracketPair = once<ISimpleInternalBracket, RegExp>(
+const getReversedRegexForBracketPair = once<ISimpleInternalBracket, RegExp>(
 	(input) => `${input.open};${input.close}`,
 	(input) => {
 		return createOrRegex([toReversedString(input.open), toReversedString(input.close)]);
 	}
 );
 
-var getRegexForBrackets = once<ISimpleInternalBracket[], RegExp>(
+const getRegexForBrackets = once<ISimpleInternalBracket[], RegExp>(
 	(input) => input.map(b => `${b.open};${b.close}`).join(';'),
 	(input) => {
 		let pieces: string[] = [];
@@ -108,7 +108,7 @@ var getRegexForBrackets = once<ISimpleInternalBracket[], RegExp>(
 	}
 );
 
-var getReversedRegexForBrackets = once<ISimpleInternalBracket[], RegExp>(
+const getReversedRegexForBrackets = once<ISimpleInternalBracket[], RegExp>(
 	(input) => input.map(b => `${b.open};${b.close}`).join(';'),
 	(input) => {
 		let pieces: string[] = [];

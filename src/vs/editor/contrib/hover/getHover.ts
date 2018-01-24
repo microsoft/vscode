@@ -8,13 +8,13 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Hover, HoverProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
 
-export function getHover(model: IReadOnlyModel, position: Position): TPromise<Hover[]> {
+export function getHover(model: ITextModel, position: Position): TPromise<Hover[]> {
 
 	const supports = HoverProviderRegistry.ordered(model);
 	const values: Hover[] = [];

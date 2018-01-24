@@ -36,8 +36,6 @@
 	"editorConfigurationTitle": "Düzenleyici",
 	"formatOnSave": "Dosyayı kaydederken biçimlendir. Bir biçimlendirici mevcut olmalıdır, dosya otomatik olarak kaydedilmemelidir, ve düzenleyici kapanmıyor olmalıdır.",
 	"explorerConfigurationTitle": "Dosya Gezgini",
-	"openEditorsVisible": "Açık Editörler bölmesinde gösterilen düzenleyici sayısı. Bölmeyi gizlemek için 0 olarak ayarlayın.",
-	"dynamicHeight": "Açık düzenleyiciler bölümü yüksekliğinin öge sayısına göre dinamik olarak uyarlanıp uyarlanmayacağını denetler.",
 	"autoReveal": "Gezginin dosyaları açarken, onları otomatik olarak ortaya çıkartmasını ve seçmesini denetler.",
 	"enableDragAndDrop": "Gezgeinin sürükle bırak ile dosyaları ve klasörleri taşımaya izin verip vermeyeceğini denetler.",
 	"confirmDragAndDrop": "Gezginin, sürükle bırak ile dosyalar ve klasörlerin taşındığı zaman onay isteyip istemeyeceğini denetler.",

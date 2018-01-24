@@ -18,6 +18,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeLensData, getCodeLensData } from './codelens';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
+import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
@@ -184,7 +185,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		scheduler.schedule();
 	}
 
-	private _disposeAllLenses(decChangeAccessor: editorCommon.IModelDecorationsChangeAccessor, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
+	private _disposeAllLenses(decChangeAccessor: IModelDecorationsChangeAccessor, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
 		let helper = new CodeLensHelper();
 		this._lenses.forEach((lens) => lens.dispose(helper, viewZoneChangeAccessor));
 		if (decChangeAccessor) {

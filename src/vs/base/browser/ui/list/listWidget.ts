@@ -344,21 +344,23 @@ class KeyboardController<T> implements IDisposable {
 	}
 }
 
-function isSelectionSingleChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
+export function isSelectionSingleChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
 	return platform.isMacintosh ? event.browserEvent.metaKey : event.browserEvent.ctrlKey;
 }
 
-function isSelectionRangeChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
+export function isSelectionRangeChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
 	return event.browserEvent.shiftKey;
 }
 
-function isSelectionChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
-	return isSelectionSingleChangeEvent(event) || isSelectionRangeChangeEvent(event);
-}
+const DefaultMultipleSelectionContoller = {
+	isSelectionSingleChangeEvent,
+	isSelectionRangeChangeEvent
+};
 
 class MouseController<T> implements IDisposable {
 
 	private multipleSelectionSupport: boolean;
+	private multipleSelectionController: IMultipleSelectionController<T> | undefined;
 	private didJustPressContextMenuKey: boolean = false;
 	private disposables: IDisposable[] = [];
 
@@ -398,7 +400,11 @@ class MouseController<T> implements IDisposable {
 		private view: ListView<T>,
 		private options: IListOptions<T> = {}
 	) {
-		this.multipleSelectionSupport = options.multipleSelectionSupport !== false;
+		this.multipleSelectionSupport = !(options.multipleSelectionSupport === false);
+
+		if (this.multipleSelectionSupport) {
+			this.multipleSelectionController = options.multipleSelectionController || DefaultMultipleSelectionContoller;
+		}
 
 		view.onMouseDown(this.onMouseDown, this, this.disposables);
 		view.onMouseClick(this.onPointer, this, this.disposables);
@@ -406,6 +412,26 @@ class MouseController<T> implements IDisposable {
 		view.onTouchStart(this.onMouseDown, this, this.disposables);
 		view.onTap(this.onPointer, this, this.disposables);
 		Gesture.addTarget(view.domNode);
+	}
+
+	private isSelectionSingleChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
+		if (this.multipleSelectionController) {
+			return this.multipleSelectionController.isSelectionSingleChangeEvent(event);
+		}
+
+		return platform.isMacintosh ? event.browserEvent.metaKey : event.browserEvent.ctrlKey;
+	}
+
+	private isSelectionRangeChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
+		if (this.multipleSelectionController) {
+			return this.multipleSelectionController.isSelectionRangeChangeEvent(event);
+		}
+
+		return event.browserEvent.shiftKey;
+	}
+
+	private isSelectionChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
+		return this.isSelectionSingleChangeEvent(event) || this.isSelectionRangeChangeEvent(event);
 	}
 
 	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
@@ -419,14 +445,14 @@ class MouseController<T> implements IDisposable {
 		let reference = this.list.getFocus()[0];
 		reference = reference === undefined ? this.list.getSelection()[0] : reference;
 
-		if (this.multipleSelectionSupport && isSelectionRangeChangeEvent(e)) {
+		if (this.multipleSelectionSupport && this.isSelectionRangeChangeEvent(e)) {
 			return this.changeSelection(e, reference);
 		}
 
 		const focus = e.index;
 		this.list.setFocus([focus]);
 
-		if (this.multipleSelectionSupport && isSelectionChangeEvent(e)) {
+		if (this.multipleSelectionSupport && this.isSelectionChangeEvent(e)) {
 			return this.changeSelection(e, reference);
 		}
 
@@ -437,7 +463,7 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onPointer(e: IListMouseEvent<T>): void {
-		if (this.multipleSelectionSupport && isSelectionChangeEvent(e)) {
+		if (this.multipleSelectionSupport && this.isSelectionChangeEvent(e)) {
 			return;
 		}
 
@@ -449,7 +475,7 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onDoubleClick(e: IListMouseEvent<T>): void {
-		if (this.multipleSelectionSupport && isSelectionChangeEvent(e)) {
+		if (this.multipleSelectionSupport && this.isSelectionChangeEvent(e)) {
 			return;
 		}
 
@@ -461,7 +487,7 @@ class MouseController<T> implements IDisposable {
 	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>, reference: number | undefined): void {
 		const focus = e.index;
 
-		if (isSelectionRangeChangeEvent(e) && reference !== undefined) {
+		if (this.isSelectionRangeChangeEvent(e) && reference !== undefined) {
 			const min = Math.min(reference, focus);
 			const max = Math.max(reference, focus);
 			const rangeSelection = range(min, max + 1);
@@ -475,7 +501,7 @@ class MouseController<T> implements IDisposable {
 			const newSelection = disjunction(rangeSelection, relativeComplement(selection, contiguousRange));
 			this.list.setSelection(newSelection);
 
-		} else if (isSelectionSingleChangeEvent(e)) {
+		} else if (this.isSelectionSingleChangeEvent(e)) {
 			const selection = this.list.getSelection();
 			const newSelection = selection.filter(i => i !== focus);
 
@@ -492,6 +518,11 @@ class MouseController<T> implements IDisposable {
 	}
 }
 
+export interface IMultipleSelectionController<T> {
+	isSelectionSingleChangeEvent(event: IListMouseEvent<T> | IListTouchEvent<T>): boolean;
+	isSelectionRangeChangeEvent(event: IListMouseEvent<T> | IListTouchEvent<T>): boolean;
+}
+
 export interface IListOptions<T> extends IListViewOptions, IListStyles {
 	identityProvider?: IIdentityProvider<T>;
 	ariaLabel?: string;
@@ -501,6 +532,7 @@ export interface IListOptions<T> extends IListViewOptions, IListStyles {
 	keyboardSupport?: boolean;
 	verticalScrollMode?: ScrollbarVisibility;
 	multipleSelectionSupport?: boolean;
+	multipleSelectionController?: IMultipleSelectionController<T>;
 }
 
 export interface IListStyles {
@@ -662,8 +694,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private eventBufferer = new EventBufferer();
 	private view: ListView<T>;
 	private spliceable: ISpliceable<T>;
-	private disposables: IDisposable[];
+	protected disposables: IDisposable[];
 	private styleElement: HTMLStyleElement;
+	private mouseController: MouseController<T>;
 
 	@memoize get onFocusChange(): Event<IListEvent<T>> {
 		return mapEvent(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
@@ -744,9 +777,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		if (typeof options.mouseSupport !== 'boolean' || options.mouseSupport) {
-			const controller = new MouseController(this, this.view, options);
-			this.disposables.push(controller);
-			this.onContextMenu = controller.onContextMenu;
+			this.mouseController = new MouseController(this, this.view, options);
+			this.disposables.push(this.mouseController);
+			this.onContextMenu = this.mouseController.onContextMenu;
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);

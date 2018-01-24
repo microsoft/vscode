@@ -602,6 +602,101 @@ suite('QueryBuilder', () => {
 			cases.forEach(testIncludesDataItem);
 		});
 	});
+
+	suite('smartCase', () => {
+		test('no flags -> no change', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'a'
+				},
+				[]);
+
+			assert(!query.contentPattern.isCaseSensitive);
+		});
+
+		test('maintains isCaseSensitive when smartCase not set', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'a',
+					isCaseSensitive: true
+				},
+				[]);
+
+			assert(query.contentPattern.isCaseSensitive);
+		});
+
+		test('maintains isCaseSensitive when smartCase set', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'a',
+					isCaseSensitive: true,
+					isSmartCase: true
+				},
+				[]);
+
+			assert(query.contentPattern.isCaseSensitive);
+		});
+
+		test('smartCase determines not case sensitive', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'abcd',
+					isSmartCase: true
+				},
+				[]);
+
+			assert(!query.contentPattern.isCaseSensitive);
+		});
+
+		test('smartCase determines case sensitive', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'abCd',
+					isSmartCase: true
+				},
+				[]);
+
+			assert(query.contentPattern.isCaseSensitive);
+		});
+
+		test('smartCase determines not case sensitive (regex)', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'ab\\Sd',
+					isRegExp: true,
+					isSmartCase: true
+				},
+				[]);
+
+			assert(!query.contentPattern.isCaseSensitive);
+		});
+
+		test('smartCase determines case sensitive (regex)', () => {
+			const query = queryBuilder.text(
+				{
+					pattern: 'ab[A-Z]d',
+					isRegExp: true,
+					isSmartCase: true
+				},
+				[]);
+
+			assert(query.contentPattern.isCaseSensitive);
+		});
+	});
+
+	suite('file', () => {
+		test('simple file query', () => {
+			const cacheKey = 'asdf';
+			const query = queryBuilder.file([ROOT_1_URI], {
+				cacheKey,
+				sortByScore: true
+			});
+
+			assert.equal(query.folderQueries.length, 1);
+			assert.equal(query.cacheKey, cacheKey);
+			assert(query.sortByScore);
+		});
+	});
 });
 
 function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void {

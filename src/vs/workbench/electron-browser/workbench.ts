@@ -76,7 +76,7 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ShutdownReason, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -123,6 +123,8 @@ export interface IWorkbenchStartedInfo {
 	restoredViewlet: string;
 	restoredEditors: string[];
 }
+
+type FontAliasingOption = 'default' | 'antialiased' | 'none' | 'auto';
 
 const Identifiers = {
 	WORKBENCH_CONTAINER: 'workbench.main.container',
@@ -202,7 +204,7 @@ export class Workbench implements IPartService {
 	private inZenMode: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
-	private fontAliasing: string;
+	private fontAliasing: FontAliasingOption;
 	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
@@ -320,16 +322,12 @@ export class Workbench implements IPartService {
 		perf.mark('willRestoreEditors');
 		const restoredEditors: string[] = [];
 		restorePromises.push(this.resolveEditorsToOpen().then(inputs => {
-
 			let editorOpenPromise: TPromise<IEditor[]>;
 			if (inputs.length) {
 				editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
 			} else {
 				editorOpenPromise = this.editorPart.restoreEditors();
 			}
-
-			// update lifecycle *after* triggering the editor restore
-			this.lifecycleService.phase = LifecyclePhase.Restoring;
 
 			return editorOpenPromise.then(editors => {
 				this.handleEditorBackground(); // make sure we show the proper background in the editor area
@@ -647,7 +645,7 @@ export class Workbench implements IPartService {
 		this.activityBarHidden = !activityBarVisible;
 
 		// Font aliasing
-		this.fontAliasing = this.configurationService.getValue<string>(Workbench.fontAliasingConfigurationKey);
+		this.fontAliasing = this.configurationService.getValue<FontAliasingOption>(Workbench.fontAliasingConfigurationKey);
 
 		// Zen mode
 		this.zenMode = {
@@ -941,10 +939,17 @@ export class Workbench implements IPartService {
 		});
 	}
 
-	private setFontAliasing(aliasing: string) {
+	private setFontAliasing(aliasing: FontAliasingOption) {
 		this.fontAliasing = aliasing;
-
-		document.body.style['-webkit-font-smoothing'] = (aliasing === 'default' ? '' : aliasing);
+		const fontAliasingClassNames = [
+			'monaco-font-aliasing-antialiased',
+			'monaco-font-aliasing-none',
+			'monaco-font-aliasing-auto'
+		];
+		document.body.classList.remove(...fontAliasingClassNames);
+		if (aliasing !== 'default') {
+			document.body.classList.add(`monaco-font-aliasing-${aliasing}`);
+		}
 	}
 
 	public dispose(reason = ShutdownReason.QUIT): void {
@@ -1092,7 +1097,7 @@ export class Workbench implements IPartService {
 
 		this.setPanelPositionFromStorageOrConfig();
 
-		const fontAliasing = this.configurationService.getValue<string>(Workbench.fontAliasingConfigurationKey);
+		const fontAliasing = this.configurationService.getValue<FontAliasingOption>(Workbench.fontAliasingConfigurationKey);
 		if (fontAliasing !== this.fontAliasing) {
 			this.setFontAliasing(fontAliasing);
 		}

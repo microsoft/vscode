@@ -7,7 +7,8 @@
     "vscode": "0.10.x"
   },
   "activationEvents": [
-    "onLanguage:json", "onLanguage:jsonc"
+    "onLanguage:json",
+    "onLanguage:jsonc"
   ],
   "enableProposedApi": true,
   "main": "./client/out/jsonMain",
@@ -53,7 +54,8 @@
           ".code-workspace",
           "language-configuration.json",
           "icon-theme.json",
-          "color-theme.json"
+          "color-theme.json",
+          ".code-snippets"
         ],
         "filenames": [
           "settings.json",

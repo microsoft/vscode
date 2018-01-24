@@ -30,7 +30,7 @@ import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration } from 'vs/platform/search/common/search';
+import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration, IPatternInfo } from 'vs/platform/search/common/search';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -54,12 +54,11 @@ import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
-import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export class SearchViewlet extends Viewlet {
@@ -120,9 +119,7 @@ export class SearchViewlet extends Viewlet {
 		@IReplaceService private replaceService: IReplaceService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IListService private listService: IListService,
-		@IThemeService protected themeService: IThemeService,
-		@IOutputService private outputService: IOutputService
+		@IThemeService protected themeService: IThemeService
 	) {
 		super(Constants.VIEWLET_ID, telemetryService, themeService);
 
@@ -499,7 +496,7 @@ export class SearchViewlet extends Viewlet {
 
 			let dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof FileMatch ? obj.resource() : void 0);
 
-			this.tree = new WorkbenchTree(div.getHTMLElement(), {
+			this.tree = this.instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), {
 				dataSource: dataSource,
 				renderer: renderer,
 				sorter: new SearchSorter(),
@@ -509,12 +506,12 @@ export class SearchViewlet extends Viewlet {
 			}, {
 					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
 					keyboardSupport: false
-				}, this.contextKeyService, this.listService, this.themeService);
+				});
 
 			this.tree.setInput(this.viewModel.searchResult);
 			this.toUnbind.push(renderer);
 
-			const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree));
+			const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree, { openOnFocus: true }));
 			this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {
 				if (options.element instanceof Match) {
 					let selectedMatch: Match = options.element;
@@ -908,33 +905,41 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	public searchInFolder(resource: URI, pathToRelative: (from: string, to: string) => string): void {
-		let folderPath = null;
+	public searchInFolders(resources: URI[], pathToRelative: (from: string, to: string) => string): void {
+		const folderPaths = [];
 		const workspace = this.contextService.getWorkspace();
-		if (resource) {
-			if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-				// Show relative path from the root for single-root mode
-				folderPath = paths.normalize(pathToRelative(workspace.folders[0].uri.fsPath, resource.fsPath));
-				if (folderPath && folderPath !== '.') {
-					folderPath = './' + folderPath;
-				}
-			} else {
-				const owningFolder = this.contextService.getWorkspaceFolder(resource);
-				if (owningFolder) {
-					const owningRootBasename = paths.basename(owningFolder.uri.fsPath);
 
-					// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
-					const isUniqueFolder = workspace.folders.filter(folder => paths.basename(folder.uri.fsPath) === owningRootBasename).length === 1;
-					if (isUniqueFolder) {
-						folderPath = `./${owningRootBasename}/${paths.normalize(pathToRelative(owningFolder.uri.fsPath, resource.fsPath))}`;
-					} else {
-						folderPath = resource.fsPath;
+		if (resources) {
+			resources.forEach(resource => {
+				let folderPath: string;
+				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
+					// Show relative path from the root for single-root mode
+					folderPath = paths.normalize(pathToRelative(workspace.folders[0].uri.fsPath, resource.fsPath));
+					if (folderPath && folderPath !== '.') {
+						folderPath = './' + folderPath;
+					}
+				} else {
+					const owningFolder = this.contextService.getWorkspaceFolder(resource);
+					if (owningFolder) {
+						const owningRootBasename = paths.basename(owningFolder.uri.fsPath);
+
+						// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
+						const isUniqueFolder = workspace.folders.filter(folder => paths.basename(folder.uri.fsPath) === owningRootBasename).length === 1;
+						if (isUniqueFolder) {
+							folderPath = `./${owningRootBasename}/${paths.normalize(pathToRelative(owningFolder.uri.fsPath, resource.fsPath))}`;
+						} else {
+							folderPath = resource.fsPath;
+						}
 					}
 				}
-			}
+
+				if (folderPath) {
+					folderPaths.push(folderPath);
+				}
+			});
 		}
 
-		if (!folderPath || folderPath === '.') {
+		if (!folderPaths.length || folderPaths.some(folderPath => folderPath === '.')) {
 			this.inputPatternIncludes.setValue('');
 			this.searchWidget.focus();
 			return;
@@ -945,7 +950,7 @@ export class SearchViewlet extends Viewlet {
 			this.toggleQueryDetails(true, true);
 		}
 
-		this.inputPatternIncludes.setValue(folderPath);
+		this.inputPatternIncludes.setValue(folderPaths.join(', '));
 		this.searchWidget.focus(false);
 	}
 
@@ -980,12 +985,13 @@ export class SearchViewlet extends Viewlet {
 			}
 		}
 
-		const content = {
+		const content: IPatternInfo = {
 			pattern: contentPattern,
 			isRegExp: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWordMatch: isWholeWords,
-			wordSeparators: this.configurationService.getValue<ISearchConfiguration>().editor.wordSeparators
+			wordSeparators: this.configurationService.getValue<ISearchConfiguration>().editor.wordSeparators,
+			isSmartCase: this.configurationService.getValue<ISearchConfiguration>().search.smartCase
 		};
 
 		const excludePattern = this.inputPatternExcludes.getValue();
@@ -1063,12 +1069,7 @@ export class SearchViewlet extends Viewlet {
 		this.showEmptyStage();
 
 		let isDone = false;
-		const outputChannel = this.outputService.getChannel(Constants.SEARCH_OUTPUT_CHANNEL_ID);
 		let onComplete = (completed?: ISearchComplete) => {
-			if (query.useRipgrep) {
-				outputChannel.append('\n');
-			}
-
 			isDone = true;
 
 			// Complete up to 100% as needed
@@ -1197,10 +1198,6 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		let onError = (e: any) => {
-			if (query.useRipgrep) {
-				outputChannel.append('\n');
-			}
-
 			if (errors.isPromiseCanceledError(e)) {
 				onComplete(null);
 			} else {
@@ -1221,10 +1218,6 @@ export class SearchViewlet extends Viewlet {
 			}
 			if (p.worked) {
 				worked = p.worked;
-			}
-
-			if (p.message) {
-				outputChannel.append(p.message);
 			}
 		};
 
@@ -1359,7 +1352,7 @@ export class SearchViewlet extends Viewlet {
 				preserveFocus,
 				pinned,
 				selection,
-				revealIfVisible: !sideBySide
+				revealIfVisible: true
 			}
 		}, sideBySide).then(editor => {
 			if (editor && element instanceof Match && preserveFocus) {

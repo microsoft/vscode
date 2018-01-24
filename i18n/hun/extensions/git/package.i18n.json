@@ -54,12 +54,12 @@
 	"command.stashPopLatest": "Legutóbbi stash visszaállítása",
 	"config.enabled": "Meghatározza, hogy a git engedélyezve van-e",
 	"config.path": "A git végrehajtható fájl elérési útja",
+	"config.autoRepositoryDetection": "Meghatározza, hogy a forráskódtárak automatikusan fel legyenek-e derítve",
 	"config.autorefresh": "Meghatározza, hogy engedélyezve van-e az automatikus frissítés",
 	"config.autofetch": "Meghatározza, hogy engedélyezve van-e az automatikus lekérés",
 	"config.enableLongCommitWarning": "Figyelmeztessen-e az alkalmazás hosszú beadási üzenet esetén",
 	"config.confirmSync": "Megerősítés kérése git forráskódtárak szinkronizálása előtt",
 	"config.countBadge": "Meghatározza a git jelvényen megjelenő számláló működését. Az `all` minden módosítást számol, a `tracked` csak a követkett változtatásokat. Az `off` kikapcsolja a jelvényt.",
-	"config.checkoutType": "Meghatározza, hogy milyen típusú ágak jelenjenek meg a `Checkout adott helyről... ` parancs futtatása esetén. Az  `all` esetén az összes ref megjelenik, `local` esetén csak a helyi ágak, `tags` esetén csak a címkék, `remote` esetén pedig csak a távoli ágak.",
 	"config.ignoreLegacyWarning": "Régi gittel kapcsolatos figyelmeztetés figyelmen kívül hagyása",
 	"config.ignoreMissingGitWarning": "Figyelmeztetés figyelmen kívül hagyása, ha a Git hiányzik",
 	"config.ignoreLimitWarning": "Túl sok módosítás esetén megjelenő figyelmeztetés figyelmen kívül hagyása",
@@ -72,5 +72,6 @@
 	"colors.deleted": "A törölt erőforrások színe.",
 	"colors.untracked": "A nem követett erőforrások színe.",
 	"colors.ignored": "A figyelmen kívül hagyott erőforrások színe.",
-	"colors.conflict": "A konfliktusos erőforrások színe."
+	"colors.conflict": "A konfliktusos erőforrások színe.",
+	"colors.submodule": "Az almodulokhoz tartozó erőforrások színe"
 }

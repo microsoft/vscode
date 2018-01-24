@@ -8,7 +8,8 @@ import Severity from 'vs/base/common/severity';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IDecorationOptions, EndOfLineSequence } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
@@ -19,6 +20,7 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { LanguageSelector, LanguageFilter } from 'vs/editor/common/modes/languageSelector';
+import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/node/extHost.protocol';
 
 export interface PositionLike {
 	line: number;
@@ -227,24 +229,36 @@ export const TextEdit = {
 
 export namespace WorkspaceEdit {
 	export function from(value: vscode.WorkspaceEdit): modes.WorkspaceEdit {
-		const result: modes.WorkspaceEdit = { edits: [] };
-		for (let entry of value.entries()) {
-			let [uri, textEdits] = entry;
-			for (let textEdit of textEdits) {
-				result.edits.push({
-					resource: uri,
-					newText: textEdit.newText,
-					range: fromRange(textEdit.range)
-				});
+		const result: modes.WorkspaceEdit = {
+			edits: []
+		};
+		for (const entry of value.allEntries()) {
+			const [uri, uriOrEdits] = entry;
+			if (Array.isArray(uriOrEdits)) {
+				// text edits
+				result.edits.push({ resource: uri, edits: uriOrEdits.map(TextEdit.from) });
+			} else {
+				// resource edits
+				result.edits.push({ oldUri: uri, newUri: uriOrEdits });
 			}
 		}
 		return result;
 	}
 
-	export function to(value: modes.WorkspaceEdit) {
+	export function to(value: WorkspaceEditDto) {
 		const result = new types.WorkspaceEdit();
 		for (const edit of value.edits) {
-			result.replace(edit.resource, toRange(edit.range), edit.newText);
+			if (Array.isArray((<ResourceTextEditDto>edit).edits)) {
+				result.set(
+					URI.revive((<ResourceTextEditDto>edit).resource),
+					<types.TextEdit[]>(<ResourceTextEditDto>edit).edits.map(TextEdit.to)
+				);
+			} else {
+				result.renameResource(
+					URI.revive((<ResourceFileEditDto>edit).oldUri),
+					URI.revive((<ResourceFileEditDto>edit).newUri)
+				);
+			}
 		}
 		return result;
 	}
@@ -346,7 +360,8 @@ export namespace CompletionTriggerKind {
 		switch (kind) {
 			case modes.SuggestTriggerKind.TriggerCharacter:
 				return types.CompletionTriggerKind.TriggerCharacter;
-
+			case modes.SuggestTriggerKind.TriggerForIncompleteCompletions:
+				return types.CompletionTriggerKind.TriggerForIncompleteCompletions;
 			case modes.SuggestTriggerKind.Invoke:
 			default:
 				return types.CompletionTriggerKind.Invoke;

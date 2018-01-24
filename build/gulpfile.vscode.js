@@ -44,14 +44,13 @@ const nodeModules = ['electron', 'original-fs']
 
 // Build
 
-const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.20.2' },
-	{ name: 'ms-vscode.node-debug2', version: '1.20.0' }
-];
+const builtInExtensions = require('./builtInExtensions');
 
 const excludedExtensions = [
 	'vscode-api-tests',
-	'vscode-colorize-tests'
+	'vscode-colorize-tests',
+	'ms-vscode.node-debug',
+	'ms-vscode.node-debug2',
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -82,7 +81,8 @@ const vscodeResources = [
 	'out-build/vs/workbench/parts/welcome/walkThrough/**/*.md',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
-	'out-build/vs/code/electron-browser/sharedProcess.js',
+	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
+	'out-build/vs/code/electron-browser/issue/issueReporter.js',
 	'!**/test/**'
 ];
 
@@ -127,7 +127,7 @@ const config = {
 	version: getElectronVersion(),
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2017 Microsoft. All rights reserved',
+	copyright: 'Copyright (C) 2018 Microsoft. All rights reserved',
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
@@ -583,3 +583,20 @@ gulp.task('generate-vscode-configuration', () => {
 		console.error(e.toString());
 	});
 });
+
+//#region Built-In Extensions
+gulp.task('clean-builtInExtensions', util.rimraf('.build/builtInExtensions'));
+
+gulp.task('builtInExtensions', ['clean-builtInExtensions'], function() {
+	const marketplaceExtensions = es.merge(...builtInExtensions.map(extension => {
+		return ext.fromMarketplace(extension.name, extension.version)
+			.pipe(rename(p => p.dirname = `${extension.name}/${p.dirname}`));
+	}));
+
+	return (
+		marketplaceExtensions
+		.pipe(util.setExecutableBit(['**/*.sh']))
+		.pipe(vfs.dest('.build/builtInExtensions'))
+	);
+});
+//#endregion

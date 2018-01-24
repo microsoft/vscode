@@ -23,7 +23,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { OutputLinkProvider } from 'vs/workbench/parts/output/common/outputLinkProvider';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -112,7 +112,7 @@ interface OutputChannel extends IOutputChannel {
 	readonly file: URI;
 	readonly onDidAppendedContent: Event<void>;
 	readonly onDispose: Event<void>;
-	loadModel(): TPromise<IModel>;
+	loadModel(): TPromise<ITextModel>;
 }
 
 abstract class AbstractFileOutputChannel extends Disposable {
@@ -126,9 +126,10 @@ abstract class AbstractFileOutputChannel extends Disposable {
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	protected modelUpdater: RunOnceScheduler;
-	protected model: IModel;
+	protected model: ITextModel;
 	readonly file: URI;
-	protected startOffset: number = 0;
+
+	private startOffset: number = 0;
 	protected endOffset: number = 0;
 
 	constructor(
@@ -162,7 +163,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 		this.startOffset = this.endOffset;
 	}
 
-	loadModel(): TPromise<IModel> {
+	loadModel(): TPromise<ITextModel> {
 		return this.fileService.resolveContent(this.file, { position: this.startOffset })
 			.then(content => {
 				if (this.model) {
@@ -184,7 +185,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 		return TPromise.as(null);
 	}
 
-	private createModel(content: string): IModel {
+	private createModel(content: string): ITextModel {
 		const model = this.modelService.createModel(content, this.modeService.getOrCreateMode(OUTPUT_MIME), this.modelUri);
 		this.onModelCreated(model);
 		const disposables: IDisposable[] = [];
@@ -201,13 +202,12 @@ abstract class AbstractFileOutputChannel extends Disposable {
 			const lastLine = this.model.getLineCount();
 			const lastLineMaxColumn = this.model.getLineMaxColumn(lastLine);
 			this.model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), content)]);
-			this.endOffset = this.endOffset + new Buffer(content).byteLength;
 			this._onDidAppendedContent.fire();
 		}
 	}
 
-	protected onModelCreated(model: IModel) { }
-	protected onModelWillDispose(model: IModel) { }
+	protected onModelCreated(model: ITextModel) { }
+	protected onModelWillDispose(model: ITextModel) { }
 	protected updateModel() { }
 
 	dispose(): void {
@@ -245,6 +245,8 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	}
 
 	append(message: string): void {
+		// update end offset always as message is read
+		this.endOffset = this.endOffset + new Buffer(message).byteLength;
 		if (this.loadingFromFileInProgress) {
 			this.appendedMessage += message;
 		} else {
@@ -263,7 +265,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		this.appendedMessage = '';
 	}
 
-	loadModel(): TPromise<IModel> {
+	loadModel(): TPromise<ITextModel> {
 		this.startLoadingFromFile();
 		return super.loadModel()
 			.then(model => {
@@ -371,7 +373,10 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		if (this.model) {
 			this.fileService.resolveContent(this.file, { position: this.endOffset })
 				.then(content => {
-					this.appendToModel(content.value);
+					if (content.value) {
+						this.endOffset = this.endOffset + new Buffer(content.value).byteLength;
+						this.appendToModel(content.value);
+					}
 					this.updateInProgress = false;
 				}, () => this.updateInProgress = false);
 		} else {
@@ -379,11 +384,11 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		}
 	}
 
-	protected onModelCreated(model: IModel): void {
+	protected onModelCreated(model: ITextModel): void {
 		this.fileHandler.watch();
 	}
 
-	protected onModelWillDispose(model: IModel): void {
+	protected onModelWillDispose(model: ITextModel): void {
 		this.fileHandler.unwatch();
 	}
 
@@ -450,7 +455,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.lifecycleService.onShutdown(() => this.onShutdown());
 	}
 
-	provideTextContent(resource: URI): TPromise<IModel> {
+	provideTextContent(resource: URI): TPromise<ITextModel> {
 		const channel = <OutputChannel>this.getChannel(resource.fsPath);
 		if (channel) {
 			return channel.loadModel();
@@ -525,8 +530,9 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
 			if (this.activeChannel === channel) {
 				const channels = this.getChannels();
-				if (this._outputPanel && channels.length) {
-					this.showChannel(channels[0].id);
+				if (this.isPanelShown() && channels.length) {
+					this.doShowChannel(this.getChannel(channels[0].id), true);
+					this._onActiveOutputChannel.fire(channels[0].id);
 				} else {
 					this._onActiveOutputChannel.fire(void 0);
 				}
@@ -598,7 +604,7 @@ export class LogContentProvider {
 	) {
 	}
 
-	provideTextContent(resource: URI): TPromise<IModel> {
+	provideTextContent(resource: URI): TPromise<ITextModel> {
 		if (resource.scheme === LOG_SCHEME) {
 			let channel = this.getChannel(resource);
 			if (channel) {
@@ -636,7 +642,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private modelUpdater: RunOnceScheduler;
-	private model: IModel;
+	private model: ITextModel;
 	private readonly bufferredContent: BufferedContent;
 	private lastReadId: number = void 0;
 
@@ -675,7 +681,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 		this.lastReadId = void 0;
 	}
 
-	loadModel(): TPromise<IModel> {
+	loadModel(): TPromise<ITextModel> {
 		const { value, id } = this.bufferredContent.getDelta(this.lastReadId);
 		if (this.model) {
 			this.model.setValue(value);
@@ -686,7 +692,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 		return TPromise.as(this.model);
 	}
 
-	private createModel(content: string): IModel {
+	private createModel(content: string): ITextModel {
 		const model = this.modelService.createModel(content, this.modeService.getOrCreateMode(OUTPUT_MIME), URI.from({ scheme: OUTPUT_SCHEME, path: this.id }));
 		const disposables: IDisposable[] = [];
 		disposables.push(model.onWillDispose(() => {

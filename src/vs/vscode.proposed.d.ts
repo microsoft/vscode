@@ -83,12 +83,33 @@ declare module 'vscode' {
 		type: FileType;
 	}
 
+	export interface TextSearchQuery {
+		pattern: string;
+		isRegex?: boolean;
+		isCaseSensitive?: boolean;
+		isWordMatch?: boolean;
+	}
+
+	export interface TextSearchOptions {
+		includes: GlobPattern[];
+		excludes: GlobPattern[];
+	}
+
+	export interface TextSearchResult {
+		uri: Uri;
+		range: Range;
+		preview: { leading: string, matching: string, trailing: string };
+	}
+
 	// todo@joh discover files etc
+	// todo@joh CancellationToken everywhere
+	// todo@joh add open/close calls?
 	export interface FileSystemProvider {
 
 		readonly onDidChange?: Event<FileChange[]>;
 
-		readonly root: Uri;
+		// todo@joh - remove this
+		readonly root?: Uri;
 
 		// more...
 		//
@@ -98,6 +119,7 @@ declare module 'vscode' {
 
 		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
 
+		// todo@joh - have an option to create iff not exist
 		// todo@remote
 		// offset - byte offset to start
 		// count - number of bytes to write
@@ -128,11 +150,13 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 
 		// find files by names
+		// todo@joh, move into its own provider
 		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
-		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
 	}
 
 	export namespace window {
@@ -197,65 +221,6 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
-	/**
-	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
-	 * to refactor code.
-	 */
-	export class CodeAction {
-
-		/**
-		 * A short, human-readanle, title for this code action.
-		 */
-		title: string;
-
-		/**
-		 * A workspace edit this code action performs.
-		 *
-		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
-		 */
-		edit?: WorkspaceEdit;
-
-		/**
-		 * Diagnostics that this code action resolves.
-		 */
-		diagnostics?: Diagnostic[];
-
-		/**
-		 * A command this code action performs.
-		 *
-		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
-		 */
-		command?: Command;
-
-		/**
-		 * Creates a new code action.
-		 *
-		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edits)
-		 * or a [command](#CodeAction.command).
-		 *
-		 * @param title The title of the code action.
-		 * @param edits The edit of the code action.
-		 */
-		constructor(title: string, edit?: WorkspaceEdit);
-	}
-
-	export interface CodeActionProvider {
-
-		/**
-		 * Provide commands for the given document and range.
-		 *
-		 * If implemented, overrides `provideCodeActions`
-		 *
-		 * @param document The document in which the command was invoked.
-		 * @param range The range for which the command was invoked.
-		 * @param context Context carrying additional information.
-		 * @param token A cancellation token.
-		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
-		 */
-		provideCodeActions2?(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
-	}
 
 	export namespace debug {
 

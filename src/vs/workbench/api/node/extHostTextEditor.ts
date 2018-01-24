@@ -11,7 +11,7 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
-import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as TypeConverters from './extHostTypeConverters';
 import { MainThreadEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from './extHost.protocol';
 import * as vscode from 'vscode';

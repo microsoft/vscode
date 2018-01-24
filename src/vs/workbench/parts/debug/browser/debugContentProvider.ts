@@ -7,7 +7,7 @@ import uri from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -39,7 +39,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
 	}
 
-	public provideTextContent(resource: uri): TPromise<IModel> {
+	public provideTextContent(resource: uri): TPromise<ITextModel> {
 
 		let process: IProcess;
 		let sourceRef: number;
@@ -56,7 +56,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		}
 
 		if (!process) {
-			return TPromise.wrapError<IModel>(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
+			return TPromise.wrapError<ITextModel>(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
 		}
 		const source = process.sources.get(resource.toString());
 		let rawSource: DebugProtocol.Source;

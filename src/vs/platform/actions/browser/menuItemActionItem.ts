@@ -7,7 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IMenu, MenuItemAction, IMenuActionOptions } from 'vs/platform/actions/common/actions';
+import { IMenu, MenuItemAction, IMenuActionOptions, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IAction } from 'vs/base/common/actions';
@@ -15,16 +15,61 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { domEvent } from 'vs/base/browser/event';
 import { Emitter } from 'vs/base/common/event';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { memoize } from 'vs/base/common/decorators';
+import { IdGenerator } from 'vs/base/common/idGenerator';
+import { createCSSRule } from 'vs/base/browser/dom';
+import URI from 'vs/base/common/uri';
 
+class AltKeyEmitter extends Emitter<boolean> {
 
-export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+	private _subscriptions: IDisposable[] = [];
+	private _isPressed: boolean;
+
+	private constructor(contextMenuService: IContextMenuService) {
+		super();
+
+		this._subscriptions.push(domEvent(document.body, 'keydown')(e => this.isPressed = e.altKey));
+		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.isPressed = false));
+		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.isPressed = false));
+		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.isPressed = false));
+		// Workaround since we do not get any events while a context menu is shown
+		this._subscriptions.push(contextMenuService.onDidContextMenu(() => this.isPressed = false));
+	}
+
+	get isPressed(): boolean {
+		return this._isPressed;
+	}
+
+	set isPressed(value: boolean) {
+		this._isPressed = value;
+		this.fire(this._isPressed);
+	}
+
+	@memoize
+	static getInstance(contextMenuService: IContextMenuService) {
+		return new AltKeyEmitter(contextMenuService);
+	}
+
+	dispose() {
+		super.dispose();
+		this._subscriptions = dispose(this._subscriptions);
+	}
+}
+
+export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, contextMenuService: IContextMenuService, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	const groups = menu.getActions(options);
 	if (groups.length === 0) {
 		return;
 	}
+	const altKey = AltKeyEmitter.getInstance(contextMenuService);
 
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
+		if (altKey.isPressed) {
+			actions = actions.map(a => !!a.alt ? a.alt : a);
+		}
+
 		if (isPrimaryGroup(group)) {
 
 			const head = Array.isArray<IAction>(target) ? target : target.primary;
@@ -65,43 +110,29 @@ export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: 
 }
 
 
-export function createActionItem(action: IAction, keybindingService: IKeybindingService, messageService: IMessageService): ActionItem {
+export function createActionItem(action: IAction, keybindingService: IKeybindingService, messageService: IMessageService, contextMenuService: IContextMenuService): ActionItem {
 	if (action instanceof MenuItemAction) {
-		return new MenuItemActionItem(action, keybindingService, messageService);
+		return new MenuItemActionItem(action, keybindingService, messageService, contextMenuService);
 	}
 	return undefined;
 }
 
-
-const _altKey = new class extends Emitter<boolean> {
-
-	private _subscriptions: IDisposable[] = [];
-
-	constructor() {
-		super();
-
-		this._subscriptions.push(domEvent(document.body, 'keydown')(e => this.fire(e.altKey)));
-		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.fire(false)));
-		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.fire(false)));
-		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.fire(false)));
-	}
-
-	dispose() {
-		super.dispose();
-		this._subscriptions = dispose(this._subscriptions);
-	}
-};
+const ids = new IdGenerator('menu-item-action-item-icon-');
 
 export class MenuItemActionItem extends ActionItem {
 
+	static readonly ICON_PATH_TO_CSS_RULES: Map<string /* path*/, string /* CSS rule */> = new Map<string, string>();
+
 	private _wantsAltCommand: boolean = false;
+	private _itemClassDispose: IDisposable;
 
 	constructor(
-		action: MenuItemAction,
+		public _action: MenuItemAction,
 		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMessageService protected _messageService: IMessageService
+		@IMessageService protected _messageService: IMessageService,
+		@IContextMenuService private _contextMenuService: IContextMenuService
 	) {
-		super(undefined, action, { icon: !!action.class, label: !action.class });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.iconPath), label: !_action.class && !_action.item.iconPath });
 	}
 
 	protected get _commandAction(): IAction {
@@ -119,6 +150,8 @@ export class MenuItemActionItem extends ActionItem {
 	render(container: HTMLElement): void {
 		super.render(container);
 
+		this._updateItemClass(this._action.item);
+
 		let mouseOver = false;
 		let altDown = false;
 
@@ -132,7 +165,7 @@ export class MenuItemActionItem extends ActionItem {
 			}
 		};
 
-		this._callOnDispose.push(_altKey.event(value => {
+		this._callOnDispose.push(AltKeyEmitter.getInstance(this._contextMenuService).event(value => {
 			altDown = value;
 			updateAltState();
 		}));
@@ -166,13 +199,41 @@ export class MenuItemActionItem extends ActionItem {
 
 	_updateClass(): void {
 		if (this.options.icon) {
-			const element = this.$e.getHTMLElement();
 			if (this._commandAction !== this._action) {
-				element.classList.remove(this._action.class);
+				this._updateItemClass(this._action.alt.item);
 			} else if ((<MenuItemAction>this._action).alt) {
-				element.classList.remove((<MenuItemAction>this._action).alt.class);
+				this._updateItemClass(this._action.item);
 			}
-			element.classList.add('icon', this._commandAction.class);
 		}
+	}
+
+	_updateItemClass(item: ICommandAction): void {
+		dispose(this._itemClassDispose);
+		this._itemClassDispose = undefined;
+
+		if (item.iconPath) {
+			let iconClass: string;
+
+			if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(item.iconPath.dark)) {
+				iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(item.iconPath.dark);
+			} else {
+				iconClass = ids.nextId();
+				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath.light || item.iconPath.dark).toString()}")`);
+				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath.dark).toString()}")`);
+				MenuItemActionItem.ICON_PATH_TO_CSS_RULES.set(item.iconPath.dark, iconClass);
+			}
+
+			this.$e.getHTMLElement().classList.add('icon', iconClass);
+			this._itemClassDispose = { dispose: () => this.$e.getHTMLElement().classList.remove('icon', iconClass) };
+		}
+	}
+
+	dispose(): void {
+		if (this._itemClassDispose) {
+			dispose(this._itemClassDispose);
+			this._itemClassDispose = undefined;
+		}
+
+		super.dispose();
 	}
 }

@@ -16,9 +16,9 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Label, RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
+import { Label, RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -61,8 +61,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const bookmark = append(root, $('span.bookmark'));
 		append(bookmark, $('span.octicon.octicon-star'));
 		const applyBookmarkStyle = (theme) => {
-			const borderColor = theme.getColor(extensionButtonProminentBackground);
-			bookmark.style.borderTopColor = borderColor ? borderColor.toString() : 'transparent';
+			const bgColor = theme.getColor(extensionButtonProminentBackground);
+			const fgColor = theme.getColor(extensionButtonProminentForeground);
+			bookmark.style.borderTopColor = bgColor ? bgColor.toString() : 'transparent';
+			bookmark.style.color = fgColor ? fgColor.toString() : 'white';
 		};
 		applyBookmarkStyle(this.themeService.getTheme());
 		const bookmarkStyler = this.themeService.onThemeChange(applyBookmarkStyle.bind(this));
@@ -91,7 +93,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		actionbar.onDidRun(({ error }) => error && this.messageService.show(Severity.Error, error));
 
 		const versionWidget = this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version);
-		const installCountWidget = this.instantiationService.createInstance(InstallWidget, installCount, { small: true });
+		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCount, { small: true });
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
 
 		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);

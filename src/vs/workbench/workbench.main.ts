@@ -21,6 +21,9 @@ import 'vs/platform/actions/electron-browser/menusExtensionPoint';
 // Views
 import 'vs/workbench/api/browser/viewsExtensionPoint';
 
+// Localizations
+import 'vs/workbench/api/browser/localizationsExtensionPoint';
+
 // Workbench
 import 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import 'vs/workbench/browser/actions/toggleStatusbarVisibility';
@@ -98,6 +101,7 @@ import 'vs/workbench/parts/execution/electron-browser/execution.contribution';
 import 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import 'vs/workbench/parts/snippets/electron-browser/insertSnippet';
+import 'vs/workbench/parts/snippets/electron-browser/configureSnippets';
 import 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 
 import 'vs/workbench/parts/themes/electron-browser/themes.contribution';
@@ -125,5 +129,3 @@ import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution
 import 'vs/workbench/parts/watermark/electron-browser/watermark';
 
 import 'vs/workbench/parts/welcome/overlay/browser/welcomeOverlay';
-
-import 'vs/workbench/parts/holidays/electron-browser/holidays.contribution';
