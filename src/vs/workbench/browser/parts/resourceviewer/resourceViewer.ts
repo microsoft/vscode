@@ -363,120 +363,130 @@ class InlineImageView {
 		const context = {
 			layout(dimension: Dimension) { }
 		};
+
+		const cacheKey = descriptor.resource.toString();
+
+		let scaleDirection = ScaleDirection.IN;
+		let scale: Scale = InlineImageView.IMAGE_SCALE_CACHE.get(cacheKey) || 'fit';
+		let img: Builder | null = null;
+		let imgElement: HTMLImageElement | null = null;
+
+		function setImageScale(scale: number) {
+			img.style('width', `${(imgElement.naturalWidth * scale)}px`);
+			img.style('height', 'auto');
+		}
+
+		function updateScale(newScale: Scale) {
+			if (newScale === 'fit') {
+				scale = 'fit';
+				img.addClass('scale-to-fit');
+				img.removeClass('pixelated');
+				img.style('width', 'auto');
+				InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, null);
+			} else {
+				const oldWidth = imgElement.width;
+				const oldHeight = imgElement.height;
+
+				scale = clamp(newScale, InlineImageView.MIN_SCALE, InlineImageView.MAX_SCALE);
+				if (scale >= InlineImageView.PIXELATION_THRESHOLD) {
+					img.addClass('pixelated');
+				} else {
+					img.removeClass('pixelated');
+				}
+
+				const { scrollTop, scrollLeft } = imgElement.parentElement;
+				const dx = (scrollLeft + imgElement.parentElement.clientWidth / 2) / imgElement.parentElement.scrollWidth;
+				const dy = (scrollTop + imgElement.parentElement.clientHeight / 2) / imgElement.parentElement.scrollHeight;
+
+				img.removeClass('scale-to-fit');
+				setImageScale(scale);
+				InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, scale);
+
+				const newWidth = imgElement.width;
+				const scaleFactor = (newWidth - oldWidth) / oldWidth;
+
+				scrollbar.setScrollPosition({
+					scrollLeft: ((oldWidth * scaleFactor * dx) + scrollLeft),
+					scrollTop: ((oldHeight * scaleFactor * dy) + scrollTop),
+				});
+			}
+			ZoomStatusbarItem.instance.show(scale, updateScale);
+			scrollbar.scanDomNode();
+		}
+
+		function firstZoom() {
+			scale = imgElement.clientWidth / imgElement.naturalWidth;
+			setImageScale(scale);
+		}
+
+		$(container)
+			.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent, c) => {
+				if (!img) {
+					return;
+				}
+
+				if (e.altKey) {
+					scaleDirection = ScaleDirection.OUT;
+					c.removeClass('zoom-in').addClass('zoom-out');
+				}
+			})
+			.on(DOM.EventType.KEY_UP, (e: KeyboardEvent, c) => {
+				if (!img) {
+					return;
+				}
+
+				if (!e.altKey) {
+					scaleDirection = ScaleDirection.IN;
+					c.removeClass('zoom-out').addClass('zoom-in');
+				}
+			})
+			.on(DOM.EventType.CLICK, (e: MouseEvent) => {
+				if (!img) {
+					return;
+				}
+
+				if (e.button !== 0) {
+					return;
+				}
+
+				// left click
+				if (scale === 'fit') {
+					firstZoom();
+				}
+
+				const scaleMultiplier = scaleDirection === ScaleDirection.IN
+					? InlineImageView.SCALE_FACTOR
+					: 1 / InlineImageView.SCALE_FACTOR;
+				updateScale(scale as number * scaleMultiplier);
+			})
+			.on(DOM.EventType.WHEEL, (e: WheelEvent) => {
+				if (!img) {
+					return;
+				}
+				// pinching is reported as scroll wheel + ctrl
+				if (!e.ctrlKey) {
+					return;
+				}
+				if (scale === 'fit') {
+					firstZoom();
+				}
+
+				// scrolling up, pinching out should increase the scale
+				const delta = -e.deltaY;
+				updateScale(scale as number + delta * InlineImageView.SCALE_PINCH_FACTOR);
+			});
+
 		$(container)
 			.empty()
 			.addClass('image', 'zoom-in')
 			.img({ src: InlineImageView.imageSrc(descriptor) })
 			.addClass('scale-to-fit')
-			.on(DOM.EventType.BLUR, () => {
-				ZoomStatusbarItem.instance.hide();
-			})
-			.on(DOM.EventType.LOAD, (e, img) => {
-				const imgElement = img.getHTMLElement() as HTMLImageElement;
-				const cacheKey = descriptor.resource.toString();
-				let scaleDirection = ScaleDirection.IN;
-				let scale: Scale = InlineImageView.IMAGE_SCALE_CACHE.get(cacheKey) || 'fit';
-				if (scale) {
-					img.removeClass('scale-to-fit');
-					updateScale(scale);
-				}
-				ZoomStatusbarItem.instance.show(scale || 'fit', updateScale);
-
-				function setImageScale(scale: number) {
-					img.style('width', `${(imgElement.naturalWidth * scale)}px`);
-					img.style('height', 'auto');
-				}
-				function updateScale(newScale: Scale) {
-					if (newScale === 'fit') {
-						scale = 'fit';
-						img.addClass('scale-to-fit');
-						img.removeClass('pixelated');
-						img.style('width', 'auto');
-						InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, null);
-					} else {
-						scale = clamp(newScale, InlineImageView.MIN_SCALE, InlineImageView.MAX_SCALE);
-						if (scale >= InlineImageView.PIXELATION_THRESHOLD) {
-							img.addClass('pixelated');
-						} else {
-							img.removeClass('pixelated');
-						}
-						img.removeClass('scale-to-fit');
-						setImageScale(scale);
-						InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, scale);
-					}
-					ZoomStatusbarItem.instance.show(scale, updateScale);
-					scrollbar.scanDomNode();
-					updateMetadata();
-				}
-				function updateMetadata() {
-					if (metadataClb) {
-						metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', imgElement.naturalWidth, imgElement.naturalHeight, BinarySize.formatSize(descriptor.size)));
-					}
-				}
-				context.layout = updateMetadata;
-				function firstZoom() {
-					scale = imgElement.clientWidth / imgElement.naturalWidth;
-					setImageScale(scale);
-				}
-				$(container)
-					.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent, c) => {
-						if (e.altKey) {
-							scaleDirection = ScaleDirection.OUT;
-							c.removeClass('zoom-in').addClass('zoom-out');
-						}
-					})
-					.on(DOM.EventType.KEY_UP, (e: KeyboardEvent, c) => {
-						if (!e.altKey) {
-							c.removeClass('zoom-out').addClass('zoom-in');
-						}
-					});
-				$(container).on(DOM.EventType.CLICK, (e: MouseEvent) => {
-					if (e.button !== 0) {
-						return;
-					}
-					// left click
-					if (scale === 'fit') {
-						firstZoom();
-					}
-					const { scrollTop, scrollLeft } = imgElement.parentElement;
-
-					const scaleMultiplier = scaleDirection === ScaleDirection.IN
-						? InlineImageView.SCALE_FACTOR
-						: 1 / InlineImageView.SCALE_FACTOR;
-					updateScale(scale as number * scaleMultiplier);
-
-					const dx = e.offsetX - scrollLeft;
-					const dy = e.offsetY - scrollTop;
-					const cx = imgElement.parentElement.clientWidth * 1 / scale / 2;
-					const cy = imgElement.parentElement.clientHeight * 1 / scale / 2;
-
-					scrollbar.setScrollPosition({
-						scrollLeft: scrollLeft + (dx - cx),
-						scrollTop: scrollTop + (dy - cy),
-					});
-				});
-				$(container).on(DOM.EventType.WHEEL, (e: WheelEvent) => {
-					// pinching is reported as scroll wheel + ctrl
-					if (!e.ctrlKey) {
-						return;
-					}
-					if (scale === 'fit') {
-						firstZoom();
-					}
-					const { scrollTop, scrollLeft } = imgElement.parentElement;
-
-					// scrolling up, pinching out should increase the scale
-					const delta = -e.deltaY;
-					updateScale(scale as number + delta * InlineImageView.SCALE_PINCH_FACTOR);
-
-					const scaleFactor = 1 - (delta * InlineImageView.SCALE_PINCH_FACTOR);
-					scrollbar.setScrollPosition({
-						scrollLeft: e.offsetX - ((e.offsetX - scrollLeft) * scaleFactor),
-						scrollTop: e.offsetY - ((e.offsetY - scrollTop) * scaleFactor),
-					});
-				});
-				updateMetadata();
+			.on(DOM.EventType.LOAD, (e, i) => {
+				img = i;
+				imgElement = img.getHTMLElement() as HTMLImageElement;
+				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', imgElement.naturalWidth, imgElement.naturalHeight, BinarySize.formatSize(descriptor.size)));
 				scrollbar.scanDomNode();
+				updateScale('fit');
 			});
 
 		return context;
