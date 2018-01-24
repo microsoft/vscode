@@ -382,8 +382,8 @@ class InlineImageView {
 				}
 				ZoomStatusbarItem.instance.show(scale || 'fit', updateScale);
 
-				function setImageWidth(width) {
-					img.style('width', `${width}px`);
+				function setImageScale(scale: number) {
+					img.style('width', `${(imgElement.naturalWidth * scale)}px`);
 					img.style('height', 'auto');
 				}
 				function updateScale(newScale: Scale) {
@@ -401,7 +401,7 @@ class InlineImageView {
 							img.removeClass('pixelated');
 						}
 						img.removeClass('scale-to-fit');
-						setImageWidth(Math.floor(imgElement.naturalWidth * scale));
+						setImageScale(scale);
 						InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, scale);
 					}
 					ZoomStatusbarItem.instance.show(scale, updateScale);
@@ -415,9 +415,8 @@ class InlineImageView {
 				}
 				context.layout = updateMetadata;
 				function firstZoom() {
-					const { clientWidth, naturalWidth } = imgElement;
-					setImageWidth(clientWidth);
-					scale = clientWidth / naturalWidth;
+					scale = imgElement.clientWidth / imgElement.naturalWidth;
+					setImageScale(scale);
 				}
 				$(container)
 					.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent, c) => {
@@ -428,21 +427,33 @@ class InlineImageView {
 					})
 					.on(DOM.EventType.KEY_UP, (e: KeyboardEvent, c) => {
 						if (!e.altKey) {
-							scaleDirection = ScaleDirection.IN;
 							c.removeClass('zoom-out').addClass('zoom-in');
 						}
 					});
 				$(container).on(DOM.EventType.CLICK, (e: MouseEvent) => {
-					// left click
-					if (e.button === 0) {
-						if (scale === 'fit') {
-							firstZoom();
-						}
-						const scaleFactor = scaleDirection === ScaleDirection.IN
-							? InlineImageView.SCALE_FACTOR
-							: 1 / InlineImageView.SCALE_FACTOR;
-						updateScale(scale as number * scaleFactor);
+					if (e.button !== 0) {
+						return;
 					}
+					// left click
+					if (scale === 'fit') {
+						firstZoom();
+					}
+					const { scrollTop, scrollLeft } = imgElement.parentElement;
+
+					const scaleMultiplier = scaleDirection === ScaleDirection.IN
+						? InlineImageView.SCALE_FACTOR
+						: 1 / InlineImageView.SCALE_FACTOR;
+					updateScale(scale as number * scaleMultiplier);
+
+					const dx = e.offsetX - scrollLeft;
+					const dy = e.offsetY - scrollTop;
+					const cx = imgElement.parentElement.clientWidth * 1 / scale / 2;
+					const cy = imgElement.parentElement.clientHeight * 1 / scale / 2;
+
+					scrollbar.setScrollPosition({
+						scrollLeft: scrollLeft + (dx - cx),
+						scrollTop: scrollTop + (dy - cy),
+					});
 				});
 				$(container).on(DOM.EventType.WHEEL, (e: WheelEvent) => {
 					// pinching is reported as scroll wheel + ctrl
@@ -452,9 +463,17 @@ class InlineImageView {
 					if (scale === 'fit') {
 						firstZoom();
 					}
+					const { scrollTop, scrollLeft } = imgElement.parentElement;
+
 					// scrolling up, pinching out should increase the scale
 					const delta = -e.deltaY;
 					updateScale(scale as number + delta * InlineImageView.SCALE_PINCH_FACTOR);
+
+					const scaleFactor = 1 - (delta * InlineImageView.SCALE_PINCH_FACTOR);
+					scrollbar.setScrollPosition({
+						scrollLeft: e.offsetX - ((e.offsetX - scrollLeft) * scaleFactor),
+						scrollTop: e.offsetY - ((e.offsetY - scrollTop) * scaleFactor),
+					});
 				});
 				updateMetadata();
 				scrollbar.scanDomNode();
