@@ -46,20 +46,21 @@
 		if (!event || !event.view || !event.view.document) {
 			return;
 		}
+
+		var baseElement = event.view.document.getElementsByTagName('base')[0];
 		/** @type {any} */
 		var node = event.target;
 		while (node) {
 			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
-				var baseElement = event.view.document.getElementsByTagName("base")[0];
-				if (node.getAttribute("href") === "#") {
+				if (node.getAttribute('href') === '#') {
 					event.view.scrollTo(0, 0);
-				} else if (node.hash && (node.getAttribute("href") === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {
+				} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {
 					var scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
 					if (scrollTarget) {
 						scrollTarget.scrollIntoView();
 					}
 				} else {
-					ipcRenderer.sendToHost("did-click-link", node.href);
+					ipcRenderer.sendToHost('did-click-link', node.href);
 				}
 				event.preventDefault();
 				break;
@@ -108,8 +109,8 @@
 			styleBody(body[0]);
 
 			// iframe
-			Object.keys(variables).forEach(function(variable) {
-				target.contentDocument.documentElement.style.setProperty(`--${variable}`,variables[variable]);
+			Object.keys(variables).forEach(function (variable) {
+				target.contentDocument.documentElement.style.setProperty(`--${variable}`, variables[variable]);
 			});
 		});
 
@@ -127,6 +128,12 @@
 			const text = data.contents.join('\n');
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
+			newDocument.querySelectorAll('a').forEach(a => {
+				if (!a.title) {
+					a.title = a.href;
+				}
+			});
+
 			// set base-url if applicable
 			if (initData.baseUrl && newDocument.head.getElementsByTagName('base').length === 0) {
 				const baseElement = newDocument.createElement('base');
@@ -138,7 +145,7 @@
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
 
-			const vars = Object.keys(initData.styles).map(function(variable) {
+			const vars = Object.keys(initData.styles).map(function (variable) {
 				return `--${variable}: ${initData.styles[variable]};`;
 			});
 			defaultStyles.innerHTML = `
@@ -158,6 +165,11 @@
 				max-width: 100%;
 				max-height: 100%;
 			}
+
+			body a {
+				color: var(--link-color);
+			}
+
 			a:focus,
 			input:focus,
 			select:focus,
@@ -221,7 +233,7 @@
 			newFrame.setAttribute('id', 'pending-frame');
 			newFrame.setAttribute('frameborder', '0');
 			newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
-			newFrame.style.cssText = "display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden";
+			newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 			document.body.appendChild(newFrame);
 
 			// write new content onto iframe
@@ -251,8 +263,8 @@
 					newFrame.style.visibility = 'visible';
 					contentWindow.addEventListener('scroll', handleInnerScroll);
 
-					pendingMessages.forEach(function(data) {
-						contentWindow.postMessage(data, document.location.origin);
+					pendingMessages.forEach(function (data) {
+						contentWindow.postMessage(data, '*');
 					});
 					pendingMessages = [];
 				}
@@ -291,7 +303,7 @@
 			} else {
 				const target = getActiveFrame();
 				if (target) {
-					target.contentWindow.postMessage(data, document.location.origin);
+					target.contentWindow.postMessage(data, '*');
 				}
 			}
 		});

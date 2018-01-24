@@ -13,7 +13,6 @@ import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/i
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/functional';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -101,6 +100,7 @@ export function renderVariable(tree: ITree, variable: Variable, data: IVariableT
 	if (variable.available) {
 		data.name.textContent = replaceWhitespace(variable.name);
 		data.name.title = variable.type ? variable.type : variable.name;
+		dom.toggleClass(data.name, 'virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
 	}
 
 	if (variable.value) {
@@ -146,7 +146,7 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 		if (!disposed) {
 			disposed = true;
 			if (element instanceof Expression && renamed && inputBox.value) {
-				debugService.renameWatchExpression(element.getId(), inputBox.value).done(null, onUnexpectedError);
+				debugService.renameWatchExpression(element.getId(), inputBox.value);
 			} else if (element instanceof Expression && !element.name) {
 				debugService.removeWatchExpressions(element.getId());
 			} else if (element instanceof FunctionBreakpoint && inputBox.value) {
@@ -160,7 +160,8 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
 						.done(() => {
 							tree.refresh(element, false);
-							debugService.evaluateWatchExpressions();
+							// Need to force watch expressions to update since a variable change can have an effect on watches
+							debugService.focusStackFrame(debugService.getViewModel().focusedStackFrame);
 						}, onUnexpectedError);
 				}
 			}
@@ -197,7 +198,6 @@ export class BaseDebugController extends DefaultController {
 		private actionProvider: IActionProvider,
 		menuId: MenuId,
 		@IDebugService protected debugService: IDebugService,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService
@@ -224,7 +224,7 @@ export class BaseDebugController extends DefaultController {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {
-					fillInActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions);
+					fillInActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
 					return actions;
 				}),
 				onHide: (wasCancelled?: boolean) => {

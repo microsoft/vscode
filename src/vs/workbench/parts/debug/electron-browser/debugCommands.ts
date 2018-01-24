@@ -22,6 +22,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export function registerCommands(): void {
 
+	// TODO@Isidor remove in february
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.logToDebugConsole',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
@@ -162,13 +163,13 @@ export function registerCommands(): void {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: undefined,
 		primary: undefined,
-		handler: (accessor, workspaceUri: string) => {
+		handler: (accessor, launchUri: string) => {
 			const manager = accessor.get(IDebugService).getConfigurationManager();
 			if (accessor.get(IWorkspaceContextService).getWorkbenchState() === WorkbenchState.EMPTY) {
 				accessor.get(IMessageService).show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 				return TPromise.as(null);
 			}
-			const launch = manager.getLaunches().filter(l => l.workspace.uri.toString() === workspaceUri).pop() || manager.selectedLaunch;
+			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedLaunch;
 
 			return launch.openConfigFile(false).done(editor => {
 				if (editor) {

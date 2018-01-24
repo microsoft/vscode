@@ -200,6 +200,16 @@ const schema: IJSONSchema = {
 						body: 'onDebug'
 					},
 					{
+						label: 'onDebugInitialConfigurations',
+						description: nls.localize('vscode.extension.activationEvents.onDebugInitialConfigurations', 'An activation event emitted whenever a "launch.json" needs to be created (and all provideDebugConfigurations methods need to be called).'),
+						body: 'onDebugInitialConfigurations'
+					},
+					{
+						label: 'onDebugResolve',
+						description: nls.localize('vscode.extension.activationEvents.onDebugResolve', 'An activation event emitted whenever a debug session with the specific type is about to be launched (and a corresponding resolveDebugConfiguration method needs to be called).'),
+						body: 'onDebugResolve:${6:type}'
+					},
+					{
 						label: 'workspaceContains',
 						description: nls.localize('vscode.extension.activationEvents.workspaceContains', 'An activation event emitted whenever a folder is opened that contains at least a file matching the specified glob pattern.'),
 						body: 'workspaceContains:${4:filePattern}'

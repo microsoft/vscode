@@ -11,7 +11,7 @@
     "Other"
   ],
   "scripts": {
-    "update-grammar": "node ../../build/npm/update-grammar.js textmate/git.tmbundle Syntaxes/Git%20Commit%20Message.tmLanguage ./syntaxes/git-commit.tmLanguage.json Syntaxes/Git%20Rebase%20Message.tmLanguage ./syntaxes/git-rebase.tmLanguage.json"
+    "update-grammar": "node ./build/update-grammars.js"
   },
   "contributes": {
     "languages": [
@@ -37,6 +37,19 @@
           "git-rebase-todo"
         ],
         "configuration": "./git-rebase.language-configuration.json"
+      },
+      {
+        "id": "diff",
+        "aliases": [
+          "Diff",
+          "diff"
+        ],
+        "extensions": [
+          ".patch",
+          ".diff",
+          ".rej"
+        ],
+        "configuration": "./diff.language-configuration.json"
       }
     ],
     "grammars": [
@@ -49,12 +62,19 @@
         "language": "git-rebase",
         "scopeName": "text.git-rebase",
         "path": "./syntaxes/git-rebase.tmLanguage.json"
+      },
+      {
+        "language": "diff",
+        "scopeName": "source.diff",
+        "path": "./syntaxes/diff.tmLanguage.json"
       }
     ],
     "configurationDefaults": {
-			"[git-commit]": {
-				"editor.rulers": [72]
-			}
-		}
+      "[git-commit]": {
+        "editor.rulers": [
+          72
+        ]
+      }
+    }
   }
 }

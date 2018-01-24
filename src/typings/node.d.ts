@@ -1720,6 +1720,7 @@ declare module "child_process" {
         uid?: number;
         gid?: number;
         shell?: boolean | string;
+        windowsVerbatimArguments?: boolean;
     }
     export function spawn(command: string, args?: string[], options?: SpawnOptions): ChildProcess;
 

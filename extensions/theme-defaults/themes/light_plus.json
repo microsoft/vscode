@@ -22,6 +22,11 @@
 				"support.type",
 				"entity.name.type",
 				"entity.name.class",
+				"storage.type.numeric.go",
+				"storage.type.byte.go",
+				"storage.type.boolean.go",
+				"storage.type.string.go",
+				"storage.type.uintptr.go",
 				"storage.type.cs",
 				"storage.type.generic.cs",
 				"storage.type.modifier.cs",
@@ -80,8 +85,7 @@
 		{
 			"name": "Object keys, TS grammar specific",
 			"scope": [
-				"meta.object-literal.key",
-				"meta.object-literal.key entity.name.function"
+				"meta.object-literal.key"
 			],
 			"settings": {
 				"foreground": "#001080"

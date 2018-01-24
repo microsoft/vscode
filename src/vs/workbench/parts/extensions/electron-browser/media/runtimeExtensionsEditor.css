@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.runtime-extensions-editor .monaco-list .monaco-list-rows > .monaco-list-row.odd:not(:hover):not(.focused) {
+	background-color: rgba(130, 130, 130, 0.08);
+}
+
 .runtime-extensions-editor .extension {
 	display: flex;
 	padding-left: 20px;
-}
-
-.runtime-extensions-editor .extension .icon {
-	display: none;
+	padding-right: 20px;
 }
 
 .runtime-extensions-editor .extension .desc {
@@ -22,8 +23,7 @@
 }
 
 .runtime-extensions-editor .extension .time {
-	margin: auto;
-	padding: 0 4px;
+	padding: 4px;
 	text-align: right;
 }
 
@@ -40,13 +40,14 @@
 
 .runtime-extensions-editor .extension .profile-timeline-svg {
 	width: 100%;
+	pointer-events: none;
 }
 
 .runtime-extensions-editor .extension .profile-timeline rect {
 	fill: rgb(181, 181, 255);
 }
 
-.runtime-extensions-editor .icon {
+.runtime-extensions-editor .extension > .icon {
 	width: 42px;
 	height: 42px;
 	padding: 10px 14px 10px 0;
@@ -83,17 +84,13 @@
 
 .runtime-extensions-editor .monaco-action-bar {
 	padding-top: 21px;
+	flex-shrink: 0;
 }
 
-.runtime-extensions-editor .monaco-action-bar .action-label {
-	background: #fef2c0;
-	border-radius: 6px;
-	padding: 2px;
+.runtime-extensions-editor .monaco-action-bar.hidden {
+	visibility: hidden;
 }
 
-.vs-dark .runtime-extensions-editor .monaco-action-bar .action-label {
-	background: #796926;
-}
 
 .monaco-workbench .part.statusbar .profileExtHost-statusbar-item .icon {
 	background: url('profile-stop.svg') no-repeat;

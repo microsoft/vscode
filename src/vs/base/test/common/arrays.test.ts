@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import arrays = require('vs/base/common/arrays');
+import { coalesce } from 'vs/base/common/arrays';
 
 suite('Arrays', () => {
 	test('findFirst', function () {
@@ -269,5 +270,41 @@ suite('Arrays', () => {
 				});
 		});
 	}
+
+	test('coalesce', function () {
+		let a = coalesce([null, 1, null, 2, 3]);
+		assert.equal(a.length, 3);
+		assert.equal(a[0], 1);
+		assert.equal(a[1], 2);
+		assert.equal(a[2], 3);
+
+		coalesce([null, 1, null, void 0, undefined, 2, 3]);
+		assert.equal(a.length, 3);
+		assert.equal(a[0], 1);
+		assert.equal(a[1], 2);
+		assert.equal(a[2], 3);
+
+		let b = [];
+		b[10] = 1;
+		b[20] = 2;
+		b[30] = 3;
+		b = coalesce(b);
+		assert.equal(b.length, 3);
+		assert.equal(b[0], 1);
+		assert.equal(b[1], 2);
+		assert.equal(b[2], 3);
+
+		let sparse = [];
+		sparse[0] = 1;
+		sparse[1] = 1;
+		sparse[17] = 1;
+		sparse[1000] = 1;
+		sparse[1001] = 1;
+
+		assert.equal(sparse.length, 1002);
+
+		sparse = coalesce(sparse);
+		assert.equal(sparse.length, 5);
+	});
 });
 

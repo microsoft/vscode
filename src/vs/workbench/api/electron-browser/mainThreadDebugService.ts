@@ -25,7 +25,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		@IDebugService private debugService: IDebugService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostDebugService);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
 		this._toDispose.push(debugService.onDidNewProcess(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
 		this._toDispose.push(debugService.onDidEndProcess(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
@@ -110,11 +110,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 					enabled: bp.enabled,
 					condition: sbp.condition,
 					hitCondition: bp.hitCondition,
-					sourceUriStr: sbp.uri.toString(),
-					location: {
-						line: sbp.lineNumber,
-						character: sbp.column
-					}
+					uri: sbp.uri,
+					line: sbp.lineNumber > 0 ? sbp.lineNumber - 1 : 0,
+					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0
 				};
 			}
 		});
@@ -145,8 +143,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		return TPromise.wrap<void>(undefined);
 	}
 
-	public $startDebugging(folderUri: uri | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
-		const folder = folderUri ? this.contextService.getWorkspace().folders.filter(wf => wf.uri.toString() === folderUri.toString()).pop() : undefined;
+	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
+		const folderUriString = _folderUri ? uri.revive(_folderUri).toString() : undefined;
+		const folder = folderUriString ? this.contextService.getWorkspace().folders.filter(wf => wf.uri.toString() === folderUriString).pop() : undefined;
 		return this.debugService.startDebugging(folder, nameOrConfiguration).then(x => {
 			return true;
 		}, err => {
@@ -158,10 +157,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === sessionId).pop();
 		if (process) {
 			return process.session.custom(request, args).then(response => {
-				if (response.success) {
+				if (response && response.success) {
 					return response.body;
 				} else {
-					return TPromise.wrapError(new Error(response.message));
+					return TPromise.wrapError(new Error(response ? response.message : 'custom request failed'));
 				}
 			});
 		}

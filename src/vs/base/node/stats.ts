@@ -16,6 +16,8 @@ export interface WorkspaceStatItem {
 export interface WorkspaceStats {
 	fileTypes: WorkspaceStatItem[];
 	configFiles: WorkspaceStatItem[];
+	fileCount: number;
+	maxFilesReached: boolean;
 }
 
 function asSortedItems(map: Map<string, number>): WorkspaceStatItem[] {
@@ -74,17 +76,35 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Workspa
 	let fileTypes = new Map<string, number>();
 	let configFiles = new Map<string, number>();
 
-	let walkSync = (dir: string, acceptFile: (fileName: string) => void, filter: string[]) => {
-		let files = readdirSync(dir);
-		for (const file of files) {
-			if (statSync(join(dir, file)).isDirectory()) {
-				if (filter.indexOf(file) === -1) {
-					walkSync(join(dir, file), acceptFile, filter);
+	const MAX_FILES = 20000;
+
+	let walkSync = (dir: string, acceptFile: (fileName: string) => void, filter: string[], token) => {
+		try {
+			let files = readdirSync(dir);
+			for (const file of files) {
+				if (token.maxReached) {
+					return;
+				}
+				try {
+					if (statSync(join(dir, file)).isDirectory()) {
+						if (filter.indexOf(file) === -1) {
+							walkSync(join(dir, file), acceptFile, filter, token);
+						}
+					}
+					else {
+						if (token.count >= MAX_FILES) {
+							token.maxReached = true;
+							return;
+						}
+						token.count++;
+						acceptFile(file);
+					}
+				} catch {
+					// skip over files for which stat fails
 				}
 			}
-			else {
-				acceptFile(file);
-			}
+		} catch {
+			// skip over folders that cannot be read
 		}
 	};
 
@@ -119,11 +139,14 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Workspa
 		addConfigFiles(name);
 	};
 
-	walkSync(folder, acceptFile, filter);
+	let token: { count: number, maxReached: boolean } = { count: 0, maxReached: false };
+	walkSync(folder, acceptFile, filter, token);
 
-	let result = {
-		'configFiles': asSortedItems(configFiles),
-		'fileTypes': asSortedItems(fileTypes)
+	return {
+		configFiles: asSortedItems(configFiles),
+		fileTypes: asSortedItems(fileTypes),
+		fileCount: token.count,
+		maxFilesReached: token.maxReached
+
 	};
-	return result;
 }

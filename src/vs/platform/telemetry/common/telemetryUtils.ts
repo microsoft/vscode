@@ -11,7 +11,6 @@ import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
-import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export const NullTelemetryService = new class implements ITelemetryService {
@@ -135,7 +134,6 @@ const configurationValueWhitelist = [
 	'workbench.sideBar.location',
 	'window.openFilesInNewWindow',
 	'javascript.validate.enable',
-	'window.reopenFolders',
 	'window.restoreWindows',
 	'extensions.autoUpdate',
 	'files.eol',
@@ -181,17 +179,6 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
 			});
 		}
-	});
-}
-
-export function lifecycleTelemetry(telemetryService: ITelemetryService, lifecycleService: ILifecycleService): IDisposable {
-	return lifecycleService.onShutdown(event => {
-		/* __GDPR__
-			"shutdown" : {
-				"reason" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		telemetryService.publicLog('shutdown', { reason: ShutdownReason[event] });
 	});
 }
 

@@ -157,7 +157,7 @@
 	"mMergeAllWindows": "合并所有窗口",
 	"miToggleDevTools": "切换开发人员工具(&&T)",
 	"miAccessibilityOptions": "辅助功能选项(&&O)",
-	"miReportIssues": "报告问题(&&I)",
+	"miReportIssue": "使用英文报告问题(&&I)",
 	"miWelcome": "欢迎使用(&&W)",
 	"miInteractivePlayground": "交互式演练场(&&I)",
 	"miDocumentation": "文档(&&D)",

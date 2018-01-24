@@ -17,16 +17,22 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 import { remote, webFrame } from 'electron';
 import { unmnemonicLabel } from 'vs/base/common/labels';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class ContextMenuService implements IContextMenuService {
 
 	public _serviceBrand: any;
+	private _onDidContextMenu = new Emitter<void>();
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
+	}
+
+	public get onDidContextMenu(): Event<void> {
+		return this._onDidContextMenu.event;
 	}
 
 	public showContextMenu(delegate: IContextMenuDelegate): void {
@@ -56,6 +62,7 @@ export class ContextMenuService implements IContextMenuService {
 				y *= zoom;
 
 				menu.popup(remote.getCurrentWindow(), { x: Math.floor(x), y: Math.floor(y), positioningItem: delegate.autoSelectFirstItem ? 0 : void 0 });
+				this._onDidContextMenu.fire();
 				if (delegate.onHide) {
 					delegate.onHide(undefined);
 				}

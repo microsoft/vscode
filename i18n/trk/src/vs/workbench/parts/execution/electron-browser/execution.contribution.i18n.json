@@ -12,6 +12,5 @@
 	"globalConsoleActionWin": "Yeni Komut İstemi Aç",
 	"globalConsoleActionMacLinux": "Yeni Terminal Aç",
 	"scopedConsoleActionWin": "Komut İsteminde Aç",
-	"scopedConsoleActionMacLinux": "Terminalde Aç",
-	"openFolderInIntegratedTerminal": "Terminalde Aç"
+	"scopedConsoleActionMacLinux": "Terminalde Aç"
 }

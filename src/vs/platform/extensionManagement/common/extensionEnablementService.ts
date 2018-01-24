@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, ILocalExtension, isIExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, getIdFromLocalExtensionId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -59,6 +59,9 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 	}
 
 	getEnablementState(identifier: IExtensionIdentifier): EnablementState {
+		if (this.environmentService.disableExtensions) {
+			return EnablementState.Disabled;
+		}
 		if (this.hasWorkspace) {
 			if (this._getEnabledExtensions(StorageScope.WORKSPACE).filter(e => areSameExtensions(e, identifier))[0]) {
 				return EnablementState.WorkspaceEnabled;
@@ -74,13 +77,19 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 		return EnablementState.Enabled;
 	}
 
-	canChangeEnablement(): boolean {
-		return !this.environmentService.disableExtensions;
+	canChangeEnablement(extension: ILocalExtension): boolean {
+		return !this.environmentService.disableExtensions && !(extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length);
 	}
 
-	setEnablement(identifier: IExtensionIdentifier, newState: EnablementState): TPromise<boolean> {
-		if (this.environmentService.disableExtensions) {
-			return TPromise.wrap(false);
+	setEnablement(arg: ILocalExtension | IExtensionIdentifier, newState: EnablementState): TPromise<boolean> {
+		let identifier;
+		if (isIExtensionIdentifier(arg)) {
+			identifier = arg;
+		} else {
+			if (!this.canChangeEnablement(arg)) {
+				return TPromise.wrap(false);
+			}
+			identifier = { id: getIdFromLocalExtensionId(arg.identifier.id), uuid: arg.identifier.uuid };
 		}
 
 		const workspace = newState === EnablementState.WorkspaceDisabled || newState === EnablementState.WorkspaceEnabled;

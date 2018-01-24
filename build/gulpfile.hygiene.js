@@ -69,6 +69,7 @@ const indentationFilter = [
 	'!**/vs/base/common/marked/raw.marked.js',
 	'!**/vs/base/common/winjs.base.raw.js',
 	'!**/vs/base/node/terminateProcess.sh',
+	'!**/vs/base/node/ps-win.ps1',
 	'!**/vs/nls.js',
 	'!**/vs/css.js',
 	'!**/vs/loader.js',
@@ -197,7 +198,7 @@ const hygiene = exports.hygiene = (some, options) => {
 		tsfmt.processString(file.path, file.contents.toString('utf8'), {
 			verify: true,
 			tsfmt: true,
-			// verbose: true
+			verbose: true
 		}).then(result => {
 			if (result.error) {
 				console.error(result.message);

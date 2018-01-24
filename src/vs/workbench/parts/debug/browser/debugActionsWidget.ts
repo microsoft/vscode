@@ -29,6 +29,7 @@ import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/c
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 
 const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
@@ -38,6 +39,11 @@ export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	light: '#F3F3F3',
 	hc: '#000000'
 }, localize('debugToolBarBackground', "Debug toolbar background color."));
+export const debugToolBarBorder = registerColor('debugToolBar.border', {
+	dark: null,
+	light: null,
+	hc: null
+}, localize('debugToolBarBorder', "Debug toolbar border color."));
 
 export class DebugActionsWidget extends Themable implements IWorkbenchContribution {
 
@@ -59,7 +65,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(themeService);
 
@@ -75,7 +82,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
 				if (action.id === FocusProcessAction.ID) {
-					return new FocusProcessActionItem(action, this.debugService, this.themeService);
+					return new FocusProcessActionItem(action, this.debugService, this.themeService, contextViewService);
 				}
 
 				return null;
@@ -159,9 +166,16 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			this.$el.style('box-shadow', widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null);
 
 			const contrastBorderColor = this.getColor(contrastBorder);
-			this.$el.style('border-style', contrastBorderColor ? 'solid' : null);
-			this.$el.style('border-width', contrastBorderColor ? '1px' : null);
-			this.$el.style('border-color', contrastBorderColor);
+			const borderColor = this.getColor(debugToolBarBorder);
+
+			if (contrastBorderColor) {
+				this.$el.style('border', `1px solid ${contrastBorderColor}`);
+			} else {
+				this.$el.style({
+					'border': borderColor ? `solid ${borderColor}` : 'none',
+					'border-width': '1px 0'
+				});
+			}
 		}
 	}
 

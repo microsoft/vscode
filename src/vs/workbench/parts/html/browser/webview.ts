@@ -6,15 +6,17 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
-import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { normalize, nativeSep } from 'vs/base/common/paths';
+import { startsWith } from 'vs/base/common/strings';
 
 export interface WebviewElementFindInPageOptions {
 	forward?: boolean;
@@ -40,10 +42,8 @@ export interface WebviewOptions {
 }
 
 export default class Webview {
-	private static index: number = 0;
-
 	private readonly _webview: Electron.WebviewTag;
-	private _ready: TPromise<this>;
+	private _ready: Promise<this>;
 	private _disposables: IDisposable[] = [];
 	private _onDidClickLink = new Emitter<URI>();
 
@@ -56,13 +56,15 @@ export default class Webview {
 	constructor(
 		private readonly parent: HTMLElement,
 		private readonly _styleElement: Element,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
+		private readonly _environmentService: IEnvironmentService,
+		private readonly _contextViewService: IContextViewService,
 		private readonly _contextKey: IContextKey<boolean>,
 		private readonly _findInputContextKey: IContextKey<boolean>,
-		private _options: WebviewOptions = {},
+		private _options: WebviewOptions,
+		useSameOriginForRoot: boolean
 	) {
 		this._webview = document.createElement('webview');
-		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Webview.index++}`);
+		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
 
 		// disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
 		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
@@ -76,9 +78,9 @@ export default class Webview {
 		this._webview.style.outline = '0';
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
-		this._webview.src = require.toUrl('./webview.html');
+		this._webview.src = useSameOriginForRoot ? require.toUrl('./webview.html') : 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
 
-		this._ready = new TPromise<this>(resolve => {
+		this._ready = new Promise<this>(resolve => {
 			const subscription = addDisposableListener(this._webview, 'ipc-message', (event) => {
 				if (event.channel === 'webview-ready') {
 					// console.info('[PID Webview] ' event.args[0]);
@@ -90,9 +92,24 @@ export default class Webview {
 			});
 		});
 
+		if (!useSameOriginForRoot) {
+			let loaded = false;
+			this._disposables.push(addDisposableListener(this._webview, 'did-start-loading', () => {
+				if (loaded) {
+					return;
+				}
+				loaded = true;
+
+				const contents = this._webview.getWebContents();
+				if (contents && !contents.isDestroyed()) {
+					registerFileProtocol(contents, 'vscode-core-resource', [this._environmentService.appRoot]);
+				}
+			}));
+		}
+
 		if (!this._options.allowSvgs) {
 			let loaded = false;
-			const subscription = addDisposableListener(this._webview, 'did-start-loading', () => {
+			this._disposables.push(addDisposableListener(this._webview, 'did-start-loading', () => {
 				if (loaded) {
 					return;
 				}
@@ -125,9 +142,7 @@ export default class Webview {
 					}
 					return callback({ cancel: false, responseHeaders: details.responseHeaders });
 				});
-			});
-
-			this._disposables.push(subscription);
+			}));
 		}
 
 		this._disposables.push(
@@ -141,25 +156,24 @@ export default class Webview {
 				console.error('embedded page crashed');
 			}),
 			addDisposableListener(this._webview, 'ipc-message', (event) => {
-				if (event.channel === 'did-click-link') {
-					let [uri] = event.args;
-					this._onDidClickLink.fire(URI.parse(uri));
-					return;
-				}
+				switch (event.channel) {
+					case 'did-click-link':
+						let [uri] = event.args;
+						this._onDidClickLink.fire(URI.parse(uri));
+						return;
 
-				if (event.channel === 'did-set-content') {
-					this._webview.style.flex = '';
-					this._webview.style.width = '100%';
-					this._webview.style.height = '100%';
-					this.layout();
-					return;
-				}
+					case 'did-set-content':
+						this._webview.style.flex = '';
+						this._webview.style.width = '100%';
+						this._webview.style.height = '100%';
+						this.layout();
+						return;
 
-				if (event.channel === 'did-scroll') {
-					if (event.args && typeof event.args[0] === 'number') {
-						this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
-					}
-					return;
+					case 'did-scroll':
+						if (event.args && typeof event.args[0] === 'number') {
+							this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
+						}
+						return;
 				}
 			}),
 			addDisposableListener(this._webview, 'focus', () => {
@@ -198,6 +212,10 @@ export default class Webview {
 		this._onDidClickLink.dispose();
 		this._disposables = dispose(this._disposables);
 
+		if (this._contextKey) {
+			this._contextKey.reset();
+		}
+
 		if (this._webview.parentElement) {
 			this._webview.parentElement.removeChild(this._webview);
 			const findWidgetDomNode = this._webviewFindWidget.getDomNode();
@@ -220,7 +238,7 @@ export default class Webview {
 	private _send(channel: string, ...args: any[]): void {
 		this._ready
 			.then(() => this._webview.send(channel, ...args))
-			.done(void 0, console.error);
+			.catch(err => console.error(err));
 	}
 
 	set initialScrollProgress(value: number) {
@@ -266,6 +284,7 @@ export default class Webview {
 			'font-family': fontFamily,
 			'font-weight': fontWeight,
 			'font-size': fontSize,
+			'link-color': theme.getColor(textLinkForeground).toString()
 		};
 
 		let activeTheme: ApiThemeClassName;
@@ -393,4 +412,26 @@ export default class Webview {
 	public showPreviousFindTerm() {
 		this._webviewFindWidget.showPreviousFindTerm();
 	}
+}
+
+function registerFileProtocol(
+	contents: Electron.WebContents,
+	protocol: string,
+	roots: string[]
+) {
+	contents.session.protocol.registerFileProtocol(protocol, (request, callback: any) => {
+		const requestPath = URI.parse(request.url).fsPath;
+		for (const root of roots) {
+			const normalizedPath = normalize(requestPath, true);
+			if (startsWith(normalizedPath, root + nativeSep)) {
+				callback({ path: normalizedPath });
+				return;
+			}
+		}
+		callback({ error: 'Cannot load resource outside of protocol root' });
+	}, (error) => {
+		if (error) {
+			console.error('Failed to register protocol ' + protocol);
+		}
+	});
 }

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-shellscript/commit/f2cec59e541e3e10153a8e3e5e681baf139c81a3",
+	"version": "https://github.com/atom/language-shellscript/commit/5206d247e33bb4e7ebeb320f10814ecd4132f9eb",
 	"scopeName": "source.shell",
 	"name": "Shell Script",
 	"fileTypes": [
@@ -753,7 +753,7 @@
 							]
 						}
 					},
-					"match": "(<<<)\\s*(([^\\s\\\\]|\\\\.)+)",
+					"match": "(<<<)\\s*(([^\\s)\\\\]|\\\\.)+)",
 					"name": "meta.herestring.shell"
 				}
 			]

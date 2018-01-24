@@ -54,7 +54,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		if (this._state === ProfileSessionState.Running) {
 			ProfileExtHostStatusbarItem.instance.show(() => {
 				this.stopProfiling();
-				this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput));
+				this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
 			});
 		} else if (this._state === ProfileSessionState.Stopping) {
 			ProfileExtHostStatusbarItem.instance.hide();

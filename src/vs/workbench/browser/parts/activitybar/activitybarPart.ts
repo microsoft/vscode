@@ -39,6 +39,7 @@ export class ActivitybarPart extends Part {
 		badgeForeground: ACTIVITY_BAR_BADGE_FOREGROUND,
 		dragAndDropBackground: ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND
 	};
+	private static readonly ACTION_HEIGHT = 50;
 
 	public _serviceBrand: any;
 
@@ -72,7 +73,7 @@ export class ActivitybarPart extends Part {
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.partService.setSideBarHidden(true),
 			colors: ActivitybarPart.COLORS,
-			overflowActionSize: 50
+			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		});
 		this.registerListeners();
 	}
@@ -87,15 +88,15 @@ export class ActivitybarPart extends Part {
 		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 	}
 
-	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string): IDisposable {
+	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
 		if (this.viewletService.getViewlet(viewletOrActionId)) {
-			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz);
+			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz, priority);
 		}
 
-		return this.showGlobalActivity(viewletOrActionId, badge);
+		return this.showGlobalActivity(viewletOrActionId, badge, clazz);
 	}
 
-	private showGlobalActivity(globalActivityId: string, badge: IBadge): IDisposable {
+	private showGlobalActivity(globalActivityId: string, badge: IBadge, clazz?: string): IDisposable {
 		if (!badge) {
 			throw illegalArgument('badge');
 		}
@@ -105,7 +106,7 @@ export class ActivitybarPart extends Part {
 			throw illegalArgument('globalActivityId');
 		}
 
-		action.setBadge(badge);
+		action.setBadge(badge, clazz);
 
 		return toDisposable(() => action.setBadge(undefined));
 	}
@@ -196,7 +197,7 @@ export class ActivitybarPart extends Part {
 		let availableHeight = this.dimension.height;
 		if (this.globalActionBar) {
 			// adjust height for global actions showing
-			availableHeight -= (this.globalActionBar.items.length * this.globalActionBar.domNode.clientHeight);
+			availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTION_HEIGHT);
 		}
 		this.compositeBar.layout(new Dimension(dimension.width, availableHeight));
 
@@ -215,13 +216,5 @@ export class ActivitybarPart extends Part {
 		}
 
 		super.dispose();
-	}
-
-	public shutdown(): void {
-		// Persist Hidden State
-		this.compositeBar.store();
-
-		// Pass to super
-		super.shutdown();
 	}
 }

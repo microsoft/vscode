@@ -27,6 +27,7 @@ import { ResourceQueue } from 'vs/base/common/async';
 import { ResourceMap } from 'vs/base/common/map';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 
@@ -141,8 +142,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
 				// Since we do not want to close an editor without reason, we have to check if the
-				// file is really gone and not just a faulty file event (TODO@Ben revisit when we
-				// have a more stable file watcher in place for this scenario).
+				// file is really gone and not just a faulty file event.
 				// This only applies to external file events, so we need to check for the isExternal
 				// flag.
 				let checkExists: TPromise<boolean>;
@@ -263,8 +263,16 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		editors.forEach(editor => {
 			const resource = toResource(editor.input, { supportSideBySide: true });
 
+			// Support side-by-side binary editors too
+			let isBinaryEditor = false;
+			if (editor instanceof SideBySideEditor) {
+				isBinaryEditor = editor.getMasterEditor().getId() === BINARY_FILE_EDITOR_ID;
+			} else {
+				isBinaryEditor = editor.getId() === BINARY_FILE_EDITOR_ID;
+			}
+
 			// Binary editor that should reload from event
-			if (resource && editor.getId() === BINARY_FILE_EDITOR_ID && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
+			if (resource && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
 				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
 			}
 		});

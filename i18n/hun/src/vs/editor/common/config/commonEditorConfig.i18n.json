@@ -14,7 +14,7 @@
 	"lineNumbers.on": "A sorszámok abszolút értékként jelennek meg.",
 	"lineNumbers.relative": "A sorszámok a kurzortól való távolságuk alapján jelennek meg.",
 	"lineNumbers.interval": "A sorszámok minden 10. sorban jelennek meg.",
-	"lineNumbers": "Meghatározza a sorszámok megjelenését. A lehetséges értékek: 'on', 'off' és 'relative'.",
+	"lineNumbers": "Meghatározza a sorszámok megjelenését. A lehetséges értékek: 'on', 'off', 'relative' és 'interval'.",
 	"rulers": "Függőleges vonalzók kirajzolása bizonyos számú fix szélességű karakter után. Több vonalzó használatához adjon meg több értéket. Nincs kirajzolva semmi, ha a tömb üres.",
 	"wordSeparators": "Azon karakterek listája, amelyek szóelválasztónak vannak tekintve szavakkal kapcsolatos navigáció vagy műveletek során.",
 	"tabSize": "Egy tabulátor hány szóköznek felel meg. Ez a beállítás felülírásra kerül a fájl tartalma alapján, ha az `editor.detectIndentation` beállítás aktív.",
@@ -31,6 +31,7 @@
 	"minimap.maxColumn": "Meghatározza, hogy a kódtérképen legfeljebb hány oszlop legyen kirajzolva.",
 	"find.seedSearchStringFromSelection": "Meghatározza, hogy a keresés modulba automatikusan bekerüljön-e a szerkesztőablakban kiválasztott szöveg.",
 	"find.autoFindInSelection": "Meghatározza, hogy a keresés a kijelölésben beállítás be van-e kapcsolva, ha több karakternyi vagy sornyi szöveg ki van jelölve a szerkesztőablakban.",
+	"find.globalFindClipboard": "Meghatározza, hogy a keresőmodul olvassa és módosítsa-e a megosztott keresési vágólapot macOS-en.",
 	"wordWrap.off": "A sorok soha nem lesznek tördelve.",
 	"wordWrap.on": "A sorok tördelve lesznek a nézetablak szélességénél.",
 	"wordWrap.wordWrapColumn": "A sorok tördelve lesznek az `editor.wordWrapColumn` oszlopnál.",
@@ -71,6 +72,7 @@
 	"cursorBlinking": "Meghatározza a kurzor animációjának stílusát. Lehetséges értékek: 'blink', 'smooth', 'phase', 'expand' vagy 'solid'",
 	"mouseWheelZoom": "A szerkesztőablak betűtípusának nagyítása vagy kicsinyítése az egérgörgő Ctrl lenyomása mellett történő használata esetén",
 	"cursorStyle": "Meghatározza a kurzor stílusát. Lehetséges értékek: 'block', 'block-outline', 'line', 'line-thin', 'underline' vagy 'underline-thin'",
+	"lineCursorWidth": "Meghatározza a kurzor szélességét, ha az editor.cursorStyle értéke 'line'.",
 	"fontLigatures": "Engedélyezi a betűtípusban található ligatúrák használatát",
 	"hideCursorInOverviewRuler": "Meghatározza, hogy a kurzor pozíciója el legyen-e rejtve az áttekintő sávon.",
 	"renderWhitespace": "Meghatározza, hogy a szerkesztőablakban hogyan legyenek kirajzolva a szóköz karakterek. Lehetséges értékek: 'none', 'boundary', vagy 'all'. A 'boundary' beállítás esetén, ha szavak között egyetlen szóköz található, akkor az nem lesz kirajzolva.",
@@ -93,8 +95,8 @@
 	"links": "Meghatározza, hogy a szerkesztőablak érzékelje-e a hivatkozásokat, és kattinthatóvá tegye-e őket.",
 	"colorDecorators": "Meghatározza, hogy a szerkesztőablakban ki legyenek-e rajzolva a színdekorátorok és színválasztók.",
 	"codeActions": "Engedélyezi a kódműveletek végrehajtásához használható villanykörtét",
+	"selectionClipboard": "Meghatározza-e, hogy támogatva van-e az elsődleges vágólap Linux alatt",
 	"sideBySide": "Meghatározza, hogy a differenciaszerkesztő ablakban egymás mellett vagy a sorban jelenjenek meg az eltérések",
 	"ignoreTrimWhitespace": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a sor elején vagy végén a szóközökben talált különbségek",
-	"renderIndicators": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a +/- jelzők az hozzáadott/eltávolított változásoknál",
-	"selectionClipboard": "Meghatározza-e, hogy támogatva van-e az elsődleges vágólap Linux alatt"
+	"renderIndicators": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a +/- jelzők az hozzáadott/eltávolított változásoknál"
 }

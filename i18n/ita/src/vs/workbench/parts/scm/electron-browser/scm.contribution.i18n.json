@@ -7,5 +7,6 @@
 	"toggleGitViewlet": "Mostra GIT",
 	"source control": "Controllo del codice sorgente",
 	"toggleSCMViewlet": "Mostra Gestione controllo servizi",
-	"view": "Visualizza"
+	"view": "Visualizza",
+	"scmConfigurationTitle": "Gestione controllo servizi"
 }

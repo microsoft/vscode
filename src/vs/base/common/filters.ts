@@ -341,6 +341,22 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }
 
+export function skipScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+	pattern = pattern.toLowerCase();
+	word = word.toLowerCase();
+
+	const matches: number[] = [];
+	let idx = 0;
+	for (let pos = 0; pos < pattern.length; ++pos) {
+		const thisIdx = word.indexOf(pattern.charAt(pos), idx);
+		if (thisIdx >= 0) {
+			matches.push(thisIdx);
+			idx = thisIdx + 1;
+		}
+	}
+	return [matches.length, matches];
+}
+
 //#region --- fuzzyScore ---
 
 export function createMatches(position: number[]): IMatch[] {
@@ -718,8 +734,8 @@ function fuzzyScoreWithPermutations(pattern: string, word: string, aggressive?: 
 	}
 
 	if (pattern.length >= 3) {
-		// when the pattern is long enough then trie a few (max 7)
-		// permutation of the pattern to find a better match. the
+		// When the pattern is long enough then try a few (max 7)
+		// permutations of the pattern to find a better match. The
 		// permutations only swap neighbouring characters, e.g
 		// `cnoso` becomes `conso`, `cnsoo`, `cnoos`.
 		let tries = Math.min(7, pattern.length - 1);
@@ -727,8 +743,11 @@ function fuzzyScoreWithPermutations(pattern: string, word: string, aggressive?: 
 			let newPattern = nextTypoPermutation(pattern, patternPos);
 			if (newPattern) {
 				let candidate = fuzzyScore(newPattern, word, patternMaxWhitespaceIgnore);
-				if (candidate && (!top || candidate[0] > top[0])) {
-					top = candidate;
+				if (candidate) {
+					candidate[0] -= 3; // permutation penalty
+					if (!top || candidate[0] > top[0]) {
+						top = candidate;
+					}
 				}
 			}
 		}

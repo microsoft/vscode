@@ -12,6 +12,7 @@
 	"breakpointRemoved": "Kesme noktası kaldırıldı, {0}. satır, {1} dosyası",
 	"compoundMustHaveConfigurations": "Bileşik, birden çok yapılandırmayı başlatmak için \"configurations\" özniteliği bulundurmalıdır.",
 	"configMissing": "'launch.json' dosyasında '{0}' yapılandırması eksik.",
+	"launchJsonDoesNotExist": "'launch.json' mevcut değil.",
 	"debugRequestNotSupported": "Seçilen hata ayıklama yapılandırılmasındaki `{0}` özniteliği desteklenmeyen `{1}` değeri içeriyor.",
 	"debugRequesMissing": "'{0}' özniteliği seçilen hata ayıklama yapılandırılmasında eksik.",
 	"debugTypeNotSupported": "Yapılandırılan hata ayıklama türü '{0}', desteklenmiyor.",

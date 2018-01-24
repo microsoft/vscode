@@ -118,7 +118,7 @@ export class FileWalker {
 		this.isCanceled = true;
 	}
 
-	public walk(folderQueries: IFolderSearch[], extraFiles: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+	public walk(folderQueries: IFolderSearch[], extraFiles: string[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
 		this.fileWalkStartTime = Date.now();
 
 		// Support that the file pattern is a full path to a file that exists
@@ -180,7 +180,7 @@ export class FileWalker {
 
 			// For each root folder
 			flow.parallel<IFolderSearch, void>(folderQueries, (folderQuery: IFolderSearch, rootFolderDone: (err: Error, result: void) => void) => {
-				this.call(traverse, this, folderQuery, onResult, (err?: Error) => {
+				this.call(traverse, this, folderQuery, onResult, onMessage, (err?: Error) => {
 					if (err) {
 						const errorMessage = toErrorMessage(err);
 						console.error(errorMessage);
@@ -190,8 +190,9 @@ export class FileWalker {
 						rootFolderDone(undefined, undefined);
 					}
 				});
-			}, (err, result) => {
-				done(err ? err[0] : null, this.isLimitHit);
+			}, (errors, result) => {
+				const err = errors ? errors.filter(e => !!e)[0] : null;
+				done(err, this.isLimitHit);
 			});
 		});
 	}
@@ -204,7 +205,7 @@ export class FileWalker {
 		}
 	}
 
-	private cmdTraversal(folderQuery: IFolderSearch, onResult: (result: IRawFileMatch) => void, cb: (err?: Error) => void): void {
+	private cmdTraversal(folderQuery: IFolderSearch, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, cb: (err?: Error) => void): void {
 		const rootFolder = folderQuery.folder;
 		const isMac = platform.isMacintosh;
 		let cmd: childProcess.ChildProcess;
@@ -226,6 +227,18 @@ export class FileWalker {
 			const ripgrep = spawnRipgrepCmd(this.config, folderQuery, this.config.includePattern, this.folderExcludePatterns.get(folderQuery.folder).expression);
 			cmd = ripgrep.cmd;
 			noSiblingsClauses = !Object.keys(ripgrep.siblingClauses).length;
+
+			process.nextTick(() => {
+				const escapedArgs = ripgrep.rgArgs.args
+					.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
+					.join(' ');
+
+				let rgCmd = `rg ${escapedArgs}\n - cwd: ${ripgrep.cwd}`;
+				if (ripgrep.rgArgs.siblingClauses) {
+					rgCmd += `\n - Sibling clauses: ${JSON.stringify(ripgrep.rgArgs.siblingClauses)}`;
+				}
+				onMessage({ message: rgCmd });
+			});
 		} else {
 			cmd = this.spawnFindCmd(folderQuery);
 		}
@@ -503,7 +516,7 @@ export class FileWalker {
 		matchDirectory(rootEntries);
 	}
 
-	private nodeJSTraversal(folderQuery: IFolderSearch, onResult: (result: IRawFileMatch) => void, done: (err?: Error) => void): void {
+	private nodeJSTraversal(folderQuery: IFolderSearch, onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgress) => void, done: (err?: Error) => void): void {
 		this.directoriesWalked++;
 		extfs.readdir(folderQuery.folder, (error: Error, files: string[]) => {
 			if (error || this.isCanceled || this.isLimitHit) {
@@ -729,7 +742,7 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 	}
 
 	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		this.walker.walk(this.folderQueries, this.extraFiles, onResult, (err: Error, isLimitHit: boolean) => {
+		this.walker.walk(this.folderQueries, this.extraFiles, onResult, onProgress, (err: Error, isLimitHit: boolean) => {
 			done(err, {
 				limitHit: isLimitHit,
 				stats: this.walker.getStats()

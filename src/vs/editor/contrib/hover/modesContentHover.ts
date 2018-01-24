@@ -16,7 +16,7 @@ import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
@@ -154,7 +154,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 export class ModesContentHoverWidget extends ContentHoverWidget {
 
-	static ID = 'editor.contrib.modesContentHoverWidget';
+	static readonly ID = 'editor.contrib.modesContentHoverWidget';
 
 	private _messages: HoverPart[];
 	private _lastRange: Range;
@@ -167,7 +167,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _colorPicker: ColorPickerWidget;
 
 	private renderDisposable: IDisposable = EmptyDisposable;
-	private toDispose: IDisposable[];
+	private toDispose: IDisposable[] = [];
 
 	constructor(editor: ICodeEditor, markdownRenderner: MarkdownRenderer) {
 		super(ModesContentHoverWidget.ID, editor);
@@ -175,7 +175,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._computer = new ModesContentComputer(this._editor);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
+
 		this._markdownRenderer = markdownRenderner;
+		markdownRenderner.onDidRenderCodeBlock(this.onContentsChange, this, this.toDispose);
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
@@ -184,7 +186,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			result => this._withResult(result, false)
 		);
 
-		this.toDispose = [];
 		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
 			if (this._colorPicker) {
 				dom.addClass(this.getDomNode(), 'colorpicker-hover');

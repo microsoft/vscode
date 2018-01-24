@@ -9,7 +9,6 @@ import 'vs/css!./media/compositepart';
 import nls = require('vs/nls');
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import strings = require('vs/base/common/strings');
@@ -18,10 +17,10 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import * as DOM from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { CONTEXT as ToolBarContext, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
+import { prepareActions } from 'vs/workbench/browser/actions';
 import { Action, IAction, IRunEvent } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
@@ -83,7 +82,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private defaultCompositeId: string,
 		private nameForTelemetry: string,
 		private compositeCSSClass: string,
-		private actionContributionScope: string,
 		private titleForegroundColor: string,
 		id: string,
 		options: IPartOptions
@@ -363,11 +361,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		primaryActions.push(...this.getActions());
 		secondaryActions.push(...this.getSecondaryActions());
 
-		// From Contributions
-		const actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
-		primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(this.actionContributionScope, composite));
-		secondaryActions.push(...actionBarRegistry.getSecondaryActionBarActionsForContext(this.actionContributionScope, composite));
-
 		// Return fn to set into toolbar
 		return this.toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
@@ -484,20 +477,12 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	private actionItemProvider(action: Action): IActionItem {
-		let actionItem: IActionItem;
-
 		// Check Active Composite
 		if (this.activeComposite) {
-			actionItem = this.activeComposite.getActionItem(action);
+			return this.activeComposite.getActionItem(action);
 		}
 
-		// Check Registry
-		if (!actionItem) {
-			const actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
-			actionItem = actionBarRegistry.getActionItemForContext(this.actionContributionScope, ToolBarContext, action);
-		}
-
-		return actionItem;
+		return undefined;
 	}
 
 	public createContentArea(parent: Builder): Builder {

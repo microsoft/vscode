@@ -34,6 +34,8 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -343,7 +345,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IChoiceService private choiceService: IChoiceService,
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@ILogService private logService: ILogService,
+		@IProgressService2 private progressService: IProgressService2
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -534,7 +538,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	install(extension: string | IExtension): TPromise<void> {
 		if (typeof extension === 'string') {
-			return this.extensionService.install(extension);
+			return this.progressService.withProgress({
+				location: ProgressLocation.Extensions,
+				title: nls.localize('installingVSIXExtension', 'Installing extension from VSIX...'),
+				tooltip: `${extension}`
+			}, () => this.extensionService.install(extension));
 		}
 
 		if (!(extension instanceof Extension)) {
@@ -548,7 +556,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrapError<void>(new Error('Missing gallery'));
 		}
 
-		return this.extensionService.installFromGallery(gallery);
+		return this.progressService.withProgress({
+			location: ProgressLocation.Extensions,
+			title: nls.localize('installingMarketPlaceExtension', 'Installing extension from Market place....'),
+			tooltip: `${extension.id}`
+		}, () => this.extensionService.installFromGallery(gallery));
 	}
 
 	setEnablement(extension: IExtension, enablementState: EnablementState): TPromise<void> {
@@ -588,8 +600,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrapError<void>(new Error('Missing local'));
 		}
 
-		return this.extensionService.uninstall(local);
-
+		this.logService.info(`Requested uninstalling the extension ${extension.id} from window ${this.windowService.getCurrentWindowId()}`);
+		return this.progressService.withProgress({
+			location: ProgressLocation.Extensions,
+			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
+			tooltip: `${local.identifier.id}`
+		}, () => this.extensionService.uninstall(local));
 	}
 
 	private promptAndSetEnablement(extension: IExtension, enablementState: EnablementState, enable: boolean): TPromise<any> {
@@ -706,7 +722,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private doSetEnablement(extension: IExtension, enablementState: EnablementState): TPromise<boolean> {
-		return this.extensionEnablementService.setEnablement(extension, enablementState);
+		return this.extensionEnablementService.setEnablement(extension.local, enablementState);
 	}
 
 	get allowedBadgeProviders(): string[] {
@@ -740,17 +756,26 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 	private onDidInstallExtension(event: DidInstallExtensionEvent): void {
 		const { local, zipPath, error, gallery } = event;
-		const installing = gallery ? this.installing.filter(e => areSameExtensions(e.extension, gallery.identifier))[0] : null;
-		const extension: Extension = installing ? installing.extension : zipPath ? new Extension(this.galleryService, this.stateProvider, null, null, this.telemetryService) : null;
+		const installingExtension = gallery ? this.installing.filter(e => areSameExtensions(e.extension, gallery.identifier))[0] : null;
+		const extension: Extension = installingExtension ? installingExtension.extension : zipPath ? new Extension(this.galleryService, this.stateProvider, null, null, this.telemetryService) : null;
 		if (extension) {
-			this.installing = installing ? this.installing.filter(e => e !== installing) : this.installing;
-			const installed = this.installed.filter(e => areSameExtensions(e, extension))[0];
-			if (installed && installing) {
-				installing.operation = Operation.Updating;
-			}
-			if (!error) {
+			this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
+
+			if (error) {
+				if (extension.gallery) {
+					// Updating extension can be only a gallery extension
+					const installed = this.installed.filter(e => e.id === extension.id)[0];
+					if (installed && installingExtension) {
+						installingExtension.operation = Operation.Updating;
+					}
+				}
+			} else {
 				extension.local = local;
+				const installed = this.installed.filter(e => e.id === extension.id)[0];
 				if (installed) {
+					if (installingExtension) {
+						installingExtension.operation = Operation.Updating;
+					}
 					installed.local = local;
 				} else {
 					this.installed.push(extension);
@@ -758,13 +783,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			}
 			if (extension.gallery) {
 				// Report telemetry only for gallery extensions
-				this.reportTelemetry(installing, error);
+				this.reportTelemetry(installingExtension, error);
 			}
 		}
 		this._onChange.fire();
 	}
 
 	private onUninstallExtension({ id }: IExtensionIdentifier): void {
+		this.logService.info(`Uninstalling the extension ${id} from window ${this.windowService.getCurrentWindowId()}`);
 		const extension = this.installed.filter(e => e.local.identifier.id === id)[0];
 		const newLength = this.installed.filter(e => e.local.identifier.id !== id).length;
 		// TODO: Ask @Joao why is this?

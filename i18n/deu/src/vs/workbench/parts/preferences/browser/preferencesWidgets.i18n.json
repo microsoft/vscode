@@ -8,5 +8,6 @@
 	"noSettingsFound": "Keine Einstellungen gefunden.",
 	"settingsSwitcherBarAriaLabel": "Einstellungsumschaltung",
 	"userSettings": "Benutzereinstellungen",
-	"workspaceSettings": "Arbeitsbereichseinstellungen"
+	"workspaceSettings": "Arbeitsbereichseinstellungen",
+	"folderSettings": "Ordnereinstellungen"
 }

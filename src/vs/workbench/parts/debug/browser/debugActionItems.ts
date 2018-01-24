@@ -19,6 +19,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 
 const $ = dom.$;
 
@@ -40,10 +41,11 @@ export class StartDebugActionItem implements IActionItem {
 		@IDebugService private debugService: IDebugService,
 		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IContextViewService contextViewService: IContextViewService,
 	) {
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1);
+		this.selectBox = new SelectBox([], -1, contextViewService);
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {
 			selectBackground: SIDE_BAR_BACKGROUND
 		}));
@@ -156,7 +158,7 @@ export class StartDebugActionItem implements IActionItem {
 				if (name === manager.selectedName && launch === manager.selectedLaunch) {
 					this.selected = this.options.length;
 				}
-				const label = launches.length > 1 ? `${name} (${launch.workspace.name})` : name;
+				const label = launches.length > 1 ? `${name} (${launch.name})` : name;
 				this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
 			}));
 
@@ -167,10 +169,10 @@ export class StartDebugActionItem implements IActionItem {
 
 		const disabledIdx = this.options.length - 1;
 		launches.forEach(l => {
-			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.workspace.name) : nls.localize('addConfiguration', "Add Configuration...");
+			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			this.options.push({
 				label, handler: () => {
-					this.commandService.executeCommand('debug.addConfiguration', l.workspace.uri.toString()).done(undefined, errors.onUnexpectedError);
+					this.commandService.executeCommand('debug.addConfiguration', l.uri.toString()).done(undefined, errors.onUnexpectedError);
 					return false;
 				}
 			});
@@ -184,9 +186,10 @@ export class FocusProcessActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
 		@IDebugService private debugService: IDebugService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, [], -1);
+		super(null, action, [], -1, contextViewService);
 
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 

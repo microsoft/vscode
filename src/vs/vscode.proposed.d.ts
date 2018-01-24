@@ -83,12 +83,33 @@ declare module 'vscode' {
 		type: FileType;
 	}
 
+	export interface TextSearchQuery {
+		pattern: string;
+		isRegex?: boolean;
+		isCaseSensitive?: boolean;
+		isWordMatch?: boolean;
+	}
+
+	export interface TextSearchOptions {
+		includes: GlobPattern[];
+		excludes: GlobPattern[];
+	}
+
+	export interface TextSearchResult {
+		uri: Uri;
+		range: Range;
+		preview: { leading: string, matching: string, trailing: string };
+	}
+
 	// todo@joh discover files etc
+	// todo@joh CancellationToken everywhere
+	// todo@joh add open/close calls?
 	export interface FileSystemProvider {
 
-		onDidChange?: Event<FileChange[]>;
+		readonly onDidChange?: Event<FileChange[]>;
 
-		root: Uri;
+		// todo@joh - remove this
+		readonly root?: Uri;
 
 		// more...
 		//
@@ -98,6 +119,7 @@ declare module 'vscode' {
 
 		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
 
+		// todo@joh - have an option to create iff not exist
 		// todo@remote
 		// offset - byte offset to start
 		// count - number of bytes to write
@@ -128,11 +150,13 @@ declare module 'vscode' {
 		// create(resource: Uri): Thenable<FileStat>;
 
 		// find files by names
+		// todo@joh, move into its own provider
 		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
-		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
 	}
 
 	export namespace window {
@@ -198,56 +222,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	/**
-	 * Represents an action that can be performed in code.
-	 *
-	 * Shown using the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action)
-	 */
-	export class CodeAction {
-		/**
-		 * Label used to identify the code action in UI.
-		 */
-		title: string;
-
-		/**
-		 * Optional command that performs the code action.
-		 *
-		 * Executed after `edits` if any edits are provided. Either `command` or `edits` must be provided for a `CodeAction`.
-		 */
-		command?: Command;
-
-		/**
-		 * Optional edit that performs the code action.
-		 *
-		 * Either `command` or `edits` must be provided for a `CodeAction`.
-		 */
-		edits?: TextEdit[] | WorkspaceEdit;
-
-		/**
-		 * Diagnostics that this code action resolves.
-		 */
-		diagnostics?: Diagnostic[];
-
-		constructor(title: string, edits?: TextEdit[] | WorkspaceEdit);
-	}
-
-	export interface CodeActionProvider {
-
-		/**
-		 * Provide commands for the given document and range.
-		 *
-		 * If implemented, overrides `provideCodeActions`
-		 *
-		 * @param document The document in which the command was invoked.
-		 * @param range The range for which the command was invoked.
-		 * @param context Context carrying additional information.
-		 * @param token A cancellation token.
-		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
-		 */
-		provideCodeActions2?(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
-	}
-
 	export namespace debug {
 
 		/**
@@ -283,11 +257,10 @@ declare module 'vscode' {
 		readonly changed: Breakpoint[];
 	}
 
-	export interface Breakpoint {
-		/**
-		 * Type of breakpoint.
-		 */
-		readonly type: 'source' | 'function';
+	/**
+	 * The base class of all breakpoint types.
+	 */
+	export class Breakpoint {
 		/**
 		 * Is breakpoint enabled.
 		 */
@@ -300,31 +273,67 @@ declare module 'vscode' {
 		 * An optional expression that controls how many hits of the breakpoint are ignored.
 		 */
 		readonly hitCondition?: string;
+
+		protected constructor(enabled: boolean, condition: string, hitCondition: string);
 	}
 
-	export interface SourceBreakpoint extends Breakpoint {
+	/**
+	 * A breakpoint specified by a source location.
+	 */
+	export class SourceBreakpoint extends Breakpoint {
 		/**
-		 * Breakpoint type 'source'.
+		 * The source and line position of this breakpoint.
 		 */
-		readonly type: 'source';
-		/**
-		 * The source to which this breakpoint is attached.
-		 */
-		readonly source: Uri;
-		/**
-		 * The line and character position of the breakpoint.
-		 */
-		readonly location: Position;
+		readonly location: Location;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, location: Location);
 	}
 
-	export interface FunctionBreakpoint extends Breakpoint {
-		/**
-		 * Breakpoint type 'function'.
-		 */
-		readonly type: 'function';
+	/**
+	 * A breakpoint specified by a function name.
+	 */
+	export class FunctionBreakpoint extends Breakpoint {
 		/**
 		 * The name of the function to which this breakpoint is attached.
 		 */
 		readonly functionName: string;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string);
+	}
+
+	/**
+	 * The severity level of a log message
+	 */
+	export enum LogLevel {
+		Trace = 1,
+		Debug = 2,
+		Info = 3,
+		Warning = 4,
+		Error = 5,
+		Critical = 6,
+		Off = 7
+	}
+
+	/**
+	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
+	 */
+	export interface Logger {
+		readonly onDidChangeLogLevel: Event<LogLevel>;
+		readonly currentLevel: LogLevel;
+		readonly logDirectory: Thenable<string>;
+
+		trace(message: string, ...args: any[]): void;
+		debug(message: string, ...args: any[]): void;
+		info(message: string, ...args: any[]): void;
+		warn(message: string, ...args: any[]): void;
+		error(message: string | Error, ...args: any[]): void;
+		critical(message: string | Error, ...args: any[]): void;
+	}
+
+	export interface ExtensionContext {
+		/**
+		 * This extension's logger
+		 */
+		logger: Logger;
 	}
 }

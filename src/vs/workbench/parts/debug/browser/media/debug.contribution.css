@@ -146,6 +146,10 @@
 	color: #9B46B0;
 }
 
+.monaco-workbench .monaco-tree-row:not(.selected) .expression .name.virtual {
+	opacity: 0.5;
+}
+
 .monaco-workbench > .monaco-tree-row:not(.selected) .expression .value {
 	color: rgba(108, 108, 108, 0.8);
 }

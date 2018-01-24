@@ -14,7 +14,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { Location } from 'vs/editor/common/modes';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDeclaration';
@@ -27,6 +26,7 @@ import * as corePosition from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 
 export class DefinitionActionConfig {
 
@@ -112,11 +112,11 @@ export class DefinitionAction extends EditorAction {
 		return definitionPromise;
 	}
 
-	protected _getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
 		return getDefinitionsAtPosition(model, position);
 	}
 
-	protected _getNoResultFoundMessage(info?: editorCommon.IWordAtPosition): string {
+	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
 		return info && info.word
 			? nls.localize('noResultWord', "No definition found for '{0}'", info.word)
 			: nls.localize('generic.noResults', "No definition found");
@@ -151,7 +151,7 @@ export class DefinitionAction extends EditorAction {
 			resource: uri,
 			options: {
 				selection: Range.collapseToStart(range),
-				revealIfVisible: !sideBySide,
+				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true
 			}
 		}, sideBySide).then(editor => {
@@ -249,11 +249,11 @@ export class PeekDefinitionAction extends DefinitionAction {
 }
 
 export class ImplementationAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
 		return getImplementationsAtPosition(model, position);
 	}
 
-	protected _getNoResultFoundMessage(info?: editorCommon.IWordAtPosition): string {
+	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
 		return info && info.word
 			? nls.localize('goToImplementation.noResultWord', "No implementation found for '{0}'", info.word)
 			: nls.localize('goToImplementation.generic.noResults', "No implementation found");
@@ -305,11 +305,11 @@ export class PeekImplementationAction extends ImplementationAction {
 }
 
 export class TypeDefinitionAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: editorCommon.IModel, position: corePosition.Position): TPromise<Location[]> {
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<Location[]> {
 		return getTypeDefinitionsAtPosition(model, position);
 	}
 
-	protected _getNoResultFoundMessage(info?: editorCommon.IWordAtPosition): string {
+	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
 		return info && info.word
 			? nls.localize('goToTypeDefinition.noResultWord', "No type definition found for '{0}'", info.word)
 			: nls.localize('goToTypeDefinition.generic.noResults', "No type definition found");

@@ -417,7 +417,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 	}
 
 	private showOutput(): void {
-		this.outputChannel.show(true);
+		this.outputService.showChannel(this.outputChannel.id, true);
 	}
 
 	private clearOutput(): void {

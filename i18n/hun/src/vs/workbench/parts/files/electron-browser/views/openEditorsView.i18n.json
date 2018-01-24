@@ -6,6 +6,5 @@
 {
 	"openEditors": "Megnyitott szerkesztőablakok",
 	"openEditosrSection": "Megnyitott szerkesztőablakok szakasz",
-	"treeAriaLabel": "Megnyitott szerkesztőablakok: az aktív fájlok listája",
 	"dirtyCounter": "{0} nincs mentve"
 }

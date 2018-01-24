@@ -12,6 +12,8 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { isArray } from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
+import { DataTransfers } from 'vs/base/browser/dnd';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 export interface IEditorDescriptor {
 	instantiate(instantiationService: IInstantiationService): BaseEditor;
@@ -204,16 +206,52 @@ export interface IDraggedResource {
 	isExternal: boolean;
 }
 
-export function extractResources(e: DragEvent, externalOnly?: boolean): IDraggedResource[] {
-	const resources: IDraggedResource[] = [];
+export interface IDraggedEditor extends IDraggedResource {
+	backupResource?: URI;
+	viewState?: IEditorViewState;
+}
+
+export interface ISerializedDraggedEditor {
+	resource: string;
+	backupResource: string;
+	viewState: IEditorViewState;
+}
+
+export const CodeDataTransfers = {
+	EDITOR: 'CodeEditor'
+};
+
+export function extractResources(e: DragEvent, externalOnly?: boolean): (IDraggedResource | IDraggedEditor)[] {
+	const resources: (IDraggedResource | IDraggedEditor)[] = [];
 	if (e.dataTransfer.types.length > 0) {
 
-		// Check for in-app DND
+		// Check for window-to-window DND
 		if (!externalOnly) {
-			const rawData = e.dataTransfer.getData('URL');
-			if (rawData) {
+
+			// Data Transfer: Code Editor
+			const rawEditorData = e.dataTransfer.getData(CodeDataTransfers.EDITOR);
+			if (rawEditorData) {
 				try {
-					resources.push({ resource: URI.parse(rawData), isExternal: false });
+					const draggedEditor = JSON.parse(rawEditorData) as ISerializedDraggedEditor;
+					resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: URI.parse(draggedEditor.backupResource), viewState: draggedEditor.viewState, isExternal: false });
+				} catch (error) {
+					// Invalid URI
+				}
+			}
+
+			// Data Transfer: URL
+			else {
+				try {
+					const rawURLsData = e.dataTransfer.getData(DataTransfers.URLS);
+					if (rawURLsData) {
+						const uriStrArray: string[] = JSON.parse(rawURLsData);
+						resources.push(...uriStrArray.map(uriStr => ({ resource: URI.parse(uriStr), isExternal: false })));
+					} else {
+						const rawURLData = e.dataTransfer.getData(DataTransfers.URL);
+						if (rawURLData) {
+							resources.push({ resource: URI.parse(rawURLData), isExternal: false });
+						}
+					}
 				} catch (error) {
 					// Invalid URI
 				}

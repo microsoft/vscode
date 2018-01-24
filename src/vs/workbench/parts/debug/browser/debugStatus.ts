@@ -92,8 +92,13 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 	private setLabel(): void {
 		if (this.label && this.statusBarItem) {
 			const manager = this.debugService.getConfigurationManager();
-			const name = manager.selectedName || '';
-			this.label.textContent = manager.getLaunches().length > 1 ? `${name} (${manager.selectedLaunch.workspace.name})` : name;
+			if (manager.selectedName) {
+				const name = manager.selectedName;
+				this.statusBarItem.style.display = 'block';
+				this.label.textContent = manager.getLaunches().length > 1 ? `${name} (${manager.selectedLaunch.name})` : name;
+			} else {
+				this.statusBarItem.style.display = 'none';
+			}
 		}
 	}
 

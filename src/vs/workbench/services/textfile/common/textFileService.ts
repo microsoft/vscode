@@ -14,7 +14,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -30,6 +30,10 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IRevertOptions } from 'vs/platform/editor/common/editor';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -55,6 +59,8 @@ export abstract class TextFileService implements ITextFileService {
 	private configuredAutoSaveOnFocusChange: boolean;
 	private configuredAutoSaveOnWindowChange: boolean;
 
+	private autoSaveContext: IContextKey<string>;
+
 	private configuredHotExit: string;
 
 	constructor(
@@ -68,7 +74,9 @@ export abstract class TextFileService implements ITextFileService {
 		protected environmentService: IEnvironmentService,
 		private backupFileService: IBackupFileService,
 		private windowsService: IWindowsService,
-		private historyService: IHistoryService
+		private historyService: IHistoryService,
+		contextKeyService: IContextKeyService,
+		private modelService: IModelService
 	) {
 		this.toUnbind = [];
 
@@ -79,6 +87,7 @@ export abstract class TextFileService implements ITextFileService {
 		this.toUnbind.push(this._onFilesAssociationChange);
 
 		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
+		this.autoSaveContext = AutoSaveContext.bindTo(contextKeyService);
 
 		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 		this.currentFilesAssociationConfig = configuration && configuration.files && configuration.files.associations;
@@ -94,9 +103,9 @@ export abstract class TextFileService implements ITextFileService {
 
 	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
 
-	abstract promptForPath(defaultPath: string): string;
+	abstract promptForPath(defaultPath: string): TPromise<string>;
 
-	abstract confirmSave(resources?: URI[]): ConfirmResult;
+	abstract confirmSave(resources?: URI[]): TPromise<ConfirmResult>;
 
 	public get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> {
 		return this._onAutoSaveConfigurationChange.event;
@@ -235,7 +244,7 @@ export abstract class TextFileService implements ITextFileService {
 	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): TPromise<void> {
 
 		// Handle file resources first
-		return TPromise.join(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId()))).then(results => {
+		return TPromise.join(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId()))).then(results => {
 
 			// Handle untitled resources
 			const untitledModelPromises = untitledResources
@@ -244,7 +253,7 @@ export abstract class TextFileService implements ITextFileService {
 
 			return TPromise.join(untitledModelPromises).then(untitledModels => {
 				const untitledBackupPromises = untitledModels.map(model => {
-					return this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId());
+					return this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId());
 				});
 
 				return TPromise.join(untitledBackupPromises).then(() => void 0);
@@ -253,35 +262,36 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
-		const confirm = this.confirmSave();
+		return this.confirmSave().then(confirm => {
 
-		// Save
-		if (confirm === ConfirmResult.SAVE) {
-			return this.saveAll(true /* includeUntitled */, { skipSaveParticipants: true }).then(result => {
-				if (result.results.some(r => !r.success)) {
-					return true; // veto if some saves failed
-				}
+			// Save
+			if (confirm === ConfirmResult.SAVE) {
+				return this.saveAll(true /* includeUntitled */, { skipSaveParticipants: true }).then(result => {
+					if (result.results.some(r => !r.success)) {
+						return true; // veto if some saves failed
+					}
+
+					return this.noVeto({ cleanUpBackups: true });
+				});
+			}
+
+			// Don't Save
+			else if (confirm === ConfirmResult.DONT_SAVE) {
+
+				// Make sure to revert untitled so that they do not restore
+				// see https://github.com/Microsoft/vscode/issues/29572
+				this.untitledEditorService.revertAll();
 
 				return this.noVeto({ cleanUpBackups: true });
-			});
-		}
+			}
 
-		// Don't Save
-		else if (confirm === ConfirmResult.DONT_SAVE) {
+			// Cancel
+			else if (confirm === ConfirmResult.CANCEL) {
+				return true; // veto
+			}
 
-			// Make sure to revert untitled so that they do not restore
-			// see https://github.com/Microsoft/vscode/issues/29572
-			this.untitledEditorService.revertAll();
-
-			return this.noVeto({ cleanUpBackups: true });
-		}
-
-		// Cancel
-		else if (confirm === ConfirmResult.CANCEL) {
-			return true; // veto
-		}
-
-		return void 0;
+			return void 0;
+		});
 	}
 
 	private noVeto(options: { cleanUpBackups: boolean }): boolean | TPromise<boolean> {
@@ -304,6 +314,7 @@ export abstract class TextFileService implements ITextFileService {
 		const wasAutoSaveEnabled = (this.getAutoSaveMode() !== AutoSaveMode.OFF);
 
 		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveConfiguration.OFF;
+		this.autoSaveContext.set(autoSaveMode);
 		switch (autoSaveMode) {
 			case AutoSaveConfiguration.AFTER_DELAY:
 				this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
@@ -405,10 +416,6 @@ export abstract class TextFileService implements ITextFileService {
 		const filesToSave: URI[] = [];
 		const untitledToSave: URI[] = [];
 		toSave.forEach(s => {
-			// TODO@remote
-			// if (s.scheme === Schemas.file) {
-			// 	filesToSave.push(s);
-			// } else
 			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && s.scheme === UNTITLED_SCHEMA) {
 				untitledToSave.push(s);
 			} else {
@@ -422,7 +429,7 @@ export abstract class TextFileService implements ITextFileService {
 	private doSaveAll(fileResources: URI[], untitledResources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult> {
 
 		// Handle files first that can just be saved
-		return this.doSaveAllFiles(fileResources, options).then(result => {
+		return this.doSaveAllFiles(fileResources, options).then(async result => {
 
 			// Preflight for untitled to handle cancellation from the dialog
 			const targetsForUntitled: URI[] = [];
@@ -438,7 +445,7 @@ export abstract class TextFileService implements ITextFileService {
 
 					// Otherwise ask user
 					else {
-						targetPath = this.promptForPath(this.suggestFileName(untitled));
+						targetPath = await this.promptForPath(this.suggestFileName(untitled));
 						if (!targetPath) {
 							return TPromise.as({
 								results: [...fileResources, ...untitledResources].map(r => {
@@ -525,35 +532,43 @@ export abstract class TextFileService implements ITextFileService {
 		return this.getFileModels(arg1).filter(model => model.isDirty());
 	}
 
-	public saveAs(resource: URI, target?: URI): TPromise<URI> {
+	public saveAs(resource: URI, target?: URI, options?: ISaveOptions): TPromise<URI> {
 
 		// Get to target resource
-		if (!target) {
+		let targetPromise: TPromise<URI>;
+		if (target) {
+			targetPromise = TPromise.wrap(target);
+		} else {
 			let dialogPath = resource.fsPath;
 			if (resource.scheme === UNTITLED_SCHEMA) {
 				dialogPath = this.suggestFileName(resource);
 			}
 
-			const pathRaw = this.promptForPath(dialogPath);
-			if (pathRaw) {
-				target = URI.file(pathRaw);
+			targetPromise = this.promptForPath(dialogPath).then(pathRaw => {
+				if (pathRaw) {
+					return URI.file(pathRaw);
+				}
+
+				return void 0;
+			});
+		}
+
+		return targetPromise.then(target => {
+			if (!target) {
+				return TPromise.as(null); // user canceled
 			}
-		}
 
-		if (!target) {
-			return TPromise.as(null); // user canceled
-		}
+			// Just save if target is same as models own resource
+			if (resource.toString() === target.toString()) {
+				return this.save(resource, options).then(() => resource);
+			}
 
-		// Just save if target is same as models own resource
-		if (resource.toString() === target.toString()) {
-			return this.save(resource).then(() => resource);
-		}
-
-		// Do it
-		return this.doSaveAs(resource, target);
+			// Do it
+			return this.doSaveAs(resource, target, options);
+		});
 	}
 
-	private doSaveAs(resource: URI, target?: URI): TPromise<URI> {
+	private doSaveAs(resource: URI, target?: URI, options?: ISaveOptions): TPromise<URI> {
 
 		// Retrieve text model from provided resource if any
 		let modelPromise: TPromise<ITextFileEditorModel | UntitledEditorModel> = TPromise.as(null);
@@ -567,7 +582,7 @@ export abstract class TextFileService implements ITextFileService {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {
-				return this.doSaveTextFileAs(model, resource, target);
+				return this.doSaveTextFileAs(model, resource, target, options);
 			}
 
 			// Otherwise we can only copy
@@ -583,7 +598,7 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
-	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
+	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI, options?: ISaveOptions): TPromise<void> {
 		let targetModelResolver: TPromise<ITextFileEditorModel>;
 
 		// Prefer an existing model if it is already loaded for the given target resource
@@ -603,15 +618,15 @@ export abstract class TextFileService implements ITextFileService {
 
 			// take over encoding and model value from source model
 			targetModel.updatePreferredEncoding(sourceModel.getEncoding());
-			targetModel.textEditorModel.setValue(sourceModel.getValue());
+			this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()));
 
 			// save model
-			return targetModel.save();
+			return targetModel.save(options);
 		}, error => {
 
 			// binary model: delete the file and run the operation again
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
-				return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
+				return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target, options));
 			}
 
 			return TPromise.wrapError(error);

@@ -12,6 +12,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BrowserWindow, ipcMain } from 'electron';
 import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { Barrier } from 'vs/base/common/async';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -23,7 +24,8 @@ export class SharedProcess implements ISharedProcess {
 	constructor(
 		private environmentService: IEnvironmentService,
 		private readonly machineId: string,
-		private readonly userEnv: IProcessEnvironment
+		private readonly userEnv: IProcessEnvironment,
+		private readonly logService: ILogService
 	) { }
 
 	@memoize
@@ -43,7 +45,7 @@ export class SharedProcess implements ISharedProcess {
 			userEnv: this.userEnv
 		});
 
-		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 		this.window.loadURL(url);
 
 		// Prevent the window from dying
@@ -75,7 +77,8 @@ export class SharedProcess implements ISharedProcess {
 			ipcMain.once('handshake:hello', ({ sender }: { sender: any }) => {
 				sender.send('handshake:hey there', {
 					sharedIPCHandle: this.environmentService.sharedIPCHandle,
-					args: this.environmentService.args
+					args: this.environmentService.args,
+					logLevel: this.logService.getLevel()
 				});
 
 				ipcMain.once('handshake:im ready', () => c(null));

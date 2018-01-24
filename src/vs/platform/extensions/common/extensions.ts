@@ -33,6 +33,10 @@ export interface IExtensionDescription {
 	enableProposedApi?: boolean;
 }
 
+export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
+export const USER_MANIFEST_CACHE_FILE = 'user';
+export const BUILTIN_MANIFEST_CACHE_FILE = 'builtin';
+
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
 
 export interface IMessage {
@@ -123,7 +127,6 @@ export interface IExtensionService {
 	_serviceBrand: any;
 
 	/**
-	 * TODO@Ben: Delete this and use `whenInstalledExtensionsRegistered`
 	 * An event emitted when extensions are registered after their extension points got handled.
 	 *
 	 * This event will also fire on startup to signal the installed extensions.

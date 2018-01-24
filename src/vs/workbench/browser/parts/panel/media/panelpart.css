@@ -31,7 +31,7 @@
 }
 
 .monaco-workbench > .part.panel > .composite.title > .title-actions {
-	flex: 0;
+	flex-grow: 0;
 }
 
 .monaco-workbench > .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
@@ -50,7 +50,8 @@
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
-	line-height: 32px;
+	line-height: 30px;
+	height: 35px;
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:first-child {
@@ -59,16 +60,20 @@
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item {
 	text-transform: uppercase;
-	margin-left: 16px;
-	margin-right: 16px;
+	padding-left: 16px;
+	padding-right: 16px;
 	font-size: 11px;
-	padding-bottom: 4px; /* puts the bottom border down */
+	padding-bottom: 3px; /* puts the bottom border down */
+	padding-top: 2px;
 	display: flex;
+}
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:last-child {
+	padding-right: 6px;
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
 	border-bottom: 1px solid;
-	height: 82%;
 }
 
 .monaco-workbench  > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge .badge-content {

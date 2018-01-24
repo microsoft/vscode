@@ -23,7 +23,6 @@ export function activate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.languages.registerHoverProvider('php', new PHPHoverProvider()));
 	context.subscriptions.push(vscode.languages.registerSignatureHelpProvider('php', new PHPSignatureHelpProvider(), '(', ','));
 
-
 	// need to set in the extension host as well as the completion provider uses it.
 	vscode.languages.setLanguageConfiguration('php', {
 		wordPattern: /(-?\d*\.\d\w*)|([^\-\`\~\!\@\#\%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,

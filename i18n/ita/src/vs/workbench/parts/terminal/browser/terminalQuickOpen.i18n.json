@@ -6,7 +6,7 @@
 {
 	"termEntryAriaLabel": "{0}, selettore terminale",
 	"termCreateEntryAriaLabel": "{0}, crea un nuovo terminale",
-	"'workbench.action.terminal.newplus": "$(plus) Crea nuovo terminale integrato",
+	"workbench.action.terminal.newplus": "$(plus) Crea nuovo terminale integrato",
 	"noTerminalsMatching": "Nessun terminale corrispondente",
 	"noTerminalsFound": "Nessun terminale aperto"
 }

@@ -24,6 +24,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
 	telemetry: { enableCrashReporter: boolean };
+	keyboard: { touchbar: { enabled: boolean } };
 }
 
 export class SettingsChangeRelauncher implements IWorkbenchContribution {
@@ -34,6 +35,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private nativeTabs: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
+	private touchbarEnabled: boolean;
 
 	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
@@ -91,6 +93,12 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 			changed = true;
 		}
 
+		// Touchbar config
+		if (config.keyboard && config.keyboard.touchbar && typeof config.keyboard.touchbar.enabled === 'boolean' && config.keyboard.touchbar.enabled !== this.touchbarEnabled) {
+			this.touchbarEnabled = config.keyboard.touchbar.enabled;
+			changed = true;
+		}
+
 		// Notify only when changed and we are the focused window (avoids notification spam across windows)
 		if (notify && changed) {
 			this.doConfirm(
@@ -138,17 +146,19 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
 		this.windowService.isFocused().then(focused => {
 			if (focused) {
-				const confirm = this.messageService.confirmSync({
+				return this.messageService.confirm({
 					type: 'info',
 					message,
 					detail,
 					primaryButton
+				}).then(confirm => {
+					if (confirm) {
+						confirmed();
+					}
 				});
-
-				if (confirm) {
-					confirmed();
-				}
 			}
+
+			return void 0;
 		});
 	}
 

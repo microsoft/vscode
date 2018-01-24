@@ -12,6 +12,7 @@ import * as Assert from 'vs/base/common/assert';
 import * as Paths from 'vs/base/common/paths';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
+import * as Platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -189,6 +190,8 @@ export function createLineMatcher(matcher: ProblemMatcher): ILineMatcher {
 	}
 }
 
+const endOfLine: string = Platform.OS === Platform.OperatingSystem.Windows ? '\r\n' : '\n';
+
 abstract class AbstractLineMatcher implements ILineMatcher {
 	private matcher: ProblemMatcher;
 
@@ -208,7 +211,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 
 	protected fillProblemData(data: ProblemData, pattern: ProblemPattern, matches: RegExpExecArray): void {
 		this.fillProperty(data, 'file', pattern, matches, true);
-		this.fillProperty(data, 'message', pattern, matches, true);
+		this.appendProperty(data, 'message', pattern, matches, true);
 		this.fillProperty(data, 'code', pattern, matches, true);
 		this.fillProperty(data, 'severity', pattern, matches, true);
 		this.fillProperty(data, 'location', pattern, matches, true);
@@ -216,6 +219,19 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 		this.fillProperty(data, 'character', pattern, matches);
 		this.fillProperty(data, 'endLine', pattern, matches);
 		this.fillProperty(data, 'endCharacter', pattern, matches);
+	}
+
+	private appendProperty(data: ProblemData, property: keyof ProblemData, pattern: ProblemPattern, matches: RegExpExecArray, trim: boolean = false): void {
+		if (Types.isUndefined(data[property])) {
+			this.fillProperty(data, property, pattern, matches, trim);
+		}
+		else if (!Types.isUndefined(pattern[property]) && pattern[property] < matches.length) {
+			let value = matches[pattern[property]];
+			if (trim) {
+				value = Strings.trim(value);
+			}
+			data[property] += endOfLine + value;
+		}
 	}
 
 	private fillProperty(data: ProblemData, property: keyof ProblemData, pattern: ProblemPattern, matches: RegExpExecArray, trim: boolean = false): void {
@@ -229,24 +245,28 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 	}
 
 	protected getMarkerMatch(data: ProblemData): ProblemMatch {
-		let location = this.getLocation(data);
-		if (data.file && location && data.message) {
-			let marker: IMarkerData = {
-				severity: this.getSeverity(data),
-				startLineNumber: location.startLineNumber,
-				startColumn: location.startCharacter,
-				endLineNumber: location.startLineNumber,
-				endColumn: location.endCharacter,
-				message: data.message
-			};
-			if (!Types.isUndefined(data.code)) {
-				marker.code = data.code;
+		try {
+			let location = this.getLocation(data);
+			if (data.file && location && data.message) {
+				let marker: IMarkerData = {
+					severity: this.getSeverity(data),
+					startLineNumber: location.startLineNumber,
+					startColumn: location.startCharacter,
+					endLineNumber: location.startLineNumber,
+					endColumn: location.endCharacter,
+					message: data.message
+				};
+				if (!Types.isUndefined(data.code)) {
+					marker.code = data.code;
+				}
+				return {
+					description: this.matcher,
+					resource: this.getResource(data.file),
+					marker: marker
+				};
 			}
-			return {
-				description: this.matcher,
-				resource: this.getResource(data.file),
-				marker: marker
-			};
+		} catch (err) {
+			console.error(`Failed to convert problem data into match: ${JSON.stringify(data)}`);
 		}
 		return undefined;
 	}
@@ -1598,7 +1618,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			label: localize('eslint-compact', 'ESLint compact problems'),
 			owner: 'eslint',
 			applyTo: ApplyToKind.allDocuments,
-			fileLocation: FileLocationKind.Relative,
+			fileLocation: FileLocationKind.Absolute,
 			filePrefix: '${workspaceFolder}',
 			pattern: ProblemPatternRegistry.get('eslint-compact')
 		});

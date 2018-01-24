@@ -18,6 +18,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeLensData, getCodeLensData } from './codelens';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
+import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
@@ -129,12 +130,18 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.push(this._editor.onDidChangeModelContent((e) => {
 			this._editor.changeDecorations((changeAccessor) => {
 				this._editor.changeViewZones((viewAccessor) => {
-					const toDispose: CodeLens[] = [];
+					let toDispose: CodeLens[] = [];
+					let lastLensLineNumber: number = -1;
+
 					this._lenses.forEach((lens) => {
-						if (lens.isValid()) {
-							lens.update(viewAccessor);
-						} else {
+						if (!lens.isValid() || lastLensLineNumber === lens.getLineNumber()) {
+							// invalid -> lens collapsed, attach range doesn't exist anymore
+							// line_number -> lenses should never be on the same line
 							toDispose.push(lens);
+
+						} else {
+							lens.update(viewAccessor);
+							lastLensLineNumber = lens.getLineNumber();
 						}
 					});
 
@@ -178,7 +185,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		scheduler.schedule();
 	}
 
-	private _disposeAllLenses(decChangeAccessor: editorCommon.IModelDecorationsChangeAccessor, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
+	private _disposeAllLenses(decChangeAccessor: IModelDecorationsChangeAccessor, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
 		let helper = new CodeLensHelper();
 		this._lenses.forEach((lens) => lens.dispose(helper, viewZoneChangeAccessor));
 		if (decChangeAccessor) {

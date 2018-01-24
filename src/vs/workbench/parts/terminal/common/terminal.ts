@@ -47,6 +47,10 @@ export const TerminalCursorStyle = {
 	UNDERLINE: 'underline'
 };
 
+export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
+
+export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+
 export interface ITerminalConfiguration {
 	shell: {
 		linux: string;
@@ -58,11 +62,13 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
-	enableBold: boolean;
+	macOptionIsMeta: boolean;
 	rightClickCopyPaste: boolean;
 	cursorBlinking: boolean;
 	cursorStyle: string;
 	fontFamily: string;
+	fontWeight: FontWeight;
+	fontWeightBold: FontWeight;
 	// fontLigatures: boolean;
 	fontSize: number;
 	lineHeight: number;
@@ -71,11 +77,13 @@ export interface ITerminalConfiguration {
 	commandsToSkipShell: string[];
 	cwd: string;
 	confirmOnExit: boolean;
+	enableBell: boolean;
 	env: {
 		linux: { [key: string]: string };
 		osx: { [key: string]: string };
 		windows: { [key: string]: string };
 	};
+	showExitAlert: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -168,7 +176,6 @@ export interface ITerminalService {
 	showPreviousFindTermFindWidget(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	updateConfig(): void;
 	selectDefaultWindowsShell(): TPromise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
@@ -336,6 +343,12 @@ export interface ITerminalInstance {
 	updateConfig(): void;
 
 	/**
+	 * Updates the accessibility support state of the terminal instance.
+	 * @param isEnabled Whether it's enabled.
+	 */
+	updateAccessibilitySupport(isEnabled: boolean): void;
+
+	/**
 	 * Configure the dimensions of the terminal instance.
 	 *
 	 * @param dimension The dimensions of the container.
@@ -348,16 +361,6 @@ export interface ITerminalInstance {
 	 * @param visible Whether the element is visible.
 	 */
 	setVisible(visible: boolean): void;
-
-	/**
-	 * Attach a listener to the data stream from the terminal's pty process.
-	 *
-	 * @param listener The listener function which takes the processes' data stream (including
-	 * ANSI escape sequences).
-	 *
-	 * @deprecated onLineData will replace this.
-	 */
-	onData(listener: (data: string) => void): IDisposable;
 
 	/**
 	 * Attach a listener to listen for new lines added to this terminal instance.
@@ -390,4 +393,9 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
+
+	/**
+	 * Enter screen reader navigation mode.
+	 */
+	enterNavigationMode(): void;
 }

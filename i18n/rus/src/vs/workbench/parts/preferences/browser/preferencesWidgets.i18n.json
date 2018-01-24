@@ -8,5 +8,6 @@
 	"noSettingsFound": "Параметры не найдены.",
 	"settingsSwitcherBarAriaLabel": "Переключатель параметров",
 	"userSettings": "Параметры пользователя",
-	"workspaceSettings": "Параметры рабочей области"
+	"workspaceSettings": "Параметры рабочей области",
+	"folderSettings": "Параметры папок"
 }

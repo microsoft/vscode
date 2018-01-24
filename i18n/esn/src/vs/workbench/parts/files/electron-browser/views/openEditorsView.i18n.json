@@ -6,6 +6,5 @@
 {
 	"openEditors": "Editores abiertos",
 	"openEditosrSection": "Sección Editores abiertos",
-	"treeAriaLabel": "Editores abiertos: lista de archivos activos",
 	"dirtyCounter": "{0} sin guardar"
 }

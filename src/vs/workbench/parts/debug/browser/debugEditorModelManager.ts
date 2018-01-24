@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { Constants } from 'vs/editor/common/core/uint';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/model';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, IBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -21,7 +21,7 @@ interface IBreakpointDecoration {
 }
 
 interface IDebugEditorModelData {
-	model: IModel;
+	model: ITextModel;
 	toDispose: lifecycle.IDisposable[];
 	breakpointDecorations: IBreakpointDecoration[];
 	currentStackDecorations: string[];
@@ -32,7 +32,7 @@ interface IDebugEditorModelData {
 const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
 export class DebugEditorModelManager implements IWorkbenchContribution {
-	static ID = 'breakpointManager';
+	static readonly ID = 'breakpointManager';
 
 	private modelDataMap: Map<string, IDebugEditorModelData>;
 	private toDispose: lifecycle.IDisposable[];
@@ -75,7 +75,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		}));
 	}
 
-	private onModelAdded(model: IModel): void {
+	private onModelAdded(model: ITextModel): void {
 		const modelUrlStr = model.uri.toString();
 		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.uri.toString() === modelUrlStr);
 
@@ -94,7 +94,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		});
 	}
 
-	private onModelRemoved(model: IModel): void {
+	private onModelRemoved(model: ITextModel): void {
 		const modelUriStr = model.uri.toString();
 		if (this.modelDataMap.has(modelUriStr)) {
 			lifecycle.dispose(this.modelDataMap.get(modelUriStr).toDispose);
@@ -262,7 +262,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			({ decorationId, modelId: newBreakpoints[index].getId(), range: desiredDecorations[index].range }));
 	}
 
-	private createBreakpointDecorations(model: IModel, breakpoints: IBreakpoint[]): { range: Range; options: IModelDecorationOptions; }[] {
+	private createBreakpointDecorations(model: ITextModel, breakpoints: IBreakpoint[]): { range: Range; options: IModelDecorationOptions; }[] {
 		return breakpoints.map((breakpoint) => {
 			const column = model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber);
 			const range = model.validateRange(

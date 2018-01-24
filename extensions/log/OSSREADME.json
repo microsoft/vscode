@@ -1,0 +1,9 @@
+// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
+[
+	{
+		"name": "vscode-logfile-highlighter",
+		"version": "1.2.0",
+		"license": "MIT",
+		"repositoryURL": "https://github.com/emilast/vscode-logfile-highlighter"
+	}
+]

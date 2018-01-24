@@ -49,5 +49,8 @@
 	"emmetPreferencesBemModifierSeparator": "Separador de modificador utilizado para las clases cuando se utiliza el filtro BEM",
 	"emmetPreferencesFilterCommentBefore": "Una definición de comentario que debe ser colocado antes de elemento emparejado cuando se aplica el filtro de comentarios.",
 	"emmetPreferencesFilterCommentAfter": "Una definición de comentario que debe colocarse después de elemento emparejado cuando se aplica el filtro de comentarios.",
-	"emmetPreferencesFilterCommentTrigger": "Una lista separada por comas de nombres de atributos que debe existir en la abreviatura para el filtro de comentarios ser aplicado"
+	"emmetPreferencesFilterCommentTrigger": "Una lista separada por comas de nombres de atributos que debe existir en la abreviatura para el filtro de comentarios ser aplicado",
+	"emmetPreferencesFormatNoIndentTags": "Una matriz de nombres de etiqueta que no debería recibir una sangría interna",
+	"emmetPreferencesFormatForceIndentTags": "Una matriz de nombres de etiqueta que siempre debería recibir una sangría interna",
+	"emmetPreferencesAllowCompactBoolean": "Si es 'true', se produce una anotación compacta de atributos booleanos"
 }

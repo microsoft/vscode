@@ -10,12 +10,10 @@ import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -23,17 +21,18 @@ import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preference
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IAction, Action } from 'vs/base/common/actions';
-import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground, focusBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Separator, ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
+import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -102,32 +101,20 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 
 export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 
-	private linkElement: HTMLElement;
 	private _onClick = this._register(new Emitter<void>());
 	public onClick: Event<void> = this._onClick.event;
 
 	protected create() {
 		super.create();
 
-		this.linkElement = DOM.append(this.titleContainer, DOM.$('a.settings-header-natural-language-link'));
-		this.linkElement.textContent = localize('defaultSettingsFuzzyPrompt', "Try natural language search!");
-
-		this.onclick(this.linkElement, e => this._onClick.fire());
 		this.toggleMessage(true);
 	}
 
-	public toggleMessage(hasSettings: boolean, promptFuzzy = false): void {
+	public toggleMessage(hasSettings: boolean): void {
 		if (hasSettings) {
 			this.setMessage(localize('defaultSettings', "Place your settings in the right hand side editor to override."));
-			DOM.addClass(this.linkElement, 'hidden');
 		} else {
 			this.setMessage(localize('noSettingsFound', "No Settings Found."));
-
-			if (promptFuzzy) {
-				DOM.removeClass(this.linkElement, 'hidden');
-			} else {
-				DOM.addClass(this.linkElement, 'hidden');
-			}
 		}
 	}
 }
@@ -333,13 +320,24 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.anchorElement = DOM.$('a.action-label', {
 			role: 'button',
 			'aria-haspopup': 'true',
-			// 'tabindex': '0'
+			'tabindex': '0'
 		}, this.labelElement, this.detailsElement, this.dropDownElement);
 		this.disposables.push(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
+		this.disposables.push(DOM.addDisposableListener(this.anchorElement, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
 
 		DOM.append(this.container, this.anchorElement);
 
 		this.update();
+	}
+
+	private onKeyUp(event: any): void {
+		const keyboardEvent = new StandardKeyboardEvent(event);
+		switch (keyboardEvent.keyCode) {
+			case KeyCode.Enter:
+			case KeyCode.Space:
+				this.onClick(event);
+				return;
+		}
 	}
 
 	public onClick(event: DOM.EventLike): void {
@@ -399,7 +397,10 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
 			getActions: () => TPromise.as(this.getDropdownMenuActions()),
-			getActionItem: (action) => null
+			getActionItem: (action) => null,
+			onHide: () => {
+				this.anchorElement.blur();
+			}
 		});
 	}
 
@@ -455,7 +456,7 @@ export class SettingsTargetsWidget extends Widget {
 	private create(parent: HTMLElement): void {
 		const settingsTabsWidget = DOM.append(parent, DOM.$('.settings-tabs-widget'));
 		this.settingsSwitcherBar = this._register(new ActionBar(settingsTabsWidget, {
-			orientation: ActionsOrientation.HORIZONTAL_REVERSE,
+			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
 			animated: false,
 			actionItemProvider: (action: Action) => action.id === 'folderSettings' ? this.folderSettings : null
@@ -472,7 +473,7 @@ export class SettingsTargetsWidget extends Widget {
 
 		this.update();
 
-		this.settingsSwitcherBar.push([folderSettingsAction, this.workspaceSettings, this.userSettings]);
+		this.settingsSwitcherBar.push([this.userSettings, this.workspaceSettings, folderSettingsAction]);
 	}
 
 	public get settingsTarget(): SettingsTarget {
@@ -518,7 +519,6 @@ export class SettingsTargetsWidget extends Widget {
 
 export interface SearchOptions extends IInputOptions {
 	focusKey?: IContextKey<boolean>;
-	showFuzzyToggle?: boolean;
 	showResultCount?: boolean;
 }
 
@@ -529,7 +529,6 @@ export class SearchWidget extends Widget {
 	private countElement: HTMLElement;
 	private searchContainer: HTMLElement;
 	private inputBox: InputBox;
-	private fuzzyToggle: Checkbox;
 	private controlsDiv: HTMLElement;
 
 	private _onDidChange: Emitter<string> = this._register(new Emitter<string>());
@@ -547,32 +546,10 @@ export class SearchWidget extends Widget {
 		this.create(parent);
 	}
 
-	public get fuzzyEnabled(): boolean {
-		return this.fuzzyToggle.checked && this.fuzzyToggle.enabled;
-	}
-
-	public set fuzzyEnabled(value: boolean) {
-		this.fuzzyToggle.checked = value;
-	}
-
 	private create(parent: HTMLElement) {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
 		this.controlsDiv = DOM.append(this.domNode, DOM.$('div.settings-search-controls'));
-		if (this.options.showFuzzyToggle) {
-			this.fuzzyToggle = this._register(new Checkbox({
-				actionClassName: 'prefs-natural-language-search-toggle',
-				isChecked: false,
-				onChange: () => {
-					this.inputBox.focus();
-					this._onDidChange.fire();
-				},
-				title: localize('enableFuzzySearch', 'Enable natural language search')
-			}));
-			this.fuzzyToggle.domNode.innerHTML = renderOcticons('$(light-bulb)');
-			DOM.append(this.controlsDiv, this.fuzzyToggle.domNode);
-			this._register(attachCheckboxStyler(this.fuzzyToggle, this.themeService));
-		}
 
 		if (this.options.showResultCount) {
 			this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
@@ -624,16 +601,6 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	public setFuzzyToggleVisible(visible: boolean): void {
-		if (visible) {
-			this.fuzzyToggle.domNode.classList.remove('hidden');
-			this.fuzzyToggle.enable();
-		} else {
-			this.fuzzyToggle.domNode.classList.add('hidden');
-			this.fuzzyToggle.disable();
-		}
-	}
-
 	private styleCountElementForeground() {
 		const colorId = DOM.hasClass(this.countElement, 'no-results') ? errorForeground : badgeForeground;
 		const color = this.themeService.getTheme().getColor(colorId);
@@ -658,8 +625,7 @@ export class SearchWidget extends Widget {
 
 	private getControlsWidth(): number {
 		const countWidth = this.countElement ? DOM.getTotalWidth(this.countElement) : 0;
-		const fuzzyToggleWidth = this.fuzzyToggle ? DOM.getTotalWidth(this.fuzzyToggle.domNode) : 0;
-		return countWidth + fuzzyToggleWidth + 20;
+		return countWidth + 20;
 	}
 
 	public focus() {
@@ -784,13 +750,13 @@ export class EditPreferenceWidget<T> extends Disposable {
 
 	show(line: number, hoverMessage: string, preferences: T[]): void {
 		this._preferences = preferences;
-		const newDecoration: editorCommon.IModelDeltaDecoration[] = [];
+		const newDecoration: IModelDeltaDecoration[] = [];
 		this._line = line;
 		newDecoration.push({
 			options: {
 				glyphMarginClassName: EditPreferenceWidget.GLYPH_MARGIN_CLASS_NAME,
 				glyphMarginHoverMessage: new MarkdownString().appendText(hoverMessage),
-				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			},
 			range: {
 				startLineNumber: line,
@@ -815,3 +781,72 @@ export class EditPreferenceWidget<T> extends Disposable {
 		super.dispose();
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	collector.addRule(`
+		.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus,
+		.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+			border-bottom: 1px solid;
+		}
+	`);
+	// Title Active
+	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
+	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
+	if (titleActive || titleActiveBorder) {
+		collector.addRule(`
+			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:hover,
+			.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
+				color: ${titleActive};
+				border-bottom-color: ${titleActiveBorder};
+			}
+		`);
+	}
+
+	// Title Inactive
+	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
+	if (titleInactive) {
+		collector.addRule(`
+			.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+				color: ${titleInactive};
+			}
+		`);
+	}
+
+	// Title focus
+	const focusBorderColor = theme.getColor(focusBorder);
+	if (focusBorderColor) {
+		collector.addRule(`
+			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
+				border-bottom-color: ${focusBorderColor} !important;
+			}
+			`);
+		collector.addRule(`
+			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
+				outline: none;
+			}
+			`);
+	}
+
+	// Styling with Outline color (e.g. high contrast theme)
+	const outline = theme.getColor(activeContrastBorder);
+	if (outline) {
+		const outline = theme.getColor(activeContrastBorder);
+
+		collector.addRule(`
+			.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked,
+			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:hover {
+				outline-color: ${outline};
+				outline-width: 1px;
+				outline-style: solid;
+				border-bottom: none;
+				padding-bottom: 0;
+				outline-offset: 3px;
+			}
+
+			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):hover {
+				outline-style: dashed;
+			}
+		`);
+	}
+});

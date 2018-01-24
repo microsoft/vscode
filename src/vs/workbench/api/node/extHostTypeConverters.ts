@@ -8,7 +8,8 @@ import Severity from 'vs/base/common/severity';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IDecorationOptions, EndOfLineSequence } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
@@ -241,18 +242,6 @@ export namespace WorkspaceEdit {
 		return result;
 	}
 
-	export function fromTextEdits(uri: vscode.Uri, textEdits: vscode.TextEdit[]): modes.WorkspaceEdit {
-		const result: modes.WorkspaceEdit = { edits: [] };
-		for (let textEdit of textEdits) {
-			result.edits.push({
-				resource: uri,
-				newText: textEdit.newText,
-				range: fromRange(textEdit.range)
-			});
-		}
-		return result;
-	}
-
 	export function to(value: modes.WorkspaceEdit) {
 		const result = new types.WorkspaceEdit();
 		for (const edit of value.edits) {
@@ -358,7 +347,8 @@ export namespace CompletionTriggerKind {
 		switch (kind) {
 			case modes.SuggestTriggerKind.TriggerCharacter:
 				return types.CompletionTriggerKind.TriggerCharacter;
-
+			case modes.SuggestTriggerKind.TriggerForIncompleteCompletions:
+				return types.CompletionTriggerKind.TriggerForIncompleteCompletions;
 			case modes.SuggestTriggerKind.Invoke:
 			default:
 				return types.CompletionTriggerKind.Invoke;
@@ -626,9 +616,13 @@ function doToLanguageSelector(selector: string | vscode.DocumentFilter): string 
 		return selector;
 	}
 
-	return {
-		language: selector.language,
-		scheme: selector.scheme,
-		pattern: toGlobPattern(selector.pattern)
-	};
+	if (selector) {
+		return {
+			language: selector.language,
+			scheme: selector.scheme,
+			pattern: toGlobPattern(selector.pattern)
+		};
+	}
+
+	return undefined;
 }

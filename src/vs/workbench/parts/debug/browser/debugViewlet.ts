@@ -22,7 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ViewLocation } from 'vs/workbench/browser/parts/views/viewsRegistry';
+import { ViewLocation } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -59,7 +59,6 @@ export class DebugViewlet extends PersistentViewsViewlet {
 
 		const el = parent.getHTMLElement();
 		DOM.addClass(el, 'debug-viewlet');
-		this.updateBreakpointsMaxSize();
 	}
 
 	public focus(): void {
@@ -116,6 +115,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		// attach event listener to
 		if (panel.id === BREAKPOINTS_VIEW_ID) {
 			this.breakpointView = panel;
+			this.updateBreakpointsMaxSize();
 		} else {
 			this.panelListeners.set(panel.id, panel.onDidChange(() => this.updateBreakpointsMaxSize()));
 		}
@@ -128,15 +128,17 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	}
 
 	private updateBreakpointsMaxSize(): void {
-		// We need to update the breakpoints view since all other views are collapsed #25384
-		const allOtherCollapsed = this.views.every(view => !view.isExpanded() || view === this.breakpointView);
-		this.breakpointView.maximumBodySize = allOtherCollapsed ? Number.POSITIVE_INFINITY : this.breakpointView.minimumBodySize;
+		if (this.breakpointView) {
+			// We need to update the breakpoints view since all other views are collapsed #25384
+			const allOtherCollapsed = this.views.every(view => !view.isExpanded() || view === this.breakpointView);
+			this.breakpointView.maximumBodySize = allOtherCollapsed ? Number.POSITIVE_INFINITY : this.breakpointView.minimumBodySize;
+		}
 	}
 }
 
 export class FocusVariablesViewAction extends Action {
 
-	static ID = 'workbench.debug.action.focusVariablesView';
+	static readonly ID = 'workbench.debug.action.focusVariablesView';
 	static LABEL = nls.localize('debugFocusVariablesView', 'Focus Variables');
 
 	constructor(id: string, label: string,
@@ -154,7 +156,7 @@ export class FocusVariablesViewAction extends Action {
 
 export class FocusWatchViewAction extends Action {
 
-	static ID = 'workbench.debug.action.focusWatchView';
+	static readonly ID = 'workbench.debug.action.focusWatchView';
 	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusWatchView' }, 'Focus Watch');
 
 	constructor(id: string, label: string,
@@ -172,7 +174,7 @@ export class FocusWatchViewAction extends Action {
 
 export class FocusCallStackViewAction extends Action {
 
-	static ID = 'workbench.debug.action.focusCallStackView';
+	static readonly ID = 'workbench.debug.action.focusCallStackView';
 	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusCallStackView' }, 'Focus CallStack');
 
 	constructor(id: string, label: string,
@@ -190,7 +192,7 @@ export class FocusCallStackViewAction extends Action {
 
 export class FocusBreakpointsViewAction extends Action {
 
-	static ID = 'workbench.debug.action.focusBreakpointsView';
+	static readonly ID = 'workbench.debug.action.focusBreakpointsView';
 	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusBreakpointsView' }, 'Focus Breakpoints');
 
 	constructor(id: string, label: string,

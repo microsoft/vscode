@@ -27,3 +27,17 @@
 .monaco-workbench.windows .monaco-action-bar .select-box {
 	margin-top: 7px; /* Center the select box */
 }
+
+.monaco-font-aliasing-antialiased {
+	-webkit-font-smoothing: antialiased;
+}
+
+.monaco-font-aliasing-none {
+	-webkit-font-smoothing: none;
+}
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+	.monaco-font-aliasing-auto {
+		-webkit-font-smoothing: antialiased;
+	}
+}

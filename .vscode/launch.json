@@ -129,6 +129,9 @@
 			"runtimeArgs": [
 				"--inspect=5875"
 			],
+			"skipFiles": [
+				"**/winjs*.js"
+			],
 			"webRoot": "${workspaceFolder}"
 		},
 		{

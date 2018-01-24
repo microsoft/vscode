@@ -32,6 +32,7 @@ import { editorErrorForeground, editorErrorBorder, editorWarningForeground, edit
 import { Color } from 'vs/base/common/color';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
+import { ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -157,8 +158,8 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		super.dispose();
 	}
 
-	public createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): editorBrowser.IOverviewRuler {
-		return this._view.createOverviewRuler(cssClassName, minimumHeight, maximumHeight);
+	public createOverviewRuler(cssClassName: string): editorBrowser.IOverviewRuler {
+		return this._view.createOverviewRuler(cssClassName);
 	}
 
 	public getDomNode(): HTMLElement {
@@ -326,7 +327,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		Configuration.applyFontInfoSlow(target, this._configuration.editor.fontInfo);
 	}
 
-	_attachModel(model: editorCommon.IModel): void {
+	_attachModel(model: ITextModel): void {
 		this._view = null;
 
 		super._attachModel(model);
@@ -392,7 +393,17 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		viewEventBus.onKeyDown = (e) => this._onKeyDown.fire(e);
 	}
 
-	protected _detachModel(): editorCommon.IModel {
+	public restoreViewState(s: editorCommon.ICodeEditorViewState): void {
+		super.restoreViewState(s);
+		if (!this.cursor || !this.hasView) {
+			return;
+		}
+		if (s && s.cursorState && s.viewState) {
+			this._view.restoreState(this.viewModel.viewLayout.reduceRestoreState(s.viewState));
+		}
+	}
+
+	protected _detachModel(): ITextModel {
 		let removeDomNode: HTMLElement = null;
 
 		if (this._view) {
@@ -420,7 +431,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._codeEditorService.removeDecorationType(key);
 	}
 
-	protected _resolveDecorationOptions(typeKey: string, writable: boolean): editorCommon.IModelDecorationOptions {
+	protected _resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions {
 		return this._codeEditorService.resolveDecorationOptions(typeKey, writable);
 	}
 

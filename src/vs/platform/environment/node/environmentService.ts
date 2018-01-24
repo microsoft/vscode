@@ -12,6 +12,8 @@ import URI from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
+import { toLocalISOString } from 'vs/base/common/date';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624
@@ -27,15 +29,44 @@ function getNixIPCHandle(userDataPath: string, type: string): string {
 
 function getWin32IPCHandle(userDataPath: string, type: string): string {
 	const scope = crypto.createHash('md5').update(userDataPath).digest('hex');
+
 	return `\\\\.\\pipe\\${scope}-${pkg.version}-${type}-sock`;
 }
 
 function getIPCHandle(userDataPath: string, type: string): string {
-	if (process.platform === 'win32') {
+	if (isWindows) {
 		return getWin32IPCHandle(userDataPath, type);
-	} else {
-		return getNixIPCHandle(userDataPath, type);
 	}
+
+	return getNixIPCHandle(userDataPath, type);
+}
+
+function getCLIPath(execPath: string, appRoot: string, isBuilt: boolean): string {
+
+	// Windows
+	if (isWindows) {
+		if (isBuilt) {
+			return path.join(path.dirname(execPath), 'bin', `${product.applicationName}.cmd`);
+		}
+
+		return path.join(appRoot, 'scripts', 'code-cli.bat');
+	}
+
+	// Linux
+	if (isLinux) {
+		if (isBuilt) {
+			return path.join(path.dirname(execPath), 'bin', `${product.applicationName}`);
+		}
+
+		return path.join(appRoot, 'scripts', 'code-cli.sh');
+	}
+
+	// macOS
+	if (isBuilt) {
+		return path.join(appRoot, 'bin', 'code');
+	}
+
+	return path.join(appRoot, 'scripts', 'code-cli.sh');
 }
 
 export class EnvironmentService implements IEnvironmentService {
@@ -48,6 +79,11 @@ export class EnvironmentService implements IEnvironmentService {
 	get appRoot(): string { return path.dirname(URI.parse(require.toUrl('')).fsPath); }
 
 	get execPath(): string { return this._execPath; }
+
+	@memoize
+	get cliPath(): string { return getCLIPath(this.execPath, this.appRoot, this.isBuilt); }
+
+	readonly logsPath: string;
 
 	@memoize
 	get userHome(): string { return os.homedir(); }
@@ -102,6 +138,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
 
+	get skipReleaseNotes(): boolean { return this._args['skip-release-notes']; }
+
 	get skipAddToRecentlyOpened(): boolean { return this._args['skip-add-to-recently-opened']; }
 
 	@memoize
@@ -112,10 +150,13 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
+
 	get wait(): boolean { return this._args.wait; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
 	get performance(): boolean { return this._args.performance; }
+	get status(): boolean { return this._args.status; }
+	get issue(): boolean { return this._args.issue; }
 
 	@memoize
 	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
@@ -129,20 +170,27 @@ export class EnvironmentService implements IEnvironmentService {
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
 
-	constructor(private _args: ParsedArgs, private _execPath: string) { }
+	constructor(private _args: ParsedArgs, private _execPath: string) {
+		if (!process.env['VSCODE_LOGS']) {
+			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
+			process.env['VSCODE_LOGS'] = path.join(this.userDataPath, 'logs', key);
+		}
+
+		this.logsPath = process.env['VSCODE_LOGS'];
+	}
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
-	return parseDebugPort(args.debugPluginHost, args.debugBrkPluginHost, 5870, args.debugId);
+	return parseDebugPort(args.debugPluginHost, args.debugBrkPluginHost, 5870, isBuild, args.debugId);
 }
 
 export function parseSearchPort(args: ParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugPort(args.debugSearch, args.debugBrkSearch, !isBuild ? 5876 : null);
+	return parseDebugPort(args.debugSearch, args.debugBrkSearch, 5876, isBuild);
 }
 
-export function parseDebugPort(debugArg: string, debugBrkArg: string, defaultBuildPort: number, debugId?: string): IExtensionHostDebugParams {
+export function parseDebugPort(debugArg: string, debugBrkArg: string, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
 	const portStr = debugBrkArg || debugArg;
-	const port = Number(portStr) || defaultBuildPort;
+	const port = Number(portStr) || (!isBuild ? defaultBuildPort : null);
 	const brk = port ? Boolean(!!debugBrkArg) : false;
 	return { port, break: brk, debugId };
 }

@@ -54,7 +54,8 @@ import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { dirname } from 'vs/base/common/paths';
 
 const HELP_PREFIX = '?';
 
@@ -107,7 +108,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
-		@IListService private listService: IListService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -311,7 +311,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				}, {
 					inputPlaceHolder: options.placeHolder || '',
 					keyboardSupport: false,
-					treeCreator: (container, config, opts) => new WorkbenchTree(container, config, opts, this.contextKeyService, this.listService, this.themeService)
+					treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
 				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
@@ -569,7 +569,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				}, {
 					inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '',
 					keyboardSupport: false,
-					treeCreator: (container, config, opts) => new WorkbenchTree(container, config, opts, this.contextKeyService, this.listService, this.themeService)
+					treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
 				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
@@ -857,7 +857,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			const result = handlerResults[i];
 			const resource = result.getResource();
 
-			if (!result.isFile() || !resource || !mapEntryToResource[resource.toString()]) {
+			if (!result.mergeWithEditorHistory() || !resource || !mapEntryToResource[resource.toString()]) {
 				additionalHandlerResults.push(result);
 			}
 		}
@@ -1260,12 +1260,22 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
 			this.label = getBaseLabel(resourceInput.resource);
-			this.description = labels.getPathLabel(resources.dirname(this.resource), contextService, environmentService);
+			this.description = labels.getPathLabel(this.safeDirname(this.resource), contextService, environmentService);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
 			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
 				this.dirty = false; // no dirty decoration if auto save is on with a short timeout
 			}
+		}
+	}
+
+	private safeDirname(resource: URI): string | URI {
+		try {
+			return resources.dirname(resource); // workaround for https://github.com/Microsoft/vscode/issues/41987
+		} catch (error) {
+			console.warn(`Unable to resolve to parent resource: ${resource.toString()}`, resource, error);
+
+			return dirname(resource.fsPath);
 		}
 	}
 
@@ -1301,7 +1311,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			const sideBySide = !context.quickNavigateConfiguration && context.keymods.ctrlCmd;
+			const sideBySide = !context.quickNavigateConfiguration && (context.keymods.alt || context.keymods.ctrlCmd);
 			const pinned = !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen || context.keymods.alt;
 
 			if (this.input instanceof EditorInput) {

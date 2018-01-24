@@ -6,28 +6,54 @@
 'use strict';
 
 import { basename, dirname } from 'vs/base/common/paths';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
-import { getLeadingWhitespace, commonPrefixLength } from 'vs/base/common/strings';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad } from 'vs/base/common/strings';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
-export class EditorSnippetVariableResolver implements VariableResolver {
+export const KnownSnippetVariableNames = Object.freeze({
+	'CURRENT_YEAR': true,
+	'CURRENT_YEAR_SHORT': true,
+	'CURRENT_MONTH': true,
+	'CURRENT_DATE': true,
+	'CURRENT_HOUR': true,
+	'CURRENT_MINUTE': true,
+	'CURRENT_SECOND': true,
+	'SELECTION': true,
+	'CLIPBOARD': true,
+	'TM_SELECTED_TEXT': true,
+	'TM_CURRENT_LINE': true,
+	'TM_CURRENT_WORD': true,
+	'TM_LINE_INDEX': true,
+	'TM_LINE_NUMBER': true,
+	'TM_FILENAME': true,
+	'TM_FILENAME_BASE': true,
+	'TM_DIRECTORY': true,
+	'TM_FILEPATH': true,
+});
 
-	static readonly VariableNames = Object.freeze({
-		'SELECTION': true,
-		'TM_SELECTED_TEXT': true,
-		'TM_CURRENT_LINE': true,
-		'TM_CURRENT_WORD': true,
-		'TM_LINE_INDEX': true,
-		'TM_LINE_NUMBER': true,
-		'TM_FILENAME': true,
-		'TM_FILENAME_BASE': true,
-		'TM_DIRECTORY': true,
-		'TM_FILEPATH': true,
-	});
+export class CompositeSnippetVariableResolver implements VariableResolver {
+
+	constructor(private readonly _delegates: VariableResolver[]) {
+		//
+	}
+
+	resolve(variable: Variable): string {
+		for (const delegate of this._delegates) {
+			let value = delegate.resolve(variable);
+			if (value !== void 0) {
+				return value;
+			}
+		}
+		return undefined;
+	}
+}
+
+export class SelectionBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _model: IModel,
+		private readonly _model: ITextModel,
 		private readonly _selection: Selection
 	) {
 		//
@@ -82,8 +108,24 @@ export class EditorSnippetVariableResolver implements VariableResolver {
 
 		} else if (name === 'TM_LINE_NUMBER') {
 			return String(this._selection.positionLineNumber);
+		}
+		return undefined;
+	}
+}
 
-		} else if (name === 'TM_FILENAME') {
+export class ModelBasedVariableResolver implements VariableResolver {
+
+	constructor(
+		private readonly _model: ITextModel
+	) {
+		//
+	}
+
+	resolve(variable: Variable): string {
+
+		const { name } = variable;
+
+		if (name === 'TM_FILENAME') {
 			return basename(this._model.uri.fsPath);
 
 		} else if (name === 'TM_FILENAME_BASE') {
@@ -101,9 +143,62 @@ export class EditorSnippetVariableResolver implements VariableResolver {
 
 		} else if (name === 'TM_FILEPATH') {
 			return this._model.uri.fsPath;
+		}
 
-		} else {
+		return undefined;
+	}
+}
+
+export class ClipboardBasedVariableResolver implements VariableResolver {
+
+	constructor(
+		private readonly _clipboardService: IClipboardService,
+		private readonly _selectionIdx: number,
+		private readonly _selectionCount: number
+	) {
+		//
+	}
+
+	resolve(variable: Variable): string {
+		if (variable.name !== 'CLIPBOARD' || !this._clipboardService) {
 			return undefined;
 		}
+
+		const text = this._clipboardService.readText();
+		if (!text) {
+			return undefined;
+		}
+
+		const lines = text.split(/\r\n|\n|\r/).filter(s => !isFalsyOrWhitespace(s));
+		if (lines.length === this._selectionCount) {
+			return lines[this._selectionIdx];
+		} else {
+			return text;
+		}
+	}
+}
+
+export class TimeBasedVariableResolver implements VariableResolver {
+
+	resolve(variable: Variable): string {
+		const { name } = variable;
+
+		if (name === 'CURRENT_YEAR') {
+			return String(new Date().getFullYear());
+		} else if (name === 'CURRENT_YEAR_SHORT') {
+			return String(new Date().getFullYear()).slice(-2);
+		} else if (name === 'CURRENT_MONTH') {
+			return pad((new Date().getMonth().valueOf() + 1), 2);
+		} else if (name === 'CURRENT_DATE') {
+			return pad(new Date().getDate().valueOf(), 2);
+		} else if (name === 'CURRENT_HOUR') {
+			return pad(new Date().getHours().valueOf(), 2);
+		} else if (name === 'CURRENT_MINUTE') {
+			return pad(new Date().getMinutes().valueOf(), 2);
+		} else if (name === 'CURRENT_SECOND') {
+			return pad(new Date().getSeconds().valueOf(), 2);
+		}
+
+		return undefined;
 	}
 }

@@ -6,6 +6,5 @@
 {
 	"openEditors": "開いているエディター",
 	"openEditosrSection": "[開いているエディター] セクション",
-	"treeAriaLabel": "開いているエディター: アクティブなファイルのリスト",
 	"dirtyCounter": "未保存 ({0})"
 }

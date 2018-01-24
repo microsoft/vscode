@@ -10,7 +10,6 @@ import { IEncodingSupport } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import URI from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -111,14 +110,6 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 
 	public getVersionId(): number {
 		return this.versionId;
-	}
-
-	public getValue(): string {
-		if (this.textEditorModel) {
-			return this.textEditorModel.getValue(EndOfLinePreference.TextDefined, true /* Preserve BOM */);
-		}
-
-		return null;
 	}
 
 	public getModeId(): string {

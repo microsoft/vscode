@@ -9,7 +9,6 @@ import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import { prepareActions } from 'vs/workbench/browser/actions';
 import { IHighlightEvent, IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -20,7 +19,6 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { once } from 'vs/base/common/event';
 import { IAction, IActionItem } from 'vs/base/common/actions';
@@ -30,7 +28,7 @@ import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IVariableTemplateData, renderVariable, renderRenameBox, renderExpressionValue, BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
@@ -39,7 +37,6 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 
 	private static readonly MEMENTO = 'watchexpressionsview.memento';
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
-	private toReveal: IExpression;
 	private settings: any;
 	private needsRefresh: boolean;
 
@@ -48,26 +45,14 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IListService private listService: IListService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section") }, keybindingService, contextMenuService);
 		this.settings = options.viewletSettings;
 
-		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
-			// only expand when a new watch expression is added.
-			if (we instanceof Expression) {
-				this.setExpanded(true);
-			}
-		}));
-
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh().done(() => {
-				return this.toReveal instanceof Expression ? this.tree.reveal(this.toReveal) : TPromise.as(true);
-			}, errors.onUnexpectedError);
+			this.tree.refresh().done(undefined, errors.onUnexpectedError);
 		}, 50);
 	}
 
@@ -76,8 +61,8 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		this.treeContainer = renderViewTree(container);
 
 		const actionProvider = new WatchExpressionsActionProvider(this.debugService, this.keybindingService);
-		this.tree = new WorkbenchTree(this.treeContainer, {
-			dataSource: new WatchExpressionsDataSource(),
+		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
+			dataSource: new WatchExpressionsDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(WatchExpressionsRenderer),
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
 			controller: this.instantiationService.createInstance(WatchExpressionsController, actionProvider, MenuId.DebugWatchContext),
@@ -86,7 +71,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				twistiePixels,
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService, this.themeService);
+			});
 
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
 
@@ -95,9 +80,19 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		const addWatchExpressionAction = new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService);
 		const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
 		const removeAllWatchExpressionsAction = new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService);
-		this.toolbar.setActions(prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
+		this.toolbar.setActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction])();
 
 		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
+			if (!this.isExpanded() || !this.isVisible()) {
+				this.needsRefresh = true;
+				return;
+			}
+
+			this.tree.refresh().done(() => {
+				return we instanceof Expression ? this.tree.reveal(we) : TPromise.as(true);
+			}, errors.onUnexpectedError);
+		}));
+		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
 			if (!this.isExpanded() || !this.isVisible()) {
 				this.needsRefresh = true;
 				return;
@@ -106,7 +101,6 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 			if (!this.onWatchExpressionsUpdatedScheduler.isScheduled()) {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
-			this.toReveal = we;
 		}));
 
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
@@ -200,6 +194,10 @@ class WatchExpressionsActionProvider implements IActionProvider {
 
 class WatchExpressionsDataSource implements IDataSource {
 
+	constructor(private debugService: IDebugService) {
+		// noop
+	}
+
 	public getId(tree: ITree, element: any): string {
 		return element.getId();
 	}
@@ -215,7 +213,8 @@ class WatchExpressionsDataSource implements IDataSource {
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof Model) {
-			return TPromise.as((<Model>element).getWatchExpressions());
+			const viewModel = this.debugService.getViewModel();
+			return TPromise.join(element.getWatchExpressions().map(we => we.evaluate(viewModel.focusedProcess, viewModel.focusedStackFrame, 'watch').then(() => we)));
 		}
 
 		let expression = <Expression>element;
@@ -343,6 +342,10 @@ class WatchExpressionsController extends BaseDebugController {
 		if (element instanceof Expression && event.detail === 2) {
 			const expression = <IExpression>element;
 			this.debugService.getViewModel().setSelectedExpression(expression);
+			return true;
+		} else if (element instanceof Model && event.detail === 2) {
+			// Double click in watch panel triggers to add a new watch expression
+			this.debugService.addWatchExpression();
 			return true;
 		}
 

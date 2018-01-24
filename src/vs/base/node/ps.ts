@@ -6,6 +6,9 @@
 'use strict';
 
 import { spawn, exec } from 'child_process';
+import * as path from 'path';
+import * as nls from 'vs/nls';
+import URI from 'vs/base/common/uri';
 
 export interface ProcessItem {
 	name: string;
@@ -59,12 +62,30 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 		function findName(cmd: string): string {
 
 			const RENDERER_PROCESS_HINT = /--disable-blink-features=Auxclick/;
-			const WINDOWS_WATCHER_HINT = /\\watcher\\win32\\CodeHelper.exe/;
+			const WINDOWS_WATCHER_HINT = /\\watcher\\win32\\CodeHelper\.exe/;
+			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
+			const WINDOWS_PTY = /\\pipe\\winpty-control/;
+			const WINDOWS_CONSOLE_HOST = /conhost\.exe/;
 			const TYPE = /--type=([a-zA-Z-]+)/;
 
 			// find windows file watcher
 			if (WINDOWS_WATCHER_HINT.exec(cmd)) {
-				return 'watcherService';
+				return 'watcherService ';
+			}
+
+			// find windows crash reporter
+			if (WINDOWS_CRASH_REPORTER.exec(cmd)) {
+				return 'electron-crash-reporter';
+			}
+
+			// find windows pty process
+			if (WINDOWS_PTY.exec(cmd)) {
+				return 'winpty-process';
+			}
+
+			//find windows console host process
+			if (WINDOWS_CONSOLE_HOST.exec(cmd)) {
+				return 'console-window-host (Windows internal process)';
 			}
 
 			// find "--type=xxxx"
@@ -100,45 +121,119 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		if (process.platform === 'win32') {
 
-			const CMD = 'wmic process get ProcessId,ParentProcessId,CommandLine \n';
-			const CMD_PID = /^(.+)\s+([0-9]+)\s+([0-9]+)$/;
+			console.log(nls.localize('collecting', 'Collecting CPU and memory information. This might take a couple of seconds.'));
+
+			interface ProcessInfo {
+				type: 'processInfo';
+				name: string;
+				processId: number;
+				parentProcessId: number;
+				commandLine: string;
+				handles: number;
+				cpuLoad: number[];
+				workingSetSize: number;
+			}
+
+			interface TopProcess {
+				type: 'topProcess';
+				name: string;
+				processId: number;
+				parentProcessId: number;
+				commandLine: string;
+				handles: number;
+				cpuLoad: number[];
+				workingSetSize: number;
+			}
+
+			type Item = ProcessInfo | TopProcess;
+
+			const cleanUNCPrefix = (value: string): string => {
+				if (value.indexOf('\\\\?\\') === 0) {
+					return value.substr(4);
+				} else if (value.indexOf('\\??\\') === 0) {
+					return value.substr(4);
+				} else if (value.indexOf('"\\\\?\\') === 0) {
+					return '"' + value.substr(5);
+				} else if (value.indexOf('"\\??\\') === 0) {
+					return '"' + value.substr(5);
+				} else {
+					return value;
+				}
+			};
+
+			const execMain = path.basename(process.execPath);
+			const script = URI.parse(require.toUrl('vs/base/node/ps-win.ps1')).fsPath;
+			const commandLine = `& {& '${script}' -ProcessName '${execMain}' -MaxSamples 3}`;
+			const cmd = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', commandLine]);
 
 			let stdout = '';
 			let stderr = '';
-
-			const cmd = spawn('cmd');
-
 			cmd.stdout.on('data', data => {
 				stdout += data.toString();
 			});
+
 			cmd.stderr.on('data', data => {
 				stderr += data.toString();
 			});
 
 			cmd.on('exit', () => {
-
 				if (stderr.length > 0) {
-					reject(stderr);
-				} else {
-
-					const lines = stdout.split('\r\n');
-					for (const line of lines) {
-						let matches = CMD_PID.exec(line.trim());
-						if (matches && matches.length === 4) {
-							addToTree(parseInt(matches[3]), parseInt(matches[2]), matches[1].trim(), 0.0, 0.0);
+					reject(new Error(stderr));
+					return;
+				}
+				let processItems: Map<number, ProcessItem> = new Map();
+				try {
+					const items: Item[] = JSON.parse(stdout);
+					for (const item of items) {
+						if (item.type === 'processInfo') {
+							let load = 0;
+							if (item.cpuLoad) {
+								for (let value of item.cpuLoad) {
+									load += value;
+								}
+								load = load / item.cpuLoad.length;
+							} else {
+								load = -1;
+							}
+							let commandLine = cleanUNCPrefix(item.commandLine);
+							processItems.set(item.processId, {
+								name: findName(commandLine),
+								cmd: commandLine,
+								pid: item.processId,
+								ppid: item.parentProcessId,
+								load: load,
+								mem: item.workingSetSize
+							});
 						}
 					}
-
-					resolve(rootItem);
+					rootItem = processItems.get(rootPid);
+					if (rootItem) {
+						processItems.forEach(item => {
+							let parent = processItems.get(item.ppid);
+							if (parent) {
+								if (!parent.children) {
+									parent.children = [];
+								}
+								parent.children.push(item);
+							}
+						});
+						processItems.forEach(item => {
+							if (item.children) {
+								item.children = item.children.sort((a, b) => a.pid - b.pid);
+							}
+						});
+						resolve(rootItem);
+					} else {
+						reject(new Error(`Root process ${rootPid} not found`));
+					}
+				} catch (error) {
+					console.log(stdout);
+					reject(error);
 				}
 			});
-
-			cmd.stdin.write(CMD);
-			cmd.stdin.end();
-
 		} else {	// OS X & Linux
 
-			const CMD = 'ps -ax -o pid=,ppid=,pcpu=,pmem=,command=';
+			const CMD = '/bin/ps -ax -o pid=,ppid=,pcpu=,pmem=,command=';
 			const PID_CMD = /^\s*([0-9]+)\s+([0-9]+)\s+([0-9]+\.[0-9]+)\s+([0-9]+\.[0-9]+)\s+(.+)$/;
 
 			exec(CMD, { maxBuffer: 1000 * 1024 }, (err, stdout, stderr) => {

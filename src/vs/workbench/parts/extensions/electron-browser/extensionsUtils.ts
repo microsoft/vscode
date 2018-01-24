@@ -65,25 +65,8 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	}
 
 	private promptForDisablingOtherKeymaps(newKeymap: IExtensionStatus, oldKeymaps: IExtensionStatus[]): TPromise<void> {
-		/* __GDPR__FRAGMENT__
-			"KeyMapsData" : {
-				"newKeymap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"oldKeymaps": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		const telemetryData: { [key: string]: any; } = {
-			newKeymap: newKeymap.identifier,
-			oldKeymaps: oldKeymaps.map(k => k.identifier)
-		};
 
-		/* __GDPR__
-			"disableOtherKeymapsConfirmation" : {
-				"${include}": [
-					"${KeyMapsData}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('disableOtherKeymapsConfirmation', telemetryData);
+
 		const message = localize('disableOtherKeymapsConfirmation', "Disable other keymaps ({0}) to avoid conflicts between keybindings?", oldKeymaps.map(k => `'${k.local.manifest.displayName}'`).join(', '));
 		const options = [
 			localize('yes', "Yes"),
@@ -92,19 +75,22 @@ export class KeymapExtensions implements IWorkbenchContribution {
 		return this.choiceService.choose(Severity.Info, message, options, 1, false)
 			.then(value => {
 				const confirmed = value === 0;
-				telemetryData['confirmed'] = confirmed;
+				const telemetryData: { [key: string]: any; } = {
+					newKeymap: newKeymap.identifier,
+					oldKeymaps: oldKeymaps.map(k => k.identifier),
+					confirmed
+				};
 				/* __GDPR__
 					"disableOtherKeymaps" : {
-						"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"${include}": [
-							"${KeyMapsData}"
-						]
+						"newKeymap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"oldKeymaps": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
 				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
 				if (confirmed) {
 					return TPromise.join(oldKeymaps.map(keymap => {
-						return this.extensionEnablementService.setEnablement(keymap.local.identifier, EnablementState.Disabled);
+						return this.extensionEnablementService.setEnablement(keymap.local, EnablementState.Disabled);
 					}));
 				}
 				return undefined;
@@ -173,38 +159,16 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			if (storageService.getBoolean(BetterMergeDisabledNowKey, StorageScope.GLOBAL, false)) {
 				storageService.remove(BetterMergeDisabledNowKey, StorageScope.GLOBAL);
-				/* __GDPR__
-					"betterMergeDisabled" : {}
-				*/
-				telemetryService.publicLog('betterMergeDisabled');
 				messageService.show(Severity.Info, {
 					message: localize('betterMergeDisabled', "The Better Merge extension is now built-in, the installed extension was disabled and can be uninstalled."),
 					actions: [
 						new Action('uninstall', localize('uninstall', "Uninstall"), null, true, () => {
-							/* __GDPR__
-								"betterMergeUninstall" : {
-									"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-								}
-							*/
-							telemetryService.publicLog('betterMergeUninstall', {
-								outcome: 'uninstall',
-							});
 							return extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
 								return Promise.all(extensions.filter(e => stripVersion(e.identifier.id) === BetterMergeId)
 									.map(e => extensionManagementService.uninstall(e, true)));
 							});
 						}),
-						new Action('later', localize('later', "Later"), null, true, () => {
-							/* __GDPR__
-								"betterMergeUninstall" : {
-									"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-								}
-							*/
-							telemetryService.publicLog('betterMergeUninstall', {
-								outcome: 'later',
-							});
-							return TPromise.as(true);
-						})
+						new Action('later', localize('later', "Later"), null, true)
 					]
 				});
 			}

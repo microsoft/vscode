@@ -6,4 +6,4 @@
 'use strict';
 
 import './startupProfiler';
-import './extHostProfiler';
+import './stats';

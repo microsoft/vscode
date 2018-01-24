@@ -13,7 +13,8 @@ import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ScrollType, IModel, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines } from 'vs/editor/contrib/folding/foldingModel';
@@ -100,7 +101,7 @@ export class FoldingController implements IEditorContribution {
 	 */
 	public saveViewState(): { collapsedRegions?: CollapseMemento, lineCount?: number } {
 		let model = this.editor.getModel();
-		if (!model || !this._isEnabled) {
+		if (!model || !this._isEnabled || model.isTooLargeForTokenization()) {
 			return {};
 		}
 		return { collapsedRegions: this.foldingModel.getMemento(), lineCount: model.getLineCount() };
@@ -111,7 +112,7 @@ export class FoldingController implements IEditorContribution {
 	 */
 	public restoreViewState(state: { collapsedRegions?: CollapseMemento, lineCount?: number }): void {
 		let model = this.editor.getModel();
-		if (!model || !this._isEnabled) {
+		if (!model || !this._isEnabled || model.isTooLargeForTokenization()) {
 			return;
 		}
 		if (!state || !state.collapsedRegions || state.lineCount !== model.getLineCount()) {
@@ -132,7 +133,8 @@ export class FoldingController implements IEditorContribution {
 		this.localToDispose = dispose(this.localToDispose);
 
 		let model = this.editor.getModel();
-		if (!this._isEnabled || !model) {
+		if (!this._isEnabled || !model || model.isTooLargeForTokenization()) {
+			// huge files get no view model, so they cannot support hidden areas
 			return;
 		}
 
@@ -165,7 +167,7 @@ export class FoldingController implements IEditorContribution {
 		this.onModelContentChanged();
 	}
 
-	private computeRanges(editorModel: IModel) {
+	private computeRanges(editorModel: ITextModel) {
 		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
 		let offSide = foldingRules && foldingRules.offSide;
 		let markers = foldingRules && foldingRules.markers;
@@ -332,12 +334,15 @@ abstract class FoldingAction<T> extends EditorAction {
 		if (!foldingController) {
 			return;
 		}
-		this.reportTelemetry(accessor, editor);
-		return foldingController.getFoldingModel().then(foldingModel => {
-			if (foldingModel) {
-				this.invoke(foldingController, foldingModel, editor, args);
-			}
-		});
+		let foldingModelPromise = foldingController.getFoldingModel();
+		if (foldingModelPromise) {
+			this.reportTelemetry(accessor, editor);
+			return foldingModelPromise.then(foldingModel => {
+				if (foldingModel) {
+					this.invoke(foldingController, foldingModel, editor, args);
+				}
+			});
+		}
 	}
 
 	protected getSelectedLines(editor: ICodeEditor) {
@@ -541,8 +546,8 @@ class FoldAllRegionsAction extends FoldingAction<void> {
 	constructor() {
 		super({
 			id: 'editor.foldAllMarkerRegions',
-			label: nls.localize('foldAllMarkerRegions.label', "Fold All Marker Regions"),
-			alias: 'Fold All Marker Regions',
+			label: nls.localize('foldAllMarkerRegions.label', "Fold All Regions"),
+			alias: 'Fold All Regions',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
@@ -565,8 +570,8 @@ class UnfoldAllRegionsAction extends FoldingAction<void> {
 	constructor() {
 		super({
 			id: 'editor.unfoldAllMarkerRegions',
-			label: nls.localize('unfoldAllMarkerRegions.label', "Unfold All Marker Regions"),
-			alias: 'Unfold All Marker Regions',
+			label: nls.localize('unfoldAllMarkerRegions.label', "Unfold All Regions"),
+			alias: 'Unfold All Regions',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,

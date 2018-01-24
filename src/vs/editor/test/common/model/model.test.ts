@@ -12,7 +12,7 @@ import {
 	ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged,
 	ModelRawLinesDeleted, ModelRawLinesInserted
 } from 'vs/editor/common/model/textModelEvents';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 // --------- utils
 
@@ -24,7 +24,7 @@ var LINE5 = '1';
 
 suite('Editor Model - Model', () => {
 
-	var thisModel: Model;
+	var thisModel: TextModel;
 
 	setup(() => {
 		var text =
@@ -33,7 +33,7 @@ suite('Editor Model - Model', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = Model.createFromString(text);
+		thisModel = TextModel.createFromString(text);
 	});
 
 	teardown(() => {
@@ -129,9 +129,8 @@ suite('Editor Model - Model', () => {
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 3), ' new line\nNo longer')]);
 		assert.deepEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My new line First Line'),
 				new ModelRawLineChanged(1, 'My new line'),
-				new ModelRawLinesInserted(2, 2, 'No longer First Line'),
+				new ModelRawLinesInserted(2, 2, ['No longer First Line']),
 			],
 			2,
 			false,
@@ -245,7 +244,6 @@ suite('Editor Model - Model', () => {
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 2, 6))]);
 		assert.deepEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My '),
 				new ModelRawLineChanged(1, 'My Second Line'),
 				new ModelRawLinesDeleted(2, 2),
 			],
@@ -266,7 +264,6 @@ suite('Editor Model - Model', () => {
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 4, 3, 5))]);
 		assert.deepEqual(e, new ModelRawContentChangedEvent(
 			[
-				new ModelRawLineChanged(1, 'My '),
 				new ModelRawLineChanged(1, 'My Third Line'),
 				new ModelRawLinesDeleted(2, 3),
 			],
@@ -331,7 +328,7 @@ suite('Editor Model - Model', () => {
 // --------- Special Unicode LINE SEPARATOR character
 suite('Editor Model - Model Line Separators', () => {
 
-	var thisModel: Model;
+	var thisModel: TextModel;
 
 	setup(() => {
 		var text =
@@ -340,7 +337,7 @@ suite('Editor Model - Model Line Separators', () => {
 			LINE3 + '\u2028' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = Model.createFromString(text);
+		thisModel = TextModel.createFromString(text);
 	});
 
 	teardown(() => {
@@ -356,7 +353,7 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	test('Bug 13333:Model should line break on lonely CR too', () => {
-		var model = Model.createFromString('Hello\rWorld!\r\nAnother line');
+		var model = TextModel.createFromString('Hello\rWorld!\r\nAnother line');
 		assert.equal(model.getLineCount(), 3);
 		assert.equal(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
 		model.dispose();
@@ -368,11 +365,11 @@ suite('Editor Model - Model Line Separators', () => {
 
 suite('Editor Model - Words', () => {
 
-	var thisModel: Model;
+	var thisModel: TextModel;
 
 	setup(() => {
 		var text = ['This text has some  words. '];
-		thisModel = Model.createFromString(text.join('\n'));
+		thisModel = TextModel.createFromString(text.join('\n'));
 	});
 
 	teardown(() => {

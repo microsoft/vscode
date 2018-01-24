@@ -7,24 +7,22 @@
 import * as strings from 'vs/base/common/strings';
 import { IState, ITokenizationSupport, TokenizationRegistry, LanguageId } from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens, IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { CharCode } from 'vs/base/common/charCode';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 
 export function tokenizeToString(text: string, languageId: string): string {
 	return _tokenizeToString(text, _getSafeTokenizationSupport(languageId));
 }
 
-export function tokenizeLineToHTML(text: string, viewLineTokens: ViewLineToken[], colorMap: string[], startOffset: number, endOffset: number, tabSize: number): string {
+export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number): string {
 	let result = `<div>`;
 	let charIndex = startOffset;
 	let tabsCharDelta = 0;
 
-	for (let tokenIndex = 0, lenJ = viewLineTokens.length; tokenIndex < lenJ; tokenIndex++) {
-		const token = viewLineTokens[tokenIndex];
-		const tokenEndIndex = token.endIndex;
+	for (let tokenIndex = 0, tokenCount = viewLineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
+		const tokenEndIndex = viewLineTokens.getEndOffset(tokenIndex);
 
-		if (token.endIndex <= startOffset) {
+		if (tokenEndIndex <= startOffset) {
 			continue;
 		}
 
@@ -74,9 +72,9 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: ViewLineToken[]
 			}
 		}
 
-		result += `<span style="${token.getInlineStyle(colorMap)}">${partContent}</span>`;
+		result += `<span style="${viewLineTokens.getInlineStyle(tokenIndex, colorMap)}">${partContent}</span>`;
 
-		if (token.endIndex > endOffset || charIndex >= endOffset) {
+		if (tokenEndIndex > endOffset || charIndex >= endOffset) {
 			break;
 		}
 	}
@@ -109,14 +107,16 @@ function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSuppo
 		}
 
 		let tokenizationResult = tokenizationSupport.tokenize2(line, currentState, 0);
+		LineTokens.convertToEndOffset(tokenizationResult.tokens, line.length);
 		let lineTokens = new LineTokens(tokenizationResult.tokens, line);
 		let viewLineTokens = lineTokens.inflate();
 
 		let startOffset = 0;
-		for (let j = 0, lenJ = viewLineTokens.length; j < lenJ; j++) {
-			const viewLineToken = viewLineTokens[j];
-			result += `<span class="${viewLineToken.getType()}">${strings.escape(line.substring(startOffset, viewLineToken.endIndex))}</span>`;
-			startOffset = viewLineToken.endIndex;
+		for (let j = 0, lenJ = viewLineTokens.getCount(); j < lenJ; j++) {
+			const type = viewLineTokens.getClassName(j);
+			const endIndex = viewLineTokens.getEndOffset(j);
+			result += `<span class="${type}">${strings.escape(line.substring(startOffset, endIndex))}</span>`;
+			startOffset = endIndex;
 		}
 
 		currentState = tokenizationResult.endState;

@@ -147,9 +147,9 @@ anymatch@^1.3.0:
     micromatch "^2.1.5"
     normalize-path "^2.0.0"
 
-applicationinsights@0.17.1:
-  version "0.17.1"
-  resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-0.17.1.tgz#1c12501dbe9c1e9176423fce0ce8da611cccb9a8"
+applicationinsights@0.18.0:
+  version "0.18.0"
+  resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-0.18.0.tgz#162ebb48a383408bc4de44db32b417307f45bbc1"
 
 archy@^1.0.0:
   version "1.0.0"
@@ -387,7 +387,7 @@ binaryextensions@~1.0.0:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/binaryextensions/-/binaryextensions-1.0.1.tgz#1e637488b35b58bda5f4774bf96a5212a8c90755"
 
-bindings@^1.2.1:
+bindings@^1.2.1, bindings@^1.3.0:
   version "1.3.0"
   resolved "https://registry.yarnpkg.com/bindings/-/bindings-1.3.0.tgz#b346f6ecf6a95f5a815c5839fc7cdb22502f1ed7"
 
@@ -2150,9 +2150,9 @@ grunt@0.4:
     underscore.string "~2.2.1"
     which "~1.0.5"
 
-gulp-atom-electron@^1.15.0:
-  version "1.15.0"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.15.0.tgz#dcf9e6681c09b71edc2bce6d7872c31c16617f1a"
+gulp-atom-electron@1.15.1:
+  version "1.15.1"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.15.1.tgz#ae13a4107a52e249d3335f584794981f5dcbf9be"
   dependencies:
     event-stream "^3.1.7"
     github-releases "^0.2.0"
@@ -3738,6 +3738,14 @@ nan@^2.1.0:
   version "2.7.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.7.0.tgz#d95bf721ec877e08db276ed3fc6eb78f9083ad46"
 
+nan@^2.8.0:
+  version "2.8.0"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.8.0.tgz#ed715f3fe9de02b57a5e6252d90a96675e1f085a"
+
+native-is-elevated@^0.2.1:
+  version "0.2.1"
+  resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.2.1.tgz#70a2123a8575b9f624a3ef465d98cb74ae017385"
+
 native-keymap@1.2.5:
   version "1.2.5"
   resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-1.2.5.tgz#1035a9417b9a9340cf8097763a43c76d588165a5"
@@ -3758,9 +3766,9 @@ negotiator@0.6.1:
   version "0.6.1"
   resolved "https://registry.yarnpkg.com/negotiator/-/negotiator-0.6.1.tgz#2b327184e8992101177b28563fb5e7102acd0ca9"
 
-node-pty@0.7.3:
-  version "0.7.3"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.3.tgz#4bb36a24a62ee9f3332e2e2310d6642d9daed1f7"
+node-pty@0.7.4:
+  version "0.7.4"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.4.tgz#07146b2b40b76e432e57ce6750bda40f0da5c99f"
   dependencies:
     nan "^2.6.2"
 
@@ -5034,6 +5042,14 @@ sparkles@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/sparkles/-/sparkles-1.0.0.tgz#1acbbfb592436d10bbe8f785b7cc6f82815012c3"
 
+spdlog@0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.5.0.tgz#5ec92c34e59f29328f4e19dfab17a1ba51cc0573"
+  dependencies:
+    bindings "^1.3.0"
+    mkdirp "^0.5.1"
+    nan "^2.8.0"
+
 spdx-correct@~1.0.0:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/spdx-correct/-/spdx-correct-1.0.2.tgz#4b3073d933ff51f3912f03ac5519498a4150db40"
@@ -5192,6 +5208,10 @@ strip-indent@^1.0.1:
 strip-json-comments@~2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/strip-json-comments/-/strip-json-comments-2.0.1.tgz#3c531942e908c2697c0ec344858c286c7ca0a60a"
+
+sudo-prompt@^8.0.0:
+  version "8.0.0"
+  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-8.0.0.tgz#a7b4a1ca6cbcca0e705b90a89dfc81d11034cba9"
 
 sumchecker@^2.0.1:
   version "2.0.2"
@@ -5574,9 +5594,9 @@ uuid@^3.0.0, uuid@^3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.1.0.tgz#3dd3d3e790abc24d7b0d3a034ffababe28ebbc04"
 
-v8-inspect-profiler@^0.0.6:
-  version "0.0.6"
-  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.6.tgz#7885de7e9c3304118bde25d5b3d6ec5116467f2c"
+v8-inspect-profiler@^0.0.7:
+  version "0.0.7"
+  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.7.tgz#f3b3438680f71961b9647514fe7b9f8748abc462"
   dependencies:
     chrome-remote-interface "^0.25.3"
 
@@ -5751,9 +5771,9 @@ vscode-chokidar@1.6.2:
   optionalDependencies:
     vscode-fsevents "0.3.8"
 
-vscode-debugprotocol@1.25.0-pre.0:
-  version "1.25.0-pre.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.25.0-pre.0.tgz#ad83e7bd95b19ac795df50fa0e2fe903462a72b6"
+vscode-debugprotocol@1.25.0:
+  version "1.25.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.25.0.tgz#7a7e38df4cad8839e37ebcd06ed903902d97a7e3"
 
 vscode-fsevents@0.3.8:
   version "0.3.8"
@@ -5777,9 +5797,9 @@ vscode-nls-dev@^2.0.1:
     xml2js "^0.4.17"
     yargs "^3.32.0"
 
-vscode-ripgrep@^0.6.0-patch.0.5:
-  version "0.6.0-patch.0.5"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.6.0-patch.0.5.tgz#afd62ed290481c4cca6bf8e376fdf5d1e3f8afcd"
+vscode-ripgrep@^0.7.1-patch.0:
+  version "0.7.1-patch.0"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.7.1-patch.0.tgz#738be8b6da5cb9a8807b528595a884b0dfcb60a5"
 
 vscode-textmate@^3.2.0:
   version "3.2.0"
@@ -5787,6 +5807,10 @@ vscode-textmate@^3.2.0:
   dependencies:
     fast-plist "^0.1.2"
     oniguruma "^6.0.1"
+
+vscode-xterm@3.1.0-beta10:
+  version "3.1.0-beta10"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.1.0-beta10.tgz#274ab2f41c0417f477c4fe4488788a8be740784e"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"
@@ -5925,10 +5949,6 @@ xtend@~2.1.1:
 xtend@~3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/xtend/-/xtend-3.0.0.tgz#5cce7407baf642cba7becda568111c493f59665a"
-
-xterm@Tyriar/xterm.js#vscode-release/1.19:
-  version "2.9.1"
-  resolved "https://codeload.github.com/Tyriar/xterm.js/tar.gz/d242c552cb5c88125ac257ccaebed7fe336d9266"
 
 y18n@^3.2.0:
   version "3.2.1"

@@ -10,7 +10,8 @@ import severity from 'vs/base/common/severity';
 import Event from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IModel as EditorIModel, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { Position } from 'vs/editor/common/core/position';
 import { ISuggestion } from 'vs/editor/common/modes';
@@ -436,6 +437,11 @@ export interface ILaunch {
 	 */
 	uri: uri;
 
+	/**
+	 * Name of the launch.
+	 */
+	name: string;
+
 	workspace: IWorkspaceFolder;
 
 	/**
@@ -454,7 +460,7 @@ export interface ILaunch {
 	 * Returns the names of all configurations and compounds.
 	 * Ignores configurations which are invalid.
 	 */
-	getConfigurationNames(): string[];
+	getConfigurationNames(includeCompounds?: boolean): string[];
 
 	/**
 	 * Returns the resolved configuration.
@@ -512,7 +518,7 @@ export interface IDebugService {
 	/**
 	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
 	 */
-	focusStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess, explicit?: boolean): TPromise<void>;
+	focusStackFrame(focusedStackFrame: IStackFrame, thread?: IThread, process?: IProcess, explicit?: boolean): void;
 
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
@@ -520,9 +526,9 @@ export interface IDebugService {
 	addBreakpoints(uri: uri, rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
 
 	/**
-	 * Updates the breakpoints and notifies the debug adapter of breakpoint changes.
+	 * Updates the breakpoints.
 	 */
-	updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): TPromise<void>;
+	updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): void;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
@@ -577,12 +583,12 @@ export interface IDebugService {
 	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
 	 */
-	addWatchExpression(name?: string): TPromise<void>;
+	addWatchExpression(name?: string): void;
 
 	/**
 	 * Renames a watch expression and evaluates it against the debug adapter.
 	 */
-	renameWatchExpression(id: string, newName: string): TPromise<void>;
+	renameWatchExpression(id: string, newName: string): void;
 
 	/**
 	 * Moves a watch expression to a new possition. Used for reordering watch expressions.
@@ -593,11 +599,6 @@ export interface IDebugService {
 	 * Removes all watch expressions. If id is passed only removes the watch expression with the passed id.
 	 */
 	removeWatchExpressions(id?: string): void;
-
-	/**
-	 * Evaluates all watch expression.
-	 */
-	evaluateWatchExpressions(): TPromise<void>;
 
 	/**
 	 * Starts debugging. If the configOrName is not passed uses the selected configuration in the debug dropdown.

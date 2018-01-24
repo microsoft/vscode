@@ -194,7 +194,7 @@ export class CodeWindow implements ICodeWindow {
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
 
-		// TODO@Ben Bug in Electron (https://github.com/electron/electron/issues/10862). On multi-monitor setups,
+		// Bug in Electron (https://github.com/electron/electron/issues/10862). On multi-monitor setups,
 		// it can happen that the position we set to the window is not the correct one on the display.
 		// To workaround, we ask the window for its position and set it again if not matching.
 		// This only applies if the window is not fullscreen or maximized and multiple monitors are used.
@@ -207,7 +207,7 @@ export class CodeWindow implements ICodeWindow {
 					}
 				}
 			} catch (err) {
-				this.logService.info(`Unexpected error fixing window position on windows with multiple windows: ${err}\n${err.stack}`);
+				this.logService.warn(`Unexpected error fixing window position on windows with multiple windows: ${err}\n${err.stack}`);
 			}
 		}
 
@@ -563,6 +563,10 @@ export class CodeWindow implements ICodeWindow {
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
 
+		// Set window ID
+		windowConfiguration.windowId = this._win.id;
+		windowConfiguration.logLevel = this.logService.getLevel();
+
 		// Set zoomlevel
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const zoomLevel = windowConfig && windowConfig.zoomLevel;
@@ -584,14 +588,13 @@ export class CodeWindow implements ICodeWindow {
 		// Perf Counters
 		windowConfiguration.perfEntries = exportEntries();
 		windowConfiguration.perfStartTime = global.perfStartTime;
-		windowConfiguration.perfAppReady = global.perfAppReady;
 		windowConfiguration.perfWindowLoadTime = Date.now();
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv);
 		const config = objects.assign(environment, windowConfiguration);
 		for (let key in config) {
-			if (!config[key]) {
+			if (config[key] === void 0 || config[key] === null || config[key] === '') {
 				delete config[key]; // only send over properties that have a true value
 			}
 		}
@@ -680,7 +683,7 @@ export class CodeWindow implements ICodeWindow {
 			try {
 				state = this.validateWindowState(state);
 			} catch (err) {
-				this.logService.info(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
+				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
 		}
 
@@ -951,7 +954,7 @@ export class CodeWindow implements ICodeWindow {
 		const segments: ITouchBarSegment[] = items.map(item => {
 			let icon: Electron.NativeImage;
 			if (item.iconPath) {
-				icon = nativeImage.createFromPath(item.iconPath);
+				icon = nativeImage.createFromPath(item.iconPath.dark);
 				if (icon.isEmpty()) {
 					icon = void 0;
 				}
