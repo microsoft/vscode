@@ -53,7 +53,6 @@ import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-br
 import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { TaskEvent, TaskEventKind } from 'vs/workbench/parts/tasks/common/tasks';
-import { sequence } from 'vs/base/common/async';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
