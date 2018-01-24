@@ -374,7 +374,6 @@ class PreferencesRenderersController extends Disposable {
 
 	private _currentLocalSearchProvider: ISearchProvider;
 	private _currentRemoteSearchProvider: ISearchProvider;
-	private _currentNewExtensionsSearchProvider: ISearchProvider;
 	private _lastQuery: string;
 	private _lastFilterResult: IFilterOrSearchResult;
 
@@ -437,10 +436,8 @@ class PreferencesRenderersController extends Disposable {
 		}
 
 		this._currentRemoteSearchProvider = (updateCurrentResults && this._currentRemoteSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query);
-		this._currentNewExtensionsSearchProvider = (updateCurrentResults && this._currentNewExtensionsSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query, true);
 
-		this._remoteFilterInProgress = this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"), 1, updateCurrentResults)
-			.then(result => this.filterOrSearchPreferences(query, this._currentNewExtensionsSearchProvider, 'newExtensionsResult', nls.localize('newExtensionsResult', "Marketplace Extension Results"), 2));
+		this._remoteFilterInProgress = this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"), 1, updateCurrentResults);
 
 		return this._remoteFilterInProgress.then(() => {
 			this._remoteFilterInProgress = null;
