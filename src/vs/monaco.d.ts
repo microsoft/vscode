@@ -2396,6 +2396,11 @@ declare module monaco.editor {
 		 */
 		enabled?: boolean;
 		/**
+		 * Control the side of the minimap in editor.
+		 * Defaults to 'right'.
+		 */
+		side?: 'right' | 'left';
+		/**
 		 * Control the rendering of the minimap slider.
 		 * Defaults to 'mouseover'.
 		 */
@@ -2961,6 +2966,7 @@ declare module monaco.editor {
 
 	export interface InternalEditorMinimapOptions {
 		readonly enabled: boolean;
+		readonly side: 'right' | 'left';
 		readonly showSlider: 'always' | 'mouseover';
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
@@ -3162,6 +3168,10 @@ declare module monaco.editor {
 		 * The height of the content (actual height)
 		 */
 		readonly contentHeight: number;
+		/**
+		 * The position for the minimap
+		 */
+		readonly minimapLeft: number;
 		/**
 		 * The width of the minimap
 		 */
