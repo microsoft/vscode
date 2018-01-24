@@ -578,8 +578,8 @@ class PreferencesRenderersController extends Disposable {
 	}
 
 	private _consolidateSettings(editableSettingsGroups: ISettingsGroup[], defaultSettingsGroups: ISettingsGroup[]): ISetting[] {
-		const editableSettings = this._flatten(editableSettingsGroups);
-		const defaultSettings = this._flatten(defaultSettingsGroups).filter(secondarySetting => editableSettings.every(primarySetting => primarySetting.key !== secondarySetting.key));
+		const defaultSettings = this._flatten(defaultSettingsGroups);
+		const editableSettings = this._flatten(editableSettingsGroups).filter(secondarySetting => defaultSettings.every(primarySetting => primarySetting.key !== secondarySetting.key));
 		return [...defaultSettings, ...editableSettings];
 	}
 
