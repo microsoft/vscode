@@ -104,14 +104,7 @@ body {
 }
 
 #block-container {
-	margin-top: 20px;
-}
-
-.block {
-	margin-bottom: 20px;
-}
-.block summary {
-	margin-bottom: 16px;
+	margin-top: 1em;
 }
 
 .block .block-info {
@@ -170,23 +163,29 @@ select, input, textarea {
 
 summary {
 	border: 1px solid transparent;
+	padding: 10px;
+	margin-bottom: 5px;
 }
 
 .validation-error {
 	font-size: 12px;
-	font-weight: bold;
 	margin-top: 1em;
 }
 
 .caption {
 	display: inline-block;
 	font-size: 12px;
+	vertical-align: middle;
+	height: 18px;
 }
 
 input[type="checkbox"] {
 	margin-left: 1em;
+	height: 18px;
 	width: auto;
 	display: inline-block;
+	margin-top: 0;
+	vertical-align: middle;
 }
 
 input:disabled {
@@ -213,7 +212,7 @@ a {
 	border: 1px solid #be1100;
 }
 
-.required-input {
+.required-input, .validation-error {
 	color: #be1100;
 }
 

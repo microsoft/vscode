@@ -40,7 +40,7 @@ export default (): string => `
 		</div>
 	</div>
 
-	<div id="block-container">
+	<div id="block-container" class="input-group">
 		<div class="block block-system">
 			<details>
 				<summary>${escape(localize('systemInfo', "My System Info"))}
@@ -79,18 +79,19 @@ export default (): string => `
 				</pre>
 			</details>
 		</div>
-		<div class="block block-description">
-			<label class="block-title">
-				<!-- To be dynamically filled -->
-			</label>
-			<small class="block-subtitle">
-				<!-- To be dynamically filled -->
-			</small>
-			<div class="block-info-text">
-				<small>${escape(localize('githubMarkdown', "We support GitHub-flavored Markdown. You will still be able to edit your issue when we preview it on GitHub."))}</small>
-				<div id="description-validation-error" class="validation-error hidden">${escape(localize('issueDescriptionRequired', "Please enter a description."))}</div>
-				<textarea name="description" id="description" cols="100" rows="15" required></textarea>
-			</div>
+	</div>
+
+	<div class="input-group">
+		<label for="description" id="issue-description-label">
+			<!-- To be dynamically filled -->
+		</label>
+		<small id="issue-description-subtitle">
+			<!-- To be dynamically filled -->
+		</small>
+		<div class="block-info-text">
+			<small>${escape(localize('githubMarkdown', "We support GitHub-flavored Markdown. You will still be able to edit your issue when we preview it on GitHub."))}</small>
+			<div id="description-validation-error" class="validation-error hidden">${escape(localize('issueDescriptionRequired', "Please enter a description."))}</div>
+			<textarea name="description" id="description" cols="100" rows="15" required></textarea>
 		</div>
 	</div>
 

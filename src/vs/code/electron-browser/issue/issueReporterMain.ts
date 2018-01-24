@@ -115,7 +115,8 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputErrorBorder) {
-			content.push(`.invalid-input, .invalid-input:focus { border: 1px solid ${styles.inputErrorBorder}; }`);
+			content.push(`.invalid-input, .invalid-input:focus { border: 1px solid ${styles.inputErrorBorder} !important; }`);
+			content.push(`.validation-error { color: ${styles.inputErrorBorder}; }`);
 		}
 
 		if (styles.inputActiveBorder) {
@@ -256,8 +257,8 @@ export class IssueReporter extends Disposable {
 		const processBlock = document.querySelector('.block-process');
 		const workspaceBlock = document.querySelector('.block-workspace');
 
-		const descriptionTitle = document.querySelector('.block-description .block-title');
-		const descriptionSubtitle = document.querySelector('.block-description .block-subtitle');
+		const descriptionTitle = document.getElementById('issue-description-label');
+		const descriptionSubtitle = document.getElementById('issue-description-subtitle');
 
 		// 1 - Bug
 		if (issueType === 0) {
