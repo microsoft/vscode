@@ -442,8 +442,7 @@ export class MoveToPreviousChangeAction extends ChangeAction {
 			id: 'editor.action.dirtydiff.move.previous',
 			label: nls.localize('move to previous change', "Move To Previous Change"),
 			alias: 'Move To Previous Change',
-			precondition: null,
-			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: null }
+			precondition: null
 		});
 	}
 
@@ -460,8 +459,7 @@ export class MoveToNextChangeAction extends ChangeAction {
 			id: 'editor.action.dirtydiff.move.next',
 			label: nls.localize('move to next change', "Move To Next Change"),
 			alias: 'Move To Next Change',
-			precondition: null,
-			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: null }
+			precondition: null
 		});
 	}
 
