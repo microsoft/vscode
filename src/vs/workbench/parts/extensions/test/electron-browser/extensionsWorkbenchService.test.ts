@@ -81,6 +81,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 
 	setup(() => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
+		instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 		instantiationService.stubPromise(IChoiceService, 'choose', 0);
 		(<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).reset();
