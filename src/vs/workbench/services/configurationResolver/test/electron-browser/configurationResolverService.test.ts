@@ -22,7 +22,6 @@ suite('Configuration Resolver Service', () => {
 	let editorService: TestEditorService;
 	let workspace: IWorkspaceFolder;
 
-
 	setup(() => {
 		mockCommandService = new MockCommandService();
 		editorService = new TestEditorService();
@@ -38,7 +37,6 @@ suite('Configuration Resolver Service', () => {
 	teardown(() => {
 		configurationResolverService = null;
 	});
-
 
 	test('substitute one', () => {
 		if (platform.isWindows) {
@@ -88,7 +86,7 @@ suite('Configuration Resolver Service', () => {
 		if (platform.isWindows) {
 			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - Value for key1');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ');
+			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ${env:Key1}');
 		}
 	});
 
@@ -124,48 +122,6 @@ suite('Configuration Resolver Service', () => {
 
 		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo bar xyz');
-	});
-
-	test('substitute nested configuration variables', () => {
-		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo ${workspaceFolder} ${config:terminal.integrated.fontFamily}'
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar'
-				}
-			}
-		});
-
-		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
-		if (platform.isWindows) {
-			assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo \\VSCode\\workspaceLocation bar bar xyz');
-		} else {
-			assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo /VSCode/workspaceLocation bar bar xyz');
-		}
-	});
-
-	test('substitute accidental self referenced configuration variables', () => {
-		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
-			editor: {
-				fontFamily: 'foo ${workspaceFolder} ${config:terminal.integrated.fontFamily} ${config:editor.fontFamily}'
-			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar'
-				}
-			}
-		});
-
-		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
-		if (platform.isWindows) {
-			assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo \\VSCode\\workspaceLocation bar  bar xyz');
-		} else {
-			assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo /VSCode/workspaceLocation bar  bar xyz');
-		}
 	});
 
 	test('substitute one env variable and a configuration variable', () => {
@@ -249,31 +205,20 @@ suite('Configuration Resolver Service', () => {
 		});
 
 		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor[\'abc\'.substr(0)]} xyz'), 'abc  xyz');
+		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor[\'abc\'.substr(0)]} xyz'), 'abc ${config:editor[\'abc\'.substr(0)]} xyz');
 	});
 
-	test('uses empty string as fallback', () => {
+	test('uses original variable as fallback', () => {
 		let configurationService: IConfigurationService;
 		configurationService = new MockConfigurationService({
 			editor: {}
 		});
 
 		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.abc} xyz'), 'abc  xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.abc.def} xyz'), 'abc  xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:panel} xyz'), 'abc  xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:panel.abc} xyz'), 'abc  xyz');
-	});
-
-	test('is restricted to own properties', () => {
-		let configurationService: IConfigurationService;
-		configurationService = new MockConfigurationService({
-			editor: {}
-		});
-
-		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.__proto__} xyz'), 'abc  xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.toString} xyz'), 'abc  xyz');
+		assert.strictEqual(service.resolve(workspace, 'abc ${invalidVariable} xyz'), 'abc ${invalidVariable} xyz');
+		assert.strictEqual(service.resolve(workspace, 'abc ${env:invalidVariable} xyz'), 'abc ${env:invalidVariable} xyz');
+		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.abc.def} xyz'), 'abc ${config:editor.abc.def} xyz');
+		assert.strictEqual(service.resolve(workspace, 'abc ${config:panel.abc} xyz'), 'abc ${config:panel.abc} xyz');
 	});
 
 	test('configuration variables with invalid accessor', () => {
@@ -286,8 +231,8 @@ suite('Configuration Resolver Service', () => {
 
 		let service = new ConfigurationResolverService(envVariables, new TestEditorService(), TestEnvironmentService, configurationService, mockCommandService);
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:} xyz'), 'abc ${config:} xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor..fontFamily} xyz'), 'abc  xyz');
-		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.none.none2} xyz'), 'abc  xyz');
+		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor..fontFamily} xyz'), 'abc ${config:editor..fontFamily} xyz');
+		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.none.none2} xyz'), 'abc ${config:editor.none.none2} xyz');
 	});
 
 	test('interactive variable simple', () => {
@@ -362,7 +307,20 @@ class MockConfigurationService implements IConfigurationService {
 	public constructor(private configuration: any = {}) { }
 	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspaceFolder: void 0, folder: void 0 }; }
 	public keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; }
-	public getValue(): any { return this.configuration; }
+	public getValue(): any;
+	public getValue(value: string): any;
+	public getValue(value?: any): any {
+		if (!value) {
+			return this.configuration;
+		}
+		const valuePath = (<string>value).split('.');
+		let object = this.configuration;
+		while (valuePath.length && object) {
+			object = object[valuePath.shift()];
+		}
+
+		return object;
+	}
 	public updateValue(): TPromise<void> { return null; }
 	public getConfigurationData(): any { return null; }
 	public onDidChangeConfiguration() { return { dispose() { } }; }

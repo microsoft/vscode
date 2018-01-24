@@ -20,92 +20,90 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { relative } from 'path';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 
-export class ConfigurationResolverService implements IConfigurationResolverService {
-	_serviceBrand: any;
-	private _execPath: string;
-	private _lastWorkspaceFolder: IWorkspaceFolder;
+class VariableResolver {
+	static VARIABLE_REGEXP = /\$\{(.*?)\}/g;
+	static ENV_PREFIX = 'env:';
+	static CONFIG_PREFIX = 'config:';
+	private envVariables: IProcessEnvironment;
 
 	constructor(
 		envVariables: IProcessEnvironment,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@ICommandService private commandService: ICommandService,
+		private configurationService: IConfigurationService,
+		private editorService: IWorkbenchEditorService,
+		private environmentService: IEnvironmentService,
 	) {
-		this._execPath = environmentService.execPath;
-		Object.keys(envVariables).forEach(key => {
-			const name = isWindows ? key.toLowerCase() : key;
-			this[`env:${name}`] = envVariables[key];
+		if (isWindows) {
+			Object.keys(envVariables).forEach(key => {
+				this.envVariables[key.toLowerCase()] = envVariables[key];
+			});
+		} else {
+			this.envVariables = envVariables;
+		}
+	}
+
+	resolve(context: IWorkspaceFolder, value: string): string {
+		const filePath = this.getFilePath();
+		return value.replace(VariableResolver.VARIABLE_REGEXP, (match: string, variable: string) => {
+			switch (variable) {
+				case 'workspaceRoot':
+				case 'workspaceFolder':
+					return context ? context.uri.fsPath : match;
+				case 'cwd':
+					return context ? context.uri.fsPath : process.cwd();
+				case 'workspaceRootFolderName':
+				case 'workspaceFolderBasename':
+					return context ? paths.basename(context.uri.fsPath) : match;
+				case 'lineNumber':
+					return this.getLineNumber() || match;
+				case 'selectedText':
+					return this.getSelectedText() || match;
+				case 'file':
+					return filePath || match;
+				case 'relativeFile':
+					return context ? paths.normalize(relative(context.uri.fsPath, filePath)) : filePath || match;
+				case 'fileDirname':
+					return filePath ? paths.dirname(filePath) : match;
+				case 'fileExtname':
+					return filePath ? paths.extname(filePath) : match;
+				case 'fileBasename':
+					return filePath ? paths.basename(filePath) : match;
+				case 'fileBasenameNoExtension': {
+					if (!filePath) {
+						return match;
+					}
+
+					const basename = paths.basename(filePath);
+					return basename.slice(0, basename.length - paths.extname(basename).length);
+				}
+				case 'execPath':
+					return this.environmentService.execPath;
+				default: {
+					if (variable.indexOf(VariableResolver.ENV_PREFIX) >= 0) {
+						let key = variable.substr(VariableResolver.ENV_PREFIX.length);
+						if (isWindows) {
+							key = key.toLowerCase();
+						}
+
+						const env = this.envVariables[key];
+						if (types.isString(env)) {
+							return env;
+						}
+					}
+					if (variable.indexOf(VariableResolver.CONFIG_PREFIX) >= 0) {
+						let key = variable.substr(VariableResolver.CONFIG_PREFIX.length);
+						const config = this.configurationService.getValue<string>(key, context ? { resource: context.uri } : undefined);
+						if (!types.isUndefinedOrNull(config) && !types.isObject(config)) {
+							return config;
+						}
+					}
+
+					return match;
+				}
+			}
 		});
 	}
 
-	private get execPath(): string {
-		return this._execPath;
-	}
-
-	private get cwd(): string {
-		if (this.workspaceRoot) {
-			return this.workspaceRoot;
-		} else {
-			return process.cwd();
-		}
-	}
-
-	private get workspaceRoot(): string {
-		return this._lastWorkspaceFolder ? this._lastWorkspaceFolder.uri.fsPath : undefined;
-	}
-
-	private get workspaceFolder(): string {
-		return this.workspaceRoot;
-	}
-
-	private get workspaceRootFolderName(): string {
-		return this.workspaceFolderBasename;
-	}
-
-	private get workspaceFolderBasename(): string {
-		return this.workspaceRoot ? paths.basename(this.workspaceRoot) : '';
-	}
-
-	private get file(): string {
-		return this.getFilePath();
-	}
-
-	private get relativeFile(): string {
-		return (this.workspaceRoot) ? paths.normalize(relative(this.workspaceRoot, this.file)) : this.file;
-	}
-
-	private get fileBasename(): string {
-		return paths.basename(this.getFilePath());
-	}
-
-	private get fileBasenameNoExtension(): string {
-		const basename = this.fileBasename;
-		return basename.slice(0, basename.length - paths.extname(basename).length);
-	}
-
-	private get fileDirname(): string {
-		return paths.dirname(this.getFilePath());
-	}
-
-	private get fileExtname(): string {
-		return paths.extname(this.getFilePath());
-	}
-
-	private get lineNumber(): string {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			const editorControl = (<ICodeEditor>activeEditor.getControl());
-			if (editorControl) {
-				const lineNumber = editorControl.getSelection().positionLineNumber;
-				return String(lineNumber);
-			}
-		}
-
-		return '';
-	}
-
-	private get selectedText(): string {
+	private getSelectedText(): string {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			const editorControl = (<ICodeEditor>activeEditor.getControl());
@@ -118,7 +116,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 			}
 		}
 
-		return '';
+		return undefined;
 	}
 
 	private getFilePath(): string {
@@ -126,126 +124,76 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		if (input instanceof DiffEditorInput) {
 			input = input.modifiedInput;
 		}
-		if (!input) {
-			return '';
-		}
 
 		const fileResource = toResource(input, { filter: 'file' });
 		if (!fileResource) {
-			return '';
+			return undefined;
 		}
+
 		return paths.normalize(fileResource.fsPath, true);
+	}
+
+	private getLineNumber(): string {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor) {
+			const editorControl = (<ICodeEditor>activeEditor.getControl());
+			if (editorControl) {
+				const lineNumber = editorControl.getSelection().positionLineNumber;
+				return String(lineNumber);
+			}
+		}
+
+		return undefined;
+	}
+}
+
+export class ConfigurationResolverService implements IConfigurationResolverService {
+	_serviceBrand: any;
+	private resolver: VariableResolver;
+
+	constructor(
+		envVariables: IProcessEnvironment,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ICommandService private commandService: ICommandService,
+	) {
+		this.resolver = new VariableResolver(envVariables, configurationService, editorService, environmentService);
 	}
 
 	public resolve(root: IWorkspaceFolder, value: string): string;
 	public resolve(root: IWorkspaceFolder, value: string[]): string[];
 	public resolve(root: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
 	public resolve(root: IWorkspaceFolder, value: any): any {
-		try {
-			this._lastWorkspaceFolder = root;
-			if (types.isString(value)) {
-				return this.resolveString(root, value);
-			} else if (types.isArray(value)) {
-				return this.resolveArray(root, value);
-			} else if (types.isObject(value)) {
-				return this.resolveLiteral(root, value);
-			}
-			return value;
-		} finally {
-			this._lastWorkspaceFolder = undefined;
+		if (types.isString(value)) {
+			return this.resolver.resolve(root, value);
+		} else if (types.isArray(value)) {
+			return value.map(s => this.resolver.resolve(root, s));
+		} else if (types.isObject(value)) {
+			let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
+			Object.keys(value).forEach(key => {
+				result[key] = this.resolve(root, value[key]);
+			});
+
+			return result;
 		}
+		return value;
 	}
 
-	public resolveAny<T>(root: IWorkspaceFolder, value: T): T;
 	public resolveAny(root: IWorkspaceFolder, value: any): any {
-		try {
-			this._lastWorkspaceFolder = root;
-			if (types.isString(value)) {
-				return this.resolveString(root, value);
-			} else if (types.isArray(value)) {
-				return this.resolveAnyArray(root, value);
-			} else if (types.isObject(value)) {
-				return this.resolveAnyLiteral(root, value);
-			}
-			return value;
-		} finally {
-			this._lastWorkspaceFolder = undefined;
+		if (types.isString(value)) {
+			return this.resolver.resolve(root, value);
+		} else if (types.isArray(value)) {
+			return value.map(s => this.resolveAny(root, s));
+		} else if (types.isObject(value)) {
+			let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
+			Object.keys(value).forEach(key => {
+				result[key] = this.resolveAny(root, value[key]);
+			});
+
+			return result;
 		}
-	}
-
-	private resolveString(root: IWorkspaceFolder, value: string): string {
-		let regexp = /\$\{(.*?)\}/g;
-		const originalValue = value;
-		const resolvedString = value.replace(regexp, (match: string, name: string) => {
-			const key = (isWindows && match.indexOf('env:') > 0) ? name.toLowerCase() : name;
-			let newValue = (<any>this)[key];
-			if (types.isString(newValue)) {
-				return newValue;
-			} else {
-				return match && match.indexOf('env:') > 0 ? '' : match;
-			}
-		});
-
-		return this.resolveConfigVariable(root, resolvedString, originalValue);
-	}
-
-	private resolveConfigVariable(root: IWorkspaceFolder, value: string, originalValue: string): string {
-		const replacer = (match: string, name: string) => {
-			let config = this.configurationService.getValue<any>({ resource: root.uri });
-			let newValue: any;
-			try {
-				const keys: string[] = name.split('.');
-				if (!keys || keys.length <= 0) {
-					return '';
-				}
-				while (keys.length > 1) {
-					const key = keys.shift();
-					if (!config || !config.hasOwnProperty(key)) {
-						return '';
-					}
-					config = config[key];
-				}
-				newValue = config && config.hasOwnProperty(keys[0]) ? config[keys[0]] : '';
-			} catch (e) {
-				return '';
-			}
-			if (types.isString(newValue)) {
-				// Prevent infinite recursion and also support nested references (or tokens)
-				return newValue === originalValue ? '' : this.resolveString(root, newValue);
-			} else {
-				return this.resolve(root, newValue) + '';
-			}
-		};
-
-		return value.replace(/\$\{config:(.+?)\}/g, replacer);
-	}
-
-	private resolveLiteral(root: IWorkspaceFolder, values: IStringDictionary<string | IStringDictionary<string> | string[]>): IStringDictionary<string | IStringDictionary<string> | string[]> {
-		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
-		Object.keys(values).forEach(key => {
-			let value = values[key];
-			result[key] = <any>this.resolve(root, <any>value);
-		});
-		return result;
-	}
-
-	private resolveAnyLiteral<T>(root: IWorkspaceFolder, values: T): T;
-	private resolveAnyLiteral(root: IWorkspaceFolder, values: any): any {
-		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
-		Object.keys(values).forEach(key => {
-			let value = values[key];
-			result[key] = <any>this.resolveAny(root, <any>value);
-		});
-		return result;
-	}
-
-	private resolveArray(root: IWorkspaceFolder, value: string[]): string[] {
-		return value.map(s => this.resolveString(root, s));
-	}
-
-	private resolveAnyArray<T>(root: IWorkspaceFolder, value: T[]): T[];
-	private resolveAnyArray(root: IWorkspaceFolder, value: any[]): any[] {
-		return value.map(s => this.resolveAny(root, s));
+		return value;
 	}
 
 	/**
