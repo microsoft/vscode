@@ -10,7 +10,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import { ResourceViewer, ResourceViewerContext } from 'vs/base/browser/ui/resourceviewer/resourceViewer';
 import { EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -19,6 +18,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/parts/resourceviewer/resourceViewer';
 
 /*
  * This class is only intended to be subclassed and not instantiated.
