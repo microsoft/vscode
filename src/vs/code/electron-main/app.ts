@@ -452,12 +452,6 @@ export class CodeApplication {
 
 		// Start shared process here
 		this.sharedProcess.spawn();
-
-		// Launch Issue BrowserWindow if --issue is specified
-		if (this.environmentService.args.issue) {
-			const issueService = accessor.get(IIssueService);
-			issueService.openReporter();
-		}
 	}
 
 	private dispose(): void {

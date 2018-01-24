@@ -156,7 +156,6 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get performance(): boolean { return this._args.performance; }
 	get status(): boolean { return this._args.status; }
-	get issue(): boolean { return this._args.issue; }
 
 	@memoize
 	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
