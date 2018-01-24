@@ -412,7 +412,7 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 			hiddenAreas.push({
 				startLineNumber: group.range.startLineNumber - 3,
 				startColumn: 1,
-				endLineNumber: group.range.startLineNumber - (hideExtraLine ? 1 : 2),
+				endLineNumber: group.range.startLineNumber - (hideExtraLine ? 1 : 3),
 				endColumn: 1
 			});
 
