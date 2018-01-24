@@ -431,7 +431,7 @@ class InlineImageView {
 							c.removeClass('zoom-out').addClass('zoom-in');
 						}
 					});
-				$(container).on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+				$(container).on(DOM.EventType.CLICK, (e: MouseEvent) => {
 					// left click
 					if (e.button === 0) {
 						if (scale === 'fit') {
