@@ -2013,7 +2013,7 @@ export class EditorLayoutProvider {
 		const lineDecorationsWidth = _opts.lineDecorationsWidth | 0;
 		const typicalHalfwidthCharacterWidth = _opts.typicalHalfwidthCharacterWidth;
 		const maxDigitWidth = _opts.maxDigitWidth;
-		let verticalScrollbarWidth = _opts.verticalScrollbarWidth | 0;
+		const verticalScrollbarWidth = _opts.verticalScrollbarWidth | 0;
 		const verticalScrollbarHasArrows = _opts.verticalScrollbarHasArrows;
 		const scrollbarArrowSize = _opts.scrollbarArrowSize | 0;
 		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight | 0;
@@ -2034,22 +2034,17 @@ export class EditorLayoutProvider {
 			glyphMarginWidth = lineHeight;
 		}
 
+		let glyphMarginLeft = 0;
+		let lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
+		let decorationsLeft = lineNumbersLeft + lineNumbersWidth;
+		let contentLeft = decorationsLeft + lineDecorationsWidth;
+
 		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
 		let renderMinimap: RenderMinimap;
 		let minimapWidth: number;
 		let contentWidth: number;
-		let contentLeft: number;
-		let glyphMarginLeft: number;
-		let lineNumbersLeft: number;
-		let decorationsLeft: number;
-
-		glyphMarginLeft = 0;
 		if (!minimap) {
-			lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
-			decorationsLeft = lineNumbersLeft + lineNumbersWidth;
-
-			contentLeft = decorationsLeft + lineDecorationsWidth;
 			minimapWidth = 0;
 			renderMinimap = RenderMinimap.None;
 			contentWidth = remainingWidth;
@@ -2082,16 +2077,12 @@ export class EditorLayoutProvider {
 			}
 			contentWidth = remainingWidth - minimapWidth;
 
-			if (typeof minimapSide === 'string') {
-				if (minimapSide === 'left') {
-					glyphMarginLeft = minimapWidth;
-				}
+			if (minimapSide === 'left') {
+				glyphMarginLeft += minimapWidth;
+				lineNumbersLeft += minimapWidth;
+				decorationsLeft += minimapWidth;
+				contentLeft += minimapWidth;
 			}
-
-			lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
-			decorationsLeft = lineNumbersLeft + lineNumbersWidth;
-			contentLeft = decorationsLeft + lineDecorationsWidth;
-
 		}
 
 		const viewportColumn = Math.max(1, Math.floor((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth));
