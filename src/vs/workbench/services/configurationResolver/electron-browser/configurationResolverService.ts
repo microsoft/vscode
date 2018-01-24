@@ -12,7 +12,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -31,6 +31,7 @@ class VariableResolver {
 		private configurationService: IConfigurationService,
 		private editorService: IWorkbenchEditorService,
 		private environmentService: IEnvironmentService,
+		private workspaceContextService: IWorkspaceContextService
 	) {
 		if (isWindows) {
 			Object.keys(envVariables).forEach(key => {
@@ -44,60 +45,79 @@ class VariableResolver {
 	resolve(context: IWorkspaceFolder, value: string): string {
 		const filePath = this.getFilePath();
 		return value.replace(VariableResolver.VARIABLE_REGEXP, (match: string, variable: string) => {
-			switch (variable) {
-				case 'workspaceRoot':
-				case 'workspaceFolder':
-					return context ? context.uri.fsPath : match;
-				case 'cwd':
-					return context ? context.uri.fsPath : process.cwd();
-				case 'workspaceRootFolderName':
-				case 'workspaceFolderBasename':
-					return context ? paths.basename(context.uri.fsPath) : match;
-				case 'lineNumber':
-					return this.getLineNumber() || match;
-				case 'selectedText':
-					return this.getSelectedText() || match;
-				case 'file':
-					return filePath || match;
-				case 'relativeFile':
-					return context ? paths.normalize(relative(context.uri.fsPath, filePath)) : filePath || match;
-				case 'fileDirname':
-					return filePath ? paths.dirname(filePath) : match;
-				case 'fileExtname':
-					return filePath ? paths.extname(filePath) : match;
-				case 'fileBasename':
-					return filePath ? paths.basename(filePath) : match;
-				case 'fileBasenameNoExtension': {
-					if (!filePath) {
-						return match;
-					}
+			const parts = variable.split(':');
+			let sufix: string;
+			if (parts && parts.length > 1) {
+				variable = parts[0];
+				sufix = parts[1];
+			}
 
-					const basename = paths.basename(filePath);
-					return basename.slice(0, basename.length - paths.extname(basename).length);
-				}
-				case 'execPath':
-					return this.environmentService.execPath;
-				default: {
-					if (variable.indexOf(VariableResolver.ENV_PREFIX) >= 0) {
-						let key = variable.substr(VariableResolver.ENV_PREFIX.length);
+			switch (variable) {
+				case 'env': {
+					if (sufix) {
 						if (isWindows) {
-							key = key.toLowerCase();
+							sufix = sufix.toLowerCase();
 						}
 
-						const env = this.envVariables[key];
+						const env = this.envVariables[sufix];
 						if (types.isString(env)) {
 							return env;
 						}
 					}
-					if (variable.indexOf(VariableResolver.CONFIG_PREFIX) >= 0) {
-						let key = variable.substr(VariableResolver.CONFIG_PREFIX.length);
-						const config = this.configurationService.getValue<string>(key, context ? { resource: context.uri } : undefined);
+				}
+				case 'config': {
+					if (sufix) {
+						const config = this.configurationService.getValue<string>(sufix, context ? { resource: context.uri } : undefined);
 						if (!types.isUndefinedOrNull(config) && !types.isObject(config)) {
 							return config;
 						}
 					}
+				}
+				default: {
+					if (sufix) {
+						const folder = this.workspaceContextService.getWorkspace().folders.filter(f => f.name === sufix).pop();
+						if (folder) {
+							context = folder;
+						}
+					}
 
-					return match;
+					switch (variable) {
+						case 'workspaceRoot':
+						case 'workspaceFolder':
+							return context ? context.uri.fsPath : match;
+						case 'cwd':
+							return context ? context.uri.fsPath : process.cwd();
+						case 'workspaceRootFolderName':
+						case 'workspaceFolderBasename':
+							return context ? paths.basename(context.uri.fsPath) : match;
+						case 'lineNumber':
+							return this.getLineNumber() || match;
+						case 'selectedText':
+							return this.getSelectedText() || match;
+						case 'file':
+							return filePath || match;
+						case 'relativeFile':
+							return context ? paths.normalize(relative(context.uri.fsPath, filePath)) : filePath || match;
+						case 'fileDirname':
+							return filePath ? paths.dirname(filePath) : match;
+						case 'fileExtname':
+							return filePath ? paths.extname(filePath) : match;
+						case 'fileBasename':
+							return filePath ? paths.basename(filePath) : match;
+						case 'fileBasenameNoExtension': {
+							if (!filePath) {
+								return match;
+							}
+
+							const basename = paths.basename(filePath);
+							return basename.slice(0, basename.length - paths.extname(basename).length);
+						}
+						case 'execPath':
+							return this.environmentService.execPath;
+
+						default:
+							return match;
+					}
 				}
 			}
 		});
@@ -157,8 +177,9 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
 	) {
-		this.resolver = new VariableResolver(envVariables, configurationService, editorService, environmentService);
+		this.resolver = new VariableResolver(envVariables, configurationService, editorService, environmentService, workspaceContextService);
 	}
 
 	public resolve(root: IWorkspaceFolder, value: string): string;
