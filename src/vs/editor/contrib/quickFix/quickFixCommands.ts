@@ -23,7 +23,7 @@ import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
 import { CodeActionKind, CodeActionAutoApply } from './codeActionTrigger';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CodeAction } from 'vs/editor/common/modes';
-import { createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
+import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
@@ -129,9 +129,7 @@ export class QuickFixController implements IEditorContribution {
 
 	private async _onApplyCodeAction(action: CodeAction): TPromise<void> {
 		if (action.edit) {
-			const edit = createBulkEdit(this._textModelService, this._editor, this._fileService);
-			edit.add(action.edit.edits);
-			await edit.finish();
+			await BulkEdit.perform(action.edit.edits, this._textModelService, this._fileService, this._editor);
 		}
 
 		if (action.command) {

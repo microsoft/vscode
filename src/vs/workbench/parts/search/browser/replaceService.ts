@@ -15,7 +15,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
-import { BulkEdit, IResourceEdit, createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
+import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -24,6 +24,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 
 const REPLACE_PREVIEW = 'replacePreview';
@@ -104,8 +105,7 @@ export class ReplaceService implements IReplaceService {
 	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>;
 	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
 
-		let bulkEdit: BulkEdit = createBulkEdit(this.textModelResolverService, null, this.fileService);
-		bulkEdit.progress(progress);
+		let bulkEdit = new BulkEdit(null, progress, this.textModelResolverService, this.fileService);
 
 		if (arg instanceof Match) {
 			let match = <Match>arg;
@@ -127,7 +127,7 @@ export class ReplaceService implements IReplaceService {
 			});
 		}
 
-		return bulkEdit.finish();
+		return bulkEdit.perform();
 	}
 
 	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
@@ -175,12 +175,14 @@ export class ReplaceService implements IReplaceService {
 			});
 	}
 
-	private createEdit(match: Match, text: string, resource: URI = null): IResourceEdit {
+	private createEdit(match: Match, text: string, resource: URI = null): ResourceTextEdit {
 		let fileMatch: FileMatch = match.parent();
-		let resourceEdit: IResourceEdit = {
+		let resourceEdit: ResourceTextEdit = {
 			resource: resource !== null ? resource : fileMatch.resource(),
-			range: match.range(),
-			newText: text
+			edits: [{
+				range: match.range(),
+				text: text
+			}]
 		};
 		return resourceEdit;
 	}

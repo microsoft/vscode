@@ -14,7 +14,7 @@ import {
 
 import * as vscode from 'vscode';
 
-import { UriComponents } from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -52,8 +52,9 @@ import { IStat, FileChangeType } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
-import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model';
+import { ISingleEditOperation } from 'vs/editor/common/model';
 import { ILineMatch, IPatternInfo } from 'vs/platform/search/common/search';
+import { LogLevel } from 'vs/platform/log/common/log';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -71,6 +72,7 @@ export interface IWorkspaceData {
 	id: string;
 	name: string;
 	folders: { uri: UriComponents, name: string, index: number }[];
+	configuration?: UriComponents;
 }
 
 export interface IInitData {
@@ -83,6 +85,7 @@ export interface IInitData {
 	windowId: number;
 	args: ParsedArgs;
 	execPath: string;
+	logLevel: LogLevel;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
@@ -192,23 +195,11 @@ export interface IApplyEditsOptions extends IUndoStopOptions {
 	setEndOfLine: EndOfLine;
 }
 
-
-
 export interface ITextDocumentShowOptions {
 	position?: EditorPosition;
 	preserveFocus?: boolean;
 	pinned?: boolean;
 	selection?: IRange;
-}
-
-export interface IWorkspaceResourceEdit {
-	resource: UriComponents;
-	modelVersionId?: number;
-	edits: {
-		range?: IRange;
-		newText: string;
-		newEol?: EndOfLineSequence;
-	}[];
 }
 
 export interface MainThreadEditorsShape extends IDisposable {
@@ -223,7 +214,7 @@ export interface MainThreadEditorsShape extends IDisposable {
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void>;
 	$trySetSelections(id: string, selections: ISelection[]): TPromise<void>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean>;
-	$tryApplyWorkspaceEdit(workspaceResourceEdits: IWorkspaceResourceEdit[]): TPromise<boolean>;
+	$tryApplyWorkspaceEdit(workspaceEditDto: WorkspaceEditDto): TPromise<boolean>;
 	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<boolean>;
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]>;
 }
@@ -624,15 +615,36 @@ export interface WorkspaceSymbolsDto extends IdObject {
 	symbols: SymbolInformationDto[];
 }
 
-export interface ResourceEditDto {
+export interface ResourceFileEditDto {
+	oldUri: UriComponents;
+	newUri: UriComponents;
+}
+
+export interface ResourceTextEditDto {
 	resource: UriComponents;
-	range: IRange;
-	newText: string;
+	modelVersionId?: number;
+	edits: modes.TextEdit[];
 }
 
 export interface WorkspaceEditDto {
-	edits: ResourceEditDto[];
+	edits: (ResourceFileEditDto | ResourceTextEditDto)[];
+
+	// todo@joh reject should go into rename
 	rejectReason?: string;
+}
+
+export function reviveWorkspaceEditDto(data: WorkspaceEditDto): modes.WorkspaceEdit {
+	if (data && data.edits) {
+		for (const edit of data.edits) {
+			if (typeof (<ResourceTextEditDto>edit).resource === 'object') {
+				(<ResourceTextEditDto>edit).resource = URI.revive((<ResourceTextEditDto>edit).resource);
+			} else {
+				(<ResourceFileEditDto>edit).newUri = URI.revive((<ResourceFileEditDto>edit).newUri);
+				(<ResourceFileEditDto>edit).oldUri = URI.revive((<ResourceFileEditDto>edit).oldUri);
+			}
+		}
+	}
+	return <modes.WorkspaceEdit>data;
 }
 
 export interface CodeActionDto {
@@ -640,7 +652,7 @@ export interface CodeActionDto {
 	edit?: WorkspaceEditDto;
 	diagnostics?: IMarkerData[];
 	command?: modes.Command;
-	scope?: string;
+	kind?: string;
 }
 
 export interface ExtHostLanguageFeaturesShape {
@@ -745,6 +757,10 @@ export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
 }
 
+export interface ExtHostLogServiceShape {
+	$setLevel(level: LogLevel);
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -795,7 +811,7 @@ export const ExtHostContext = {
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
-	// ExtHostLogService: createExtId<ExtHostLogServiceShape>('ExtHostLogService'),
+	ExtHostLogService: createExtId<ExtHostLogServiceShape>('ExtHostLogService'),
 	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService'),
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM'),
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ProxyType.CustomMarshaller),

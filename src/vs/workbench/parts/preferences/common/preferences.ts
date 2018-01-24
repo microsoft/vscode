@@ -16,6 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { join } from 'vs/base/common/paths';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import Event from 'vs/base/common/event';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -79,7 +80,7 @@ export interface IFilterResult {
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
-	metadata?: IFilterMetadata;
+	metadata?: IStringDictionary<IFilterMetadata>;
 }
 
 export interface ISettingMatch {
@@ -104,7 +105,8 @@ export interface IRemoteSetting {
 }
 
 export interface IFilterMetadata {
-	remoteUrl: string;
+	requestUrl: string;
+	requestBody: string;
 	timestamp: number;
 	duration: number;
 	scoredResults: IScoredResults;

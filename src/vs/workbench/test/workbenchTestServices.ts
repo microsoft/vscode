@@ -857,7 +857,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return null;
 	}
 
-	public backupResource(resource: URI, content: string | ITextSnapshot): TPromise<void> {
+	public backupResource(resource: URI, content: ITextSnapshot): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -870,6 +870,10 @@ export class TestBackupFileService implements IBackupFileService {
 		const lineCount = textBuffer.getLineCount();
 		const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
+	}
+
+	public resolveBackupContent(backup: URI): TPromise<ITextBufferFactory> {
+		return TPromise.as(null);
 	}
 
 	public discardResourceBackup(resource: URI): TPromise<void> {

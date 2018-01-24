@@ -57,6 +57,7 @@ import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateServ
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
+import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 
 export class CodeApplication {
 
@@ -272,7 +273,7 @@ export class CodeApplication {
 			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
-			this.sharedProcess = new SharedProcess(this.environmentService, machineId, this.userEnv);
+			this.sharedProcess = new SharedProcess(this.environmentService, machineId, this.userEnv, this.logService);
 			this.toDispose.push(this.sharedProcess);
 			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
@@ -377,6 +378,11 @@ export class CodeApplication {
 		const windowsChannel = new WindowsChannel(windowsService);
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
 		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
+
+		// Log level management
+		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
+		this.electronIpcServer.registerChannel('loglevel', logLevelChannel);
+		this.sharedProcessClient.done(client => client.registerChannel('loglevel', logLevelChannel));
 
 		// Lifecycle
 		this.lifecycleService.ready();

@@ -4913,14 +4913,19 @@ declare module monaco.languages {
 		provideColorPresentations(model: editor.ITextModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 	}
 
-	export interface IResourceEdit {
+	export interface ResourceFileEdit {
+		oldUri: Uri;
+		newUri: Uri;
+	}
+
+	export interface ResourceTextEdit {
 		resource: Uri;
-		range: IRange;
-		newText: string;
+		modelVersionId?: number;
+		edits: TextEdit[];
 	}
 
 	export interface WorkspaceEdit {
-		edits: IResourceEdit[];
+		edits: Array<ResourceTextEdit | ResourceFileEdit>;
 		rejectReason?: string;
 	}
 

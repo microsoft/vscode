@@ -578,12 +578,12 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	public normalizePath(resource: Uri): string | null {
-		if (resource.scheme === fileSchemes.walkThroughSnippet) {
-			return resource.toString();
-		}
-
-		if (resource.scheme === fileSchemes.untitled && this._apiVersion.has213Features()) {
-			return resource.toString();
+		if (this._apiVersion.has213Features()) {
+			if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
+				const dirName = path.dirname(resource.path);
+				const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
+				return resource.with({ path: path.join(dirName, fileName) }).toString(true);
+			}
 		}
 
 		if (resource.scheme !== fileSchemes.file) {
@@ -599,11 +599,24 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
 	}
 
+	private get inMemoryResourcePrefix(): string {
+		return this._apiVersion.has270Features() ? '^' : '';
+	}
+
 	public asUrl(filepath: string): Uri {
-		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON)
-			|| (filepath.startsWith(fileSchemes.untitled + ':') && this._apiVersion.has213Features())
-		) {
-			return Uri.parse(filepath);
+		if (this._apiVersion.has213Features()) {
+			if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
+			) {
+				let resource = Uri.parse(filepath);
+				if (this.inMemoryResourcePrefix) {
+					const dirName = path.dirname(resource.path);
+					const fileName = path.basename(resource.path);
+					if (fileName.startsWith(this.inMemoryResourcePrefix)) {
+						resource = resource.with({ path: path.join(dirName, fileName.slice(this.inMemoryResourcePrefix.length)) });
+					}
+				}
+				return resource;
+			}
 		}
 		return Uri.file(filepath);
 	}
@@ -620,8 +633,10 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 					return root.uri.fsPath;
 				}
 			}
+			return roots[0].uri.fsPath;
 		}
-		return roots[0].uri.fsPath;
+
+		return undefined;
 	}
 
 	public execute(command: string, args: any, expectsResultOrToken?: boolean | CancellationToken): Promise<any> {

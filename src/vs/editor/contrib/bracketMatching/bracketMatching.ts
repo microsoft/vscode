@@ -16,11 +16,14 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { TrackedRangeStickiness, IModelDeltaDecoration, OverviewRulerLane } from 'vs/editor/common/model';
+
+const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
 class JumpToBracketAction extends EditorAction {
 	constructor() {
@@ -214,7 +217,12 @@ export class BracketMatchingController extends Disposable implements editorCommo
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'bracket-match'
+		className: 'bracket-match',
+		overviewRuler: {
+			color: themeColorFromId(overviewRulerBracketMatchForeground),
+			darkColor: themeColorFromId(overviewRulerBracketMatchForeground),
+			position: OverviewRulerLane.Center
+		}
 	});
 
 	private _updateBrackets(): void {

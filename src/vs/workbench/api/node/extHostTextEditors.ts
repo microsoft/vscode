@@ -12,7 +12,7 @@ import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IResolvedTextEditorConfiguration, ISelectionChangeEvent, IMainContext, IWorkspaceResourceEdit } from './extHost.protocol';
+import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IResolvedTextEditorConfiguration, ISelectionChangeEvent, IMainContext, WorkspaceEditDto } from './extHost.protocol';
 import * as vscode from 'vscode';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
@@ -92,36 +92,23 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 
 	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): TPromise<boolean> {
 
-		let workspaceResourceEdits: IWorkspaceResourceEdit[] = [];
+		const dto: WorkspaceEditDto = { edits: [] };
 
-		let entries = edit.entries();
-		for (let entry of entries) {
-			let [uri, edits] = entry;
-
-			let doc = this._extHostDocumentsAndEditors.getDocument(uri.toString());
-			let docVersion: number = undefined;
-			if (doc) {
-				docVersion = doc.version;
-			}
-
-			let workspaceResourceEdit: IWorkspaceResourceEdit = {
-				resource: uri,
-				modelVersionId: docVersion,
-				edits: []
-			};
-
-			for (let edit of edits) {
-				workspaceResourceEdit.edits.push({
-					newText: edit.newText,
-					newEol: TypeConverters.EndOfLine.from(edit.newEol),
-					range: edit.range && TypeConverters.fromRange(edit.range)
+		for (let entry of edit.allEntries()) {
+			let [uri, uriOrEdits] = entry;
+			if (Array.isArray(uriOrEdits)) {
+				let doc = this._extHostDocumentsAndEditors.getDocument(uri.toString());
+				dto.edits.push({
+					resource: uri,
+					modelVersionId: doc && doc.version,
+					edits: uriOrEdits.map(TypeConverters.TextEdit.from)
 				});
+			} else {
+				dto.edits.push({ oldUri: uri, newUri: uriOrEdits });
 			}
-
-			workspaceResourceEdits.push(workspaceResourceEdit);
 		}
 
-		return this._proxy.$tryApplyWorkspaceEdit(workspaceResourceEdits);
+		return this._proxy.$tryApplyWorkspaceEdit(dto);
 	}
 
 	// --- called from main thread

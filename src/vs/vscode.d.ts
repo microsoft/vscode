@@ -2495,7 +2495,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A workspace edit represents textual changes for many documents.
+	 * A workspace edit represents textual and files changes for
+	 * multiple resources and documents.
 	 */
 	export class WorkspaceEdit {
 
@@ -2556,9 +2557,49 @@ declare module 'vscode' {
 		/**
 		 * Get all text edits grouped by resource.
 		 *
-		 * @return An array of `[Uri, TextEdit[]]`-tuples.
+		 * @return A shallow copy of `[Uri, TextEdit[]]`-tuples.
 		 */
 		entries(): [Uri, TextEdit[]][];
+
+		/**
+		 * Renames a given resource in the workspace.
+		 *
+		 * @param from Uri of current resource.
+		 * @param to Uri of renamed resource.
+		 */
+		renameResource(from: Uri, to: Uri): void;
+
+		/**
+		 * Create a new resource in the workspace.
+		 *
+		 * @param uri Uri of resource to create.
+		 */
+		createResource(uri: Uri): void;
+
+		/**
+		 * Delete a given resource in the workspace.
+		 *
+		 * @param uri Uri of resource to delete.
+		 */
+		deleteResource(uri: Uri): void;
+
+		/**
+		 * Get the resource edits for this workspace edit.
+		 *
+		 * @returns A shallow copy of uri-tuples in which a rename-edit
+		 * is represented as `[from, to]`, a delete-operation as `[from, null]`,
+		 * and a create-operation as `[null, to]`;
+		 */
+		resourceEdits(): [Uri, Uri][];
+
+		/**
+		 * Get all edits, textual changes and file changes. The order is the order
+		 * in which edits have been added to this workspace edits. Textuals edits
+		 * are grouped and the first textual edit for a resource matters.
+		 *
+		 * @returns A shallow copy of all changes.
+		 */
+		allEntries(): ([Uri, TextEdit[]] | [Uri, Uri])[];
 	}
 
 	/**

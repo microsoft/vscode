@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
-import { MainThreadEditorsShape, IWorkspaceResourceEdit } from 'vs/workbench/api/node/extHost.protocol';
+import { MainThreadEditorsShape, WorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -18,6 +18,7 @@ import * as vscode from 'vscode';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { isResourceTextEdit, ResourceTextEdit } from 'vs/editor/common/modes';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
@@ -262,10 +263,10 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 	test('event delivery, pushEdits sync', () => {
 
-		let edits: IWorkspaceResourceEdit[];
+		let dto: WorkspaceEditDto;
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: IWorkspaceResourceEdit[]) {
-				edits = _edits;
+			$tryApplyWorkspaceEdit(_edits: WorkspaceEditDto) {
+				dto = _edits;
 				return TPromise.as(true);
 			}
 		});
@@ -278,16 +279,17 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
 			sub.dispose();
 
-			assert.equal(edits.length, 1);
-			assert.equal(edits[0].edits.length, 2);
+			assert.equal(dto.edits.length, 1);
+			assert.ok(isResourceTextEdit(dto.edits[0]));
+			assert.equal((<ResourceTextEdit>dto.edits[0]).edits.length, 2);
 		});
 	});
 
 	test('event delivery, concurrent change', () => {
 
-		let edits: IWorkspaceResourceEdit[];
+		let edits: WorkspaceEditDto;
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: IWorkspaceResourceEdit[]) {
+			$tryApplyWorkspaceEdit(_edits: WorkspaceEditDto) {
 				edits = _edits;
 				return TPromise.as(true);
 			}
@@ -321,16 +323,20 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, two listeners -> two document states', () => {
 
 		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: IWorkspaceResourceEdit[]) {
+			$tryApplyWorkspaceEdit(dto: WorkspaceEditDto) {
 
-				for (const { resource, edits } of _edits) {
+				for (const edit of dto.edits) {
+					if (!isResourceTextEdit(edit)) {
+						continue;
+					}
+					const { resource, edits } = edit;
 					const uri = URI.revive(resource);
-					for (const { newText, range } of edits) {
+					for (const { text, range } of edits) {
 						documents.$acceptModelChanged(uri.toString(), {
 							changes: [{
 								range,
+								text,
 								rangeLength: undefined,
-								text: newText
 							}],
 							eol: undefined,
 							versionId: documents.getDocumentData(uri).version + 1

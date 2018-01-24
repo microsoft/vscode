@@ -42,7 +42,6 @@
 .monaco-resource-viewer img.untouched {
 	max-width: 100%;
 	object-fit: contain;
-	image-rendering: auto;
 }
 
 .monaco-resource-viewer img {

@@ -460,7 +460,7 @@ export interface ILaunch {
 	 * Returns the names of all configurations and compounds.
 	 * Ignores configurations which are invalid.
 	 */
-	getConfigurationNames(): string[];
+	getConfigurationNames(includeCompounds?: boolean): string[];
 
 	/**
 	 * Returns the resolved configuration.

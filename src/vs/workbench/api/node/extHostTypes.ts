@@ -492,10 +492,28 @@ export class TextEdit {
 	}
 }
 
-export class WorkspaceEdit {
+export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private _values: [URI, TextEdit[]][] = [];
-	private _index = new Map<string, number>();
+	private _seqPool: number = 0;
+
+	private _resourceEdits: { seq: number, from: URI, to: URI }[] = [];
+	private _textEdits = new Map<string, { seq: number, uri: URI, edits: TextEdit[] }>();
+
+	createResource(uri: vscode.Uri): void {
+		this.renameResource(undefined, uri);
+	}
+
+	deleteResource(uri: vscode.Uri): void {
+		this.renameResource(uri, undefined);
+	}
+
+	renameResource(from: vscode.Uri, to: vscode.Uri): void {
+		this._resourceEdits.push({ seq: this._seqPool++, from, to });
+	}
+
+	resourceEdits(): [vscode.Uri, vscode.Uri][] {
+		return this._resourceEdits.map(({ from, to }) => (<[vscode.Uri, vscode.Uri]>[from, to]));
+	}
 
 	replace(uri: URI, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
@@ -503,8 +521,9 @@ export class WorkspaceEdit {
 		if (array) {
 			array.push(edit);
 		} else {
-			this.set(uri, [edit]);
+			array = [edit];
 		}
+		this.set(uri, array);
 	}
 
 	insert(resource: URI, position: Position, newText: string): void {
@@ -516,34 +535,58 @@ export class WorkspaceEdit {
 	}
 
 	has(uri: URI): boolean {
-		return this._index.has(uri.toString());
+		return this._textEdits.has(uri.toString());
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
-		const idx = this._index.get(uri.toString());
-		if (typeof idx === 'undefined') {
-			let newLen = this._values.push([uri, edits]);
-			this._index.set(uri.toString(), newLen - 1);
+		let data = this._textEdits.get(uri.toString());
+		if (!data) {
+			data = { seq: this._seqPool++, uri, edits: [] };
+			this._textEdits.set(uri.toString(), data);
+		}
+		if (!edits) {
+			data.edits = undefined;
 		} else {
-			this._values[idx][1] = edits;
+			data.edits = edits.slice(0);
 		}
 	}
 
 	get(uri: URI): TextEdit[] {
-		let idx = this._index.get(uri.toString());
-		return typeof idx !== 'undefined' && this._values[idx][1];
+		if (!this._textEdits.has(uri.toString())) {
+			return undefined;
+		}
+		const { edits } = this._textEdits.get(uri.toString());
+		return edits ? edits.slice() : undefined;
 	}
 
 	entries(): [URI, TextEdit[]][] {
-		return this._values;
+		const res: [URI, TextEdit[]][] = [];
+		this._textEdits.forEach(value => res.push([value.uri, value.edits]));
+		return res.slice();
+	}
+
+	allEntries(): ([URI, TextEdit[]] | [URI, URI])[] {
+		// use the 'seq' the we have assigned when inserting
+		// the operation and use that order in the resulting
+		// array
+		const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
+		this._textEdits.forEach(value => {
+			const { seq, uri, edits } = value;
+			res[seq] = [uri, edits];
+		});
+		this._resourceEdits.forEach(value => {
+			const { seq, from, to } = value;
+			res[seq] = [from, to];
+		});
+		return res;
 	}
 
 	get size(): number {
-		return this._values.length;
+		return this._textEdits.size + this._resourceEdits.length;
 	}
 
 	toJSON(): any {
-		return this._values;
+		return this.entries();
 	}
 }
 

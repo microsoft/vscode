@@ -58,6 +58,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -123,7 +124,8 @@ export class PreferencesEditor extends BaseEditor {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IProgressService private progressService: IProgressService
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
@@ -240,10 +242,10 @@ export class PreferencesEditor extends BaseEditor {
 	private onInputChanged(): void {
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
-		TPromise.join([
+		this.progressService.showWhile(TPromise.join([
 			this.preferencesRenderers.localFilterPreferences(query),
 			this.triggerThrottledSearch(query)
-		]).then(() => {
+		]), 250).then(() => {
 			const result = this.preferencesRenderers.lastFilterResult;
 			if (result) {
 				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(
@@ -285,29 +287,33 @@ export class PreferencesEditor extends BaseEditor {
 			if (count === 0) {
 				this.searchWidget.showMessage(nls.localize('noSettingsFound', "No Results"), count);
 			} else if (count === 1) {
-				this.searchWidget.showMessage(nls.localize('oneSettingFound', "1 Setting matched"), count);
+				this.searchWidget.showMessage(nls.localize('oneSettingFound', "1 Setting Found"), count);
 			} else {
-				this.searchWidget.showMessage(nls.localize('settingsFound', "{0} Settings matched", count), count);
+				this.searchWidget.showMessage(nls.localize('settingsFound', "{0} Settings Found", count), count);
 			}
 		} else {
 			this.searchWidget.showMessage(nls.localize('totalSettingsMessage', "Total {0} Settings", count), count);
 		}
 	}
 
-	private reportFilteringUsed(filter: string, counts: IStringDictionary<number>, metadata?: IFilterMetadata): void {
+	private reportFilteringUsed(filter: string, counts: IStringDictionary<number>, metadata?: IStringDictionary<IFilterMetadata>): void {
 		if (filter && filter !== this._lastReportedFilter) {
+			let durations: any;
+			if (metadata) {
+				durations = Object.create(null);
+				Object.keys(metadata).forEach(key => durations[key] = metadata[key].duration);
+			}
+
 			let data = {
 				filter,
-				duration: metadata ? metadata.duration : undefined,
-				context: metadata ? metadata.context : undefined,
+				durations,
 				counts
 			};
 
 			/* __GDPR__
 				"defaultSettings.filter" : {
 					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"context" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"durations" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"counts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
@@ -352,7 +358,7 @@ class SettingsNavigator implements INavigator<ISetting> {
 
 interface IFilterOrSearchResult {
 	defaultSettingsGroupCounts: IStringDictionary<number>;
-	metadata: IFilterMetadata;
+	metadata: IStringDictionary<IFilterMetadata>;
 }
 
 class PreferencesRenderersController extends Disposable {
@@ -434,7 +440,7 @@ class PreferencesRenderersController extends Disposable {
 		this._currentNewExtensionsSearchProvider = (updateCurrentResults && this._currentNewExtensionsSearchProvider) || this.preferencesSearchService.getRemoteSearchProvider(query, true);
 
 		this._remoteFilterInProgress = this.filterOrSearchPreferences(query, this._currentRemoteSearchProvider, 'nlpResult', nls.localize('nlpResult', "Natural Language Results"), 1)
-			.then(result => this.filterOrSearchPreferences(query, this._currentNewExtensionsSearchProvider, 'newExtensionsResult', nls.localize('newExtensionsResult', "Other Extension Results"), 2));
+			.then(result => this.filterOrSearchPreferences(query, this._currentNewExtensionsSearchProvider, 'newExtensionsResult', nls.localize('newExtensionsResult', "Marketplace Extension Results"), 2));
 
 		return this._remoteFilterInProgress.then(() => {
 			this._remoteFilterInProgress = null;

@@ -156,6 +156,7 @@ export class ResourceViewer {
 
 class ImageView {
 	private static readonly MAX_IMAGE_SIZE = BinarySize.MB; // showing images inline is memory intense, so we have a limit
+	private static readonly BASE64_MARKER = 'base64,';
 
 	public static create(
 		container: Builder,
@@ -177,9 +178,8 @@ class ImageView {
 
 		// Data URI
 		if (descriptor.resource.scheme === Schemas.data) {
-			const BASE64_MARKER = 'base64,';
-			const base64MarkerIndex = descriptor.resource.path.indexOf(BASE64_MARKER);
-			const hasData = base64MarkerIndex >= 0 && descriptor.resource.path.substring(base64MarkerIndex + BASE64_MARKER.length).length > 0;
+			const base64MarkerIndex = descriptor.resource.path.indexOf(ImageView.BASE64_MARKER);
+			const hasData = base64MarkerIndex >= 0 && descriptor.resource.path.substring(base64MarkerIndex + ImageView.BASE64_MARKER.length).length > 0;
 
 			skipInlineImage = !hasData || descriptor.size > ImageView.MAX_IMAGE_SIZE || descriptor.resource.path.length > ImageView.MAX_IMAGE_SIZE;
 		}
@@ -241,7 +241,11 @@ class InlineImageView {
 	private static readonly SCALE_FACTOR = 1.5;
 	private static readonly MAX_SCALE = 20;
 	private static readonly MIN_SCALE = 0.1;
-	private static readonly PIXELATION_THRESHOLD = 64; // enable image-rendering: pixelated for images less than this
+
+	/**
+	 * Enable image-rendering: pixelated for images scaled by more than this.
+	 */
+	private static readonly PIXELATION_THRESHOLD = 3;
 
 	/**
 	 * Chrome is caching images very aggressively and so we use the ETag information to find out if
@@ -279,16 +283,17 @@ class InlineImageView {
 					img.removeClass('untouched');
 					updateScale(scale);
 				}
-				if (imgElement.naturalWidth < InlineImageView.PIXELATION_THRESHOLD
-					|| imgElement.naturalHeight < InlineImageView.PIXELATION_THRESHOLD) {
-					img.addClass('pixelated');
-				}
 				function setImageWidth(width) {
 					img.style('width', `${width}px`);
 					img.style('height', 'auto');
 				}
 				function updateScale(newScale) {
 					scale = clamp(newScale, InlineImageView.MIN_SCALE, InlineImageView.MAX_SCALE);
+					if (scale >= InlineImageView.PIXELATION_THRESHOLD) {
+						img.addClass('pixelated');
+					} else {
+						img.removeClass('pixelated');
+					}
 					setImageWidth(Math.floor(imgElement.naturalWidth * scale));
 					InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, scale);
 					scrollbar.scanDomNode();
