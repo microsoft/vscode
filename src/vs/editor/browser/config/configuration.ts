@@ -274,6 +274,15 @@ class CSSBasedConfiguration extends Disposable {
 	}
 }
 
+export interface IEdgePaddings {
+	top: number;
+	bottom: number;
+}
+
+export interface IEdgePaddingSource {
+	getEdgePadding(): IEdgePaddings;
+}
+
 export class Configuration extends CommonEditorConfiguration {
 
 	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
@@ -293,11 +302,13 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	private readonly _elementSizeObserver: ElementSizeObserver;
+	private readonly _edgePaddingSource: IEdgePaddingSource;
 
-	constructor(options: IEditorOptions, referenceDomElement: HTMLElement = null) {
+	constructor(options: IEditorOptions, referenceDomElement: HTMLElement = null, edgePaddingSource: IEdgePaddingSource = null) {
 		super(options);
 
 		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));
+		this._edgePaddingSource = edgePaddingSource;
 
 		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
 
@@ -343,8 +354,12 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	protected _getEnvConfiguration(): IEnvConfiguration {
+		const edgePaddings = this._edgePaddingSource && this._edgePaddingSource.getEdgePadding() || null;
+
 		return {
 			extraEditorClassName: this._getExtraEditorClassName(),
+			paddingTop: edgePaddings.top,
+			paddingBottom: edgePaddings.bottom,
 			outerWidth: this._elementSizeObserver.getWidth(),
 			outerHeight: this._elementSizeObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit,

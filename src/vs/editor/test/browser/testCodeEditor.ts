@@ -119,6 +119,9 @@ export class TestCodeEditor extends CommonCodeEditor implements editorBrowser.IC
 	addOverlayWidget(widget: editorBrowser.IOverlayWidget): void { throw new Error('Not implemented'); }
 	layoutOverlayWidget(widget: editorBrowser.IOverlayWidget): void { throw new Error('Not implemented'); }
 	removeOverlayWidget(widget: editorBrowser.IOverlayWidget): void { throw new Error('Not implemented'); }
+	addEdgeWidget(widget: editorBrowser.IEdgeWidget): void { throw new Error('Not implemented'); }
+	layoutEdgeWidget(widget: editorBrowser.IEdgeWidget): void { throw new Error('Not implemented'); }
+	removeEdgeWidget(widget: editorBrowser.IEdgeWidget): void { throw new Error('Not implemented'); }
 	changeViewZones(callback: (accessor: editorBrowser.IViewZoneChangeAccessor) => void): void { throw new Error('Not implemented'); }
 	getOffsetForColumn(lineNumber: number, column: number): number { throw new Error('Not implemented'); }
 	render(): void { throw new Error('Not implemented'); }

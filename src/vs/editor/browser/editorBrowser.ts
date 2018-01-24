@@ -196,6 +196,45 @@ export interface IOverlayWidget {
 }
 
 /**
+ * A positioning preference for rendering content widgets.
+ */
+export enum EdgeWidgetPositionEdge {
+	/**
+	 * Place the edge widget at the top
+	 */
+	TOP,
+	/**
+	 * Place the edge widget at the bottom
+	 */
+	BOTTOM
+}
+/**
+ * A position for rendering edge widgets.
+ */
+export interface IEdgeWidgetPosition {
+	size: number;
+	edge: EdgeWidgetPositionEdge;
+}
+/**
+ * An edge widget renders at the requested edge and pushed content inside.
+ */
+export interface IEdgeWidget {
+	/**
+	 * Get a unique identifier of the edge widget.
+	 */
+	getId(): string;
+	/**
+	 * Get the dom node of the content widget.
+	 */
+	getDomNode(): HTMLElement;
+	/**
+	 * Get the placement of the content widget.
+	 * If null is returned, the content widget will be placed off screen.
+	 */
+	getPosition(): IEdgeWidgetPosition;
+}
+
+/**
  * Type of hit element with the mouse in the editor.
  */
 export enum MouseTargetType {
@@ -678,6 +717,20 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Remove an overlay widget.
 	 */
 	removeOverlayWidget(widget: IOverlayWidget): void;
+
+	/**
+	 * Add an edge widget. Widgets must have unique ids, otherwise they will be overwritten.
+	 */
+	addEdgeWidget(widget: IEdgeWidget): void;
+	/**
+	 * Layout/Reposition an edge widget. This is a ping to the editor to call widget.getPosition()
+	 * and update appropiately.
+	 */
+	layoutEdgeWidget(widget: IEdgeWidget): void;
+	/**
+	 * Remove an edge widget.
+	 */
+	removeEdgeWidget(widget: IEdgeWidget): void;
 
 	/**
 	 * Change the view zones. View zones are lost when a new model is attached to the editor.

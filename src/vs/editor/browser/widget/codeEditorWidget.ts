@@ -17,9 +17,9 @@ import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorC
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorAction, EditorExtensionsRegistry, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { Configuration, IEdgePaddings } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { View, IOverlayWidgetData, IContentWidgetData } from 'vs/editor/browser/view/viewImpl';
+import { View, IOverlayWidgetData, IContentWidgetData, IEdgeWidgetData } from 'vs/editor/browser/view/viewImpl';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -78,8 +78,11 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	_configuration: Configuration;
 
-	private contentWidgets: { [key: string]: IContentWidgetData; };
-	private overlayWidgets: { [key: string]: IOverlayWidgetData; };
+	private contentWidgets: { [key: string]: IContentWidgetData; } = {};
+	private overlayWidgets: { [key: string]: IOverlayWidgetData; } = {};
+	private edgeWidgets: { [key: string]: IEdgeWidgetData; } = {};
+
+	private _edgePaddings: IEdgePaddings;
 
 	_view: View;
 
@@ -107,9 +110,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 				this._onDidBlurEditor.fire();
 			}
 		});
-
-		this.contentWidgets = {};
-		this.overlayWidgets = {};
 
 		let contributions = this._getContributions();
 		for (let i = 0, len = contributions.length; i < len; i++) {
@@ -145,7 +145,36 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	protected abstract _getActions(): EditorAction[];
 
 	protected _createConfiguration(options: IEditorOptions): CommonEditorConfiguration {
-		return new Configuration(options, this.domElement);
+		return new Configuration(
+			options,
+			this.domElement,
+			{ getEdgePadding: () => this._getEdgePadding() });
+	}
+
+	private _getEdgePadding(): IEdgePaddings {
+		if (!this._edgePaddings) {
+			let topPadding = 0;
+			let bottomPadding = 0;
+
+			let keys = Object.keys(this.edgeWidgets || {}); // in case it's called before the constructor!
+			for (let i = 0; i < keys.length; i++) {
+				const edgew = this.edgeWidgets[keys[i]];
+				const posn = edgew.position;
+				if (posn.edge === editorBrowser.EdgeWidgetPositionEdge.TOP) {
+					topPadding += posn.size; // TODO: sanitize
+				}
+				else if (posn.edge === editorBrowser.EdgeWidgetPositionEdge.BOTTOM) {
+					bottomPadding += posn.size; // TODO: sanitize
+				}
+			}
+
+			this._edgePaddings = {
+				top: topPadding,
+				bottom: bottomPadding
+			};
+		}
+
+		return this._edgePaddings;
 	}
 
 	public dispose(): void {
@@ -153,6 +182,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
+		this.edgeWidgets = {};
 
 		this._focusTracker.dispose();
 		super.dispose();
@@ -270,6 +300,48 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			delete this.overlayWidgets[widgetId];
 			if (this.hasView) {
 				this._view.removeOverlayWidget(widgetData);
+			}
+		}
+	}
+
+	public addEdgeWidget(widget: editorBrowser.IEdgeWidget): void {
+		let widgetData: IEdgeWidgetData = {
+			widget: widget,
+			position: widget.getPosition()
+		};
+
+		if (this.edgeWidgets.hasOwnProperty(widget.getId())) {
+			console.warn('Overwriting an edge widget with the same id.');
+		}
+
+		this.edgeWidgets[widget.getId()] = widgetData;
+		this._edgePaddings = null; // invalidate edge padding
+
+		if (this.hasView) {
+			this._view.addEdgeWidget(widgetData);
+		}
+	}
+
+	public layoutEdgeWidget(widget: editorBrowser.IEdgeWidget): void {
+		let widgetId = widget.getId();
+		if (this.edgeWidgets.hasOwnProperty(widgetId)) {
+			this._edgePaddings = null; // invalidate edge padding
+			let widgetData = this.edgeWidgets[widgetId];
+			widgetData.position = widget.getPosition();
+			if (this.hasView) {
+				this._view.layoutEdgeWidget(widgetData);
+			}
+		}
+	}
+
+	public removeEdgeWidget(widget: editorBrowser.IEdgeWidget): void {
+		let widgetId = widget.getId();
+		if (this.edgeWidgets.hasOwnProperty(widgetId)) {
+			this._edgePaddings = null; // invalidate edge padding
+			let widgetData = this.edgeWidgets[widgetId];
+			delete this.edgeWidgets[widgetId];
+			if (this.hasView) {
+				this._view.removeEdgeWidget(widgetData);
 			}
 		}
 	}

@@ -6,7 +6,7 @@
 
 import 'vs/css!./standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ICodeEditor, ContentWidgetPositionPreference, OverlayWidgetPositionPreference, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, ContentWidgetPositionPreference, OverlayWidgetPositionPreference, MouseTargetType, EdgeWidgetPositionEdge } from 'vs/editor/browser/editorBrowser';
 import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
@@ -389,6 +389,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		TextEditorCursorBlinkingStyle: editorOptions.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
+		EdgeWidgetPositionEdge: EdgeWidgetPositionEdge,
 		RenderMinimap: editorOptions.RenderMinimap,
 		ScrollType: <any>ScrollType,
 		RenderLineNumbersType: <any>RenderLineNumbersType,

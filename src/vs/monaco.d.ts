@@ -3131,6 +3131,10 @@ declare module monaco.editor {
 		 */
 		readonly lineNumbersLeft: number;
 		/**
+		 * Top position for the line numbers.
+		 */
+		readonly lineNumbersTop: number;
+		/**
 		 * The width of the line numbers.
 		 */
 		readonly lineNumbersWidth: number;
@@ -3150,6 +3154,10 @@ declare module monaco.editor {
 		 * The height of the line decorations.
 		 */
 		readonly decorationsHeight: number;
+		/**
+		 * Top position for the content (actual text)
+		 */
+		readonly contentTop: number;
 		/**
 		 * Left position for the content (actual text)
 		 */
@@ -3388,6 +3396,47 @@ declare module monaco.editor {
 		 * If null is returned, the overlay widget is responsible to place itself.
 		 */
 		getPosition(): IOverlayWidgetPosition;
+	}
+
+	/**
+	 * A positioning preference for rendering content widgets.
+	 */
+	export enum EdgeWidgetPositionEdge {
+		/**
+		 * Place the edge widget at the top
+		 */
+		TOP = 0,
+		/**
+		 * Place the edge widget at the bottom
+		 */
+		BOTTOM = 1,
+	}
+
+	/**
+	 * A position for rendering edge widgets.
+	 */
+	export interface IEdgeWidgetPosition {
+		size: number;
+		edge: EdgeWidgetPositionEdge;
+	}
+
+	/**
+	 * An edge widget renders at the requested edge and pushed content inside.
+	 */
+	export interface IEdgeWidget {
+		/**
+		 * Get a unique identifier of the edge widget.
+		 */
+		getId(): string;
+		/**
+		 * Get the dom node of the content widget.
+		 */
+		getDomNode(): HTMLElement;
+		/**
+		 * Get the placement of the content widget.
+		 * If null is returned, the content widget will be placed off screen.
+		 */
+		getPosition(): IEdgeWidgetPosition;
 	}
 
 	/**
@@ -3757,6 +3806,19 @@ declare module monaco.editor {
 		 * Remove an overlay widget.
 		 */
 		removeOverlayWidget(widget: IOverlayWidget): void;
+		/**
+		 * Add an edge widget. Widgets must have unique ids, otherwise they will be overwritten.
+		 */
+		addEdgeWidget(widget: IEdgeWidget): void;
+		/**
+		 * Layout/Reposition an edge widget. This is a ping to the editor to call widget.getPosition()
+		 * and update appropiately.
+		 */
+		layoutEdgeWidget(widget: IEdgeWidget): void;
+		/**
+		 * Remove an edge widget.
+		 */
+		removeEdgeWidget(widget: IEdgeWidget): void;
 		/**
 		 * Change the view zones. View zones are lost when a new model is attached to the editor.
 		 */

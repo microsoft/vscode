@@ -19,6 +19,8 @@ export class TestConfiguration extends CommonEditorConfiguration {
 	protected _getEnvConfiguration(): IEnvConfiguration {
 		return {
 			extraEditorClassName: '',
+			paddingTop: 0,
+			paddingBottom: 0,
 			outerWidth: 100,
 			outerHeight: 100,
 			emptySelectionClipboard: true,

@@ -1010,12 +1010,14 @@ export class InternalEditorOptions {
 			&& a.glyphMarginWidth === b.glyphMarginWidth
 			&& a.glyphMarginHeight === b.glyphMarginHeight
 			&& a.lineNumbersLeft === b.lineNumbersLeft
+			&& a.lineNumbersLeft === b.lineNumbersLeft
 			&& a.lineNumbersWidth === b.lineNumbersWidth
 			&& a.lineNumbersHeight === b.lineNumbersHeight
 			&& a.decorationsLeft === b.decorationsLeft
 			&& a.decorationsWidth === b.decorationsWidth
 			&& a.decorationsHeight === b.decorationsHeight
 			&& a.contentLeft === b.contentLeft
+			&& a.contentTop === b.contentTop
 			&& a.contentWidth === b.contentWidth
 			&& a.contentHeight === b.contentHeight
 			&& a.renderMinimap === b.renderMinimap
@@ -1254,6 +1256,10 @@ export interface EditorLayoutInfo {
 	 */
 	readonly lineNumbersLeft: number;
 	/**
+	 * Top position for the line numbers.
+	 */
+	readonly lineNumbersTop: number;
+	/**
 	 * The width of the line numbers.
 	 */
 	readonly lineNumbersWidth: number;
@@ -1275,6 +1281,10 @@ export interface EditorLayoutInfo {
 	 */
 	readonly decorationsHeight: number;
 
+	/**
+	 * Top position for the content (actual text)
+	 */
+	readonly contentTop: number;
 	/**
 	 * Left position for the content (actual text)
 	 */
@@ -1347,6 +1357,8 @@ export interface IConfigurationChangedEvent {
  * @internal
  */
 export interface IEnvironmentalOptions {
+	readonly paddingTop: number;
+	readonly paddingBottom: number;
 	readonly outerWidth: number;
 	readonly outerHeight: number;
 	readonly fontInfo: FontInfo;
@@ -1835,6 +1847,8 @@ export class InternalEditorOptionsFactory {
 		}
 
 		const layoutInfo = EditorLayoutProvider.compute({
+			paddingTop: env.paddingTop,
+			paddingBottom: env.paddingBottom,
 			outerWidth: env.outerWidth,
 			outerHeight: env.outerHeight,
 			showGlyphMargin: opts.viewInfo.glyphMargin,
@@ -1961,6 +1975,9 @@ export class InternalEditorOptionsFactory {
  * @internal
  */
 export interface IEditorLayoutProviderOpts {
+	paddingTop: number;
+	paddingBottom: number;
+
 	outerWidth: number;
 	outerHeight: number;
 
@@ -1992,6 +2009,8 @@ export interface IEditorLayoutProviderOpts {
  */
 export class EditorLayoutProvider {
 	public static compute(_opts: IEditorLayoutProviderOpts): EditorLayoutInfo {
+		const paddingTop = _opts.paddingTop | 0;
+		const paddingBottom = _opts.paddingBottom | 0;
 		const outerWidth = _opts.outerWidth | 0;
 		const outerHeight = _opts.outerHeight | 0;
 		const showGlyphMargin = _opts.showGlyphMargin;
@@ -2024,8 +2043,10 @@ export class EditorLayoutProvider {
 
 		const glyphMarginLeft = 0;
 		const lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
+		const lineNumbersTop = _opts.paddingTop;
 		const decorationsLeft = lineNumbersLeft + lineNumbersWidth;
 		const contentLeft = decorationsLeft + lineDecorationsWidth;
+		const contentTop = _opts.paddingTop;
 
 		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
@@ -2070,6 +2091,8 @@ export class EditorLayoutProvider {
 
 		const verticalArrowSize = (verticalScrollbarHasArrows ? scrollbarArrowSize : 0);
 
+		const contentHeight = outerHeight - paddingTop - paddingBottom;
+
 		return {
 			width: outerWidth,
 			height: outerHeight,
@@ -2079,16 +2102,18 @@ export class EditorLayoutProvider {
 			glyphMarginHeight: outerHeight,
 
 			lineNumbersLeft: lineNumbersLeft,
+			lineNumbersTop: lineNumbersTop,
 			lineNumbersWidth: lineNumbersWidth,
-			lineNumbersHeight: outerHeight,
+			lineNumbersHeight: contentHeight,
 
 			decorationsLeft: decorationsLeft,
 			decorationsWidth: lineDecorationsWidth,
 			decorationsHeight: outerHeight,
 
 			contentLeft: contentLeft,
+			contentTop: contentTop,
 			contentWidth: contentWidth,
-			contentHeight: outerHeight,
+			contentHeight: contentHeight,
 
 			renderMinimap: renderMinimap,
 			minimapWidth: minimapWidth,

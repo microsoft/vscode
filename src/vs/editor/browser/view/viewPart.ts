@@ -35,6 +35,7 @@ export const enum PartFingerprint {
 	OverflowingContentWidgets,
 	OverflowGuard,
 	OverlayWidgets,
+	EdgeWidgets,
 	ScrollableElement,
 	TextArea,
 	ViewLines,

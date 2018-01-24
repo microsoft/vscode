@@ -99,6 +99,7 @@ export class EditorScrollbar extends ViewPart {
 		const layoutInfo = this._context.configuration.editor.layoutInfo;
 
 		this.scrollbarDomNode.setLeft(layoutInfo.contentLeft);
+		this.scrollbarDomNode.setTop(layoutInfo.contentTop);
 		this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimapWidth);
 		this.scrollbarDomNode.setHeight(layoutInfo.contentHeight);
 	}
