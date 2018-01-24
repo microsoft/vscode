@@ -34,6 +34,7 @@ class VariableResolver {
 		private workspaceContextService: IWorkspaceContextService
 	) {
 		if (isWindows) {
+			this.envVariables = {};
 			Object.keys(envVariables).forEach(key => {
 				this.envVariables[key.toLowerCase()] = envVariables[key];
 			});
