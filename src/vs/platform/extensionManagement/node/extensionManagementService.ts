@@ -106,6 +106,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private uninstalledPath: string;
 	private uninstalledFileLimiter: Limiter<void>;
 	private reportedExtensions: TPromise<IReportedExtension[]> | undefined;
+	private lastReportTimestamp = 0;
 	private disposables: IDisposable[] = [];
 
 	private readonly _onInstallExtension = new Emitter<InstallExtensionEvent>();
@@ -269,7 +270,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private downloadAndInstallExtension(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		let installingExtension = this.installingExtensions.get(extension.identifier.id);
 		if (!installingExtension) {
-			installingExtension = this.reportedExtensions
+			installingExtension = this.getExtensionsReport()
 				.then(report => {
 					if (getMaliciousExtensionsSet(report).has(extension.identifier.id)) {
 						throw new Error(nls.localize('malicious extension', "Can't install extension since it was reported to be malicious."));
@@ -790,8 +791,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				.then(() => result);
 		});
 	}
-
-	private lastReportTimestamp = 0;
 
 	getExtensionsReport(): TPromise<IReportedExtension[]> {
 		const now = new Date().getTime();
