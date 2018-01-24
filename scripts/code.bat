@@ -18,7 +18,8 @@ node build\lib\electron.js
 if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
 
 :: Get built-in extensions
-node build\lib\builtInExtensions.js || .\node_modules\.bin\gulp builtInExtensions
+node build\lib\builtInExtensions.js
+if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js builtInExtensions
 
 :: Build
 if not exist out node .\node_modules\gulp\bin\gulp.js compile
