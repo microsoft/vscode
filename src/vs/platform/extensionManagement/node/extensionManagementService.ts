@@ -19,9 +19,10 @@ import {
 	IGalleryExtension, IExtensionManifest, IGalleryMetadata,
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType,
 	StatisticType,
-	IExtensionIdentifier
+	IExtensionIdentifier,
+	IReportedExtension
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter } from 'vs/base/common/async';
@@ -103,8 +104,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private extensionsPath: string;
 	private uninstalledPath: string;
-	private userDataPath: string;
 	private uninstalledFileLimiter: Limiter<void>;
+	private reportedExtensions: TPromise<IReportedExtension[]> | undefined;
 	private disposables: IDisposable[] = [];
 
 	private readonly _onInstallExtension = new Emitter<InstallExtensionEvent>();
@@ -122,20 +123,19 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IChoiceService private choiceService: IChoiceService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@ILogService private logService: ILogService,
+		@ILogService private logService: ILogService
 	) {
 		this.extensionsPath = environmentService.extensionsPath;
 		this.uninstalledPath = path.join(this.extensionsPath, '.obsolete');
-		this.userDataPath = environmentService.userDataPath;
 		this.uninstalledFileLimiter = new Limiter(1);
 		this.disposables.push(toDisposable(() => this.installingExtensions.clear()));
 	}
 
 	private deleteExtensionsManifestCache(): void {
-		const cacheFolder = path.join(this.userDataPath, MANIFEST_CACHE_FOLDER);
+		const cacheFolder = path.join(this.environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, USER_MANIFEST_CACHE_FILE);
 
 		pfs.del(cacheFile).done(() => { }, () => { });
@@ -269,9 +269,22 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private downloadAndInstallExtension(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		let installingExtension = this.installingExtensions.get(extension.identifier.id);
 		if (!installingExtension) {
-			installingExtension = this.downloadInstallableExtension(extension).then(installableExtension => this.installExtension(installableExtension));
+			installingExtension = this.reportedExtensions
+				.then(report => {
+					if (getMaliciousExtensionsSet(report).has(extension.identifier.id)) {
+						throw new Error(nls.localize('malicious extension', "Can't install extension since it was reported to be malicious."));
+					} else {
+						return extension;
+					}
+				})
+				.then(extension => this.downloadInstallableExtension(extension))
+				.then(installableExtension => this.installExtension(installableExtension));
+
 			this.installingExtensions.set(extension.identifier.id, installingExtension);
-			installingExtension.then(local => { this.installingExtensions.delete(extension.identifier.id); return local; }, e => { this.installingExtensions.delete(extension.identifier.id); return TPromise.wrapError(e); });
+			installingExtension.then(
+				local => { this.installingExtensions.delete(extension.identifier.id); return local; },
+				e => { this.installingExtensions.delete(extension.identifier.id); return TPromise.wrapError(e); }
+			);
 		}
 		return installingExtension;
 	}
@@ -367,6 +380,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private installExtension(installableExtension: InstallableExtension): TPromise<ILocalExtension> {
+		// BLOCK REPORTED EXTENSIONS HERE?
+
 		return this.unsetUninstalledAndGetLocal(installableExtension.id)
 			.then(
 			local => {
@@ -774,6 +789,32 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				})
 				.then(() => result);
 		});
+	}
+
+	private lastReportTimestamp = 0;
+
+	getExtensionsReport(): TPromise<IReportedExtension[]> {
+		const now = new Date().getTime();
+
+		if (!this.reportedExtensions || now - this.lastReportTimestamp > 1000 * 60 * 5) { // 5 minute cache freshness
+			this.reportedExtensions = this.updateReportCache();
+			this.lastReportTimestamp = now;
+		}
+
+		return this.reportedExtensions;
+	}
+
+	private updateReportCache(): TPromise<IReportedExtension[]> {
+		this.logService.trace('ExtensionManagementService.refreshReportedCache');
+
+		return this.galleryService.getExtensionsReport()
+			.then(result => {
+				this.logService.trace(`ExtensionManagementService.refreshReportedCache - got ${result.length} reported extensions from service`);
+				return result;
+			}, err => {
+				this.logService.trace('ExtensionManagementService.refreshReportedCache - failed to get extension report');
+				return [];
+			});
 	}
 
 	dispose() {

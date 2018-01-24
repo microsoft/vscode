@@ -743,12 +743,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					map.set(id, ext);
 				}
 
-				for (const id of result.slow) {
-					const ext = map.get(id) || { id: { id }, malicious: false, slow: true };
-					ext.slow = true;
-					map.set(id, ext);
-				}
-
 				return TPromise.as(values(map));
 			});
 		});

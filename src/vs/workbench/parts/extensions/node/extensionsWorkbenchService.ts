@@ -22,7 +22,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
 	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -37,8 +37,8 @@ import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 
-interface IExtensionStateProvider {
-	(extension: Extension): ExtensionState;
+interface IExtensionStateProvider<T> {
+	(extension: Extension): T;
 }
 
 class Extension implements IExtension {
@@ -47,7 +47,7 @@ class Extension implements IExtension {
 
 	constructor(
 		private galleryService: IExtensionGalleryService,
-		private stateProvider: IExtensionStateProvider,
+		private stateProvider: IExtensionStateProvider<ExtensionState>,
 		public local: ILocalExtension,
 		public gallery: IGalleryExtension,
 		private telemetryService: ITelemetryService
@@ -152,6 +152,8 @@ class Extension implements IExtension {
 	get state(): ExtensionState {
 		return this.stateProvider(this);
 	}
+
+	public isMalicious: boolean = false;
 
 	get installCount(): number {
 		return this.gallery ? this.gallery.installCount : null;
@@ -321,7 +323,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	private static readonly SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
 
 	_serviceBrand: any;
-	private stateProvider: IExtensionStateProvider;
+	private stateProvider: IExtensionStateProvider<ExtensionState>;
 	private installing: IActiveExtension[] = [];
 	private uninstalling: IActiveExtension[] = [];
 	private installed: Extension[] = [];
@@ -399,15 +401,19 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	queryGallery(options: IQueryOptions = {}): TPromise<IPager<IExtension>> {
-		return this.galleryService.query(options)
-			.then(result => mapPager(result, gallery => this.fromGallery(gallery)))
-			.then(null, err => {
-				if (/No extension gallery service configured/.test(err.message)) {
-					return TPromise.as(singlePagePager([]));
-				}
+		return this.extensionService.getExtensionsReport().then(report => {
+			const maliciousSet = getMaliciousExtensionsSet(report);
 
-				return TPromise.wrapError<IPager<IExtension>>(err);
-			});
+			return this.galleryService.query(options)
+				.then(result => mapPager(result, gallery => this.fromGallery(gallery, maliciousSet)))
+				.then(null, err => {
+					if (/No extension gallery service configured/.test(err.message)) {
+						return TPromise.as(singlePagePager([]));
+					}
+
+					return TPromise.wrapError<IPager<IExtension>>(err);
+				});
+		});
 	}
 
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies> {
@@ -415,38 +421,47 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.wrap<IExtensionDependencies>(null);
 		}
 
-		return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(id => <IExtensionIdentifier>{ id }))
-			.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension)))
-			.then(extensions => [...this.local, ...extensions])
-			.then(extensions => {
-				const map = new Map<string, IExtension>();
-				for (const extension of extensions) {
-					map.set(extension.id, extension);
-				}
-				return new ExtensionDependencies(extension, extension.id, map);
-			});
+		return this.extensionService.getExtensionsReport().then(report => {
+			const maliciousSet = getMaliciousExtensionsSet(report);
+
+			return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(id => <IExtensionIdentifier>{ id }))
+				.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension, maliciousSet)))
+				.then(extensions => [...this.local, ...extensions])
+				.then(extensions => {
+					const map = new Map<string, IExtension>();
+					for (const extension of extensions) {
+						map.set(extension.id, extension);
+					}
+					return new ExtensionDependencies(extension, extension.id, map);
+				});
+		});
 	}
 
 	open(extension: IExtension, sideByside: boolean = false): TPromise<any> {
 		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside);
 	}
 
-	private fromGallery(gallery: IGalleryExtension): Extension {
-		const installed = this.getInstalledExtensionMatchingGallery(gallery);
+	private fromGallery(gallery: IGalleryExtension, maliciousExtensionSet: Set<string>): Extension {
+		let result = this.getInstalledExtensionMatchingGallery(gallery);
 
-		if (installed) {
+		if (result) {
 			// Loading the compatible version only there is an engine property
 			// Otherwise falling back to old way so that we will not make many roundtrips
 			if (gallery.properties.engine) {
 				this.galleryService.loadCompatibleVersion(gallery)
-					.then(compatible => compatible ? this.syncLocalWithGalleryExtension(installed, compatible) : null);
+					.then(compatible => compatible ? this.syncLocalWithGalleryExtension(result, compatible) : null);
 			} else {
-				this.syncLocalWithGalleryExtension(installed, gallery);
+				this.syncLocalWithGalleryExtension(result, gallery);
 			}
-			return installed;
+		} else {
+			result = new Extension(this.galleryService, this.stateProvider, null, gallery, this.telemetryService);
 		}
 
-		return new Extension(this.galleryService, this.stateProvider, null, gallery, this.telemetryService);
+		if (maliciousExtensionSet.has(result.id)) {
+			result.isMalicious = true;
+		}
+
+		return result;
 	}
 
 	private getInstalledExtensionMatchingGallery(gallery: IGalleryExtension): Extension {
@@ -533,6 +548,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return false;
 		}
 
+		if (extension.isMalicious) {
+			return false;
+		}
+
 		return !!(extension as Extension).gallery;
 	}
 
@@ -547,6 +566,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		if (!(extension instanceof Extension)) {
 			return undefined;
+		}
+
+		if (extension.isMalicious) {
+			return TPromise.wrapError<void>(new Error(nls.localize('malicious', "This extension is reported to be malicious.")));
 		}
 
 		const ext = extension as Extension;
