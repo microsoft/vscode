@@ -50,48 +50,36 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- workspace ---
 
-	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, ...add: { uri: UriComponents, name?: string }[]): Thenable<boolean> {
-		let workspaceFoldersToAdd: { uri: URI, name?: string }[] = [];
-		if (Array.isArray(add)) {
-			workspaceFoldersToAdd = add.map(f => ({ uri: URI.revive(f.uri), name: f.name }));
-		}
-
-		let workspaceFoldersToRemove: URI[] = [];
-		if (typeof deleteCount === 'number') {
-			workspaceFoldersToRemove = this._contextService.getWorkspace().folders.slice(index, index + deleteCount).map(f => f.uri);
-		}
-
-		if (!workspaceFoldersToAdd.length && !workspaceFoldersToRemove.length) {
-			return TPromise.as(false); // return early if we neither have folders to add nor remove
-		}
+	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents, name?: string }[]): Thenable<boolean> {
+		const workspaceFoldersToAdd = foldersToAdd.map(f => ({ uri: URI.revive(f.uri), name: f.name }));
 
 		// Indicate in status message
-		this._statusbarService.setStatusMessage(this.getStatusMessage(extensionName, workspaceFoldersToAdd.map(f => f.uri), workspaceFoldersToRemove), 10 * 1000 /* 10s */);
+		this._statusbarService.setStatusMessage(this.getStatusMessage(extensionName, workspaceFoldersToAdd.length, deleteCount), 10 * 1000 /* 10s */);
 
 		return this._workspaceEditingService.updateFolders(index, deleteCount, workspaceFoldersToAdd, true).then(() => true);
 	}
 
-	private getStatusMessage(extensionName, workspaceFoldersToAdd?: URI[], workspaceFoldersToRemove?: URI[]): string {
+	private getStatusMessage(extensionName, addCount: number, removeCount: number): string {
 		let message: string;
 
-		const wantsToDelete = Array.isArray(workspaceFoldersToRemove) && workspaceFoldersToRemove.length;
-		const wantsToAdd = Array.isArray(workspaceFoldersToAdd) && workspaceFoldersToAdd.length;
+		const wantsToAdd = addCount > 0;
+		const wantsToDelete = removeCount > 0;
 
 		// Add Folders
 		if (wantsToAdd && !wantsToDelete) {
-			if (workspaceFoldersToAdd.length === 1) {
+			if (addCount === 1) {
 				message = localize('folderStatusMessageAddSingleFolder', "Extension '{0}' added 1 folder to the workspace", extensionName);
 			} else {
-				message = localize('folderStatusMessageAddMultipleFolders', "Extension '{0}' added {1} folders to the workspace", extensionName, workspaceFoldersToAdd.length);
+				message = localize('folderStatusMessageAddMultipleFolders', "Extension '{0}' added {1} folders to the workspace", extensionName, addCount);
 			}
 		}
 
 		// Delete Folders
 		else if (wantsToDelete && !wantsToAdd) {
-			if (workspaceFoldersToRemove.length === 1) {
+			if (removeCount === 1) {
 				message = localize('folderStatusMessageRemoveSingleFolder', "Extension '{0}' removed 1 folder from the workspace", extensionName);
 			} else {
-				message = localize('folderStatusMessageRemoveMultipleFolders', "Extension '{0}' removed {1} folders from the workspace", extensionName, workspaceFoldersToRemove.length);
+				message = localize('folderStatusMessageRemoveMultipleFolders', "Extension '{0}' removed {1} folders from the workspace", extensionName, removeCount);
 			}
 		}
 

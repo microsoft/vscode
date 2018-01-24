@@ -89,7 +89,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	}
 
 	updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[]): Thenable<boolean> {
-		let validatedDistinctWorkspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[] = [];
+		const validatedDistinctWorkspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[] = [];
 		if (Array.isArray(workspaceFoldersToAdd)) {
 			workspaceFoldersToAdd.forEach(folderToAdd => {
 				if (URI.isUri(folderToAdd.uri) && !validatedDistinctWorkspaceFoldersToAdd.some(f => isEqual(f.uri, folderToAdd.uri, !isLinux))) {
@@ -98,11 +98,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			});
 		}
 
-		if (index < 0) {
-			return Promise.resolve(false); // index has to be at least 0
+		if ([index, deleteCount].some(i => typeof i !== 'number' || i < 0)) {
+			return Promise.resolve(false); // validate numbers
 		}
 
-		if (deleteCount <= 0 && validatedDistinctWorkspaceFoldersToAdd.length === 0) {
+		if (deleteCount === 0 && validatedDistinctWorkspaceFoldersToAdd.length === 0) {
 			return Promise.resolve(false); // nothing to delete or add
 		}
 
@@ -118,7 +118,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			return Promise.resolve(false); // nothing actually changed
 		}
 
-		return this._proxy.$updateWorkspaceFolders(extensionName, index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd);
+		return this._proxy.$updateWorkspaceFolders(extensionName, index, deleteCount, validatedDistinctWorkspaceFoldersToAdd);
 	}
 
 	getWorkspaceFolder(uri: vscode.Uri, resolveParent?: boolean): vscode.WorkspaceFolder {
