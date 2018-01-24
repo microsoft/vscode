@@ -367,7 +367,7 @@ class InlineImageView {
 			.empty()
 			.addClass('image', 'zoom-in')
 			.img({ src: InlineImageView.imageSrc(descriptor) })
-			.addClass('untouched')
+			.addClass('scale-to-fit')
 			.on(DOM.EventType.BLUR, () => {
 				ZoomStatusbarItem.instance.hide();
 			})
@@ -377,7 +377,7 @@ class InlineImageView {
 				let scaleDirection = ScaleDirection.IN;
 				let scale: Scale = InlineImageView.IMAGE_SCALE_CACHE.get(cacheKey) || 'fit';
 				if (scale) {
-					img.removeClass('untouched');
+					img.removeClass('scale-to-fit');
 					updateScale(scale);
 				}
 				ZoomStatusbarItem.instance.show(scale || 'fit', updateScale);
@@ -389,7 +389,7 @@ class InlineImageView {
 				function updateScale(newScale: Scale) {
 					if (newScale === 'fit') {
 						scale = 'fit';
-						img.addClass('untouched');
+						img.addClass('scale-to-fit');
 						img.style('width', 'auto');
 						InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, null);
 					} else {
@@ -399,7 +399,7 @@ class InlineImageView {
 						} else {
 							img.removeClass('pixelated');
 						}
-						img.removeClass('untouched');
+						img.removeClass('scale-to-fit');
 						setImageWidth(Math.floor(imgElement.naturalWidth * scale));
 						InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, scale);
 					}

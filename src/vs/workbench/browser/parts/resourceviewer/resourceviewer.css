@@ -39,7 +39,7 @@
 	image-rendering: pixelated;
 }
 
-.monaco-resource-viewer img.untouched {
+.monaco-resource-viewer img.scale-to-fit {
 	max-width: 100%;
 	object-fit: contain;
 }
