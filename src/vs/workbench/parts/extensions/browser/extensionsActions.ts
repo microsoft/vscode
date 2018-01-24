@@ -1555,6 +1555,34 @@ export class BuiltinStatusLabelAction extends Action {
 	}
 }
 
+export class MaliciousStatusLabelAction extends Action {
+
+	private static readonly Class = 'malicious-status';
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	constructor(long: boolean) {
+		const tooltip = localize('malicious tooltip', "This extension was reported to be malicious.");
+		const label = long ? tooltip : localize('malicious', "Malicious");
+		super('extensions.install', label, '', false);
+		this.tooltip = localize('malicious tooltip', "This extension was reported to be malicious.");
+	}
+
+	private update(): void {
+		if (this.extension && this.extension.isMalicious) {
+			this.class = `${MaliciousStatusLabelAction.Class} malicious`;
+		} else {
+			this.class = `${MaliciousStatusLabelAction.Class} not-malicious`;
+		}
+	}
+
+	run(): TPromise<any> {
+		return TPromise.as(null);
+	}
+}
+
 export class DisableAllAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.disableAll';

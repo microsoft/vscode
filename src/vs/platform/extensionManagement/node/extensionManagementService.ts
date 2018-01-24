@@ -373,6 +373,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private installExtension(installableExtension: InstallableExtension): TPromise<ILocalExtension> {
+		// BLOCK REPORTED EXTENSIONS HERE?
+
 		return this.unsetUninstalledAndGetLocal(installableExtension.id)
 			.then(
 			local => {
