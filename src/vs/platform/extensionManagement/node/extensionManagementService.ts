@@ -22,7 +22,7 @@ import {
 	IExtensionIdentifier,
 	IReportedExtension
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -255,8 +255,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private downloadAndInstallExtension(extensionToInstall: IGalleryExtension, installed: ILocalExtension[]): TPromise<ILocalExtension> {
-		return this.getMaliciousExtensionSet().then(maliciousSet => {
-			if (maliciousSet.has(extensionToInstall.identifier.id)) {
+		return this.reportedExtensions.then(report => {
+			if (getMaliciousExtensionsSet(report).has(extensionToInstall.identifier.id)) {
 				throw new Error(nls.localize('malicious extension', "Can't install extension since it was reported to be malicious."));
 			}
 
@@ -763,20 +763,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				this.logService.trace('ExtensionManagementService.refreshReportedCache - failed to get extension report');
 				return [];
 			});
-	}
-
-	private getMaliciousExtensionSet(): TPromise<Set<string>> {
-		return this.reportedExtensions.then(report => {
-			const result = new Set<string>();
-
-			for (const extension of report) {
-				if (extension.malicious) {
-					result.add(extension.id.id);
-				}
-			}
-
-			return result;
-		});
 	}
 
 	dispose() {
