@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { assign } from 'vs/base/common/objects';
 import * as map from 'vs/base/common/map';
-import { tail, flatten, first } from 'vs/base/common/arrays';
+import { tail, flatten } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference, Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -15,12 +15,13 @@ import { visit, JSONVisitor } from 'vs/base/common/json';
 import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, IGroupFilter, ISettingMatcher, ISettingMatch, ISearchResultGroup } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, IGroupFilter, ISettingMatcher, ISettingMatch, ISearchResultGroup, IFilterMetadata } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export abstract class AbstractSettingsModel extends EditorModel {
 
@@ -114,6 +115,19 @@ export abstract class AbstractSettingsModel extends EditorModel {
 		};
 	}
 
+	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> {
+		const metadata = Object.create(null);
+		let hasMetadata = false;
+		groups.forEach(g => {
+			if (g.result.metadata) {
+				metadata[g.id] = g.result.metadata;
+				hasMetadata = true;
+			}
+		});
+
+		return hasMetadata ? metadata : null;
+	}
+
 
 	protected get filterGroups(): ISettingsGroup[] {
 		return this.settingsGroups;
@@ -205,12 +219,12 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			};
 		}
 
-		const groupWithMetadata = first(resultGroups, group => !!group.result.metadata);
+		const metadata = this.collectMetadata(resultGroups);
 		return <IFilterResult>{
 			allGroups: this.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
 			matches,
-			metadata: groupWithMetadata && groupWithMetadata.result.metadata
+			metadata
 		};
 	}
 }
@@ -648,13 +662,13 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		const startLine = tail(this.settingsGroups).range.endLineNumber + 2;
 		const { settingsGroups: filteredGroups, matches } = this.writeResultGroups(nonEmptyResultGroups, startLine);
 
-		const groupWithMetadata = first(resultGroups, group => !!group.result.metadata);
+		const metadata = this.collectMetadata(resultGroups);
 		return resultGroups.length ?
 			<IFilterResult>{
 				allGroups: this.settingsGroups,
 				filteredGroups,
 				matches,
-				metadata: groupWithMetadata && groupWithMetadata.result.metadata
+				metadata
 			} :
 			null;
 	}

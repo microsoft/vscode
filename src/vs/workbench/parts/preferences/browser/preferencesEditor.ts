@@ -294,20 +294,24 @@ export class PreferencesEditor extends BaseEditor {
 		}
 	}
 
-	private reportFilteringUsed(filter: string, counts: IStringDictionary<number>, metadata?: IFilterMetadata): void {
+	private reportFilteringUsed(filter: string, counts: IStringDictionary<number>, metadata?: IStringDictionary<IFilterMetadata>): void {
 		if (filter && filter !== this._lastReportedFilter) {
+			let durations: any;
+			if (metadata) {
+				durations = Object.create(null);
+				Object.keys(metadata).forEach(key => durations[key] = metadata[key].duration);
+			}
+
 			let data = {
 				filter,
-				duration: metadata ? metadata.duration : undefined,
-				context: metadata ? metadata.context : undefined,
+				durations,
 				counts
 			};
 
 			/* __GDPR__
 				"defaultSettings.filter" : {
 					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"context" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"durations" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"counts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
@@ -352,7 +356,7 @@ class SettingsNavigator implements INavigator<ISetting> {
 
 interface IFilterOrSearchResult {
 	defaultSettingsGroupCounts: IStringDictionary<number>;
-	metadata: IFilterMetadata;
+	metadata: IStringDictionary<IFilterMetadata>;
 }
 
 class PreferencesRenderersController extends Disposable {

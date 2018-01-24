@@ -113,7 +113,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 		if (this.filterResult) {
 			data['query'] = this.filterResult.query;
-			data['duration'] = this.filterResult.metadata && this.filterResult.metadata.duration;
 			data['index'] = source.index;
 			data['groupId'] = source.groupId;
 			data['editableSide'] = !!fromEditableSettings;
@@ -123,9 +122,8 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 			"defaultSettingsActions.copySetting" : {
 				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"query" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"editableSide" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
@@ -622,31 +620,35 @@ export class FeedbackWidgetRenderer extends Disposable {
 		}
 
 		const result = this._currentResult;
-		const actualResults = result.metadata.scoredResults;
+		const metadata = result.metadata['nlpResult']; // Feedback only on nlpResult set for now
+		const marketplaceExtensionsResults = result.metadata['newExtensionsResult'] && result.metadata['newExtensionsResult'].scoredResults;
+		const actualResults = metadata ? metadata.scoredResults : {};
 		const actualResultIds = Object.keys(actualResults);
 
 		const feedbackQuery: any = {};
 		feedbackQuery['comment'] = FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT;
 		feedbackQuery['queryString'] = result.query;
-		feedbackQuery['resultScores'] = {};
+		feedbackQuery['resultScores'] = [];
 		actualResultIds.forEach(settingId => {
-			const outputKey = actualResults[settingId].key;
-			feedbackQuery['resultScores'][outputKey] = 10;
+			feedbackQuery['resultScores'].push({
+				packageID: actualResults[settingId].packageId,
+				key: actualResults[settingId].key,
+				score: 10
+			});
 		});
 		feedbackQuery['alts'] = [];
 
 		const contents = FeedbackWidgetRenderer.INSTRUCTION_TEXT + '\n' +
 			JSON.stringify(feedbackQuery, undefined, '    ') + '\n\n' +
-			actualResultIds.map(name => {
-				return `// ${actualResults[name].key}: ${actualResults[name].score}`;
-			}).join('\n');
+			this.getScoreText(actualResults) + '\n\n' +
+			this.getScoreText(marketplaceExtensionsResults) + '\n';
 
 		this.editorService.openEditor({ contents, language: 'jsonc' }, /*sideBySide=*/true).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
 			sendFeedbackWidget.render();
 
 			this._register(sendFeedbackWidget.onClick(() => {
-				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, result.metadata.scoredResults).then(() => {
+				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, metadata.scoredResults).then(() => {
 					sendFeedbackWidget.dispose();
 					this.messageService.show(Severity.Info, 'Feedback sent successfully');
 				}, err => {
@@ -654,6 +656,17 @@ export class FeedbackWidgetRenderer extends Disposable {
 				});
 			}));
 		});
+	}
+
+	private getScoreText(results?: IScoredResults): string {
+		if (!results) {
+			return '';
+		}
+
+		return Object.keys(results)
+			.map(name => {
+				return `// ${results[name].key}: ${results[name].score}`;
+			}).join('\n');
 	}
 
 	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, actualResults: IScoredResults): TPromise<void> {
@@ -685,11 +698,9 @@ export class FeedbackWidgetRenderer extends Disposable {
 			"settingsSearchResultFeedback" : {
 				"query" : { "classification": "CustomContent", "purpose": "FeatureInsight" },
 				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"url" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"timestamp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		return this.telemetryService.publicLog('settingsSearchResultFeedback', {
@@ -697,9 +708,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 			userComment,
 			actualResults,
 			expectedResults: expectedQuery.resultScores,
-			url: result.metadata.remoteUrl,
-			duration: result.metadata.duration,
-			timestamp: result.metadata.timestamp,
+			duration: result.metadata['nlpResult'].duration,
 			buildNumber: this.environmentService.settingsSearchBuildId,
 			alts,
 			autoIngest
