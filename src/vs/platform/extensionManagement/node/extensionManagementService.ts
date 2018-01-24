@@ -19,7 +19,8 @@ import {
 	IGalleryExtension, IExtensionManifest, IGalleryMetadata,
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType,
 	StatisticType,
-	IExtensionIdentifier
+	IExtensionIdentifier,
+	IReportedExtension
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
@@ -34,6 +35,7 @@ import { IChoiceService, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
 import { isMacintosh } from 'vs/base/common/platform';
 import { MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 const INSTALL_ERROR_OBSOLETE = 'obsolete';
@@ -100,8 +102,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private extensionsPath: string;
 	private obsoletePath: string;
-	private userDataPath: string;
+	private reportedPath: string;
 	private obsoleteFileLimiter: Limiter<void>;
+	private reportedExtensions: TPromise<IReportedExtension[]>;
 	private disposables: IDisposable[] = [];
 
 	private _onInstallExtension = new Emitter<InstallExtensionEvent>();
@@ -117,18 +120,22 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IChoiceService private choiceService: IChoiceService,
-		@IExtensionGalleryService private galleryService: IExtensionGalleryService
+		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
+		@ILogService private logService: ILogService
 	) {
 		this.extensionsPath = environmentService.extensionsPath;
 		this.obsoletePath = path.join(this.extensionsPath, '.obsolete');
-		this.userDataPath = environmentService.userDataPath;
 		this.obsoleteFileLimiter = new Limiter(1);
+		this.reportedPath = path.join(this.extensionsPath, '.reported');
+		this.reportedExtensions = this.loadReportFromCache();
+
+		setTimeout(() => this.loopRefreshReportCache(), 1000 * 10); // 10 seconds after boot
 	}
 
 	private deleteExtensionsManifestCache(): void {
-		const cacheFolder = path.join(this.userDataPath, MANIFEST_CACHE_FOLDER);
+		const cacheFolder = path.join(this.environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, USER_MANIFEST_CACHE_FILE);
 
 		pfs.del(cacheFile).done(() => { }, () => { });
@@ -725,6 +732,48 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				})
 				.then(() => result);
 		});
+	}
+
+	getExtensionsReport(): TPromise<IReportedExtension[]> {
+		return this.reportedExtensions;
+	}
+
+	private loadReportFromCache(): TPromise<IReportedExtension[]> {
+		this.logService.trace('ExtensionManagementService.loadReportedFromCache');
+
+		return pfs.readFile(this.reportedPath, 'utf8')
+			.then(raw => JSON.parse(raw))
+			.then(result => {
+				this.logService.trace(`ExtensionManagementService.loadReportedFromCache - loaded ${result.length} reported extensions from cache`);
+				return result;
+			}, () => {
+				this.logService.trace(`ExtensionManagementService.loadReportedFromCache - no cache found`);
+			});
+	}
+
+	private loopRefreshReportCache(): void {
+		this.refreshReportCache()
+			.then(() => TPromise.timeout(1000 * 60 * 5)) // every five minutes
+			.then(() => this.loopRefreshReportCache());
+	}
+
+	private refreshReportCache(): TPromise<any> {
+		this.logService.trace('ExtensionManagementService.refreshReportedCache');
+
+		return this.reportedExtensions = this.galleryService.getExtensionsReport()
+			.then(null, err => {
+				this.logService.trace('ExtensionManagementService.refreshReportedCache - failed to get extension report');
+				return [];
+			})
+			.then(result => {
+				this.logService.trace(`ExtensionManagementService.refreshReportedCache - got ${result.length} reported extensions from service`);
+
+				return pfs.writeFile(this.reportedPath, JSON.stringify(result))
+					.then(() => result, err => {
+						this.logService.trace('ExtensionManagementService.refreshReportedCache - failed to cache extension report');
+						return result;
+					});
+			});
 	}
 
 	dispose() {

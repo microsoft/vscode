@@ -218,7 +218,6 @@ export enum StatisticType {
 export interface IReportedExtension {
 	id: IExtensionIdentifier;
 	malicious: boolean;
-	slow: boolean;
 }
 
 export interface IExtensionGalleryService {
@@ -266,6 +265,7 @@ export interface IExtensionManagementService {
 	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
+	getExtensionsReport(): TPromise<IReportedExtension[]>;
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension>;
 }
