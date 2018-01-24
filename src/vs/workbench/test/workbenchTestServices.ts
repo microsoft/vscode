@@ -872,6 +872,10 @@ export class TestBackupFileService implements IBackupFileService {
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 	}
 
+	public resolveBackupContent(backup: URI): TPromise<ITextBufferFactory> {
+		return TPromise.as(null);
+	}
+
 	public discardResourceBackup(resource: URI): TPromise<void> {
 		return TPromise.as(void 0);
 	}
