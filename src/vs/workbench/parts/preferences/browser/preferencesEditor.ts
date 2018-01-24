@@ -58,6 +58,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -123,7 +124,8 @@ export class PreferencesEditor extends BaseEditor {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IProgressService private progressService: IProgressService
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
@@ -240,10 +242,10 @@ export class PreferencesEditor extends BaseEditor {
 	private onInputChanged(): void {
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
-		TPromise.join([
+		this.progressService.showWhile(TPromise.join([
 			this.preferencesRenderers.localFilterPreferences(query),
 			this.triggerThrottledSearch(query)
-		]).then(() => {
+		]), 250).then(() => {
 			const result = this.preferencesRenderers.lastFilterResult;
 			if (result) {
 				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(
