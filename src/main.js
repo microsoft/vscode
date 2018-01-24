@@ -269,16 +269,16 @@ function getNLSConfiguration(locale) {
 					return defaultResult();
 				}
 				let cacheRoot = path.join(userData, 'CachedLanguagePacks');
-				let id = commit + '_' + packConfig.version + '_' + locale;
-				let coreLocation = path.join(cacheRoot, 'vscode', id, 'core');
-				let extLocation = path.join(cacheRoot, 'vscode', id, 'ext');
+				let packId = packConfig.id + '-' + packConfig.version;
+				let id = commit + '-' + packId;
+				let coreLocation = path.join(cacheRoot, id);
 				let result = {
 					locale: initialLocale,
 					availableLanguages: { '*': locale },
+					_languagePackId: packId,
 					_languagePackLocation: packConfig.translations,
 					_cacheRoot: cacheRoot,
-					_resolvedLanguagePackCoreLocation: coreLocation,
-					_resolvedLanguagePackExtensionLocation: extLocation
+					_resolvedLanguagePackCoreLocation: coreLocation
 				};
 				return exists(coreLocation).then((fileExists) => {
 					if (fileExists) {

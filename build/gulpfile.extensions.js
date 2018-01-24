@@ -60,6 +60,16 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const i18nPath = path.join(__dirname, '..', 'i18n');
 	const baseUrl = getBaseUrl(out);
 
+	let headerId, headerOut;
+	let index = relativeDirname.indexOf('/');
+	if (index < 0) {
+		headerId = relativeDirname;
+		headerOut = 'out';
+	} else {
+		headerId = relativeDirname.substr(0, index);
+		headerOut = relativeDirname.substr(index + 1) + '/out';
+	}
+
 	function createPipeline(build, emitError) {
 		const reporter = createReporter();
 
@@ -85,7 +95,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 				}))
 				.pipe(tsFilter.restore)
 				.pipe(build ? nlsDev.createAdditionalLanguageFiles(languages, i18nPath, out) : es.through())
-				.pipe(build ? nlsDev.bundleMetaDataFiles(name, 'out') : es.through())
+				.pipe(build ? nlsDev.bundleMetaDataFiles(headerId, headerOut) : es.through())
 				.pipe(build ? nlsDev.bundleLanguageFiles() : es.through())
 				.pipe(reporter.end(emitError));
 
