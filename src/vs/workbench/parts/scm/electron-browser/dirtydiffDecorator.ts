@@ -376,7 +376,6 @@ class DirtyDiffWidget extends PeekViewWidget {
 }
 
 export abstract class ChangeAction extends EditorAction {
-	protected controller: DirtyDiffController;
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 
@@ -384,19 +383,20 @@ export abstract class ChangeAction extends EditorAction {
 			return;
 		}
 
-		this.controller = DirtyDiffController.get(outerEditor);
+		const controller = DirtyDiffController.get(outerEditor);
 
-		if (!this.controller) {
+		if (!controller) {
 			return;
 		}
 
-		if (!this.controller.canNavigate()) {
+		if (!controller.canNavigate()) {
 			return;
 		}
 
-		this.change();
+		this.runChangeAction(controller);
 	}
-	abstract change(): void;
+
+	abstract runChangeAction(controller: DirtyDiffController): void;
 }
 
 export class ShowPreviousChangeAction extends ChangeAction {
@@ -411,8 +411,8 @@ export class ShowPreviousChangeAction extends ChangeAction {
 		});
 	}
 
-	change(): void {
-		this.controller.previous();
+	runChangeAction(controller: DirtyDiffController): void {
+		controller.previous();
 	}
 }
 registerEditorAction(ShowPreviousChangeAction);
@@ -429,8 +429,8 @@ export class ShowNextChangeAction extends ChangeAction {
 		});
 	}
 
-	change(): void {
-		this.controller.next();
+	runChangeAction(controller: DirtyDiffController): void {
+		controller.next();
 	}
 }
 registerEditorAction(ShowNextChangeAction);
@@ -439,7 +439,7 @@ export class MoveToPreviousChangeAction extends ChangeAction {
 
 	constructor() {
 		super({
-			id: 'workbench.action.editor.previousChange',
+			id: 'editor.action.dirtydiff.move.previous',
 			label: nls.localize('move to previous change', "Move To Previous Change"),
 			alias: 'Move To Previous Change',
 			precondition: null,
@@ -447,8 +447,8 @@ export class MoveToPreviousChangeAction extends ChangeAction {
 		});
 	}
 
-	change(): void {
-		this.controller.moveToPrevious();
+	runChangeAction(controller: DirtyDiffController): void {
+		controller.moveToPrevious();
 	}
 }
 registerEditorAction(MoveToPreviousChangeAction);
@@ -457,7 +457,7 @@ export class MoveToNextChangeAction extends ChangeAction {
 
 	constructor() {
 		super({
-			id: 'workbench.action.editor.nextChange',
+			id: 'editor.action.dirtydiff.move.next',
 			label: nls.localize('move to next change', "Move To Next Change"),
 			alias: 'Move To Next Change',
 			precondition: null,
@@ -465,8 +465,8 @@ export class MoveToNextChangeAction extends ChangeAction {
 		});
 	}
 
-	change(): void {
-		this.controller.moveToNext();
+	runChangeAction(controller: DirtyDiffController): void {
+		controller.moveToNext();
 	}
 }
 registerEditorAction(MoveToNextChangeAction);
