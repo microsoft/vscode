@@ -302,16 +302,14 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	}
 
 	private updateLabel(scale: Scale) {
-		this.statusBarItem.textContent = scale === 'fit'
-			? nls.localize('zoom.fit.label', 'Fit')
-			: `${+(scale * 100).toFixed(2)}%`;
+		this.statusBarItem.textContent = ZoomStatusbarItem.zoomLabel(scale);
 	}
 
 	@memoize
 	private get zoomActions(): Action[] {
 		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.25, 'fit'];
 		return scales.map(scale =>
-			new Action('zoom.' + scale, ZoomStatusbarItem.zoomActionLabel(scale), undefined, undefined, () => {
+			new Action('zoom.' + scale, ZoomStatusbarItem.zoomLabel(scale), undefined, undefined, () => {
 				if (this.onSelectScale) {
 					this.onSelectScale(scale);
 				}
@@ -319,9 +317,9 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 			}));
 	}
 
-	private static zoomActionLabel(scale: Scale): string {
+	private static zoomLabel(scale: Scale): string {
 		return scale === 'fit'
-			? nls.localize('zoom.action.fit.label', 'Reset')
+			? nls.localize('zoom.action.fit.label', 'Whole Image')
 			: `${+(scale * 100).toFixed(2)}%`;
 	}
 }
