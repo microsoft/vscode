@@ -11,7 +11,6 @@ import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
-import { Action } from 'vs/base/common/actions';
 import { first, distinct } from 'vs/base/common/arrays';
 import { isObject, isUndefinedOrNull } from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
@@ -25,7 +24,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import { IMessageService, CloseAction, IChoiceService } from 'vs/platform/message/common/message';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
@@ -37,7 +36,7 @@ import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression,
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
-import { ToggleMarkersPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
+import Constants from 'vs/workbench/parts/markers/common/constants';
 import { ITaskService, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
@@ -89,6 +88,7 @@ export class DebugService implements debug.IDebugService {
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService,
 		@IMessageService private messageService: IMessageService,
+		@IChoiceService private choiceService: IChoiceService,
 		@IPartService private partService: IPartService,
 		@IWindowService private windowService: IWindowService,
 		@IBroadcastService private broadcastService: IBroadcastService,
@@ -790,10 +790,6 @@ export class DebugService implements debug.IDebugService {
 				}
 
 				this.toDisposeOnSessionEnd.set(sessionId, []);
-				const debugAnywayAction = new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
-					this.messageService.hideAll();
-					return this.doCreateProcess(root, resolvedConfig, sessionId);
-				});
 
 				return this.runPreLaunchTask(sessionId, root, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
 					const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
@@ -803,26 +799,32 @@ export class DebugService implements debug.IDebugService {
 						return this.doCreateProcess(root, resolvedConfig, sessionId);
 					}
 
-					this.messageService.show(severity.Error, {
-						message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
-							errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
-								nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode),
-						actions: [
-							debugAnywayAction,
-							this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
-							CloseAction
-						]
+					const message = errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
+						errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
+							nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode);
+
+					return this.choiceService.choose(severity.Error, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('cancel', "Cancel")], 2, true).then(choice => {
+						switch (choice) {
+							case 0:
+								return this.doCreateProcess(root, resolvedConfig, sessionId);
+							case 1:
+								return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
+							default:
+								return undefined;
+						}
 					});
-					return undefined;
 				}, (err: TaskError) => {
-					this.messageService.show(err.severity, {
-						message: err.message,
-						actions: [
-							debugAnywayAction,
-							this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL),
-							this.taskService.configureAction(),
-							CloseAction
-						]
+					return this.choiceService.choose(severity.Error, err.message, [nls.localize('debugAnyway', "Debug Anyway"), debugactions.ConfigureAction.LABEL, this.taskService.configureAction().label, nls.localize('cancel', "Cancel")], 3, true).then(choice => {
+						switch (choice) {
+							case 0:
+								return this.doCreateProcess(root, resolvedConfig, sessionId);
+							case 1:
+								return this.configurationManager.selectedLaunch.openConfigFile(false);
+							case 2:
+								return this.taskService.configureAction().run();
+							default:
+								return undefined;
+						}
 					});
 				});
 			}, err => {
