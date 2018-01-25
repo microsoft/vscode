@@ -298,7 +298,7 @@ export class XLF {
 					if (!originalFilePath) {
 						reject(new Error(`XLF parsing error: XLIFF file node does not contain original attribute to determine the original location of the resource file.`));
 					}
-					const language = file.$['target-language'].toLowerCase();
+					const language = file.$['target-language'];
 					if (!language) {
 						reject(new Error(`XLF parsing error: XLIFF file node does not contain target-language attribute to determine translated language.`));
 					}
@@ -320,7 +320,7 @@ export class XLF {
 						}
 					});
 
-					files.push({ messages: messages, originalFilePath: originalFilePath, language: language });
+					files.push({ messages: messages, originalFilePath: originalFilePath, language: language.toLowerCase() });
 				});
 
 				resolve(files);

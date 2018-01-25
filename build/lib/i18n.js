@@ -211,7 +211,7 @@ var XLF = /** @class */ (function () {
                     if (!originalFilePath) {
                         reject(new Error("XLF parsing error: XLIFF file node does not contain original attribute to determine the original location of the resource file."));
                     }
-                    var language = file.$['target-language'].toLowerCase();
+                    var language = file.$['target-language'];
                     if (!language) {
                         reject(new Error("XLF parsing error: XLIFF file node does not contain target-language attribute to determine translated language."));
                     }
@@ -230,7 +230,7 @@ var XLF = /** @class */ (function () {
                             reject(new Error("XLF parsing error: XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present."));
                         }
                     });
-                    files.push({ messages: messages, originalFilePath: originalFilePath, language: language });
+                    files.push({ messages: messages, originalFilePath: originalFilePath, language: language.toLowerCase() });
                 });
                 resolve(files);
             });

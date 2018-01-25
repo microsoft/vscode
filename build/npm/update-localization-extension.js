@@ -42,7 +42,7 @@ function update(idOrPath) {
 		let server = localization.server || 'www.transifex.com';
 		let userName = localization.userName || 'api';
 		let apiToken = process.env.TRANSIFEX_API_TOKEN;
-		let languageId = localization.languageId;
+		let languageId = localization.transifexId || localization.languageId;
 		let translationDataFolder = path.join(locExtFolder, localization.translations);
 
 		if (fs.existsSync(translationDataFolder) && fs.existsSync(path.join(translationDataFolder, 'main.i18n.json'))) {
@@ -50,7 +50,7 @@ function update(idOrPath) {
 			rimraf.sync(translationDataFolder);
 		}
 
-		console.log('Downloading translations to \'' + translationDataFolder + '\'...');
+		console.log('Downloading translations for \'' + languageId + '\' to \'' + translationDataFolder + '\'...');
 		i18n.pullI18nPackFiles(server, userName, apiToken, { id: languageId })
 			.pipe(vfs.dest(translationDataFolder));
 	});
