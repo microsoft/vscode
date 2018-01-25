@@ -480,12 +480,14 @@ class InlineImageView {
 			.empty()
 			.addClass('image', 'zoom-in')
 			.img({ src: InlineImageView.imageSrc(descriptor) })
+			.style('visibility', 'hidden')
 			.addClass('scale-to-fit')
 			.on(DOM.EventType.LOAD, (e, i) => {
 				img = i;
 				imgElement = img.getHTMLElement() as HTMLImageElement;
 				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', imgElement.naturalWidth, imgElement.naturalHeight, BinarySize.formatSize(descriptor.size)));
 				scrollbar.scanDomNode();
+				img.style('visibility', 'visible');
 				updateScale(scale);
 			});
 
