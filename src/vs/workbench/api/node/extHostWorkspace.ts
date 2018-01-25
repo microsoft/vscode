@@ -64,19 +64,11 @@ class Workspace2 extends Workspace {
 	}
 
 	static compareWorkspaceFolderByUri(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder, includeName?: boolean): number {
-		if (isFolderEqual(a.uri, b.uri)) {
-			return 0;
-		}
-
-		return compare(a.uri.toString(), b.uri.toString());
+		return isFolderEqual(a.uri, b.uri) ? 0 : compare(a.uri.toString(), b.uri.toString());
 	}
 
 	static compareWorkspaceFolderByUriAndName(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder): number {
-		if (isFolderEqual(a.uri, b.uri) && compare(a.name, b.name) === 0) {
-			return 0;
-		}
-
-		return compare(a.uri.toString(), b.uri.toString()) + compare(a.name, b.name);
+		return isFolderEqual(a.uri, b.uri) ? compare(a.name, b.name) : compare(a.uri.toString(), b.uri.toString());
 	}
 
 	private static _findFolder(workspace: Workspace2, folderUriToFind: URI): WorkspaceFolder {
