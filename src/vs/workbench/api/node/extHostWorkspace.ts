@@ -24,7 +24,7 @@ function isFolderEqual(folderA: URI, folderB: URI): boolean {
 
 class Workspace2 extends Workspace {
 
-	static acceptWorkspaceData(data: IWorkspaceData, oldWorkspace?: Workspace2): { workspace: Workspace2, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
+	static acceptWorkspaceData(data: IWorkspaceData, previousConfirmedWorkspace?: Workspace2, previousUnconfirmedWorkspace?: Workspace2): { workspace: Workspace2, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
 		if (!data) {
 			return { workspace: null, added: [], removed: [] };
 		}
@@ -35,6 +35,7 @@ class Workspace2 extends Workspace {
 		// If we have an existing workspace, we try to find the folders that match our
 		// data and update their properties. It could be that an extension stored them
 		// for later use and we want to keep them "live" if they are still present.
+		const oldWorkspace = previousUnconfirmedWorkspace || previousConfirmedWorkspace;
 		if (oldWorkspace) {
 			folders.forEach((folderData, index) => {
 				const folderUri = URI.revive(folderData.uri);
@@ -181,7 +182,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		// Update directly here. The workspace is unconfirmed as long as we did not get an
 		// acknowledgement from the main side (via acceptWorkspaceData)
 		if (this._actualWorkspace) {
-			this._unconfirmedWorkspace = Workspace2.acceptWorkspaceData({ id: this._actualWorkspace.id, name: this._actualWorkspace.name, configuration: this._actualWorkspace.configuration, folders: newWorkspaceFolders }, this._actualWorkspace).workspace;
+			const data: IWorkspaceData = {
+				id: this._actualWorkspace.id,
+				name: this._actualWorkspace.name,
+				configuration: this._actualWorkspace.configuration,
+				folders: newWorkspaceFolders
+			};
+
+			this._unconfirmedWorkspace = Workspace2.acceptWorkspaceData(data, this._actualWorkspace).workspace;
 		}
 
 		return true;
@@ -245,7 +253,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	$acceptWorkspaceData(data: IWorkspaceData): void {
 
-		const { workspace, added, removed } = Workspace2.acceptWorkspaceData(data, this._confirmedWorkspace /* use confirmed workspace to produce the true delta from last time */);
+		const { workspace, added, removed } = Workspace2.acceptWorkspaceData(data, this._confirmedWorkspace, this._unconfirmedWorkspace);
 
 		// Update our workspace object. We have a confirmed workspace, so we drop our
 		// unconfirmed workspace.

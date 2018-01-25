@@ -273,18 +273,21 @@ suite('ExtHostWorkspace', function () {
 		assert.equal(1, ws.workspace.folders.length);
 		assert.equal(ws.workspace.folders[0].uri.toString(), URI.parse('foo:bar').toString());
 
+		const firstAddedFolder = ws.workspace.folders[0];
+
 		let sub = ws.onDidChangeWorkspace(e => {
 			try {
 				assert.deepEqual(e.removed, []);
 				assert.equal(e.added.length, 1);
 				assert.equal(e.added[0].uri.toString(), 'foo:bar');
-				// assert.equal(e.added[0], firstFolder); // TODO
+				assert.equal(e.added[0], firstAddedFolder); // verify object is still live
 			} catch (error) {
 				finish(error);
 			}
 		});
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] }); // simulate acknowledgement from main side
 		sub.dispose();
+		assert.equal(ws.workspace.folders[0], firstAddedFolder); // verify object is still live
 
 		//
 		// Add two more folders
