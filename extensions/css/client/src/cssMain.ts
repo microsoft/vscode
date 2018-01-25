@@ -6,7 +6,7 @@
 import * as path from 'path';
 
 import * as nls from 'vscode-nls';
-const localize = nls.config(process.env.VSCODE_NLS_CONFIG, nls.ExtensionKind.prePackaged, path.join(__dirname, '..', '..'), 'client/out')();
+const localize = nls.loadMessageBundle();
 
 import { languages, window, commands, ExtensionContext, TextDocument, ColorInformation, ColorPresentation, Color, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';

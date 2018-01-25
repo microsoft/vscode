@@ -5,9 +5,6 @@
 
 'use strict';
 
-import * as nls from 'vscode-nls';
-/* const localize = */nls.config(process.env.VSCODE_NLS_CONFIG as string, nls.ExtensionKind.prePackaged, __dirname)();
-
 import { addJSONProviders } from './features/jsonContributions';
 import * as httpRequest from 'request-light';
 

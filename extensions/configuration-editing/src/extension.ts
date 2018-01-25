@@ -5,8 +5,7 @@
 'use strict';
 
 import * as nls from 'vscode-nls';
-const localize = nls.config(process.env.VSCODE_NLS_CONFIG, nls.ExtensionKind.prePackaged, __dirname)();
-
+const localize = nls.loadMessageBundle();
 import * as vscode from 'vscode';
 import { getLocation, visit, parse } from 'jsonc-parser';
 import * as path from 'path';

@@ -72,6 +72,6 @@ vscode-nls@^2.0.2:
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-2.0.2.tgz#808522380844b8ad153499af5c3b03921aea02da"
 
-vscode-nls@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.0.0.tgz#60853899984c0696f55efe41d79cb2dd61823f49"
+vscode-nls@^3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.1.0.tgz#a8a264c0d4bd3e1ed4746a9883235fec5b62968a"
