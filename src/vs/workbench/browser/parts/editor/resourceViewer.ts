@@ -327,7 +327,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 }
 
 Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
-	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, -1)
+	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, 101)
 );
 
 class InlineImageView {
