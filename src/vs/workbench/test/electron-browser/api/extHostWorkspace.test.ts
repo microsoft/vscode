@@ -198,6 +198,21 @@ suite('ExtHostWorkspace', function () {
 
 	});
 
+	test('Multiroot change keeps existing workspaces live', function () {
+		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0)] });
+
+		let firstFolder = ws.workspace.folders[0];
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar2'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1, 'renamed')] });
+
+		assert.equal(ws.workspace.folders[1], firstFolder);
+		assert.equal(firstFolder.index, 1);
+		assert.equal(firstFolder.name, 'renamed');
+
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0), aWorkspaceFolderData(URI.parse('foo:bar2'), 1), aWorkspaceFolderData(URI.parse('foo:bar'), 2)] });
+		assert.equal(ws.workspace.folders[2], firstFolder);
+		assert.equal(firstFolder.index, 2);
+	});
+
 	test('Multiroot change event is immutable', function () {
 		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] });
 		let sub = ws.onDidChangeWorkspace(e => {
