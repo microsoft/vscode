@@ -150,7 +150,7 @@ export class DebugService implements debug.IDebugService {
 
 			process.configuration.request = 'attach';
 			process.configuration.port = broadcast.payload.port;
-			this.doCreateProcess(process.session.root, process.configuration, process.getId());
+			this.createProcess(process.session.root, process.configuration, process.getId());
 			return;
 		}
 
