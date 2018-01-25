@@ -114,7 +114,7 @@ class ExtHostTreeView<T> extends Disposable {
 							}
 							return null;
 						})
-				))).then(extTreeItems => extTreeItems.map((({ element, extTreeItem }) => this.createTreeItem(element, extTreeItem, parentHandle))));
+				))).then(extTreeItems => coalesce(extTreeItems).map((({ element, extTreeItem }) => this.createTreeItem(element, extTreeItem, parentHandle))));
 	}
 
 	getExtensionElement(treeItemHandle: TreeItemHandle): T {

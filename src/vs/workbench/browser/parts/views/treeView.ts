@@ -245,7 +245,8 @@ class TreeDataSource implements IDataSource {
 				return children;
 			});
 		}
-		return TPromise.as(null);
+
+		return TPromise.as([]);
 	}
 
 	public shouldAutoexpand(tree: ITree, node: ITreeItem): boolean {
