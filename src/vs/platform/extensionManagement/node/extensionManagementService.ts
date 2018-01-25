@@ -279,13 +279,13 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					}
 				})
 				.then(extension => this.downloadInstallableExtension(extension))
-				.then(installableExtension => this.installExtension(installableExtension));
-
-			this.installingExtensions.set(extension.identifier.id, installingExtension);
-			installingExtension.then(
+				.then(installableExtension => this.installExtension(installableExtension))
+				.then(
 				local => { this.installingExtensions.delete(extension.identifier.id); return local; },
 				e => { this.installingExtensions.delete(extension.identifier.id); return TPromise.wrapError(e); }
-			);
+				);
+
+			this.installingExtensions.set(extension.identifier.id, installingExtension);
 		}
 		return installingExtension;
 	}
