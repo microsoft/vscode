@@ -137,12 +137,6 @@ function main() {
 		} catch (e) { /*noop*/ }
 	}
 
-	var locale = nlsConfig.availableLanguages['*'] || 'en';
-	if (locale === 'zh-tw') {
-		locale = 'zh-Hant';
-	} else if (locale === 'zh-cn') {
-		locale = 'zh-Hans';
-	}
 	if (nlsConfig._resolvedLanguagePackCoreLocation) {
 		let bundles = Object.create(null);
 		nlsConfig.loadBundle = function(bundle, language, cb) {
@@ -160,6 +154,12 @@ function main() {
 		};
 	}
 
+	var locale = nlsConfig.availableLanguages['*'] || 'en';
+	if (locale === 'zh-tw') {
+		locale = 'zh-Hant';
+	} else if (locale === 'zh-cn') {
+		locale = 'zh-Hans';
+	}
 	window.document.documentElement.setAttribute('lang', locale);
 
 	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
