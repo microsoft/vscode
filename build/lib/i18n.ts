@@ -145,23 +145,18 @@ module ModuleJsonFormat {
 	}
 }
 
-interface BundledExtensionFormat {
+interface BundledExtensionHeaderFormat {
+	id: string;
 	type: string;
-	name: string;
-	rootPath: string;
-	content: {
-		[key: string]: {
-			messages: string[];
-			keys: (string | LocalizeInfo)[];
-		}
-	};
+	hash: string;
+	outDir: string;
 }
 
-module BundledExtensionFormat {
-	export function is(value: any): value is BundledExtensionFormat {
-		let candidate = value as BundledExtensionFormat;
-		return Is.defined(candidate) && candidate.type === 'extensionBundle' && Is.string(candidate.name) && Is.string(candidate.rootPath) && Is.defined(candidate.content);
-	}
+interface BundledExtensionFormat {
+	[key: string]: {
+		messages: string[];
+		keys: (string | LocalizeInfo)[];
+	};
 }
 
 export class Line {

@@ -84,14 +84,6 @@ var ModuleJsonFormat;
     }
     ModuleJsonFormat.is = is;
 })(ModuleJsonFormat || (ModuleJsonFormat = {}));
-var BundledExtensionFormat;
-(function (BundledExtensionFormat) {
-    function is(value) {
-        var candidate = value;
-        return Is.defined(candidate) && candidate.type === 'extensionBundle' && Is.string(candidate.name) && Is.string(candidate.rootPath) && Is.defined(candidate.content);
-    }
-    BundledExtensionFormat.is = is;
-})(BundledExtensionFormat || (BundledExtensionFormat = {}));
 var Line = /** @class */ (function () {
     function Line(indent) {
         if (indent === void 0) { indent = 0; }
