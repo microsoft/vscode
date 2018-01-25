@@ -75,7 +75,8 @@ function main() {
 		nlsConfig.loadBundle = function(bundle, language, cb) {
 			let result = bundles[bundle];
 			if (result) {
-				cb(result);
+				cb(undefined, result);
+				return;
 			}
 			let bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
 			readFile(bundleFile).then(function (content) {
