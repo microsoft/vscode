@@ -83,6 +83,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private overlayContainer: HTMLElement;
 	private defineKeybindingWidget: DefineKeybindingWidget;
 
+	private keybindingsListHeader: HTMLElement;
 	private keybindingsListContainer: HTMLElement;
 	private unAssignedKeybindingItemToRevealAndFocus: IKeybindingItemEntry;
 	private listEntries: IListEntry[];
@@ -304,6 +305,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		searchContainer.appendChild(this.sortByPrecedence.domNode);
 
 		this.createOpenKeybindingsElement(this.headerContainer);
+		this.createListHeader(this.headerContainer);
 	}
 
 	private createOpenKeybindingsElement(parent: HTMLElement): void {
@@ -323,6 +325,18 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					return;
 			}
 		}));
+	}
+
+	private createListHeader(parent: HTMLElement): void {
+		this.keybindingsListHeader = $('.another-header');
+		DOM.append(this.keybindingsListHeader,
+			$('.header.actions'),
+			$('.header.command', null, localize('command', "Command")),
+			$('.header.keybinding', null, localize('keybinding', "Keybinding")),
+			$('.header.source', null, localize('source', "Source")),
+			$('.header.when', null, localize('when', "When")));
+
+		DOM.append(parent, this.keybindingsListHeader);
 	}
 
 	private createBody(parent: HTMLElement): void {

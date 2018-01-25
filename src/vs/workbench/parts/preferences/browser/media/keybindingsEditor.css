@@ -10,7 +10,7 @@
 /* header styling */
 
 .keybindings-editor > .keybindings-header {
-	padding: 0px 10px 11px 0;
+	padding-right: 10px;
 }
 
 .keybindings-editor > .keybindings-header > .search-container {
@@ -57,6 +57,30 @@
 
 /** List based styling **/
 
+.keybindings-editor .another-header {
+	width: calc(100% + 10px);/* 10px right padding in parent: .keybindings-header */
+	display: flex;
+	height: 28px;
+	border-collapse: separate;
+	white-space: nowrap;
+	text-align: left;
+	font-weight: bold;
+	overflow: hidden;
+
+	cursor: default;
+	align-items: flex-start;
+	justify-content: center;
+}
+
+.keybindings-editor .another-header > .header {
+	align-items: center;
+	display: flex;
+	overflow: hidden;
+	text-align: left;
+	height: 28px;
+	margin-right: 6px;
+}
+
 .keybindings-editor > .keybindings-body .keybindings-list-container {
 	width: 100%;
 	border-spacing: 0;
@@ -95,12 +119,14 @@
 	margin-right: 6px;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .actions {
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .actions,
+.keybindings-editor > .keybindings-header > .another-header > .actions {
 	width: 24px;
 	padding-right: 2px;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command {
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command,
+.keybindings-editor > .keybindings-header > .another-header > .command {
 	flex: 0.75;
 }
 
@@ -115,7 +141,8 @@
 	margin-top: 2px;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding {
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding,
+.keybindings-editor > .keybindings-header > .another-header > .keybinding {
 	flex: 0.5;
 }
 
@@ -123,11 +150,13 @@
 	padding-left: 10px;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .source {
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .source,
+.keybindings-editor > .keybindings-header > .another-header > .source {
 	flex: 0.25;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .when {
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .when,
+.keybindings-editor > .keybindings-header > .another-header > .when {
 	flex: 1;
 }
 
