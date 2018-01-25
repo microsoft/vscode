@@ -330,6 +330,12 @@ Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
 	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, 101)
 );
 
+interface ImageState {
+	scale: Scale;
+	offsetX: number;
+	offsetY: number;
+}
+
 class InlineImageView {
 	private static readonly SCALE_PINCH_FACTOR = 0.05;
 	private static readonly SCALE_FACTOR = 1.5;
@@ -350,9 +356,9 @@ class InlineImageView {
 	private static IMAGE_RESOURCE_ETAG_CACHE = new LRUCache<string, { etag: string, src: string }>(100);
 
 	/**
-	 * Store the scale of an image so it can be restored when changing editor tabs
+	 * Store the scale and position of an image so it can be restored when changing editor tabs
 	 */
-	private static readonly IMAGE_SCALE_CACHE = new LRUCache<string, number>(100);
+	private static readonly imageStateCache = new LRUCache<string, ImageState>(100);
 
 	public static create(
 		container: Builder,
@@ -367,7 +373,8 @@ class InlineImageView {
 		const cacheKey = descriptor.resource.toString();
 
 		let scaleDirection = ScaleDirection.IN;
-		let scale: Scale = InlineImageView.IMAGE_SCALE_CACHE.get(cacheKey) || 'fit';
+		const initialState: ImageState = InlineImageView.imageStateCache.get(cacheKey) || { scale: 'fit', offsetX: 0, offsetY: 0 };
+		let scale = initialState.scale;
 		let img: Builder | null = null;
 		let imgElement: HTMLImageElement | null = null;
 
@@ -381,7 +388,7 @@ class InlineImageView {
 				img.addClass('scale-to-fit');
 				img.removeClass('pixelated');
 				img.style('width', 'auto');
-				InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, null);
+				InlineImageView.imageStateCache.set(cacheKey, null);
 			} else {
 				const oldWidth = imgElement.width;
 				const oldHeight = imgElement.height;
@@ -400,15 +407,19 @@ class InlineImageView {
 				img.removeClass('scale-to-fit');
 				img.style('width', `${(imgElement.naturalWidth * scale)}px`);
 				img.style('height', 'auto');
-				InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, scale);
 
 				const newWidth = imgElement.width;
 				const scaleFactor = (newWidth - oldWidth) / oldWidth;
 
+				const newScrollLeft = ((oldWidth * scaleFactor * dx) + scrollLeft);
+				const newScrollTop = ((oldHeight * scaleFactor * dy) + scrollTop);
 				scrollbar.setScrollPosition({
-					scrollLeft: ((oldWidth * scaleFactor * dx) + scrollLeft),
-					scrollTop: ((oldHeight * scaleFactor * dy) + scrollTop),
+					scrollLeft: newScrollLeft,
+					scrollTop: newScrollTop,
 				});
+
+				InlineImageView.imageStateCache.set(cacheKey, { scale: scale, offsetX: newScrollLeft, offsetY: newScrollTop });
+
 			}
 			ZoomStatusbarItem.instance.show(scale, updateScale);
 			scrollbar.scanDomNode();
@@ -474,6 +485,17 @@ class InlineImageView {
 				// scrolling up, pinching out should increase the scale
 				const delta = -e.deltaY;
 				updateScale(scale as number + delta * InlineImageView.SCALE_PINCH_FACTOR);
+			})
+			.on(DOM.EventType.SCROLL, () => {
+				if (!imgElement || !imgElement.parentElement || scale === 'fit') {
+					return;
+				}
+
+				const entry = InlineImageView.imageStateCache.get(cacheKey);
+				if (entry) {
+					const { scrollTop, scrollLeft } = imgElement.parentElement;
+					InlineImageView.imageStateCache.set(cacheKey, { scale: entry.scale, offsetX: scrollLeft, offsetY: scrollTop });
+				}
 			});
 
 		$(container)
@@ -489,6 +511,12 @@ class InlineImageView {
 				scrollbar.scanDomNode();
 				img.style('visibility', 'visible');
 				updateScale(scale);
+				if (initialState.scale !== 'fit') {
+					scrollbar.setScrollPosition({
+						scrollLeft: initialState.offsetX,
+						scrollTop: initialState.offsetY,
+					});
+				}
 			});
 
 		return context;
