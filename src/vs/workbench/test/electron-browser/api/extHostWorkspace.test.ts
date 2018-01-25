@@ -263,7 +263,13 @@ suite('ExtHostWorkspace', function () {
 			}
 		};
 
-		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] });
+		const protocol = {
+			getProxy: () => { return undefined; },
+			set: undefined,
+			assertRegistered: undefined
+		};
+
+		const ws = new ExtHostWorkspace(protocol, { id: 'foo', name: 'Test', folders: [] });
 
 		//
 		// Add one folder
@@ -374,18 +380,31 @@ suite('ExtHostWorkspace', function () {
 		finish();
 	});
 
-	test('Multiroot change event is immutable', function () {
+	test('Multiroot change event is immutable', function (done) {
+		let finished = false;
+		const finish = (error?) => {
+			if (!finished) {
+				finished = true;
+				done(error);
+			}
+		};
+
 		let ws = new ExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [] });
 		let sub = ws.onDidChangeWorkspace(e => {
-			assert.throws(() => {
-				(<any>e).added = [];
-			});
-			assert.throws(() => {
-				(<any>e.added)[0] = null;
-			});
+			try {
+				assert.throws(() => {
+					(<any>e).added = [];
+				});
+				assert.throws(() => {
+					(<any>e.added)[0] = null;
+				});
+			} catch (error) {
+				finish(error);
+			}
 		});
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [] });
 		sub.dispose();
+		finish();
 	});
 
 	test('`vscode.workspace.getWorkspaceFolder(file)` don\'t return workspace folder when file open from command line. #36221', function () {

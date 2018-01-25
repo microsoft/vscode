@@ -177,7 +177,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		}
 
 		// Trigger on main side
-		this._proxy.$updateWorkspaceFolders(extensionName, index, deleteCount, validatedDistinctWorkspaceFoldersToAdd).then(null, onUnexpectedError);
+		if (this._proxy) {
+			this._proxy.$updateWorkspaceFolders(extensionName, index, deleteCount, validatedDistinctWorkspaceFoldersToAdd).then(null, onUnexpectedError);
+		}
 
 		// Try to accept directly
 		const accepted = this.trySetWorkspaceData({ id: this._actualWorkspace.id, name: this._actualWorkspace.name, configuration: this._actualWorkspace.configuration, folders: newWorkspaceFolders } as IWorkspaceData);
