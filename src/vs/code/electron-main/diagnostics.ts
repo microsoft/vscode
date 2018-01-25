@@ -215,7 +215,6 @@ function getProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): Proce
 	info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
 
 	const processes: ProcessInfo[] = [];
-	getProcessItem(mapPidToWindowTitle, processes, rootProcess, 0);
 
 	if (rootProcess) {
 		getProcessItem(mapPidToWindowTitle, processes, rootProcess, 0);

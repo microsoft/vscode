@@ -9,6 +9,7 @@ import 'vs/css!./media/issueReporter';
 import { shell, ipcRenderer, webFrame, remote } from 'electron';
 import { localize } from 'vs/nls';
 import { $ } from 'vs/base/browser/dom';
+import * as collections from 'vs/base/common/collections';
 import * as browser from 'vs/base/browser/browser';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
@@ -28,11 +29,16 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import { IssueReporterModel, IssueType } from 'vs/code/electron-browser/issue/issueReporterModel';
+import { IssueReporterData, IssueReporterStyles } from 'vs/platform/issue/common/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
+import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
-export function startup(configuration: IWindowConfiguration) {
+export interface IssueReporterConfiguration extends IWindowConfiguration {
+	data: IssueReporterData;
+}
+
+export function startup(configuration: IssueReporterConfiguration) {
 	document.body.innerHTML = BaseHtml();
 	const issueReporter = new IssueReporter(configuration);
 
@@ -48,23 +54,19 @@ export class IssueReporter extends Disposable {
 	private telemetryService: ITelemetryService;
 	private issueReporterModel: IssueReporterModel;
 
-	constructor(configuration: IWindowConfiguration) {
+	constructor(configuration: IssueReporterConfiguration) {
 		super();
 
 		this.issueReporterModel = new IssueReporterModel({
-			issueType: 0,
+			issueType: IssueType.Bug,
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
+			includeExtensions: true,
 			versionInfo: {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
 				os: `${os.type()} ${os.arch()} ${os.release()}`
 			}
-		});
-
-		ipcRenderer.on('issueStyleResponse', (event, styles: IssueReporterStyles) => {
-			this.applyZoom(styles.zoomLevel);
-			this.applyStyles(styles);
 		});
 
 		ipcRenderer.on('issueInfoResponse', (event, info) => {
@@ -78,7 +80,6 @@ export class IssueReporter extends Disposable {
 		});
 
 		ipcRenderer.send('issueInfoRequest');
-		ipcRenderer.send('issueStyleRequest');
 
 		this.initServices(configuration);
 		this.setEventHandlers();
@@ -86,6 +87,10 @@ export class IssueReporter extends Disposable {
 		if (window.document.documentElement.lang !== 'en') {
 			show(document.getElementById('english'));
 		}
+
+		this.applyZoom(configuration.data.zoomLevel);
+		this.applyStyles(configuration.data.styles);
+		this.handleExtensionData(configuration.data.enabledExtensions);
 	}
 
 	render(): void {
@@ -153,6 +158,18 @@ export class IssueReporter extends Disposable {
 		document.body.style.color = styles.color;
 	}
 
+	private handleExtensionData(extensions: ILocalExtension[]) {
+		const { nonThemes, themes } = collections.groupBy(extensions, ext => {
+			const manifestKeys = ext.manifest.contributes ? Object.keys(ext.manifest.contributes) : [];
+			const onlyTheme = !ext.manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+			return onlyTheme ? 'themes' : 'nonThemes';
+		});
+
+		const numberOfThemeExtesions = themes && themes.length;
+		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes });
+		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
+	}
+
 	private initServices(configuration: IWindowConfiguration): void {
 		const serviceCollection = new ServiceCollection();
 		const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
@@ -187,19 +204,11 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		document.getElementById('includeSystemInfo').addEventListener('click', (event: Event) => {
-			event.stopPropagation();
-			this.issueReporterModel.update({ includeSystemInfo: !this.issueReporterModel.getData().includeSystemInfo });
-		});
-
-		document.getElementById('includeProcessInfo').addEventListener('click', (event: Event) => {
-			event.stopPropagation();
-			this.issueReporterModel.update({ includeProcessInfo: !this.issueReporterModel.getData().includeSystemInfo });
-		});
-
-		document.getElementById('includeWorkspaceInfo').addEventListener('click', (event: Event) => {
-			event.stopPropagation();
-			this.issueReporterModel.update({ includeWorkspaceInfo: !this.issueReporterModel.getData().includeWorkspaceInfo });
+		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions'].forEach(elementId => {
+			document.getElementById(elementId).addEventListener('click', (event: Event) => {
+				event.stopPropagation();
+				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
+			});
 		});
 
 		document.getElementById('description').addEventListener('blur', (event: Event) => {
@@ -261,35 +270,34 @@ export class IssueReporter extends Disposable {
 		const systemBlock = document.querySelector('.block-system');
 		const processBlock = document.querySelector('.block-process');
 		const workspaceBlock = document.querySelector('.block-workspace');
+		const extensionsBlock = document.querySelector('.block-extensions');
 
 		const descriptionTitle = document.getElementById('issue-description-label');
 		const descriptionSubtitle = document.getElementById('issue-description-subtitle');
 
-		// 1 - Bug
-		if (issueType === 0) {
+		if (issueType === IssueType.Bug) {
 			show(systemBlock);
 			hide(processBlock);
 			hide(workspaceBlock);
+			show(extensionsBlock);
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
 			descriptionSubtitle.innerHTML = localize('bugDescription', "How did you encounter this problem? Please provide clear steps to reproduce the problem during our investigation. What did you expect to happen and what actually did happen?");
-		}
-		// 2 - Perf Issue
-		else if (issueType === 1) {
+		} else if (issueType === IssueType.PerformanceIssue) {
 			show(systemBlock);
 			show(processBlock);
 			show(workspaceBlock);
+			show(extensionsBlock);
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
 			descriptionSubtitle.innerHTML = localize('performanceIssueDesciption', "When did this performance issue happen? For example, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.");
-		}
-		// 3 - Feature Request
-		else {
+		} else {
 			hide(systemBlock);
 			hide(processBlock);
 			hide(workspaceBlock);
+			hide(extensionsBlock);
 
 			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
 			hide(descriptionSubtitle);
@@ -367,10 +375,10 @@ export class IssueReporter extends Disposable {
 		let tableHtml = '';
 		Object.keys(state.systemInfo).forEach(k => {
 			tableHtml += `
-<tr>
-	<td>${k}</td>
-	<td>${state.systemInfo[k]}</td>
-</tr>`;
+				<tr>
+					<td>${k}</td>
+					<td>${state.systemInfo[k]}</td>
+				</tr>`;
 		});
 		target.innerHTML = `<table>${tableHtml}</table>`;
 	}
@@ -379,27 +387,57 @@ export class IssueReporter extends Disposable {
 		const target = document.querySelector('.block-process .block-info');
 
 		let tableHtml = `
-<tr>
-	<th>pid</th>
-	<th>CPU %</th>
-	<th>Memory (MB)</th>
-	<th>Name</th>
-</tr>
-`;
+			<tr>
+				<th>pid</th>
+				<th>CPU %</th>
+				<th>Memory (MB)</th>
+				<th>Name</th>
+			</tr>`;
+
 		state.processInfo.forEach(p => {
 			tableHtml += `
-<tr>
-	<td>${p.pid}</td>
-	<td>${p.cpu}</td>
-	<td>${p.memory}</td>
-	<td>${p.name}</td>
-</tr>`;
+				<tr>
+					<td>${p.pid}</td>
+					<td>${p.cpu}</td>
+					<td>${p.memory}</td>
+					<td>${p.name}</td>
+				</tr>`;
 		});
+
 		target.innerHTML = `<table>${tableHtml}</table>`;
 	}
 
 	private updateWorkspaceInfo = (state) => {
 		document.querySelector('.block-workspace .block-info code').textContent = '\n' + state.workspaceInfo;
+	}
+
+	private updateExtensionTable(extensions: ILocalExtension[], numThemeExtensions: number): void {
+		const target = document.querySelector('.block-extensions .block-info');
+		const themeExclusionStr = numThemeExtensions ? `\n(${numThemeExtensions} theme extensions excluded)` : '';
+		extensions = extensions || [];
+
+		if (!extensions.length) {
+			target.innerHTML = 'Extensions: none' + themeExclusionStr;
+			return;
+		}
+
+		let table = `
+			<tr>
+				<th>Extension</th>
+				<th>Author (truncated)</th>
+				<th>Version</th>
+			</tr>`;
+
+		extensions.forEach(extension => {
+			table += `
+				<tr>
+					<td>${extension.manifest.name}</td>
+					<td>${extension.manifest.publisher.substr(0, 3)}</td>
+					<td>${extension.manifest.version}</td>
+				</tr>`;
+		});
+
+		target.innerHTML = `<table>${table}</table>${themeExclusionStr}`;
 	}
 }
 

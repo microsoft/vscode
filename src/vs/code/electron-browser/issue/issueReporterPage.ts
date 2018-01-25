@@ -81,6 +81,18 @@ export default (): string => `
 				</pre>
 			</details>
 		</div>
+		<div class="block block-extensions">
+			<details>
+				<summary>${escape(localize('extensions', "Extensions"))}
+					<input type="checkbox" id="includeExtensions" checked>
+						<label class="caption" for="includeExtensions">${escape(localize('sendData', "Send my data"))}</label>
+					</input>
+				</summary>
+				<div class="block-info">
+					<!-- To be dynamically filled -->
+				</div>
+			</details>
+		</div>
 	</div>
 
 	<div class="input-group">
