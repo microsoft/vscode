@@ -944,7 +944,7 @@ export class CodeMenu {
 			const label = nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue");
 
 			if (this.windowsMainService.getWindowCount() > 0) {
-				reportIssuesItem = this.createMenuItem(label, 'workbench.action.reportIssues');
+				reportIssuesItem = this.createMenuItem(label, 'workbench.action.openIssueReporter');
 			} else {
 				reportIssuesItem = new MenuItem({ label: this.mnemonicLabel(label), click: () => this.openUrl(product.reportIssueUrl, 'openReportIssues') });
 			}
