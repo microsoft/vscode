@@ -30,6 +30,7 @@
 	"inspect-extensions": "Eklentilerde hata ayıklama ve ayrımlamaya izin ver. Bağlantı URI'ı için geliştirici araçlarını kontrol edin.",
 	"inspect-brk-extensions": "Eklentilerde hata ayıklama ve ayrımlamaya eklenti sunucusu başladıktan hemen sonra duraklatılacak şekilde izin ver. Bağlantı URI'ı için geliştirici araçlarını kontrol edin.",
 	"disableGPU": "GPU donanım hızlandırmasını devre dışı bırak.",
+	"issue": "Sorun bildirin.",
 	"usage": "Kullanım",
 	"options": "seçenekler",
 	"paths": "yollar",

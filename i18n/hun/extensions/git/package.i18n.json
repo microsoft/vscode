@@ -60,6 +60,7 @@
 	"config.enableLongCommitWarning": "Figyelmeztessen-e az alkalmazás hosszú beadási üzenet esetén",
 	"config.confirmSync": "Megerősítés kérése git forráskódtárak szinkronizálása előtt",
 	"config.countBadge": "Meghatározza a git jelvényen megjelenő számláló működését. Az `all` minden módosítást számol, a `tracked` csak a követkett változtatásokat. Az `off` kikapcsolja a jelvényt.",
+	"config.checkoutType": "Meghatározza, hogy milyen típusú ágak jelenjenek meg a `Checkout adott helyről... ` parancs futtatása esetén. Az  `all` esetén az összes ref megjelenik, `local` esetén csak a helyi ágak, `tags` esetén csak a címkék, `remote` esetén pedig csak a távoli ágak.",
 	"config.ignoreLegacyWarning": "Régi gittel kapcsolatos figyelmeztetés figyelmen kívül hagyása",
 	"config.ignoreMissingGitWarning": "Figyelmeztetés figyelmen kívül hagyása, ha a Git hiányzik",
 	"config.ignoreLimitWarning": "Túl sok módosítás esetén megjelenő figyelmeztetés figyelmen kívül hagyása",

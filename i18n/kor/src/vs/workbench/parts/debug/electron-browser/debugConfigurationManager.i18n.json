@@ -19,8 +19,6 @@
 	"vscode.extension.contributes.debuggers.configurationAttributes": "'launch.json'의 유효성 검사를 위한 JSON 스키마 구성입니다.",
 	"vscode.extension.contributes.debuggers.windows": "Windows 특정 설정",
 	"vscode.extension.contributes.debuggers.windows.runtime": "Windows에 사용되는 런타임입니다.",
-	"vscode.extension.contributes.debuggers.osx": "OS X 특정 설정입니다.",
-	"vscode.extension.contributes.debuggers.osx.runtime": "OSX에 사용되는 런타임입니다.",
 	"vscode.extension.contributes.debuggers.linux": "Linux 특정 설정",
 	"vscode.extension.contributes.debuggers.linux.runtime": "Linux에 사용되는 런타임입니다.",
 	"vscode.extension.contributes.breakpoints": "중단점을 적용합니다.",
