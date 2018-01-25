@@ -83,7 +83,7 @@ export default (): string => `
 		</div>
 		<div class="block block-extensions">
 			<details>
-				<summary>${escape(localize('extensions', "Extensions"))}
+				<summary>${escape(localize('extensions', "My Extensions"))}
 					<input type="checkbox" id="includeExtensions" checked>
 						<label class="caption" for="includeExtensions">${escape(localize('sendData', "Send my data"))}</label>
 					</input>

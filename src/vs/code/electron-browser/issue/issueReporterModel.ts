@@ -27,6 +27,7 @@ export interface IssueReporterData {
 	includeExtensions?: boolean;
 	numberOfThemeExtesions?: number;
 	enabledNonThemeExtesions?: ILocalExtension[];
+	extensionsDisabled?: boolean;
 }
 
 export class IssueReporterModel {
@@ -152,6 +153,10 @@ ${this._data.workspaceInfo};
 	}
 
 	private generateExtensionsMd(): string {
+		if (this._data.extensionsDisabled) {
+			return 'Extensions disabled';
+		}
+
 		const themeExclusionStr = this._data.numberOfThemeExtesions ? `\n(${this._data.numberOfThemeExtesions} theme extensions excluded)` : '';
 
 		if (!this._data.enabledNonThemeExtesions) {

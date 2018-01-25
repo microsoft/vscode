@@ -7,6 +7,8 @@
 
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
+import * as objects from 'vs/base/common/objects';
+import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain } from 'electron';
 import { ILaunchService } from 'vs/code/electron-main/launch';
@@ -34,7 +36,7 @@ export class IssueService implements IIssueService {
 
 		this._issueWindow = new BrowserWindow({
 			width: 800,
-			height: 900,
+			height: 1000,
 			title: localize('issueReporter', "Issue Reporter"),
 			parent: BrowserWindow.getFocusedWindow(),
 			backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR
@@ -62,13 +64,22 @@ export class IssueService implements IIssueService {
 	}
 
 	private getIssueReporterPath(data: IssueReporterData) {
-		const config = {
+		const windowConfiguration = {
 			appRoot: this.environmentService.appRoot,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 			windowId: this._issueWindow.id,
 			machineId: this.machineId,
 			data
 		};
+
+		const environment = parseArgs(process.argv);
+		const config = objects.assign(environment, windowConfiguration);
+		for (let key in config) {
+			if (config[key] === void 0 || config[key] === null || config[key] === '') {
+				delete config[key]; // only send over properties that have a true value
+			}
+		}
+
 		return `${require.toUrl('vs/code/electron-browser/issue/issueReporter.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}
 }
