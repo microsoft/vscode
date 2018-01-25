@@ -282,7 +282,7 @@ function getNLSConfiguration(locale) {
 					return defaultResult();
 				}
 				let packId = packConfig.extensionIdentifier.id + '-' + packConfig.version;
-				let cacheRoot = path.join(userData, 'CachedLanguagePacks', packId);
+				let cacheRoot = path.join(userData, 'clp', packId);
 				let coreLocation = path.join(cacheRoot, commit);
 				let result = {
 					locale: initialLocale,
