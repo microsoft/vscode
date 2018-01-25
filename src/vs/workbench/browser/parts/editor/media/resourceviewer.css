@@ -16,11 +16,8 @@
 	padding: 10px 10px 0 10px;
 	background-position: 0 0, 8px 8px;
 	background-size: 16px 16px;
-	display: grid;
-}
-
-.monaco-resource-viewer.image.full-size {
-	padding: 0;
+	display: flex;
+	box-sizing: border-box;
 }
 
 .vs .monaco-resource-viewer.image {
@@ -41,11 +38,12 @@
 
 .monaco-resource-viewer img.scale-to-fit {
 	max-width: 100%;
+	max-height: 100%;
 	object-fit: contain;
 }
 
 .monaco-resource-viewer img {
-	margin: auto; /* centers the image */
+	margin: auto;
 }
 
 .monaco-resource-viewer.zoom-in {

@@ -385,6 +385,7 @@ class InlineImageView {
 				scale = 'fit';
 				img.addClass('scale-to-fit');
 				img.removeClass('pixelated');
+				img.style('min-width', 'auto');
 				img.style('width', 'auto');
 				InlineImageView.imageStateCache.set(cacheKey, null);
 			} else {
@@ -403,8 +404,8 @@ class InlineImageView {
 				const dy = (scrollTop + imgElement.parentElement.clientHeight / 2) / imgElement.parentElement.scrollHeight;
 
 				img.removeClass('scale-to-fit');
+				img.style('min-width', `${(imgElement.naturalWidth * scale)}px`);
 				img.style('width', `${(imgElement.naturalWidth * scale)}px`);
-				img.style('height', 'auto');
 
 				const newWidth = imgElement.width;
 				const scaleFactor = (newWidth - oldWidth) / oldWidth;
