@@ -370,6 +370,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		return result;
 	}
 
+	public canProfileExtensionHost(): boolean {
+		return this._extensionHostProcessWorker && Boolean(this._extensionHostProcessWorker.getInspectPort());
+	}
+
 	public startExtensionHostProfile(): TPromise<ProfileSession> {
 		if (this._extensionHostProcessWorker) {
 			let port = this._extensionHostProcessWorker.getInspectPort();
