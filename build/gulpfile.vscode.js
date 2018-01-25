@@ -31,6 +31,8 @@ const commit = util.getVersion(root);
 const packageJson = require('../package.json');
 // @ts-ignore Microsoft/TypeScript#21262
 const product = require('../product.json');
+// @ts-ignore Microsoft/TypeScript#21262
+const builtInExtensions = require('./builtInExtensions.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
 const glob = require('glob');
@@ -47,8 +49,6 @@ const nodeModules = ['electron', 'original-fs']
 	.concat(baseModules);
 
 // Build
-
-const builtInExtensions = require('./builtInExtensions');
 
 const excludedExtensions = [
 	'vscode-api-tests',
