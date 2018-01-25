@@ -34,7 +34,7 @@ class VariableResolver {
 		private workspaceContextService: IWorkspaceContextService
 	) {
 		if (isWindows) {
-			this.envVariables = {};
+			this.envVariables = Object.create(null);
 			Object.keys(envVariables).forEach(key => {
 				this.envVariables[key.toLowerCase()] = envVariables[key];
 			});
@@ -228,7 +228,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 
 		// We need a map from interactive variables to keys because we only want to trigger an command once per key -
 		// even though it might occur multiple times in configuration #7026.
-		const interactiveVariablesToSubstitutes: { [interactiveVariable: string]: { object: any, key: string }[] } = {};
+		const interactiveVariablesToSubstitutes: { [interactiveVariable: string]: { object: any, key: string }[] } = Object.create(null);
 		const findInteractiveVariables = (object: any) => {
 			Object.keys(object).forEach(key => {
 				if (object[key] && typeof object[key] === 'object') {
