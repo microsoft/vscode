@@ -933,7 +933,7 @@ export function pullBuildXlfFiles(apiHostname: string, username: string, passwor
 		let extensionsToLocalize = Object.create(null);
 		glob.sync('./extensions/**/*.nls.json', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
 		glob.sync('./extensions/*/node_modules/vscode-nls', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
-		console.log(JSON.stringify(Object.keys(extensionsToLocalize)));
+
 		Object.keys(extensionsToLocalize).forEach(extension => {
 			_buildResources.push({ name: extension, project: 'vscode-extensions' });
 		});

@@ -821,7 +821,6 @@ function pullBuildXlfFiles(apiHostname, username, password, language) {
         var extensionsToLocalize_1 = Object.create(null);
         glob.sync('./extensions/**/*.nls.json').forEach(function (extension) { return extensionsToLocalize_1[extension.split('/')[2]] = true; });
         glob.sync('./extensions/*/node_modules/vscode-nls').forEach(function (extension) { return extensionsToLocalize_1[extension.split('/')[2]] = true; });
-        console.log(JSON.stringify(Object.keys(extensionsToLocalize_1)));
         Object.keys(extensionsToLocalize_1).forEach(function (extension) {
             _buildResources.push({ name: extension, project: 'vscode-extensions' });
         });
