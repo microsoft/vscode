@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./resourceviewer';
+import 'vs/css!./media/resourceviewer';
 import nls = require('vs/nls');
 import mimes = require('vs/base/common/mime');
 import URI from 'vs/base/common/uri';

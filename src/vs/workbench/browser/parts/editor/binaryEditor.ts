@@ -18,7 +18,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/parts/resourceviewer/resourceViewer';
+import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/parts/editor/resourceViewer';
 
 /*
  * This class is only intended to be subclassed and not instantiated.
