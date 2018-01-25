@@ -5781,21 +5781,21 @@ vscode-fsevents@0.3.8:
   dependencies:
     nan "^2.3.0"
 
-vscode-nls-dev@^2.0.1:
-  version "2.1.5"
-  resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-2.1.5.tgz#19faa3b18a7f302201039a4c967bbd22fa12844d"
+vscode-nls-dev@^3.0.5:
+  version "3.0.5"
+  resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.0.3.tgz#9728541449576559ae7bf2cff4869edaeca7e2e1"
   dependencies:
-    clone "^1.0.2"
-    event-stream "^3.3.2"
-    glob "^6.0.4"
-    gulp-util "^3.0.7"
-    iconv-lite "^0.4.15"
+    clone "^2.1.1"
+    event-stream "^3.3.4"
+    glob "^7.1.2"
+    gulp-util "^3.0.8"
+    iconv-lite "^0.4.19"
     is "^3.2.1"
-    source-map "^0.5.3"
-    typescript "^2.0.3"
-    vinyl "^1.1.1"
-    xml2js "^0.4.17"
-    yargs "^3.32.0"
+    source-map "^0.6.1"
+    typescript "^2.6.2"
+    vinyl "^2.1.0"
+    xml2js "^0.4.19"
+    yargs "^10.1.1"
 
 vscode-ripgrep@^0.7.1-patch.0:
   version "0.7.1-patch.0"

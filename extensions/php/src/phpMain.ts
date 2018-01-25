@@ -5,8 +5,6 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-nls.config({ locale: vscode.env.language });
 
 import PHPCompletionItemProvider from './features/completionItemProvider';
 import PHPHoverProvider from './features/hoverProvider';

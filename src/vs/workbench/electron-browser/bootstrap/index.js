@@ -13,6 +13,7 @@ const perf = require('../../../base/common/performance');
 perf.mark('renderer/started');
 
 const path = require('path');
+const fs = require('fs');
 const electron = require('electron');
 const remote = electron.remote;
 const ipc = electron.ipcRenderer;
@@ -64,6 +65,18 @@ function uriFromPath(_path) {
 	}
 
 	return encodeURI('file://' + pathName);
+}
+
+function readFile(file) {
+	return new Promise(function(resolve, reject) {
+		fs.readFile(file, 'utf8', function(err, data) {
+			if (err) {
+				reject(err);
+				return;
+			}
+			resolve(data);
+		});
+	});
 }
 
 function registerListeners(enableDeveloperTools) {
@@ -124,13 +137,30 @@ function main() {
 		} catch (e) { /*noop*/ }
 	}
 
+	if (nlsConfig._resolvedLanguagePackCoreLocation) {
+		let bundles = Object.create(null);
+		nlsConfig.loadBundle = function(bundle, language, cb) {
+			let result = bundles[bundle];
+			if (result) {
+				cb(undefined, result);
+				return;
+			}
+			let bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
+			readFile(bundleFile).then(function (content) {
+				let json = JSON.parse(content);
+				bundles[bundle] = json;
+				cb(undefined, json);
+			})
+			.catch(cb);
+		};
+	}
+
 	var locale = nlsConfig.availableLanguages['*'] || 'en';
 	if (locale === 'zh-tw') {
 		locale = 'zh-Hant';
 	} else if (locale === 'zh-cn') {
 		locale = 'zh-Hans';
 	}
-
 	window.document.documentElement.setAttribute('lang', locale);
 
 	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;

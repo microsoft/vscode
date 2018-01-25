@@ -18,6 +18,7 @@
     "gulp": "gulp --max_old_space_size=4096",
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
+    "update-localization-extension": "node build/npm/update-localization-extension.js",
     "smoketest": "cd test/smoke && mocha"
   },
   "dependencies": {
@@ -115,7 +116,7 @@
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
     "vsce": "1.33.2",
-    "vscode-nls-dev": "^2.0.1"
+    "vscode-nls-dev": "^3.0.5"
   },
   "repository": {
     "type": "git",
