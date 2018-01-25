@@ -22,9 +22,9 @@ function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
 }
 
-class Workspace2 extends Workspace {
+class ExtHostWorkspaceImpl extends Workspace {
 
-	static acceptWorkspaceData(data: IWorkspaceData, previousConfirmedWorkspace?: Workspace2, previousUnconfirmedWorkspace?: Workspace2): { workspace: Workspace2, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
+	static toExtHostWorkspace(data: IWorkspaceData, previousConfirmedWorkspace?: ExtHostWorkspaceImpl, previousUnconfirmedWorkspace?: ExtHostWorkspaceImpl): { workspace: ExtHostWorkspaceImpl, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
 		if (!data) {
 			return { workspace: null, added: [], removed: [] };
 		}
@@ -39,7 +39,7 @@ class Workspace2 extends Workspace {
 		if (oldWorkspace) {
 			folders.forEach((folderData, index) => {
 				const folderUri = URI.revive(folderData.uri);
-				const existingFolder = Workspace2._findFolder(oldWorkspace, folderUri);
+				const existingFolder = ExtHostWorkspaceImpl._findFolder(oldWorkspace, folderUri);
 
 				if (existingFolder) {
 					existingFolder.name = folderData.name;
@@ -54,12 +54,12 @@ class Workspace2 extends Workspace {
 			newWorkspaceFolders.push(...folders.map(({ uri, name, index }) => new WorkspaceFolder({ name, index, uri: URI.revive(uri) })));
 		}
 
-		const workspace = new Workspace2(id, name, newWorkspaceFolders);
+		const workspace = new ExtHostWorkspaceImpl(id, name, newWorkspaceFolders);
 
-		const oldRoots = oldWorkspace ? oldWorkspace.workspaceFolders.sort(Workspace2.compareWorkspaceFolderByUri) : [];
-		const newRoots = workspace.workspaceFolders.sort(Workspace2.compareWorkspaceFolderByUri);
+		const oldRoots = oldWorkspace ? oldWorkspace.workspaceFolders.sort(ExtHostWorkspaceImpl.compareWorkspaceFolderByUri) : [];
+		const newRoots = workspace.workspaceFolders.sort(ExtHostWorkspaceImpl.compareWorkspaceFolderByUri);
 
-		const { added, removed } = delta(oldRoots, newRoots, Workspace2.compareWorkspaceFolderByUri);
+		const { added, removed } = delta(oldRoots, newRoots, ExtHostWorkspaceImpl.compareWorkspaceFolderByUri);
 
 		return { workspace, added, removed };
 	}
@@ -72,7 +72,7 @@ class Workspace2 extends Workspace {
 		return isFolderEqual(a.uri, b.uri) ? compare(a.name, b.name) : compare(a.uri.toString(), b.uri.toString());
 	}
 
-	private static _findFolder(workspace: Workspace2, folderUriToFind: URI): WorkspaceFolder {
+	private static _findFolder(workspace: ExtHostWorkspaceImpl, folderUriToFind: URI): WorkspaceFolder {
 		for (let i = 0; i < workspace.folders.length; i++) {
 			const folder = workspace.folders[i];
 			if (isFolderEqual(folder.uri, folderUriToFind)) {
@@ -117,14 +117,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 	private readonly _proxy: MainThreadWorkspaceShape;
 
-	private _confirmedWorkspace: Workspace2;
-	private _unconfirmedWorkspace: Workspace2;
+	private _confirmedWorkspace: ExtHostWorkspaceImpl;
+	private _unconfirmedWorkspace: ExtHostWorkspaceImpl;
 
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
 	constructor(mainContext: IMainContext, data: IWorkspaceData) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);
-		this._confirmedWorkspace = Workspace2.acceptWorkspaceData(data).workspace;
+		this._confirmedWorkspace = ExtHostWorkspaceImpl.toExtHostWorkspace(data).workspace;
 	}
 
 	// --- workspace ---
@@ -133,7 +133,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		return this._actualWorkspace;
 	}
 
-	private get _actualWorkspace(): Workspace2 {
+	private get _actualWorkspace(): ExtHostWorkspaceImpl {
 		return this._unconfirmedWorkspace || this._confirmedWorkspace;
 	}
 
@@ -169,9 +169,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 		const newWorkspaceFolders = currentWorkspaceFolders.slice(0);
 		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map((f, index) => ({ uri: f.uri, name: f.name || basenameOrAuthority(f.uri), index })));
-		const oldRoots = currentWorkspaceFolders.sort(Workspace2.compareWorkspaceFolderByUri);
-		const newRoots = newWorkspaceFolders.sort(Workspace2.compareWorkspaceFolderByUri);
-		const { added, removed } = delta(oldRoots, newRoots, Workspace2.compareWorkspaceFolderByUriAndName);
+		const oldRoots = currentWorkspaceFolders.sort(ExtHostWorkspaceImpl.compareWorkspaceFolderByUri);
+		const newRoots = newWorkspaceFolders.sort(ExtHostWorkspaceImpl.compareWorkspaceFolderByUri);
+		const { added, removed } = delta(oldRoots, newRoots, ExtHostWorkspaceImpl.compareWorkspaceFolderByUriAndName);
 		if (added.length === 0 && removed.length === 0) {
 			return false; // nothing actually changed
 		}
@@ -179,20 +179,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		// Trigger on main side
 		this._proxy.$updateWorkspaceFolders(extensionName, index, deleteCount, validatedDistinctWorkspaceFoldersToAdd).then(null, onUnexpectedError);
 
-		// Update directly here. The workspace is unconfirmed as long as we did not get an
-		// acknowledgement from the main side (via acceptWorkspaceData)
-		if (this._actualWorkspace) {
-			const data: IWorkspaceData = {
-				id: this._actualWorkspace.id,
-				name: this._actualWorkspace.name,
-				configuration: this._actualWorkspace.configuration,
-				folders: newWorkspaceFolders
-			};
+		// Try to accept directly
+		const accepted = this.trySetWorkspaceData({ id: this._actualWorkspace.id, name: this._actualWorkspace.name, configuration: this._actualWorkspace.configuration, folders: newWorkspaceFolders } as IWorkspaceData);
 
-			this._unconfirmedWorkspace = Workspace2.acceptWorkspaceData(data, this._actualWorkspace).workspace;
-		}
-
-		return true;
+		return accepted;
 	}
 
 	getWorkspaceFolder(uri: vscode.Uri, resolveParent?: boolean): vscode.WorkspaceFolder {
@@ -251,9 +241,22 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		return normalize(result, true);
 	}
 
+	private trySetWorkspaceData(data: IWorkspaceData): boolean {
+
+		// Update directly here. The workspace is unconfirmed as long as we did not get an
+		// acknowledgement from the main side (via $acceptWorkspaceData)
+		if (this._actualWorkspace) {
+			this._unconfirmedWorkspace = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._actualWorkspace).workspace;
+
+			return true;
+		}
+
+		return false;
+	}
+
 	$acceptWorkspaceData(data: IWorkspaceData): void {
 
-		const { workspace, added, removed } = Workspace2.acceptWorkspaceData(data, this._confirmedWorkspace, this._unconfirmedWorkspace);
+		const { workspace, added, removed } = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._confirmedWorkspace, this._unconfirmedWorkspace);
 
 		// Update our workspace object. We have a confirmed workspace, so we drop our
 		// unconfirmed workspace.
