@@ -399,6 +399,22 @@ export class Color {
 		return new Color(new RGBA(r, g, b, a));
 	}
 
+	toRGB(...backgrounds: Color[]): Color {
+		const background = backgrounds.reduceRight((accumulator, color, index) => {
+			return Color._toRGB(color, accumulator);
+		});
+		return Color._toRGB(this, background);
+	}
+
+	private static _toRGB(foreground: Color, background: Color) {
+		const backgroundAlpha = 1 - foreground.rgba.a;
+		return new Color(new RGBA(
+			backgroundAlpha * background.rgba.r + foreground.rgba.a * foreground.rgba.r,
+			backgroundAlpha * background.rgba.g + foreground.rgba.a * foreground.rgba.g,
+			backgroundAlpha * background.rgba.b + foreground.rgba.a * foreground.rgba.b
+		));
+	}
+
 	toString(): string {
 		return Color.Format.CSS.format(this);
 	}

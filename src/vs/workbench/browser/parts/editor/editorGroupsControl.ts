@@ -1564,6 +1564,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	private updateFromDropping(element: HTMLElement, isDropping: boolean): void {
 		const groupCount = this.stacks.groups.length;
 		const background = this.getColor(isDropping ? EDITOR_DRAG_AND_DROP_BACKGROUND : groupCount > 0 ? EDITOR_GROUP_BACKGROUND : null);
+		isDropping ? DOM.addClass(element, 'dropping') : DOM.removeClass(element, 'dropping');
 		element.style.backgroundColor = background;
 
 		const activeContrastBorderColor = this.getColor(activeContrastBorder);
