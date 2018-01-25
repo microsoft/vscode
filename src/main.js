@@ -113,8 +113,21 @@ function readFile(file) {
 }
 
 function writeFile(file, content) {
-	return new Promise(function(resolve, reject) {
+	return new Promise((resolve, reject) => {
 		fs.writeFile(file, content, 'utf8', (err) => {
+			if (err) {
+				reject(err);
+				return;
+			}
+			resolve(undefined);
+		});
+	});
+}
+
+function touch(file) {
+	return new Promise((resolve, reject) => {
+		let d = new Date();
+		fs.utimes(file, d, d, (err) => {
 			if (err) {
 				reject(err);
 				return;
@@ -268,10 +281,9 @@ function getNLSConfiguration(locale) {
 				if (!fileExists) {
 					return defaultResult();
 				}
-				let cacheRoot = path.join(userData, 'CachedLanguagePacks');
-				let packId = packConfig.id + '-' + packConfig.version;
-				let id = commit + '-' + packId;
-				let coreLocation = path.join(cacheRoot, id);
+				let packId = packConfig.extensionIdentifier.id + '-' + packConfig.version;
+				let cacheRoot = path.join(userData, 'CachedLanguagePacks', packId);
+				let coreLocation = path.join(cacheRoot, commit);
 				let result = {
 					locale: initialLocale,
 					availableLanguages: { '*': locale },
@@ -282,8 +294,8 @@ function getNLSConfiguration(locale) {
 				};
 				return exists(coreLocation).then((fileExists) => {
 					if (fileExists) {
-						// We don't wait for this. No big harm if we can't write it.
-						writeFile(path.join(cacheRoot, 'vscode', id, 'lastUsed.touch'), '').catch(() => {});
+						// We don't wait for this. No big harm if we can't touch
+						touch(coreLocation).catch(() => {});
 						perf.mark('nlsGeneration:end');
 						return result;
 					}
