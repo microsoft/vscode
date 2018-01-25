@@ -518,8 +518,12 @@ class PreferencesRenderersController extends Disposable {
 								"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 							}
 						*/
-						const message = getErrorMessage(err);
-						this.telemetryService.publicLog('defaultSettings.searchError', { message });
+						const message = getErrorMessage(err).trim();
+						if (message) {
+							// Empty message = any generic network error
+							this.telemetryService.publicLog('defaultSettings.searchError', { message });
+						}
+
 						return null;
 					}
 				})
