@@ -486,7 +486,7 @@ class InlineImageView {
 				imgElement = img.getHTMLElement() as HTMLImageElement;
 				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', imgElement.naturalWidth, imgElement.naturalHeight, BinarySize.formatSize(descriptor.size)));
 				scrollbar.scanDomNode();
-				updateScale('fit');
+				updateScale(scale);
 			});
 
 		return context;
