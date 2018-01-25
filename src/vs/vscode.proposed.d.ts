@@ -188,9 +188,10 @@ declare module 'vscode' {
 		 * @param deleteCount the optional number of workspace folders to remove.
 		 * @param workspaceFoldersToAdd the optional variable set of workspace folders to add in place of the deleted ones.
 		 * Each workspace is identified with a mandatory URI and an optional name.
-		 * @return A thenable that resolves when the workspace folder was removed successfully.
+		 * @return true if the operation was successfully started. Use the [onDidChangeWorkspaceFolders()](#onDidChangeWorkspaceFolders)
+		 * event to get notified when the workspace folders have been updated.
 		 */
-		export function updateWorkspaceFolders(start: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: Uri, name?: string }[]): Thenable<boolean>;
+		export function updateWorkspaceFolders(start: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: Uri, name?: string }[]): boolean;
 	}
 
 	export namespace window {
