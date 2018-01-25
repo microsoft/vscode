@@ -58,6 +58,6 @@ uc.micro@^1.0.1, uc.micro@^1.0.3:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/uc.micro/-/uc.micro-1.0.3.tgz#7ed50d5e0f9a9fb0a573379259f2a77458d50192"
 
-vscode-nls@^3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.1.0.tgz#a8a264c0d4bd3e1ed4746a9883235fec5b62968a"
+vscode-nls@^3.1.1:
+  version "3.1.1"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.1.1.tgz#76015bfcac8d92c87ca9835ddf29e0378cd250a4"

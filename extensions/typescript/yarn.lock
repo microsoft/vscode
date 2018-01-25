@@ -25,9 +25,9 @@ vscode-extension-telemetry@^0.0.8:
     applicationinsights "0.18.0"
     winreg "1.2.3"
 
-vscode-nls@^3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.1.0.tgz#a8a264c0d4bd3e1ed4746a9883235fec5b62968a"
+vscode-nls@^3.1.1:
+  version "3.1.1"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.1.1.tgz#76015bfcac8d92c87ca9835ddf29e0378cd250a4"
 
 winreg@1.2.3:
   version "1.2.3"
