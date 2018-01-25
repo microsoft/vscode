@@ -203,7 +203,7 @@ const hygiene = exports.hygiene = (some, options) => {
 			editorconfig: undefined,
 			replace: undefined,
 			tsconfig: undefined,
-			verbose: true
+			// verbose: true
 		}).then(result => {
 			if (result.error) {
 				console.error(result.message);
