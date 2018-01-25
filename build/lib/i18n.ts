@@ -56,7 +56,7 @@ export const extraLanguages: Language[] = [
 	{ id: 'tr', folderName: 'trk' }
 ];
 
-export const pseudoLanguage: Language = { id: 'pseudo', folderName: 'pseudo', transifexId: 'pseudo'};
+export const pseudoLanguage: Language = { id: 'pseudo', folderName: 'pseudo', transifexId: 'pseudo' };
 
 interface Map<V> {
 	[key: string]: V;
@@ -350,7 +350,7 @@ export class Limiter<T> {
 
 	queue(factory: ITask<Promise<T>>): Promise<T> {
 		return new Promise<T>((c, e) => {
-			this.outstandingPromises.push({factory, c, e});
+			this.outstandingPromises.push({ factory, c, e });
 			this.consume();
 		});
 	}
@@ -930,14 +930,12 @@ export function pullBuildXlfFiles(apiHostname: string, username: string, passwor
 		_buildResources.push(...json.workbench);
 
 		// extensions
-		let extensionsToLocalize: string[] = glob.sync('./extensions/**/*.nls.json').map(extension => extension.split('/')[2]);
-		let resourcesToPull: string[] = [];
-
-		extensionsToLocalize.forEach(extension => {
-			if (resourcesToPull.indexOf(extension) === -1) { // remove duplicate elements returned by glob
-				resourcesToPull.push(extension);
-				_buildResources.push({ name: extension, project: 'vscode-extensions' });
-			}
+		let extensionsToLocalize = Object.create(null);
+		glob.sync('./extensions/**/*.nls.json', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
+		glob.sync('./extensions/*/node_modules/vscode-nls', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
+		console.log(JSON.stringify(Object.keys(extensionsToLocalize)));
+		Object.keys(extensionsToLocalize).forEach(extension => {
+			_buildResources.push({ name: extension, project: 'vscode-extensions' });
 		});
 	}
 	return pullXlfFiles(apiHostname, username, password, language, _buildResources);
@@ -967,7 +965,9 @@ function pullXlfFiles(apiHostname: string, username: string, password: string, l
 			const stream = this;
 			resources.map(function (resource) {
 				retrieveResource(language, resource, apiHostname, credentials).then((file: File) => {
-					stream.emit('data', file);
+					if (file) {
+						stream.emit('data', file);
+					}
 					translationsRetrieved++;
 				}).catch(error => { throw new Error(error); });
 			});
@@ -997,8 +997,12 @@ function retrieveResource(language: Language, resource: Resource, apiHostname, c
 			res.on('end', () => {
 				if (res.statusCode === 200) {
 					resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${slug}.xlf` }));
+				} else if (res.statusCode === 404) {
+					console.log(`${slug} in ${project} returned no data.`);
+					resolve(null);
+				} else {
+					reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
 				}
-				reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
 			});
 		});
 		request.on('error', (err) => {

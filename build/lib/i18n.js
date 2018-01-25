@@ -818,13 +818,12 @@ function pullBuildXlfFiles(apiHostname, username, password, language) {
         _buildResources.push.apply(_buildResources, json.editor);
         _buildResources.push.apply(_buildResources, json.workbench);
         // extensions
-        var extensionsToLocalize = glob.sync('./extensions/**/*.nls.json').map(function (extension) { return extension.split('/')[2]; });
-        var resourcesToPull_1 = [];
-        extensionsToLocalize.forEach(function (extension) {
-            if (resourcesToPull_1.indexOf(extension) === -1) {
-                resourcesToPull_1.push(extension);
-                _buildResources.push({ name: extension, project: 'vscode-extensions' });
-            }
+        var extensionsToLocalize_1 = Object.create(null);
+        glob.sync('./extensions/**/*.nls.json').forEach(function (extension) { return extensionsToLocalize_1[extension.split('/')[2]] = true; });
+        glob.sync('./extensions/*/node_modules/vscode-nls').forEach(function (extension) { return extensionsToLocalize_1[extension.split('/')[2]] = true; });
+        console.log(JSON.stringify(Object.keys(extensionsToLocalize_1)));
+        Object.keys(extensionsToLocalize_1).forEach(function (extension) {
+            _buildResources.push({ name: extension, project: 'vscode-extensions' });
         });
     }
     return pullXlfFiles(apiHostname, username, password, language, _buildResources);
@@ -852,7 +851,9 @@ function pullXlfFiles(apiHostname, username, password, language, resources) {
             var stream_1 = this;
             resources.map(function (resource) {
                 retrieveResource(language, resource, apiHostname, credentials).then(function (file) {
-                    stream_1.emit('data', file);
+                    if (file) {
+                        stream_1.emit('data', file);
+                    }
                     translationsRetrieved++;
                 }).catch(function (error) { throw new Error(error); });
             });
@@ -880,7 +881,13 @@ function retrieveResource(language, resource, apiHostname, credentials) {
                 if (res.statusCode === 200) {
                     resolve(new File({ contents: Buffer.concat(xlfBuffer), path: project + "/" + slug + ".xlf" }));
                 }
-                reject(slug + " in " + project + " returned no data. Response code: " + res.statusCode + ".");
+                else if (res.statusCode === 404) {
+                    console.log(slug + " in " + project + " returned no data.");
+                    resolve(null);
+                }
+                else {
+                    reject(slug + " in " + project + " returned no data. Response code: " + res.statusCode + ".");
+                }
             });
         });
         request.on('error', function (err) {
