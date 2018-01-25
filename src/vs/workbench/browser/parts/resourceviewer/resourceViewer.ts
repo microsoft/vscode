@@ -372,6 +372,10 @@ class InlineImageView {
 		let imgElement: HTMLImageElement | null = null;
 
 		function updateScale(newScale: Scale) {
+			if (!img || !imgElement.parentElement) {
+				return;
+			}
+
 			if (newScale === 'fit') {
 				scale = 'fit';
 				img.addClass('scale-to-fit');
