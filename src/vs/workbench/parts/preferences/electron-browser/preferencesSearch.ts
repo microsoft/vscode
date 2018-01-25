@@ -127,6 +127,9 @@ interface IRemoteSearchProviderOptions {
 }
 
 class RemoteSearchProvider implements ISearchProvider {
+	// Must keep extension filter size under 8kb. 42 extension filters + core buildnum filter puts us there.
+	private static MAX_EXTENSION_FILTERS = 42;
+
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
 	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: TPromise<ILocalExtension[]>,
@@ -283,10 +286,13 @@ class RemoteSearchProvider implements ISearchProvider {
 			[`diminish eq 'latest'`] :
 			await this.getVersionFilters(buildNumber);
 
-		const filterStr = encodeURIComponent(filters.join(' or '));
+		const filterStr = filters
+			.slice(0, RemoteSearchProvider.MAX_EXTENSION_FILTERS)
+			.join(' or ');
+
 		const body = JSON.stringify({
 			query: encodedQuery,
-			filters: filterStr
+			filters: encodeURIComponent(filterStr)
 		});
 
 		return {
