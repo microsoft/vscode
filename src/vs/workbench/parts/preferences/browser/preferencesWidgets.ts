@@ -281,6 +281,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 export class FolderSettingsActionItem extends BaseActionItem {
 
 	private _folder: IWorkspaceFolder;
+	private _count: number;
 
 	private container: HTMLElement;
 	private anchorElement: HTMLElement;
@@ -307,6 +308,11 @@ export class FolderSettingsActionItem extends BaseActionItem {
 
 	set folder(folder: IWorkspaceFolder) {
 		this._folder = folder;
+		this.update();
+	}
+
+	public setCount(value: number): void {
+		this._count = value;
 		this.update();
 	}
 
@@ -381,10 +387,18 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		if (this._folder) {
 			this.labelElement.textContent = this._folder.name;
 			this.anchorElement.title = this._folder.name;
-			this.detailsElement.textContent = this._action.label;
+			let detailsText = this._action.label;
+			if (this._count) {
+				detailsText += ` (${this._count})`;
+			}
+			this.detailsElement.textContent = detailsText;
 			DOM.toggleClass(this.dropDownElement, 'hide', workspace.folders.length === 1 || !this._action.checked);
 		} else {
-			this.labelElement.textContent = this._action.label;
+			let labelText = this._action.label;
+			if (this._count) {
+				labelText += ` (${this._count})`;
+			}
+			this.labelElement.textContent = labelText;
 			this.detailsElement.textContent = '';
 			this.anchorElement.title = this._action.label;
 			DOM.removeClass(this.dropDownElement, 'hide');
@@ -436,6 +450,7 @@ export class SettingsTargetsWidget extends Widget {
 	private userSettings: Action;
 	private workspaceSettings: Action;
 	private folderSettings: FolderSettingsActionItem;
+	private folderSettingCounts = new Map<string, number>();
 
 	private _settingsTarget: SettingsTarget;
 
@@ -507,6 +522,12 @@ export class SettingsTargetsWidget extends Widget {
 			}
 
 			this.userSettings.label = label;
+		} else if (settingsTarget instanceof URI) {
+			this.folderSettingCounts.set(settingsTarget.toString(), count);
+
+			let total = 0;
+			this.folderSettingCounts.forEach(count => total += count);
+			this.folderSettings.setCount(total);
 		}
 	}
 
