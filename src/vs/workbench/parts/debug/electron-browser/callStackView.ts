@@ -38,6 +38,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	private onCallStackChangeScheduler: RunOnceScheduler;
 	private settings: any;
 	private needsRefresh: boolean;
+	private ignoreSelectionChangedEvent: boolean;
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -108,8 +109,11 @@ export class CallStackView extends TreeViewsViewletPanel {
 		const fileResultsNavigation = new FileResultsNavigation(this.tree);
 		this.disposables.push(fileResultsNavigation);
 		this.disposables.push(fileResultsNavigation.openFile(e => {
-			const element = e.element;
+			if (this.ignoreSelectionChangedEvent) {
+				return;
+			}
 
+			const element = e.element;
 			if (element instanceof StackFrame) {
 				this.debugService.focusStackFrame(element, element.thread, element.thread.process, true);
 				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide).done(undefined, errors.onUnexpectedError);
@@ -140,8 +144,14 @@ export class CallStackView extends TreeViewsViewletPanel {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		}));
-		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() =>
-			this.updateTreeSelection().done(undefined, errors.onUnexpectedError)));
+		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
+			if (!this.isVisible) {
+				this.needsRefresh = true;
+				return;
+			}
+
+			this.updateTreeSelection().done(undefined, errors.onUnexpectedError);
+		}));
 
 		// Schedule the update of the call stack tree if the viewlet is opened after a session started #14684
 		if (this.debugService.state === State.Stopped) {
@@ -158,13 +168,22 @@ export class CallStackView extends TreeViewsViewletPanel {
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const thread = this.debugService.getViewModel().focusedThread;
 		const process = this.debugService.getViewModel().focusedProcess;
+		const updateSelection = (element: IStackFrame | IProcess) => {
+			this.ignoreSelectionChangedEvent = true;
+			try {
+				this.tree.setSelection([element]);
+			} finally {
+				this.ignoreSelectionChangedEvent = false;
+			}
+		};
+
 		if (!thread) {
 			if (!process) {
 				this.tree.clearSelection();
 				return TPromise.as(null);
 			}
 
-			this.tree.setSelection([process]);
+			updateSelection(process);
 			return this.tree.reveal(process);
 		}
 
@@ -173,7 +192,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 				return TPromise.as(null);
 			}
 
-			this.tree.setSelection([stackFrame]);
+			updateSelection(stackFrame);
 			return this.tree.reveal(stackFrame);
 		});
 	}

@@ -42,38 +42,66 @@ for (let fileSize of fileSizes) {
 			iterations: 10
 		});
 
-		for (let i of [10, 100, 1000]) {
-			editsSuite.add({
-				name: `apply ${i} edits`,
-				buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
-					chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
-					return textBufferBuilder.finish();
-				},
-				preCycle: (textBuffer) => {
-					return textBuffer;
-				},
-				fn: (textBuffer) => {
-					// for line model, this loop doesn't reflect the real situation.
-					for (let k = 0; k < edits.length && k < i; k++) {
-						textBuffer.applyEdits([edits[k]], false);
-					}
+		editsSuite.add({
+			name: `apply 1000 edits`,
+			buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
+				chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
+				return textBufferBuilder.finish();
+			},
+			preCycle: (textBuffer) => {
+				return textBuffer;
+			},
+			fn: (textBuffer) => {
+				// for line model, this loop doesn't reflect the real situation.
+				for (let k = 0; k < edits.length; k++) {
+					textBuffer.applyEdits([edits[k]], false);
 				}
-			});
+			}
+		});
 
-			editsSuite.add({
-				name: `Read all lines after ${i} edits`,
-				buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
-					chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
-					return textBufferBuilder.finish();
-				},
-				preCycle: (textBuffer) => {
-					for (let k = 0; k < edits.length && k < i; k++) {
-						textBuffer.applyEdits([edits[k]], false);
-					}
-					return textBuffer;
-				},
-				fn: (textBuffer) => {
-					for (let j = 0, len = textBuffer.getLineCount(); j < len; j++) {
+		editsSuite.add({
+			name: `Read all lines after 1000 edits`,
+			buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
+				chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
+				return textBufferBuilder.finish();
+			},
+			preCycle: (textBuffer) => {
+				for (let k = 0; k < edits.length; k++) {
+					textBuffer.applyEdits([edits[k]], false);
+				}
+				return textBuffer;
+			},
+			fn: (textBuffer) => {
+				for (let j = 0, len = textBuffer.getLineCount(); j < len; j++) {
+					var str = textBuffer.getLineContent(j + 1);
+					let firstChar = str.charCodeAt(0);
+					let lastChar = str.charCodeAt(str.length - 1);
+					firstChar = firstChar - lastChar;
+					lastChar = firstChar + lastChar;
+					firstChar = lastChar - firstChar;
+				}
+			}
+		});
+
+		editsSuite.add({
+			name: `Read 10 random windows after 1000 edits`,
+			buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
+				chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
+				return textBufferBuilder.finish();
+			},
+			preCycle: (textBuffer) => {
+				for (let k = 0; k < edits.length; k++) {
+					textBuffer.applyEdits([edits[k]], false);
+				}
+				return textBuffer;
+			},
+			fn: (textBuffer) => {
+				for (let i = 0; i < 10; i++) {
+					let minLine = 1;
+					let maxLine = textBuffer.getLineCount();
+					let startLine = getRandomInt(minLine, Math.max(minLine, maxLine - 100));
+					let endLine = Math.min(maxLine, startLine + 100);
+					for (let j = startLine; j < endLine; j++) {
 						var str = textBuffer.getLineContent(j + 1);
 						let firstChar = str.charCodeAt(0);
 						let lastChar = str.charCodeAt(str.length - 1);
@@ -82,57 +110,27 @@ for (let fileSize of fileSizes) {
 						firstChar = lastChar - firstChar;
 					}
 				}
-			});
+			}
+		});
 
-			editsSuite.add({
-				name: `Read 10 random windows after ${i} edits`,
-				buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
-					chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
-					return textBufferBuilder.finish();
-				},
-				preCycle: (textBuffer) => {
-					for (let k = 0; k < edits.length && k < i; k++) {
-						textBuffer.applyEdits([edits[k]], false);
-					}
-					return textBuffer;
-				},
-				fn: (textBuffer) => {
-					for (let i = 0; i < 10; i++) {
-						let minLine = 1;
-						let maxLine = textBuffer.getLineCount();
-						let startLine = getRandomInt(minLine, Math.max(minLine, maxLine - 100));
-						let endLine = Math.min(maxLine, startLine + 100);
-						for (let j = startLine; j < endLine; j++) {
-							var str = textBuffer.getLineContent(j + 1);
-							let firstChar = str.charCodeAt(0);
-							let lastChar = str.charCodeAt(str.length - 1);
-							firstChar = firstChar - lastChar;
-							lastChar = firstChar + lastChar;
-							firstChar = lastChar - firstChar;
-						}
-					}
+		editsSuite.add({
+			name: `save file after 1000 edits`,
+			buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
+				chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
+				return textBufferBuilder.finish();
+			},
+			preCycle: (textBuffer) => {
+				for (let k = 0; k < edits.length; k++) {
+					textBuffer.applyEdits([edits[k]], false);
 				}
-			});
-
-			editsSuite.add({
-				name: `save file after ${i} edits`,
-				buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
-					chunks.forEach(ck => textBufferBuilder.acceptChunk(ck));
-					return textBufferBuilder.finish();
-				},
-				preCycle: (textBuffer) => {
-					for (let k = 0; k < edits.length && k < i; k++) {
-						textBuffer.applyEdits([edits[k]], false);
-					}
-					return textBuffer;
-				},
-				fn: (textBuffer) => {
-					const lineCount = textBuffer.getLineCount();
-					const fullModelRange = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
-					textBuffer.getValueInRange(fullModelRange, EndOfLinePreference.LF);
-				}
-			});
-		}
+				return textBuffer;
+			},
+			fn: (textBuffer) => {
+				const lineCount = textBuffer.getLineCount();
+				const fullModelRange = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
+				textBuffer.getValueInRange(fullModelRange, EndOfLinePreference.LF);
+			}
+		});
 
 		editsSuite.run();
 	}

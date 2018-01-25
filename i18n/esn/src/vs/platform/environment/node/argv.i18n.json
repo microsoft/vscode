@@ -30,6 +30,7 @@
 	"inspect-extensions": "Permitir la depuración y el perfil de las extensiones. Revisar las herramientas de desarrollador para la conexión uri.",
 	"inspect-brk-extensions": "Permitir la depuración y el perfil de las extensiones con el host de la extensión pausado después del inicio. Revisar las herramientas de desarrollador para la conexión uri.",
 	"disableGPU": "Deshabilita la aceleración de hardware de GPU.",
+	"issue": "Notificar un problema. ",
 	"usage": "Uso",
 	"options": "opciones",
 	"paths": "rutas de acceso",

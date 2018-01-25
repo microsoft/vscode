@@ -190,6 +190,18 @@ export class MessageList {
 	private doShowMessage(id: Error, message: string, severity: Severity, onHide: () => void): () => void;
 	private doShowMessage(id: IMessageWithAction, message: string, severity: Severity, onHide: () => void): () => void;
 	private doShowMessage(id: any, message: string, severity: Severity, onHide: () => void): () => void {
+		const actions = (<IMessageWithAction>id).actions;
+		const source = (<IMessageWithAction>id).source || 'vscode';
+
+		// Telemetry (TODO@Ben remove me later)
+		/* __GDPR__
+			"showMessage" : {
+				"message" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"buttons" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog('showMessage', { message, source, buttons: actions ? actions.map(a => a.label) : void 0 });
 
 		// Trigger Auto-Purge of messages to keep list small
 		this.purgeMessages();
@@ -200,8 +212,8 @@ export class MessageList {
 			text: message,
 			severity: severity,
 			time: Date.now(),
-			actions: (<IMessageWithAction>id).actions,
-			source: (<IMessageWithAction>id).source,
+			actions,
+			source,
 			onHide
 		});
 

@@ -49,7 +49,7 @@
 	"command.showOutput": "Git-Ausgabe anzeigen",
 	"command.ignore": "Datei zu .gitignore hinzufügen",
 	"command.stashIncludeUntracked": "Stash (einschließlich nicht verfolgt)",
-	"command.stash": " Stash ausführen",
+	"command.stash": "Stash ausführen",
 	"command.stashPop": "Pop für Stash ausführen...",
 	"command.stashPopLatest": "Pop für letzten Stash ausführen",
 	"config.enabled": "Gibt an, ob Git aktiviert ist.",

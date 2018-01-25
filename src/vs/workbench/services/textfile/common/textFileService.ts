@@ -32,6 +32,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -73,7 +75,8 @@ export abstract class TextFileService implements ITextFileService {
 		private backupFileService: IBackupFileService,
 		private windowsService: IWindowsService,
 		private historyService: IHistoryService,
-		contextKeyService: IContextKeyService
+		contextKeyService: IContextKeyService,
+		private modelService: IModelService
 	) {
 		this.toUnbind = [];
 
@@ -241,7 +244,7 @@ export abstract class TextFileService implements ITextFileService {
 	private doBackupAll(dirtyFileModels: ITextFileEditorModel[], untitledResources: URI[]): TPromise<void> {
 
 		// Handle file resources first
-		return TPromise.join(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId()))).then(results => {
+		return TPromise.join(dirtyFileModels.map(model => this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId()))).then(results => {
 
 			// Handle untitled resources
 			const untitledModelPromises = untitledResources
@@ -250,7 +253,7 @@ export abstract class TextFileService implements ITextFileService {
 
 			return TPromise.join(untitledModelPromises).then(untitledModels => {
 				const untitledBackupPromises = untitledModels.map(model => {
-					return this.backupFileService.backupResource(model.getResource(), model.getValue(), model.getVersionId());
+					return this.backupFileService.backupResource(model.getResource(), model.createSnapshot(), model.getVersionId());
 				});
 
 				return TPromise.join(untitledBackupPromises).then(() => void 0);
@@ -615,7 +618,7 @@ export abstract class TextFileService implements ITextFileService {
 
 			// take over encoding and model value from source model
 			targetModel.updatePreferredEncoding(sourceModel.getEncoding());
-			targetModel.textEditorModel.setValue(sourceModel.getValue());
+			this.modelService.updateModel(targetModel.textEditorModel, createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()));
 
 			// save model
 			return targetModel.save(options);

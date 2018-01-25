@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { UriComponents } from 'vs/base/common/uri';
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
@@ -246,7 +246,7 @@ export interface ExtensionTaskSource {
 }
 
 export interface ExtensionTaskSourceTransfer {
-	__workspaceFolder: URI;
+	__workspaceFolder: UriComponents;
 }
 
 export interface InMemoryTaskSource {

@@ -52,6 +52,7 @@ export interface IExtension {
 	getReadme(): TPromise<string>;
 	getChangelog(): TPromise<string>;
 	local?: ILocalExtension;
+	isMalicious: boolean;
 }
 
 export interface IExtensionDependencies {

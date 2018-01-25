@@ -6,11 +6,14 @@
 'use strict';
 
 import 'vs/css!./media/issueReporter';
-import { shell, ipcRenderer, webFrame } from 'electron';
+import { shell, ipcRenderer, webFrame, remote } from 'electron';
+import { localize } from 'vs/nls';
 import { $ } from 'vs/base/browser/dom';
+import * as collections from 'vs/base/common/collections';
 import * as browser from 'vs/base/browser/browser';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
+import * as os from 'os';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -26,12 +29,24 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IssueReporterModel, IssueReporterData } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import { IssueReporterModel, IssueType } from 'vs/code/electron-browser/issue/issueReporterModel';
+import { IssueReporterData, IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
+import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
-export function startup(configuration: IWindowConfiguration) {
+export interface IssueReporterConfiguration extends IWindowConfiguration {
+	data: IssueReporterData;
+}
+
+export function startup(configuration: IssueReporterConfiguration) {
+	document.body.innerHTML = BaseHtml();
 	const issueReporter = new IssueReporter(configuration);
-	issueReporter.render();
+
+	// workaround for flickering on page load as css is applied
+	setTimeout(() => {
+		issueReporter.render();
+		document.body.style.display = 'block';
+	}, 10);
 }
 
 export class IssueReporter extends Disposable {
@@ -39,19 +54,19 @@ export class IssueReporter extends Disposable {
 	private telemetryService: ITelemetryService;
 	private issueReporterModel: IssueReporterModel;
 
-	constructor(configuration: IWindowConfiguration) {
+	constructor(configuration: IssueReporterConfiguration) {
 		super();
 
 		this.issueReporterModel = new IssueReporterModel({
-			issueType: 0,
+			issueType: IssueType.Bug,
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,
-			includeProcessInfo: true
-		});
-
-		ipcRenderer.on('issueStyleResponse', (event, styles: IssueReporterStyles) => {
-			this.applyZoom(styles.zoomLevel);
-			this.applyStyles(styles);
+			includeProcessInfo: true,
+			includeExtensions: true,
+			versionInfo: {
+				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
+				os: `${os.type()} ${os.arch()} ${os.release()}`
+			}
 		});
 
 		ipcRenderer.on('issueInfoResponse', (event, info) => {
@@ -61,14 +76,21 @@ export class IssueReporter extends Disposable {
 
 			const submitButton = <HTMLButtonElement>document.getElementById('github-submit-btn');
 			submitButton.disabled = false;
-			submitButton.textContent = 'Preview on GitHub';
+			submitButton.textContent = localize('previewOnGitHub', "Preview on GitHub");
 		});
 
 		ipcRenderer.send('issueInfoRequest');
-		ipcRenderer.send('issueStyleRequest');
 
 		this.initServices(configuration);
 		this.setEventHandlers();
+
+		if (window.document.documentElement.lang !== 'en') {
+			show(document.getElementById('english'));
+		}
+
+		this.applyZoom(configuration.data.zoomLevel);
+		this.applyStyles(configuration.data.styles);
+		this.handleExtensionData(configuration.data.enabledExtensions);
 	}
 
 	render(): void {
@@ -95,7 +117,7 @@ export class IssueReporter extends Disposable {
 		if (styles.inputBorder) {
 			content.push(`input, textarea, select { border: 1px solid ${styles.inputBorder}; }`);
 		} else {
-			content.push(`input, textarea, select { border: none; }`);
+			content.push(`input, textarea, select { border: 1px solid transparent; }`);
 		}
 
 		if (styles.inputForeground) {
@@ -103,7 +125,8 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputErrorBorder) {
-			content.push(`.invalid-input, .invalid-input:focus { border: 1px solid ${styles.inputErrorBorder}; }`);
+			content.push(`.invalid-input, .invalid-input:focus { border: 1px solid ${styles.inputErrorBorder} !important; }`);
+			content.push(`.validation-error { color: ${styles.inputErrorBorder}; }`);
 		}
 
 		if (styles.inputActiveBorder) {
@@ -132,9 +155,19 @@ export class IssueReporter extends Disposable {
 
 		styleTag.innerHTML = content.join('\n');
 		document.head.appendChild(styleTag);
-
-		document.body.style.backgroundColor = styles.backgroundColor;
 		document.body.style.color = styles.color;
+	}
+
+	private handleExtensionData(extensions: ILocalExtension[]) {
+		const { nonThemes, themes } = collections.groupBy(extensions, ext => {
+			const manifestKeys = ext.manifest.contributes ? Object.keys(ext.manifest.contributes) : [];
+			const onlyTheme = !ext.manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+			return onlyTheme ? 'themes' : 'nonThemes';
+		});
+
+		const numberOfThemeExtesions = themes && themes.length;
+		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes });
+		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
 	}
 
 	private initServices(configuration: IWindowConfiguration): void {
@@ -171,19 +204,11 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		document.getElementById('includeSystemInfo').addEventListener('click', (event: Event) => {
-			event.stopPropagation();
-			this.issueReporterModel.update({ includeSystemInfo: !this.issueReporterModel.getData().includeSystemInfo });
-		});
-
-		document.getElementById('includeProcessInfo').addEventListener('click', (event: Event) => {
-			event.stopPropagation();
-			this.issueReporterModel.update({ includeProcessInfo: !this.issueReporterModel.getData().includeSystemInfo });
-		});
-
-		document.getElementById('includeWorkspaceInfo').addEventListener('click', (event: Event) => {
-			event.stopPropagation();
-			this.issueReporterModel.update({ includeWorkspaceInfo: !this.issueReporterModel.getData().includeWorkspaceInfo });
+		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions'].forEach(elementId => {
+			document.getElementById(elementId).addEventListener('click', (event: Event) => {
+				event.stopPropagation();
+				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
+			});
 		});
 
 		document.getElementById('description').addEventListener('blur', (event: Event) => {
@@ -215,7 +240,7 @@ export class IssueReporter extends Disposable {
 						if (result.items.length) {
 							const issues = $('ul');
 							const issuesText = $('div.list-title');
-							issuesText.textContent = 'Similar issues:';
+							issuesText.textContent = localize('similarIssues', "Similar issues");
 							addIssuesToList(issues, result.items);
 							similarIssues.appendChild(issuesText);
 							similarIssues.appendChild(issues);
@@ -228,6 +253,15 @@ export class IssueReporter extends Disposable {
 		});
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
+
+		document.onkeydown = (e: KeyboardEvent) => {
+			if (e.shiftKey && e.keyCode === 13) {
+				// Close the window if the issue was successfully created
+				if (this.createIssue()) {
+					remote.getCurrentWindow().close();
+				}
+			}
+		};
 	}
 
 	private renderBlocks(): void {
@@ -236,37 +270,36 @@ export class IssueReporter extends Disposable {
 		const systemBlock = document.querySelector('.block-system');
 		const processBlock = document.querySelector('.block-process');
 		const workspaceBlock = document.querySelector('.block-workspace');
+		const extensionsBlock = document.querySelector('.block-extensions');
 
-		const descriptionTitle = document.querySelector('.block-description .block-title');
-		const descriptionSubtitle = document.querySelector('.block-description .block-subtitle');
+		const descriptionTitle = document.getElementById('issue-description-label');
+		const descriptionSubtitle = document.getElementById('issue-description-subtitle');
 
-		// 1 - Bug
-		if (issueType === 0) {
+		if (issueType === IssueType.Bug) {
 			show(systemBlock);
 			hide(processBlock);
 			hide(workspaceBlock);
+			show(extensionsBlock);
 
-			descriptionTitle.innerHTML = 'Steps to reproduce <span class="required-input">*</span>';
+			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = 'How did you encounter this problem? Clear steps to reproduce the problem help our investigation. What did you expect to happen and what actually happened?';
-		}
-		// 2 - Perf Issue
-		else if (issueType === 1) {
+			descriptionSubtitle.innerHTML = localize('bugDescription', "How did you encounter this problem? Please provide clear steps to reproduce the problem during our investigation. What did you expect to happen and what actually did happen?");
+		} else if (issueType === IssueType.PerformanceIssue) {
 			show(systemBlock);
 			show(processBlock);
 			show(workspaceBlock);
+			show(extensionsBlock);
 
-			descriptionTitle.innerHTML = 'Steps to reproduce <span class="required-input">*</span>';
+			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = 'When did this performance issue happen? For example, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.';
-		}
-		// 3 - Feature Request
-		else {
+			descriptionSubtitle.innerHTML = localize('performanceIssueDesciption', "When did this performance issue happen? For example, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.");
+		} else {
 			hide(systemBlock);
 			hide(processBlock);
 			hide(workspaceBlock);
+			hide(extensionsBlock);
 
-			descriptionTitle.innerHTML = 'Description <span class="required-input">*</span>';
+			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
 			hide(descriptionSubtitle);
 		}
 	}
@@ -294,7 +327,7 @@ export class IssueReporter extends Disposable {
 		return isValid;
 	}
 
-	private createIssue(): void {
+	private createIssue(): boolean {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
@@ -307,7 +340,8 @@ export class IssueReporter extends Disposable {
 			document.getElementById('description').addEventListener('input', (event) => {
 				this.validateInput('description');
 			});
-			return;
+
+			return false;
 		}
 
 		if (this.telemetryService) {
@@ -323,6 +357,7 @@ export class IssueReporter extends Disposable {
 		const baseUrl = `https://github.com/microsoft/vscode/issues/new?title=${issueTitle}&body=`;
 		const issueBody = this.issueReporterModel.serialize();
 		shell.openExternal(baseUrl + encodeURIComponent(issueBody));
+		return true;
 	}
 
 	/**
@@ -330,18 +365,9 @@ export class IssueReporter extends Disposable {
 	 */
 
 	private updateAllBlocks(state) {
-		this.updateVersionInfo(state);
 		this.updateSystemInfo(state);
 		this.updateProcessInfo(state);
 		this.updateWorkspaceInfo(state);
-	}
-
-	private updateVersionInfo = (state: IssueReporterData) => {
-		const version = document.getElementById('vscode-version');
-		(<HTMLInputElement>version).value = state.versionInfo.vscodeVersion;
-
-		const osversion = document.getElementById('os');
-		(<HTMLInputElement>osversion).value = state.versionInfo.os;
 	}
 
 	private updateSystemInfo = (state) => {
@@ -349,10 +375,10 @@ export class IssueReporter extends Disposable {
 		let tableHtml = '';
 		Object.keys(state.systemInfo).forEach(k => {
 			tableHtml += `
-<tr>
-	<td>${k}</td>
-	<td>${state.systemInfo[k]}</td>
-</tr>`;
+				<tr>
+					<td>${k}</td>
+					<td>${state.systemInfo[k]}</td>
+				</tr>`;
 		});
 		target.innerHTML = `<table>${tableHtml}</table>`;
 	}
@@ -361,27 +387,57 @@ export class IssueReporter extends Disposable {
 		const target = document.querySelector('.block-process .block-info');
 
 		let tableHtml = `
-<tr>
-	<th>pid</th>
-	<th>CPU %</th>
-	<th>Memory (MB)</th>
-	<th>Name</th>
-</tr>
-`;
+			<tr>
+				<th>pid</th>
+				<th>CPU %</th>
+				<th>Memory (MB)</th>
+				<th>Name</th>
+			</tr>`;
+
 		state.processInfo.forEach(p => {
 			tableHtml += `
-<tr>
-	<td>${p.pid}</td>
-	<td>${p.cpu}</td>
-	<td>${p.memory}</td>
-	<td>${p.name}</td>
-</tr>`;
+				<tr>
+					<td>${p.pid}</td>
+					<td>${p.cpu}</td>
+					<td>${p.memory}</td>
+					<td>${p.name}</td>
+				</tr>`;
 		});
+
 		target.innerHTML = `<table>${tableHtml}</table>`;
 	}
 
 	private updateWorkspaceInfo = (state) => {
 		document.querySelector('.block-workspace .block-info code').textContent = '\n' + state.workspaceInfo;
+	}
+
+	private updateExtensionTable(extensions: ILocalExtension[], numThemeExtensions: number): void {
+		const target = document.querySelector('.block-extensions .block-info');
+		const themeExclusionStr = numThemeExtensions ? `\n(${numThemeExtensions} theme extensions excluded)` : '';
+		extensions = extensions || [];
+
+		if (!extensions.length) {
+			target.innerHTML = 'Extensions: none' + themeExclusionStr;
+			return;
+		}
+
+		let table = `
+			<tr>
+				<th>Extension</th>
+				<th>Author (truncated)</th>
+				<th>Version</th>
+			</tr>`;
+
+		extensions.forEach(extension => {
+			table += `
+				<tr>
+					<td>${extension.manifest.name}</td>
+					<td>${extension.manifest.publisher.substr(0, 3)}</td>
+					<td>${extension.manifest.version}</td>
+				</tr>`;
+		});
+
+		target.innerHTML = `<table>${table}</table>${themeExclusionStr}`;
 	}
 }
 

@@ -164,14 +164,27 @@ class PieceTreeSnapshot implements ITextSnapshot {
 		this._nodes = [];
 		this._tree = tree;
 		this._BOM = BOM;
-		tree.iterate(tree.root, node => {
-			this._nodes.push(node);
-			return true;
-		});
 		this._index = 0;
+		if (tree.root !== SENTINEL) {
+			tree.iterate(tree.root, node => {
+				if (node !== SENTINEL) {
+					this._nodes.push(node);
+				}
+				return true;
+			});
+		}
 	}
 
 	read(): string {
+		if (this._nodes.length === 0) {
+			if (this._index === 0) {
+				this._index++;
+				return this._BOM;
+			} else {
+				return null;
+			}
+		}
+
 		if (this._index > this._nodes.length - 1) {
 			return null;
 		}
@@ -189,7 +202,6 @@ export class PieceTreeBase {
 	protected _lineCnt: number;
 	protected _length: number;
 	private _lastChangeBufferPos: BufferCursor;
-	private _lastNodePosition: NodePosition;
 
 	constructor(chunks: StringBuffer[]) {
 		this.create(chunks);
@@ -200,7 +212,6 @@ export class PieceTreeBase {
 			new StringBuffer('', [0])
 		];
 		this._lastChangeBufferPos = { line: 0, column: 0 };
-		this._lastNodePosition = null;
 		this.root = SENTINEL;
 		this._lineCnt = 1;
 		this._length = 0;
@@ -277,6 +288,9 @@ export class PieceTreeBase {
 
 		let offset = 0;
 		let ret = this.iterate(this.root, node => {
+			if (node === SENTINEL) {
+				return true;
+			}
 			let str = this.getNodeContent(node);
 			let len = str.length;
 			let startPosition = other.nodeAt(offset);
@@ -437,7 +451,6 @@ export class PieceTreeBase {
 				// changed buffer
 				this.appendToNode(node, value);
 				this.computeBufferMetadata();
-				this._lastNodePosition = { node, remainder, nodeStartOffset };
 				return;
 			}
 
@@ -708,14 +721,17 @@ export class PieceTreeBase {
 			for (let i = 0; i < lineStarts.length; i++) {
 				lineStarts[i] += startOffset + 1;
 			}
-			(<number[]>this._buffers[0].lineStarts).push(...<number[]>lineStarts.slice(1));
+
+			this._buffers[0].lineStarts = (<number[]>this._buffers[0].lineStarts).concat(<number[]>lineStarts.slice(1));
 			this._buffers[0].buffer += '_' + text;
 			startOffset += 1;
 		} else {
-			for (let i = 0; i < lineStarts.length; i++) {
-				lineStarts[i] += startOffset;
+			if (startOffset !== 0) {
+				for (let i = 0; i < lineStarts.length; i++) {
+					lineStarts[i] += startOffset;
+				}
 			}
-			(<number[]>this._buffers[0].lineStarts).push(...<number[]>lineStarts.slice(1));
+			this._buffers[0].lineStarts = (<number[]>this._buffers[0].lineStarts).concat(<number[]>lineStarts.slice(1));
 			this._buffers[0].buffer += text;
 		}
 
@@ -907,7 +923,8 @@ export class PieceTreeBase {
 			// _lastChangeBufferPos is already wrong
 			this._lastChangeBufferPos = { line: this._lastChangeBufferPos.line - 1, column: startOffset - prevStartOffset };
 		}
-		(<number[]>this._buffers[0].lineStarts).push(...<number[]>lineStarts.slice(1));
+
+		this._buffers[0].lineStarts = (<number[]>this._buffers[0].lineStarts).concat(<number[]>lineStarts.slice(1));
 		let endIndex = this._buffers[0].lineStarts.length - 1;
 		let endColumn = this._buffers[0].buffer.length - this._buffers[0].lineStarts[endIndex];
 		let endPos = { line: endIndex, column: endColumn };
@@ -921,33 +938,7 @@ export class PieceTreeBase {
 		updateTreeMetadata(this, node, value.length, lf_delta);
 	}
 
-	readNodePositionFromCache(offset: number): NodePosition {
-		if (!this._lastNodePosition) {
-			return null;
-		}
-
-		if (this._lastNodePosition.node.parent === null) {
-			this._lastNodePosition = null;
-			return null;
-		}
-
-		if (this._lastNodePosition.nodeStartOffset > offset || this._lastNodePosition.nodeStartOffset + this._lastNodePosition.node.piece.length < offset) {
-			return null;
-		}
-
-		return {
-			node: this._lastNodePosition.node,
-			remainder: offset - this._lastNodePosition.nodeStartOffset,
-			nodeStartOffset: this._lastNodePosition.nodeStartOffset
-		};
-	}
-
 	nodeAt(offset: number): NodePosition {
-		let cachedNodePosition = this.readNodePositionFromCache(offset);
-		if (cachedNodePosition) {
-			return cachedNodePosition;
-		}
-
 		let x = this.root;
 		let nodeStartOffset = 0;
 

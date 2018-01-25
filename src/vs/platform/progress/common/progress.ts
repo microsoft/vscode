@@ -31,6 +31,12 @@ export interface IProgressRunner {
 	done(): void;
 }
 
+export const emptyProgressRunner: IProgressRunner = Object.freeze({
+	total() { },
+	worked() { },
+	done() { }
+});
+
 export interface IProgress<T> {
 	report(item: T): void;
 }

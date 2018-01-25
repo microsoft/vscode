@@ -85,9 +85,10 @@ export interface IColor {
 	defaults: { light: string, dark: string, highContrast: string };
 }
 
-export interface ILocale {
-	locale: string;
-	path: string;
+export interface ILocalization {
+	languageId: string;
+	languageName?: string;
+	translations: string;
 }
 
 export interface IExtensionContributions {
@@ -104,7 +105,7 @@ export interface IExtensionContributions {
 	iconThemes?: ITheme[];
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
-	locales?: ILocale[];
+	localizations?: ILocalization[];
 }
 
 export interface IExtensionManifest {
@@ -228,6 +229,11 @@ export enum StatisticType {
 	Uninstall = 'uninstall'
 }
 
+export interface IReportedExtension {
+	id: IExtensionIdentifier;
+	malicious: boolean;
+}
+
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
@@ -239,6 +245,7 @@ export interface IExtensionGalleryService {
 	getChangelog(extension: IGalleryExtension): TPromise<string>;
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[]): TPromise<IGalleryExtension[]>;
+	getExtensionsReport(): TPromise<IReportedExtension[]>;
 }
 
 export interface InstallExtensionEvent {
@@ -272,6 +279,7 @@ export interface IExtensionManagementService {
 	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
+	getExtensionsReport(): TPromise<IReportedExtension[]>;
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension>;
 }

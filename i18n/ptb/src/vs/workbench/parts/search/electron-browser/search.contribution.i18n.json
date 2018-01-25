@@ -14,7 +14,6 @@
 	"findInFiles": "Localizar nos Arquivos",
 	"openAnythingHandlerDescription": "Ir para o Arquivo",
 	"openSymbolDescriptionNormal": "Ir para o Símbolo em Área de Trabalho",
-	"searchOutputChannelTitle": "Pesquisar",
 	"searchConfigurationTitle": "Pesquisar",
 	"exclude": "Configure os padrões glob para excluir arquivos e pastas nas pesquisas. Herda todos os padrões glob da configuração files.exclude.",
 	"exclude.boolean": "O padrão glob com o qual combinar os caminhos de arquivo. Defina para verdadeiro ou falso para habilitar ou desabilitar o padrão.",

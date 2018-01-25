@@ -13,6 +13,7 @@ import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import URI from 'vs/base/common/uri';
 
 @extHostNamedCustomer(MainContext.MainThreadTask)
 export class MainThreadTask implements MainThreadTaskShape {
@@ -45,7 +46,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 							let uri = (task._source as any as ExtensionTaskSourceTransfer).__workspaceFolder;
 							if (uri) {
 								delete (task._source as any as ExtensionTaskSourceTransfer).__workspaceFolder;
-								(task._source as any).workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(uri);
+								(task._source as any).workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(uri));
 							}
 						}
 					}
@@ -57,7 +58,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		return TPromise.wrap<void>(undefined);
 	}
 
-	public $unregisterTaskProvider(handle: number): TPromise<any> {
+	public $unregisterTaskProvider(handle: number): TPromise<void> {
 		this._taskService.unregisterTaskProvider(handle);
 		delete this._activeHandles[handle];
 		return TPromise.wrap<void>(undefined);

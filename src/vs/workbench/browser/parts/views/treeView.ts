@@ -262,6 +262,7 @@ class TreeDataSource implements IDataSource {
 }
 
 interface ITreeExplorerTemplateData {
+	container: HTMLElement;
 	label: HTMLElement;
 	resourceLabel: ResourceLabel;
 	icon: HTMLElement;
@@ -300,14 +301,13 @@ class TreeRenderer implements IRenderer {
 			actionRunner: new MultipleSelectionActionRunner(() => tree.getSelection())
 		});
 
-		return { label, resourceLabel, icon, actionBar };
+		return { container, label, resourceLabel, icon, actionBar };
 	}
 
 	public renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const name = node.label || basename(resource.path);
-		const theme = this.themeService.getTheme();
-		const icon = theme.type === LIGHT ? node.icon : node.iconDark;
+		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 
 		// reset
 		templateData.resourceLabel.clear();
@@ -331,6 +331,14 @@ class TreeRenderer implements IRenderer {
 
 		templateData.actionBar.context = (<TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle });
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
+
+		// Fix when the theme do not show folder icons but parent has opt in icon.
+		DOM.toggleClass(templateData.container, 'parent-has-icon', this.hasParentHasOptInIcon(node, tree));
+	}
+
+	private hasParentHasOptInIcon(node: ITreeItem, tree: ITree): boolean {
+		const parent: ITreeItem = tree.getNavigator(node).parent();
+		return parent ? !!(this.themeService.getTheme().type === LIGHT ? parent.icon : parent.iconDark) : false;
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {

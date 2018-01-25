@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { assign } from 'vs/base/common/objects';
 import * as map from 'vs/base/common/map';
-import { tail, flatten, first } from 'vs/base/common/arrays';
+import { tail, flatten } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference, Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -15,12 +15,13 @@ import { visit, JSONVisitor } from 'vs/base/common/json';
 import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, IGroupFilter, ISettingMatcher, ISettingMatch, ISearchResultGroup } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, IGroupFilter, ISettingMatcher, ISettingMatch, ISearchResultGroup, IFilterMetadata } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export abstract class AbstractSettingsModel extends EditorModel {
 
@@ -41,12 +42,14 @@ export abstract class AbstractSettingsModel extends EditorModel {
 	 * Remove duplicates between result groups, preferring results in earlier groups
 	 */
 	private removeDuplicateResults(): void {
-		// Depends on order of map keys
 		const settingKeys = new Set<string>();
-		this._currentResultGroups.forEach((group, id) => {
-			group.result.filterMatches = group.result.filterMatches.filter(s => !settingKeys.has(s.setting.key));
-			group.result.filterMatches.forEach(s => settingKeys.add(s.setting.key));
-		});
+		map.keys(this._currentResultGroups)
+			.sort((a, b) => this._currentResultGroups.get(a).order - this._currentResultGroups.get(b).order)
+			.forEach(groupId => {
+				const group = this._currentResultGroups.get(groupId);
+				group.result.filterMatches = group.result.filterMatches.filter(s => !settingKeys.has(s.setting.key));
+				group.result.filterMatches.forEach(s => settingKeys.add(s.setting.key));
+			});
 	}
 
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[] {
@@ -57,7 +60,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			const groupMatched = groupFilter(group);
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
-					const settingMatchResult = settingMatcher(setting);
+					const settingMatchResult = settingMatcher(setting, group);
 
 					if (groupMatched || settingMatchResult) {
 						filterMatches.push({
@@ -85,6 +88,20 @@ export abstract class AbstractSettingsModel extends EditorModel {
 		}
 		return null;
 	}
+
+	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> {
+		const metadata = Object.create(null);
+		let hasMetadata = false;
+		groups.forEach(g => {
+			if (g.result.metadata) {
+				metadata[g.id] = g.result.metadata;
+				hasMetadata = true;
+			}
+		});
+
+		return hasMetadata ? metadata : null;
+	}
+
 
 	protected get filterGroups(): ISettingsGroup[] {
 		return this.settingsGroups;
@@ -176,12 +193,12 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			};
 		}
 
-		const groupWithMetadata = first(resultGroups, group => !!group.result.metadata);
+		const metadata = this.collectMetadata(resultGroups);
 		return <IFilterResult>{
 			allGroups: this.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
 			matches,
-			metadata: groupWithMetadata && groupWithMetadata.result.metadata
+			metadata
 		};
 	}
 }
@@ -611,19 +628,21 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	protected update(): IFilterResult {
 		// Grab current result groups, only render non-empty groups
-		const resultGroups = map.values(this._currentResultGroups);
+		const resultGroups = map
+			.values(this._currentResultGroups)
+			.sort((a, b) => a.order - b.order);
 		const nonEmptyResultGroups = resultGroups.filter(group => group.result.filterMatches.length);
 
 		const startLine = tail(this.settingsGroups).range.endLineNumber + 2;
 		const { settingsGroups: filteredGroups, matches } = this.writeResultGroups(nonEmptyResultGroups, startLine);
 
-		const groupWithMetadata = first(resultGroups, group => !!group.result.metadata);
+		const metadata = this.collectMetadata(resultGroups);
 		return resultGroups.length ?
 			<IFilterResult>{
 				allGroups: this.settingsGroups,
 				filteredGroups,
 				matches,
-				metadata: groupWithMetadata && groupWithMetadata.result.metadata
+				metadata
 			} :
 			null;
 	}
@@ -665,20 +684,21 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private writeSettingsGroupToBuilder(builder: SettingsContentBuilder, settingsGroup: ISettingsGroup, filterMatches: ISettingMatch[]): IRange[] {
-		// Fix match ranges to offset from setting start line
-		filterMatches = filterMatches.map(filteredMatch => {
-			return <ISettingMatch>{
-				setting: filteredMatch.setting,
-				score: filteredMatch.score,
-				matches: filteredMatch.matches && filteredMatch.matches.map(match => {
-					return new Range(
-						match.startLineNumber - filteredMatch.setting.range.startLineNumber,
-						match.startColumn,
-						match.endLineNumber - filteredMatch.setting.range.startLineNumber,
-						match.endColumn);
-				})
-			};
-		});
+		filterMatches = filterMatches
+			.map(filteredMatch => {
+				// Fix match ranges to offset from setting start line
+				return <ISettingMatch>{
+					setting: filteredMatch.setting,
+					score: filteredMatch.score,
+					matches: filteredMatch.matches && filteredMatch.matches.map(match => {
+						return new Range(
+							match.startLineNumber - filteredMatch.setting.range.startLineNumber,
+							match.startColumn,
+							match.endLineNumber - filteredMatch.setting.range.startLineNumber,
+							match.endColumn);
+					})
+				};
+			});
 
 		builder.pushGroup(settingsGroup);
 		builder.pushLine(',');
@@ -701,6 +721,17 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return fixedMatches;
 	}
 
+	private copySetting(setting: ISetting): ISetting {
+		return <ISetting>{
+			description: setting.description,
+			key: setting.key,
+			value: setting.value,
+			range: setting.range,
+			overrides: [],
+			overrideOf: setting.overrideOf
+		};
+	}
+
 	public findValueMatches(filter: string, setting: ISetting): IRange[] {
 		return [];
 	}
@@ -718,19 +749,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return null;
 	}
 
-	private copySettings(settings: ISetting[]): ISetting[] {
-		return settings.map(setting => {
-			return <ISetting>{
-				description: setting.description,
-				key: setting.key,
-				value: setting.value,
-				range: null,
-				valueRange: null,
-				overrides: []
-			};
-		});
-	}
-
 	private getGroup(resultGroup: ISearchResultGroup): ISettingsGroup {
 		return <ISettingsGroup>{
 			id: resultGroup.id,
@@ -739,7 +757,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			titleRange: null,
 			sections: [
 				{
-					settings: this.copySettings(resultGroup.result.filterMatches.map(m => m.setting))
+					settings: resultGroup.result.filterMatches.map(m => this.copySetting(m.setting))
 				}
 			]
 		};

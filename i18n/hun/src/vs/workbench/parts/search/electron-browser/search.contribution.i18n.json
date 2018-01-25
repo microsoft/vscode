@@ -14,7 +14,6 @@
 	"findInFiles": "Keresés a fájlokban",
 	"openAnythingHandlerDescription": "Fájl megkeresése",
 	"openSymbolDescriptionNormal": "Szimbólum megkeresése a munkaterületen",
-	"searchOutputChannelTitle": "Keresés",
 	"searchConfigurationTitle": "Keresés",
 	"exclude": "Globális minták konfigurálása fájlok és mappák keresésből való kizárásához. Örökli az összes globális mintát a fliex.exclude beállításból.",
 	"exclude.boolean": "A globális minta, amire illesztve lesznek a fájlok elérési útjai. A minta engedélyezéséhez vagy letiltásához állítsa igaz vagy hamis értékre.",

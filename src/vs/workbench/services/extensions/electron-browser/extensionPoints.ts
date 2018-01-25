@@ -334,6 +334,10 @@ export class ExtensionScanner {
 			}
 
 			const rawFolders = await pfs.readDirsInDir(absoluteFolderPath);
+
+			// Ensure the same extension order
+			rawFolders.sort();
+
 			let folders: string[] = null;
 			if (isBuiltin) {
 				folders = rawFolders;

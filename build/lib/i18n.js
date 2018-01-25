@@ -14,6 +14,7 @@ var glob = require("glob");
 var https = require("https");
 var util = require('gulp-util');
 var iconv = require('iconv-lite');
+var NUMBER_OF_CONCURRENT_DOWNLOADS = 1;
 function log(message) {
     var rest = [];
     for (var _i = 1; _i < arguments.length; _i++) {
@@ -207,6 +208,36 @@ var XLF = /** @class */ (function () {
     return XLF;
 }());
 exports.XLF = XLF;
+var Limiter = /** @class */ (function () {
+    function Limiter(maxDegreeOfParalellism) {
+        this.maxDegreeOfParalellism = maxDegreeOfParalellism;
+        this.outstandingPromises = [];
+        this.runningPromises = 0;
+    }
+    Limiter.prototype.queue = function (factory) {
+        var _this = this;
+        return new Promise(function (c, e) {
+            _this.outstandingPromises.push({ factory: factory, c: c, e: e });
+            _this.consume();
+        });
+    };
+    Limiter.prototype.consume = function () {
+        var _this = this;
+        while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+            var iLimitedTask = this.outstandingPromises.shift();
+            this.runningPromises++;
+            var promise = iLimitedTask.factory();
+            promise.then(iLimitedTask.c).catch(iLimitedTask.e);
+            promise.then(function () { return _this.consumed(); }).catch(function () { return _this.consumed(); });
+        }
+    };
+    Limiter.prototype.consumed = function () {
+        this.runningPromises--;
+        this.consume();
+    };
+    return Limiter;
+}());
+exports.Limiter = Limiter;
 var iso639_3_to_2 = {
     'chs': 'zh-cn',
     'cht': 'zh-tw',
@@ -826,8 +857,9 @@ function pullXlfFiles(projectName, apiHostname, username, password, languages, r
     });
 }
 exports.pullXlfFiles = pullXlfFiles;
+var limiter = new Limiter(NUMBER_OF_CONCURRENT_DOWNLOADS);
 function retrieveResource(language, resource, apiHostname, credentials) {
-    return new Promise(function (resolve, reject) {
+    return limiter.queue(function () { return new Promise(function (resolve, reject) {
         var slug = resource.name.replace(/\//g, '_');
         var project = resource.project;
         var iso639 = language.toLowerCase();
@@ -835,6 +867,7 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             hostname: apiHostname,
             path: "/api/2/project/" + project + "/resource/" + slug + "/translation/" + iso639 + "?file&mode=onlyreviewed",
             auth: credentials,
+            port: 443,
             method: 'GET'
         };
         var request = https.request(options, function (res) {
@@ -842,16 +875,18 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             res.on('data', function (chunk) { return xlfBuffer.push(chunk); });
             res.on('end', function () {
                 if (res.statusCode === 200) {
+                    console.log('success: ' + options.path);
                     resolve(new File({ contents: Buffer.concat(xlfBuffer), path: project + "/" + iso639_2_to_3[language] + "/" + slug + ".xlf" }));
                 }
                 reject(slug + " in " + project + " returned no data. Response code: " + res.statusCode + ".");
             });
         });
         request.on('error', function (err) {
-            reject("Failed to query resource " + slug + " with the following error: " + err);
+            reject("Failed to query resource " + slug + " with the following error: " + err + ". " + options.path);
         });
         request.end();
-    });
+        console.log('started: ' + options.path);
+    }); });
 }
 function prepareJsonFiles() {
     var parsePromises = [];

@@ -15,7 +15,7 @@ import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, SymbolInformationDto, WorkspaceEditDto, ResourceEditDto, CodeActionDto } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, SymbolInformationDto, CodeActionDto, reviveWorkspaceEditDto } from '../node/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
@@ -86,21 +86,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
-	private static _reviveResourceEditDto(data: ResourceEditDto): modes.IResourceEdit {
-		data.resource = URI.revive(data.resource);
-		return <modes.IResourceEdit>data;
-	}
-
-	private static _reviveWorkspaceEditDto(data: WorkspaceEditDto): modes.WorkspaceEdit {
-		if (data && data.edits) {
-			data.edits.forEach(MainThreadLanguageFeatures._reviveResourceEditDto);
-		}
-		return <modes.WorkspaceEdit>data;
-	}
-
 	private static _reviveCodeActionDto(data: CodeActionDto[]): modes.CodeAction[] {
 		if (data) {
-			data.forEach(code => MainThreadLanguageFeatures._reviveWorkspaceEditDto(code.edit));
+			data.forEach(code => reviveWorkspaceEditDto(code.edit));
 		}
 		return <modes.CodeAction[]>data;
 	}
@@ -206,8 +194,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.CodeActionProviderRegistry.register(toLanguageSelector(selector), <modes.CodeActionProvider>{
-			provideCodeActions: (model: ITextModel, range: EditorRange, token: CancellationToken): Thenable<modes.CodeAction[]> => {
-				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.uri, range))).then(MainThreadLanguageFeatures._reviveCodeActionDto);
+			provideCodeActions: (model: ITextModel, range: EditorRange, context: modes.CodeActionContext, token: CancellationToken): Thenable<modes.CodeAction[]> => {
+				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.uri, range, context))).then(MainThreadLanguageFeatures._reviveCodeActionDto);
 			}
 		});
 	}
@@ -266,7 +254,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.RenameProviderRegistry.register(toLanguageSelector(selector), <modes.RenameProvider>{
 			provideRenameEdits: (model: ITextModel, position: EditorPosition, newName: string, token: CancellationToken): Thenable<modes.WorkspaceEdit> => {
-				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.uri, position, newName)).then(MainThreadLanguageFeatures._reviveWorkspaceEditDto);
+				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.uri, position, newName)).then(reviveWorkspaceEditDto);
 			}
 		});
 	}

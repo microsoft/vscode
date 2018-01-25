@@ -16,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 interface ILanguageSource {
 	extensionIdentifier: IExtensionIdentifier;
 	version: string;
-	path: string;
+	translations: string;
 }
 
 export class LanguagePackExtensions extends Disposable {
@@ -52,7 +52,7 @@ export class LanguagePackExtensions extends Disposable {
 	}
 
 	private onDidInstallExtension(extension: ILocalExtension): void {
-		if (extension && extension.manifest && extension.manifest.contributes && extension.manifest.contributes.locales && extension.manifest.contributes.locales.length) {
+		if (extension && extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
 			this.logService.debug('Adding language packs from the extension', extension.identifier.id);
 			this.withLanguagePacks(languagePacks => {
 				this.removeLanguagePacksFromExtensions(languagePacks, { id: getGalleryExtensionIdFromLocal(extension), uuid: extension.identifier.uuid });
@@ -68,12 +68,14 @@ export class LanguagePackExtensions extends Disposable {
 
 	private addLanguagePacksFromExtensions(languagePacks: { [language: string]: ILanguageSource[] }, ...extensions: ILocalExtension[]): void {
 		for (const extension of extensions) {
-			if (extension && extension.manifest && extension.manifest.contributes && extension.manifest.contributes.locales && extension.manifest.contributes.locales.length) {
+			if (extension && extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
 				const extensionIdentifier = { id: getGalleryExtensionIdFromLocal(extension), uuid: extension.identifier.uuid };
-				for (const localeContribution of extension.manifest.contributes.locales) {
-					const languageSources = languagePacks[localeContribution.locale] || [];
-					languageSources.splice(0, 0, { extensionIdentifier, path: join(extension.path, localeContribution.path), version: extension.manifest.version });
-					languagePacks[localeContribution.locale] = languageSources;
+				for (const localizationContribution of extension.manifest.contributes.localizations) {
+					if (localizationContribution.languageId && localizationContribution.translations) {
+						const languageSources = languagePacks[localizationContribution.languageId] || [];
+						languageSources.splice(0, 0, { extensionIdentifier, translations: join(extension.path, localizationContribution.translations), version: extension.manifest.version });
+						languagePacks[localizationContribution.languageId] = languageSources;
+					}
 				}
 			}
 		}

@@ -13,6 +13,8 @@
 	"reallyRecommendedExtensionPack": "Ehhez a fájltípushoz a(z) '{0}' kiegészítőcsomag ajánlott.",
 	"showRecommendations": "Ajánlatok megjelenítése",
 	"install": "Telepítés",
+	"showLanguageExtensions": "A piactéren található olyan kiegészítő, ami segíthet a(z) '.{0}' fájloknál",
+	"searchMarketplace": "Keresés a piactéren",
 	"workspaceRecommended": "A munkaterülethez vannak javasolt kiegészítők",
 	"installAll": "Összes telepítése",
 	"ignoreExtensionRecommendations": "Figyelmen kívül akarja hagyni az összes javasolt kiegészítőt?",

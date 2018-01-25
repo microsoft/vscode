@@ -30,10 +30,13 @@
 	"inspect-extensions": "Consentire il debug e profiling delle estensioni. Controllare gli strumenti di sviluppo per l'uri di connessione.",
 	"inspect-brk-extensions": "Consentire il debug e profiling delle estensioni con l'host di estensione in pausa dopo inizio. Controllare gli strumenti di sviluppo per l'uri di connessione.",
 	"disableGPU": "Disabilita l'accelerazione hardware della GPU.",
+	"uploadLogs": "Caricamento dei log della sessione corrente verso un punto di comunicazione sicuro.",
 	"usage": "Utilizzo",
 	"options": "opzioni",
 	"paths": "percorsi",
 	"stdinWindows": "Per leggere l'output da un altro programma, aggiungere alla fine '-' (ad esempio 'echo Hello World | {0} -')",
 	"stdinUnix": "Per leggere da stdin, aggiungere alla fine '-' (ad esempio 'ps aux | grep code | {0} -')",
-	"optionsUpperCase": "Opzioni"
+	"optionsUpperCase": "Opzioni",
+	"extensionsManagement": "Gestione delle estensioni",
+	"troubleshooting": "Risoluzione dei problemi"
 }

@@ -19,8 +19,6 @@
 	"vscode.extension.contributes.debuggers.configurationAttributes": "Конфигурации схемы JSON для проверки launch.json.",
 	"vscode.extension.contributes.debuggers.windows": "Параметры, связанные с Windows.",
 	"vscode.extension.contributes.debuggers.windows.runtime": "Среда выполнения, используемая для Windows.",
-	"vscode.extension.contributes.debuggers.osx": "Параметры, связанные с OS X.",
-	"vscode.extension.contributes.debuggers.osx.runtime": "Среда выполнения, используемая для OS X.",
 	"vscode.extension.contributes.debuggers.linux": "Параметры, связанные с Linux.",
 	"vscode.extension.contributes.debuggers.linux.runtime": "Среда выполнения, используемая для Linux.",
 	"vscode.extension.contributes.breakpoints": "Добавляет точки останова.",
