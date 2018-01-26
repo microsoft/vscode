@@ -258,8 +258,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			},
 			resolveInitialRenameValue: supportsResolveInitialValues
 				? (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.RenameInitialValue> => wireCancellationToken(token, this._proxy.$resolveInitialRenameValue(handle, model.uri, position))
-				: undefined				
-			}
+				: undefined
 		});
 	}
 
