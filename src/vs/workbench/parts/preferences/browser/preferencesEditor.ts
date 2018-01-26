@@ -488,26 +488,27 @@ class PreferencesRenderersController extends Disposable {
 	}
 
 	private searchAllSettingsTargets(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number): TPromise<void> {
-		if (!query) {
-			// Don't open the other settings targets when query is empty
-			return TPromise.wrap(null);
-		}
-
 		const searchPs = [
-			this.searchSettingsTarget(searchProvider, ConfigurationTarget.WORKSPACE, groupId, groupLabel, groupOrder),
-			this.searchSettingsTarget(searchProvider, ConfigurationTarget.USER, groupId, groupLabel, groupOrder)
+			this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.WORKSPACE, groupId, groupLabel, groupOrder),
+			this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.USER, groupId, groupLabel, groupOrder)
 		];
 
 		for (const folder of this.workspaceContextService.getWorkspace().folders) {
 			const folderSettingsResource = this.preferencesService.getFolderSettingsResource(folder.uri);
-			searchPs.push(this.searchSettingsTarget(searchProvider, folderSettingsResource, groupId, groupLabel, groupOrder));
+			searchPs.push(this.searchSettingsTarget(query, searchProvider, folderSettingsResource, groupId, groupLabel, groupOrder));
 		}
 
 
 		return TPromise.join(searchPs).then(() => { });
 	}
 
-	private searchSettingsTarget(provider: ISearchProvider, target: SettingsTarget, groupId: string, groupLabel: string, groupOrder: number): TPromise<void> {
+	private searchSettingsTarget(query: string, provider: ISearchProvider, target: SettingsTarget, groupId: string, groupLabel: string, groupOrder: number): TPromise<void> {
+		if (!query) {
+			// Don't open the other settings targets when query is empty
+			this._onDidFilterResultsCountChange.fire({ target, count: 0 });
+			return TPromise.wrap(null);
+		}
+
 		return this.getPreferencesEditorModel(target).then(model => {
 			return this._filterOrSearchPreferencesModel('', <ISettingsEditorModel>model, provider, groupId, groupLabel, groupOrder);
 		}).then(result => {
