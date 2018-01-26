@@ -12,7 +12,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import URI from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { BACKUP_FILE_RESOLVE_OPTIONS, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Schemas } from 'vs/base/common/network';
@@ -20,6 +20,8 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position } from 'vs/platform/editor/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * Shared function across some editor components to handle drag & drop of external resources. E.g. of folders and workspace files
@@ -37,6 +39,7 @@ export class EditorAreaDropHandler {
 		@IEditorGroupService private groupService: IEditorGroupService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 	}
 
@@ -107,11 +110,20 @@ export class EditorAreaDropHandler {
 		}
 
 		// Resolve the contents of the dropped dirty resource from source
-		return this.textFileService.resolveTextContent(droppedDirtyEditor.backupResource, BACKUP_FILE_RESOLVE_OPTIONS).then(content => {
+		return this.backupFileService.resolveBackupContent(droppedDirtyEditor.backupResource).then(content => {
 
 			// Set the contents of to the resource to the target
-			return this.backupFileService.backupResource(droppedDirtyEditor.resource, this.backupFileService.parseBackupContent(content.value));
+			return this.backupFileService.backupResource(droppedDirtyEditor.resource, content.create(this.getDefaultEOL()).createSnapshot(true));
 		}).then(() => false, () => false /* ignore any error */);
+	}
+
+	private getDefaultEOL(): DefaultEndOfLine {
+		const eol = this.configurationService.getValue('files.eol');
+		if (eol === '\r\n') {
+			return DefaultEndOfLine.CRLF;
+		}
+
+		return DefaultEndOfLine.LF;
 	}
 
 	private handleWorkspaceFileDrop(resources: (IDraggedResource | IDraggedEditor)[]): TPromise<boolean> {

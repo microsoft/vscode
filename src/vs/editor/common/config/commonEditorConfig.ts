@@ -264,6 +264,12 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.enabled,
 			'description': nls.localize('minimap.enabled', "Controls if the minimap is shown")
 		},
+		'editor.minimap.side': {
+			'type': 'string',
+			'enum': ['left', 'right'],
+			'default': EDITOR_DEFAULTS.viewInfo.minimap.side,
+			'description': nls.localize('minimap.side', "Controls the side where to render the minimap. Possible values are \'right\' and \'left\'")
+		},
 		'editor.minimap.showSlider': {
 			'type': 'string',
 			'enum': ['always', 'mouseover'],
@@ -352,8 +358,8 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['ctrlCmd', 'alt'],
 			'enumDescriptions': [
-				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on OSX."),
-				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on OSX.")
+				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
+				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
 			],
 			'default': 'alt',
 			'description': nls.localize({
@@ -362,7 +368,7 @@ const editorConfiguration: IConfigurationNode = {
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on OSX. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
+			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
 		},
 		'editor.quickSuggestions': {
 			'anyOf': [
@@ -461,6 +467,17 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
+		},
+		'editor.selectSuggestions': {
+			'type': 'string',
+			'enum': ['never', 'byRecency', 'byPrefix'],
+			'enumDescriptions': [
+				nls.localize('selectSuggestions.never', "Do not remember suggestions and always select the first."),
+				nls.localize('selectSuggestions.byRecency', "Select recent suggestions unless further typing selects one, e.g. `console.| -> console.log`"),
+				nls.localize('selectSuggestions.byPrefix', "Select suggestions based on previous prefixes that have completed those suggestions, e.g. `co -> console` and `con -> const`"),
+			],
+			'default': 'byRecency',
+			'description': nls.localize('selectSuggestions', "Controls if accepting suggestions changes how future suggestions are pre-selected.")
 		},
 		'editor.suggestFontSize': {
 			'type': 'integer',

@@ -34,7 +34,6 @@ class ViewCursorRenderData {
 
 export class ViewCursor {
 	private readonly _context: ViewContext;
-	private readonly _isSecondary: boolean;
 	private readonly _domNode: FastDomNode<HTMLElement>;
 
 	private _cursorStyle: TextEditorCursorStyle;
@@ -49,9 +48,8 @@ export class ViewCursor {
 	private _lastRenderedContent: string;
 	private _renderData: ViewCursorRenderData;
 
-	constructor(context: ViewContext, isSecondary: boolean) {
+	constructor(context: ViewContext) {
 		this._context = context;
-		this._isSecondary = isSecondary;
 
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
@@ -62,11 +60,7 @@ export class ViewCursor {
 
 		// Create the dom node
 		this._domNode = createFastDomNode(document.createElement('div'));
-		if (this._isSecondary) {
-			this._domNode.setClassName('cursor secondary');
-		} else {
-			this._domNode.setClassName('cursor');
-		}
+		this._domNode.setClassName('cursor');
 		this._domNode.setHeight(this._lineHeight);
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);

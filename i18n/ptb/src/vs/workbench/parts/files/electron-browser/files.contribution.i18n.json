@@ -36,6 +36,7 @@
 	"editorConfigurationTitle": "Editor",
 	"formatOnSave": "Formata um arquivo no salvamento. Um formatador deve estar disponível, o arquivo não deve ser salvo automaticamente e editor não deve ser desligado.",
 	"explorerConfigurationTitle": "Explorador de arquivos",
+	"openEditorsVisible": "Número de editores mostrados no painel Editores Abertos.",
 	"autoReveal": "Controla se o explorador deve automaticamente revelar e selecionar arquivos ao abri-los.",
 	"enableDragAndDrop": "Controla se o explorador deve permitir mover arquivos e pastas através de arrastar e soltar.",
 	"confirmDragAndDrop": "Controla se o explorer deve pedir a confirmação ao mover arquivos ou pastas através de arrastar e soltar.",

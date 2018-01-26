@@ -21,7 +21,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService, ConsoleLogMainService, MultiplexLogService } from 'vs/platform/log/common/log';
+import { ILogService, ConsoleLogMainService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/common/state';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
@@ -45,12 +45,15 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
+import { uploadLogs } from 'vs/code/electron-main/logUploader';
+import { IChoiceService } from 'vs/platform/message/common/message';
+import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(args, process.execPath);
-	const consoleLogService = new ConsoleLogMainService(environmentService);
+	const consoleLogService = new ConsoleLogMainService(getLogLevel(environmentService));
 	const logService = new MultiplexLogService([consoleLogService, bufferLogService]);
 
 	process.once('exit', () => logService.dispose());
@@ -68,6 +71,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IURLService, new SyncDescriptor(URLService, args['open-url'] ? args._urls : []));
 	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
+	services.set(IChoiceService, new SyncDescriptor(ChoiceCliService));
 
 	return new InstantiationService(services, true);
 }
@@ -198,8 +202,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					// Log uploader
 					if (environmentService.args['upload-logs']) {
-						return import('vs/code/electron-main/logUploader')
-							.then(logUploader => logUploader.uploadLogs(channel, requestService))
+						return uploadLogs(channel, requestService)
 							.then(() => TPromise.wrapError(new ExpectedError()));
 					}
 
@@ -320,7 +323,7 @@ function main() {
 		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
 			.then(() => instantiationService.invokeFunction(setupIPC))
 			.then(mainIpcServer => {
-				bufferLogService.logger = createSpdLogService('main', environmentService);
+				bufferLogService.logger = createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup();
 			});
 	}).done(null, err => instantiationService.invokeFunction(quit, err));

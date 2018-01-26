@@ -396,7 +396,7 @@ export class FindModelBoundToEditorModel {
 		const findScope = this._decorations.getFindScope();
 
 		if (findScope === null && this._state.matchesCount >= MATCHES_LIMIT) {
-			// Doing a replace on the entire file that is over 1k matches
+			// Doing a replace on the entire file that is over ${MATCHES_LIMIT} matches
 			this._largeReplaceAll();
 		} else {
 			this._regularReplaceAll(findScope);

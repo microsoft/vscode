@@ -278,11 +278,13 @@ export class TerminalInstance implements ITerminalInstance {
 			scrollback: this._configHelper.config.scrollback,
 			theme: this._getXtermTheme(),
 			fontFamily: font.fontFamily,
+			fontWeight: this._configHelper.config.fontWeight,
+			fontWeightBold: this._configHelper.config.fontWeightBold,
 			fontSize: font.fontSize,
 			lineHeight: font.lineHeight,
-			enableBold: this._configHelper.config.enableBold,
 			bellStyle: this._configHelper.config.enableBell ? 'sound' : 'none',
-			screenReaderMode: accessibilitySupport === 'on'
+			screenReaderMode: accessibilitySupport === 'on',
+			macOptionIsMeta: this._configHelper.config.macOptionIsMeta
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -912,7 +914,13 @@ export class TerminalInstance implements ITerminalInstance {
 		while (lineIndex >= 0 && buffer.lines.get(lineIndex--).isWrapped) {
 			lineData = buffer.translateBufferLineToString(lineIndex, true) + lineData;
 		}
-		this._onLineDataListeners.forEach(listener => listener(lineData));
+		this._onLineDataListeners.forEach(listener => {
+			try {
+				listener(lineData);
+			} catch (err) {
+				console.error(`onLineData listener threw`, err);
+			}
+		});
 	}
 
 	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
@@ -955,6 +963,7 @@ export class TerminalInstance implements ITerminalInstance {
 				it: 'IT',
 				ja: 'JP',
 				ko: 'KR',
+				pl: 'PL',
 				ru: 'RU',
 				zh: 'CN'
 			};
@@ -974,6 +983,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._setCommandsToSkipShell(this._configHelper.config.commandsToSkipShell);
 		this._setScrollback(this._configHelper.config.scrollback);
 		this._setEnableBell(this._configHelper.config.enableBell);
+		this._setMacOptionIsMeta(this._configHelper.config.macOptionIsMeta);
 	}
 
 	public updateAccessibilitySupport(): void {
@@ -1003,6 +1013,12 @@ export class TerminalInstance implements ITerminalInstance {
 	private _setScrollback(lineCount: number): void {
 		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
 			this._xterm.setOption('scrollback', lineCount);
+		}
+	}
+
+	private _setMacOptionIsMeta(value: boolean): void {
+		if (this._xterm && this._xterm.getOption('macOptionIsMeta') !== value) {
+			this._xterm.setOption('macOptionIsMeta', value);
 		}
 	}
 
@@ -1041,8 +1057,11 @@ export class TerminalInstance implements ITerminalInstance {
 				if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
 					this._xterm.setOption('fontFamily', font.fontFamily);
 				}
-				if (this._xterm.getOption('enableBold') !== this._configHelper.config.enableBold) {
-					this._xterm.setOption('enableBold', this._configHelper.config.enableBold);
+				if (this._xterm.getOption('fontWeight') !== this._configHelper.config.fontWeight) {
+					this._xterm.setOption('fontWeight', this._configHelper.config.fontWeight);
+				}
+				if (this._xterm.getOption('fontWeightBold') !== this._configHelper.config.fontWeightBold) {
+					this._xterm.setOption('fontWeightBold', this._configHelper.config.fontWeightBold);
 				}
 			}
 

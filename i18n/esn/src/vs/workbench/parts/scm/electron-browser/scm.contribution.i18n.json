@@ -8,5 +8,6 @@
 	"source control": "Control de código fuente",
 	"toggleSCMViewlet": "Mostrar SCM",
 	"view": "Ver",
-	"scmConfigurationTitle": "SCM"
+	"scmConfigurationTitle": "SCM",
+	"inputCounter": "Controla cuándo mostrar el contador de entradas."
 }

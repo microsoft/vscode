@@ -27,18 +27,11 @@ export class ProxyIdentifier<T> {
 
 	public readonly isMain: boolean;
 	public readonly id: string;
-	public readonly isFancy: boolean;
 
-	constructor(isMain: boolean, id: string, isFancy: boolean) {
+	constructor(isMain: boolean, id: string) {
 		this.isMain = isMain;
 		this.id = id;
-		this.isFancy = isFancy;
 	}
-}
-
-export const enum ProxyType {
-	NativeJSON = 0,
-	CustomMarshaller = 1
 }
 
 /**
@@ -46,10 +39,10 @@ export const enum ProxyType {
  * will be serialized/deserialized automatically, but this has a performance cost,
  * as each argument/result must be visited.
  */
-export function createMainContextProxyIdentifier<T>(identifier: string, type: ProxyType = ProxyType.NativeJSON): ProxyIdentifier<T> {
-	return new ProxyIdentifier(true, 'm' + identifier, type === ProxyType.CustomMarshaller);
+export function createMainContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
+	return new ProxyIdentifier(true, 'm' + identifier);
 }
 
-export function createExtHostContextProxyIdentifier<T>(identifier: string, type: ProxyType = ProxyType.NativeJSON): ProxyIdentifier<T> {
-	return new ProxyIdentifier(false, 'e' + identifier, type === ProxyType.CustomMarshaller);
+export function createExtHostContextProxyIdentifier<T>(identifier: string): ProxyIdentifier<T> {
+	return new ProxyIdentifier(false, 'e' + identifier);
 }

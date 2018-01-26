@@ -6,15 +6,19 @@
 {
 	"openLogsFolder": "開啟紀錄資料夾",
 	"showLogs": "顯示紀錄...。",
+	"mainProcess": "主要",
+	"sharedProcess": "共享",
 	"rendererProcess": "視窗",
 	"extensionHost": "延伸主機",
 	"selectProcess": "選取程序",
+	"openLogFile": "開啟紀錄檔案...",
 	"setLogLevel": "設定記錄層級",
 	"trace": "追蹤",
 	"debug": "偵錯",
 	"info": "資訊",
 	"warn": "警告",
 	"err": "錯誤",
+	"critical": "嚴重",
 	"off": "關閉",
 	"selectLogLevel": "選擇紀錄層級"
 }

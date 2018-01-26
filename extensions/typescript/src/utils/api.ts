@@ -91,4 +91,9 @@ export default class API {
 	public has262Features(): boolean {
 		return semver.gte(this.version, '2.6.2');
 	}
+
+	@memoize
+	public has270Features(): boolean {
+		return semver.gte(this.version, '2.7.0');
+	}
 }

@@ -15,7 +15,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
 import { ITree, IActionProvider, IDataSource, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { IAction, IActionItem } from 'vs/base/common/actions';
@@ -25,8 +24,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { basenameOrAuthority } from 'vs/base/common/resources';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
 
@@ -40,16 +38,14 @@ export class CallStackView extends TreeViewsViewletPanel {
 	private onCallStackChangeScheduler: RunOnceScheduler;
 	private settings: any;
 	private needsRefresh: boolean;
+	private ignoreSelectionChangedEvent: boolean;
 
 	constructor(
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@IListService private listService: IListService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService);
@@ -99,7 +95,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService);
 		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext);
 
-		this.tree = new WorkbenchTree(this.treeContainer, {
+		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new CallStackDataSource(),
 			renderer: this.instantiationService.createInstance(CallStackRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(CallstackAccessibilityProvider),
@@ -108,13 +104,16 @@ export class CallStackView extends TreeViewsViewletPanel {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
 				twistiePixels,
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService, this.themeService);
+			});
 
 		const fileResultsNavigation = new FileResultsNavigation(this.tree);
 		this.disposables.push(fileResultsNavigation);
 		this.disposables.push(fileResultsNavigation.openFile(e => {
-			const element = e.element;
+			if (this.ignoreSelectionChangedEvent) {
+				return;
+			}
 
+			const element = e.element;
 			if (element instanceof StackFrame) {
 				this.debugService.focusStackFrame(element, element.thread, element.thread.process, true);
 				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide).done(undefined, errors.onUnexpectedError);
@@ -145,8 +144,14 @@ export class CallStackView extends TreeViewsViewletPanel {
 				this.onCallStackChangeScheduler.schedule();
 			}
 		}));
-		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() =>
-			this.updateTreeSelection().done(undefined, errors.onUnexpectedError)));
+		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
+			if (!this.isVisible) {
+				this.needsRefresh = true;
+				return;
+			}
+
+			this.updateTreeSelection().done(undefined, errors.onUnexpectedError);
+		}));
 
 		// Schedule the update of the call stack tree if the viewlet is opened after a session started #14684
 		if (this.debugService.state === State.Stopped) {
@@ -163,13 +168,22 @@ export class CallStackView extends TreeViewsViewletPanel {
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const thread = this.debugService.getViewModel().focusedThread;
 		const process = this.debugService.getViewModel().focusedProcess;
+		const updateSelection = (element: IStackFrame | IProcess) => {
+			this.ignoreSelectionChangedEvent = true;
+			try {
+				this.tree.setSelection([element]);
+			} finally {
+				this.ignoreSelectionChangedEvent = false;
+			}
+		};
+
 		if (!thread) {
 			if (!process) {
 				this.tree.clearSelection();
 				return TPromise.as(null);
 			}
 
-			this.tree.setSelection([process]);
+			updateSelection(process);
 			return this.tree.reveal(process);
 		}
 
@@ -178,7 +192,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 				return TPromise.as(null);
 			}
 
-			this.tree.setSelection([stackFrame]);
+			updateSelection(stackFrame);
 			return this.tree.reveal(stackFrame);
 		});
 	}

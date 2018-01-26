@@ -31,10 +31,9 @@ import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/to
 
 function renderBody(
 	body: string,
-	css: string,
-	environmentService: IEnvironmentService
+	css: string
 ): string {
-	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://' + environmentService.appRoot, 'vscode-core-resource://');
+	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
 	return `<!DOCTYPE html>
 		<html>
 			<head>
@@ -104,7 +103,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = generateTokensCSSForColorMap(colorMap);
-		const body = renderBody(marked(text, { renderer }), css, this.environmentService);
+		const body = renderBody(marked(text, { renderer }), css);
 		this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.environmentService, this._contextViewService, this.contextKey, this.findInputFocusContextKey, {}, false);
 		if (this.input && this.input instanceof ReleaseNotesInput) {
 			const state = this.loadViewState(this.input.version);

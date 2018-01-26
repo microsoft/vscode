@@ -40,6 +40,7 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -128,7 +129,8 @@ abstract class AbstractFileOutputChannel extends Disposable {
 	protected modelUpdater: RunOnceScheduler;
 	protected model: ITextModel;
 	readonly file: URI;
-	protected startOffset: number = 0;
+
+	private startOffset: number = 0;
 	protected endOffset: number = 0;
 
 	constructor(
@@ -201,7 +203,6 @@ abstract class AbstractFileOutputChannel extends Disposable {
 			const lastLine = this.model.getLineCount();
 			const lastLineMaxColumn = this.model.getLineMaxColumn(lastLine);
 			this.model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), content)]);
-			this.endOffset = this.endOffset + new Buffer(content).byteLength;
 			this._onDidAppendedContent.fire();
 		}
 	}
@@ -225,26 +226,33 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	private appendedMessage = '';
 	private loadingFromFileInProgress: boolean = false;
 	private resettingDelayer: ThrottledDelayer<void>;
+	private readonly rotatingFilePath: string;
 
 	constructor(
 		outputChannelIdentifier: IOutputChannelIdentifier,
+		outputDir: string,
 		modelUri: URI,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(outputChannelIdentifier, modelUri, fileService, modelService, modeService);
+		super({ ...outputChannelIdentifier, file: URI.file(paths.join(outputDir, `${outputChannelIdentifier.id}.log`)) }, modelUri, fileService, modelService, modeService);
 
 		// Use one rotating file to check for main file reset
-		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 30, 1);
+		const threshold = configurationService.getValue('output.threshold');
+		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, threshold && typeof threshold === 'number' ? threshold : 1024 * 1024 * 30, 1);
 		this.outputWriter.clearFormatters();
+		this.rotatingFilePath = `${outputChannelIdentifier.id}.1.log`;
 		this._register(watchOutputDirectory(paths.dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
 
 		this.resettingDelayer = new ThrottledDelayer<void>(50);
 	}
 
 	append(message: string): void {
+		// update end offset always as message is read
+		this.endOffset = this.endOffset + new Buffer(message).byteLength;
 		if (this.loadingFromFileInProgress) {
 			this.appendedMessage += message;
 		} else {
@@ -299,7 +307,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 
 	private onFileChangedInOutputDirector(eventType: string, fileName: string): void {
 		// Check if rotating file has changed. It changes only when the main file exceeds its limit.
-		if (`${paths.basename(this.file.fsPath)}.1` === fileName) {
+		if (this.rotatingFilePath === fileName) {
 			this.resettingDelayer.trigger(() => this.resetModel());
 		}
 	}
@@ -371,7 +379,10 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		if (this.model) {
 			this.fileService.resolveContent(this.file, { position: this.endOffset })
 				.then(content => {
-					this.appendToModel(content.value);
+					if (content.value) {
+						this.endOffset = this.endOffset + new Buffer(content.value).byteLength;
+						this.appendToModel(content.value);
+					}
 					this.updateInProgress = false;
 				}, () => this.updateInProgress = false);
 		} else {
@@ -549,9 +560,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		if (channelData && channelData.file) {
 			return this.instantiationService.createInstance(FileOutputChannel, channelData, uri);
 		}
-		const file = URI.file(paths.join(this.outputDir, `${id}.log`));
 		try {
-			return this.instantiationService.createInstance(OutputChannelBackedByFile, { id, label: channelData ? channelData.label : '', file }, uri);
+			return this.instantiationService.createInstance(OutputChannelBackedByFile, { id, label: channelData ? channelData.label : '' }, this.outputDir, uri);
 		} catch (e) {
 			this.logService.error(e);
 			this.telemetryService.publicLog('output.used.bufferedChannel');

@@ -6,6 +6,8 @@
 {
 	"openLogsFolder": "Günlük Klasörünü Aç",
 	"showLogs": "Günlükleri Göster...",
+	"mainProcess": "Temel",
+	"sharedProcess": "Ortak",
 	"rendererProcess": "Pencere",
 	"extensionHost": "Eklenti Sunucusu",
 	"selectProcess": "İşlem seçin",

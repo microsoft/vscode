@@ -40,6 +40,9 @@ class SimpleExtensionService implements IExtensionService {
 	getExtensions(): TPromise<IExtensionDescription[]> {
 		return TPromise.wrap([]);
 	}
+	canProfileExtensionHost() {
+		return false;
+	}
 	startExtensionHostProfile(): TPromise<ProfileSession> {
 		throw new Error('Not implemented');
 	}

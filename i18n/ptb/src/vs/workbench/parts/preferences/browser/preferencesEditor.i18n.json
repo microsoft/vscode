@@ -11,6 +11,8 @@
 	"oneSettingFound": "1 Configuração correspondente",
 	"settingsFound": "{0} Configurações correspondentes",
 	"totalSettingsMessage": "Total {0} Configurações",
+	"nlpResult": "Resultados da Linguagem Natural",
+	"filterResult": "Resultados Filtrados",
 	"defaultSettings": "Configurações Padrão",
 	"defaultFolderSettings": "Configuração Padrão da Pasta",
 	"defaultEditorReadonly": "Editar no editor do lado direito para substituir os padrões.",

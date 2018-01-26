@@ -16,7 +16,6 @@ import { CodeMenu } from 'vs/code/electron-main/menus';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
-import { UpdateService } from 'vs/platform/update/electron-main/updateService';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
@@ -52,6 +51,13 @@ import URI from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { getMachineId } from 'vs/base/node/id';
+import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
+import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
+import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
+import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
+import { IssueService } from 'vs/platform/issue/electron-main/issueService';
+import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 
 export class CodeApplication {
 
@@ -267,7 +273,7 @@ export class CodeApplication {
 			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
-			this.sharedProcess = new SharedProcess(this.environmentService, machineId, this.userEnv);
+			this.sharedProcess = new SharedProcess(this.environmentService, machineId, this.userEnv, this.logService);
 			this.toDispose.push(this.sharedProcess);
 			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
@@ -304,10 +310,18 @@ export class CodeApplication {
 	private initServices(machineId: string): IInstantiationService {
 		const services = new ServiceCollection();
 
-		services.set(IUpdateService, new SyncDescriptor(UpdateService));
+		if (process.platform === 'win32') {
+			services.set(IUpdateService, new SyncDescriptor(Win32UpdateService));
+		} else if (process.platform === 'linux') {
+			services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
+		} else if (process.platform === 'darwin') {
+			services.set(IUpdateService, new SyncDescriptor(DarwinUpdateService));
+		}
+
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, machineId));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
+		services.set(IIssueService, new SyncDescriptor(IssueService, machineId));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -352,6 +366,10 @@ export class CodeApplication {
 		const urlChannel = appInstantiationService.createInstance(URLChannel, urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
 
+		const issueService = accessor.get(IIssueService);
+		const issueChannel = new IssueChannel(issueService);
+		this.electronIpcServer.registerChannel('issue', issueChannel);
+
 		const workspacesService = accessor.get(IWorkspacesMainService);
 		const workspacesChannel = appInstantiationService.createInstance(WorkspacesChannel, workspacesService);
 		this.electronIpcServer.registerChannel('workspaces', workspacesChannel);
@@ -360,6 +378,11 @@ export class CodeApplication {
 		const windowsChannel = new WindowsChannel(windowsService);
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
 		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
+
+		// Log level management
+		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
+		this.electronIpcServer.registerChannel('loglevel', logLevelChannel);
+		this.sharedProcessClient.done(client => client.registerChannel('loglevel', logLevelChannel));
 
 		// Lifecycle
 		this.lifecycleService.ready();

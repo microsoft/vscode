@@ -38,8 +38,13 @@ export function isEqual(first: uri, second: uri, ignoreCase?: boolean): boolean 
 }
 
 export function dirname(resource: uri): uri {
+	const dirname = paths.dirname(resource.path);
+	if (resource.authority && dirname && !paths.isAbsolute(dirname)) {
+		return null; // If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character
+	}
+
 	return resource.with({
-		path: paths.dirname(resource.path)
+		path: dirname
 	});
 }
 

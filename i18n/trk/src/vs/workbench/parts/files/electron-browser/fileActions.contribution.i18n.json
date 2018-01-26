@@ -10,6 +10,7 @@
 	"revertLocalChanges": "Değişikliklerinizi göz ardı edin ve diskteki içeriğe geri dönün",
 	"copyPathOfActive": "Aktif Dosyanın Yolunu Kopyala",
 	"saveAllInGroup": "Gruptaki Tümünü Kadet",
+	"saveFiles": "Tüm Dosyaları Kaydet",
 	"revert": "Dosyayı Geri Döndür",
 	"compareActiveWithSaved": "Aktif Dosyayı Kaydedilenle Karşılaştır",
 	"closeEditor": "Düzenleyiciyi Kapat",

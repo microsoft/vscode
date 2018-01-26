@@ -34,5 +34,8 @@
 	"options": "옵션",
 	"paths": "경로",
 	"stdinWindows": "다른 프로그램의 출력을 읽으려면, '-'를 추가하십시오. (예: 'echo Hello World | {0} -')",
-	"optionsUpperCase": "옵션"
+	"stdinUnix": "stdin에서 읽어오려면, '-'를 추가하십시오.(예. 'ps aux | grep code | {0} -')",
+	"optionsUpperCase": "옵션",
+	"extensionsManagement": "확장 관리",
+	"troubleshooting": "문제 해결"
 }

@@ -74,6 +74,7 @@
 	"push with tags success": "タグが正常にプッシュされました。",
 	"pick remote": "リモートを選んで、ブランチ '{0}' を次に公開します:",
 	"sync is unpredictable": "このアクションはコミットを '{0}' との間でプッシュしたりプルしたりします。",
+	"never again": "OK、今後は表示しない",
 	"no remotes to publish": "リポジトリには、発行先として構成されているリモートがありません。",
 	"no changes stash": "スタッシュする変更がありません。",
 	"provide stash message": "必要に応じてスタッシュ メッセージを入力してください",

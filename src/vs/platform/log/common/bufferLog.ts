@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, AbstractLogService } from 'vs/platform/log/common/log';
 
 interface ILog {
 	level: LogLevel;
@@ -24,16 +24,11 @@ function getLogFunction(logger: ILogService, level: LogLevel): Function {
 	}
 }
 
-export class BufferLogService implements ILogService {
+export class BufferLogService extends AbstractLogService implements ILogService {
 
 	_serviceBrand: any;
 	private buffer: ILog[] = [];
 	private _logger: ILogService | undefined = undefined;
-
-	constructor(
-		private level: LogLevel = LogLevel.Error
-	) {
-	}
 
 	set logger(logger: ILogService) {
 		this._logger = logger;
@@ -46,19 +41,11 @@ export class BufferLogService implements ILogService {
 		this.buffer = [];
 	}
 
-	setLevel(logLevel: LogLevel): void {
-		this.level = logLevel;
-	}
-
-	getLevel(): LogLevel {
-		return this.level;
-	}
-
 	private _log(level: LogLevel, args: IArguments): void {
 		if (this._logger) {
 			const fn = getLogFunction(this._logger, level);
 			fn.apply(this._logger, args);
-		} else if (this.level <= level) {
+		} else if (this.getLevel() <= level) {
 			this.buffer.push({ level, args });
 		}
 	}

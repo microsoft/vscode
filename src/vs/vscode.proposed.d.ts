@@ -157,6 +157,46 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
+
+		/**
+		 * Updates the workspace folders of the currently opened workspace. This method allows to add, remove
+		 * and change workspace folders a the same time. Use the [onDidChangeWorkspaceFolders()](#onDidChangeWorkspaceFolders)
+		 * event to get notified when the workspace folders have been updated.
+		 *
+		 * **Example:** adding a new workspace folder at the end of workspace folders
+		 * ```typescript
+		 * workspace.updateWorkspaceFolders(workspace.workspaceFolders ? workspace.workspaceFolders.length : 0, null, { uri: ...});
+		 * ```
+		 *
+		 * **Example:** removing the first workspace folder
+		 * ```typescript
+		 * workspace.updateWorkspaceFolders(0, 1);
+		 * ```
+		 *
+		 * **Example:** replacing an existing workspace folder with a new one
+		 * ```typescript
+		 * workspace.updateWorkspaceFolders(0, 1, { uri: ...});
+		 * ```
+		 *
+		 * It is valid to remove an existing workspace folder and add it again with a different name
+		 * to rename that folder.
+		 *
+		 * Note: if the first workspace folder is added, removed or changed, all extensions will be restarted
+		 * so that the (deprecated) `rootPath` property is updated to point to the first workspace
+		 * folder.
+		 *
+		 * Note: it is not valid to call [updateWorkspaceFolders()](#updateWorkspaceFolders) multiple times
+		 * without waiting for the [onDidChangeWorkspaceFolders()](#onDidChangeWorkspaceFolders) to fire.
+		 *
+		 * @param start the zero-based location in the list of currently opened [workspace folders](#WorkspaceFolder)
+		 * from which to start deleting workspace folders.
+		 * @param deleteCount the optional number of workspace folders to remove.
+		 * @param workspaceFoldersToAdd the optional variable set of workspace folders to add in place of the deleted ones.
+		 * Each workspace is identified with a mandatory URI and an optional name.
+		 * @return true if the operation was successfully started and false otherwise if arguments were used that would result
+		 * in invalid workspace folder state (e.g. 2 folders with the same URI).
+		 */
+		export function updateWorkspaceFolders(start: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: Uri, name?: string }[]): boolean;
 	}
 
 	export namespace window {
@@ -235,6 +275,18 @@ declare module 'vscode' {
 		 * An event that is emitted when a breakpoint is added, removed, or changed.
 		 */
 		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+
+		/**
+		 * Add breakpoints.
+		 * @param breakpoints The breakpoints to add.
+		*/
+		export function addBreakpoints(breakpoints: Breakpoint[]): void;
+
+		/**
+		 * Remove breakpoints.
+		 * @param breakpoints The breakpoints to remove.
+		 */
+		export function removeBreakpoints(breakpoints: Breakpoint[]): void;
 	}
 
 	/**
@@ -274,7 +326,7 @@ declare module 'vscode' {
 		 */
 		readonly hitCondition?: string;
 
-		protected constructor(enabled: boolean, condition: string, hitCondition: string);
+		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string);
 	}
 
 	/**
@@ -286,7 +338,10 @@ declare module 'vscode' {
 		 */
 		readonly location: Location;
 
-		private constructor(enabled: boolean, condition: string, hitCondition: string, location: Location);
+		/**
+		 * Create a new breakpoint for a source location.
+		 */
+		constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string);
 	}
 
 	/**
@@ -298,7 +353,10 @@ declare module 'vscode' {
 		 */
 		readonly functionName: string;
 
-		private constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string);
+		/**
+		 * Create a new function breakpoint.
+		 */
+		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string);
 	}
 
 	/**
@@ -335,5 +393,17 @@ declare module 'vscode' {
 		 * This extension's logger
 		 */
 		logger: Logger;
+	}
+
+	export interface RenameInitialValue {
+		range: Range;
+		text?: string;
+	}
+
+	export namespace languages {
+
+		export interface RenameProvider2 extends RenameProvider {
+			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
+		}
 	}
 }

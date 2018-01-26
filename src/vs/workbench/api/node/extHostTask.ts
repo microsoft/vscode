@@ -294,11 +294,11 @@ namespace ShellConfiguration {
 
 namespace Tasks {
 
-	export function from(tasks: vscode.Task[], rootFolder: vscode.WorkspaceFolder, extension: IExtensionDescription): TaskSystem.Task[] {
+	export function from(tasks: vscode.Task[], rootFolder: vscode.WorkspaceFolder, extension: IExtensionDescription): TaskSystem.ContributedTask[] {
 		if (tasks === void 0 || tasks === null) {
 			return [];
 		}
-		let result: TaskSystem.Task[] = [];
+		let result: TaskSystem.ContributedTask[] = [];
 		for (let task of tasks) {
 			let converted = fromSingle(task, rootFolder, extension);
 			if (converted) {
@@ -351,7 +351,7 @@ namespace Tasks {
 		// We can't transfer a workspace folder object from the extension host to main since they differ
 		// in shape and we don't have backwards converting function. So transfer the URI and resolve the
 		// workspace folder on the main side.
-		(source as any).__workspaceFolder = workspaceFolder ? workspaceFolder.uri as URI : undefined;
+		(source as any as TaskSystem.ExtensionTaskSourceTransfer).__workspaceFolder = workspaceFolder ? workspaceFolder.uri as URI : undefined;
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		let key = (task as types.Task).definitionKey;
 		let kind = (task as types.Task).definition;

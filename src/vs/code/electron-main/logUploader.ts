@@ -46,6 +46,7 @@ export async function uploadLogs(
 	const logsPath = await channel.call('get-logs-path', null);
 
 	if (await promptUserToConfirmLogUpload(logsPath)) {
+		console.log(localize('beginUploading', 'Uploading...'));
 		const outZip = await zipLogs(logsPath);
 		const result = await postLogs(endpoint, outZip, requestService);
 		console.log(localize('didUploadLogs', 'Uploaded logs ID: {0}', result.blob_id));
@@ -55,18 +56,20 @@ export async function uploadLogs(
 }
 
 async function promptUserToConfirmLogUpload(
-	logsPath: string
+	logsPath: string,
 ): Promise<boolean> {
+	const message = localize('logUploadPromptHeader', 'Upload session logs to secure endpoint?')
+		+ '\n\n' + localize('logUploadPromptBody', 'Please review your log files here: \'{0}\'', logsPath)
+		+ '\n\n' + localize('logUploadPromptBodyDetails', 'Logs may contain personal information such as full paths and file contents.')
+		+ '\n\n' + localize('logUploadPromptKey', 'I have reviewed my logs (enter \'y\' to confirm upload)');
+
 	const rl = readline.createInterface({
 		input: process.stdin,
 		output: process.stdout
 	});
 
 	return new TPromise<boolean>(resolve =>
-		rl.question(
-			localize('logUploadPromptHeader', 'Upload session logs to secure endpoint?')
-			+ '\n\n' + localize('logUploadPromptBody', 'Please review your log files: \'{0}\'', logsPath)
-			+ '\n\n' + localize('logUploadPromptKey', 'Enter \'y\' to confirm upload...'),
+		rl.question(message,
 			(answer: string) => {
 				rl.close();
 				resolve(answer && answer.trim()[0].toLowerCase() === 'y');
@@ -83,10 +86,9 @@ async function postLogs(
 		result = await requestService.request({
 			url: endpoint.url,
 			type: 'POST',
-			data: fs.createReadStream(outZip),
+			data: new Buffer(fs.readFileSync(outZip)).toString('base64'),
 			headers: {
-				'Content-Type': 'application/zip',
-				'Content-Length': fs.statSync(outZip).size
+				'Content-Type': 'application/zip'
 			}
 		});
 	} catch (e) {
@@ -94,12 +96,28 @@ async function postLogs(
 		throw e;
 	}
 
-	try {
-		return JSON.parse(result.stream.toString());
-	} catch (e) {
-		console.log(localize('parseError', 'Error parsing response'));
-		throw e;
-	}
+	return new TPromise<PostResult>((res, reject) => {
+		const parts: Buffer[] = [];
+		result.stream.on('data', data => {
+			parts.push(data);
+		});
+
+		result.stream.on('end', () => {
+			try {
+				const response = Buffer.concat(parts).toString('utf-8');
+				if (result.res.statusCode === 200) {
+					res(JSON.parse(response));
+				} else {
+					const errorMessage = localize('responseError', 'Error posting logs. Got {0}', result.res.statusCode);
+					console.log(errorMessage);
+					reject(new Error(errorMessage));
+				}
+			} catch (e) {
+				console.log(localize('parseError', 'Error parsing response'));
+				reject(e);
+			}
+		});
+	});
 }
 
 function zipLogs(

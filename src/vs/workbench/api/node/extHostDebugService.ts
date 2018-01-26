@@ -7,12 +7,16 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID, IMainContext, IBreakpointsDelta, ISourceBreakpointData, IFunctionBreakpointData } from 'vs/workbench/api/node/extHost.protocol';
+import {
+	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
+	IMainContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto
+} from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 
 import * as vscode from 'vscode';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint } from 'vs/workbench/api/node/extHostTypes';
+import { generateUuid } from 'vs/base/common/uuid';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -95,51 +99,161 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return result;
 	}
 
-	public $acceptBreakpointsDelta(delta: IBreakpointsDelta): void {
+	public $acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void {
 
 		let a: vscode.Breakpoint[] = [];
 		let r: vscode.Breakpoint[] = [];
 		let c: vscode.Breakpoint[] = [];
 
 		if (delta.added) {
-			a = delta.added.map(bpd => {
-				const bp = this.fromWire(bpd);
-				this._breakpoints.set(bpd.id, bp);
-				return bp;
-			});
+			for (const bpd of delta.added) {
+
+				if (!this._breakpoints.has(bpd.id)) {
+					let bp: vscode.Breakpoint;
+					if (bpd.type === 'function') {
+						bp = new FunctionBreakpoint(bpd.functionName, bpd.enabled, bpd.condition, bpd.hitCondition);
+					} else {
+						const uri = URI.revive(bpd.uri);
+						bp = new SourceBreakpoint(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition);
+					}
+					bp['_id'] = bpd.id;
+					this._breakpoints.set(bpd.id, bp);
+					a.push(bp);
+
+				}
+
+
+			}
 		}
 
 		if (delta.removed) {
-			r = delta.removed.map(id => {
+			for (const id of delta.removed) {
 				const bp = this._breakpoints.get(id);
 				if (bp) {
 					this._breakpoints.delete(id);
+					r.push(bp);
 				}
-				return bp;
-			});
+			}
 		}
 
 		if (delta.changed) {
-			c = delta.changed.map(bpd => {
-				const bp = this.fromWire(bpd);
-				this._breakpoints.set(bpd.id, bp);
-				return bp;
-			});
+			for (const bpd of delta.changed) {
+				let bp = this._breakpoints.get(bpd.id);
+				if (bp) {
+					if (bpd.type === 'function') {
+						const fbp = <any>bp;
+						fbp.enabled = bpd.enabled;
+						fbp.condition = bpd.condition;
+						fbp.hitCondition = bpd.hitCondition;
+						fbp.functionName = bpd.functionName;
+					} else {
+						const sbp = <any>bp;
+						sbp.enabled = bpd.enabled;
+						sbp.condition = bpd.condition;
+						sbp.hitCondition = bpd.hitCondition;
+					}
+					c.push(bp);
+				}
+			}
 		}
 
-		this._onDidChangeBreakpoints.fire(Object.freeze({
-			added: Object.freeze<vscode.Breakpoint[]>(a || []),
-			removed: Object.freeze<vscode.Breakpoint[]>(r || []),
-			changed: Object.freeze<vscode.Breakpoint[]>(c || [])
-		}));
+		this.fireBreakpointChanges(a, r, c);
 	}
 
-	private fromWire(bp: ISourceBreakpointData | IFunctionBreakpointData): vscode.Breakpoint {
-		if (bp.type === 'function') {
-			return new FunctionBreakpoint(bp.enabled, bp.condition, bp.hitCondition, bp.functionName);
+	public addBreakpoints(breakpoints0: vscode.Breakpoint[]): TPromise<void> {
+
+		this.startBreakpoints();
+
+		// assign uuids for brand new breakpoints
+		const breakpoints: vscode.Breakpoint[] = [];
+		for (const bp of breakpoints0) {
+			let id = bp['_id'];
+			if (id) {	// has already id
+				if (this._breakpoints.has(id)) {
+					// already there
+				} else {
+					breakpoints.push(bp);
+				}
+			} else {
+				id = generateUuid();
+				bp['_id'] = id;
+				this._breakpoints.set(id, bp);
+				breakpoints.push(bp);
+			}
 		}
-		const uri = URI.revive(bp.uri);
-		return new SourceBreakpoint(bp.enabled, bp.condition, bp.hitCondition, new Location(uri, new Position(bp.line, bp.character)));
+
+		// send notification for added breakpoints
+		this.fireBreakpointChanges(breakpoints, [], []);
+
+		// convert added breakpoints to DTOs
+		const dtos: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[] = [];
+		const map = new Map<string, ISourceMultiBreakpointDto>();
+		for (const bp of breakpoints) {
+			if (bp instanceof SourceBreakpoint) {
+				let dto = map.get(bp.location.uri.toString());
+				if (!dto) {
+					dto = <ISourceMultiBreakpointDto>{
+						type: 'sourceMulti',
+						uri: bp.location.uri,
+						lines: []
+					};
+					map.set(bp.location.uri.toString(), dto);
+					dtos.push(dto);
+				}
+				dto.lines.push({
+					id: bp['_id'],
+					enabled: bp.enabled,
+					condition: bp.condition,
+					hitCondition: bp.hitCondition,
+					line: bp.location.range.start.line,
+					character: bp.location.range.start.character
+				});
+			} else if (bp instanceof FunctionBreakpoint) {
+				dtos.push({
+					type: 'function',
+					id: bp['_id'],
+					enabled: bp.enabled,
+					functionName: bp.functionName,
+					hitCondition: bp.hitCondition,
+					condition: bp.condition
+				});
+			}
+		}
+
+		// send DTOs to VS Code
+		return this._debugServiceProxy.$registerBreakpoints(dtos);
+	}
+
+	public removeBreakpoints(breakpoints0: vscode.Breakpoint[]): TPromise<void> {
+
+		this.startBreakpoints();
+
+		// remove from array
+		const breakpoints: vscode.Breakpoint[] = [];
+		for (const b of breakpoints0) {
+			let id = b['_id'];
+			if (id && this._breakpoints.delete(id)) {
+				breakpoints.push(b);
+			}
+		}
+
+		// send notification
+		this.fireBreakpointChanges([], breakpoints, []);
+
+		// unregister with VS Code
+		const ids = breakpoints.filter(bp => bp instanceof SourceBreakpoint).map(bp => bp['_id']);
+		const fids = breakpoints.filter(bp => bp instanceof FunctionBreakpoint).map(bp => bp['_id']);
+		return this._debugServiceProxy.$unregisterBreakpoints(ids, fids);
+	}
+
+	private fireBreakpointChanges(added: vscode.Breakpoint[], removed: vscode.Breakpoint[], changed: vscode.Breakpoint[]) {
+		if (added.length > 0 || removed.length > 0 || changed.length > 0) {
+			this._onDidChangeBreakpoints.fire(Object.freeze({
+				added: Object.freeze<vscode.Breakpoint[]>(added),
+				removed: Object.freeze<vscode.Breakpoint[]>(removed),
+				changed: Object.freeze<vscode.Breakpoint[]>(changed)
+			}));
+		}
 	}
 
 	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {

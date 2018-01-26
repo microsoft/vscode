@@ -161,7 +161,7 @@ export class SplitView implements IDisposable {
 		}
 
 		view.render(container, this.orientation);
-		this.relayout();
+		this.relayout(index);
 		this.state = State.Idle;
 	}
 

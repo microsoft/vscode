@@ -11,6 +11,7 @@
 	"rendererProcess": "Ventana",
 	"extensionHost": "Host de extensión",
 	"selectProcess": "Seleccionar proceso",
+	"openLogFile": "Abrir archivo de log...",
 	"setLogLevel": "Establecer nivel de registro",
 	"trace": "Seguimiento",
 	"debug": "Depurar",
@@ -18,5 +19,6 @@
 	"warn": "Advertencia",
 	"err": "Error",
 	"critical": "Crítico",
-	"off": "Apagado"
+	"off": "Apagado",
+	"selectLogLevel": "Seleccionar nivel de log"
 }

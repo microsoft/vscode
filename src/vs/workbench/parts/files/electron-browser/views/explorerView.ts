@@ -39,10 +39,9 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { isLinux } from 'vs/base/common/platform';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -84,14 +83,12 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IProgressService private progressService: IProgressService,
-		@IListService private listService: IListService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IDecorationsService decorationService: IDecorationsService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService);
@@ -396,7 +393,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
 		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
 
-		this.explorerViewer = new FileIconThemableWorkbenchTree(container.getHTMLElement(), {
+		this.explorerViewer = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, container.getHTMLElement(), {
 			dataSource,
 			renderer,
 			controller,
@@ -408,7 +405,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				autoExpandSingleChildren: true,
 				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService, this.themeService);
+			});
 
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
@@ -780,6 +777,16 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			isDirectory: true
 		}, root);
 
+		const setInputAndExpand = (input: FileStat | Model, statsToExpand: FileStat[]) => {
+			// Make sure to expand all folders that where expanded in the previous session
+			// Special case: we are switching to multi workspace view, thus expand all the roots (they might just be added)
+			if (input === this.model && statsToExpand.every(fs => !fs.isRoot)) {
+				statsToExpand = this.model.roots.concat(statsToExpand);
+			}
+
+			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand));
+		};
+
 		if (targetsToResolve.every(t => t.root.resource.scheme === 'file')) {
 			// All the roots are local, resolve them in parallel
 			return this.fileService.resolveFiles(targetsToResolve).then(results => {
@@ -795,17 +802,11 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
 				const statsToExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(expand => this.model.findClosest(expand)));
-
 				if (input === this.explorerViewer.getInput()) {
-					return this.explorerViewer.refresh().then(() => statsToExpand.length ? this.explorerViewer.expandAll(statsToExpand) : undefined);
+					return this.explorerViewer.refresh().then(() => this.explorerViewer.expandAll(statsToExpand));
 				}
 
-				// Make sure to expand all folders that where expanded in the previous session
-				// Special case: there is nothing to expand, thus expand all the roots (they might just be added)
-				if (statsToExpand.length === 0) {
-					statsToExpand.push(...this.model.roots);
-				}
-				return this.explorerViewer.setInput(input).then(() => statsToExpand.length ? this.explorerViewer.expandAll(statsToExpand) : undefined);
+				return setInputAndExpand(input, statsToExpand);
 			});
 		}
 
@@ -832,13 +833,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 					return delayerPromise;
 				}
 
-				// Display roots only when multi folder workspace
-				// Make sure to expand all folders that where expanded in the previous session
-				if (input === this.model) {
-					// We have transitioned into workspace view -> expand all roots
-					toExpand = this.model.roots.concat(toExpand);
-				}
-				return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(toExpand));
+				return setInputAndExpand(input, statsToExpand);
 			})));
 	}
 

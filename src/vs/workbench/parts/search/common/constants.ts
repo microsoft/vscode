@@ -6,7 +6,6 @@
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const VIEWLET_ID = 'workbench.view.search';
-export const SEARCH_OUTPUT_CHANNEL_ID = 'search';
 
 export const FindInFilesActionId = 'workbench.action.findInFiles';
 export const FocusActiveEditorCommandId = 'search.action.focusActiveEditor';

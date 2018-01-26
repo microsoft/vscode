@@ -10,7 +10,6 @@
 	"saveAs": "Salvar como...",
 	"save": "Salvar",
 	"saveAll": "Salvar Todos",
-	"saveFiles": "Salvar todos os arquivos",
 	"removeFolderFromWorkspace": "Remover pasta da área de trabalho",
 	"genericRevertError": "Falha ao reverter '{0}': {1}",
 	"modifiedLabel": "{0} (em disco) ↔ {1}",

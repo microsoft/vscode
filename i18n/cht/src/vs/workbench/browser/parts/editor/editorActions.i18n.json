@@ -48,5 +48,8 @@
 	"moveEditorLeft": "將編輯器左移",
 	"moveEditorRight": "將編輯器右移",
 	"moveEditorToPreviousGroup": "將編輯器移入上一個群組",
-	"moveEditorToNextGroup": "將編輯器移入下一個群組"
+	"moveEditorToNextGroup": "將編輯器移入下一個群組",
+	"moveEditorToFirstGroup": "將編輯器移動到第一個群組",
+	"moveEditorToSecondGroup": "將編輯器移動到第二個群組",
+	"moveEditorToThirdGroup": "將編輯器移動到第三個群組"
 }

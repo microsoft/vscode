@@ -19,7 +19,7 @@ export class Source {
 	public readonly uri: uri;
 	public available: boolean;
 
-	constructor(public readonly raw: DebugProtocol.Source, sessionId: string) {
+	constructor(public raw: DebugProtocol.Source, sessionId: string) {
 		if (!raw) {
 			this.raw = { name: UNKNOWN_SOURCE_LABEL };
 		}

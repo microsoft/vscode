@@ -1852,6 +1852,36 @@ suite('Editor Controller - Regression tests', () => {
 			assertCursor(cursor, new Selection(1, 12, 1, 12));
 		});
 	});
+
+	test('issue #41573 - delete across multiple lines does not shrink the selection when word wraps', () => {
+		const model = TextModel.createFromString([
+			'Authorization: \'Bearer pHKRfCTFSnGxs6akKlb9ddIXcca0sIUSZJutPHYqz7vEeHdMTMh0SGN0IGU3a0n59DXjTLRsj5EJ2u33qLNIFi9fk5XF8pK39PndLYUZhPt4QvHGLScgSkK0L4gwzkzMloTQPpKhqiikiIOvyNNSpd2o8j29NnOmdTUOKi9DVt74PD2ohKxyOrWZ6oZprTkb3eKajcpnS0LABKfaw2rmv4\','
+		].join('\n'));
+		const config = new TestConfiguration({
+			wordWrap: 'wordWrapColumn',
+			wordWrapColumn: 100
+		});
+		const viewModel = new ViewModel(0, config, model, null);
+		const cursor = new Cursor(config, model, viewModel);
+
+		console.log(viewModel.getLineCount());
+
+		moveTo(cursor, 1, 43, false);
+		moveTo(cursor, 1, 147, true);
+		assertCursor(cursor, new Selection(1, 43, 1, 147));
+
+		model.applyEdits([{
+			range: new Range(1, 1, 1, 43),
+			text: ''
+		}]);
+
+		assertCursor(cursor, new Selection(1, 1, 1, 105));
+
+		cursor.dispose();
+		viewModel.dispose();
+		config.dispose();
+		model.dispose();
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {

@@ -10,6 +10,7 @@
 	"revertLocalChanges": "Descartar los cambios y volver al contenido del disco",
 	"copyPathOfActive": "Copiar ruta del archivo activo",
 	"saveAllInGroup": "Guardar todo en el grupo",
+	"saveFiles": "Guardar todos los archivos",
 	"revert": "Revertir archivo",
 	"compareActiveWithSaved": "Comparar el archivo activo con el guardado",
 	"closeEditor": "Cerrar editor",
