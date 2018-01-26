@@ -95,7 +95,7 @@ export class SuggestController implements IEditorContribution {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 	) {
 		this._model = new SuggestModel(this._editor);
-		this._memory = _instantiationService.createInstance(SuggestMemories);
+		this._memory = _instantiationService.createInstance(SuggestMemories, 'shy');
 
 		this._toDispose.push(this._model.onDidTrigger(e => {
 			if (!this._widget) {
@@ -103,21 +103,13 @@ export class SuggestController implements IEditorContribution {
 			}
 			this._widget.showTriggered(e.auto);
 		}));
-		let lastSelectedItem: ICompletionItem;
 		this._toDispose.push(this._model.onDidSuggest(e => {
-			let index = this._memory.select(this._editor.getModel().getLanguageIdentifier(), e.completionModel.items, lastSelectedItem);
-			if (index >= 0) {
-				lastSelectedItem = e.completionModel.items[index];
-			} else {
-				index = 0;
-				lastSelectedItem = undefined;
-			}
+			let index = this._memory.select(this._editor.getModel(), this._editor.getPosition(), e.completionModel.items);
 			this._widget.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 		}));
 		this._toDispose.push(this._model.onDidCancel(e => {
 			if (this._widget && !e.retrigger) {
 				this._widget.hideWidget();
-				lastSelectedItem = undefined;
 			}
 		}));
 
@@ -209,12 +201,8 @@ export class SuggestController implements IEditorContribution {
 			this._editor.pushUndoStop();
 		}
 
-		// remember this suggestion for future invocations
-		// when it wasn't the first suggestion but from the group
-		// of top suggestions (cons -> const, console, constructor)
-		if (event.model.items[0].score === event.item.score) {
-			this._memory.remember(this._editor.getModel().getLanguageIdentifier(), event.item);
-		}
+		// keep item in memory
+		this._memory.memorize(this._editor.getModel(), this._editor.getPosition(), event.item);
 
 		let { insertText } = suggestion;
 		if (suggestion.snippetType !== 'textmate') {
