@@ -54,7 +54,7 @@ export class ShyMemory extends Memory {
 
 	memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void {
 		const { label } = item.suggestion;
-		const key = `${model.getLanguageIdentifier().id}/${label}`;
+		const key = `${model.getLanguageIdentifier().language}/${label}`;
 		this._cache.set(key, {
 			touch: this._seq++,
 			type: item.suggestion.type,
@@ -72,7 +72,7 @@ export class ShyMemory extends Memory {
 		if (word.length === 0) {
 			for (let i = 0; i < items.length; i++) {
 				const { suggestion } = items[i];
-				const key = `${model.getLanguageIdentifier().id}/${suggestion.label}`;
+				const key = `${model.getLanguageIdentifier().language}/${suggestion.label}`;
 				const item = this._cache.get(key);
 				if (item && item.touch > seq && item.type === suggestion.type) {
 					seq = item.touch;
@@ -110,7 +110,7 @@ export class PrefixMemory extends Memory {
 
 	memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void {
 		const { word } = model.getWordUntilPosition(pos);
-		const key = `${model.getLanguageIdentifier().id}/${word}`;
+		const key = `${model.getLanguageIdentifier().language}/${word}`;
 		this._trie.set(key, {
 			type: item.suggestion.type,
 			insertText: item.suggestion.insertText,
@@ -123,7 +123,7 @@ export class PrefixMemory extends Memory {
 		if (!word) {
 			return 0;
 		}
-		let key = `${model.getLanguageIdentifier().id}/${word}`;
+		let key = `${model.getLanguageIdentifier().language}/${word}`;
 		let item = this._trie.get(key);
 		if (!item) {
 			item = this._trie.findSubstr(key);
