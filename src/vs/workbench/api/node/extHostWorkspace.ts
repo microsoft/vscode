@@ -35,8 +35,8 @@ function compareWorkspaceFolderByUriAndNameAndIndex(a: vscode.WorkspaceFolder, b
 }
 
 function delta(oldFolders: vscode.WorkspaceFolder[], newFolders: vscode.WorkspaceFolder[], compare: (a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder) => number): { removed: vscode.WorkspaceFolder[], added: vscode.WorkspaceFolder[] } {
-	const oldSortedFolders = oldFolders.sort(compare);
-	const newSortedFolders = newFolders.sort(compare);
+	const oldSortedFolders = oldFolders.slice(0).sort(compare);
+	const newSortedFolders = newFolders.slice(0).sort(compare);
 
 	return arrayDelta(oldSortedFolders, newSortedFolders, compare);
 }
@@ -163,7 +163,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		if (Array.isArray(workspaceFoldersToAdd)) {
 			workspaceFoldersToAdd.forEach(folderToAdd => {
 				if (URI.isUri(folderToAdd.uri) && !validatedDistinctWorkspaceFoldersToAdd.some(f => isFolderEqual(f.uri, folderToAdd.uri))) {
-					validatedDistinctWorkspaceFoldersToAdd.push(folderToAdd);
+					validatedDistinctWorkspaceFoldersToAdd.push({ uri: folderToAdd.uri, name: folderToAdd.name || basenameOrAuthority(folderToAdd.uri) });
 				}
 			});
 		}
@@ -176,13 +176,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			return false; // nothing to delete or add
 		}
 
-		const currentWorkspaceFolders: vscode.WorkspaceFolder[] = this._actualWorkspace ? this._actualWorkspace.workspaceFolders : [];
+		const currentWorkspaceFolders: MutableWorkspaceFolder[] = this._actualWorkspace ? this._actualWorkspace.workspaceFolders : [];
 		if (index + deleteCount > currentWorkspaceFolders.length) {
 			return false; // cannot delete more than we have
 		}
 
 		const newWorkspaceFolders = currentWorkspaceFolders.slice(0);
-		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map((f, index) => ({ uri: f.uri, name: f.name || basenameOrAuthority(f.uri), index })));
+		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map(f => ({ uri: f.uri, name: f.name || basenameOrAuthority(f.uri) })));
+		newWorkspaceFolders.forEach((f, index) => f.index = index); // fix index
 		const { added, removed } = delta(currentWorkspaceFolders, newWorkspaceFolders, compareWorkspaceFolderByUriAndNameAndIndex);
 		if (added.length === 0 && removed.length === 0) {
 			return false; // nothing actually changed

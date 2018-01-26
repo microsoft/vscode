@@ -256,7 +256,7 @@ suite('ExtHostWorkspace', function () {
 
 		assert.equal(false, ws.updateWorkspaceFolders('ext', 1, 1));
 		assert.equal(false, ws.updateWorkspaceFolders('ext', 0, 2));
-		assert.equal(false, ws.updateWorkspaceFolders('ext', 0, 1, aWorkspaceFolderData(URI.parse('foo:bar'), 0)));
+		assert.equal(false, ws.updateWorkspaceFolders('ext', 0, 1, asUpdateWorkspaceFolderData(URI.parse('foo:bar'))));
 	});
 
 	test('updateWorkspaceFolders - valid arguments', function (done) {
@@ -280,7 +280,7 @@ suite('ExtHostWorkspace', function () {
 		// Add one folder
 		//
 
-		assert.equal(true, ws.updateWorkspaceFolders('ext', 0, 0, aWorkspaceFolderData(URI.parse('foo:bar'), 0)));
+		assert.equal(true, ws.updateWorkspaceFolders('ext', 0, 0, asUpdateWorkspaceFolderData(URI.parse('foo:bar'))));
 		assert.equal(1, ws.workspace.folders.length);
 		assert.equal(ws.workspace.folders[0].uri.toString(), URI.parse('foo:bar').toString());
 
@@ -307,7 +307,7 @@ suite('ExtHostWorkspace', function () {
 		// Add two more folders
 		//
 
-		assert.equal(true, ws.updateWorkspaceFolders('ext', 0, 0, aWorkspaceFolderData(URI.parse('foo:bar1'), 1), aWorkspaceFolderData(URI.parse('foo:bar2'), 2)));
+		assert.equal(true, ws.updateWorkspaceFolders('ext', 1, 0, asUpdateWorkspaceFolderData(URI.parse('foo:bar1')), asUpdateWorkspaceFolderData(URI.parse('foo:bar2'))));
 		assert.equal(3, ws.workspace.folders.length);
 		assert.equal(ws.workspace.folders[0].uri.toString(), URI.parse('foo:bar').toString());
 		assert.equal(ws.workspace.folders[1].uri.toString(), URI.parse('foo:bar1').toString());
@@ -367,7 +367,7 @@ suite('ExtHostWorkspace', function () {
 		// Rename folder
 		//
 
-		assert.equal(true, ws.updateWorkspaceFolders('ext', 0, 2, aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'renamed 1'), aWorkspaceFolderData(URI.parse('foo:bar1'), 1, 'renamed 2')));
+		assert.equal(true, ws.updateWorkspaceFolders('ext', 0, 2, asUpdateWorkspaceFolderData(URI.parse('foo:bar'), 'renamed 1'), asUpdateWorkspaceFolderData(URI.parse('foo:bar1'), 'renamed 2')));
 		assert.equal(2, ws.workspace.folders.length);
 		assert.equal(ws.workspace.folders[0].uri.toString(), URI.parse('foo:bar').toString());
 		assert.equal(ws.workspace.folders[1].uri.toString(), URI.parse('foo:bar1').toString());
@@ -400,7 +400,7 @@ suite('ExtHostWorkspace', function () {
 		// Add and remove folders
 		//
 
-		assert.equal(true, ws.updateWorkspaceFolders('ext', 0, 2, aWorkspaceFolderData(URI.parse('foo:bar3'), 0), aWorkspaceFolderData(URI.parse('foo:bar4'), 1)));
+		assert.equal(true, ws.updateWorkspaceFolders('ext', 0, 2, asUpdateWorkspaceFolderData(URI.parse('foo:bar3')), asUpdateWorkspaceFolderData(URI.parse('foo:bar4'))));
 		assert.equal(2, ws.workspace.folders.length);
 		assert.equal(ws.workspace.folders[0].uri.toString(), URI.parse('foo:bar3').toString());
 		assert.equal(ws.workspace.folders[1].uri.toString(), URI.parse('foo:bar4').toString());
@@ -432,7 +432,7 @@ suite('ExtHostWorkspace', function () {
 		// Swap folders
 		//
 
-		assert.equal(true, ws.updateWorkspaceFolders('ext', 0, 2, aWorkspaceFolderData(URI.parse('foo:bar4'), 0), aWorkspaceFolderData(URI.parse('foo:bar3'), 1)));
+		assert.equal(true, ws.updateWorkspaceFolders('ext', 0, 2, asUpdateWorkspaceFolderData(URI.parse('foo:bar4')), asUpdateWorkspaceFolderData(URI.parse('foo:bar3'))));
 		assert.equal(2, ws.workspace.folders.length);
 		assert.equal(ws.workspace.folders[0].uri.toString(), URI.parse('foo:bar4').toString());
 		assert.equal(ws.workspace.folders[1].uri.toString(), URI.parse('foo:bar3').toString());
@@ -457,6 +457,55 @@ suite('ExtHostWorkspace', function () {
 		assert.equal(ws.getWorkspaceFolders()[1], fourthAddedFolder); // verify object is still live
 		assert.equal(fifthAddedFolder.index, 0);
 		assert.equal(fourthAddedFolder.index, 1);
+
+		//
+		// Add one folder after the other without waiting for confirmation
+		//
+
+		assert.equal(true, ws.updateWorkspaceFolders('ext', 2, 0, asUpdateWorkspaceFolderData(URI.parse('foo:bar5'))));
+
+		assert.equal(3, ws.workspace.folders.length);
+		assert.equal(ws.workspace.folders[0].uri.toString(), URI.parse('foo:bar4').toString());
+		assert.equal(ws.workspace.folders[1].uri.toString(), URI.parse('foo:bar3').toString());
+		assert.equal(ws.workspace.folders[2].uri.toString(), URI.parse('foo:bar5').toString());
+
+		assert.equal(true, ws.updateWorkspaceFolders('ext', 3, 0, asUpdateWorkspaceFolderData(URI.parse('foo:bar6'))));
+
+		assert.equal(4, ws.workspace.folders.length);
+		assert.equal(ws.workspace.folders[0].uri.toString(), URI.parse('foo:bar4').toString());
+		assert.equal(ws.workspace.folders[1].uri.toString(), URI.parse('foo:bar3').toString());
+		assert.equal(ws.workspace.folders[2].uri.toString(), URI.parse('foo:bar5').toString());
+		assert.equal(ws.workspace.folders[3].uri.toString(), URI.parse('foo:bar6').toString());
+
+		const sixthAddedFolder = ws.getWorkspaceFolders()[2];
+		const seventhAddedFolder = ws.getWorkspaceFolders()[3];
+
+		gotEvent = false;
+		sub = ws.onDidChangeWorkspace(e => {
+			try {
+				assert.equal(e.added.length, 2);
+				assert.equal(e.added[0], sixthAddedFolder);
+				assert.equal(e.added[1], seventhAddedFolder);
+				gotEvent = true;
+			} catch (error) {
+				finish(error);
+			}
+		});
+		ws.$acceptWorkspaceData({
+			id: 'foo', name: 'Test', folders: [
+				aWorkspaceFolderData(URI.parse('foo:bar4'), 0),
+				aWorkspaceFolderData(URI.parse('foo:bar3'), 1),
+				aWorkspaceFolderData(URI.parse('foo:bar5'), 2),
+				aWorkspaceFolderData(URI.parse('foo:bar6'), 3)
+			]
+		}); // simulate acknowledgement from main side
+		assert.equal(gotEvent, true);
+		sub.dispose();
+
+		assert.equal(ws.getWorkspaceFolders()[0], fifthAddedFolder); // verify object is still live
+		assert.equal(ws.getWorkspaceFolders()[1], fourthAddedFolder); // verify object is still live
+		assert.equal(ws.getWorkspaceFolders()[2], sixthAddedFolder); // verify object is still live
+		assert.equal(ws.getWorkspaceFolders()[3], seventhAddedFolder); // verify object is still live
 
 		finish();
 	});
@@ -505,5 +554,9 @@ suite('ExtHostWorkspace', function () {
 			index,
 			name: name || basename(uri.path)
 		};
+	}
+
+	function asUpdateWorkspaceFolderData(uri: URI, name?: string): { uri: URI, name?: string } {
+		return { uri, name };
 	}
 });
