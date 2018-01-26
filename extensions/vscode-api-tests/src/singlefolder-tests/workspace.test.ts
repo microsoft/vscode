@@ -7,10 +7,9 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, pathEquals } from './utils';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals } from '../utils';
 import { join, basename } from 'path';
 import * as fs from 'fs';
-import { Uri } from 'vscode';
 
 suite('workspace-namespace', () => {
 
@@ -39,9 +38,25 @@ suite('workspace-namespace', () => {
 
 	test('rootPath', () => {
 		if (vscode.workspace.rootPath) {
-			assert.ok(pathEquals(vscode.workspace.rootPath, join(__dirname, '../testWorkspace')));
+			assert.ok(pathEquals(vscode.workspace.rootPath, join(__dirname, '../../testWorkspace')));
 		}
 		assert.throws(() => vscode.workspace.rootPath = 'farboo');
+	});
+
+	test('workspaceFolders', () => {
+		if (vscode.workspace.workspaceFolders) {
+			assert.equal(vscode.workspace.workspaceFolders.length, 1);
+			assert.ok(pathEquals(vscode.workspace.workspaceFolders[0].uri.fsPath, join(__dirname, '../../testWorkspace')));
+		}
+	});
+
+	test('getWorkspaceFolder', () => {
+		const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(join(__dirname, '../../testWorkspace/far.js')));
+		assert.ok(!!folder);
+
+		if (folder) {
+			assert.ok(pathEquals(folder.uri.fsPath, join(__dirname, '../../testWorkspace')));
+		}
 	});
 
 	test('openTextDocument', () => {
@@ -536,7 +551,7 @@ suite('workspace-namespace', () => {
 
 	test('applyEdit should fail when editing renamed from resource', async () => {
 		const resource = await createRandomFile();
-		const newResource = Uri.parse(resource.fsPath + '.1');
+		const newResource = vscode.Uri.parse(resource.fsPath + '.1');
 		const edit = new vscode.WorkspaceEdit();
 		edit.renameResource(resource, newResource);
 		try {
