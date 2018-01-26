@@ -2664,11 +2664,6 @@ declare module 'vscode' {
 		appendVariable(name: string, defaultValue: string | ((snippet: SnippetString) => any)): SnippetString;
 	}
 
-	export interface RenameInitialValue {
-		range: Range
-		text?: string
-	}
-
 	/**
 	 * The rename provider interface defines the contract between extensions and
 	 * the [rename](https://code.visualstudio.com/docs/editor/editingevolved#_rename-symbol)-feature.
@@ -2687,8 +2682,6 @@ declare module 'vscode' {
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideRenameEdits(document: TextDocument, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit>;
-
-		resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
 	}
 
 	/**

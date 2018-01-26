@@ -468,16 +468,20 @@ class NavigateTypeAdapter {
 	}
 }
 
+interface RenameProvider2 extends vscode.RenameProvider {
+	resolveInitialRenameValue?(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<any>;
+}
+
 class RenameAdapter {
 
-	static supportsResolving(provider: vscode.RenameProvider): boolean {
+	static supportsResolving(provider: RenameProvider2): boolean {
 		return typeof provider.resolveInitialRenameValue === 'function';
 	}
 
 	private _documents: ExtHostDocuments;
-	private _provider: vscode.RenameProvider;
+	private _provider: RenameProvider2;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.RenameProvider) {
+	constructor(documents: ExtHostDocuments, provider: RenameProvider2) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -510,7 +514,7 @@ class RenameAdapter {
 		});
 	}
 
-	resolveInitialRenameValue(resource: URI, position: IPosition) : TPromise<modes.RenameInitialValue> {
+	resolveInitialRenameValue(resource: URI, position: IPosition): TPromise<modes.RenameInitialValue> {
 		if (typeof this._provider.resolveInitialRenameValue !== 'function') {
 			return TPromise.as(undefined);
 		}
@@ -519,7 +523,7 @@ class RenameAdapter {
 		let pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.resolveInitialRenameValue(doc, pos, token)).then((value) => {
-			return <modes.RenameInitialValue> {
+			return <modes.RenameInitialValue>{
 				range: TypeConverters.fromRange(value.range),
 				text: value.text
 			};
@@ -1028,9 +1032,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- rename
 
-	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
+	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider, canUseProposedApi = false): vscode.Disposable {
 		const handle = this._addNewAdapter(new RenameAdapter(this._documents, provider));
-		this._proxy.$registerRenameSupport(handle, selector, RenameAdapter.supportsResolving(provider));
+		this._proxy.$registerRenameSupport(handle, selector, canUseProposedApi && RenameAdapter.supportsResolving(provider));
 		return this._createDisposable(handle);
 	}
 

@@ -394,4 +394,16 @@ declare module 'vscode' {
 		 */
 		logger: Logger;
 	}
+
+	export interface RenameInitialValue {
+		range: Range;
+		text?: string;
+	}
+
+	export namespace languages {
+
+		export interface RenameProvider2 extends RenameProvider {
+			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
+		}
+	}
 }
