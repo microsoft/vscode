@@ -79,6 +79,9 @@ export function rename(model: ITextModel, position: Position, newName: string): 
 	});
 }
 
+// TODO@joh
+// merge this into above function to make we always
+// use the same provider for resolving and renamin
 function resolveInitialRenameValue(model: ITextModel, position: Position): TPromise<RenameInitialValue> {
 	const [first] = RenameProviderRegistry.ordered(model);
 	if (!first || typeof first.resolveInitialRenameValue !== 'function') {
