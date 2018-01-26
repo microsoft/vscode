@@ -13,7 +13,7 @@ const SCM_RESOURCE = `${VIEWLET} .monaco-list-row > .resource`;
 const SCM_RESOURCE_GROUP = `${VIEWLET} .monaco-list-row > .resource-group`;
 const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Refresh"]`;
 const COMMIT_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Commit"]`;
-const SCM_RESOURCE_CLICK = name => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"]`;
+const SCM_RESOURCE_CLICK = name => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"] .label-name`;
 const SCM_RESOURCE_GROUP_COMMAND_CLICK = name => `${SCM_RESOURCE_GROUP} .actions .action-label[title="${name}"]`;
 
 export interface Change {

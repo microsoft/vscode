@@ -963,26 +963,30 @@ export class CommandCenter {
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
-		const unsavedTextDocuments = workspace.textDocuments
-			.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+		const config = workspace.getConfiguration('git');
+		const promptToSaveFilesBeforeCommit = config.get<boolean>('promptToSaveFilesBeforeCommit') === true;
 
-		if (unsavedTextDocuments.length > 0) {
-			const message = unsavedTextDocuments.length === 1
-				? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before comitting?", path.basename(unsavedTextDocuments[0].uri.fsPath))
-				: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before comitting?", unsavedTextDocuments.length);
-			const saveAndCommit = localize('save and commit', "Save All & Commit");
-			const commit = localize('commit', "Commit Anyway");
-			const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
+		if (promptToSaveFilesBeforeCommit) {
+			const unsavedTextDocuments = workspace.textDocuments
+				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-			if (pick === saveAndCommit) {
-				await Promise.all(unsavedTextDocuments.map(d => d.save()));
-				await repository.status();
-			} else if (pick !== commit) {
-				return false; // do not commit on cancel
+			if (unsavedTextDocuments.length > 0) {
+				const message = unsavedTextDocuments.length === 1
+					? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before comitting?", path.basename(unsavedTextDocuments[0].uri.fsPath))
+					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before comitting?", unsavedTextDocuments.length);
+				const saveAndCommit = localize('save and commit', "Save All & Commit");
+				const commit = localize('commit', "Commit Anyway");
+				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
+
+				if (pick === saveAndCommit) {
+					await Promise.all(unsavedTextDocuments.map(d => d.save()));
+					await repository.status();
+				} else if (pick !== commit) {
+					return false; // do not commit on cancel
+				}
 			}
 		}
 
-		const config = workspace.getConfiguration('git');
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
