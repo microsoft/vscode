@@ -419,6 +419,9 @@ export function createApiFactory(
 			set name(value) {
 				throw errors.readonly();
 			},
+			updateWorkspaceFolders: proposedApiFunction(extension, (index, deleteCount, ...workspaceFoldersToAdd) => {
+				return extHostWorkspace.updateWorkspaceFolders(extension.displayName || extension.name, index, deleteCount, ...workspaceFoldersToAdd);
+			}),
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},
