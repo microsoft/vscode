@@ -2546,7 +2546,7 @@ declare module monaco.editor {
 		/**
 		 * Control the width of the cursor when cursorStyle is set to 'line'
 		 */
-		lineCursorWidth?: number;
+		cursorWidth?: number;
 		/**
 		 * Enable font ligatures.
 		 * Defaults to false.
@@ -3017,7 +3017,7 @@ declare module monaco.editor {
 		readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 		readonly mouseWheelZoom: boolean;
 		readonly cursorStyle: TextEditorCursorStyle;
-		readonly lineCursorWidth: number;
+		readonly cursorWidth: number;
 		readonly hideCursorInOverviewRuler: boolean;
 		readonly scrollBeyondLastLine: boolean;
 		readonly smoothScrolling: boolean;
