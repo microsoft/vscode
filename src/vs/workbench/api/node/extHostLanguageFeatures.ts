@@ -470,6 +470,10 @@ class NavigateTypeAdapter {
 
 class RenameAdapter {
 
+	static supportsResolving(provider: vscode.RenameProvider): boolean {
+		return typeof provider.resolveInitialRenameValue === 'function';
+	}
+
 	private _documents: ExtHostDocuments;
 	private _provider: vscode.RenameProvider;
 
@@ -503,6 +507,22 @@ class RenameAdapter {
 				// generic error
 				return TPromise.wrapError<modes.WorkspaceEdit>(err);
 			}
+		});
+	}
+
+	resolveInitialRenameValue(resource: URI, position: IPosition) : TPromise<modes.RenameInitialValue> {
+		if (typeof this._provider.resolveInitialRenameValue !== 'function') {
+			return TPromise.as(undefined);
+		}
+
+		let doc = this._documents.getDocumentData(resource).document;
+		let pos = TypeConverters.toPosition(position);
+
+		return asWinJsPromise(token => this._provider.resolveInitialRenameValue(doc, pos, token)).then((value) => {
+			return <modes.RenameInitialValue> {
+				range: TypeConverters.fromRange(value.range),
+				text: value.text
+			};
 		});
 	}
 }
@@ -1010,12 +1030,16 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
 		const handle = this._addNewAdapter(new RenameAdapter(this._documents, provider));
-		this._proxy.$registerRenameSupport(handle, selector);
+		this._proxy.$registerRenameSupport(handle, selector, RenameAdapter.supportsResolving(provider));
 		return this._createDisposable(handle);
 	}
 
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName));
+	}
+
+	$resolveInitialRenameValue(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameInitialValue> {
+		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveInitialRenameValue(resource, position));
 	}
 
 	// --- suggestion

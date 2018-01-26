@@ -4956,8 +4956,14 @@ declare module monaco.languages {
 		rejectReason?: string;
 	}
 
+	export interface RenameInitialValue {
+		range: IRange;
+		text?: string;
+	}
+
 	export interface RenameProvider {
 		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
+		resolveInitialRenameValue?(model: editor.ITextModel, position: Position, token: CancellationToken): RenameInitialValue | Thenable<RenameInitialValue>;
 	}
 
 	export interface Command {
