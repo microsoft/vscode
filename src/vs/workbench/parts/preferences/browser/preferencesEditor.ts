@@ -222,6 +222,7 @@ export class PreferencesEditor extends BaseEditor {
 	public clearInput(): void {
 		this.defaultSettingsEditorContextKey.set(false);
 		this.sideBySidePreferencesWidget.clearInput();
+		this.preferencesRenderers.onHidden();
 		super.clearInput();
 	}
 
@@ -426,6 +427,11 @@ class PreferencesRenderersController extends Disposable {
 		await this.remoteSearchPreferences(this._lastQuery, true);
 	}
 
+	onHidden(): void {
+		this._prefsModelsForSearch.forEach(model => model.dispose());
+		this._prefsModelsForSearch = new Map<string, ISettingsEditorModel>();
+	}
+
 	remoteSearchPreferences(query: string, updateCurrentResults?: boolean): TPromise<void> {
 		if (this._remoteFilterInProgress && this._remoteFilterInProgress.cancel) {
 			// Resolved/rejected promises have no .cancel()
@@ -466,7 +472,7 @@ class PreferencesRenderersController extends Disposable {
 		}
 
 		filterPs.push(this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder),
-			this.updateSettingsTargetCounts(query, searchProvider, groupId, groupLabel, groupOrder));
+			this.searchAllSettingsTargets(query, searchProvider, groupId, groupLabel, groupOrder));
 
 		return TPromise.join(filterPs).then(results => {
 			const [defaultFilterResult, editableFilterResult] = results;
@@ -481,7 +487,12 @@ class PreferencesRenderersController extends Disposable {
 		});
 	}
 
-	private updateSettingsTargetCounts(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number): TPromise<void> {
+	private searchAllSettingsTargets(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number): TPromise<void> {
+		if (!query) {
+			// Don't open the other settings targets when query is empty
+			return TPromise.wrap(null);
+		}
+
 		const searchPs = [
 			this.searchSettingsTarget(searchProvider, ConfigurationTarget.WORKSPACE, groupId, groupLabel, groupOrder),
 			this.searchSettingsTarget(searchProvider, ConfigurationTarget.USER, groupId, groupLabel, groupOrder)
