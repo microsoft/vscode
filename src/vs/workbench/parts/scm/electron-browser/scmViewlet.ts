@@ -488,7 +488,6 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
-
 		const theme = this.themeService.getTheme();
 		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
 
@@ -507,6 +506,8 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 			template.decorationIcon.style.display = 'none';
 			template.decorationIcon.style.backgroundImage = '';
 		}
+
+		template.element.setAttribute('data-tooltip', resource.decorations.tooltip);
 	}
 
 	disposeTemplate(template: ResourceTemplate): void {

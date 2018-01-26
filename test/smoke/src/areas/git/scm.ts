@@ -49,7 +49,7 @@ export class SCM extends Viewlet {
 		const result = await this.spectron.webclient.selectorExecute(SCM_RESOURCE,
 			div => (Array.isArray(div) ? div : [div]).map(element => {
 				const name = element.querySelector('.label-name') as HTMLElement;
-				const icon = element.querySelector('.decoration-icon') as HTMLElement;
+				const type = element.getAttribute('data-tooltip') || '';
 				const actionElementList = element.querySelectorAll('.actions .action-label');
 				const actionElements: any[] = [];
 
@@ -60,7 +60,7 @@ export class SCM extends Viewlet {
 
 				return {
 					name: name.textContent,
-					type: (icon.title || ''),
+					type,
 					element,
 					actionElements
 				};
