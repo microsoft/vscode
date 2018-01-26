@@ -75,6 +75,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 				cwd: folderPath,
 				base: folderPath,
 				path: path.join(destFilename + '.unpacked', relative),
+				stat: file.stat,
 				contents: file.contents
 			}));
 		} else {
@@ -97,11 +98,14 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 				out.unshift(sizeBuf);
 			}
 
+			const contents = Buffer.concat(out);
+			out.length = 0;
+
 			this.queue(new VinylFile({
 				cwd: folderPath,
 				base: folderPath,
 				path: destFilename,
-				contents: Buffer.concat(out)
+				contents: contents
 			}));
 			this.queue(null);
 		};
