@@ -22,6 +22,11 @@ function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
 }
 
+interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
+	name: string;
+	index: number;
+}
+
 class ExtHostWorkspaceImpl extends Workspace {
 
 	static toExtHostWorkspace(data: IWorkspaceData, previousConfirmedWorkspace?: ExtHostWorkspaceImpl, previousUnconfirmedWorkspace?: ExtHostWorkspaceImpl): { workspace: ExtHostWorkspaceImpl, added: vscode.WorkspaceFolder[], removed: vscode.WorkspaceFolder[] } {
@@ -30,16 +35,16 @@ class ExtHostWorkspaceImpl extends Workspace {
 		}
 
 		const { id, name, folders } = data;
-		const newWorkspaceFolders: WorkspaceFolder[] = [];
+		const newWorkspaceFolders: vscode.WorkspaceFolder[] = [];
 
 		// If we have an existing workspace, we try to find the folders that match our
 		// data and update their properties. It could be that an extension stored them
 		// for later use and we want to keep them "live" if they are still present.
-		const oldWorkspace = previousUnconfirmedWorkspace || previousConfirmedWorkspace;
+		const oldWorkspace = previousConfirmedWorkspace;
 		if (oldWorkspace) {
 			folders.forEach((folderData, index) => {
 				const folderUri = URI.revive(folderData.uri);
-				const existingFolder = ExtHostWorkspaceImpl._findFolder(oldWorkspace, folderUri);
+				const existingFolder = ExtHostWorkspaceImpl._findFolder(previousUnconfirmedWorkspace || previousConfirmedWorkspace, folderUri);
 
 				if (existingFolder) {
 					existingFolder.name = folderData.name;
@@ -47,11 +52,11 @@ class ExtHostWorkspaceImpl extends Workspace {
 
 					newWorkspaceFolders.push(existingFolder);
 				} else {
-					newWorkspaceFolders.push(new WorkspaceFolder({ name: folderData.name, index, uri: folderUri }));
+					newWorkspaceFolders.push({ uri: folderUri, name: folderData.name, index });
 				}
 			});
 		} else {
-			newWorkspaceFolders.push(...folders.map(({ uri, name, index }) => new WorkspaceFolder({ name, index, uri: URI.revive(uri) })));
+			newWorkspaceFolders.push(...folders.map(({ uri, name, index }) => ({ uri: URI.revive(uri), name, index })));
 		}
 
 		const workspace = new ExtHostWorkspaceImpl(id, name, newWorkspaceFolders);
@@ -72,9 +77,9 @@ class ExtHostWorkspaceImpl extends Workspace {
 		return isFolderEqual(a.uri, b.uri) ? compare(a.name, b.name) : compare(a.uri.toString(), b.uri.toString());
 	}
 
-	private static _findFolder(workspace: ExtHostWorkspaceImpl, folderUriToFind: URI): WorkspaceFolder {
+	private static _findFolder(workspace: ExtHostWorkspaceImpl, folderUriToFind: URI): MutableWorkspaceFolder {
 		for (let i = 0; i < workspace.folders.length; i++) {
-			const folder = workspace.folders[i];
+			const folder = workspace.workspaceFolders[i];
 			if (isFolderEqual(folder.uri, folderUriToFind)) {
 				return folder;
 			}
@@ -86,14 +91,13 @@ class ExtHostWorkspaceImpl extends Workspace {
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
 	private readonly _structure = TernarySearchTree.forPaths<vscode.WorkspaceFolder>();
 
-	private constructor(id: string, name: string, folders: WorkspaceFolder[]) {
-		super(id, name, folders);
+	private constructor(id: string, name: string, folders: vscode.WorkspaceFolder[]) {
+		super(id, name, folders.map(f => new WorkspaceFolder(f)));
 
 		// setup the workspace folder data structure
-		this.folders.forEach(({ name, uri, index }) => {
-			const workspaceFolder = { name, uri, index };
-			this._workspaceFolders.push(workspaceFolder);
-			this._structure.set(workspaceFolder.uri.toString(), workspaceFolder);
+		folders.forEach(folder => {
+			this._workspaceFolders.push(folder);
+			this._structure.set(folder.uri.toString(), folder);
 		});
 	}
 
@@ -182,7 +186,12 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		}
 
 		// Try to accept directly
-		const accepted = this.trySetWorkspaceData({ id: this._actualWorkspace.id, name: this._actualWorkspace.name, configuration: this._actualWorkspace.configuration, folders: newWorkspaceFolders } as IWorkspaceData);
+		const accepted = this.trySetWorkspaceData({
+			id: this._actualWorkspace.id,
+			name: this._actualWorkspace.name,
+			configuration: this._actualWorkspace.configuration,
+			folders: newWorkspaceFolders
+		} as IWorkspaceData);
 
 		return accepted;
 	}
@@ -266,12 +275,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		this._unconfirmedWorkspace = undefined;
 
 		// Events
-		if (added.length || removed.length) {
-			this._onDidChangeWorkspace.fire(Object.freeze({
-				added: Object.freeze<vscode.WorkspaceFolder[]>(added),
-				removed: Object.freeze<vscode.WorkspaceFolder[]>(removed)
-			}));
-		}
+		this._onDidChangeWorkspace.fire(Object.freeze({
+			added: Object.freeze<vscode.WorkspaceFolder[]>(added),
+			removed: Object.freeze<vscode.WorkspaceFolder[]>(removed)
+		}));
 	}
 
 	// --- search ---
