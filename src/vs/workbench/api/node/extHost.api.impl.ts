@@ -420,7 +420,7 @@ export function createApiFactory(
 				throw errors.readonly();
 			},
 			updateWorkspaceFolders: proposedApiFunction(extension, (index, deleteCount, ...workspaceFoldersToAdd) => {
-				return extHostWorkspace.updateWorkspaceFolders(extension.displayName || extension.name, index, deleteCount, ...workspaceFoldersToAdd);
+				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount, ...workspaceFoldersToAdd);
 			}),
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);

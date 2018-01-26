@@ -10,13 +10,15 @@ import { normalize } from 'vs/base/common/paths';
 import { delta as arrayDelta } from 'vs/base/common/arrays';
 import { relative, dirname } from 'path';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
+import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext, MainThreadMessageServiceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { Severity } from 'vs/platform/message/common/message';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { localize } from 'vs/nls';
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
@@ -134,10 +136,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	private _confirmedWorkspace: ExtHostWorkspaceImpl;
 	private _unconfirmedWorkspace: ExtHostWorkspaceImpl;
 
+	private _messageService: MainThreadMessageServiceShape;
+
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
 	constructor(mainContext: IMainContext, data: IWorkspaceData) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);
+		this._messageService = mainContext.getProxy(MainContext.MainThreadMessageService);
 		this._confirmedWorkspace = ExtHostWorkspaceImpl.toExtHostWorkspace(data).workspace;
 	}
 
@@ -158,7 +163,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		return this._actualWorkspace.workspaceFolders.slice(0);
 	}
 
-	updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[]): boolean {
+	updateWorkspaceFolders(extension: IExtensionDescription, index: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[]): boolean {
 		const validatedDistinctWorkspaceFoldersToAdd: { uri: vscode.Uri, name?: string }[] = [];
 		if (Array.isArray(workspaceFoldersToAdd)) {
 			workspaceFoldersToAdd.forEach(folderToAdd => {
@@ -166,6 +171,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 					validatedDistinctWorkspaceFoldersToAdd.push({ uri: folderToAdd.uri, name: folderToAdd.name || basenameOrAuthority(folderToAdd.uri) });
 				}
 			});
+		}
+
+		if (!!this._unconfirmedWorkspace) {
+			return false; // prevent accumulated calls without a confirmed workspace
 		}
 
 		if ([index, deleteCount].some(i => typeof i !== 'number' || i < 0)) {
@@ -181,8 +190,17 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			return false; // cannot delete more than we have
 		}
 
+		// Simulate the updateWorkspaceFolders method on our data to do more validation
 		const newWorkspaceFolders = currentWorkspaceFolders.slice(0);
 		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map(f => ({ uri: f.uri, name: f.name || basenameOrAuthority(f.uri) })));
+
+		for (let i = 0; i < newWorkspaceFolders.length; i++) {
+			const folder = newWorkspaceFolders[i];
+			if (newWorkspaceFolders.some((otherFolder, index) => index !== i && isFolderEqual(folder.uri, otherFolder.uri))) {
+				return false; // cannot add the same folder multiple times
+			}
+		}
+
 		newWorkspaceFolders.forEach((f, index) => f.index = index); // fix index
 		const { added, removed } = delta(currentWorkspaceFolders, newWorkspaceFolders, compareWorkspaceFolderByUriAndNameAndIndex);
 		if (added.length === 0 && removed.length === 0) {
@@ -191,7 +209,16 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 		// Trigger on main side
 		if (this._proxy) {
-			this._proxy.$updateWorkspaceFolders(extensionName, index, deleteCount, validatedDistinctWorkspaceFoldersToAdd).then(null, onUnexpectedError);
+			const extName = extension.displayName || extension.name;
+			this._proxy.$updateWorkspaceFolders(extName, index, deleteCount, validatedDistinctWorkspaceFoldersToAdd).then(null, error => {
+
+				// in case of an error, make sure to clear out the unconfirmed workspace
+				// because we cannot expect the acknowledgement from the main side for this
+				this._unconfirmedWorkspace = undefined;
+
+				// show error to user
+				this._messageService.$showMessage(Severity.Error, localize('updateerror', "Extension '{0}' failed to update workspace folders: {1}", extName, error.toString()), { extension }, []);
+			});
 		}
 
 		// Try to accept directly

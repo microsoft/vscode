@@ -160,7 +160,8 @@ declare module 'vscode' {
 
 		/**
 		 * Updates the workspace folders of the currently opened workspace. This method allows to add, remove
-		 * and change workspace folders a the same time.
+		 * and change workspace folders a the same time. Use the [onDidChangeWorkspaceFolders()](#onDidChangeWorkspaceFolders)
+		 * event to get notified when the workspace folders have been updated.
 		 *
 		 * **Example:** adding a new workspace folder at the end of workspace folders
 		 * ```typescript
@@ -183,13 +184,17 @@ declare module 'vscode' {
 		 * Note: if the first workspace folder is added, removed or changed, all extensions will be restarted
 		 * so that the (deprecated) `rootPath` property is updated to point to the first workspace
 		 * folder.
+		 *
+		 * Note: it is not valid to call [updateWorkspaceFolders()](#updateWorkspaceFolders) multiple times
+		 * without waiting for the [onDidChangeWorkspaceFolders()](#onDidChangeWorkspaceFolders) to fire.
+		 *
 		 * @param start the zero-based location in the list of currently opened [workspace folders](#WorkspaceFolder)
 		 * from which to start deleting workspace folders.
 		 * @param deleteCount the optional number of workspace folders to remove.
 		 * @param workspaceFoldersToAdd the optional variable set of workspace folders to add in place of the deleted ones.
 		 * Each workspace is identified with a mandatory URI and an optional name.
-		 * @return true if the operation was successfully started. Use the [onDidChangeWorkspaceFolders()](#onDidChangeWorkspaceFolders)
-		 * event to get notified when the workspace folders have been updated.
+		 * @return true if the operation was successfully started and false otherwise if arguments were used that would result
+		 * in invalid workspace folder state (e.g. 2 folders with the same URI).
 		 */
 		export function updateWorkspaceFolders(start: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: Uri, name?: string }[]): boolean;
 	}
