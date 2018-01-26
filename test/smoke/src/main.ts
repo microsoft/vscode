@@ -220,7 +220,7 @@ console.warn = function suppressWebdriverWarnings(message) {
 };
 
 function createApp(quality: Quality): SpectronApplication | null {
-	const path = quality === Quality.Insiders ? electronPath : stablePath;
+	const path = quality === Quality.Stable ? stablePath : electronPath;
 
 	if (!path) {
 		return null;
