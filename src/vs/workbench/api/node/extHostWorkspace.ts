@@ -222,14 +222,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		}
 
 		// Try to accept directly
-		const accepted = this.trySetWorkspaceData({
-			id: this._actualWorkspace.id,
-			name: this._actualWorkspace.name,
-			configuration: this._actualWorkspace.configuration,
-			folders: newWorkspaceFolders
-		} as IWorkspaceData);
-
-		return accepted;
+		return this.trySetWorkspaceFolders(newWorkspaceFolders);
 	}
 
 	getWorkspaceFolder(uri: vscode.Uri, resolveParent?: boolean): vscode.WorkspaceFolder {
@@ -288,12 +281,17 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		return normalize(result, true);
 	}
 
-	private trySetWorkspaceData(data: IWorkspaceData): boolean {
+	private trySetWorkspaceFolders(folders: vscode.WorkspaceFolder[]): boolean {
 
 		// Update directly here. The workspace is unconfirmed as long as we did not get an
 		// acknowledgement from the main side (via $acceptWorkspaceData)
 		if (this._actualWorkspace) {
-			this._unconfirmedWorkspace = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._actualWorkspace).workspace;
+			this._unconfirmedWorkspace = ExtHostWorkspaceImpl.toExtHostWorkspace({
+				id: this._actualWorkspace.id,
+				name: this._actualWorkspace.name,
+				configuration: this._actualWorkspace.configuration,
+				folders
+			} as IWorkspaceData, this._actualWorkspace).workspace;
 
 			return true;
 		}
