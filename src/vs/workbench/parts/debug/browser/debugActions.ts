@@ -204,7 +204,64 @@ export class RestartAction extends AbstractDebugAction {
 		this.updateLabel(process && process.state === ProcessState.ATTACH ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
 	}
 
+	////
+	//Helpers for inner loop TTD -- maybe move into adapter and such
+	shouldTransitionToStepBack(thread: IThread): TPromise<boolean> {
+		const config = thread.process.configuration;
+		if(!Array.isArray(config["runtimeArgs"])) {
+			return TPromise.as(false);
+		}
+		else {
+			return TPromise.as(config["runtimeArgs"].includes("--tt-debug"));
+		}
+	}
+
+	requestTraceWrite(thread: IThread): TPromise<any> {
+		//TODO: I hijacked this we need to add the appropriate message
+		return thread.stepOut();
+	}
+
+	generateReplayConfiguration(thread: IThread): TPromise<any> {
+		return TPromise.as<any>({
+			"type": "node",
+            "request": "launch",
+            "name": "TTDReplay",
+            "protocol": "inspector",
+            "runtimeExecutable": "C:\\Code\\Node\\Debug\\node.exe",
+            "runtimeArgs": [
+                "--replay-debug=c:\\Users\\Mark\\Desktop\\multitest\\log"
+            ],
+            "console": "internalConsole"
+		});
+	}
+
+	launchReplayConfiguration(config: any): TPromise<any> {
+		return this.debugService.startDebugging(undefined, config);
+	}
+	////
+
 	public run(process: IProcess): TPromise<any> {
+		const thread = this.debugService.getViewModel().focusedThread;
+
+		return this.shouldTransitionToStepBack(thread)
+		.then((shouldtransition) => {
+			if(thread && shouldtransition) {
+				return this.requestTraceWrite(thread)
+					.then(() => {
+						return this.generateReplayConfiguration(thread);
+					})
+					.then((config) => {
+						return this.launchReplayConfiguration(config);
+					});
+			}
+			else {
+				//write friendly error message here
+				return TPromise.as(null);
+			}
+		});
+
+
+		/*
 		if (!(process instanceof Process)) {
 			process = this.debugService.getViewModel().focusedProcess;
 		}
@@ -216,6 +273,7 @@ export class RestartAction extends AbstractDebugAction {
 			this.debugService.removeReplExpressions();
 		}
 		return this.debugService.restartProcess(process);
+		*/
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -808,10 +866,25 @@ export class StepBackAction extends AbstractDebugAction {
 		return thread ? thread.stepBack() : TPromise.as(null);
 	}
 
+	////
+	//Helpers for inner loop TTD -- maybe move into adapter and such
+	isInTTDMode(process: IProcess): boolean {
+		const config = process.configuration;
+		if(!Array.isArray(config["runtimeArgs"])) {
+			return false;
+		}
+		else {
+			return config["runtimeArgs"].some((param) => param.startsWith("--replay-debug"));
+		}
+	}
+	//
+	////
+
 	protected isEnabled(state: State): boolean {
 		const process = this.debugService.getViewModel().focusedProcess;
 		return super.isEnabled(state) && state === State.Stopped &&
-			process && process.session.capabilities.supportsStepBack;
+			process && process.session.capabilities.supportsStepBack &&
+			this.isInTTDMode(process);
 	}
 }
 
@@ -831,9 +904,24 @@ export class ReverseContinueAction extends AbstractDebugAction {
 		return thread ? thread.reverseContinue() : TPromise.as(null);
 	}
 
+	////
+	//Helpers for inner loop TTD -- maybe move into adapter and such
+	isInTTDMode(process: IProcess): boolean {
+		const config = process.configuration;
+		if(!Array.isArray(config["runtimeArgs"])) {
+			return false;
+		}
+		else {
+			return config["runtimeArgs"].some((param) => param.startsWith("--replay-debug"));
+		}
+	}
+	//
+	////
+
 	protected isEnabled(state: State): boolean {
 		const process = this.debugService.getViewModel().focusedProcess;
 		return super.isEnabled(state) && state === State.Stopped &&
-			process && process.session.capabilities.supportsStepBack;
+			process && process.session.capabilities.supportsStepBack  &&
+			this.isInTTDMode(process);
 	}
 }
