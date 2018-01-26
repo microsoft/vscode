@@ -632,7 +632,6 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 		const result = this._currentResult;
 		const metadata = result.metadata['nlpResult']; // Feedback only on nlpResult set for now
-		const marketplaceExtensionsResults = result.metadata['newExtensionsResult'] && result.metadata['newExtensionsResult'].scoredResults;
 		const actualResults = metadata ? metadata.scoredResults : {};
 		const actualResultIds = Object.keys(actualResults);
 
@@ -649,10 +648,14 @@ export class FeedbackWidgetRenderer extends Disposable {
 		});
 		feedbackQuery['alts'] = [];
 
+		const groupCountsText = result.filteredGroups
+			.map(group => `// ${group.id}: ${group.sections[0].settings.length}`)
+			.join('\n');
+
 		const contents = FeedbackWidgetRenderer.INSTRUCTION_TEXT + '\n' +
 			JSON.stringify(feedbackQuery, undefined, '    ') + '\n\n' +
 			this.getScoreText(actualResults) + '\n\n' +
-			this.getScoreText(marketplaceExtensionsResults) + '\n';
+			groupCountsText + '\n';
 
 		this.editorService.openEditor({ contents, language: 'jsonc' }, /*sideBySide=*/true).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
