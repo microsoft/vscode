@@ -13,6 +13,8 @@
 	"reallyRecommendedExtensionPack": "建議對此檔案類型使用 '{0}' 延伸模組套件。",
 	"showRecommendations": "顯示建議",
 	"install": "安裝",
+	"showLanguageExtensions": "市集有 '.{0}' 個文件的擴充功能可以提供協助",
+	"searchMarketplace": "搜尋市集",
 	"workspaceRecommended": "此工作區具有擴充功能建議。",
 	"installAll": "全部安裝",
 	"ignoreExtensionRecommendations": "是否略過所有的延伸模組建議?",

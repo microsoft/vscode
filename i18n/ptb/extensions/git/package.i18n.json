@@ -60,6 +60,7 @@
 	"config.enableLongCommitWarning": "Se mensagens longas de confirmação devem ter aviso",
 	"config.confirmSync": "Confirmar antes de sincronizar repositórios git",
 	"config.countBadge": "Controla o contador de distintivos do git. 'todos' considera todas as alterações. 'rastreado' considera apenas as alterações controladas. 'desligado' desliga o contador.",
+	"config.checkoutType": "Controla quais tipos de ramos são listados quando executando `Checkout para... `. `todos` mostra todas as referências, `local` mostra apenas os ramos locais, `etiquetas` mostra apenas etiquetas e `remoto` mostra apenas os ramos remotos.",
 	"config.ignoreLegacyWarning": "Ignora o aviso de Git legado",
 	"config.ignoreMissingGitWarning": "Ignora o aviso quando Git não existir.",
 	"config.ignoreLimitWarning": "Ignora o aviso quando houver muitas alterações em um repositório",

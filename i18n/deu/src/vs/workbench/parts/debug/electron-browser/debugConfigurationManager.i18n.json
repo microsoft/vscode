@@ -19,8 +19,6 @@
 	"vscode.extension.contributes.debuggers.configurationAttributes": "JSON-Schemakonfigurationen zum Überprüfen von \"launch.json\".",
 	"vscode.extension.contributes.debuggers.windows": "Windows-spezifische Einstellungen.",
 	"vscode.extension.contributes.debuggers.windows.runtime": "Die für Windows verwendete Laufzeit.",
-	"vscode.extension.contributes.debuggers.osx": "OS X-spezifische Einstellungen.",
-	"vscode.extension.contributes.debuggers.osx.runtime": "Die für OS X verwendete Laufzeit.",
 	"vscode.extension.contributes.debuggers.linux": "Linux-spezifische Einstellungen.",
 	"vscode.extension.contributes.debuggers.linux.runtime": "Die für Linux verwendete Laufzeit.",
 	"vscode.extension.contributes.breakpoints": "Trägt Haltepunkte bei.",

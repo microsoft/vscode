@@ -721,14 +721,17 @@ export class PieceTreeBase {
 			for (let i = 0; i < lineStarts.length; i++) {
 				lineStarts[i] += startOffset + 1;
 			}
-			(<number[]>this._buffers[0].lineStarts).push(...<number[]>lineStarts.slice(1));
+
+			this._buffers[0].lineStarts = (<number[]>this._buffers[0].lineStarts).concat(<number[]>lineStarts.slice(1));
 			this._buffers[0].buffer += '_' + text;
 			startOffset += 1;
 		} else {
-			for (let i = 0; i < lineStarts.length; i++) {
-				lineStarts[i] += startOffset;
+			if (startOffset !== 0) {
+				for (let i = 0; i < lineStarts.length; i++) {
+					lineStarts[i] += startOffset;
+				}
 			}
-			(<number[]>this._buffers[0].lineStarts).push(...<number[]>lineStarts.slice(1));
+			this._buffers[0].lineStarts = (<number[]>this._buffers[0].lineStarts).concat(<number[]>lineStarts.slice(1));
 			this._buffers[0].buffer += text;
 		}
 
@@ -920,7 +923,8 @@ export class PieceTreeBase {
 			// _lastChangeBufferPos is already wrong
 			this._lastChangeBufferPos = { line: this._lastChangeBufferPos.line - 1, column: startOffset - prevStartOffset };
 		}
-		(<number[]>this._buffers[0].lineStarts).push(...<number[]>lineStarts.slice(1));
+
+		this._buffers[0].lineStarts = (<number[]>this._buffers[0].lineStarts).concat(<number[]>lineStarts.slice(1));
 		let endIndex = this._buffers[0].lineStarts.length - 1;
 		let endColumn = this._buffers[0].buffer.length - this._buffers[0].lineStarts[endIndex];
 		let endPos = { line: endIndex, column: endColumn };

@@ -6,9 +6,16 @@
 'use strict';
 
 import { assign } from 'vs/base/common/objects';
+import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+
+export enum IssueType {
+	Bug,
+	PerformanceIssue,
+	FeatureRequest
+}
 
 export interface IssueReporterData {
-	issueType?: number;
+	issueType?: IssueType;
 	issueDescription?: string;
 	versionInfo?: any;
 	systemInfo?: any;
@@ -17,6 +24,10 @@ export interface IssueReporterData {
 	includeSystemInfo?: boolean;
 	includeWorkspaceInfo?: boolean;
 	includeProcessInfo?: boolean;
+	includeExtensions?: boolean;
+	numberOfThemeExtesions?: number;
+	enabledNonThemeExtesions?: ILocalExtension[];
+	extensionsDisabled?: boolean;
 }
 
 export class IssueReporterModel {
@@ -55,9 +66,9 @@ ${this.getInfos()}
 	}
 
 	private getIssueTypeTitle(): string {
-		if (this._data.issueType === 0) {
+		if (this._data.issueType === IssueType.Bug) {
 			return 'Bug';
-		} else if (this._data.issueType === 1) {
+		} else if (this._data.issueType === IssueType.PerformanceIssue) {
 			return 'Performance Issue';
 		} else {
 			return 'Feature Request';
@@ -71,8 +82,13 @@ ${this.getInfos()}
 			info += this.generateSystemInfoMd();
 		}
 
-		// For perf issue, add process info and workspace info too
-		if (this._data.issueType === 1) {
+		if (this._data.issueType === IssueType.Bug) {
+			if (this._data.includeExtensions) {
+				info += this.generateExtensionsMd();
+			}
+		}
+
+		if (this._data.issueType === IssueType.PerformanceIssue) {
 
 			if (this._data.includeProcessInfo) {
 				info += this.generateProcessInfoMd();
@@ -80,6 +96,10 @@ ${this.getInfos()}
 
 			if (this._data.includeWorkspaceInfo) {
 				info += this.generateWorkspaceInfoMd();
+			}
+
+			if (this._data.includeExtensions) {
+				info += this.generateExtensionsMd();
 			}
 		}
 
@@ -130,5 +150,39 @@ ${this._data.workspaceInfo};
 
 </details>
 `;
+	}
+
+	private generateExtensionsMd(): string {
+		if (this._data.extensionsDisabled) {
+			return 'Extensions disabled';
+		}
+
+		const themeExclusionStr = this._data.numberOfThemeExtesions ? `\n(${this._data.numberOfThemeExtesions} theme extensions excluded)` : '';
+
+		if (!this._data.enabledNonThemeExtesions) {
+			return 'Extensions: none' + themeExclusionStr;
+		}
+
+		let tableHeader = `Extension|Author (truncated)|Version
+---|---|---`;
+		const table = this._data.enabledNonThemeExtesions.map(e => {
+			return `${e.manifest.name}|${e.manifest.publisher.substr(0, 3)}|${e.manifest.version}`;
+		}).join('\n');
+
+		const extensionTable = `<details><summary>Extensions (${this._data.enabledNonThemeExtesions.length})</summary>
+
+${tableHeader}
+${table}
+${themeExclusionStr}
+
+</details>`;
+
+		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
+		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
+		if (encodeURIComponent(extensionTable).length > 1600) {
+			return 'the listing length exceeds browsers\' URL characters limit';
+		}
+
+		return extensionTable;
 	}
 }

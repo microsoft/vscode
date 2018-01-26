@@ -60,6 +60,7 @@
 	"config.enableLongCommitWarning": "Uzun commit mesajları hakkında uyarıda bulunulup bulunulmayacağı",
 	"config.confirmSync": "Git depolarını senkronize etmeden önce onaylayın",
 	"config.countBadge": "Git gösterge sayacını denetler. `all` tüm değişiklikleri sayar. `tracked` sadece izlenen değişikliklikleri sayar. `off` ise kapatır.",
+	"config.checkoutType": "`Geçiş Yap...` çalıştırılırken listelenecek dal türlerini denetler. `all` tüm başvuruları gösterir, `local` sadece yerel dalları gösterir, `tags` sadece etiketleri gösterir ve `remote` sadece uzak uçbirim dallarını gösterir.",
 	"config.ignoreLegacyWarning": "Eski Git uyarısını görmezden gelir",
 	"config.ignoreMissingGitWarning": "Git mevcut olmadığında uyarıyı yok sayar",
 	"config.ignoreLimitWarning": "Bir depoda çok fazla değişiklik var uyarısını görmezden gelir",

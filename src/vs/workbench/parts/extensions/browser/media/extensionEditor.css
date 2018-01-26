@@ -171,6 +171,7 @@
 	height: calc(100% - 36px);
 	position: relative;
 	overflow: hidden;
+	user-select: text;
 }
 
 .extension-editor > .body > .content.loading {

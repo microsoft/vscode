@@ -31,7 +31,7 @@ import { flatten, distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { ShowLanguageExtensionsAction } from 'vs/workbench/browser/parts/editor/editorStatus';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -67,7 +67,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super();
 
@@ -75,9 +75,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
-		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-			this._suggestFileBasedRecommendations();
-		});
+		this._suggestFileBasedRecommendations();
 
 		this.promptWorkspaceRecommendationsPromise = this._suggestWorkspaceRecommendations();
 
@@ -263,6 +261,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._modelService.getModels().forEach(model => this._suggest(model));
 	}
 
+	private getMimeTypes(path: string): TPromise<string[]> {
+		return this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			return guessMimeTypes(path);
+		});
+	}
+
 	private _suggest(model: ITextModel): void {
 		const uri = model.uri;
 		let hasSuggestion = false;
@@ -380,10 +384,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				});
 			});
 
-			importantTipsPromise.then(() => {
+			const mimeTypesPromise = this.getMimeTypes(uri.fsPath);
+			TPromise.join([importantTipsPromise, mimeTypesPromise]).then(result => {
+
 				const fileExtensionSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get
 					('extensionsAssistant/fileExtensionsSuggestionIgnore', StorageScope.GLOBAL, '[]'));
-				let mimeTypes = guessMimeTypes(uri.fsPath);
+				const mimeTypes = result[1];
 				let fileExtension = paths.extname(uri.fsPath);
 				if (fileExtension) {
 					fileExtension = fileExtension.substr(1); // Strip the dot

@@ -191,7 +191,18 @@ const schema: IJSONSchema = {
 								enum: [],
 								description: nls.localize('useUniqueNames', "Please use unique configuration names.")
 							}, {
-								type: 'object'
+								type: 'object',
+								required: ['name'],
+								properties: {
+									name: {
+										enum: [],
+										description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
+									},
+									folder: {
+										enum: [],
+										description: nls.localize('app.launch.json.compound.folder', "Name of folder in which the compound is located.")
+									}
+								}
 							}]
 						},
 						description: nls.localize('app.launch.json.compounds.configurations', "Names of configurations that will be started as part of this compound.")
@@ -331,6 +342,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => {
 			this.initLaunches();
 			this.selectConfiguration();
+			this.setCompoundSchemaValues();
 		}));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('launch')) {
@@ -355,8 +367,14 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	private setCompoundSchemaValues(): void {
 		const compoundConfigurationsSchema = (<IJSONSchema>schema.properties['compounds'].items).properties['configurations'];
-		(<IJSONSchema>compoundConfigurationsSchema.items).oneOf[0].enum = this.launches.map(l =>
+		const launchNames = this.launches.map(l =>
 			l.getConfigurationNames(false)).reduce((first, second) => first.concat(second), []);
+		(<IJSONSchema>compoundConfigurationsSchema.items).oneOf[0].enum = launchNames;
+		(<IJSONSchema>compoundConfigurationsSchema.items).oneOf[1].properties.name.enum = launchNames;
+
+		const folderNames = this.contextService.getWorkspace().folders.map(f => f.name);
+		(<IJSONSchema>compoundConfigurationsSchema.items).oneOf[1].properties.folder.enum = folderNames;
+
 		jsonRegistry.registerSchema(launchSchemaId, schema);
 	}
 

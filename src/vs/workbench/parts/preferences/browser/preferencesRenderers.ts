@@ -9,6 +9,7 @@ import { Delayer } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Position } from 'vs/editor/common/core/position';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -36,6 +37,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { getDomNodePagePosition } from 'vs/base/browser/dom';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -52,6 +54,7 @@ export interface IPreferencesRenderer<T> extends IDisposable {
 	focusPreference(setting: T): void;
 	clearFocus(setting: T): void;
 	filterPreferences(filterResult: IFilterResult): void;
+	editPreference(setting: T): boolean;
 }
 
 export class UserSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
@@ -186,6 +189,10 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	public clearFocus(setting: ISetting): void {
 		this.settingHighlighter.clear(true);
 	}
+
+	public editPreference(setting: ISetting): boolean {
+		return this.editSettingActionRenderer.activateOnSetting(setting);
+	}
 }
 
 export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer<ISetting> {
@@ -311,7 +318,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 		if (filterResult) {
 			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);
-			this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
+			this.settingsGroupTitleRenderer.render(null);
 			this.feedbackWidgetRenderer.render(filterResult);
 			this.settingsHeaderRenderer.render(filterResult);
 			this.settingHighlighter.clear(true);
@@ -377,6 +384,10 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	public updatePreference(key: string, value: any, source: ISetting): void {
 	}
+
+	public editPreference(setting: ISetting): boolean {
+		return this.editSettingActionRenderer.activateOnSetting(setting);
+	}
 }
 
 export interface HiddenAreasProvider {
@@ -407,12 +418,12 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 			}
 		];
 
-		const hideBraces = group => {
+		const hideBraces = (group: ISettingsGroup, hideExtraLine?: boolean) => {
 			// Opening curly brace
 			hiddenAreas.push({
 				startLineNumber: group.range.startLineNumber - 3,
 				startColumn: 1,
-				endLineNumber: group.range.startLineNumber - 3,
+				endLineNumber: group.range.startLineNumber - (hideExtraLine ? 1 : 3),
 				endColumn: 1
 			});
 
@@ -425,9 +436,9 @@ export class BracesHidingRenderer extends Disposable implements HiddenAreasProvi
 			});
 		};
 
-		this._settingsGroups.forEach(hideBraces);
+		this._settingsGroups.forEach(g => hideBraces(g));
 		if (this._result) {
-			this._result.filteredGroups.forEach(hideBraces);
+			this._result.filteredGroups.forEach((g, i) => hideBraces(g, true));
 		}
 
 		// Closing square brace
@@ -621,7 +632,6 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 		const result = this._currentResult;
 		const metadata = result.metadata['nlpResult']; // Feedback only on nlpResult set for now
-		const marketplaceExtensionsResults = result.metadata['newExtensionsResult'] && result.metadata['newExtensionsResult'].scoredResults;
 		const actualResults = metadata ? metadata.scoredResults : {};
 		const actualResultIds = Object.keys(actualResults);
 
@@ -638,10 +648,14 @@ export class FeedbackWidgetRenderer extends Disposable {
 		});
 		feedbackQuery['alts'] = [];
 
+		const groupCountsText = result.filteredGroups
+			.map(group => `// ${group.id}: ${group.sections[0].settings.length}`)
+			.join('\n');
+
 		const contents = FeedbackWidgetRenderer.INSTRUCTION_TEXT + '\n' +
 			JSON.stringify(feedbackQuery, undefined, '    ') + '\n\n' +
 			this.getScoreText(actualResults) + '\n\n' +
-			this.getScoreText(marketplaceExtensionsResults) + '\n';
+			groupCountsText + '\n';
 
 		this.editorService.openEditor({ contents, language: 'jsonc' }, /*sideBySide=*/true).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
@@ -1095,6 +1109,32 @@ class EditSettingRenderer extends Disposable {
 			getAnchor: () => anchor,
 			getActions: () => TPromise.wrap(actions)
 		});
+	}
+
+	public activateOnSetting(setting: ISetting): boolean {
+		const startLine = setting.keyRange.startLineNumber;
+		const settings = this.getSettings(startLine);
+		if (!settings.length) {
+			return false;
+		}
+
+		this.editPreferenceWidgetForMouseMove.show(startLine, '', settings);
+		const actions = this.getActions(this.editPreferenceWidgetForMouseMove.preferences[0], this.getConfigurationsMap()[this.editPreferenceWidgetForMouseMove.preferences[0].key]);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => this.toAbsoluteCoords(new Position(startLine, 1)),
+			getActions: () => TPromise.wrap(actions)
+		});
+
+		return true;
+	}
+
+	private toAbsoluteCoords(position: Position): { x: number, y: number } {
+		const positionCoords = this.editor.getScrolledVisiblePosition(position);
+		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
+		const x = editorCoords.left + positionCoords.left;
+		const y = editorCoords.top + positionCoords.top + positionCoords.height;
+
+		return { x, y: y + 10 };
 	}
 
 	private getConfigurationsMap(): { [qualifiedKey: string]: IConfigurationPropertySchema } {

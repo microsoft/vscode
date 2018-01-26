@@ -13,6 +13,8 @@
 	"reallyRecommendedExtensionPack": "O pacote de extensão '{0}' é recomendado para este tipo de arquivo.",
 	"showRecommendations": "Mostrar Recomendações",
 	"install": "Instalar",
+	"showLanguageExtensions": "A Loja tem extensões que podem ajudar com arquivos '.{0}'",
+	"searchMarketplace": "Pesquisar na Loja",
 	"workspaceRecommended": "Este espaço de trabalho possui recomendações de extensão.",
 	"installAll": "Instalar Tudo",
 	"ignoreExtensionRecommendations": "Você quer ignorar todas as recomendações de extensão?",

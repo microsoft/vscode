@@ -347,6 +347,6 @@ function eventuallyExit(code: number): void {
 main(process.argv)
 	.then(() => eventuallyExit(0))
 	.then(null, err => {
-		console.error(err.stack ? err.stack : err);
+		console.error(err.message || err.stack || err);
 		eventuallyExit(1);
 	});

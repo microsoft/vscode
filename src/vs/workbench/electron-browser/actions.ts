@@ -363,6 +363,7 @@ export class ShowStartupPerformance extends Action {
 
 		if (metrics.initialStartup) {
 			table.push({ Topic: '[main] start => app.isReady', 'Took (ms)': metrics.timers.ellapsedAppReady });
+			table.push({ Topic: '[main] nls:start => nls:end', 'Took (ms)': metrics.timers.ellapsedNlsGeneration });
 			table.push({ Topic: '[main] app.isReady => window.loadUrl()', 'Took (ms)': metrics.timers.ellapsedWindowLoad });
 		}
 
@@ -755,29 +756,41 @@ export class OpenIssueReporterAction extends Action {
 		id: string,
 		label: string,
 		@IIssueService private issueService: IIssueService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<boolean> {
-		const theme = this.themeService.getTheme();
-		const style = {
-			backgroundColor: theme.getColor(SIDE_BAR_BACKGROUND) && theme.getColor(SIDE_BAR_BACKGROUND).toString(),
-			color: theme.getColor(foreground).toString(),
-			textLinkColor: theme.getColor(textLinkForeground) && theme.getColor(textLinkForeground).toString(),
-			inputBackground: theme.getColor(inputBackground) && theme.getColor(inputBackground).toString(),
-			inputForeground: theme.getColor(inputForeground) && theme.getColor(inputForeground).toString(),
-			inputBorder: theme.getColor(inputBorder) && theme.getColor(inputBorder).toString(),
-			inputActiveBorder: theme.getColor(inputActiveOptionBorder) && theme.getColor(inputActiveOptionBorder).toString(),
-			inputErrorBorder: theme.getColor(inputValidationErrorBorder) && theme.getColor(inputValidationErrorBorder).toString(),
-			buttonBackground: theme.getColor(buttonBackground) && theme.getColor(buttonBackground).toString(),
-			buttonForeground: theme.getColor(buttonForeground) && theme.getColor(buttonForeground).toString(),
-			buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString(),
-			zoomLevel: webFrame.getZoomLevel()
-		};
-		return this.issueService.openReporter(style).then(() => {
-			return TPromise.as(true);
+		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
+			const theme = this.themeService.getTheme();
+			const styles = {
+				backgroundColor: theme.getColor(SIDE_BAR_BACKGROUND) && theme.getColor(SIDE_BAR_BACKGROUND).toString(),
+				color: theme.getColor(foreground).toString(),
+				textLinkColor: theme.getColor(textLinkForeground) && theme.getColor(textLinkForeground).toString(),
+				inputBackground: theme.getColor(inputBackground) && theme.getColor(inputBackground).toString(),
+				inputForeground: theme.getColor(inputForeground) && theme.getColor(inputForeground).toString(),
+				inputBorder: theme.getColor(inputBorder) && theme.getColor(inputBorder).toString(),
+				inputActiveBorder: theme.getColor(inputActiveOptionBorder) && theme.getColor(inputActiveOptionBorder).toString(),
+				inputErrorBorder: theme.getColor(inputValidationErrorBorder) && theme.getColor(inputValidationErrorBorder).toString(),
+				buttonBackground: theme.getColor(buttonBackground) && theme.getColor(buttonBackground).toString(),
+				buttonForeground: theme.getColor(buttonForeground) && theme.getColor(buttonForeground).toString(),
+				buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString(),
+				zoomLevel: webFrame.getZoomLevel(),
+				extensions
+			};
+			const issueReporterData = {
+				styles,
+				zoomLevel: webFrame.getZoomLevel(),
+				enabledExtensions
+			};
+
+			return this.issueService.openReporter(issueReporterData).then(() => {
+				return TPromise.as(true);
+			});
 		});
 	}
 }

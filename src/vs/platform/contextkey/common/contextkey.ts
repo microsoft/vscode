@@ -6,6 +6,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 export enum ContextKeyExprType {
 	Defined = 1,
@@ -30,7 +31,7 @@ export abstract class ContextKeyExpr {
 		return new ContextKeyNotEqualsExpr(key, value);
 	}
 
-	public static regex(key: string, value: string): ContextKeyExpr {
+	public static regex(key: string, value: RegExp): ContextKeyExpr {
 		return new ContextKeyRegexExpr(key, value);
 	}
 
@@ -67,7 +68,7 @@ export abstract class ContextKeyExpr {
 
 		if (serializedOne.indexOf('=~') >= 0) {
 			let pieces = serializedOne.split('=~');
-			return new ContextKeyRegexExpr(pieces[0].trim(), this._deserializeValue(pieces[1]));
+			return new ContextKeyRegexExpr(pieces[0].trim(), this._deserializeRegexValue(pieces[1]));
 		}
 
 		if (/^\!\s*/.test(serializedOne)) {
@@ -94,6 +95,29 @@ export abstract class ContextKeyExpr {
 		}
 
 		return serializedValue;
+	}
+
+	private static _deserializeRegexValue(serializedValue: string): RegExp {
+
+		if (isFalsyOrWhitespace(serializedValue)) {
+			console.warn('missing regexp-value for =~-expression');
+			return null;
+		}
+
+		let start = serializedValue.indexOf('/');
+		let end = serializedValue.lastIndexOf('/');
+		if (start === end || start < 0 /* || to < 0 */) {
+			console.warn(`bad regexp-value '${serializedValue}', missing /-enclosure`);
+			return null;
+		}
+
+		let value = serializedValue.slice(start + 1, end);
+		try {
+			return new RegExp(value);
+		} catch (e) {
+			console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
+			return null;
+		}
 	}
 
 	public abstract getType(): ContextKeyExprType;
@@ -334,15 +358,8 @@ export class ContextKeyNotExpr implements ContextKeyExpr {
 
 export class ContextKeyRegexExpr implements ContextKeyExpr {
 
-	private regexp: { source: string, test(s: string): boolean };
-
-	constructor(private key: string, value: any) {
-		try {
-			this.regexp = new RegExp(value);
-		} catch (e) {
-			this.regexp = { source: '', test() { return false; } };
-			console.warn(`Bad value for glob-context key expression: ${value}`);
-		}
+	constructor(private key: string, private regexp: RegExp) {
+		//
 	}
 
 	public getType(): ContextKeyExprType {
@@ -356,10 +373,11 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 		if (this.key > other.key) {
 			return 1;
 		}
-		if (this.regexp.source < other.regexp.source) {
+		const source = this.regexp ? this.regexp.source : undefined;
+		if (source < other.regexp.source) {
 			return -1;
 		}
-		if (this.regexp.source > other.regexp.source) {
+		if (source > other.regexp.source) {
 			return 1;
 		}
 		return 0;
@@ -367,13 +385,14 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 
 	public equals(other: ContextKeyExpr): boolean {
 		if (other instanceof ContextKeyRegexExpr) {
-			return (this.key === other.key && this.regexp.source === other.regexp.source);
+			const source = this.regexp ? this.regexp.source : undefined;
+			return (this.key === other.key && source === other.regexp.source);
 		}
 		return false;
 	}
 
 	public evaluate(context: IContext): boolean {
-		return this.regexp.test(context.getValue(this.key));
+		return this.regexp ? this.regexp.test(context.getValue(this.key)) : false;
 	}
 
 	public normalize(): ContextKeyExpr {
@@ -381,7 +400,7 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 	}
 
 	public serialize(): string {
-		return this.key + ' =~ \'' + this.regexp.source + '\'';
+		return `${this.keys} =~ /${this.regexp ? this.regexp.source : '<invalid>'}/`;
 	}
 
 	public keys(): string[] {

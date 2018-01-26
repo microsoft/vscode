@@ -6,5 +6,7 @@
 {
 	"yes": "Sí",
 	"read more": "Leer más",
-	"no": "No"
+	"no": "No",
+	"not now": "Preguntarme luego",
+	"suggest auto fetch": "Te gustaría que Code ejecute `git fetch` periódicamente?"
 }

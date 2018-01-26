@@ -21,9 +21,6 @@ import { formatError, runSafe } from './utils/errors';
 import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService, DocumentLanguageSettings } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
-import * as nls from 'vscode-nls';
-nls.config(process.env['VSCODE_NLS_CONFIG']);
-
 interface ISchemaAssociations {
 	[pattern: string]: string[];
 }

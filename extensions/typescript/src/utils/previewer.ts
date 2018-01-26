@@ -27,7 +27,7 @@ function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
 	switch (tag.name) {
 		case 'param':
-			const body = (tag.text || '').split(/^(\w+)\s*/);
+			const body = (tag.text || '').split(/^([\w\.]+)\s*/);
 			if (body && body.length === 3) {
 				const param = body[1];
 				const doc = body[2];

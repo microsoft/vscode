@@ -379,6 +379,32 @@ export class ClearSearchResultsAction extends SearchAction {
 	}
 }
 
+export class CancelSearchAction extends SearchAction {
+
+	static ID: string = 'search.action.cancelSearch';
+	static LABEL: string = nls.localize('CancelSearchAction.label', "Cancel Search");
+
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
+		super(id, label, viewletService);
+		this.class = 'search-action cancel-search';
+		this.update();
+	}
+
+	update(): void {
+		const searchViewlet = this.getSearchViewlet();
+		this.enabled = searchViewlet && searchViewlet.isSearching();
+	}
+
+	public run(): TPromise<void> {
+		const searchViewlet = this.getSearchViewlet();
+		if (searchViewlet) {
+			searchViewlet.cancelSearch();
+		}
+
+		return TPromise.as(null);
+	}
+}
+
 export class FocusNextSearchResultAction extends Action {
 	public static readonly ID = 'search.action.focusNextSearchResult';
 	public static readonly LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");

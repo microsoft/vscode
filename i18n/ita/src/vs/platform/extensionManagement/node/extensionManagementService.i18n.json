@@ -9,6 +9,7 @@
 	"installingOutdatedExtension": "Una versione più recente di questa estensione è già installata. Vuoi eseguire l'override di questa con la versione precedente?",
 	"override": "Eseguire l'override",
 	"cancel": "Annulla",
+	"errorInstallingDependencies": "Errore durante l'installazione delle dipendenze. {0}",
 	"notFoundCompatible": "Impossibile installare '{0}'; non è presente alcuna versione compatibile con VS Code '{1}'.",
 	"notFoundCompatibleDependency": "Impossibile installare perché non è stata trovata l'estensione dipendente '{0}' compatibile con la versione corrente '{1}' di VS Code.",
 	"quitCode": "Impossibile installare l'estensione. Riavviare VS Code prima di procedere ad un nuovo setup.",

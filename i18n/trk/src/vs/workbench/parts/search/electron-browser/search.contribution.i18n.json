@@ -14,7 +14,6 @@
 	"findInFiles": "Dosyalarda Bul",
 	"openAnythingHandlerDescription": "Dosyaya Git",
 	"openSymbolDescriptionNormal": "Çalışma Alanında Sembole Git",
-	"searchOutputChannelTitle": "Ara",
 	"searchConfigurationTitle": "Ara",
 	"exclude": "Aramalarda dosyaları ve klasörleri hariç tutmak için glob desenlerini yapılandırın. files.exclude ayarından, tüm glob desenlerini devralır.",
 	"exclude.boolean": "Dosya yollarının eşleştirileceği glob deseni. Deseni etkinleştirmek veya devre dışı bırakmak için true veya false olarak ayarlayın.",

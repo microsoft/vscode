@@ -1581,19 +1581,21 @@ export class Breakpoint {
 	readonly condition?: string;
 	readonly hitCondition?: string;
 
-	protected constructor(enabled: boolean, condition: string, hitCondition: string) {
-		this.enabled = enabled;
-		this.condition = condition;
-		this.hitCondition = hitCondition;
-		this.condition = condition;
-		this.hitCondition = hitCondition;
+	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string) {
+		this.enabled = typeof enabled === 'boolean' ? enabled : true;
+		if (typeof condition === 'string') {
+			this.condition = condition;
+		}
+		if (typeof hitCondition === 'string') {
+			this.hitCondition = hitCondition;
+		}
 	}
 }
 
 export class SourceBreakpoint extends Breakpoint {
 	readonly location: Location;
 
-	constructor(enabled: boolean, condition: string, hitCondition: string, location: Location) {
+	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string) {
 		super(enabled, condition, hitCondition);
 		this.location = location;
 	}
@@ -1602,7 +1604,7 @@ export class SourceBreakpoint extends Breakpoint {
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
-	constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string) {
+	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string) {
 		super(enabled, condition, hitCondition);
 		this.functionName = functionName;
 	}

@@ -7,7 +7,9 @@
 
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
-import { IIssueService, IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import * as objects from 'vs/base/common/objects';
+import { parseArgs } from 'vs/platform/environment/node/argv';
+import { IIssueService, IssueReporterData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain } from 'electron';
 import { ILaunchService } from 'vs/code/electron-main/launch';
 import { buildDiagnostics, DiagnosticInfo } from 'vs/code/electron-main/diagnostics';
@@ -25,31 +27,24 @@ export class IssueService implements IIssueService {
 		@ILaunchService private launchService: ILaunchService
 	) { }
 
-	openReporter(theme?: IssueReporterStyles): TPromise<void> {
+	openReporter(data: IssueReporterData): TPromise<void> {
 		ipcMain.on('issueInfoRequest', event => {
 			this.getStatusInfo().then(msg => {
 				event.sender.send('issueInfoResponse', msg);
 			});
 		});
 
-		// When launching from cli, no theme is provided. Match theme if passed from workbench.
-		if (theme) {
-			ipcMain.on('issueStyleRequest', event => {
-				event.sender.send('issueStyleResponse', theme);
-			});
-		}
-
 		this._issueWindow = new BrowserWindow({
 			width: 800,
-			height: 900,
+			height: 1000,
 			title: localize('issueReporter', "Issue Reporter"),
 			parent: BrowserWindow.getFocusedWindow(),
-			backgroundColor: theme && theme.backgroundColor || DEFAULT_BACKGROUND_COLOR
+			backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR
 		});
 
 		this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
 
-		this._issueWindow.loadURL(this.getIssueReporterPath());
+		this._issueWindow.loadURL(this.getIssueReporterPath(data));
 
 		return TPromise.as(null);
 	}
@@ -68,13 +63,23 @@ export class IssueService implements IIssueService {
 		});
 	}
 
-	private getIssueReporterPath() {
-		const config = {
+	private getIssueReporterPath(data: IssueReporterData) {
+		const windowConfiguration = {
 			appRoot: this.environmentService.appRoot,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 			windowId: this._issueWindow.id,
-			machineId: this.machineId
+			machineId: this.machineId,
+			data
 		};
+
+		const environment = parseArgs(process.argv);
+		const config = objects.assign(environment, windowConfiguration);
+		for (let key in config) {
+			if (config[key] === void 0 || config[key] === null || config[key] === '') {
+				delete config[key]; // only send over properties that have a true value
+			}
+		}
+
 		return `${require.toUrl('vs/code/electron-browser/issue/issueReporter.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}
 }

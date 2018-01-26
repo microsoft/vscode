@@ -19,8 +19,6 @@
 	"vscode.extension.contributes.debuggers.configurationAttributes": "'launch.json' dosyasını doğrulayacak JSON şema yapılandırmaları.",
 	"vscode.extension.contributes.debuggers.windows": "Windows'a özel ayarlar.",
 	"vscode.extension.contributes.debuggers.windows.runtime": "Windows'da kullanılacak çalışma zamanı.",
-	"vscode.extension.contributes.debuggers.osx": "OS X'e özel ayarlar.",
-	"vscode.extension.contributes.debuggers.osx.runtime": "OS X'de kullanılacak çalışma zamanı.",
 	"vscode.extension.contributes.debuggers.linux": "Linux'a özel ayarlar.",
 	"vscode.extension.contributes.debuggers.linux.runtime": "Linux'da kullanılacak çalışma zamanı.",
 	"vscode.extension.contributes.breakpoints": "Kesme noktalarına ekleme yapar.",

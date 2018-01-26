@@ -69,13 +69,10 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	}
 
 	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider {
-		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-
 		const opts: IRemoteSearchProviderOptions = {
 			filter,
 			newExtensionsOnly,
-			endpoint: this._endpoint,
-			usePost: workbenchSettings.useNaturalLanguageSearchPost
+			endpoint: this._endpoint
 		};
 
 		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, opts, this._installedExtensions);
@@ -127,10 +124,12 @@ interface IRemoteSearchProviderOptions {
 	filter: string;
 	endpoint: IEndpointDetails;
 	newExtensionsOnly: boolean;
-	usePost: boolean;
 }
 
 class RemoteSearchProvider implements ISearchProvider {
+	// Must keep extension filter size under 8kb. 42 extension filters + core buildnum filter puts us there.
+	private static MAX_EXTENSION_FILTERS = 42;
+
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
 	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: TPromise<ILocalExtension[]>,
@@ -138,10 +137,9 @@ class RemoteSearchProvider implements ISearchProvider {
 		@IRequestService private requestService: IRequestService,
 		@ILogService private logService: ILogService
 	) {
-		this._remoteSearchP = (this.options.newExtensionsOnly && !this.options.usePost) ? TPromise.wrap(null) :
-			this.options.filter ?
-				this.getSettingsFromBing(this.options.filter) :
-				TPromise.wrap(null);
+		this._remoteSearchP = this.options.filter ?
+			this.getSettingsFromBing(this.options.filter) :
+			TPromise.wrap(null);
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
@@ -260,7 +258,7 @@ class RemoteSearchProvider implements ISearchProvider {
 				scoredResults[getSettingKey(setting.key, 'core')] || // core setting
 				scoredResults[getSettingKey(setting.key)]; // core setting from original prod endpoint
 			if (remoteSetting && remoteSetting.score >= minScore) {
-				const settingMatches = new SettingMatches(this.options.filter, setting, false, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+				const settingMatches = new SettingMatches(this.options.filter, setting, false, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 				return { matches: settingMatches, score: remoteSetting.score };
 			}
 
@@ -284,30 +282,23 @@ class RemoteSearchProvider implements ISearchProvider {
 			url += `${API_VERSION}&${QUERY_TYPE}`;
 		}
 
-		if (this.options.usePost) {
-			const filters = this.options.newExtensionsOnly ?
-				[`diminish eq 'latest'`] :
-				await this.getVersionFilters(buildNumber);
+		const filters = this.options.newExtensionsOnly ?
+			[`diminish eq 'latest'`] :
+			await this.getVersionFilters(buildNumber);
 
-			const filterStr = encodeURIComponent(filters.join(' or '));
-			const body = JSON.stringify({
-				query: encodedQuery,
-				filters: filterStr
-			});
+		const filterStr = filters
+			.slice(0, RemoteSearchProvider.MAX_EXTENSION_FILTERS)
+			.join(' or ');
 
-			return {
-				url,
-				body
-			};
-		} else {
-			url += `query=${encodedQuery}`;
+		const body = JSON.stringify({
+			query: encodedQuery,
+			filters: encodeURIComponent(filterStr)
+		});
 
-			if (buildNumber) {
-				url += `&build=${buildNumber}`;
-			}
-		}
-
-		return TPromise.wrap({ url });
+		return {
+			url,
+			body
+		};
 	}
 
 	private getVersionFilters(buildNumber?: number): TPromise<string[]> {
