@@ -638,6 +638,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 		const feedbackQuery: any = {};
 		feedbackQuery['comment'] = FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT;
 		feedbackQuery['queryString'] = result.query;
+		feedbackQuery['duration'] = metadata ? metadata.duration : -1;
 		feedbackQuery['resultScores'] = [];
 		actualResultIds.forEach(settingId => {
 			feedbackQuery['resultScores'].push({
@@ -662,7 +663,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 			sendFeedbackWidget.render();
 
 			this._register(sendFeedbackWidget.onClick(() => {
-				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, metadata.scoredResults).then(() => {
+				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, actualResults).then(() => {
 					sendFeedbackWidget.dispose();
 					this.messageService.show(Severity.Info, 'Feedback sent successfully');
 				}, err => {
