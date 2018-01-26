@@ -2070,7 +2070,7 @@ vscode-languageserver-types@^3.5.0:
 
 vscode-nls@3.1.2:
   version "3.1.2"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.1.0.tgz#a8a264c0d4bd3e1ed4746a9883235fec5b62968a"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.1.2.tgz#c1b63f4338ac49c852267633dd99717916424a74"
 
 vscode@1.0.1:
   version "1.0.1"
