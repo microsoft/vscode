@@ -43,7 +43,7 @@ exports.extraLanguages = [
 exports.pseudoLanguage = { id: 'pseudo', folderName: 'pseudo', transifexId: 'pseudo' };
 // non built-in extensions also that are transifex and need to be part of the language packs
 var externalExtensionsWithTranslations = [
-    "azure-account",
+    //"azure-account",
     "vscode-chrome-debug",
     "vscode-chrome-debug-core",
     "vscode-node-debug",
