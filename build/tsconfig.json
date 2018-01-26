@@ -7,9 +7,7 @@
 		"preserveConstEnums": true,
 		"sourceMap": false,
 		"experimentalDecorators": true,
-		"newLine": "LF",
-		"checkJs": true,
-		"allowJs": true
+		"newLine": "LF"
 	},
 	"exclude": [
 		"node_modules/**"
