@@ -9,8 +9,9 @@ import URI from 'vs/base/common/uri';
 import { onUnexpectedError, isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
+import * as arrays from 'vs/base/common/arrays';
 import { Dimension, Builder } from 'vs/base/browser/builder';
-import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
+import { ArrayNavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SideBySideEditorInput, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
@@ -329,36 +330,18 @@ export class PreferencesEditor extends BaseEditor {
 	}
 }
 
-class SettingsNavigator implements INavigator<ISetting> {
-
-	private iterator: ArrayNavigator<ISetting>;
-
-	constructor(settings: ISetting[]) {
-		this.iterator = new ArrayNavigator<ISetting>(settings);
-	}
+class SettingsNavigator extends ArrayNavigator<ISetting> {
 
 	public next(): ISetting {
-		return this.iterator.next() || this.iterator.first();
+		return super.next() || super.first();
 	}
 
 	public previous(): ISetting {
-		return this.iterator.previous() || this.iterator.last();
+		return super.previous() || super.last();
 	}
 
-	public parent(): ISetting {
-		return this.iterator.parent();
-	}
-
-	public first(): ISetting {
-		return this.iterator.first();
-	}
-
-	public last(): ISetting {
-		return this.iterator.last();
-	}
-
-	public current(): ISetting {
-		return this.iterator.current();
+	public reset(): void {
+		this.index = this.start - 1;
 	}
 }
 
@@ -465,6 +448,10 @@ class PreferencesRenderersController extends Disposable {
 	}
 
 	localFilterPreferences(query: string, updateCurrentResults?: boolean): TPromise<void> {
+		if (this._settingsNavigator) {
+			this._settingsNavigator.reset();
+		}
+
 		this._currentLocalSearchProvider = (updateCurrentResults && this._currentLocalSearchProvider) || this.preferencesSearchService.getLocalSearchProvider(query);
 		return this.filterOrSearchPreferences(query, this._currentLocalSearchProvider, 'filterResult', nls.localize('filterResult', "Filtered Results"), 0, updateCurrentResults);
 	}
@@ -615,7 +602,22 @@ class PreferencesRenderersController extends Disposable {
 		const editablePreferencesFilteredGroups = editableFilterResult ? editableFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
 		const consolidatedSettings = this._consolidateSettings(editablePreferencesFilteredGroups, defaultPreferencesFilteredGroups);
 
-		this._settingsNavigator = new SettingsNavigator(this._lastQuery ? consolidatedSettings : []);
+		// Maintain the current navigation position when updating SettingsNavigator
+		const current = this._settingsNavigator && this._settingsNavigator.current();
+		const navigatorSettings = this._lastQuery ? consolidatedSettings : [];
+		const currentIndex = current ?
+			arrays.firstIndex(navigatorSettings, s => s.key === current.key) :
+			-1;
+
+		this._settingsNavigator = new SettingsNavigator(navigatorSettings, Math.max(currentIndex, 0));
+
+		if (currentIndex >= 0) {
+			this._settingsNavigator.next();
+			const newCurrent = this._settingsNavigator.current();
+			this._focusPreference(newCurrent, this._defaultPreferencesRenderer);
+			this._focusPreference(newCurrent, this._editablePreferencesRenderer);
+		}
+
 		const totalCount = consolidatedSettings.length;
 		this._onDidFilterResultsCountChange.fire({ count: totalCount });
 	}
