@@ -34,9 +34,13 @@ export class IssueService implements IIssueService {
 			});
 		});
 
+		ipcMain.on('workbenchCommand', (event, arg) => {
+			this._issueWindow.getParentWindow().webContents.send('vscode:runAction', { id: arg });
+		});
+
 		this._issueWindow = new BrowserWindow({
 			width: 800,
-			height: 1000,
+			height: 1100,
 			title: localize('issueReporter', "Issue Reporter"),
 			parent: BrowserWindow.getFocusedWindow(),
 			backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR

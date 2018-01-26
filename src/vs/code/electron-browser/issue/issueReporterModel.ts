@@ -17,17 +17,21 @@ export enum IssueType {
 export interface IssueReporterData {
 	issueType?: IssueType;
 	issueDescription?: string;
+
 	versionInfo?: any;
 	systemInfo?: any;
 	processInfo?: any;
 	workspaceInfo?: any;
+
 	includeSystemInfo?: boolean;
 	includeWorkspaceInfo?: boolean;
 	includeProcessInfo?: boolean;
 	includeExtensions?: boolean;
+
 	numberOfThemeExtesions?: number;
 	enabledNonThemeExtesions?: ILocalExtension[];
 	extensionsDisabled?: boolean;
+	reprosWithoutExtensions?: boolean;
 }
 
 export class IssueReporterModel {
@@ -82,12 +86,6 @@ ${this.getInfos()}
 			info += this.generateSystemInfoMd();
 		}
 
-		if (this._data.issueType === IssueType.Bug) {
-			if (this._data.includeExtensions) {
-				info += this.generateExtensionsMd();
-			}
-		}
-
 		if (this._data.issueType === IssueType.PerformanceIssue) {
 
 			if (this._data.includeProcessInfo) {
@@ -97,10 +95,14 @@ ${this.getInfos()}
 			if (this._data.includeWorkspaceInfo) {
 				info += this.generateWorkspaceInfoMd();
 			}
+		}
 
+		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
 			if (this._data.includeExtensions) {
 				info += this.generateExtensionsMd();
 			}
+
+			info += this._data.reprosWithoutExtensions ? '\nReproduces without extensions' : '\nReproduces only with extensions';
 		}
 
 		return info;

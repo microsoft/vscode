@@ -72,6 +72,7 @@ button {
 	font-size: 1rem;
 	border-radius: .25rem;
 	background: none;
+	border: 1px solid transparent;
 }
 
 select {
@@ -140,7 +141,6 @@ button:disabled {
 	float: right;
 	margin-top: 10px;
 	margin-bottom: 10px;
-
 }
 
 .two-col {
@@ -197,6 +197,20 @@ input:disabled {
 	margin-left: 1em;
 }
 
+.workbenchCommand {
+	display: block;
+	font-size: 12px;
+	background: transparent;
+}
+
+.workbenchCommand:disabled {
+	color: #868e96;
+}
+
+.block-extensions .block-info {
+	margin-bottom: 1.5em;
+}
+
 /* Default styles, overwritten if a theme is provided */
 input, select, textarea {
 	background-color: #3c3c3c;
@@ -219,5 +233,4 @@ a {
 button {
 	background-color: #007ACC;
 	color: #fff;
-	border: none;
 }

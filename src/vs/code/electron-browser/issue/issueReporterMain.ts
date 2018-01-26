@@ -70,7 +70,8 @@ export class IssueReporter extends Disposable {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
 				os: `${os.type()} ${os.arch()} ${os.release()}`
 			},
-			extensionsDisabled: this.environmentService.disableExtensions
+			extensionsDisabled: this.environmentService.disableExtensions,
+			reprosWithoutExtensions: true
 		});
 
 		ipcRenderer.on('issueInfoResponse', (event, info) => {
@@ -132,11 +133,11 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputActiveBorder) {
-			content.push(`input[type='text']:focus, textarea:focus, select:focus, summary:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
+			content.push(`input[type='text']:focus, textarea:focus, select:focus, summary:focus, button:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
 		}
 
 		if (styles.textLinkColor) {
-			content.push(`a { color: ${styles.textLinkColor}; }`);
+			content.push(`a, .workbenchCommand { color: ${styles.textLinkColor}; }`);
 		}
 
 		if (styles.buttonBackground) {
@@ -148,7 +149,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.buttonHoverBackground) {
-			content.push(`button:hover:enabled { background-color: ${styles.buttonHoverBackground}; }`);
+			content.push(`#github-submit-btn:hover:enabled, #github-submit-btn:focus:enabled { background-color: ${styles.buttonHoverBackground}; }`);
 		}
 
 		if (styles.textLinkColor) {
@@ -170,6 +171,10 @@ export class IssueReporter extends Disposable {
 		const numberOfThemeExtesions = themes && themes.length;
 		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes });
 		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
+
+		if (this.environmentService.disableExtensions || extensions.length === 0) {
+			(<HTMLButtonElement>document.getElementById('disableExtensions')).disabled = true;
+		}
 	}
 
 	private initServices(configuration: IWindowConfiguration): void {
@@ -206,7 +211,7 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions'].forEach(elementId => {
+		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'reprosWithoutExtensions'].forEach(elementId => {
 			document.getElementById(elementId).addEventListener('click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
@@ -220,6 +225,15 @@ export class IssueReporter extends Disposable {
 		document.getElementById('issue-title').addEventListener('input', this.searchGitHub);
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
+
+		document.getElementById('disableExtensions').addEventListener('click', () => {
+			ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
+			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
+		});
+
+		document.getElementById('showRunning').addEventListener('click', () => {
+			ipcRenderer.send('workbenchCommand', 'workbench.action.showRuntimeExtensions');
+		});
 
 		document.onkeydown = (e: KeyboardEvent) => {
 			if (e.shiftKey && e.keyCode === 13) {
