@@ -466,7 +466,7 @@ export class FileController extends DefaultController implements IDisposable {
 			getAnchor: () => anchor,
 			getActions: () => {
 				const actions = [];
-				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : undefined, shouldForwardArgs: true }, actions, this.contextMenuService);
+				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
 			onHide: (wasCancelled?: boolean) => {
@@ -474,7 +474,9 @@ export class FileController extends DefaultController implements IDisposable {
 					tree.DOMFocus();
 				}
 			},
-			getActionsContext: () => selection && selection.indexOf(stat) >= 0 ? selection.map((fs: FileStat) => fs.resource) : [stat]
+			getActionsContext: () => selection && selection.indexOf(stat) >= 0
+				? selection.map((fs: FileStat) => fs.resource)
+				: stat instanceof FileStat ? [stat.resource] : []
 		});
 
 		return true;
