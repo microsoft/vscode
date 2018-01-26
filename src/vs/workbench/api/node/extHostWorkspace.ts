@@ -59,6 +59,9 @@ class ExtHostWorkspaceImpl extends Workspace {
 			newWorkspaceFolders.push(...folders.map(({ uri, name, index }) => ({ uri: URI.revive(uri), name, index })));
 		}
 
+		// make sure to restore sort order based on index
+		newWorkspaceFolders.sort((f1, f2) => f1.index < f2.index ? -1 : 1);
+
 		const workspace = new ExtHostWorkspaceImpl(id, name, newWorkspaceFolders);
 
 		const oldRoots = oldWorkspace ? oldWorkspace.workspaceFolders.sort(ExtHostWorkspaceImpl.compareWorkspaceFolderByUri) : [];
@@ -73,7 +76,11 @@ class ExtHostWorkspaceImpl extends Workspace {
 		return isFolderEqual(a.uri, b.uri) ? 0 : compare(a.uri.toString(), b.uri.toString());
 	}
 
-	static compareWorkspaceFolderByUriAndName(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder): number {
+	static compareWorkspaceFolderByUriAndNameAndIndex(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder): number {
+		if (a.index !== b.index) {
+			return a.index < b.index ? -1 : 1;
+		}
+
 		return isFolderEqual(a.uri, b.uri) ? compare(a.name, b.name) : compare(a.uri.toString(), b.uri.toString());
 	}
 
@@ -175,7 +182,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map((f, index) => ({ uri: f.uri, name: f.name || basenameOrAuthority(f.uri), index })));
 		const oldRoots = currentWorkspaceFolders.sort(ExtHostWorkspaceImpl.compareWorkspaceFolderByUri);
 		const newRoots = newWorkspaceFolders.sort(ExtHostWorkspaceImpl.compareWorkspaceFolderByUri);
-		const { added, removed } = delta(oldRoots, newRoots, ExtHostWorkspaceImpl.compareWorkspaceFolderByUriAndName);
+		const { added, removed } = delta(oldRoots, newRoots, ExtHostWorkspaceImpl.compareWorkspaceFolderByUriAndNameAndIndex);
 		if (added.length === 0 && removed.length === 0) {
 			return false; // nothing actually changed
 		}
