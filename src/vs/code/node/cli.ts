@@ -123,7 +123,7 @@ export async function main(argv: string[]): TPromise<any> {
 
 		const processCallbacks: ((child: ChildProcess) => Thenable<any>)[] = [];
 
-		const verbose = args.verbose || args.status;
+		const verbose = args.verbose || args.status || args['upload-logs'];
 		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
@@ -311,7 +311,9 @@ export async function main(argv: string[]): TPromise<any> {
 			env
 		};
 
-		if (!verbose) {
+		if (args['upload-logs']) {
+			options['stdio'] = [process.stdin, 'pipe', 'pipe'];
+		} else if (!verbose) {
 			options['stdio'] = 'ignore';
 		}
 
