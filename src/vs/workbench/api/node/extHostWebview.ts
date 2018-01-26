@@ -13,20 +13,28 @@ class ExtHostWebview implements vscode.Webview {
 	private _title: string;
 	private _html: string;
 	private _options: vscode.WebviewOptions;
+	private _isDisposed: boolean = false;
 
 	public readonly onMessageEmitter = new Emitter<any>();
-	public readonly onFocusEmitter = new Emitter<void>();
-	public readonly onBlurEmitter = new Emitter<void>();
-
 	public readonly onMessage = this.onMessageEmitter.event;
-	public readonly onFocus = this.onFocusEmitter.event;
-	public readonly onBlur = this.onBlurEmitter.event;
 
+	public readonly onFocusEmitter = new Emitter<void>();
+	public readonly onFocus = this.onFocusEmitter.event;
+
+	public readonly onBlurEmitter = new Emitter<void>();
+	public readonly onBlur = this.onBlurEmitter.event;
 
 	constructor(
 		private readonly _proxy: MainThreadWebviewShape,
 		private readonly _handle: number,
 	) { }
+
+	public dispose() {
+		if (this._isDisposed) {
+			return;
+		}
+		this._proxy.$disposeWebview(this._handle);
+	}
 
 	get title(): string {
 		return this._title;
