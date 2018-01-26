@@ -712,7 +712,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 							if (manifest.extensionDependencies) {
 								manifest.extensionDependencies = manifest.extensionDependencies.map(id => adoptToGalleryExtensionId(id));
 							}
-							const identifier = { id, uuid: metadata ? metadata.id : null };
+							const identifier = { id: getLocalExtensionIdFromManifest(manifest), uuid: metadata ? metadata.id : null };
 							return { type, identifier, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
 						});
 				}).then(null, () => null);
