@@ -193,7 +193,7 @@ configurationRegistry.registerConfiguration({
 			'default': false
 		},
 		'terminal.integrated.enableBell': {
-			'description': nls.localize('terminal.integrated.enableBell', "Whether the terminal bell is enabled on not."),
+			'description': nls.localize('terminal.integrated.enableBell', "Whether the terminal bell is enabled or not."),
 			'type': 'boolean',
 			'default': false
 		},
