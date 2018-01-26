@@ -316,7 +316,7 @@
 
 .vs-dark .monaco-workbench .search-action.cancel-search,
 .hc-black .monaco-workbench .search-action.cancel-search {
-	background: url('stop.svg') center center no-repeat;
+	background: url('stop-inverse.svg') center center no-repeat;
 }
 
 .vs .monaco-workbench .search-viewlet .query-details .file-types .controls > .custom-checkbox.pattern {
