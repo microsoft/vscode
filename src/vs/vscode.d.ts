@@ -1835,16 +1835,40 @@ declare module 'vscode' {
 
 		/**
 		 * Base kind for refactoring extraction actions.
+		 *
+		 * Example extract actions:
+		 *
+		 * - Extract method
+		 * - Extract function
+		 * - Extract variable
+		 * - Extract interface from class
+		 * - ...
 		 */
 		static readonly RefactorExtract: CodeActionKind;
 
 		/**
 		 * Base kind for refactoring inline actions.
+		 *
+		 * Example inline actions:
+		 *
+		 * - Inline function
+		 * - Inline variable
+		 * - Inline constant
+		 * - ...
 		 */
 		static readonly RefactorInline: CodeActionKind;
 
 		/**
-		 * Base kind for refactoring rewite actions.
+		 * Base kind for refactoring rewrite actions.
+		 *
+		 * Example rewrite actions:
+		 *
+		 * - Convert JavaScript function to class
+		 * - Add or remove parameter
+		 * - Encapsulate field
+		 * - Make method static
+		 * - Move method to base class
+		 * - ...
 		 */
 		static readonly RefactorRewrite: CodeActionKind;
 
