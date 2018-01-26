@@ -16,8 +16,12 @@ import { ToggleMarkersPanelAction, ShowProblemsPanelAction } from 'vs/workbench/
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IMarkersWorkbenchService, MarkersWorkbenchService } from 'vs/workbench/parts/markers/common/markers';
 
 export function registerContributions(): void {
+
+	registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService);
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: Constants.MARKER_OPEN_SIDE_ACTION_ID,
