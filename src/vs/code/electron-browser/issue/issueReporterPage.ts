@@ -92,6 +92,12 @@ export default (): string => `
 					<!-- To be dynamically filled -->
 				</div>
 			</details>
+			<div>
+				<label for="reprosWithoutExtensions">${escape(localize('tryDisablingExtensions', "Is the problem reproducible when extensions are disabled?"))}</label>
+				<input type="checkbox" id="reprosWithoutExtensions" checked>
+				<button id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "Disable Extensions and Reload"))}</button>
+				<button id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "Show Running Extensions"))}</button>
+			</div>
 		</div>
 	</div>
 
