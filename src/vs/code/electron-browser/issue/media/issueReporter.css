@@ -203,6 +203,10 @@ input:disabled {
 	background: transparent;
 }
 
+.workbenchCommand:disabled {
+	color: #868e96;
+}
+
 .block-extensions .block-info {
 	margin-bottom: 1.5em;
 }

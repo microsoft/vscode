@@ -171,6 +171,10 @@ export class IssueReporter extends Disposable {
 		const numberOfThemeExtesions = themes && themes.length;
 		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes });
 		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
+
+		if (this.environmentService.disableExtensions || extensions.length === 0) {
+			(<HTMLButtonElement>document.getElementById('disableExtensions')).disabled = true;
+		}
 	}
 
 	private initServices(configuration: IWindowConfiguration): void {
