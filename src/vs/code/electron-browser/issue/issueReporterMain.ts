@@ -34,6 +34,7 @@ import { IssueReporterData, IssueReporterStyles } from 'vs/platform/issue/common
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { debounce } from 'vs/base/common/decorators';
+import * as platform from 'vs/base/common/platform';
 
 export interface IssueReporterConfiguration extends IWindowConfiguration {
 	data: IssueReporterData;
@@ -42,12 +43,8 @@ export interface IssueReporterConfiguration extends IWindowConfiguration {
 export function startup(configuration: IssueReporterConfiguration) {
 	document.body.innerHTML = BaseHtml();
 	const issueReporter = new IssueReporter(configuration);
-
-	// workaround for flickering on page load as css is applied
-	setTimeout(() => {
-		issueReporter.render();
-		document.body.style.display = 'block';
-	}, 10);
+	issueReporter.render();
+	document.body.style.display = 'block';
 }
 
 export class IssueReporter extends Disposable {
@@ -235,14 +232,27 @@ export class IssueReporter extends Disposable {
 			ipcRenderer.send('workbenchCommand', 'workbench.action.showRuntimeExtensions');
 		});
 
-		document.onkeydown = (e: KeyboardEvent) => {
-			if (e.shiftKey && e.keyCode === 13) {
-				// Close the window if the issue was successfully created
-				if (this.createIssue()) {
-					remote.getCurrentWindow().close();
+		// Cmd+Enter or Mac or Ctrl+Enter on other platforms previews issue and closes window
+		if (platform.isMacintosh) {
+			let prevKeyWasCommand = false;
+			document.onkeydown = (e: KeyboardEvent) => {
+				if (prevKeyWasCommand && e.keyCode === 13) {
+					if (this.createIssue()) {
+						remote.getCurrentWindow().close();
+					}
 				}
-			}
-		};
+
+				prevKeyWasCommand = e.keyCode === 91 || e.keyCode === 93;
+			};
+		} else {
+			document.onkeydown = (e: KeyboardEvent) => {
+				if (e.ctrlKey && e.keyCode === 13) {
+					if (this.createIssue()) {
+						remote.getCurrentWindow().close();
+					}
+				}
+			};
+		}
 	}
 
 	@debounce(300)
@@ -277,7 +287,14 @@ export class IssueReporter extends Disposable {
 					}
 				});
 			}).catch((error) => {
+				// TODO: Use LogService here.
 				console.log(error);
+				/* __GDPR__
+				"issueReporterSearchError" : {
+						"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					}
+				*/
+				this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
 			});
 		} else {
 			similarIssues.innerHTML = '';
