@@ -31,6 +31,9 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
             return;
         }
         var lastSlash = dir.lastIndexOf('/');
+        if (lastSlash === -1) {
+            lastSlash = dir.lastIndexOf('\\');
+        }
         if (lastSlash !== -1) {
             insertDirectoryRecursive(dir.substring(0, lastSlash));
         }
@@ -39,6 +42,9 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
     };
     var insertDirectoryForFile = function (file) {
         var lastSlash = file.lastIndexOf('/');
+        if (lastSlash === -1) {
+            lastSlash = file.lastIndexOf('\\');
+        }
         if (lastSlash !== -1) {
             insertDirectoryRecursive(file.substring(0, lastSlash));
         }
