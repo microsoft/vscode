@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
-	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IBreakpointIndexDto
+	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto
 } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import severity from 'vs/base/common/severity';
@@ -92,14 +92,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		return TPromise.wrap<void>(undefined);
 	}
 
-	public async $registerBreakpoints(DTOs: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): TPromise<IBreakpointIndexDto[]> {
+	public $registerBreakpoints(DTOs: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): TPromise<void> {
 
-		const result: IBreakpointIndexDto[] = [];
 		for (let dto of DTOs) {
 			if (dto.type === 'sourceMulti') {
-				const sdto = <ISourceMultiBreakpointDto>dto;
 				const rawbps = dto.lines.map(l =>
 					<IRawBreakpoint>{
+						id: l.id,
 						enabled: l.enabled,
 						lineNumber: l.line + 1,
 						column: l.character > 0 ? l.character + 1 : 0,
@@ -107,20 +106,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 						hitCondition: l.hitCondition
 					}
 				);
-				const bps = await this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
-				bps.forEach((bp, ix) => result.push({
-					index: sdto.lines[ix].index,
-					id: bp.getId()
-				}));
+				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
 			} else if (dto.type === 'function') {
-				const fbs = this.debugService.addFunctionBreakpoint(dto.functionName);
-				result.push({
-					index: dto.index,
-					id: fbs.getId()
-				});
+				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
 			}
 		}
-		return result;
+		return void 0;
 	}
 
 	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): TPromise<void> {

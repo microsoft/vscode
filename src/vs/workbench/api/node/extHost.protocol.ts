@@ -443,7 +443,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
 	$appendDebugConsole(value: string): TPromise<any>;
 	$startBreakpointEvents(): TPromise<any>;
-	$registerBreakpoints(breakpoints: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): TPromise<IBreakpointIndexDto[]>;
+	$registerBreakpoints(breakpoints: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): TPromise<void>;
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): TPromise<void>;
 }
 
@@ -701,7 +701,6 @@ export interface ExtHostTaskShape {
 
 export interface IFunctionBreakpointDto {
 	type: 'function';
-	index: number;
 	id?: string;
 	enabled: boolean;
 	condition?: string;
@@ -730,18 +729,13 @@ export interface ISourceMultiBreakpointDto {
 	type: 'sourceMulti';
 	uri: UriComponents;
 	lines: {
-		index: number;
+		id: string;
 		enabled: boolean;
 		condition?: string;
 		hitCondition?: string;
 		line: number;
 		character: number;
 	}[];
-}
-
-export interface IBreakpointIndexDto {
-	index: number;
-	id: string;
 }
 
 export interface ExtHostDebugServiceShape {

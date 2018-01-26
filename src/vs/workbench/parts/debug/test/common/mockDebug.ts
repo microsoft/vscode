@@ -39,7 +39,7 @@ export class MockDebugService implements debug.IDebugService {
 	public focusStackFrame(focusedStackFrame: debug.IStackFrame): void {
 	}
 
-	public addBreakpoints(uri: uri, rawBreakpoints: debug.IRawBreakpoint[]): TPromise<debug.IBreakpoint[]> {
+	public addBreakpoints(uri: uri, rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -57,9 +57,7 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public addFunctionBreakpoint(): debug.IFunctionBreakpoint {
-		return null;
-	}
+	public addFunctionBreakpoint(): void { }
 
 	public moveWatchExpression(id: string, position: number): void { }
 

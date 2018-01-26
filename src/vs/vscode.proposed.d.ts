@@ -275,13 +275,13 @@ declare module 'vscode' {
 		 * Add breakpoints.
 		 * @param breakpoints The breakpoints to add.
 		*/
-		export function addBreakpoints(breakpoints: Breakpoint[]): Thenable<void>;
+		export function addBreakpoints(breakpoints: Breakpoint[]): void;
 
 		/**
 		 * Remove breakpoints.
 		 * @param breakpoints The breakpoints to remove.
 		 */
-		export function removeBreakpoints(breakpoints: Breakpoint[]): Thenable<void>;
+		export function removeBreakpoints(breakpoints: Breakpoint[]): void;
 	}
 
 	/**
