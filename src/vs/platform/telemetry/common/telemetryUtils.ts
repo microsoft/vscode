@@ -98,7 +98,7 @@ const configurationValueWhitelist = [
 	'editor.snippetSuggestions',
 	'editor.emptySelectionClipboard',
 	'editor.wordBasedSuggestions',
-	'editor.suggestHistory',
+	'editor.selectSuggestions',
 	'editor.suggestFontSize',
 	'editor.suggestLineHeight',
 	'editor.selectionHighlight',

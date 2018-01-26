@@ -165,7 +165,7 @@ export class PrefixMemory extends Memory {
 	}
 }
 
-export type MemMode = 'off' | 'whenEmpty' | 'byPrefix';
+export type MemMode = 'never' | 'byRecency' | 'byPrefix';
 
 export class SuggestMemories {
 
@@ -188,7 +188,7 @@ export class SuggestMemories {
 			return;
 		}
 		this._mode = mode;
-		this._strategy = mode === 'byPrefix' ? new PrefixMemory() : mode === 'whenEmpty' ? new LRUMemory() : new NoMemory();
+		this._strategy = mode === 'byPrefix' ? new PrefixMemory() : mode === 'byRecency' ? new LRUMemory() : new NoMemory();
 
 		try {
 			const raw = this._storageService.get(`${this._storagePrefix}/${this._mode}`, StorageScope.WORKSPACE);

@@ -2745,7 +2745,7 @@ declare module monaco.editor {
 		/**
 		 * The history mode for suggestions.
 		 */
-		suggestHistory?: string;
+		selectSuggestions?: string;
 		/**
 		 * The font size for the suggest widget.
 		 * Defaults to the editor font size.
@@ -3052,7 +3052,7 @@ declare module monaco.editor {
 		readonly acceptSuggestionOnCommitCharacter: boolean;
 		readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		readonly wordBasedSuggestions: boolean;
-		readonly suggestHistory: 'off' | 'whenEmpty' | 'byPrefix';
+		readonly selectSuggestions: 'never' | 'byRecency' | 'byPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
 		readonly selectionHighlight: boolean;

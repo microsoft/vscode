@@ -468,11 +468,16 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
-		'editor.suggestHistory': {
+		'editor.selectSuggestions': {
 			'type': 'string',
-			'enum': ['off', 'whenEmpty', 'byPrefix'],
-			'default': 'whenEmpty',
-			'description': nls.localize('suggestHistory', "Controls whether completions are selected based on previous completion sessions.")
+			'enum': ['never', 'byRecency', 'byPrefix'],
+			'enumDescriptions': [
+				nls.localize('selectSuggestions.never', "Do not remember suggestions and always select the first."),
+				nls.localize('selectSuggestions.byRecency', "Select recent suggestions unless further typing selects one, e.g. `console.| -> console.log`"),
+				nls.localize('selectSuggestions.byPrefix', "Select suggestions based on previous prefixes that have completed those suggestions, e.g. `co -> console` and `con -> const`"),
+			],
+			'default': 'byRecency',
+			'description': nls.localize('selectSuggestions', "Controls if accepting suggestions changes how future suggestions are pre-selected.")
 		},
 		'editor.suggestFontSize': {
 			'type': 'integer',
