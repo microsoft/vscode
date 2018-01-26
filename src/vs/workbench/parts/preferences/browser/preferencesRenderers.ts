@@ -715,7 +715,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		return this.telemetryService.publicLog('settingsSearchResultFeedback', {
