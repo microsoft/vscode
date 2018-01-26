@@ -9,7 +9,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import { first } from 'vs/base/common/arrays';
-import severity from 'vs/base/common/severity';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
@@ -35,7 +34,6 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { IMessageService } from 'vs/platform/message/common/message';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawAdapter[]>('debuggers', [], {
@@ -501,8 +499,7 @@ class Launch implements ILaunch {
 		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
-		@IMessageService private messageService: IMessageService
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
 	) {
 		// noop
 	}
@@ -579,7 +576,7 @@ class Launch implements ILaunch {
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
 		const resource = this.uri;
-		let configFileCreated = false;
+		let pinned = false;
 
 		return this.fileService.resolveContent(resource).then(content => content.value, err => {
 
@@ -599,7 +596,7 @@ class Launch implements ILaunch {
 					return undefined;
 				}
 
-				configFileCreated = true;
+				pinned = true; // pin only if config file is created #8727
 				return this.fileService.updateContent(resource, content).then(() => {
 					// convert string into IContent; see #32135
 					return content;
@@ -623,16 +620,10 @@ class Launch implements ILaunch {
 				options: {
 					forceOpen: true,
 					selection,
-					pinned: configFileCreated, // pin only if config file is created #8727
+					pinned,
 					revealIfVisible: true
 				},
-			}, sideBySide).then(editor => {
-				if (configFileCreated) {
-					this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
-				}
-
-				return editor;
-			});
+			}, sideBySide);
 		}, (error) => {
 			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 		});
@@ -647,10 +638,9 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IMessageService messageService: IMessageService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService, messageService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService);
 	}
 
 	get uri(): uri {
