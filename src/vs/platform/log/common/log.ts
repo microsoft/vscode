@@ -23,6 +23,8 @@ export enum LogLevel {
 	Off
 }
 
+export const DEFAULT_LOG_LEVEL: LogLevel = LogLevel.Info;
+
 export interface ILogService extends IDisposable {
 	_serviceBrand: any;
 	onDidChangeLogLevel: Event<LogLevel>;
@@ -39,7 +41,7 @@ export interface ILogService extends IDisposable {
 
 export abstract class AbstractLogService extends Disposable {
 
-	private level: LogLevel = LogLevel.Error;
+	private level: LogLevel = DEFAULT_LOG_LEVEL;
 	private readonly _onDidChangeLogLevel: Emitter<LogLevel> = this._register(new Emitter<LogLevel>());
 	readonly onDidChangeLogLevel: Event<LogLevel> = this._onDidChangeLogLevel.event;
 
@@ -60,7 +62,7 @@ export class ConsoleLogMainService extends AbstractLogService implements ILogSer
 	_serviceBrand: any;
 	private useColors: boolean;
 
-	constructor(logLevel: LogLevel = LogLevel.Error) {
+	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
 		super();
 		this.setLevel(logLevel);
 		this.useColors = !isWindows;
@@ -135,7 +137,7 @@ export class ConsoleLogService extends AbstractLogService implements ILogService
 
 	_serviceBrand: any;
 
-	constructor(logLevel: LogLevel = LogLevel.Error) {
+	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
 		super();
 		this.setLevel(logLevel);
 	}
@@ -322,5 +324,5 @@ export function getLogLevel(environmentService: IEnvironmentService): LogLevel {
 				return LogLevel.Off;
 		}
 	}
-	return LogLevel.Info;
+	return DEFAULT_LOG_LEVEL;
 }
