@@ -225,20 +225,23 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	private appendedMessage = '';
 	private loadingFromFileInProgress: boolean = false;
 	private resettingDelayer: ThrottledDelayer<void>;
+	private readonly rotatingFilePath: string;
 
 	constructor(
 		outputChannelIdentifier: IOutputChannelIdentifier,
+		outputDir: string,
 		modelUri: URI,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ILogService logService: ILogService
 	) {
-		super(outputChannelIdentifier, modelUri, fileService, modelService, modeService);
+		super({ ...outputChannelIdentifier, file: URI.file(paths.join(outputDir, `${outputChannelIdentifier.id}.log`)) }, modelUri, fileService, modelService, modeService);
 
 		// Use one rotating file to check for main file reset
 		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 30, 1);
 		this.outputWriter.clearFormatters();
+		this.rotatingFilePath = `${outputChannelIdentifier.id}.1.log`;
 		this._register(watchOutputDirectory(paths.dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
 
 		this.resettingDelayer = new ThrottledDelayer<void>(50);
@@ -301,7 +304,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 
 	private onFileChangedInOutputDirector(eventType: string, fileName: string): void {
 		// Check if rotating file has changed. It changes only when the main file exceeds its limit.
-		if (`${paths.basename(this.file.fsPath)}.1` === fileName) {
+		if (this.rotatingFilePath === fileName) {
 			this.resettingDelayer.trigger(() => this.resetModel());
 		}
 	}
@@ -554,9 +557,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		if (channelData && channelData.file) {
 			return this.instantiationService.createInstance(FileOutputChannel, channelData, uri);
 		}
-		const file = URI.file(paths.join(this.outputDir, `${id}.log`));
 		try {
-			return this.instantiationService.createInstance(OutputChannelBackedByFile, { id, label: channelData ? channelData.label : '', file }, uri);
+			return this.instantiationService.createInstance(OutputChannelBackedByFile, { id, label: channelData ? channelData.label : '' }, this.outputDir, uri);
 		} catch (e) {
 			this.logService.error(e);
 			this.telemetryService.publicLog('output.used.bufferedChannel');
