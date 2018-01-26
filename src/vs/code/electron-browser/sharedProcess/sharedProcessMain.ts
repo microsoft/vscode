@@ -37,8 +37,9 @@ import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ipcRenderer } from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createSharedProcessContributions } from 'vs/code/electron-browser/sharedProcess/contrib/contributions';
-import { createLogService } from 'vs/platform/log/node/spdlogService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -51,6 +52,7 @@ export function startup(configuration: ISharedProcessConfiguration) {
 interface ISharedProcessInitData {
 	sharedIPCHandle: string;
 	args: ParsedArgs;
+	logLevel: LogLevel;
 }
 
 class ActiveWindowManager implements IDisposable {
@@ -81,7 +83,8 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
-	const logService = createLogService('sharedprocess', environmentService);
+	const logLevelClient = new LogLevelSetterChannelClient(server.getChannel('loglevel', { route: () => 'main' }));
+	const logService = new FollowerLogService(logLevelClient, createSpdLogService('sharedprocess', initData.logLevel, environmentService.logsPath));
 	process.once('exit', () => logService.dispose());
 
 	logService.info('main', JSON.stringify(configuration));

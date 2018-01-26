@@ -5,6 +5,8 @@
 'use strict';
 
 import nls = require('vs/nls');
+import uri from 'vs/base/common/uri';
+import paths = require('vs/base/common/paths');
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -34,6 +36,24 @@ export const LaterAction = new Action('later.message', nls.localize('later', "La
 export const CancelAction = new Action('cancel.message', nls.localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
 
 export const IMessageService = createDecorator<IMessageService>('messageService');
+
+const MAX_CONFIRM_FILES = 10;
+export function getConfirmMessage(start: string, resourcesToConfirm: uri[]): string {
+	const message = [start];
+	message.push('');
+	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => paths.basename(r.fsPath)));
+
+	if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
+		if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {
+			message.push(nls.localize('moreFile', "...1 additional file not shown"));
+		} else {
+			message.push(nls.localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
+		}
+	}
+
+	message.push('');
+	return message.join('\n');
+}
 
 export interface IConfirmationResult {
 	confirmed: boolean;

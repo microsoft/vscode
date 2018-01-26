@@ -101,7 +101,7 @@ export class FoldingController implements IEditorContribution {
 	 */
 	public saveViewState(): { collapsedRegions?: CollapseMemento, lineCount?: number } {
 		let model = this.editor.getModel();
-		if (!model || !this._isEnabled) {
+		if (!model || !this._isEnabled || model.isTooLargeForTokenization()) {
 			return {};
 		}
 		return { collapsedRegions: this.foldingModel.getMemento(), lineCount: model.getLineCount() };
@@ -112,7 +112,7 @@ export class FoldingController implements IEditorContribution {
 	 */
 	public restoreViewState(state: { collapsedRegions?: CollapseMemento, lineCount?: number }): void {
 		let model = this.editor.getModel();
-		if (!model || !this._isEnabled) {
+		if (!model || !this._isEnabled || model.isTooLargeForTokenization()) {
 			return;
 		}
 		if (!state || !state.collapsedRegions || state.lineCount !== model.getLineCount()) {
@@ -133,7 +133,8 @@ export class FoldingController implements IEditorContribution {
 		this.localToDispose = dispose(this.localToDispose);
 
 		let model = this.editor.getModel();
-		if (!this._isEnabled || !model) {
+		if (!this._isEnabled || !model || model.isTooLargeForTokenization()) {
+			// huge files get no view model, so they cannot support hidden areas
 			return;
 		}
 

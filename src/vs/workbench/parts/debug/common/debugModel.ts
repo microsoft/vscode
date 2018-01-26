@@ -545,7 +545,7 @@ export class Process implements IProcess {
 	}
 
 	public getName(includeRoot: boolean): string {
-		return includeRoot ? `${this.configuration.name} (${resources.basenameOrAuthority(this.session.root.uri)})` : this.configuration.name;
+		return includeRoot && this.session.root ? `${this.configuration.name} (${resources.basenameOrAuthority(this.session.root.uri)})` : this.configuration.name;
 	}
 
 	public get state(): ProcessState {
@@ -560,6 +560,7 @@ export class Process implements IProcess {
 		let source = new Source(raw, this.getId());
 		if (this.sources.has(source.uri.toString())) {
 			source = this.sources.get(source.uri.toString());
+			source.raw = raw;
 		} else {
 			this.sources.set(source.uri.toString(), source);
 		}

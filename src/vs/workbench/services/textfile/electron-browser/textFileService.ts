@@ -24,16 +24,15 @@ import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textMo
 import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService, getConfirmMessage } from 'vs/platform/message/common/message';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export class TextFileService extends AbstractTextFileService {
-
-	private static readonly MAX_CONFIRM_FILES = 10;
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -43,6 +42,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
+		@IModelService modelService: IModelService,
 		@IWindowService private windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IMessageService messageService: IMessageService,
@@ -51,7 +51,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService, historyService, contextKeyService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
@@ -80,24 +80,8 @@ export class TextFileService extends AbstractTextFileService {
 			return TPromise.wrap(ConfirmResult.DONT_SAVE);
 		}
 
-		const message = [
-			resourcesToConfirm.length === 1 ? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", paths.basename(resourcesToConfirm[0].fsPath)) : nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", resourcesToConfirm.length)
-		];
-
-		if (resourcesToConfirm.length > 1) {
-			message.push('');
-			message.push(...resourcesToConfirm.slice(0, TextFileService.MAX_CONFIRM_FILES).map(r => paths.basename(r.fsPath)));
-
-			if (resourcesToConfirm.length > TextFileService.MAX_CONFIRM_FILES) {
-				if (resourcesToConfirm.length - TextFileService.MAX_CONFIRM_FILES === 1) {
-					message.push(nls.localize('moreFile', "...1 additional file not shown"));
-				} else {
-					message.push(nls.localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - TextFileService.MAX_CONFIRM_FILES));
-				}
-			}
-
-			message.push('');
-		}
+		const message = resourcesToConfirm.length === 1 ? nls.localize('saveChangesMessage', "Do you want to save the changes you made to {0}?", paths.basename(resourcesToConfirm[0].fsPath))
+			: getConfirmMessage(nls.localize('saveChangesMessages', "Do you want to save the changes to the following {0} files?", resourcesToConfirm.length), resourcesToConfirm);
 
 		// Button order
 		// Windows: Save | Don't Save | Cancel
@@ -119,7 +103,7 @@ export class TextFileService extends AbstractTextFileService {
 
 		const opts: Electron.MessageBoxOptions = {
 			title: product.nameLong,
-			message: message.join('\n'),
+			message,
 			type: 'warning',
 			detail: nls.localize('saveChangesDetail', "Your changes will be lost if you don't save them."),
 			buttons: buttons.map(b => b.label),

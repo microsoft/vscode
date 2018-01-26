@@ -14,20 +14,7 @@ import { DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinit
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
-
-function outputResults(promises: TPromise<Location | Location[]>[]) {
-	return TPromise.join(promises).then(allReferences => {
-		let result: Location[] = [];
-		for (let references of allReferences) {
-			if (Array.isArray(references)) {
-				result.push(...references);
-			} else if (references) {
-				result.push(references);
-			}
-		}
-		return result;
-	});
-}
+import { flatten } from 'vs/base/common/arrays';
 
 function getDefinitions<T>(
 	model: ITextModel,
@@ -38,7 +25,7 @@ function getDefinitions<T>(
 	const provider = registry.ordered(model);
 
 	// get results
-	const promises = provider.map((provider, idx) => {
+	const promises = provider.map((provider, idx): TPromise<Location | Location[]> => {
 		return asWinJsPromise((token) => {
 			return provide(provider, model, position, token);
 		}).then(undefined, err => {
@@ -46,7 +33,9 @@ function getDefinitions<T>(
 			return null;
 		});
 	});
-	return outputResults(promises);
+	return TPromise.join(promises)
+		.then(flatten)
+		.then(references => references.filter(x => !!x));
 }
 
 

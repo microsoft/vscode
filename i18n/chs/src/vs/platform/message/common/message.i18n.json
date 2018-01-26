@@ -6,5 +6,7 @@
 {
 	"close": "关闭",
 	"later": "稍后",
-	"cancel": "取消"
+	"cancel": "取消",
+	"moreFile": "...1 个其他文件未显示",
+	"moreFiles": "...{0} 个其他文件未显示"
 }

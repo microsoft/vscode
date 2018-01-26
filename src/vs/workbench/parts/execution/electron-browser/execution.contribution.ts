@@ -6,7 +6,6 @@
 
 import * as nls from 'vs/nls';
 import * as env from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -15,7 +14,6 @@ import uri from 'vs/base/common/uri';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { toResource } from 'vs/workbench/common/editor';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ITerminalService as IIntegratedTerminalService, KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
@@ -25,6 +23,9 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { getResourceForCommand } from 'vs/workbench/parts/files/browser/files';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);
@@ -74,35 +75,20 @@ DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 	});
 });
 
-const OPEN_CONSOLE_COMMAND_ID = 'workbench.command.terminal.openNativeConsole';
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: OPEN_CONSOLE_COMMAND_ID,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
-	when: KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
+CommandsRegistry.registerCommand({
+	id: OPEN_IN_TERMINAL_COMMAND_ID,
 	handler: (accessor, resource: uri) => {
 		const configurationService = accessor.get(IConfigurationService);
-		const historyService = accessor.get(IHistoryService);
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const fileService = accessor.get(IFileService);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 		const terminalService = accessor.get(ITerminalService);
+		resource = getResourceForCommand(resource, accessor.get(IListService), editorService);
 
-		// Try workspace path first
-		const root = historyService.getLastActiveWorkspaceRoot('file');
-		return !uri.isUri(resource) ? TPromise.as(root && root.fsPath) : fileService.resolveFile(resource).then(stat => {
+		return fileService.resolveFile(resource).then(stat => {
 			return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
 		}).then(directoryToOpen => {
-
-			// Otherwise check if we have an active file open
-			if (!directoryToOpen) {
-				const file = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-				if (file) {
-					directoryToOpen = paths.dirname(file.fsPath); // take parent folder of file
-				}
-			}
-
 			if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
 				const instance = integratedTerminalService.createInstance({ cwd: directoryToOpen }, true);
 				if (instance) {
@@ -116,16 +102,33 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
+	when: KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	handler: (accessor) => {
+		const historyService = accessor.get(IHistoryService);
+		const terminalService = accessor.get(ITerminalService);
+		const root = historyService.getLastActiveWorkspaceRoot('file');
+		terminalService.openTerminal(root.fsPath);
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
+		title: env.isWindows ? nls.localize('globalConsoleActionWin', "Open New Command Prompt") :
+			nls.localize('globalConsoleActionMacLinux', "Open New Terminal")
+	}
+});
+
 const openConsoleCommand = {
-	id: OPEN_CONSOLE_COMMAND_ID,
+	id: OPEN_IN_TERMINAL_COMMAND_ID,
 	title: env.isWindows ? nls.localize('scopedConsoleActionWin', "Open in Command Prompt") :
 		nls.localize('scopedConsoleActionMacLinux', "Open in Terminal")
 };
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: openConsoleCommand
-});
-
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
 	order: 30,

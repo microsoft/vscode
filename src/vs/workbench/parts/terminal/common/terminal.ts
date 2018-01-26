@@ -47,6 +47,10 @@ export const TerminalCursorStyle = {
 	UNDERLINE: 'underline'
 };
 
+export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
+
+export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+
 export interface ITerminalConfiguration {
 	shell: {
 		linux: string;
@@ -58,11 +62,13 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
-	enableBold: boolean;
+	macOptionIsMeta: boolean;
 	rightClickCopyPaste: boolean;
 	cursorBlinking: boolean;
 	cursorStyle: string;
 	fontFamily: string;
+	fontWeight: FontWeight;
+	fontWeightBold: FontWeight;
 	// fontLigatures: boolean;
 	fontSize: number;
 	lineHeight: number;
@@ -170,7 +176,6 @@ export interface ITerminalService {
 	showPreviousFindTermFindWidget(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	updateConfig(): void;
 	selectDefaultWindowsShell(): TPromise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
@@ -388,4 +393,9 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
+
+	/**
+	 * Enter screen reader navigation mode.
+	 */
+	enterNavigationMode(): void;
 }

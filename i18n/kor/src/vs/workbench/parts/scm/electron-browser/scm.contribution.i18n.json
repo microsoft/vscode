@@ -7,5 +7,6 @@
 	"toggleGitViewlet": "Git 표시",
 	"source control": "소스 제어",
 	"toggleSCMViewlet": "SCM 표시",
-	"view": "보기"
+	"view": "보기",
+	"scmConfigurationTitle": "SCM"
 }

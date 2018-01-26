@@ -2396,6 +2396,11 @@ declare module monaco.editor {
 		 */
 		enabled?: boolean;
 		/**
+		 * Control the side of the minimap in editor.
+		 * Defaults to 'right'.
+		 */
+		side?: 'right' | 'left';
+		/**
 		 * Control the rendering of the minimap slider.
 		 * Defaults to 'mouseover'.
 		 */
@@ -2538,6 +2543,10 @@ declare module monaco.editor {
 		 * Defaults to 'line'.
 		 */
 		cursorStyle?: string;
+		/**
+		 * Control the width of the cursor when cursorStyle is set to 'line'
+		 */
+		lineCursorWidth?: number;
 		/**
 		 * Enable font ligatures.
 		 * Defaults to false.
@@ -2957,6 +2966,7 @@ declare module monaco.editor {
 
 	export interface InternalEditorMinimapOptions {
 		readonly enabled: boolean;
+		readonly side: 'right' | 'left';
 		readonly showSlider: 'always' | 'mouseover';
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
@@ -3003,6 +3013,7 @@ declare module monaco.editor {
 		readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 		readonly mouseWheelZoom: boolean;
 		readonly cursorStyle: TextEditorCursorStyle;
+		readonly lineCursorWidth: number;
 		readonly hideCursorInOverviewRuler: boolean;
 		readonly scrollBeyondLastLine: boolean;
 		readonly smoothScrolling: boolean;
@@ -3157,6 +3168,10 @@ declare module monaco.editor {
 		 * The height of the content (actual height)
 		 */
 		readonly contentHeight: number;
+		/**
+		 * The position for the minimap
+		 */
+		readonly minimapLeft: number;
 		/**
 		 * The width of the minimap
 		 */
@@ -4038,6 +4053,10 @@ declare module monaco.languages {
 		 * @readonly
 		 */
 		readonly markers: editor.IMarkerData[];
+		/**
+		 * Requested kind of actions to return.
+		 */
+		readonly only?: string;
 	}
 
 	/**
@@ -4161,6 +4180,18 @@ declare module monaco.languages {
 		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
 		 */
 		textEdit?: editor.ISingleEditOperation;
+		/**
+		 * An optional array of additional text edits that are applied when
+		 * selecting this completion. Edits must not overlap with the main edit
+		 * nor with themselves.
+		 */
+		additionalTextEdits?: editor.ISingleEditOperation[];
+		/**
+		 * An optional set of characters that when pressed while this completion is active will accept it first and
+		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
+		 * characters will be ignored.
+		 */
+		commitCharacters?: string[];
 	}
 
 	/**
@@ -4482,6 +4513,7 @@ declare module monaco.languages {
 	export enum SuggestTriggerKind {
 		Invoke = 0,
 		TriggerCharacter = 1,
+		TriggerForIncompleteCompletions = 2,
 	}
 
 	export interface CodeAction {
@@ -4489,6 +4521,7 @@ declare module monaco.languages {
 		command?: Command;
 		edit?: WorkspaceEdit;
 		diagnostics?: editor.IMarkerData[];
+		kind?: string;
 	}
 
 	/**
@@ -4902,14 +4935,19 @@ declare module monaco.languages {
 		provideColorPresentations(model: editor.ITextModel, colorInfo: IColorInformation, token: CancellationToken): IColorPresentation[] | Thenable<IColorPresentation[]>;
 	}
 
-	export interface IResourceEdit {
+	export interface ResourceFileEdit {
+		oldUri: Uri;
+		newUri: Uri;
+	}
+
+	export interface ResourceTextEdit {
 		resource: Uri;
-		range: IRange;
-		newText: string;
+		modelVersionId?: number;
+		edits: TextEdit[];
 	}
 
 	export interface WorkspaceEdit {
-		edits: IResourceEdit[];
+		edits: Array<ResourceTextEdit | ResourceFileEdit>;
 		rejectReason?: string;
 	}
 

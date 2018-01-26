@@ -103,6 +103,11 @@ export interface IEditorMinimapOptions {
 	 */
 	enabled?: boolean;
 	/**
+	 * Control the side of the minimap in editor.
+	 * Defaults to 'right'.
+	 */
+	side?: 'right' | 'left';
+	/**
 	 * Control the rendering of the minimap slider.
 	 * Defaults to 'mouseover'.
 	 */
@@ -256,6 +261,10 @@ export interface IEditorOptions {
 	 * Defaults to 'line'.
 	 */
 	cursorStyle?: string;
+	/**
+	 * Control the width of the cursor when cursorStyle is set to 'line'
+	 */
+	lineCursorWidth?: number;
 	/**
 	 * Enable font ligatures.
 	 * Defaults to false.
@@ -736,6 +745,7 @@ export interface InternalEditorScrollbarOptions {
 
 export interface InternalEditorMinimapOptions {
 	readonly enabled: boolean;
+	readonly side: 'right' | 'left';
 	readonly showSlider: 'always' | 'mouseover';
 	readonly renderCharacters: boolean;
 	readonly maxColumn: number;
@@ -786,6 +796,7 @@ export interface InternalEditorViewOptions {
 	readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 	readonly mouseWheelZoom: boolean;
 	readonly cursorStyle: TextEditorCursorStyle;
+	readonly lineCursorWidth: number;
 	readonly hideCursorInOverviewRuler: boolean;
 	readonly scrollBeyondLastLine: boolean;
 	readonly smoothScrolling: boolean;
@@ -1014,6 +1025,7 @@ export class InternalEditorOptions {
 			&& a.contentWidth === b.contentWidth
 			&& a.contentHeight === b.contentHeight
 			&& a.renderMinimap === b.renderMinimap
+			&& a.minimapLeft === b.minimapLeft
 			&& a.minimapWidth === b.minimapWidth
 			&& a.viewportColumn === b.viewportColumn
 			&& a.verticalScrollbarWidth === b.verticalScrollbarWidth
@@ -1054,6 +1066,7 @@ export class InternalEditorOptions {
 			&& a.cursorBlinking === b.cursorBlinking
 			&& a.mouseWheelZoom === b.mouseWheelZoom
 			&& a.cursorStyle === b.cursorStyle
+			&& a.lineCursorWidth === b.lineCursorWidth
 			&& a.hideCursorInOverviewRuler === b.hideCursorInOverviewRuler
 			&& a.scrollBeyondLastLine === b.scrollBeyondLastLine
 			&& a.smoothScrolling === b.smoothScrolling
@@ -1095,6 +1108,7 @@ export class InternalEditorOptions {
 	private static _equalsMinimapOptions(a: InternalEditorMinimapOptions, b: InternalEditorMinimapOptions): boolean {
 		return (
 			a.enabled === b.enabled
+			&& a.side === b.side
 			&& a.showSlider === b.showSlider
 			&& a.renderCharacters === b.renderCharacters
 			&& a.maxColumn === b.maxColumn
@@ -1282,6 +1296,10 @@ export interface EditorLayoutInfo {
 	 */
 	readonly contentHeight: number;
 
+	/**
+	 * The position for the minimap
+	 */
+	readonly minimapLeft: number;
 	/**
 	 * The width of the minimap
 	 */
@@ -1547,6 +1565,7 @@ export class EditorOptionsValidator {
 		}
 		return {
 			enabled: _boolean(opts.enabled, defaults.enabled),
+			side: _stringSet<'right' | 'left'>(opts.side, defaults.side, ['right', 'left']),
 			showSlider: _stringSet<'always' | 'mouseover'>(opts.showSlider, defaults.showSlider, ['always', 'mouseover']),
 			renderCharacters: _boolean(opts.renderCharacters, defaults.renderCharacters),
 			maxColumn: _clampedInt(opts.maxColumn, defaults.maxColumn, 1, 10000),
@@ -1647,6 +1666,7 @@ export class EditorOptionsValidator {
 			cursorBlinking: _cursorBlinkingStyleFromString(opts.cursorBlinking, defaults.cursorBlinking),
 			mouseWheelZoom: _boolean(opts.mouseWheelZoom, defaults.mouseWheelZoom),
 			cursorStyle: _cursorStyleFromString(opts.cursorStyle, defaults.cursorStyle),
+			lineCursorWidth: _clampedInt(opts.lineCursorWidth, defaults.lineCursorWidth, 1, Number.MAX_VALUE),
 			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: _boolean(opts.scrollBeyondLastLine, defaults.scrollBeyondLastLine),
 			smoothScrolling: _boolean(opts.smoothScrolling, defaults.smoothScrolling),
@@ -1749,6 +1769,7 @@ export class InternalEditorOptionsFactory {
 				cursorBlinking: opts.viewInfo.cursorBlinking,
 				mouseWheelZoom: opts.viewInfo.mouseWheelZoom,
 				cursorStyle: opts.viewInfo.cursorStyle,
+				lineCursorWidth: opts.viewInfo.lineCursorWidth,
 				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
 				scrollBeyondLastLine: opts.viewInfo.scrollBeyondLastLine,
 				smoothScrolling: opts.viewInfo.smoothScrolling,
@@ -1761,6 +1782,7 @@ export class InternalEditorOptionsFactory {
 				scrollbar: opts.viewInfo.scrollbar,
 				minimap: {
 					enabled: (accessibilityIsOn ? false : opts.viewInfo.minimap.enabled), // DISABLED WHEN SCREEN READER IS ATTACHED
+					side: opts.viewInfo.minimap.side,
 					renderCharacters: opts.viewInfo.minimap.renderCharacters,
 					showSlider: opts.viewInfo.minimap.showSlider,
 					maxColumn: opts.viewInfo.minimap.maxColumn
@@ -1842,6 +1864,7 @@ export class InternalEditorOptionsFactory {
 			scrollbarArrowSize: opts.viewInfo.scrollbar.arrowSize,
 			verticalScrollbarHasArrows: opts.viewInfo.scrollbar.verticalHasArrows,
 			minimap: opts.viewInfo.minimap.enabled,
+			minimapSide: opts.viewInfo.minimap.side,
 			minimapRenderCharacters: opts.viewInfo.minimap.renderCharacters,
 			minimapMaxColumn: opts.viewInfo.minimap.maxColumn,
 			pixelRatio: env.pixelRatio
@@ -1974,6 +1997,7 @@ export interface IEditorLayoutProviderOpts {
 	horizontalScrollbarHeight: number;
 
 	minimap: boolean;
+	minimapSide: string;
 	minimapRenderCharacters: boolean;
 	minimapMaxColumn: number;
 	pixelRatio: number;
@@ -1999,6 +2023,7 @@ export class EditorLayoutProvider {
 		const scrollbarArrowSize = _opts.scrollbarArrowSize | 0;
 		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight | 0;
 		const minimap = _opts.minimap;
+		const minimapSide = _opts.minimapSide;
 		const minimapRenderCharacters = _opts.minimapRenderCharacters;
 		const minimapMaxColumn = _opts.minimapMaxColumn | 0;
 		const pixelRatio = _opts.pixelRatio;
@@ -2014,17 +2039,19 @@ export class EditorLayoutProvider {
 			glyphMarginWidth = lineHeight;
 		}
 
-		const glyphMarginLeft = 0;
-		const lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
-		const decorationsLeft = lineNumbersLeft + lineNumbersWidth;
-		const contentLeft = decorationsLeft + lineDecorationsWidth;
+		let glyphMarginLeft = 0;
+		let lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
+		let decorationsLeft = lineNumbersLeft + lineNumbersWidth;
+		let contentLeft = decorationsLeft + lineDecorationsWidth;
 
 		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
 		let renderMinimap: RenderMinimap;
+		let minimapLeft: number;
 		let minimapWidth: number;
 		let contentWidth: number;
 		if (!minimap) {
+			minimapLeft = 0;
 			minimapWidth = 0;
 			renderMinimap = RenderMinimap.None;
 			contentWidth = remainingWidth;
@@ -2056,6 +2083,16 @@ export class EditorLayoutProvider {
 				minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
 			}
 			contentWidth = remainingWidth - minimapWidth;
+
+			if (minimapSide === 'left') {
+				minimapLeft = 0;
+				glyphMarginLeft += minimapWidth;
+				lineNumbersLeft += minimapWidth;
+				decorationsLeft += minimapWidth;
+				contentLeft += minimapWidth;
+			} else {
+				minimapLeft = outerWidth - minimapWidth - verticalScrollbarWidth;
+			}
 		}
 
 		const viewportColumn = Math.max(1, Math.floor((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth));
@@ -2083,6 +2120,7 @@ export class EditorLayoutProvider {
 			contentHeight: outerHeight,
 
 			renderMinimap: renderMinimap,
+			minimapLeft: minimapLeft,
 			minimapWidth: minimapWidth,
 
 			viewportColumn: viewportColumn,
@@ -2172,6 +2210,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		cursorBlinking: TextEditorCursorBlinkingStyle.Blink,
 		mouseWheelZoom: false,
 		cursorStyle: TextEditorCursorStyle.Line,
+		lineCursorWidth: 2,
 		hideCursorInOverviewRuler: false,
 		scrollBeyondLastLine: true,
 		smoothScrolling: false,
@@ -2197,6 +2236,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		},
 		minimap: {
 			enabled: true,
+			side: 'right',
 			showSlider: 'mouseover',
 			renderCharacters: true,
 			maxColumn: 120

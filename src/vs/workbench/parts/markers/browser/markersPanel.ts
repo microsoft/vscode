@@ -27,13 +27,12 @@ import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/wo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
 import { debounceEvent } from 'vs/base/common/event';
 import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { localize } from 'vs/nls';
 
@@ -66,9 +65,7 @@ export class MarkersPanel extends Panel {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IListService private listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IActivityService private activityService: IActivityService
 	) {
@@ -158,7 +155,7 @@ export class MarkersPanel extends Panel {
 					selection: marker.range,
 					preserveFocus,
 					pinned,
-					revealIfVisible: !sideByside
+					revealIfVisible: true
 				},
 			}, sideByside).done(editor => {
 				if (editor && preserveFocus) {
@@ -215,7 +212,7 @@ export class MarkersPanel extends Panel {
 		const renderer = this.instantiationService.createInstance(Viewer.Renderer);
 		const dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof Resource ? obj.uri : void 0);
 		let controller = this.instantiationService.createInstance(Controller);
-		this.tree = new WorkbenchTree(this.treeContainer, {
+		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer,
 			controller,
@@ -227,13 +224,13 @@ export class MarkersPanel extends Panel {
 				twistiePixels: 20,
 				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE,
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService, this.themeService);
+			});
 
 		Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
 
 		const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree, { openOnFocus: true }));
 		this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {
-			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.editorOptions.pinned, options.sideBySide);
+			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 		}));
 	}
 

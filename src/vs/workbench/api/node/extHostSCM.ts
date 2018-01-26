@@ -93,7 +93,7 @@ function compareResourceStatesDecorations(a: vscode.SourceControlResourceDecorat
 }
 
 function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.SourceControlResourceState): number {
-	let result = comparePaths(a.resourceUri.fsPath, b.resourceUri.fsPath);
+	let result = comparePaths(a.resourceUri.fsPath, b.resourceUri.fsPath, true);
 
 	if (result !== 0) {
 		return result;

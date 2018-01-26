@@ -35,6 +35,7 @@ import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_C
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { getScopes } from 'vs/platform/configuration/common/configurationRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionHostProcessWorker {
 
@@ -70,7 +71,8 @@ export class ExtensionHostProcessWorker {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IWorkspaceConfigurationService private readonly _configurationService: IWorkspaceConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService
+		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this._isExtensionDevHost = this._environmentService.isExtensionDevelopment;
@@ -273,6 +275,8 @@ export class ExtensionHostProcessWorker {
 		let startPort = 9333;
 		if (typeof this._environmentService.debugExtensionHost.port === 'number') {
 			startPort = expected = this._environmentService.debugExtensionHost.port;
+		} else {
+			return TPromise.as({ expected: undefined, actual: 0 });
 		}
 		return new TPromise((c, e) => {
 			return findFreePort(startPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
@@ -376,7 +380,8 @@ export class ExtensionHostProcessWorker {
 				telemetryInfo,
 				args: this._environmentService.args,
 				execPath: this._environmentService.execPath,
-				windowId: this._windowService.getCurrentWindowId()
+				windowId: this._windowService.getCurrentWindowId(),
+				logLevel: this._logService.getLevel()
 			};
 			return r;
 		});

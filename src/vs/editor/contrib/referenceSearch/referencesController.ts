@@ -127,7 +127,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 						break;
 					}
 				case 'side':
-					this._openReference(element, kind === 'side');
+					this.openReference(element, kind === 'side');
 					break;
 				case 'goto':
 					if (options.onGoto) {
@@ -223,7 +223,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		});
 	}
 
-	private _openReference(ref: Location, sideBySide: boolean): void {
+	public openReference(ref: Location, sideBySide: boolean): void {
 		const { uri, range } = ref;
 		this._editorService.openEditor({
 			resource: uri,

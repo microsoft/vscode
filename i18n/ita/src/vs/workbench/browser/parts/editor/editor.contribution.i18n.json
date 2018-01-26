@@ -13,5 +13,17 @@
 	"groupThreePicker": "Mostra editor nel terzo gruppo",
 	"allEditorsPicker": "Mostra tutti gli editor aperti",
 	"view": "Visualizza",
-	"file": "File"
+	"file": "File",
+	"close": "Chiudi",
+	"closeOthers": "Chiudi altri",
+	"closeRight": "Chiudi a destra",
+	"closeAllUnmodified": "Chiudi non modificati",
+	"closeAll": "Chiudi tutto",
+	"keepOpen": "Mantieni aperto",
+	"showOpenedEditors": "Mostra editor aperti",
+	"keepEditor": "Mantieni editor",
+	"closeEditorsInGroup": "Chiudi tutti gli editor del gruppo",
+	"closeUnmodifiedEditors": "Chiudi editor non modificati del gruppo",
+	"closeOtherEditors": "Chiudi gli altri editor",
+	"closeRightEditors": "Chiudi editor a destra"
 }

@@ -23,7 +23,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IPartService, Parts, Position as PartPosition, Dimension } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, Position, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation, IConfirmationResult, IChoiceService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
@@ -33,7 +33,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEditorGroupService, GroupArrangement, GroupOrientation, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions, ITextSnapshot } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -41,7 +41,7 @@ import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfil
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEditorService, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -180,9 +180,10 @@ export class TestTextFileService extends TextFileService {
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWindowsService windowsService: IWindowsService,
 		@IHistoryService historyService: IHistoryService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IModelService modelService: IModelService
 	) {
-		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService, historyService, contextKeyService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -606,11 +607,12 @@ export class TestEditorService implements IWorkbenchEditorService {
 		return TPromise.as([]);
 	}
 
-	public closeEditors(position: Position, filter?: { except?: IEditorInput, direction?: Direction, unmodifiedOnly?: boolean }): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public closeAllEditors(except?: Position): TPromise<void> {
+	public closeEditors(positions?: Position[]): TPromise<void>;
+	public closeEditors(position: Position, filter?: ICloseEditorsFilter): TPromise<void>;
+	public closeEditors(position: Position, editors: IEditorInput[]): TPromise<void>;
+	public closeEditors(editors: { positionOne?: ICloseEditorsFilter, positionTwo?: ICloseEditorsFilter, positionThree?: ICloseEditorsFilter }): TPromise<void>;
+	public closeEditors(editors: { positionOne?: IEditorInput[], positionTwo?: IEditorInput[], positionThree?: IEditorInput[] }): TPromise<void>;
+	public closeEditors(positionOrEditors: any, filterOrEditors?: any): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -711,7 +713,6 @@ export class TestFileService implements IFileService {
 			encoding: 'utf8',
 			mtime: Date.now(),
 			isDirectory: false,
-			hasChildren: false,
 			name: paths.basename(resource.fsPath)
 		});
 	}
@@ -755,7 +756,7 @@ export class TestFileService implements IFileService {
 		});
 	}
 
-	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		return TPromise.timeout(1).then(() => {
 			return {
 				resource,
@@ -763,7 +764,6 @@ export class TestFileService implements IFileService {
 				encoding: 'utf8',
 				mtime: Date.now(),
 				isDirectory: false,
-				hasChildren: false,
 				name: paths.basename(resource.fsPath)
 			};
 		});
@@ -857,7 +857,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return null;
 	}
 
-	public backupResource(resource: URI, content: string): TPromise<void> {
+	public backupResource(resource: URI, content: ITextSnapshot): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -870,6 +870,10 @@ export class TestBackupFileService implements IBackupFileService {
 		const lineCount = textBuffer.getLineCount();
 		const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
+	}
+
+	public resolveBackupContent(backup: URI): TPromise<ITextBufferFactory> {
+		return TPromise.as(null);
 	}
 
 	public discardResourceBackup(resource: URI): TPromise<void> {

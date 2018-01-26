@@ -60,13 +60,13 @@ export default class FileResultsNavigation extends Disposable {
 			originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
 		}
 
-		const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
+		const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey || originalEvent.altKey));
 		const preserveFocus = !((keyboard && (!payload || !payload.preserveFocus)) || pinned || (payload && payload.focusEditor));
 		this._openFile.fire({
 			editorOptions: {
 				preserveFocus,
 				pinned,
-				revealIfVisible: !sideBySide
+				revealIfVisible: true
 			},
 			sideBySide,
 			element: this.tree.getSelection()[0],

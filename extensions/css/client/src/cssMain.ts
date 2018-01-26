@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-
 import * as path from 'path';
+
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 import { languages, window, commands, ExtensionContext, TextDocument, ColorInformation, ColorPresentation, Color, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';
 
 import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
 import { DocumentColorRequest, DocumentColorParams, ColorPresentationRequest, ColorPresentationParams } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
-
-import * as nls from 'vscode-nls';
-let localize = nls.loadMessageBundle();
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -104,7 +103,7 @@ export function activate(context: ExtensionContext) {
 		indentationRules: indentationRules
 	});
 
-	const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?/;
+	const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?$/;
 	languages.registerCompletionItemProvider(documentSelector, {
 		provideCompletionItems(doc, pos) {
 			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));

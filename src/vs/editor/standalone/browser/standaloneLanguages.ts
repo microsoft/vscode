@@ -329,11 +329,11 @@ export function registerCodeLensProvider(languageId: string, provider: modes.Cod
  */
 export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
-		provideCodeActions: (model: model.ITextModel, range: Range, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]> => {
+		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]> => {
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
-			return provider.provideCodeActions(model, range, { markers }, token);
+			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
 		}
 	});
 }
@@ -401,6 +401,11 @@ export interface CodeActionContext {
 	 * @readonly
 	 */
 	readonly markers: IMarkerData[];
+
+	/**
+	 * Requested kind of actions to return.
+	 */
+	readonly only?: string;
 }
 
 /**
@@ -525,6 +530,18 @@ export interface CompletionItem {
 	 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
 	 */
 	textEdit?: model.ISingleEditOperation;
+	/**
+	 * An optional array of additional text edits that are applied when
+	 * selecting this completion. Edits must not overlap with the main edit
+	 * nor with themselves.
+	 */
+	additionalTextEdits?: model.ISingleEditOperation[];
+	/**
+	 * An optional set of characters that when pressed while this completion is active will accept it first and
+	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
+	 * characters will be ignored.
+	 */
+	commitCharacters?: string[];
 }
 /**
  * Represents a collection of [completion items](#CompletionItem) to be presented
@@ -634,7 +651,9 @@ class SuggestAdapter {
 			command: item.command,
 			sortText: item.sortText,
 			filterText: item.filterText,
-			snippetType: 'internal'
+			snippetType: 'internal',
+			additionalTextEdits: item.additionalTextEdits,
+			commitCharacters: item.commitCharacters
 		};
 		let editRange = item.textEdit ? item.textEdit.range : item.range;
 		if (editRange) {

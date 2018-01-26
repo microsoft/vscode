@@ -12,6 +12,5 @@
 	"globalConsoleActionWin": "Neue Eingabeaufforderung öffnen",
 	"globalConsoleActionMacLinux": "Neues Terminal öffnen",
 	"scopedConsoleActionWin": "In Eingabeaufforderung öffnen",
-	"scopedConsoleActionMacLinux": "In Terminal öffnen",
-	"openFolderInIntegratedTerminal": "In Terminal öffnen"
+	"scopedConsoleActionMacLinux": "In Terminal öffnen"
 }

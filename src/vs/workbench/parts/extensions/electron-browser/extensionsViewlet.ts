@@ -45,12 +45,15 @@ import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/servi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
+import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/common/views';
 import { PersistentViewsViewlet, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { getGalleryExtensionIdFromLocal, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -450,5 +453,51 @@ export class StatusUpdater implements IWorkbenchContribution {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		dispose(this.badgeHandle);
+	}
+}
+
+export class MaliciousExtensionChecker implements IWorkbenchContribution {
+
+	private disposables: IDisposable[];
+
+	constructor(
+		@IExtensionManagementService private extensionsManagementService: IExtensionManagementService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ILogService private logService: ILogService,
+		@IMessageService private messageService: IMessageService
+	) {
+		this.loopCheckForMaliciousExtensions();
+	}
+
+	private loopCheckForMaliciousExtensions(): void {
+		this.checkForMaliciousExtensions()
+			.then(() => TPromise.timeout(1000 * 60 * 5)) // every five minutes
+			.then(() => this.loopCheckForMaliciousExtensions());
+	}
+
+	private checkForMaliciousExtensions(): TPromise<any> {
+		return this.extensionsManagementService.getExtensionsReport().then(report => {
+			const maliciousSet = getMaliciousExtensionsSet(report);
+
+			return this.extensionsManagementService.getInstalled(LocalExtensionType.User).then(installed => {
+				const maliciousExtensions = installed
+					.filter(e => maliciousSet.has(getGalleryExtensionIdFromLocal(e)));
+
+				if (maliciousExtensions.length) {
+					return TPromise.join(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e, true).then(() => {
+						this.messageService.show(Severity.Warning, {
+							message: localize('malicious warning', "We have uninstalled '{0}' which was reported to be malicious.", getGalleryExtensionIdFromLocal(e)),
+							actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Reload Now"))]
+						});
+					})));
+				} else {
+					return TPromise.as(null);
+				}
+			});
+		}, err => this.logService.error(err));
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }

@@ -10,6 +10,7 @@
 	"fileTooLargeError": "開くファイルが大きすぎます",
 	"fileNotFoundError": "ファイルが見つかりません ({0})",
 	"fileBinaryError": "ファイルはバイナリのようなので、テキストとして開くことができません",
+	"filePermission": "ファイルへの書き込み許可が拒否されました ({0})",
 	"fileExists": "生成しようとしているファイル ({0}) は既に存在しています",
 	"fileMoveConflict": "移動/コピーできません。移動/コピー先にファイルが既に存在します。",
 	"unableToMoveCopyError": "移動/コピーできません。ファイルが含まれるフォルダーが置き換わることになります。",

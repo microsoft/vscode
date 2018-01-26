@@ -358,9 +358,9 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(MoveGroupLeftAction, M
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveGroupRightAction, MoveGroupRightAction.ID, MoveGroupRightAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), 'View: Move Editor Group Right', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToPreviousGroupAction, MoveEditorToPreviousGroupAction.ID, MoveEditorToPreviousGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow } }), 'View: Move Editor into Previous Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToNextGroupAction, MoveEditorToNextGroupAction.ID, MoveEditorToNextGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow } }), 'View: Move Editor into Next Group', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToFirstGroupAction, MoveEditorToFirstGroupAction.ID, MoveEditorToFirstGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_1, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_1 } }), 'View: Move Editor into First Group', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToSecondGroupAction, MoveEditorToSecondGroupAction.ID, MoveEditorToSecondGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_2, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_2 } }), 'View: Move Editor into Second Group', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToThirdGroupAction, MoveEditorToThirdGroupAction.ID, MoveEditorToThirdGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_3, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_3 } }), 'View: Move Editor into Third Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToFirstGroupAction, MoveEditorToFirstGroupAction.ID, MoveEditorToFirstGroupAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_1, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_1 } }), 'View: Move Editor into First Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToSecondGroupAction, MoveEditorToSecondGroupAction.ID, MoveEditorToSecondGroupAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_2, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_2 } }), 'View: Move Editor into Second Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToThirdGroupAction, MoveEditorToThirdGroupAction.ID, MoveEditorToThirdGroupAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_3, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_3 } }), 'View: Move Editor into Third Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousGroup, FocusPreviousGroup.ID, FocusPreviousGroup.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.LeftArrow) }), 'View: Focus Previous Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextGroup, FocusNextGroup.ID, FocusNextGroup.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.RightArrow) }), 'View: Focus Next Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateForwardAction, NavigateForwardAction.ID, NavigateForwardAction.LABEL, { primary: null, win: { primary: KeyMod.Alt | KeyCode.RightArrow }, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_MINUS }, linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS } }), 'Go Forward');
@@ -403,12 +403,12 @@ editorCommands.setup();
 // Touch Bar
 if (isMacintosh) {
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconPath: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')).fsPath },
+		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconPath: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')).fsPath } },
 		group: 'navigation'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconPath: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')).fsPath },
+		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconPath: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')).fsPath } },
 		group: 'navigation'
 	});
 }

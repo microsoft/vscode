@@ -9,6 +9,11 @@
 
 declare module 'vscode-xterm' {
 	/**
+	 * A string representing text font weight.
+	 */
+	export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+
+	/**
 	 * An object containing start up options for the terminal.
 	 */
 	export interface ITerminalOptions {
@@ -58,6 +63,16 @@ declare module 'vscode-xterm' {
 		fontFamily?: string;
 
 		/**
+		 * The font weight used to render non-bold text.
+		 */
+		fontWeight?: FontWeight;
+
+		/**
+		 * The font weight used to render bold text.
+		 */
+		fontWeightBold?: FontWeight;
+
+		/**
 		 * The spacing in whole pixels between characters..
 		 */
 		letterSpacing?: number;
@@ -66,6 +81,11 @@ declare module 'vscode-xterm' {
 		 * The line height used to render text.
 		 */
 		lineHeight?: number;
+
+		/**
+		 * Whether to treat option as the meta key.
+		 */
+		macOptionIsMeta?: boolean;
 
 		/**
 		 * The number of rows in the terminal.
@@ -333,6 +353,12 @@ declare module 'vscode-xterm' {
 		deregisterLinkMatcher(matcherId: number): void;
 
 		/**
+		 * Enters screen reader navigation mode. This will only work when
+		 * the screenReaderMode option is true.
+		 */
+		enterNavigationMode(): void;
+
+		/**
 		 * Gets whether the terminal has an active selection.
 		 */
 		hasSelection(): boolean;
@@ -416,7 +442,7 @@ declare module 'vscode-xterm' {
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
 		 */
-		getOption(key: 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell'): boolean;
+		getOption(key: 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'macOptionIsMeta' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell'): boolean;
 		/**
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
@@ -461,7 +487,7 @@ declare module 'vscode-xterm' {
 		 * @param key The option key.
 		 * @param value The option value.
 		 */
-		setOption(key: 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell', value: boolean): void;
+		setOption(key: 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'macOptionIsMeta' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell', value: boolean): void;
 		/**
 		 * Sets an option on the terminal.
 		 * @param key The option key.

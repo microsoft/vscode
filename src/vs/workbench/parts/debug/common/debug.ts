@@ -363,7 +363,7 @@ export interface IConfig extends IEnvConfig {
 
 export interface ICompound {
 	name: string;
-	configurations: string[];
+	configurations: (string | { name: string, folder: string })[];
 }
 
 export interface IAdapterExecutable {
@@ -437,6 +437,11 @@ export interface ILaunch {
 	 */
 	uri: uri;
 
+	/**
+	 * Name of the launch.
+	 */
+	name: string;
+
 	workspace: IWorkspaceFolder;
 
 	/**
@@ -455,7 +460,7 @@ export interface ILaunch {
 	 * Returns the names of all configurations and compounds.
 	 * Ignores configurations which are invalid.
 	 */
-	getConfigurationNames(): string[];
+	getConfigurationNames(includeCompounds?: boolean): string[];
 
 	/**
 	 * Returns the resolved configuration.
@@ -466,7 +471,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor; configFileCreated: boolean; }>;
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor>;
 }
 
 // Debug service interfaces
@@ -518,7 +523,7 @@ export interface IDebugService {
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
 	 */
-	addBreakpoints(uri: uri, rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
+	addBreakpoints(uri: uri, rawBreakpoints: IRawBreakpoint[]): TPromise<IBreakpoint[]>;
 
 	/**
 	 * Updates the breakpoints.
@@ -544,9 +549,9 @@ export interface IDebugService {
 	removeBreakpoints(id?: string): TPromise<any>;
 
 	/**
-	 * Adds a new no name function breakpoint. The function breakpoint should be renamed once user enters the name.
+	 * Adds a new function breakpoint for the given name.
 	 */
-	addFunctionBreakpoint(): void;
+	addFunctionBreakpoint(name?: string): IFunctionBreakpoint;
 
 	/**
 	 * Renames an already existing function breakpoint.

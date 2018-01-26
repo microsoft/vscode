@@ -239,6 +239,15 @@ export class ExtHostApiCommands {
 					{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: v => v === void 0 || typeof v === 'number' || typeof v === 'object' }
 				]
 			});
+
+		this._register('vscode.removeFromRecentlyOpened', (path: string) => {
+			return this._commands.executeCommand('_workbench.removeFromRecentlyOpened', path);
+		}, {
+				description: 'Removes an entry with the given path from the recently opened list.',
+				args: [
+					{ name: 'path', description: 'Path to remove from recently opened.', constraint: value => typeof value === 'string' }
+				]
+			});
 	}
 
 	// --- command impl
@@ -344,11 +353,7 @@ export class ExtHostApiCommands {
 			if (value.rejectReason) {
 				return TPromise.wrapError<types.WorkspaceEdit>(new Error(value.rejectReason));
 			}
-			let workspaceEdit = new types.WorkspaceEdit();
-			for (let edit of value.edits) {
-				workspaceEdit.replace(edit.resource, typeConverters.toRange(edit.range), edit.newText);
-			}
-			return workspaceEdit;
+			return typeConverters.WorkspaceEdit.to(value);
 		});
 	}
 
@@ -408,8 +413,11 @@ export class ExtHostApiCommands {
 				} else {
 					const ret = new types.CodeAction(
 						codeAction.title,
-						typeConverters.WorkspaceEdit.to(codeAction.edit)
+						codeAction.kind ? new types.CodeActionKind(codeAction.kind) : undefined
 					);
+					if (codeAction.edit) {
+						ret.edit = typeConverters.WorkspaceEdit.to(codeAction.edit);
+					}
 					return ret;
 				}
 			});

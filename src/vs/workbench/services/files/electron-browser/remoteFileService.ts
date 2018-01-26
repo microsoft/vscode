@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
-import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType, IImportResult, FileChangesEvent, ICreateFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IContent, IStreamContent, IFileStat, IResolveContentOptions, IUpdateContentOptions, IResolveFileOptions, IResolveFileResult, FileOperationEvent, FileOperation, IFileSystemProvider, IStat, FileType, IImportResult, FileChangesEvent, ICreateFileOptions, FileOperationError, FileOperationResult, ITextSnapshot, snapshotToString } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { basename, join } from 'path';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -31,7 +31,6 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
 		isDirectory: false,
-		hasChildren: false,
 		resource: resource,
 		name: basename(resource.path),
 		mtime: stat.mtime,
@@ -39,27 +38,25 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 		etag: stat.mtime.toString(29) + stat.size.toString(31),
 	};
 
-	if (stat.type === FileType.File) {
-		// done
-		return TPromise.as(fileStat);
+	if (stat.type === FileType.Dir) {
+		fileStat.isDirectory = true;
 
-	} else {
-		// dir -> resolve
-		return provider.readdir(resource).then(entries => {
-			fileStat.isDirectory = true;
-			fileStat.hasChildren = entries.length > 0;
+		if (recurse && recurse([resource, stat])) {
+			// dir -> resolve
+			return provider.readdir(resource).then(entries => {
+				fileStat.isDirectory = true;
 
-			if (recurse && recurse([resource, stat])) {
 				// resolve children if requested
 				return TPromise.join(entries.map(stat => toIFileStat(provider, stat, recurse))).then(children => {
 					fileStat.children = children;
 					return fileStat;
 				});
-			} else {
-				return fileStat;
-			}
-		});
+			});
+		}
 	}
+
+	// file or (un-resolved) dir
+	return TPromise.as(fileStat);
 }
 
 export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], to: URI[]): TPromise<IFileStat> {
@@ -233,6 +230,24 @@ export class RemoteFileService extends FileService {
 		return this._withProvider(resource).then(provider => {
 
 			return this.resolveFile(resource).then(fileStat => {
+
+				if (fileStat.isDirectory) {
+					// todo@joh cannot copy a folder
+					// https://github.com/Microsoft/vscode/issues/41547
+					throw new FileOperationError(
+						localize('fileIsDirectoryError', "File is directory"),
+						FileOperationResult.FILE_IS_DIRECTORY,
+						options
+					);
+				}
+				if (fileStat.etag === options.etag) {
+					throw new FileOperationError(
+						localize('fileNotModifiedError', "File not modified since"),
+						FileOperationResult.FILE_NOT_MODIFIED_SINCE,
+						options
+					);
+				}
+
 				const guessEncoding = options.autoGuessEncoding;
 				const count = maxBufferLen(options);
 				const chunks: Buffer[] = [];
@@ -336,7 +351,7 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat> {
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.updateContent(resource, value, options);
 		} else {
@@ -346,9 +361,10 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	private _doUpdateContent(provider: IFileSystemProvider, resource: URI, content: string, options: IUpdateContentOptions): TPromise<IFileStat> {
+	private _doUpdateContent(provider: IFileSystemProvider, resource: URI, content: string | ITextSnapshot, options: IUpdateContentOptions): TPromise<IFileStat> {
 		const encoding = this.getEncoding(resource, options.encoding);
-		return provider.write(resource, encode(content, encoding)).then(() => {
+		// TODO@Joh support streaming API for remote file system writes
+		return provider.write(resource, encode(typeof content === 'string' ? content : snapshotToString(content), encoding)).then(() => {
 			return this.resolveFile(resource);
 		});
 	}
@@ -465,10 +481,9 @@ export class RemoteFileService extends FileService {
 			: TPromise.as(null);
 
 		return prepare.then(() => {
-			// TODO@Joh This does only work for textfiles
-			// because the content turns things into a string
-			// and all binary data will be broken
-			return this.resolveContent(source).then(content => {
+			// todo@ben, can only copy text files
+			// https://github.com/Microsoft/vscode/issues/41543
+			return this.resolveContent(source, { acceptTextOnly: true }).then(content => {
 				return this._withProvider(target).then(provider => {
 					return this._doUpdateContent(provider, target, content.value, { encoding: content.encoding }).then(fileStat => {
 						this._onAfterOperation.fire(new FileOperationEvent(source, FileOperation.COPY, fileStat));

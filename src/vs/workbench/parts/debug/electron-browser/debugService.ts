@@ -11,7 +11,6 @@ import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
-import { Action } from 'vs/base/common/actions';
 import { first, distinct } from 'vs/base/common/arrays';
 import { isObject, isUndefinedOrNull } from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
@@ -25,7 +24,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import { IMessageService, CloseAction, IChoiceService } from 'vs/platform/message/common/message';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
@@ -37,7 +36,7 @@ import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression,
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
-import { ToggleMarkersPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
+import Constants from 'vs/workbench/parts/markers/common/constants';
 import { ITaskService, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
@@ -89,6 +88,7 @@ export class DebugService implements debug.IDebugService {
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService,
 		@IMessageService private messageService: IMessageService,
+		@IChoiceService private choiceService: IChoiceService,
 		@IPartService private partService: IPartService,
 		@IWindowService private windowService: IWindowService,
 		@IBroadcastService private broadcastService: IBroadcastService,
@@ -580,11 +580,13 @@ export class DebugService implements debug.IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	public addBreakpoints(uri: uri, rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
-		this.model.addBreakpoints(uri, rawBreakpoints);
+	public addBreakpoints(uri: uri, rawBreakpoints: debug.IRawBreakpoint[]): TPromise<debug.IBreakpoint[]> {
+		const bps = this.model.addBreakpoints(uri, rawBreakpoints);
 		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, uri.fsPath)));
 
-		return this.sendBreakpoints(uri);
+		return this.sendBreakpoints(uri).then(_ => {
+			return bps;
+		});
 	}
 
 	public updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): void {
@@ -607,9 +609,10 @@ export class DebugService implements debug.IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	public addFunctionBreakpoint(): void {
-		const newFunctionBreakpoint = this.model.addFunctionBreakpoint('');
+	public addFunctionBreakpoint(name?: string): debug.IFunctionBreakpoint {
+		const newFunctionBreakpoint = this.model.addFunctionBreakpoint(name || '');
 		this.viewModel.setSelectedFunctionBreakpoint(newFunctionBreakpoint);
+		return newFunctionBreakpoint;
 	}
 
 	public renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void> {
@@ -668,8 +671,8 @@ export class DebugService implements debug.IDebugService {
 					this.model.getBreakpoints().forEach(bp => bp.verified = false);
 				}
 				this.launchJsonChanged = false;
-				const manager = this.getConfigurationManager();
-				const launch = root ? manager.getLaunches().filter(l => l.workspace.uri.toString() === root.uri.toString()).pop() : undefined;
+				const launch = root ? this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === root.uri.toString()).pop()
+					: this.configurationManager.getWorkspaceLaunch();
 
 				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {
@@ -683,7 +686,7 @@ export class DebugService implements debug.IDebugService {
 				}
 				if (launch) {
 					// in the drop down the name of the top most compound takes precedence over the launch config name
-					manager.selectConfiguration(launch, topCompoundName || (typeof configOrName === 'string' ? configOrName : undefined), true);
+					this.configurationManager.selectConfiguration(launch, topCompoundName || (typeof configOrName === 'string' ? configOrName : undefined), true);
 				}
 
 				if (compound) {
@@ -692,7 +695,35 @@ export class DebugService implements debug.IDebugService {
 							"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 					}
 
-					return TPromise.join(compound.configurations.map(name => name !== compound.name ? this.startDebugging(root, name, noDebug, topCompoundName || compound.name) : TPromise.as(null)));
+					return TPromise.join(compound.configurations.map(configData => {
+						const name = typeof configData === 'string' ? configData : configData.name;
+						if (name === compound.name) {
+							return TPromise.as(null);
+						}
+
+						let rootForName: IWorkspaceFolder;
+						if (typeof configData === 'string') {
+							const launchesContainingName = this.configurationManager.getLaunches().filter(l => !!l.getConfiguration(name));
+							if (launchesContainingName.length === 1) {
+								rootForName = launchesContainingName[0].workspace;
+							} else if (launchesContainingName.length > 1 && launchesContainingName.indexOf(launch) >= 0) {
+								// If there are multiple launches containing the configuration give priority to the configuration in the current launch
+								rootForName = launch.workspace;
+							} else {
+								return TPromise.wrapError(new Error(launchesContainingName.length === 0 ? nls.localize('noConfigurationNameInWorkspace', "Could not find launch configuration '{0}' in the workspace.", name)
+									: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurates `{0}` in the workspace. Use folder name to qualify the configuration.", name)));
+							}
+						} else if (configData.folder) {
+							const root = this.contextService.getWorkspace().folders.filter(f => f.name === configData.folder).pop();
+							if (root) {
+								rootForName = root;
+							} else {
+								return TPromise.wrapError(new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound.name)));
+							}
+						}
+
+						return this.startDebugging(rootForName, name, noDebug, topCompoundName || compound.name);
+					}));
 				}
 				if (configOrName && !config) {
 					const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configOrName) :
@@ -723,13 +754,10 @@ export class DebugService implements debug.IDebugService {
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
 					(type ? this.extensionService.activateByEvent(`onDebugResolve:${type}`) : TPromise.as(null)).then(() =>
-						this.configurationManager.resolveConfigurationByProviders(launch ? launch.workspace.uri : undefined, type, config).then(config => {
+						this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
 							// a falsy config indicates an aborted launch
 							if (config && config.type) {
 								return this.createProcess(root, config, sessionId);
-							}
-							if (launch) {
-								return launch.openConfigFile(false, type).then(() => undefined);
 							}
 
 							return undefined;
@@ -765,10 +793,6 @@ export class DebugService implements debug.IDebugService {
 				}
 
 				this.toDisposeOnSessionEnd.set(sessionId, []);
-				const debugAnywayAction = new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
-					this.messageService.hideAll();
-					return this.doCreateProcess(root, resolvedConfig, sessionId);
-				});
 
 				return this.runPreLaunchTask(sessionId, root, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
 					const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
@@ -778,26 +802,32 @@ export class DebugService implements debug.IDebugService {
 						return this.doCreateProcess(root, resolvedConfig, sessionId);
 					}
 
-					this.messageService.show(severity.Error, {
-						message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
-							errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
-								nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode),
-						actions: [
-							debugAnywayAction,
-							this.instantiationService.createInstance(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, ToggleMarkersPanelAction.LABEL),
-							CloseAction
-						]
+					const message = errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
+						errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
+							nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode);
+
+					return this.choiceService.choose(severity.Error, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('cancel', "Cancel")], 2, true).then(choice => {
+						switch (choice) {
+							case 0:
+								return this.doCreateProcess(root, resolvedConfig, sessionId);
+							case 1:
+								return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
+							default:
+								return undefined;
+						}
 					});
-					return undefined;
 				}, (err: TaskError) => {
-					this.messageService.show(err.severity, {
-						message: err.message,
-						actions: [
-							debugAnywayAction,
-							this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL),
-							this.taskService.configureAction(),
-							CloseAction
-						]
+					return this.choiceService.choose(severity.Error, err.message, [nls.localize('debugAnyway', "Debug Anyway"), debugactions.ConfigureAction.LABEL, this.taskService.configureAction().label, nls.localize('cancel', "Cancel")], 3, true).then(choice => {
+						switch (choice) {
+							case 0:
+								return this.doCreateProcess(root, resolvedConfig, sessionId);
+							case 1:
+								return this.configurationManager.selectedLaunch.openConfigFile(false);
+							case 2:
+								return this.taskService.configureAction().run();
+							default:
+								return undefined;
+						}
 					});
 				});
 			}, err => {
@@ -806,12 +836,7 @@ export class DebugService implements debug.IDebugService {
 					return undefined;
 				}
 
-				return this.configurationManager.selectedLaunch.openConfigFile(false).then(result => {
-					if (result.configFileCreated) {
-						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application. {0}", err.message));
-					}
-					return undefined;
-				});
+				return this.configurationManager.selectedLaunch.openConfigFile(false).then(editor => void 0);
 			})
 		);
 	}
@@ -1021,43 +1046,45 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public restartProcess(process: debug.IProcess, restartData?: any): TPromise<any> {
-		if (process.session.capabilities.supportsRestartRequest) {
-			return <TPromise>process.session.custom('restart', null);
-		}
-		const focusedProcess = this.viewModel.focusedProcess;
-		const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
-
-		return process.session.disconnect(true).then(() => {
-			if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost')) {
-				return this.broadcastService.broadcast({
-					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
-					payload: [process.session.root.uri.fsPath]
-				});
+		return this.textFileService.saveAll().then(() => {
+			if (process.session.capabilities.supportsRestartRequest) {
+				return <TPromise>process.session.custom('restart', null);
 			}
+			const focusedProcess = this.viewModel.focusedProcess;
+			const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
 
-			return new TPromise<void>((c, e) => {
-				setTimeout(() => {
-					// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
-					let config = process.configuration;
-					if (this.launchJsonChanged && this.configurationManager.selectedLaunch) {
-						this.launchJsonChanged = false;
-						config = this.configurationManager.selectedLaunch.getConfiguration(process.configuration.name) || config;
-						// Take the type from the process since the debug extension might overwrite it #21316
-						config.type = process.configuration.type;
-						config.noDebug = process.configuration.noDebug;
-					}
-					config.__restart = restartData;
-					this.startDebugging(process.session.root, config).then(() => c(null), err => e(err));
-				}, 300);
-			});
-		}).then(() => {
-			if (preserveFocus) {
-				// Restart should preserve the focused process
-				const restartedProcess = this.model.getProcesses().filter(p => p.configuration.name === process.configuration.name).pop();
-				if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
-					this.focusStackFrame(undefined, undefined, restartedProcess);
+			return process.session.disconnect(true).then(() => {
+				if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost') && process.session.root) {
+					return this.broadcastService.broadcast({
+						channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
+						payload: [process.session.root.uri.fsPath]
+					});
 				}
-			}
+
+				return new TPromise<void>((c, e) => {
+					setTimeout(() => {
+						// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
+						let config = process.configuration;
+						if (this.launchJsonChanged && this.configurationManager.selectedLaunch) {
+							this.launchJsonChanged = false;
+							config = this.configurationManager.selectedLaunch.getConfiguration(process.configuration.name) || config;
+							// Take the type from the process since the debug extension might overwrite it #21316
+							config.type = process.configuration.type;
+							config.noDebug = process.configuration.noDebug;
+						}
+						config.__restart = restartData;
+						this.startDebugging(process.session.root, config).then(() => c(null), err => e(err));
+					}, 300);
+				});
+			}).then(() => {
+				if (preserveFocus) {
+					// Restart should preserve the focused process
+					const restartedProcess = this.model.getProcesses().filter(p => p.configuration.name === process.configuration.name).pop();
+					if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
+						this.focusStackFrame(undefined, undefined, restartedProcess);
+					}
+				}
+			});
 		});
 	}
 

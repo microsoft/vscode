@@ -44,6 +44,7 @@ import * as strings from 'vs/base/common/strings';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
+const ExtraDevSystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', '.build', 'builtInExtensions'));
 
 // Enable to see detailed message communication between window and extension host
 const logExtensionHostCommunication = false;
@@ -119,12 +120,36 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionHostProcessCustomers = [];
 		this._extensionHostProcessProxy = null;
 
-		lifecycleService.when(LifecyclePhase.Running).then(() => {
-			// delay extension host creation and extension scanning
-			// until after workbench is running
-			this._startExtensionHostProcess([]);
-			this._scanAndHandleExtensions();
+		this.startDelayed(lifecycleService);
+	}
+
+	private startDelayed(lifecycleService: ILifecycleService): void {
+		let started = false;
+		const startOnce = () => {
+			if (!started) {
+				started = true;
+
+				this._startExtensionHostProcess([]);
+				this._scanAndHandleExtensions();
+			}
+		};
+
+		// delay extension host creation and extension scanning
+		// until the workbench is restoring. we cannot defer the
+		// extension host more (LifecyclePhase.Running) because
+		// some editors require the extension host to restore
+		// and this would result in a deadlock
+		// see https://github.com/Microsoft/vscode/issues/41322
+		lifecycleService.when(LifecyclePhase.Restoring).then(() => {
+			// we add an additional delay of 800ms because the extension host
+			// starting is a potential expensive operation and we do no want
+			// to fight with editors, viewlets and panels restoring.
+			setTimeout(() => startOnce(), 800);
 		});
+
+		// if we are running before the 800ms delay, make sure to start
+		// the extension host right away though.
+		lifecycleService.when(LifecyclePhase.Running).then(() => startOnce());
 	}
 
 	public dispose(): void {
@@ -343,6 +368,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 		}
 		return result;
+	}
+
+	public canProfileExtensionHost(): boolean {
+		return this._extensionHostProcessWorker && Boolean(this._extensionHostProcessWorker.getInspectPort());
 	}
 
 	public startExtensionHostProfile(): TPromise<ProfileSession> {
@@ -600,6 +629,36 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			log
 		);
 
+		let finalBuiltinExtensions: TPromise<IExtensionDescription[]> = builtinExtensions;
+
+		if (devMode) {
+			const extraBuiltinExtensions = ExtensionScanner.scanExtensions(new ExtensionScannerInput(version, commit, locale, devMode, ExtraDevSystemExtensionsRoot, true), log);
+			finalBuiltinExtensions = TPromise.join([builtinExtensions, extraBuiltinExtensions]).then(([builtinExtensions, extraBuiltinExtensions]) => {
+				let resultMap: { [id: string]: IExtensionDescription; } = Object.create(null);
+				for (let i = 0, len = builtinExtensions.length; i < len; i++) {
+					resultMap[builtinExtensions[i].id] = builtinExtensions[i];
+				}
+				// Overwrite with extensions found in extra
+				for (let i = 0, len = extraBuiltinExtensions.length; i < len; i++) {
+					resultMap[extraBuiltinExtensions[i].id] = extraBuiltinExtensions[i];
+				}
+
+				let resultArr = Object.keys(resultMap).map((id) => resultMap[id]);
+				resultArr.sort((a, b) => {
+					const aLastSegment = path.basename(a.extensionFolderPath);
+					const bLastSegment = path.basename(b.extensionFolderPath);
+					if (aLastSegment < bLastSegment) {
+						return -1;
+					}
+					if (aLastSegment > bLastSegment) {
+						return 1;
+					}
+					return 0;
+				});
+				return resultArr;
+			});
+		}
+
 		const userExtensions = (
 			environmentService.disableExtensions || !environmentService.extensionsPath
 				? TPromise.as([])
@@ -622,7 +681,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				: TPromise.as([])
 		);
 
-		return TPromise.join([builtinExtensions, userExtensions, developedExtensions])
+		return TPromise.join([finalBuiltinExtensions, userExtensions, developedExtensions])
 			.then((extensionDescriptions: IExtensionDescription[][]) => {
 				const system = extensionDescriptions[0];
 				const user = extensionDescriptions[1];

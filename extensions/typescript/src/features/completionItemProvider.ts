@@ -53,7 +53,7 @@ class MyCompletionItem extends CompletionItem {
 			this.range = tsTextSpanToVsRange(tsEntry.replacementSpan);
 		}
 
-		if (typeof (tsEntry as any).insertText === 'string') {
+		if (typeof tsEntry.insertText === 'string') {
 			this.insertText = (tsEntry as any).insertText as string;
 
 			if (tsEntry.replacementSpan) {
@@ -374,7 +374,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			return item;
 		}
 		const detail = details[0];
-		item.detail = Previewer.plain(detail.displayParts);
+		item.detail = detail.displayParts.length ? Previewer.plain(detail.displayParts) : undefined;
 		const documentation = new MarkdownString();
 		if (detail.source) {
 			let importPath = `'${Previewer.plain(detail.source)}'`;

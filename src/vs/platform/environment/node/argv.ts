@@ -26,7 +26,6 @@ const options: minimist.Opts = {
 		'debugBrkPluginHost',
 		'debugSearch',
 		'debugBrkSearch',
-		'open-url',
 		'enable-proposed-api',
 		'export-default-configuration',
 		'install-source'
@@ -41,6 +40,7 @@ const options: minimist.Opts = {
 		'new-window',
 		'unity-launch',
 		'reuse-window',
+		'open-url',
 		'performance',
 		'prof-startup',
 		'verbose',
@@ -49,16 +49,19 @@ const options: minimist.Opts = {
 		'list-extensions',
 		'show-versions',
 		'nolazy',
+		'issue',
 		'skip-getting-started',
 		'skip-release-notes',
 		'sticky-quickopen',
+		'disable-restore-windows',
 		'disable-telemetry',
 		'disable-updates',
 		'disable-crash-reporter',
 		'skip-add-to-recently-opened',
 		'status',
 		'file-write',
-		'file-chmod'
+		'file-chmod',
+		'upload-logs'
 	],
 	alias: {
 		add: 'a',
@@ -162,7 +165,8 @@ const troubleshootingHelp: { [name: string]: string; } = {
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'--inspect-extensions': localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection uri."),
 	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection uri."),
-	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration.")
+	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
+	'--upload-logs': localize('uploadLogs', "Uploads logs from current session to a secure endpoint."),
 };
 
 export function formatOptions(options: { [name: string]: string; }, columns: number): string {

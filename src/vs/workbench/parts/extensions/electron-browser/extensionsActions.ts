@@ -38,7 +38,7 @@ export class OpenExtensionsFolderAction extends Action {
 
 		return this.fileService.resolveFile(URI.file(extensionsHome)).then(file => {
 			let itemToShow: string;
-			if (file.hasChildren) {
+			if (file.children && file.children.length > 0) {
 				itemToShow = file.children[0].resource.fsPath;
 			} else {
 				itemToShow = paths.normalize(extensionsHome, true);

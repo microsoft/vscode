@@ -41,7 +41,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import * as debugCommands from 'vs/workbench/parts/debug/electron-browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusBarColorProvider } from 'vs/workbench/parts/debug/electron-browser/statusbarColorProvider';
-import { ViewLocation, ViewsRegistry } from 'vs/workbench/browser/parts/views/viewsRegistry';
+import { ViewLocation, ViewsRegistry } from 'vs/workbench/common/views';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import URI from 'vs/base/common/uri';
@@ -223,7 +223,7 @@ if (isMacintosh) {
 	const registerTouchBarEntry = (id: string, title: string, order, when: ContextKeyExpr, icon: string) => {
 		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 			command: {
-				id, title, iconPath: URI.parse(require.toUrl(`vs/workbench/parts/debug/electron-browser/media/${icon}`)).fsPath
+				id, title, iconPath: { dark: URI.parse(require.toUrl(`vs/workbench/parts/debug/electron-browser/media/${icon}`)).fsPath }
 			},
 			when,
 			group: '9_debug',
