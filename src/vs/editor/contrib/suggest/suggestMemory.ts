@@ -47,7 +47,7 @@ export interface MemItem {
 	touch: number;
 }
 
-export class ShyMemory extends Memory {
+export class LRUMemory extends Memory {
 
 	private _cache = new LRUCache<string, MemItem>(300, .66);
 	private _seq = 0;
@@ -149,10 +149,9 @@ export class PrefixMemory extends Memory {
 		// touch
 		entries
 			.sort((a, b) => -(a[1].touch - b[1].touch))
-			.slice(0, 200)
 			.forEach((value, i) => value[1].touch = i);
 
-		return entries;
+		return entries.slice(0, 200);
 	}
 
 	fromJSON(data: [string, MemItem][]): void {
@@ -189,7 +188,7 @@ export class SuggestMemories {
 			return;
 		}
 		this._mode = mode;
-		this._strategy = mode === 'byPrefix' ? new PrefixMemory() : mode === 'whenEmpty' ? new ShyMemory() : new NoMemory();
+		this._strategy = mode === 'byPrefix' ? new PrefixMemory() : mode === 'whenEmpty' ? new LRUMemory() : new NoMemory();
 
 		try {
 			const raw = this._storageService.get(`${this._storagePrefix}/${this._mode}`, StorageScope.WORKSPACE);

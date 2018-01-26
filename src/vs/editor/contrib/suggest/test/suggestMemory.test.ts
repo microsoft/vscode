@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ShyMemory, NoMemory, PrefixMemory } from 'vs/editor/contrib/suggest/suggestMemory';
+import { LRUMemory, NoMemory, PrefixMemory } from 'vs/editor/contrib/suggest/suggestMemory';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ICompletionItem } from 'vs/editor/contrib/suggest/completionModel';
@@ -41,7 +41,7 @@ suite('SuggestMemories', function () {
 
 	test('ShyMemories', function () {
 
-		const mem = new ShyMemory();
+		const mem = new LRUMemory();
 		mem.memorize(buffer, pos, items[1]);
 
 		assert.equal(mem.select(buffer, pos, items), 1);
