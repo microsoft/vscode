@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento } from 'vscode';
+import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, SourceControlInputBoxValidation, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento, SourceControlInputBoxValidationType } from 'vscode';
 import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, Submodule, DiffOptions } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -419,6 +419,8 @@ class ProgressManager {
 
 export class Repository implements Disposable {
 
+	private static readonly InputValidationLength = 72;
+
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
 
@@ -521,7 +523,7 @@ export class Repository implements Disposable {
 		this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message (press {0} to commit)");
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
-		this._sourceControl.inputBox.lineWarningLength = 72;
+		this._sourceControl.inputBox.validationProvider = this;
 		this.disposables.push(this._sourceControl);
 
 		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "Merge Changes"));
@@ -547,6 +549,43 @@ export class Repository implements Disposable {
 
 		this.updateCommitTemplate();
 		this.status();
+	}
+
+	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
+		const config = workspace.getConfiguration('git');
+		const setting = config.get<'always' | 'warn' | 'off'>('inputValidation');
+
+		if (setting === 'off') {
+			return;
+		}
+
+		let start = 0, end;
+		let match: RegExpExecArray | null;
+		const regex = /\r?\n/g;
+
+		while ((match = regex.exec(text)) && position > match.index) {
+			start = match.index + match[0].length;
+		}
+
+		end = match ? match.index : text.length;
+
+		const line = text.substring(start, end);
+
+		if (line.length <= Repository.InputValidationLength) {
+			if (setting !== 'always') {
+				return;
+			}
+
+			return {
+				message: localize('commitMessageCountdown', "{0} characters left in current line", Repository.InputValidationLength - line.length),
+				type: SourceControlInputBoxValidationType.Information
+			};
+		} else {
+			return {
+				message: localize('commitMessageWarning', "{0} characters over {1} in current line", line.length - Repository.InputValidationLength, Repository.InputValidationLength),
+				type: SourceControlInputBoxValidationType.Warning
+			};
+		}
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {

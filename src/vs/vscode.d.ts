@@ -5987,6 +5987,56 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents the validation type of the Source Control input.
+	 */
+	export enum SourceControlInputBoxValidationType {
+
+		/**
+		 * Something not allowed by the rules of a language or other means.
+		 */
+		Error = 0,
+
+		/**
+		 * Something suspicious but allowed.
+		 */
+		Warning = 1,
+
+		/**
+		 * Something to inform about but not a problem.
+		 */
+		Information = 2
+	}
+
+	export interface SourceControlInputBoxValidation {
+
+		/**
+		 * The validation message to display.
+		 */
+		readonly message: string;
+
+		/**
+		 * The validation type.
+		 */
+		readonly type: SourceControlInputBoxValidationType;
+	}
+
+	/**
+	 * A validation provider which can validate Source Control input.
+	 */
+	export interface SourceControlInputBoxValidationProvider {
+
+		/**
+		 * A function that will be called to validate input and give a hint to the user.
+		 *
+		 * @param value The current value of the input box.
+		 * @param cursorPosition The cusror position within the input box.
+		 * @return A human readable string which is presented as diagnostic message.
+		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
+		 */
+		validateInput(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
+	}
+
+	/**
 	 * Represents the input box in the Source Control viewlet.
 	 */
 	export interface SourceControlInputBox {
@@ -6002,9 +6052,10 @@ declare module 'vscode' {
 		placeholder: string;
 
 		/**
-		 * The warning threshold for lines in the input box.
+		 * A validation provider for the input box. It's possible to change
+		 * the validation provider simply by setting this property to a different value.
 		 */
-		lineWarningLength: number | undefined;
+		validationProvider: SourceControlInputBoxValidationProvider;
 	}
 
 	interface QuickDiffProvider {

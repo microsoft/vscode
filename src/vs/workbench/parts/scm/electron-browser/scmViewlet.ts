@@ -22,7 +22,7 @@ import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/services/scm/common/scm';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -45,7 +45,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
-import { IMessage, InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Command } from 'vs/editor/common/modes';
@@ -57,6 +57,7 @@ import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
 import { firstIndex } from 'vs/base/common/arrays';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ThrottledDelayer } from 'vs/base/common/async';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -684,6 +685,14 @@ class ResourceGroupSplicer {
 	}
 }
 
+function convertValidationType(type: InputValidationType): MessageType {
+	switch (type) {
+		case InputValidationType.Information: return MessageType.INFO;
+		case InputValidationType.Warning: return MessageType.WARNING;
+		case InputValidationType.Error: return MessageType.ERROR;
+	}
+}
+
 export class RepositoryPanel extends ViewletPanel {
 
 	private cachedHeight: number | undefined = undefined;
@@ -764,62 +773,31 @@ export class RepositoryPanel extends ViewletPanel {
 			this.inputBox.setPlaceHolder(placeholder);
 		};
 
-		const validation = (text: string): IMessage => {
-			const setting = this.configurationService.getValue<'always' | 'warn' | 'off'>('scm.inputCounter');
+		const validationDelayer = new ThrottledDelayer(200);
 
-			if (setting === 'off') {
-				return null;
-			}
+		const validate = () => {
+			validationDelayer.trigger(async (): TPromise<any> => {
+				const result = await this.repository.input.validateInput(this.inputBox.value, this.inputBox.inputElement.selectionStart);
 
-			let position = this.inputBox.inputElement.selectionStart;
-			let start = 0, end;
-			let match: RegExpExecArray;
-			const regex = /\r?\n/g;
-
-			while ((match = regex.exec(text)) && position > match.index) {
-				start = match.index + match[0].length;
-			}
-
-			end = match ? match.index : text.length;
-
-			const line = text.substring(start, end);
-
-			const lineWarningLength = this.repository.input.lineWarningLength;
-
-			if (lineWarningLength === undefined) {
-				return {
-					content: localize('commitMessageInfo', "{0} characters in current line", text.length),
-					type: MessageType.INFO
-				};
-			}
-
-			if (line.length <= lineWarningLength) {
-				if (setting !== 'always') {
-					return null;
+				if (!result) {
+					this.inputBox.inputElement.removeAttribute('aria-invalid');
+					this.inputBox.hideMessage();
+				} else {
+					this.inputBox.inputElement.setAttribute('aria-invalid', 'true');
+					this.inputBox.showMessage({ content: result.message, type: convertValidationType(result.type) });
 				}
-
-				return {
-					content: localize('commitMessageCountdown', "{0} characters left in current line", lineWarningLength - line.length),
-					type: MessageType.INFO
-				};
-			} else {
-				return {
-					content: localize('commitMessageWarning', "{0} characters over {1} in current line", line.length - lineWarningLength, lineWarningLength),
-					type: MessageType.WARNING
-				};
-			}
+			});
 		};
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
-			flexibleHeight: true,
-			validationOptions: { validation: validation }
-		});
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
+		this.inputBox.onDidChange(validate, null, this.disposables);
+
 		const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
 		const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
-		anyEvent<any>(onKeyUp, onMouseUp)(() => this.inputBox.validate(), null, this.disposables);
+		anyEvent<any>(onKeyUp, onMouseUp)(() => validate(), null, this.disposables);
 
 		this.inputBox.value = this.repository.input.value;
 		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);

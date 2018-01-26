@@ -140,15 +140,20 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this._placeholder = placeholder;
 	}
 
-	private _lineWarningLength: number | undefined;
+	private _validationProvider: vscode.SourceControlInputBoxValidationProvider;
 
-	get lineWarningLength(): number | undefined {
-		return this._lineWarningLength;
+	get validationProvider(): vscode.SourceControlInputBoxValidationProvider {
+		return this._validationProvider;
 	}
 
-	set lineWarningLength(lineWarningLength: number) {
-		this._proxy.$setLineWarningLength(this._sourceControlHandle, lineWarningLength);
-		this._lineWarningLength = lineWarningLength;
+	set validationProvider(provider: vscode.SourceControlInputBoxValidationProvider) {
+		if (!provider || typeof provider.validateInput !== 'function') {
+			console.warn('INVALID SCM input box validation provider');
+			return;
+		}
+
+		this._validationProvider = provider;
+		this._proxy.$setValidationProviderIsEnabled(this._sourceControlHandle, true);
 	}
 
 	constructor(private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
@@ -566,5 +571,23 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 
 		await group.$executeResourceCommand(handle);
+	}
+
+	async $validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined> {
+		this.logService.trace('ExtHostSCM#$validateInput', sourceControlHandle);
+
+		const sourceControl = this._sourceControls.get(sourceControlHandle);
+
+		if (!sourceControl) {
+			return TPromise.as(undefined);
+		}
+
+		const result = await sourceControl.inputBox.validationProvider.validateInput(value, cursorPosition);
+
+		if (!result) {
+			return TPromise.as(undefined);
+		}
+
+		return [result.message, result.type];
 	}
 }

@@ -946,6 +946,16 @@
           "type": "boolean",
           "default": true,
           "description": "%config.showInlineOpenFileAction%"
+        },
+        "git.inputValidation": {
+          "type": "string",
+          "enum": [
+            "always",
+            "warn",
+            "off"
+          ],
+          "default": "warn",
+          "description": "%config.inputValidation%"
         }
       }
     },
