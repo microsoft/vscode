@@ -894,7 +894,7 @@ function updateResource(project, slug, xlfFile, apiHostname, credentials) {
 }
 // cache resources
 var _coreAndExtensionResources;
-function pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language) {
+function pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, includeExternalExtensions) {
     if (!_coreAndExtensionResources) {
         _coreAndExtensionResources = [];
         // editor and workbench
@@ -905,9 +905,11 @@ function pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language
         var extensionsToLocalize_1 = Object.create(null);
         glob.sync('./extensions/**/*.nls.json').forEach(function (extension) { return extensionsToLocalize_1[extension.split('/')[2]] = true; });
         glob.sync('./extensions/*/node_modules/vscode-nls').forEach(function (extension) { return extensionsToLocalize_1[extension.split('/')[2]] = true; });
-        for (var _i = 0, externalExtensionsWithTranslations_1 = externalExtensionsWithTranslations; _i < externalExtensionsWithTranslations_1.length; _i++) {
-            var extension = externalExtensionsWithTranslations_1[_i];
-            extensionsToLocalize_1[extension] = true;
+        if (includeExternalExtensions) {
+            for (var _i = 0, externalExtensionsWithTranslations_1 = externalExtensionsWithTranslations; _i < externalExtensionsWithTranslations_1.length; _i++) {
+                var extension = externalExtensionsWithTranslations_1[_i];
+                extensionsToLocalize_1[extension] = true;
+            }
         }
         Object.keys(extensionsToLocalize_1).forEach(function (extension) {
             _coreAndExtensionResources.push({ name: extension, project: extensionsProject });
@@ -1025,7 +1027,7 @@ function createI18nFile(originalFilePath, messages) {
 }
 var i18nPackVersion = "1.0.0";
 function pullI18nPackFiles(apiHostname, username, password, language) {
-    return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language).pipe(prepareI18nPackFiles());
+    return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, true).pipe(prepareI18nPackFiles());
 }
 exports.pullI18nPackFiles = pullI18nPackFiles;
 function prepareI18nPackFiles() {
@@ -1034,32 +1036,26 @@ function prepareI18nPackFiles() {
     var extensionsPacks = {};
     return event_stream_1.through(function (xlf) {
         var stream = this;
+        var project = path.dirname(xlf.path);
+        var resource = path.basename(xlf.path, '.xlf');
+        console.log(resource);
         var parsePromise = XLF.parse(xlf.contents.toString());
         parsePromises.push(parsePromise);
         parsePromise.then(function (resolvedFiles) {
             resolvedFiles.forEach(function (file) {
                 var path = file.originalFilePath;
                 var firstSlash = path.indexOf('/');
-                var firstSegment = path.substr(0, firstSlash);
-                if (firstSegment === 'src') {
-                    mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
-                }
-                else if (firstSegment === 'extensions') {
+                if (project === extensionsProject) {
+                    var extPack = extensionsPacks[resource];
+                    if (!extPack) {
+                        extPack = extensionsPacks[resource] = { version: i18nPackVersion, contents: {} };
+                    }
                     var secondSlash = path.indexOf('/', firstSlash + 1);
-                    var secondSegment = path.substring(firstSlash + 1, secondSlash);
-                    if (secondSegment) {
-                        var extPack = extensionsPacks[secondSegment];
-                        if (!extPack) {
-                            extPack = extensionsPacks[secondSegment] = { version: i18nPackVersion, contents: {} };
-                        }
-                        extPack.contents[path.substr(secondSlash + 1)] = file.messages;
-                    }
-                    else {
-                        console.log('Unknown second segment ' + path);
-                    }
+                    var key = externalExtensionsWithTranslations.indexOf(resource) !== -1 ? path : path.substr(secondSlash + 1);
+                    extPack.contents[key] = file.messages;
                 }
                 else {
-                    console.log('Unknown first segment ' + path);
+                    mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
                 }
             });
         });

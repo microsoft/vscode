@@ -60,7 +60,7 @@ export const pseudoLanguage: Language = { id: 'pseudo', folderName: 'pseudo', tr
 
 // non built-in extensions also that are transifex and need to be part of the language packs
 const externalExtensionsWithTranslations = [
-	"azure-account",
+	//"azure-account",
 	"vscode-chrome-debug",
 	"vscode-chrome-debug-core",
 	"vscode-node-debug",
@@ -1011,7 +1011,7 @@ function updateResource(project: string, slug: string, xlfFile: File, apiHostnam
 // cache resources
 let _coreAndExtensionResources: Resource[];
 
-export function pullCoreAndExtensionsXlfFiles(apiHostname: string, username: string, password: string, language: Language): NodeJS.ReadableStream {
+export function pullCoreAndExtensionsXlfFiles(apiHostname: string, username: string, password: string, language: Language, includeExternalExtensions?: boolean): NodeJS.ReadableStream {
 	if (!_coreAndExtensionResources) {
 		_coreAndExtensionResources = [];
 		// editor and workbench
@@ -1024,8 +1024,10 @@ export function pullCoreAndExtensionsXlfFiles(apiHostname: string, username: str
 		glob.sync('./extensions/**/*.nls.json', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
 		glob.sync('./extensions/*/node_modules/vscode-nls', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
 
-		for (let extension of externalExtensionsWithTranslations) {
-			extensionsToLocalize[extension] = true;
+		if (includeExternalExtensions) {
+			for (let extension of externalExtensionsWithTranslations) {
+				extensionsToLocalize[extension] = true;
+			}
 		}
 
 		Object.keys(extensionsToLocalize).forEach(extension => {
@@ -1159,7 +1161,7 @@ interface I18nPack {
 const i18nPackVersion = "1.0.0";
 
 export function pullI18nPackFiles(apiHostname: string, username: string, password: string, language: Language): NodeJS.ReadableStream {
-	return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language).pipe(prepareI18nPackFiles());
+	return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, true).pipe(prepareI18nPackFiles());
 }
 
 export function prepareI18nPackFiles() {
@@ -1168,6 +1170,9 @@ export function prepareI18nPackFiles() {
 	let extensionsPacks: Map<I18nPack> = {};
 	return through(function (this: ThroughStream, xlf: File) {
 		let stream = this;
+		let project = path.dirname(xlf.path);
+		let resource = path.basename(xlf.path, '.xlf');
+		console.log(resource);
 		let parsePromise = XLF.parse(xlf.contents.toString());
 		parsePromises.push(parsePromise);
 		parsePromise.then(
@@ -1175,23 +1180,17 @@ export function prepareI18nPackFiles() {
 				resolvedFiles.forEach(file => {
 					const path = file.originalFilePath;
 					const firstSlash = path.indexOf('/');
-					const firstSegment = path.substr(0, firstSlash);
-					if (firstSegment === 'src') {
-						mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
-					} else if (firstSegment === 'extensions') {
-						const secondSlash = path.indexOf('/', firstSlash + 1);
-						const secondSegment = path.substring(firstSlash + 1, secondSlash);
-						if (secondSegment) {
-							let extPack = extensionsPacks[secondSegment];
-							if (!extPack) {
-								extPack = extensionsPacks[secondSegment] = { version: i18nPackVersion, contents: {} };
-							}
-							extPack.contents[path.substr(secondSlash + 1)] = file.messages;
-						} else {
-							console.log('Unknown second segment ' + path);
+
+					if (project === extensionsProject) {
+						let extPack = extensionsPacks[resource];
+						if (!extPack) {
+							extPack = extensionsPacks[resource] = { version: i18nPackVersion, contents: {} };
 						}
+						const secondSlash = path.indexOf('/', firstSlash + 1);
+						let key = externalExtensionsWithTranslations.indexOf(resource) !== -1 ? path: path.substr(secondSlash + 1);
+						extPack.contents[key] = file.messages;
 					} else {
-						console.log('Unknown first segment ' + path);
+						mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
 					}
 				});
 			}

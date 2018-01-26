@@ -19,7 +19,7 @@ function update(idOrPath) {
 	}
 	let locExtFolder = idOrPath;
 	if (/^\w{2}(-\w+)?$/.test(idOrPath)) {
-		locExtFolder = '../vscode-localization-' + idOrPath;
+		locExtFolder = '../vscode-language-pack-' + idOrPath;
 	}
 	let locExtStat = fs.statSync(locExtFolder);
 	if (!locExtStat || !locExtStat.isDirectory) {
