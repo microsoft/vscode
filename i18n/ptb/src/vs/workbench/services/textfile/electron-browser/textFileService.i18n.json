@@ -6,8 +6,6 @@
 {
 	"saveChangesMessage": "Você quer salvar as alterações feitas para {0}?",
 	"saveChangesMessages": "Você quer salvar as alterações para os seguintes {0} arquivos?",
-	"moreFile": "... 1 arquivo adicional não está mostrado",
-	"moreFiles": "... {0} arquivos adicionais não estão mostrados",
 	"saveAll": "&&Salvar tudo",
 	"save": "&&Salvar",
 	"dontSave": "&&Não Salvar",

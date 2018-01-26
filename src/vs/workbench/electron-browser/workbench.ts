@@ -124,6 +124,8 @@ export interface IWorkbenchStartedInfo {
 	restoredEditors: string[];
 }
 
+type FontAliasingOption = 'default' | 'antialiased' | 'none' | 'auto';
+
 const Identifiers = {
 	WORKBENCH_CONTAINER: 'workbench.main.container',
 	TITLEBAR_PART: 'workbench.parts.titlebar',
@@ -202,7 +204,7 @@ export class Workbench implements IPartService {
 	private inZenMode: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
-	private fontAliasing: string;
+	private fontAliasing: FontAliasingOption;
 	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
@@ -643,7 +645,7 @@ export class Workbench implements IPartService {
 		this.activityBarHidden = !activityBarVisible;
 
 		// Font aliasing
-		this.fontAliasing = this.configurationService.getValue<string>(Workbench.fontAliasingConfigurationKey);
+		this.fontAliasing = this.configurationService.getValue<FontAliasingOption>(Workbench.fontAliasingConfigurationKey);
 
 		// Zen mode
 		this.zenMode = {
@@ -937,10 +939,17 @@ export class Workbench implements IPartService {
 		});
 	}
 
-	private setFontAliasing(aliasing: string) {
+	private setFontAliasing(aliasing: FontAliasingOption) {
 		this.fontAliasing = aliasing;
-
-		document.body.style['-webkit-font-smoothing'] = (aliasing === 'default' ? '' : aliasing);
+		const fontAliasingClassNames = [
+			'monaco-font-aliasing-antialiased',
+			'monaco-font-aliasing-none',
+			'monaco-font-aliasing-auto'
+		];
+		document.body.classList.remove(...fontAliasingClassNames);
+		if (aliasing !== 'default') {
+			document.body.classList.add(`monaco-font-aliasing-${aliasing}`);
+		}
 	}
 
 	public dispose(reason = ShutdownReason.QUIT): void {
@@ -1088,7 +1097,7 @@ export class Workbench implements IPartService {
 
 		this.setPanelPositionFromStorageOrConfig();
 
-		const fontAliasing = this.configurationService.getValue<string>(Workbench.fontAliasingConfigurationKey);
+		const fontAliasing = this.configurationService.getValue<FontAliasingOption>(Workbench.fontAliasingConfigurationKey);
 		if (fontAliasing !== this.fontAliasing) {
 			this.setFontAliasing(fontAliasing);
 		}

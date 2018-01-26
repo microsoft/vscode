@@ -5,6 +5,8 @@
 'use strict';
 
 import * as path from 'path';
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorInformation, Color, ColorPresentation, LanguageConfiguration } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
@@ -12,10 +14,7 @@ import TelemetryReporter from 'vscode-extension-telemetry';
 import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
 import { DocumentColorRequest, DocumentColorParams, ColorPresentationParams, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
-
-import * as nls from 'vscode-nls';
 import { hash } from './utils/hash';
-let localize = nls.loadMessageBundle();
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');

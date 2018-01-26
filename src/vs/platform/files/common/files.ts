@@ -83,7 +83,7 @@ export interface IFileService {
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat>;
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat>;
 
 	/**
 	 * Moves the file to a new path identified by the resource.
@@ -457,6 +457,28 @@ export interface IStringStream {
 	on(event: 'error', callback: (err: any) => void): void;
 	on(event: 'end', callback: () => void): void;
 	on(event: string, callback: any): void;
+}
+
+/**
+ * Text snapshot that works like an iterator.
+ * Will try to return chunks of roughly ~64KB size.
+ * Will return null when finished.
+ */
+export interface ITextSnapshot {
+	read(): string;
+}
+
+/**
+ * Helper method to convert a snapshot into its full string form.
+ */
+export function snapshotToString(snapshot: ITextSnapshot): string {
+	const chunks: string[] = [];
+	let chunk: string;
+	while (typeof (chunk = snapshot.read()) === 'string') {
+		chunks.push(chunk);
+	}
+
+	return chunks.join('');
 }
 
 /**

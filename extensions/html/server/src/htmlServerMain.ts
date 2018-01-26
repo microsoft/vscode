@@ -18,10 +18,6 @@ import { getDocumentContext } from './utils/documentContext';
 import uri from 'vscode-uri';
 import { formatError, runSafe } from './utils/errors';
 
-import * as nls from 'vscode-nls';
-
-nls.config(process.env['VSCODE_NLS_CONFIG']);
-
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
 }

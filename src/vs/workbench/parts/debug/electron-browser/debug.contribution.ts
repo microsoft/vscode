@@ -223,7 +223,7 @@ if (isMacintosh) {
 	const registerTouchBarEntry = (id: string, title: string, order, when: ContextKeyExpr, icon: string) => {
 		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
 			command: {
-				id, title, iconPath: URI.parse(require.toUrl(`vs/workbench/parts/debug/electron-browser/media/${icon}`)).fsPath
+				id, title, iconPath: { dark: URI.parse(require.toUrl(`vs/workbench/parts/debug/electron-browser/media/${icon}`)).fsPath }
 			},
 			when,
 			group: '9_debug',

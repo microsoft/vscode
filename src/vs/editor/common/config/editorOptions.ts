@@ -103,6 +103,11 @@ export interface IEditorMinimapOptions {
 	 */
 	enabled?: boolean;
 	/**
+	 * Control the side of the minimap in editor.
+	 * Defaults to 'right'.
+	 */
+	side?: 'right' | 'left';
+	/**
 	 * Control the rendering of the minimap slider.
 	 * Defaults to 'mouseover'.
 	 */
@@ -453,6 +458,10 @@ export interface IEditorOptions {
 	 */
 	wordBasedSuggestions?: boolean;
 	/**
+	 * The history mode for suggestions.
+	 */
+	selectSuggestions?: string;
+	/**
 	 * The font size for the suggest widget.
 	 * Defaults to the editor font size.
 	 */
@@ -740,6 +749,7 @@ export interface InternalEditorScrollbarOptions {
 
 export interface InternalEditorMinimapOptions {
 	readonly enabled: boolean;
+	readonly side: 'right' | 'left';
 	readonly showSlider: 'always' | 'mouseover';
 	readonly renderCharacters: boolean;
 	readonly maxColumn: number;
@@ -821,6 +831,7 @@ export interface EditorContribOptions {
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly wordBasedSuggestions: boolean;
+	readonly selectSuggestions: 'never' | 'byRecency' | 'byPrefix';
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly selectionHighlight: boolean;
@@ -1019,6 +1030,7 @@ export class InternalEditorOptions {
 			&& a.contentWidth === b.contentWidth
 			&& a.contentHeight === b.contentHeight
 			&& a.renderMinimap === b.renderMinimap
+			&& a.minimapLeft === b.minimapLeft
 			&& a.minimapWidth === b.minimapWidth
 			&& a.viewportColumn === b.viewportColumn
 			&& a.verticalScrollbarWidth === b.verticalScrollbarWidth
@@ -1101,6 +1113,7 @@ export class InternalEditorOptions {
 	private static _equalsMinimapOptions(a: InternalEditorMinimapOptions, b: InternalEditorMinimapOptions): boolean {
 		return (
 			a.enabled === b.enabled
+			&& a.side === b.side
 			&& a.showSlider === b.showSlider
 			&& a.renderCharacters === b.renderCharacters
 			&& a.maxColumn === b.maxColumn
@@ -1168,6 +1181,7 @@ export class InternalEditorOptions {
 			&& a.acceptSuggestionOnCommitCharacter === b.acceptSuggestionOnCommitCharacter
 			&& a.snippetSuggestions === b.snippetSuggestions
 			&& a.wordBasedSuggestions === b.wordBasedSuggestions
+			&& a.selectSuggestions === b.selectSuggestions
 			&& a.suggestFontSize === b.suggestFontSize
 			&& a.suggestLineHeight === b.suggestLineHeight
 			&& a.selectionHighlight === b.selectionHighlight
@@ -1288,6 +1302,10 @@ export interface EditorLayoutInfo {
 	 */
 	readonly contentHeight: number;
 
+	/**
+	 * The position for the minimap
+	 */
+	readonly minimapLeft: number;
 	/**
 	 * The width of the minimap
 	 */
@@ -1553,6 +1571,7 @@ export class EditorOptionsValidator {
 		}
 		return {
 			enabled: _boolean(opts.enabled, defaults.enabled),
+			side: _stringSet<'right' | 'left'>(opts.side, defaults.side, ['right', 'left']),
 			showSlider: _stringSet<'always' | 'mouseover'>(opts.showSlider, defaults.showSlider, ['always', 'mouseover']),
 			renderCharacters: _boolean(opts.renderCharacters, defaults.renderCharacters),
 			maxColumn: _clampedInt(opts.maxColumn, defaults.maxColumn, 1, 10000),
@@ -1693,6 +1712,7 @@ export class EditorOptionsValidator {
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippetSuggestions, ['top', 'bottom', 'inline', 'none']),
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
+			selectSuggestions: _stringSet<'never' | 'byRecency' | 'byPrefix'>(opts.selectSuggestions, defaults.selectSuggestions, ['never', 'byRecency', 'byPrefix']),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
@@ -1769,6 +1789,7 @@ export class InternalEditorOptionsFactory {
 				scrollbar: opts.viewInfo.scrollbar,
 				minimap: {
 					enabled: (accessibilityIsOn ? false : opts.viewInfo.minimap.enabled), // DISABLED WHEN SCREEN READER IS ATTACHED
+					side: opts.viewInfo.minimap.side,
 					renderCharacters: opts.viewInfo.minimap.renderCharacters,
 					showSlider: opts.viewInfo.minimap.showSlider,
 					maxColumn: opts.viewInfo.minimap.maxColumn
@@ -1792,6 +1813,7 @@ export class InternalEditorOptionsFactory {
 				acceptSuggestionOnCommitCharacter: opts.contribInfo.acceptSuggestionOnCommitCharacter,
 				snippetSuggestions: opts.contribInfo.snippetSuggestions,
 				wordBasedSuggestions: opts.contribInfo.wordBasedSuggestions,
+				selectSuggestions: opts.contribInfo.selectSuggestions,
 				suggestFontSize: opts.contribInfo.suggestFontSize,
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -1850,6 +1872,7 @@ export class InternalEditorOptionsFactory {
 			scrollbarArrowSize: opts.viewInfo.scrollbar.arrowSize,
 			verticalScrollbarHasArrows: opts.viewInfo.scrollbar.verticalHasArrows,
 			minimap: opts.viewInfo.minimap.enabled,
+			minimapSide: opts.viewInfo.minimap.side,
 			minimapRenderCharacters: opts.viewInfo.minimap.renderCharacters,
 			minimapMaxColumn: opts.viewInfo.minimap.maxColumn,
 			pixelRatio: env.pixelRatio
@@ -1982,6 +2005,7 @@ export interface IEditorLayoutProviderOpts {
 	horizontalScrollbarHeight: number;
 
 	minimap: boolean;
+	minimapSide: string;
 	minimapRenderCharacters: boolean;
 	minimapMaxColumn: number;
 	pixelRatio: number;
@@ -2007,6 +2031,7 @@ export class EditorLayoutProvider {
 		const scrollbarArrowSize = _opts.scrollbarArrowSize | 0;
 		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight | 0;
 		const minimap = _opts.minimap;
+		const minimapSide = _opts.minimapSide;
 		const minimapRenderCharacters = _opts.minimapRenderCharacters;
 		const minimapMaxColumn = _opts.minimapMaxColumn | 0;
 		const pixelRatio = _opts.pixelRatio;
@@ -2022,17 +2047,19 @@ export class EditorLayoutProvider {
 			glyphMarginWidth = lineHeight;
 		}
 
-		const glyphMarginLeft = 0;
-		const lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
-		const decorationsLeft = lineNumbersLeft + lineNumbersWidth;
-		const contentLeft = decorationsLeft + lineDecorationsWidth;
+		let glyphMarginLeft = 0;
+		let lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
+		let decorationsLeft = lineNumbersLeft + lineNumbersWidth;
+		let contentLeft = decorationsLeft + lineDecorationsWidth;
 
 		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
 		let renderMinimap: RenderMinimap;
+		let minimapLeft: number;
 		let minimapWidth: number;
 		let contentWidth: number;
 		if (!minimap) {
+			minimapLeft = 0;
 			minimapWidth = 0;
 			renderMinimap = RenderMinimap.None;
 			contentWidth = remainingWidth;
@@ -2064,6 +2091,16 @@ export class EditorLayoutProvider {
 				minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
 			}
 			contentWidth = remainingWidth - minimapWidth;
+
+			if (minimapSide === 'left') {
+				minimapLeft = 0;
+				glyphMarginLeft += minimapWidth;
+				lineNumbersLeft += minimapWidth;
+				decorationsLeft += minimapWidth;
+				contentLeft += minimapWidth;
+			} else {
+				minimapLeft = outerWidth - minimapWidth - verticalScrollbarWidth;
+			}
 		}
 
 		const viewportColumn = Math.max(1, Math.floor((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth));
@@ -2091,6 +2128,7 @@ export class EditorLayoutProvider {
 			contentHeight: outerHeight,
 
 			renderMinimap: renderMinimap,
+			minimapLeft: minimapLeft,
 			minimapWidth: minimapWidth,
 
 			viewportColumn: viewportColumn,
@@ -2206,6 +2244,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		},
 		minimap: {
 			enabled: true,
+			side: 'right',
 			showSlider: 'mouseover',
 			renderCharacters: true,
 			maxColumn: 120
@@ -2229,6 +2268,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		acceptSuggestionOnCommitCharacter: true,
 		snippetSuggestions: 'inline',
 		wordBasedSuggestions: true,
+		selectSuggestions: 'byRecency',
 		suggestFontSize: 0,
 		suggestLineHeight: 0,
 		selectionHighlight: true,

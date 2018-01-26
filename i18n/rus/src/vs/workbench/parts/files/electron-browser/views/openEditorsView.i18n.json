@@ -6,11 +6,5 @@
 {
 	"openEditors": "Открытые редакторы",
 	"openEditosrSection": "Раздел открытых редакторов",
-	"dirtyCounter": "Не сохранено: {0}",
-	"saveAll": "Сохранить все",
-	"closeAllUnmodified": "Закрыть без изменений",
-	"closeAll": "Закрыть все",
-	"compareWithSaved": "Сравнить с сохраненным",
-	"close": "Закрыть",
-	"closeOthers": "Закрыть другие"
+	"dirtyCounter": "Не сохранено: {0}"
 }

@@ -45,7 +45,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { PatternInputWidget, ExcludePatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
 import { SearchRenderer, SearchDataSource, SearchSorter, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget, ISearchWidgetOptions } from 'vs/workbench/parts/search/browser/searchWidget';
-import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, SearchAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, SearchAction, CancelSearchAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import Severity from 'vs/base/common/severity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -54,12 +54,11 @@ import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
-import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export class SearchViewlet extends Viewlet {
@@ -82,6 +81,7 @@ export class SearchViewlet extends Viewlet {
 	private folderMatchFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
 	private searchSubmitted: boolean;
+	private searching: boolean;
 
 	private actions: SearchAction[] = [];
 	private tree: ITree;
@@ -120,9 +120,7 @@ export class SearchViewlet extends Viewlet {
 		@IReplaceService private replaceService: IReplaceService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IListService private listService: IListService,
-		@IThemeService protected themeService: IThemeService,
-		@IOutputService private outputService: IOutputService
+		@IThemeService protected themeService: IThemeService
 	) {
 		super(Constants.VIEWLET_ID, telemetryService, themeService);
 
@@ -499,7 +497,7 @@ export class SearchViewlet extends Viewlet {
 
 			let dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof FileMatch ? obj.resource() : void 0);
 
-			this.tree = new WorkbenchTree(div.getHTMLElement(), {
+			this.tree = this.instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), {
 				dataSource: dataSource,
 				renderer: renderer,
 				sorter: new SearchSorter(),
@@ -509,7 +507,7 @@ export class SearchViewlet extends Viewlet {
 			}, {
 					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
 					keyboardSupport: false
-				}, this.contextKeyService, this.listService, this.themeService);
+				});
 
 			this.tree.setInput(this.viewModel.searchResult);
 			this.toUnbind.push(renderer);
@@ -786,6 +784,10 @@ export class SearchViewlet extends Viewlet {
 
 	public isSearchSubmitted(): boolean {
 		return this.searchSubmitted;
+	}
+
+	public isSearching(): boolean {
+		return this.searching;
 	}
 
 	public hasSearchResults(): boolean {
@@ -1069,16 +1071,17 @@ export class SearchViewlet extends Viewlet {
 			this.progressService.show(progressTotal);
 
 		this.searchWidget.searchInput.clearMessage();
+		this.searching = true;
+		setTimeout(() => {
+			if (this.searching) {
+				this.changeActionAtPosition(0, this.instantiationService.createInstance(CancelSearchAction, CancelSearchAction.ID, CancelSearchAction.LABEL));
+			}
+		}, 2000);
 		this.showEmptyStage();
 
-		let isDone = false;
-		const outputChannel = this.outputService.getChannel(Constants.SEARCH_OUTPUT_CHANNEL_ID);
 		let onComplete = (completed?: ISearchComplete) => {
-			if (query.useRipgrep) {
-				outputChannel.append('\n');
-			}
-
-			isDone = true;
+			this.searching = false;
+			this.changeActionAtPosition(0, this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL));
 
 			// Complete up to 100% as needed
 			if (completed && !query.useRipgrep) {
@@ -1206,14 +1209,11 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		let onError = (e: any) => {
-			if (query.useRipgrep) {
-				outputChannel.append('\n');
-			}
-
 			if (errors.isPromiseCanceledError(e)) {
 				onComplete(null);
 			} else {
-				isDone = true;
+				this.searching = false;
+				this.changeActionAtPosition(0, this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL));
 				progressRunner.done();
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
@@ -1231,15 +1231,11 @@ export class SearchViewlet extends Viewlet {
 			if (p.worked) {
 				worked = p.worked;
 			}
-
-			if (p.message) {
-				outputChannel.append(p.message);
-			}
 		};
 
 		// Handle UI updates in an interval to show frequent progress and results
 		let uiRefreshHandle = setInterval(() => {
-			if (isDone) {
+			if (!this.searching) {
 				window.clearInterval(uiRefreshHandle);
 				return;
 			}
@@ -1438,6 +1434,11 @@ export class SearchViewlet extends Viewlet {
 
 	public getActions(): IAction[] {
 		return this.actions;
+	}
+
+	private changeActionAtPosition(index: number, newAction: SearchAction): void {
+		this.actions.splice(index, 1, newAction);
+		this.updateTitleArea();
 	}
 
 	public shutdown(): void {

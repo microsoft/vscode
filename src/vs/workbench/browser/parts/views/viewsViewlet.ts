@@ -122,8 +122,10 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 	}
 
 	setExpanded(expanded: boolean): void {
-		this.updateTreeVisibility(this.tree, expanded);
-		super.setExpanded(expanded);
+		if (this.isExpanded() !== expanded) {
+			this.updateTreeVisibility(this.tree, expanded);
+			super.setExpanded(expanded);
+		}
 	}
 
 	protected renderHeader(container: HTMLElement): void {

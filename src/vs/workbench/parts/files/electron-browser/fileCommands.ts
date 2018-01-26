@@ -68,7 +68,6 @@ export const SAVE_ALL_LABEL = nls.localize('saveAll', "Save All");
 export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.files.action.saveAllInGroup';
 
 export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
-export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
 
 export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
 export const DirtyEditorContext = new RawContextKey<boolean>('dirtyEditor', false);
@@ -475,6 +474,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, resource: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+
+		if (resources.length === 1) {
+			// If only one resource is selected explictly call save since the behavior is a bit different than save all #41841
+			return save(resources[0], false, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+		}
 		return saveAll(resources, editorService, accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 	}
 });
@@ -495,9 +499,9 @@ CommandsRegistry.registerCommand({
 			saveAllArg = true;
 		} else {
 			const fileService = accessor.get(IFileService);
+			saveAllArg = [];
 			contexts.forEach(context => {
 				const editorGroup = context.group;
-				saveAllArg = [];
 				editorGroup.getEditors().forEach(editor => {
 					const resource = toResource(editor, { supportSideBySide: true });
 					if (resource && (resource.scheme === 'untitled' || fileService.canHandleResource(resource))) {

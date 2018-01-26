@@ -6,10 +6,13 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IRawBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext, IBreakpointsDelta, ISourceBreakpointData, IFunctionBreakpointData } from '../node/extHost.protocol';
+import {
+	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
+	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto
+} from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import severity from 'vs/base/common/severity';
 
@@ -59,15 +62,15 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 			// set up a handler to send more
 			this._toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
 				if (e) {
-					const delta: IBreakpointsDelta = {};
+					const delta: IBreakpointsDeltaDto = {};
 					if (e.added) {
-						delta.added = this.toWire(e.added);
+						delta.added = this.convertToDto(e.added);
 					}
 					if (e.removed) {
 						delta.removed = e.removed.map(x => x.getId());
 					}
 					if (e.changed) {
-						delta.changed = this.toWire(e.changed);
+						delta.changed = this.convertToDto(e.changed);
 					}
 
 					if (delta.added || delta.removed || delta.changed) {
@@ -81,7 +84,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 			const fbps = this.debugService.getModel().getFunctionBreakpoints();
 			if (bps.length > 0 || fbps.length > 0) {
 				this._proxy.$acceptBreakpointsDelta({
-					added: this.toWire(bps).concat(this.toWire(fbps))
+					added: this.convertToDto(bps).concat(this.convertToDto(fbps))
 				});
 			}
 		}
@@ -89,30 +92,57 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		return TPromise.wrap<void>(undefined);
 	}
 
-	private toWire(bps: (IBreakpoint | IFunctionBreakpoint)[]): (ISourceBreakpointData | IFunctionBreakpointData)[] {
+	public $registerBreakpoints(DTOs: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): TPromise<void> {
 
+		for (let dto of DTOs) {
+			if (dto.type === 'sourceMulti') {
+				const rawbps = dto.lines.map(l =>
+					<IRawBreakpoint>{
+						id: l.id,
+						enabled: l.enabled,
+						lineNumber: l.line + 1,
+						column: l.character > 0 ? l.character + 1 : 0,
+						condition: l.condition,
+						hitCondition: l.hitCondition
+					}
+				);
+				this.debugService.addBreakpoints(uri.revive(dto.uri), rawbps);
+			} else if (dto.type === 'function') {
+				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
+			}
+		}
+		return void 0;
+	}
+
+	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): TPromise<void> {
+		breakpointIds.forEach(id => this.debugService.removeBreakpoints(id));
+		functionBreakpointIds.forEach(id => this.debugService.removeFunctionBreakpoints(id));
+		return void 0;
+	}
+
+	private convertToDto(bps: (IBreakpoint | IFunctionBreakpoint)[]): (ISourceBreakpointDto | IFunctionBreakpointDto)[] {
 		return bps.map(bp => {
 			if ('name' in bp) {
 				const fbp = <IFunctionBreakpoint>bp;
-				return <IFunctionBreakpointData>{
+				return <IFunctionBreakpointDto>{
 					type: 'function',
-					id: bp.getId(),
-					enabled: bp.enabled,
+					id: fbp.getId(),
+					enabled: fbp.enabled,
 					functionName: fbp.name,
-					hitCondition: bp.hitCondition,
-					/* condition: bp.condition */
+					hitCondition: fbp.hitCondition,
+					/* condition: fbp.condition */
 				};
 			} else {
 				const sbp = <IBreakpoint>bp;
-				return <ISourceBreakpointData>{
+				return <ISourceBreakpointDto>{
 					type: 'source',
-					id: bp.getId(),
-					enabled: bp.enabled,
+					id: sbp.getId(),
+					enabled: sbp.enabled,
 					condition: sbp.condition,
-					hitCondition: bp.hitCondition,
+					hitCondition: sbp.hitCondition,
 					uri: sbp.uri,
 					line: sbp.lineNumber > 0 ? sbp.lineNumber - 1 : 0,
-					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0
+					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0,
 				};
 			}
 		});

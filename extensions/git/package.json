@@ -726,7 +726,7 @@
         },
         {
           "command": "git.openFile2",
-          "when": "scmProvider == git && scmResourceGroup == merge",
+          "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction",
           "group": "inline0"
         },
         {
@@ -756,7 +756,7 @@
         },
         {
           "command": "git.openFile2",
-          "when": "scmProvider == git && scmResourceGroup == index",
+          "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction",
           "group": "inline0"
         },
         {
@@ -796,7 +796,7 @@
         },
         {
           "command": "git.openFile2",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction",
           "group": "inline0"
         },
         {
@@ -936,6 +936,16 @@
           "type": "boolean",
           "default": true,
           "description": "%config.decorations.enabled%"
+        },
+        "git.promptToSaveFilesBeforeCommit": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.promptToSaveFilesBeforeCommit%"
+        },
+        "git.showInlineOpenFileAction": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.showInlineOpenFileAction%"
         }
       }
     },
@@ -1001,7 +1011,7 @@
     "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
     "vscode-extension-telemetry": "0.0.8",
-    "vscode-nls": "2.0.2",
+    "vscode-nls": "^3.1.2",
     "which": "^1.3.0"
   },
   "devDependencies": {

@@ -6,8 +6,6 @@
 {
 	"saveChangesMessage": "{0} dosyasına yaptığınız değişiklikleri kaydetmek istiyor musunuz?",
 	"saveChangesMessages": "Aşağıdaki {0} dosyaya yaptığınız değişiklikleri kaydetmek istiyor musunuz?",
-	"moreFile": "...1 ek dosya gösterilmiyor",
-	"moreFiles": "...{0} ek dosya gösterilmiyor",
 	"saveAll": "&&Tümünü Kaydet",
 	"save": "&&Kaydet",
 	"dontSave": "Kaydet&&me",

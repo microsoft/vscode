@@ -353,11 +353,7 @@ export class ExtHostApiCommands {
 			if (value.rejectReason) {
 				return TPromise.wrapError<types.WorkspaceEdit>(new Error(value.rejectReason));
 			}
-			let workspaceEdit = new types.WorkspaceEdit();
-			for (let edit of value.edits) {
-				workspaceEdit.replace(edit.resource, typeConverters.toRange(edit.range), edit.newText);
-			}
-			return workspaceEdit;
+			return typeConverters.WorkspaceEdit.to(value);
 		});
 	}
 
@@ -417,8 +413,11 @@ export class ExtHostApiCommands {
 				} else {
 					const ret = new types.CodeAction(
 						codeAction.title,
-						typeConverters.WorkspaceEdit.to(codeAction.edit)
+						codeAction.kind ? new types.CodeActionKind(codeAction.kind) : undefined
 					);
+					if (codeAction.edit) {
+						ret.edit = typeConverters.WorkspaceEdit.to(codeAction.edit);
+					}
 					return ret;
 				}
 			});

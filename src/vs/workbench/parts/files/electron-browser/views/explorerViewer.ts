@@ -56,6 +56,7 @@ import { extractResources } from 'vs/workbench/browser/editor';
 import { relative } from 'path';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { distinctParents } from 'vs/base/common/resources';
+import { WorkbenchTree, multiSelectModifierSettingKey } from 'vs/platform/list/browser/listService';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -279,16 +280,15 @@ export class FileRenderer implements IRenderer {
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
-		const done = once((commit: boolean) => {
+		const done = once((commit: boolean, blur: boolean) => {
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
 				editableData.action.run({ value: inputBox.value });
 			}
 
-			const restoreFocus = document.activeElement === inputBox.inputElement; // https://github.com/Microsoft/vscode/issues/20269
 			setTimeout(() => {
-				if (restoreFocus) {
+				if (!blur) { // https://github.com/Microsoft/vscode/issues/20269
 					tree.DOMFocus();
 				}
 				lifecycle.dispose(toDispose);
@@ -301,14 +301,14 @@ export class FileRenderer implements IRenderer {
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
-						done(true);
+						done(true, false);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false);
+					done(false, false);
 				}
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-				done(inputBox.isInputValid());
+				done(inputBox.isInputValid(), true);
 			}),
 			label,
 			styler
@@ -330,18 +330,30 @@ export class FileController extends DefaultController implements IDisposable {
 	private contributedContextMenu: IMenu;
 	private toDispose: IDisposable[];
 	private previousSelectionRangeStop: FileStat;
+	private useAltAsMultiSelectModifier: boolean;
 
-	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+	constructor(
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IMenuService private menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ });
 
+		this.useAltAsMultiSelectModifier = configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
 		this.toDispose = [];
-		this.contributedContextMenu = menuService.createMenu(MenuId.ExplorerContext, contextKeyService);
-		this.toDispose.push(this.contributedContextMenu);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+				this.useAltAsMultiSelectModifier = this.configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
+			}
+		}));
 	}
 
 	public onLeftClick(tree: ITree, stat: FileStat | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
@@ -381,7 +393,8 @@ export class FileController extends DefaultController implements IDisposable {
 			return true;
 		}
 
-		if (event.ctrlKey || event.metaKey) {
+		// Allow to multiselect
+		if ((this.useAltAsMultiSelectModifier && event.altKey) || !this.useAltAsMultiSelectModifier && (event.ctrlKey || event.metaKey)) {
 			const selection = tree.getSelection();
 			this.previousSelectionRangeStop = undefined;
 			if (selection.indexOf(stat) >= 0) {
@@ -420,14 +433,19 @@ export class FileController extends DefaultController implements IDisposable {
 			tree.setSelection([stat], payload);
 
 			if (!stat.isDirectory) {
-				this.openEditor(stat, { preserveFocus, sideBySide: event && event.altKey, pinned: isDoubleClick });
+				let sideBySide = false;
+				if (event) {
+					sideBySide = this.useAltAsMultiSelectModifier ? (event.ctrlKey || event.metaKey) : event.altKey;
+				}
+
+				this.openEditor(stat, { preserveFocus, sideBySide, pinned: isDoubleClick });
 			}
 		}
 
 		return true;
 	}
 
-	public onContextMenu(tree: ITree, stat: FileStat | Model, event: ContextMenuEvent): boolean {
+	public onContextMenu(tree: WorkbenchTree, stat: FileStat | Model, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
 		}
@@ -437,13 +455,18 @@ export class FileController extends DefaultController implements IDisposable {
 
 		tree.setFocus(stat);
 
+		if (!this.contributedContextMenu) {
+			this.contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, tree.contextKeyService);
+			this.toDispose.push(this.contributedContextMenu);
+		}
+
 		const anchor = { x: event.posx, y: event.posy };
 		const selection = tree.getSelection();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => {
 				const actions = [];
-				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : undefined, shouldForwardArgs: true }, actions, this.contextMenuService);
+				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
 			onHide: (wasCancelled?: boolean) => {
@@ -451,7 +474,9 @@ export class FileController extends DefaultController implements IDisposable {
 					tree.DOMFocus();
 				}
 			},
-			getActionsContext: () => selection && selection.indexOf(stat) >= 0 ? selection.map((fs: FileStat) => fs.resource) : [stat]
+			getActionsContext: () => selection && selection.indexOf(stat) >= 0
+				? selection.map((fs: FileStat) => fs.resource)
+				: stat instanceof FileStat ? [stat.resource] : []
 		});
 
 		return true;
@@ -945,7 +970,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 				const model = this.textFileService.models.get(d);
 
-				return this.backupFileService.backupResource(moved, model.getValue(), model.getVersionId());
+				return this.backupFileService.backupResource(moved, model.createSnapshot(), model.getVersionId());
 			}))
 
 				// 2. soft revert all dirty since we have backed up their contents

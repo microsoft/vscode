@@ -31,6 +31,7 @@ import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEdi
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { SAVE_FILE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -262,7 +263,7 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 
 	resolverService.createModelReference(resource).then(reference => {
 		const model = reference.object as ITextFileEditorModel;
-		const localModelValue = model.getValue();
+		const localModelSnapshot = model.createSnapshot();
 
 		clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
 
@@ -270,7 +271,7 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 		return model.revert().then(() => {
 
 			// Restore user value (without loosing undo stack)
-			modelService.updateModel(model.textEditorModel, localModelValue);
+			modelService.updateModel(model.textEditorModel, createTextBufferFactoryFromSnapshot(localModelSnapshot));
 
 			// Trigger save
 			return model.save().then(() => {

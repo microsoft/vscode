@@ -26,7 +26,7 @@ import { ViewsRegistry, TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvid
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IViewletViewOptions, IViewOptions, TreeViewsViewletPanel, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import URI from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
@@ -48,9 +48,7 @@ export class TreeView extends TreeViewsViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IListService private listService: IListService,
-		@IThemeService private themeService: IWorkbenchThemeService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IThemeService themeService: IWorkbenchThemeService,
 		@IExtensionService private extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -91,13 +89,10 @@ export class TreeView extends TreeViewsViewletPanel {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.id);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, this.menus);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, this.menus);
-		const tree = new FileIconThemableWorkbenchTree(
+		const tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree,
 			container.getHTMLElement(),
 			{ dataSource, renderer, controller },
-			{ keyboardSupport: false },
-			this.contextKeyService,
-			this.listService,
-			this.themeService
+			{ keyboardSupport: false }
 		);
 
 		tree.contextKeyService.createKey<boolean>(this.id, true);
@@ -250,7 +245,8 @@ class TreeDataSource implements IDataSource {
 				return children;
 			});
 		}
-		return TPromise.as(null);
+
+		return TPromise.as([]);
 	}
 
 	public shouldAutoexpand(tree: ITree, node: ITreeItem): boolean {
@@ -267,6 +263,7 @@ class TreeDataSource implements IDataSource {
 }
 
 interface ITreeExplorerTemplateData {
+	container: HTMLElement;
 	label: HTMLElement;
 	resourceLabel: ResourceLabel;
 	icon: HTMLElement;
@@ -305,14 +302,13 @@ class TreeRenderer implements IRenderer {
 			actionRunner: new MultipleSelectionActionRunner(() => tree.getSelection())
 		});
 
-		return { label, resourceLabel, icon, actionBar };
+		return { container, label, resourceLabel, icon, actionBar };
 	}
 
 	public renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const name = node.label || basename(resource.path);
-		const theme = this.themeService.getTheme();
-		const icon = theme.type === LIGHT ? node.icon : node.iconDark;
+		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 
 		// reset
 		templateData.resourceLabel.clear();
@@ -336,6 +332,14 @@ class TreeRenderer implements IRenderer {
 
 		templateData.actionBar.context = (<TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle });
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
+
+		// Fix when the theme do not show folder icons but parent has opt in icon.
+		DOM.toggleClass(templateData.container, 'parent-has-icon', this.hasParentHasOptInIcon(node, tree));
+	}
+
+	private hasParentHasOptInIcon(node: ITreeItem, tree: ITree): boolean {
+		const parent: ITreeItem = tree.getNavigator(node).parent();
+		return parent ? !!(this.themeService.getTheme().type === LIGHT ? parent.icon : parent.iconDark) : false;
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {

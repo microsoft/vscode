@@ -169,7 +169,7 @@ export function prepareActions(actions: IAction[]): IAction[] {
 	for (let l = 0; l < actions.length; l++) {
 		const a = <any>actions[l];
 		if (types.isUndefinedOrNull(a.order)) {
-			a.order = lastOrder++;
+			a.order = ++lastOrder;
 			orderOffset++;
 		} else {
 			a.order += orderOffset;

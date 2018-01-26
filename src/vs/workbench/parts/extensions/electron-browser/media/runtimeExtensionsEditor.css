@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.runtime-extensions-editor .monaco-list .monaco-list-rows > .monaco-list-row:nth-child(even):not(:hover):not(.focused) {
+.runtime-extensions-editor .monaco-list .monaco-list-rows > .monaco-list-row.odd:not(:hover):not(.focused) {
 	background-color: rgba(130, 130, 130, 0.08);
 }
 

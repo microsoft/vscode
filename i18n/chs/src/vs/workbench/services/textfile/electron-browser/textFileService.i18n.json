@@ -6,8 +6,6 @@
 {
 	"saveChangesMessage": "是否要保存对 {0} 的更改?",
 	"saveChangesMessages": "是否要保存对下列 {0} 个文件的更改?",
-	"moreFile": "...1 个其他文件未显示",
-	"moreFiles": "...{0} 个其他文件未显示",
 	"saveAll": "全部保存(&&S)",
 	"save": "保存(&&S)",
 	"dontSave": "不保存(&&N)",

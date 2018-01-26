@@ -545,7 +545,7 @@ export class Process implements IProcess {
 	}
 
 	public getName(includeRoot: boolean): string {
-		return includeRoot ? `${this.configuration.name} (${resources.basenameOrAuthority(this.session.root.uri)})` : this.configuration.name;
+		return includeRoot && this.session.root ? `${this.configuration.name} (${resources.basenameOrAuthority(this.session.root.uri)})` : this.configuration.name;
 	}
 
 	public get state(): ProcessState {
@@ -560,6 +560,7 @@ export class Process implements IProcess {
 		let source = new Source(raw, this.getId());
 		if (this.sources.has(source.uri.toString())) {
 			source = this.sources.get(source.uri.toString());
+			source.raw = raw;
 		} else {
 			this.sources.set(source.uri.toString(), source);
 		}
@@ -674,7 +675,6 @@ export class Breakpoint implements IBreakpoint {
 	public message: string;
 	public endLineNumber: number;
 	public endColumn: number;
-	private id: string;
 
 	constructor(
 		public uri: uri,
@@ -683,13 +683,13 @@ export class Breakpoint implements IBreakpoint {
 		public enabled: boolean,
 		public condition: string,
 		public hitCondition: string,
-		public adapterData: any
+		public adapterData: any,
+		private id = generateUuid()
 	) {
 		if (enabled === undefined) {
 			this.enabled = true;
 		}
 		this.verified = false;
-		this.id = generateUuid();
 	}
 
 	public getId(): string {
@@ -699,13 +699,11 @@ export class Breakpoint implements IBreakpoint {
 
 export class FunctionBreakpoint implements IFunctionBreakpoint {
 
-	private id: string;
 	public verified: boolean;
 	public idFromAdapter: number;
 
-	constructor(public name: string, public enabled: boolean, public hitCondition: string) {
+	constructor(public name: string, public enabled: boolean, public hitCondition: string, private id = generateUuid()) {
 		this.verified = false;
-		this.id = generateUuid();
 	}
 
 	public getId(): string {
@@ -866,7 +864,7 @@ export class Model implements IModel {
 	}
 
 	public addBreakpoints(uri: uri, rawData: IRawBreakpoint[], fireEvent = true): Breakpoint[] {
-		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, undefined));
+		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, undefined, rawBp.id));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();
@@ -956,8 +954,8 @@ export class Model implements IModel {
 		this._onDidChangeBreakpoints.fire({ changed: changed });
 	}
 
-	public addFunctionBreakpoint(functionName: string): FunctionBreakpoint {
-		const newFunctionBreakpoint = new FunctionBreakpoint(functionName, true, null);
+	public addFunctionBreakpoint(functionName: string, id: string): FunctionBreakpoint {
+		const newFunctionBreakpoint = new FunctionBreakpoint(functionName, true, null, id);
 		this.functionBreakpoints.push(newFunctionBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint] });
 

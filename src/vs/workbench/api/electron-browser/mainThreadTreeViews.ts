@@ -67,7 +67,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				return this.postGetElements(elements);
 			}, err => {
 				this.messageService.show(Severity.Error, err);
-				return null;
+				return [];
 			});
 	}
 
@@ -80,7 +80,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				return this.postGetElements(children);
 			}, err => {
 				this.messageService.show(Severity.Error, err);
-				return null;
+				return [];
 			});
 	}
 

@@ -11,6 +11,5 @@
 	"editableEditorAriaLabel": "Editor de comparação de arquivos texto.",
 	"navigate.next.label": "Próxima Alteração",
 	"navigate.prev.label": "Alteração Anterior",
-	"inlineDiffLabel": "Alternar para exibição embutida",
-	"sideBySideDiffLabel": "Alternar para exibição lado a lado"
+	"toggleIgnoreTrimWhitespace.label": "Ignore espaços em branco"
 }

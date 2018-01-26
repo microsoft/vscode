@@ -15,7 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
-import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver } from './snippetVariables';
+import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver } from './snippetVariables';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -318,7 +318,8 @@ export class SnippetSession {
 				.resolveVariables(new CompositeSnippetVariableResolver([
 					modelBasedVariableResolver,
 					new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
-					new SelectionBasedVariableResolver(model, selection)
+					new SelectionBasedVariableResolver(model, selection),
+					new TimeBasedVariableResolver
 				]));
 
 			const offset = model.getOffsetAt(start) + delta;

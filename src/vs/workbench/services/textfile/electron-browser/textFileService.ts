@@ -30,6 +30,7 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -41,6 +42,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
+		@IModelService modelService: IModelService,
 		@IWindowService private windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IMessageService messageService: IMessageService,
@@ -49,7 +51,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService, historyService, contextKeyService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {

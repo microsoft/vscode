@@ -21,6 +21,9 @@ import 'vs/platform/actions/electron-browser/menusExtensionPoint';
 // Views
 import 'vs/workbench/api/browser/viewsExtensionPoint';
 
+// Localizations
+import 'vs/workbench/api/browser/localizationsExtensionPoint';
+
 // Workbench
 import 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import 'vs/workbench/browser/actions/toggleStatusbarVisibility';

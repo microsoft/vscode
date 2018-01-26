@@ -11,6 +11,5 @@
 	"editableEditorAriaLabel": "Editor de comparación de archivos de texto.",
 	"navigate.next.label": "Cambio siguiente",
 	"navigate.prev.label": "Cambio anterior",
-	"inlineDiffLabel": "Cambiar a vista alineada",
-	"sideBySideDiffLabel": "Cambiar a vista en paralelo"
+	"toggleIgnoreTrimWhitespace.label": "Ignorar espacios en blanco al principio y final"
 }

@@ -18,7 +18,7 @@ import { registerEditorAction, registerEditorContribution, ServicesAccessor, Edi
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
+import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import RenameInputField from './renameInputField';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -190,9 +190,7 @@ class RenameController implements IEditorContribution {
 			this._renameInputVisible.reset();
 			this.editor.focus();
 
-			// start recording of file changes so that we can figure out if a file that
-			// is to be renamed conflicts with another (concurrent) modification
-			const edit = createBulkEdit(this._textModelResolverService, <ICodeEditor>this.editor, this._fileService);
+			const edit = new BulkEdit(this.editor, null, this._textModelResolverService, this._fileService);
 			const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
 			const renameOperation = rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
@@ -206,7 +204,7 @@ class RenameController implements IEditorContribution {
 				}
 				edit.add(result.edits);
 
-				return edit.finish().then(selection => {
+				return edit.perform().then(selection => {
 					if (selection) {
 						this.editor.setSelection(selection);
 					}

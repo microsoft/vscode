@@ -19,8 +19,6 @@
 	"vscode.extension.contributes.debuggers.configurationAttributes": "Configurations de schéma JSON pour la validation de 'launch.json'.",
 	"vscode.extension.contributes.debuggers.windows": "Paramètres spécifiques à Windows.",
 	"vscode.extension.contributes.debuggers.windows.runtime": "Runtime utilisé pour Windows.",
-	"vscode.extension.contributes.debuggers.osx": "Paramètres spécifiques à OS X.",
-	"vscode.extension.contributes.debuggers.osx.runtime": "Runtime utilisé pour OS X.",
 	"vscode.extension.contributes.debuggers.linux": "Paramètres spécifiques à Linux.",
 	"vscode.extension.contributes.debuggers.linux.runtime": "Runtime utilisé pour Linux.",
 	"vscode.extension.contributes.breakpoints": "Ajoute des points d'arrêt.",

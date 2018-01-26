@@ -21,8 +21,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class TestTerminalInstance extends TerminalInstance {
+
 	public _getCwd(shell: IShellLaunchConfig, root: Uri): string {
 		return super._getCwd(shell, root);
 	}
@@ -152,6 +155,7 @@ suite('Workbench - TerminalInstance', () => {
 			let keybindingService = new MockKeybindingService();
 			let terminalFocusContextKey = contextKeyService.createKey('test', false);
 			instantiationService = new TestInstantiationService();
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			instantiationService.stub(IMessageService, new TestMessageService());
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			instantiationService.stub(IKeybindingService, keybindingService);

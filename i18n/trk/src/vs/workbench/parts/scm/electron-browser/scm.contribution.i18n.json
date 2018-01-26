@@ -7,5 +7,6 @@
 	"toggleGitViewlet": "Git'i Göster",
 	"source control": "Kaynak Kontrolü",
 	"toggleSCMViewlet": "SCM'yi Göster",
-	"view": "Görüntüle"
+	"view": "Görüntüle",
+	"scmConfigurationTitle": "SCM"
 }

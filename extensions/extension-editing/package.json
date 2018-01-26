@@ -23,7 +23,7 @@
 		"jsonc-parser": "^1.0.0",
 		"markdown-it": "^8.3.1",
 		"parse5": "^3.0.2",
-		"vscode-nls": "^2.0.1"
+		"vscode-nls": "^3.1.2"
 	},
 	"contributes": {
 		"jsonValidation": [

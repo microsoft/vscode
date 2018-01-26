@@ -11,6 +11,8 @@
 	"oneSettingFound": "1 項相符設定",
 	"settingsFound": "{0} 項相符設定",
 	"totalSettingsMessage": "共 {0} 項設定",
+	"nlpResult": "自然語言結果",
+	"filterResult": "篩選結果",
 	"defaultSettings": "預設設定",
 	"defaultFolderSettings": "預設資料夾設定",
 	"defaultEditorReadonly": "在右方編輯器中編輯以覆寫預設。",

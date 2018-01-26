@@ -18,7 +18,7 @@ import { TERMINAL_DEFAULT_SHELL_UNIX_LIKE, TERMINAL_DEFAULT_SHELL_WINDOWS } from
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, CreateNewInActiveWorkspaceTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, ShowNextFindTermTerminalFindWidgetAction, ShowPreviousFindTermTerminalFindWidgetAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, CreateNewInActiveWorkspaceTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, ShowNextFindTermTerminalFindWidgetAction, ShowPreviousFindTermTerminalFindWidgetAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX, EnterNavigationModeTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -115,6 +115,11 @@ configurationRegistry.registerConfiguration({
 			},
 			'default': []
 		},
+		'terminal.integrated.macOptionIsMeta': {
+			'description': nls.localize('terminal.integrated.macOptionIsMeta', "Treat the option key as the meta key in the terminal on macOS."),
+			'type': 'boolean',
+			'default': false
+		},
 		'terminal.integrated.rightClickCopyPaste': {
 			'description': nls.localize('terminal.integrated.rightClickCopyPaste', "When set, this will prevent the context menu from appearing when right clicking within the terminal, instead it will copy when there is a selection and paste when there is no selection."),
 			'type': 'boolean',
@@ -145,10 +150,17 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 1
 		},
-		'terminal.integrated.enableBold': {
-			'type': 'boolean',
-			'description': nls.localize('terminal.integrated.enableBold', "Whether to enable bold text within the terminal, note that this requires support from the terminal shell."),
-			'default': true
+		'terminal.integrated.fontWeight': {
+			'type': 'string',
+			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
+			'description': nls.localize('terminal.integrated.fontWeight', "The font weight to use within the termianl for non-bold text."),
+			'default': 'normal'
+		},
+		'terminal.integrated.fontWeightBold': {
+			'type': 'string',
+			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
+			'description': nls.localize('terminal.integrated.fontWeightBold', "The font weight to use within the termianl for bold text."),
+			'default': 'bold'
 		},
 		'terminal.integrated.cursorBlinking': {
 			'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
@@ -181,7 +193,7 @@ configurationRegistry.registerConfiguration({
 			'default': false
 		},
 		'terminal.integrated.enableBell': {
-			'description': nls.localize('terminal.integrated.enableBell', "Whether the terminal bell is enabled on not."),
+			'description': nls.localize('terminal.integrated.enableBell', "Whether the terminal bell is enabled or not."),
 			'type': 'boolean',
 			'default': false
 		},
@@ -204,6 +216,7 @@ configurationRegistry.registerConfiguration({
 				FocusActiveTerminalAction.ID,
 				FocusPreviousTerminalAction.ID,
 				FocusNextTerminalAction.ID,
+				EnterNavigationModeTerminalAction.ID,
 				'workbench.action.tasks.build',
 				'workbench.action.tasks.restartTask',
 				'workbench.action.tasks.runTask',
@@ -386,8 +399,10 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DeleteWordRightT
 	primary: KeyMod.CtrlCmd | KeyCode.Delete,
 	mac: { primary: KeyMod.Alt | KeyCode.Delete }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Delete Word Right', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(EnterNavigationModeTerminalAction, EnterNavigationModeTerminalAction.ID, EnterNavigationModeTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_N
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Enter Screen Reader Navigation Mode', category);
 
 terminalCommands.setup();
 
 registerColors();
-
