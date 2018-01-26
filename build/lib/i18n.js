@@ -15,7 +15,7 @@ var https = require("https");
 var gulp = require("gulp");
 var util = require('gulp-util');
 var iconv = require('iconv-lite');
-var NUMBER_OF_CONCURRENT_DOWNLOADS = 1;
+var NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 function log(message) {
     var rest = [];
     for (var _i = 1; _i < arguments.length; _i++) {
@@ -41,6 +41,14 @@ exports.extraLanguages = [
     { id: 'tr', folderName: 'trk' }
 ];
 exports.pseudoLanguage = { id: 'pseudo', folderName: 'pseudo', transifexId: 'pseudo' };
+// non built-in extensions also that are transifex and need to be part of the language packs
+var externalExtensionsWithTranslations = [
+    "azure-account",
+    "vscode-chrome-debug",
+    "vscode-chrome-debug-core",
+    "vscode-node-debug",
+    "vscode-node-debug2"
+];
 var LocalizeInfo;
 (function (LocalizeInfo) {
     function is(value) {
@@ -701,6 +709,72 @@ function pushXlfFiles(apiHostname, username, password) {
     });
 }
 exports.pushXlfFiles = pushXlfFiles;
+function getAllResources(project, apiHostname, username, password) {
+    return new Promise(function (resolve, reject) {
+        var credentials = username + ":" + password;
+        var options = {
+            hostname: apiHostname,
+            path: "/api/2/project/" + project + "/resources",
+            auth: credentials,
+            method: 'GET'
+        };
+        var request = https.request(options, function (res) {
+            var buffer = [];
+            res.on('data', function (chunk) { return buffer.push(chunk); });
+            res.on('end', function () {
+                if (res.statusCode === 200) {
+                    var json = JSON.parse(Buffer.concat(buffer).toString());
+                    if (Array.isArray(json)) {
+                        resolve(json.map(function (o) { return o.slug; }));
+                        return;
+                    }
+                    reject("Unexpected data format. Response code: " + res.statusCode + ".");
+                }
+                else {
+                    reject("No resources in " + project + " returned no data. Response code: " + res.statusCode + ".");
+                }
+            });
+        });
+        request.on('error', function (err) {
+            reject("Failed to query resources in " + project + " with the following error: " + err + ". " + options.path);
+        });
+        request.end();
+    });
+}
+function findObsoleteResources(apiHostname, username, password) {
+    var resourcesByProject = Object.create(null);
+    resourcesByProject[extensionsProject] = [].concat(externalExtensionsWithTranslations); // clone
+    return event_stream_1.through(function (file) {
+        var project = path.dirname(file.relative);
+        var fileName = path.basename(file.path);
+        var slug = fileName.substr(0, fileName.length - '.xlf'.length);
+        var slugs = resourcesByProject[project];
+        if (!slugs) {
+            resourcesByProject[project] = slugs = [];
+        }
+        slugs.push(slug);
+        this.push(file);
+    }, function () {
+        var _this = this;
+        var promises = [];
+        var _loop_1 = function (project) {
+            promises.push(getAllResources(project, apiHostname, username, password).then(function (resources) {
+                var expectedResources = resourcesByProject[project];
+                var unusedResources = resources.filter(function (resource) { return resource && expectedResources.indexOf(resource) === -1; });
+                if (unusedResources.length) {
+                    console.log("[transifex] Obsolete resources in project '" + project + "': " + unusedResources.join(', '));
+                }
+            }));
+        };
+        for (var project in resourcesByProject) {
+            _loop_1(project);
+        }
+        return Promise.all(promises).then(function (_) {
+            _this.push(null);
+        }).catch(function (reason) { throw new Error(reason); });
+    });
+}
+exports.findObsoleteResources = findObsoleteResources;
 function tryGetResource(project, slug, apiHostname, credentials) {
     return new Promise(function (resolve, reject) {
         var options = {
@@ -801,29 +875,33 @@ function updateResource(project, slug, xlfFile, apiHostname, credentials) {
     });
 }
 // cache resources
-var _buildResources;
-function pullBuildXlfFiles(apiHostname, username, password, language) {
-    if (!_buildResources) {
-        _buildResources = [];
+var _coreAndExtensionResources;
+function pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language) {
+    if (!_coreAndExtensionResources) {
+        _coreAndExtensionResources = [];
         // editor and workbench
         var json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
-        _buildResources.push.apply(_buildResources, json.editor);
-        _buildResources.push.apply(_buildResources, json.workbench);
+        _coreAndExtensionResources.push.apply(_coreAndExtensionResources, json.editor);
+        _coreAndExtensionResources.push.apply(_coreAndExtensionResources, json.workbench);
         // extensions
         var extensionsToLocalize_1 = Object.create(null);
         glob.sync('./extensions/**/*.nls.json').forEach(function (extension) { return extensionsToLocalize_1[extension.split('/')[2]] = true; });
         glob.sync('./extensions/*/node_modules/vscode-nls').forEach(function (extension) { return extensionsToLocalize_1[extension.split('/')[2]] = true; });
+        for (var _i = 0, externalExtensionsWithTranslations_1 = externalExtensionsWithTranslations; _i < externalExtensionsWithTranslations_1.length; _i++) {
+            var extension = externalExtensionsWithTranslations_1[_i];
+            extensionsToLocalize_1[extension] = true;
+        }
         Object.keys(extensionsToLocalize_1).forEach(function (extension) {
-            _buildResources.push({ name: extension, project: 'vscode-extensions' });
+            _coreAndExtensionResources.push({ name: extension, project: extensionsProject });
         });
     }
-    return pullXlfFiles(apiHostname, username, password, language, _buildResources);
+    return pullXlfFiles(apiHostname, username, password, language, _coreAndExtensionResources);
 }
-exports.pullBuildXlfFiles = pullBuildXlfFiles;
+exports.pullCoreAndExtensionsXlfFiles = pullCoreAndExtensionsXlfFiles;
 function pullSetupXlfFiles(apiHostname, username, password, language, includeDefault) {
-    var setupResources = [{ name: 'setup_messages', project: 'vscode-workbench' }];
+    var setupResources = [{ name: 'setup_messages', project: workbenchProject }];
     if (includeDefault) {
-        setupResources.push({ name: 'setup_default', project: 'vscode-setup' });
+        setupResources.push({ name: 'setup_default', project: setupProject });
     }
     return pullXlfFiles(apiHostname, username, password, language, setupResources);
 }
@@ -865,6 +943,7 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             port: 443,
             method: 'GET'
         };
+        console.log('Fetching ' + options.path);
         var request = https.request(options, function (res) {
             var xlfBuffer = [];
             res.on('data', function (chunk) { return xlfBuffer.push(chunk); });
@@ -928,7 +1007,7 @@ function createI18nFile(originalFilePath, messages) {
 }
 var i18nPackVersion = "1.0.0";
 function pullI18nPackFiles(apiHostname, username, password, language) {
-    return pullBuildXlfFiles(apiHostname, username, password, language).pipe(prepareI18nPackFiles());
+    return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language).pipe(prepareI18nPackFiles());
 }
 exports.pullI18nPackFiles = pullI18nPackFiles;
 function prepareI18nPackFiles() {
