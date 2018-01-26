@@ -442,6 +442,8 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
 	$appendDebugConsole(value: string): TPromise<any>;
 	$startBreakpointEvents(): TPromise<any>;
+	$registerBreakpoints(breakpoints: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): TPromise<IBreakpointIndexDto[]>;
+	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): TPromise<void>;
 }
 
 export interface MainThreadWindowShape extends IDisposable {
@@ -696,30 +698,49 @@ export interface ExtHostTaskShape {
 	$provideTasks(handle: number): TPromise<TaskSet>;
 }
 
-export interface IBreakpointData {
-	type: 'source' | 'function';
-	id: string;
+export interface IFunctionBreakpointDto {
+	type: 'function';
+	index: number;
+	id?: string;
 	enabled: boolean;
 	condition?: string;
 	hitCondition?: string;
+	functionName: string;
 }
 
-export interface ISourceBreakpointData extends IBreakpointData {
+export interface ISourceBreakpointDto {
 	type: 'source';
+	id?: string;
+	enabled: boolean;
+	condition?: string;
+	hitCondition?: string;
 	uri: UriComponents;
 	line: number;
 	character: number;
 }
 
-export interface IFunctionBreakpointData extends IBreakpointData {
-	type: 'function';
-	functionName: string;
+export interface IBreakpointsDeltaDto {
+	added?: (ISourceBreakpointDto | IFunctionBreakpointDto)[];
+	removed?: string[];
+	changed?: (ISourceBreakpointDto | IFunctionBreakpointDto)[];
 }
 
-export interface IBreakpointsDelta {
-	added?: (ISourceBreakpointData | IFunctionBreakpointData)[];
-	removed?: string[];
-	changed?: (ISourceBreakpointData | IFunctionBreakpointData)[];
+export interface ISourceMultiBreakpointDto {
+	type: 'sourceMulti';
+	uri: UriComponents;
+	lines: {
+		index: number;
+		enabled: boolean;
+		condition?: string;
+		hitCondition?: string;
+		line: number;
+		character: number;
+	}[];
+}
+
+export interface IBreakpointIndexDto {
+	index: number;
+	id: string;
 }
 
 export interface ExtHostDebugServiceShape {
@@ -729,7 +750,7 @@ export interface ExtHostDebugServiceShape {
 	$acceptDebugSessionTerminated(id: DebugSessionUUID, type: string, name: string): void;
 	$acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void;
 	$acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void;
-	$acceptBreakpointsDelta(delat: IBreakpointsDelta): void;
+	$acceptBreakpointsDelta(delat: IBreakpointsDeltaDto): void;
 }
 
 

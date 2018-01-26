@@ -235,6 +235,18 @@ declare module 'vscode' {
 		 * An event that is emitted when a breakpoint is added, removed, or changed.
 		 */
 		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+
+		/**
+		 * Add breakpoints.
+		 * @param breakpoints The breakpoints to add.
+		*/
+		export function addBreakpoints(breakpoints: Breakpoint[]): Thenable<void>;
+
+		/**
+		 * Remove breakpoints.
+		 * @param breakpoints The breakpoints to remove.
+		 */
+		export function removeBreakpoints(breakpoints: Breakpoint[]): Thenable<void>;
 	}
 
 	/**
@@ -274,7 +286,7 @@ declare module 'vscode' {
 		 */
 		readonly hitCondition?: string;
 
-		protected constructor(enabled: boolean, condition: string, hitCondition: string);
+		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string);
 	}
 
 	/**
@@ -286,7 +298,10 @@ declare module 'vscode' {
 		 */
 		readonly location: Location;
 
-		private constructor(enabled: boolean, condition: string, hitCondition: string, location: Location);
+		/**
+		 * Create a new breakpoint for a source location.
+		 */
+		constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string);
 	}
 
 	/**
@@ -298,7 +313,10 @@ declare module 'vscode' {
 		 */
 		readonly functionName: string;
 
-		private constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string);
+		/**
+		 * Create a new function breakpoint.
+		 */
+		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string);
 	}
 
 	/**

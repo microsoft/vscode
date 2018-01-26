@@ -538,7 +538,13 @@ export function createApiFactory(
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
-			}
+			},
+			addBreakpoints: proposedApiFunction(extension, (breakpoints: vscode.Breakpoint[]) => {
+				return extHostDebugService.addBreakpoints(breakpoints);
+			}),
+			removeBreakpoints: proposedApiFunction(extension, (breakpoints: vscode.Breakpoint[]) => {
+				return extHostDebugService.removeBreakpoints(breakpoints);
+			})
 		};
 
 
