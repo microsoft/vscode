@@ -202,10 +202,12 @@ class TextModel {
 export class XLF {
 	private buffer: string[];
 	private files: Map<Item[]>;
+	public numberOfMessages: number;
 
 	constructor(public project: string) {
 		this.buffer = [];
 		this.files = Object.create(null);
+		this.numberOfMessages = 0;
 	}
 
 	public toString(): string {
@@ -227,6 +229,7 @@ export class XLF {
 		if (keys.length !== messages.length) {
 			throw new Error(`Unmatching keys(${keys.length}) and messages(${messages.length}).`);
 		}
+		this.numberOfMessages += keys.length;
 		this.files[original] = [];
 		let existingKeys = new Set<string>();
 		for (let i = 0; i < keys.length; i++) {
@@ -866,6 +869,22 @@ export function findObsoleteResources(apiHostname: string, username: string, pas
 		slugs.push(slug);
 		this.push(file);
 	}, function () {
+
+		const json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
+		let i18Resources = [...json.editor, ...json.workbench].map((r: Resource) => r.project + '/' + r.name.replace(/\//g, '_'));
+		let extractedResources = [];
+		for (let project of [workbenchProject, editorProject]) {
+			for (let resource of resourcesByProject[project]) {
+				if (resource !== 'setup_messages') {
+					extractedResources.push(project + '/' + resource);
+				}
+			}
+		}
+		if (i18Resources.length !== extractedResources.length) {
+			console.log(`[i18n] Obsolete resources in file 'build/lib/i18n.resources.json': JSON.stringify(${i18Resources.filter(p => extractedResources.indexOf(p) === -1)})`);
+			console.log(`[i18n] Missing resources in file 'build/lib/i18n.resources.json': JSON.stringify(${extractedResources.filter(p => i18Resources.indexOf(p) === -1)})`);
+		}
+
 		let promises = [];
 		for (let project in resourcesByProject) {
 			promises.push(

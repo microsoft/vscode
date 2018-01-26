@@ -129,6 +129,7 @@ var XLF = /** @class */ (function () {
         this.project = project;
         this.buffer = [];
         this.files = Object.create(null);
+        this.numberOfMessages = 0;
     }
     XLF.prototype.toString = function () {
         this.appendHeader();
@@ -147,6 +148,7 @@ var XLF = /** @class */ (function () {
         if (keys.length !== messages.length) {
             throw new Error("Unmatching keys(" + keys.length + ") and messages(" + messages.length + ").");
         }
+        this.numberOfMessages += keys.length;
         this.files[original] = [];
         var existingKeys = new Set();
         for (var i = 0; i < keys.length; i++) {
@@ -756,6 +758,22 @@ function findObsoleteResources(apiHostname, username, password) {
         this.push(file);
     }, function () {
         var _this = this;
+        var json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
+        var i18Resources = json.editor.concat(json.workbench).map(function (r) { return r.project + '/' + r.name.replace(/\//g, '_'); });
+        var extractedResources = [];
+        for (var _i = 0, _a = [workbenchProject, editorProject]; _i < _a.length; _i++) {
+            var project = _a[_i];
+            for (var _b = 0, _c = resourcesByProject[project]; _b < _c.length; _b++) {
+                var resource = _c[_b];
+                if (resource !== 'setup_messages') {
+                    extractedResources.push(project + '/' + resource);
+                }
+            }
+        }
+        if (i18Resources.length !== extractedResources.length) {
+            console.log("[i18n] Obsolete resources in file 'build/lib/i18n.resources.json': JSON.stringify(" + i18Resources.filter(function (p) { return extractedResources.indexOf(p) === -1; }) + ")");
+            console.log("[i18n] Missing resources in file 'build/lib/i18n.resources.json': JSON.stringify(" + extractedResources.filter(function (p) { return i18Resources.indexOf(p) === -1; }) + ")");
+        }
         var promises = [];
         var _loop_1 = function (project) {
             promises.push(getAllResources(project, apiHostname, username, password).then(function (resources) {
