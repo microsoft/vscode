@@ -277,7 +277,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): void;
 	$registerNavigateTypeSupport(handle: number): void;
-	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector, supportsResolveInitialValues: boolean): void;
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): void;
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): void;
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): void;
@@ -349,6 +349,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$startSearch(includePattern: string, includeFolder: string, excludePattern: string, maxResults: number, requestId: number): Thenable<UriComponents[]>;
 	$cancelSearch(requestId: number): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
+	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string }[]): Thenable<void>;
 }
 
 export interface IFileChangeDto {
@@ -442,7 +443,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
 	$appendDebugConsole(value: string): TPromise<any>;
 	$startBreakpointEvents(): TPromise<any>;
-	$registerBreakpoints(breakpoints: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): TPromise<IBreakpointIndexDto[]>;
+	$registerBreakpoints(breakpoints: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): TPromise<void>;
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): TPromise<void>;
 }
 
@@ -668,6 +669,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveWorkspaceSymbol(handle: number, symbol: SymbolInformationDto): TPromise<SymbolInformationDto>;
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<WorkspaceEditDto>;
+	$resolveInitialRenameValue(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.RenameInitialValue>;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
 	$releaseCompletionItems(handle: number, id: number): void;
@@ -700,7 +702,6 @@ export interface ExtHostTaskShape {
 
 export interface IFunctionBreakpointDto {
 	type: 'function';
-	index: number;
 	id?: string;
 	enabled: boolean;
 	condition?: string;
@@ -729,18 +730,13 @@ export interface ISourceMultiBreakpointDto {
 	type: 'sourceMulti';
 	uri: UriComponents;
 	lines: {
-		index: number;
+		id: string;
 		enabled: boolean;
 		condition?: string;
 		hitCondition?: string;
 		line: number;
 		character: number;
 	}[];
-}
-
-export interface IBreakpointIndexDto {
-	index: number;
-	id: string;
 }
 
 export interface ExtHostDebugServiceShape {

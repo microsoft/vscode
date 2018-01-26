@@ -16,6 +16,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint } from 'vs/workbench/api/node/extHostTypes';
+import { generateUuid } from 'vs/base/common/uuid';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -106,16 +107,22 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		if (delta.added) {
 			for (const bpd of delta.added) {
-				let bp: vscode.Breakpoint;
-				if (bpd.type === 'function') {
-					bp = new FunctionBreakpoint(bpd.functionName, bpd.enabled, bpd.condition, bpd.hitCondition);
-				} else {
-					const uri = URI.revive(bpd.uri);
-					bp = new SourceBreakpoint(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition);
+
+				if (!this._breakpoints.has(bpd.id)) {
+					let bp: vscode.Breakpoint;
+					if (bpd.type === 'function') {
+						bp = new FunctionBreakpoint(bpd.functionName, bpd.enabled, bpd.condition, bpd.hitCondition);
+					} else {
+						const uri = URI.revive(bpd.uri);
+						bp = new SourceBreakpoint(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition);
+					}
+					bp['_id'] = bpd.id;
+					this._breakpoints.set(bpd.id, bp);
+					a.push(bp);
+
 				}
-				bp['_id'] = bpd.id;
-				this._breakpoints.set(bpd.id, bp);
-				a.push(bp);
+
+
 			}
 		}
 
@@ -157,25 +164,31 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		this.startBreakpoints();
 
-		// assign temporary ids for brand new breakpoints
+		// assign uuids for brand new breakpoints
 		const breakpoints: vscode.Breakpoint[] = [];
 		for (const bp of breakpoints0) {
 			let id = bp['_id'];
 			if (id) {	// has already id
-				if (!this._breakpoints.has(id)) {
+				if (this._breakpoints.has(id)) {
+					// already there
+				} else {
 					breakpoints.push(bp);
 				}
 			} else {
-				// no id -> assign temp id
+				id = generateUuid();
+				bp['_id'] = id;
+				this._breakpoints.set(id, bp);
 				breakpoints.push(bp);
 			}
 		}
 
-		// convert to DTOs
+		// send notification for added breakpoints
+		this.fireBreakpointChanges(breakpoints, [], []);
+
+		// convert added breakpoints to DTOs
 		const dtos: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[] = [];
 		const map = new Map<string, ISourceMultiBreakpointDto>();
-		for (let i = 0; i < breakpoints.length; i++) {
-			const bp = breakpoints[i];
+		for (const bp of breakpoints) {
 			if (bp instanceof SourceBreakpoint) {
 				let dto = map.get(bp.location.uri.toString());
 				if (!dto) {
@@ -188,7 +201,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 					dtos.push(dto);
 				}
 				dto.lines.push({
-					index: i,
+					id: bp['_id'],
 					enabled: bp.enabled,
 					condition: bp.condition,
 					hitCondition: bp.hitCondition,
@@ -198,7 +211,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			} else if (bp instanceof FunctionBreakpoint) {
 				dtos.push({
 					type: 'function',
-					index: i,
+					id: bp['_id'],
 					enabled: bp.enabled,
 					functionName: bp.functionName,
 					hitCondition: bp.hitCondition,
@@ -207,21 +220,8 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			}
 		}
 
-		// register with VS Code
-		return this._debugServiceProxy.$registerBreakpoints(dtos).then(ids => {
-
-			// assign VS Code ids to breakpoints and store them in map
-			ids.forEach(id => {
-				const bp = breakpoints[id.index];
-				bp['_id'] = id.id;
-				this._breakpoints.set(id.id, bp);
-			});
-
-			// send notification
-			this.fireBreakpointChanges(breakpoints, [], []);
-
-			return void 0;
-		});
+		// send DTOs to VS Code
+		return this._debugServiceProxy.$registerBreakpoints(dtos);
 	}
 
 	public removeBreakpoints(breakpoints0: vscode.Breakpoint[]): TPromise<void> {

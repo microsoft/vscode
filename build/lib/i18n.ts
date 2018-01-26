@@ -17,7 +17,7 @@ import * as gulp from 'gulp';
 var util = require('gulp-util');
 var iconv = require('iconv-lite');
 
-const NUMBER_OF_CONCURRENT_DOWNLOADS = 1;
+const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 
 function log(message: any, ...rest: any[]): void {
 	util.log(util.colors.green('[i18n]'), message, ...rest);
@@ -57,6 +57,15 @@ export const extraLanguages: Language[] = [
 ];
 
 export const pseudoLanguage: Language = { id: 'pseudo', folderName: 'pseudo', transifexId: 'pseudo' };
+
+// non built-in extensions also that are transifex and need to be part of the language packs
+const externalExtensionsWithTranslations = [
+	//"azure-account",
+	"vscode-chrome-debug",
+	"vscode-chrome-debug-core",
+	"vscode-node-debug",
+	"vscode-node-debug2"
+];
 
 interface Map<V> {
 	[key: string]: V;
@@ -193,10 +202,12 @@ class TextModel {
 export class XLF {
 	private buffer: string[];
 	private files: Map<Item[]>;
+	public numberOfMessages: number;
 
 	constructor(public project: string) {
 		this.buffer = [];
 		this.files = Object.create(null);
+		this.numberOfMessages = 0;
 	}
 
 	public toString(): string {
@@ -218,6 +229,7 @@ export class XLF {
 		if (keys.length !== messages.length) {
 			throw new Error(`Unmatching keys(${keys.length}) and messages(${messages.length}).`);
 		}
+		this.numberOfMessages += keys.length;
 		this.files[original] = [];
 		let existingKeys = new Set<string>();
 		for (let i = 0; i < keys.length; i++) {
@@ -808,6 +820,89 @@ export function pushXlfFiles(apiHostname: string, username: string, password: st
 	});
 }
 
+function getAllResources(project: string, apiHostname: string, username: string, password: string): Promise<string[]> {
+	return new Promise((resolve, reject) => {
+		const credentials = `${username}:${password}`;
+		const options = {
+			hostname: apiHostname,
+			path: `/api/2/project/${project}/resources`,
+			auth: credentials,
+			method: 'GET'
+		};
+
+		const request = https.request(options, (res) => {
+			let buffer: Buffer[] = [];
+			res.on('data', (chunk: Buffer) => buffer.push(chunk));
+			res.on('end', () => {
+				if (res.statusCode === 200) {
+					let json = JSON.parse(Buffer.concat(buffer).toString());
+					if (Array.isArray(json)) {
+						resolve(json.map(o => o.slug));
+						return;
+					}
+					reject(`Unexpected data format. Response code: ${res.statusCode}.`);
+				} else {
+					reject(`No resources in ${project} returned no data. Response code: ${res.statusCode}.`);
+				}
+			});
+		});
+		request.on('error', (err) => {
+			reject(`Failed to query resources in ${project} with the following error: ${err}. ${options.path}`);
+		});
+		request.end();
+	});
+}
+
+export function findObsoleteResources(apiHostname: string, username: string, password: string): ThroughStream {
+	let resourcesByProject: Map<string[]> = Object.create(null);
+	resourcesByProject[extensionsProject] = [].concat(externalExtensionsWithTranslations); // clone
+
+	return through(function (this: ThroughStream, file: File) {
+		const project = path.dirname(file.relative);
+		const fileName = path.basename(file.path);
+		const slug = fileName.substr(0, fileName.length - '.xlf'.length);
+
+		let slugs = resourcesByProject[project];
+		if (!slugs) {
+			resourcesByProject[project] = slugs = [];
+		}
+		slugs.push(slug);
+		this.push(file);
+	}, function () {
+
+		const json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
+		let i18Resources = [...json.editor, ...json.workbench].map((r: Resource) => r.project + '/' + r.name.replace(/\//g, '_'));
+		let extractedResources = [];
+		for (let project of [workbenchProject, editorProject]) {
+			for (let resource of resourcesByProject[project]) {
+				if (resource !== 'setup_messages') {
+					extractedResources.push(project + '/' + resource);
+				}
+			}
+		}
+		if (i18Resources.length !== extractedResources.length) {
+			console.log(`[i18n] Obsolete resources in file 'build/lib/i18n.resources.json': JSON.stringify(${i18Resources.filter(p => extractedResources.indexOf(p) === -1)})`);
+			console.log(`[i18n] Missing resources in file 'build/lib/i18n.resources.json': JSON.stringify(${extractedResources.filter(p => i18Resources.indexOf(p) === -1)})`);
+		}
+
+		let promises = [];
+		for (let project in resourcesByProject) {
+			promises.push(
+				getAllResources(project, apiHostname, username, password).then(resources => {
+					let expectedResources = resourcesByProject[project];
+					let unusedResources = resources.filter(resource => resource && expectedResources.indexOf(resource) === -1);
+					if (unusedResources.length) {
+						console.log(`[transifex] Obsolete resources in project '${project}': ${unusedResources.join(', ')}`);
+					}
+				})
+			);
+		}
+		return Promise.all(promises).then(_ => {
+			this.push(null);
+		}).catch((reason) => { throw new Error(reason); });
+	});
+}
+
 function tryGetResource(project: string, slug: string, apiHostname: string, credentials: string): Promise<boolean> {
 	return new Promise((resolve, reject) => {
 		const options = {
@@ -914,32 +1009,38 @@ function updateResource(project: string, slug: string, xlfFile: File, apiHostnam
 }
 
 // cache resources
-let _buildResources: Resource[];
+let _coreAndExtensionResources: Resource[];
 
-export function pullBuildXlfFiles(apiHostname: string, username: string, password: string, language: Language): NodeJS.ReadableStream {
-	if (!_buildResources) {
-		_buildResources = [];
+export function pullCoreAndExtensionsXlfFiles(apiHostname: string, username: string, password: string, language: Language, includeExternalExtensions?: boolean): NodeJS.ReadableStream {
+	if (!_coreAndExtensionResources) {
+		_coreAndExtensionResources = [];
 		// editor and workbench
 		const json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
-		_buildResources.push(...json.editor);
-		_buildResources.push(...json.workbench);
+		_coreAndExtensionResources.push(...json.editor);
+		_coreAndExtensionResources.push(...json.workbench);
 
 		// extensions
 		let extensionsToLocalize = Object.create(null);
 		glob.sync('./extensions/**/*.nls.json', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
 		glob.sync('./extensions/*/node_modules/vscode-nls', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
 
+		if (includeExternalExtensions) {
+			for (let extension of externalExtensionsWithTranslations) {
+				extensionsToLocalize[extension] = true;
+			}
+		}
+
 		Object.keys(extensionsToLocalize).forEach(extension => {
-			_buildResources.push({ name: extension, project: 'vscode-extensions' });
+			_coreAndExtensionResources.push({ name: extension, project: extensionsProject });
 		});
 	}
-	return pullXlfFiles(apiHostname, username, password, language, _buildResources);
+	return pullXlfFiles(apiHostname, username, password, language, _coreAndExtensionResources);
 }
 
 export function pullSetupXlfFiles(apiHostname: string, username: string, password: string, language: Language, includeDefault: boolean): NodeJS.ReadableStream {
-	let setupResources = [{ name: 'setup_messages', project: 'vscode-workbench' }];
+	let setupResources = [{ name: 'setup_messages', project: workbenchProject }];
 	if (includeDefault) {
-		setupResources.push({ name: 'setup_default', project: 'vscode-setup' });
+		setupResources.push({ name: 'setup_default', project: setupProject });
 	}
 	return pullXlfFiles(apiHostname, username, password, language, setupResources);
 }
@@ -985,6 +1086,7 @@ function retrieveResource(language: Language, resource: Resource, apiHostname, c
 			port: 443,
 			method: 'GET'
 		};
+		console.log('Fetching ' + options.path);
 
 		let request = https.request(options, (res) => {
 			let xlfBuffer: Buffer[] = [];
@@ -1059,7 +1161,7 @@ interface I18nPack {
 const i18nPackVersion = "1.0.0";
 
 export function pullI18nPackFiles(apiHostname: string, username: string, password: string, language: Language): NodeJS.ReadableStream {
-	return pullBuildXlfFiles(apiHostname, username, password, language).pipe(prepareI18nPackFiles());
+	return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, true).pipe(prepareI18nPackFiles());
 }
 
 export function prepareI18nPackFiles() {
@@ -1068,6 +1170,9 @@ export function prepareI18nPackFiles() {
 	let extensionsPacks: Map<I18nPack> = {};
 	return through(function (this: ThroughStream, xlf: File) {
 		let stream = this;
+		let project = path.dirname(xlf.path);
+		let resource = path.basename(xlf.path, '.xlf');
+		console.log(resource);
 		let parsePromise = XLF.parse(xlf.contents.toString());
 		parsePromises.push(parsePromise);
 		parsePromise.then(
@@ -1075,23 +1180,17 @@ export function prepareI18nPackFiles() {
 				resolvedFiles.forEach(file => {
 					const path = file.originalFilePath;
 					const firstSlash = path.indexOf('/');
-					const firstSegment = path.substr(0, firstSlash);
-					if (firstSegment === 'src') {
-						mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
-					} else if (firstSegment === 'extensions') {
-						const secondSlash = path.indexOf('/', firstSlash + 1);
-						const secondSegment = path.substring(firstSlash + 1, secondSlash);
-						if (secondSegment) {
-							let extPack = extensionsPacks[secondSegment];
-							if (!extPack) {
-								extPack = extensionsPacks[secondSegment] = { version: i18nPackVersion, contents: {} };
-							}
-							extPack.contents[path.substr(secondSlash + 1)] = file.messages;
-						} else {
-							console.log('Unknown second segment ' + path);
+
+					if (project === extensionsProject) {
+						let extPack = extensionsPacks[resource];
+						if (!extPack) {
+							extPack = extensionsPacks[resource] = { version: i18nPackVersion, contents: {} };
 						}
+						const secondSlash = path.indexOf('/', firstSlash + 1);
+						let key = externalExtensionsWithTranslations.indexOf(resource) !== -1 ? path: path.substr(secondSlash + 1);
+						extPack.contents[key] = file.messages;
 					} else {
-						console.log('Unknown first segment ' + path);
+						mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
 					}
 				});
 			}

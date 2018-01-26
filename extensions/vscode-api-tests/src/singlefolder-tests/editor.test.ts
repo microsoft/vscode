@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection } from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors } from './utils';
+import { createRandomFile, deleteFile, closeAllEditors } from '../utils';
 
 suite('editor tests', () => {
 

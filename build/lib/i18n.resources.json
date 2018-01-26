@@ -47,10 +47,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/parts/explorers",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/parts/extensions",
 			"project": "vscode-workbench"
 		},
@@ -72,10 +68,6 @@
 		},
 		{
 			"name": "vs/workbench/parts/logs",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/parts/nps",
 			"project": "vscode-workbench"
 		},
 		{

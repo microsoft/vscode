@@ -401,7 +401,7 @@ const apiHostname = process.env.TRANSIFEX_API_URL;
 const apiName = process.env.TRANSIFEX_API_NAME;
 const apiToken = process.env.TRANSIFEX_API_TOKEN;
 
-gulp.task('vscode-translations-push', ['optimize-vscode'], function () {
+gulp.task('vscode-translations-push', function () {
 	const pathToMetadata = './out-vscode/nls.metadata.json';
 	const pathToExtensions = './extensions/*';
 	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
@@ -410,6 +410,7 @@ gulp.task('vscode-translations-push', ['optimize-vscode'], function () {
 		gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
 		gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
 		gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
+	).pipe(i18n.findObsoleteResources(apiHostname, apiName, apiToken)
 	).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
 });
 
@@ -422,12 +423,13 @@ gulp.task('vscode-translations-push-test', function () {
 		gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
 		gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
 		gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
+	).pipe(i18n.findObsoleteResources(apiHostname, apiName, apiToken)
 	).pipe(vfs.dest('../vscode-transifex-input'));
 });
 
 gulp.task('vscode-translations-pull', function () {
 	[...i18n.defaultLanguages, ...i18n.extraLanguages].forEach(language => {
-		i18n.pullBuildXlfFiles(apiHostname, apiName, apiToken, language).pipe(vfs.dest(`../vscode-localization/${language.id}/build`));
+		i18n.pullCoreAndExtensionsXlfFiles(apiHostname, apiName, apiToken, language).pipe(vfs.dest(`../vscode-localization/${language.id}/build`));
 
 		let includeDefault = !!innoSetupConfig[language.id].defaultInfo;
 		i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-localization/${language.id}/setup`));

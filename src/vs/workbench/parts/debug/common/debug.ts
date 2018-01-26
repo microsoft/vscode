@@ -223,6 +223,7 @@ export interface IEnablement extends ITreeElement {
 }
 
 export interface IRawBreakpoint {
+	id?: string;
 	lineNumber: number;
 	column?: number;
 	enabled?: boolean;
@@ -523,7 +524,7 @@ export interface IDebugService {
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
 	 */
-	addBreakpoints(uri: uri, rawBreakpoints: IRawBreakpoint[]): TPromise<IBreakpoint[]>;
+	addBreakpoints(uri: uri, rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
 
 	/**
 	 * Updates the breakpoints.
@@ -551,7 +552,7 @@ export interface IDebugService {
 	/**
 	 * Adds a new function breakpoint for the given name.
 	 */
-	addFunctionBreakpoint(name?: string): IFunctionBreakpoint;
+	addFunctionBreakpoint(name?: string, id?: string): void;
 
 	/**
 	 * Renames an already existing function breakpoint.

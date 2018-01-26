@@ -331,9 +331,12 @@ suite('ExtensionEnablementService Test', () => {
 });
 
 function aLocalExtension(id: string, contributes?: IExtensionContributions): ILocalExtension {
+	const [publisher, name] = id.split('.');
 	return <ILocalExtension>Object.create({
 		identifier: { id },
 		manifest: {
+			name,
+			publisher,
 			contributes
 		}
 	});

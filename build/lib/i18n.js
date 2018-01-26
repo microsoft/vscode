@@ -15,7 +15,7 @@ var https = require("https");
 var gulp = require("gulp");
 var util = require('gulp-util');
 var iconv = require('iconv-lite');
-var NUMBER_OF_CONCURRENT_DOWNLOADS = 1;
+var NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 function log(message) {
     var rest = [];
     for (var _i = 1; _i < arguments.length; _i++) {
@@ -41,6 +41,14 @@ exports.extraLanguages = [
     { id: 'tr', folderName: 'trk' }
 ];
 exports.pseudoLanguage = { id: 'pseudo', folderName: 'pseudo', transifexId: 'pseudo' };
+// non built-in extensions also that are transifex and need to be part of the language packs
+var externalExtensionsWithTranslations = [
+    //"azure-account",
+    "vscode-chrome-debug",
+    "vscode-chrome-debug-core",
+    "vscode-node-debug",
+    "vscode-node-debug2"
+];
 var LocalizeInfo;
 (function (LocalizeInfo) {
     function is(value) {
@@ -121,6 +129,7 @@ var XLF = /** @class */ (function () {
         this.project = project;
         this.buffer = [];
         this.files = Object.create(null);
+        this.numberOfMessages = 0;
     }
     XLF.prototype.toString = function () {
         this.appendHeader();
@@ -139,6 +148,7 @@ var XLF = /** @class */ (function () {
         if (keys.length !== messages.length) {
             throw new Error("Unmatching keys(" + keys.length + ") and messages(" + messages.length + ").");
         }
+        this.numberOfMessages += keys.length;
         this.files[original] = [];
         var existingKeys = new Set();
         for (var i = 0; i < keys.length; i++) {
@@ -701,6 +711,88 @@ function pushXlfFiles(apiHostname, username, password) {
     });
 }
 exports.pushXlfFiles = pushXlfFiles;
+function getAllResources(project, apiHostname, username, password) {
+    return new Promise(function (resolve, reject) {
+        var credentials = username + ":" + password;
+        var options = {
+            hostname: apiHostname,
+            path: "/api/2/project/" + project + "/resources",
+            auth: credentials,
+            method: 'GET'
+        };
+        var request = https.request(options, function (res) {
+            var buffer = [];
+            res.on('data', function (chunk) { return buffer.push(chunk); });
+            res.on('end', function () {
+                if (res.statusCode === 200) {
+                    var json = JSON.parse(Buffer.concat(buffer).toString());
+                    if (Array.isArray(json)) {
+                        resolve(json.map(function (o) { return o.slug; }));
+                        return;
+                    }
+                    reject("Unexpected data format. Response code: " + res.statusCode + ".");
+                }
+                else {
+                    reject("No resources in " + project + " returned no data. Response code: " + res.statusCode + ".");
+                }
+            });
+        });
+        request.on('error', function (err) {
+            reject("Failed to query resources in " + project + " with the following error: " + err + ". " + options.path);
+        });
+        request.end();
+    });
+}
+function findObsoleteResources(apiHostname, username, password) {
+    var resourcesByProject = Object.create(null);
+    resourcesByProject[extensionsProject] = [].concat(externalExtensionsWithTranslations); // clone
+    return event_stream_1.through(function (file) {
+        var project = path.dirname(file.relative);
+        var fileName = path.basename(file.path);
+        var slug = fileName.substr(0, fileName.length - '.xlf'.length);
+        var slugs = resourcesByProject[project];
+        if (!slugs) {
+            resourcesByProject[project] = slugs = [];
+        }
+        slugs.push(slug);
+        this.push(file);
+    }, function () {
+        var _this = this;
+        var json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
+        var i18Resources = json.editor.concat(json.workbench).map(function (r) { return r.project + '/' + r.name.replace(/\//g, '_'); });
+        var extractedResources = [];
+        for (var _i = 0, _a = [workbenchProject, editorProject]; _i < _a.length; _i++) {
+            var project = _a[_i];
+            for (var _b = 0, _c = resourcesByProject[project]; _b < _c.length; _b++) {
+                var resource = _c[_b];
+                if (resource !== 'setup_messages') {
+                    extractedResources.push(project + '/' + resource);
+                }
+            }
+        }
+        if (i18Resources.length !== extractedResources.length) {
+            console.log("[i18n] Obsolete resources in file 'build/lib/i18n.resources.json': JSON.stringify(" + i18Resources.filter(function (p) { return extractedResources.indexOf(p) === -1; }) + ")");
+            console.log("[i18n] Missing resources in file 'build/lib/i18n.resources.json': JSON.stringify(" + extractedResources.filter(function (p) { return i18Resources.indexOf(p) === -1; }) + ")");
+        }
+        var promises = [];
+        var _loop_1 = function (project) {
+            promises.push(getAllResources(project, apiHostname, username, password).then(function (resources) {
+                var expectedResources = resourcesByProject[project];
+                var unusedResources = resources.filter(function (resource) { return resource && expectedResources.indexOf(resource) === -1; });
+                if (unusedResources.length) {
+                    console.log("[transifex] Obsolete resources in project '" + project + "': " + unusedResources.join(', '));
+                }
+            }));
+        };
+        for (var project in resourcesByProject) {
+            _loop_1(project);
+        }
+        return Promise.all(promises).then(function (_) {
+            _this.push(null);
+        }).catch(function (reason) { throw new Error(reason); });
+    });
+}
+exports.findObsoleteResources = findObsoleteResources;
 function tryGetResource(project, slug, apiHostname, credentials) {
     return new Promise(function (resolve, reject) {
         var options = {
@@ -801,29 +893,35 @@ function updateResource(project, slug, xlfFile, apiHostname, credentials) {
     });
 }
 // cache resources
-var _buildResources;
-function pullBuildXlfFiles(apiHostname, username, password, language) {
-    if (!_buildResources) {
-        _buildResources = [];
+var _coreAndExtensionResources;
+function pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, includeExternalExtensions) {
+    if (!_coreAndExtensionResources) {
+        _coreAndExtensionResources = [];
         // editor and workbench
         var json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
-        _buildResources.push.apply(_buildResources, json.editor);
-        _buildResources.push.apply(_buildResources, json.workbench);
+        _coreAndExtensionResources.push.apply(_coreAndExtensionResources, json.editor);
+        _coreAndExtensionResources.push.apply(_coreAndExtensionResources, json.workbench);
         // extensions
         var extensionsToLocalize_1 = Object.create(null);
         glob.sync('./extensions/**/*.nls.json').forEach(function (extension) { return extensionsToLocalize_1[extension.split('/')[2]] = true; });
         glob.sync('./extensions/*/node_modules/vscode-nls').forEach(function (extension) { return extensionsToLocalize_1[extension.split('/')[2]] = true; });
+        if (includeExternalExtensions) {
+            for (var _i = 0, externalExtensionsWithTranslations_1 = externalExtensionsWithTranslations; _i < externalExtensionsWithTranslations_1.length; _i++) {
+                var extension = externalExtensionsWithTranslations_1[_i];
+                extensionsToLocalize_1[extension] = true;
+            }
+        }
         Object.keys(extensionsToLocalize_1).forEach(function (extension) {
-            _buildResources.push({ name: extension, project: 'vscode-extensions' });
+            _coreAndExtensionResources.push({ name: extension, project: extensionsProject });
         });
     }
-    return pullXlfFiles(apiHostname, username, password, language, _buildResources);
+    return pullXlfFiles(apiHostname, username, password, language, _coreAndExtensionResources);
 }
-exports.pullBuildXlfFiles = pullBuildXlfFiles;
+exports.pullCoreAndExtensionsXlfFiles = pullCoreAndExtensionsXlfFiles;
 function pullSetupXlfFiles(apiHostname, username, password, language, includeDefault) {
-    var setupResources = [{ name: 'setup_messages', project: 'vscode-workbench' }];
+    var setupResources = [{ name: 'setup_messages', project: workbenchProject }];
     if (includeDefault) {
-        setupResources.push({ name: 'setup_default', project: 'vscode-setup' });
+        setupResources.push({ name: 'setup_default', project: setupProject });
     }
     return pullXlfFiles(apiHostname, username, password, language, setupResources);
 }
@@ -865,6 +963,7 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             port: 443,
             method: 'GET'
         };
+        console.log('Fetching ' + options.path);
         var request = https.request(options, function (res) {
             var xlfBuffer = [];
             res.on('data', function (chunk) { return xlfBuffer.push(chunk); });
@@ -928,7 +1027,7 @@ function createI18nFile(originalFilePath, messages) {
 }
 var i18nPackVersion = "1.0.0";
 function pullI18nPackFiles(apiHostname, username, password, language) {
-    return pullBuildXlfFiles(apiHostname, username, password, language).pipe(prepareI18nPackFiles());
+    return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, true).pipe(prepareI18nPackFiles());
 }
 exports.pullI18nPackFiles = pullI18nPackFiles;
 function prepareI18nPackFiles() {
@@ -937,32 +1036,26 @@ function prepareI18nPackFiles() {
     var extensionsPacks = {};
     return event_stream_1.through(function (xlf) {
         var stream = this;
+        var project = path.dirname(xlf.path);
+        var resource = path.basename(xlf.path, '.xlf');
+        console.log(resource);
         var parsePromise = XLF.parse(xlf.contents.toString());
         parsePromises.push(parsePromise);
         parsePromise.then(function (resolvedFiles) {
             resolvedFiles.forEach(function (file) {
                 var path = file.originalFilePath;
                 var firstSlash = path.indexOf('/');
-                var firstSegment = path.substr(0, firstSlash);
-                if (firstSegment === 'src') {
-                    mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
-                }
-                else if (firstSegment === 'extensions') {
+                if (project === extensionsProject) {
+                    var extPack = extensionsPacks[resource];
+                    if (!extPack) {
+                        extPack = extensionsPacks[resource] = { version: i18nPackVersion, contents: {} };
+                    }
                     var secondSlash = path.indexOf('/', firstSlash + 1);
-                    var secondSegment = path.substring(firstSlash + 1, secondSlash);
-                    if (secondSegment) {
-                        var extPack = extensionsPacks[secondSegment];
-                        if (!extPack) {
-                            extPack = extensionsPacks[secondSegment] = { version: i18nPackVersion, contents: {} };
-                        }
-                        extPack.contents[path.substr(secondSlash + 1)] = file.messages;
-                    }
-                    else {
-                        console.log('Unknown second segment ' + path);
-                    }
+                    var key = externalExtensionsWithTranslations.indexOf(resource) !== -1 ? path : path.substr(secondSlash + 1);
+                    extPack.contents[key] = file.messages;
                 }
                 else {
-                    console.log('Unknown first segment ' + path);
+                    mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
                 }
             });
         });

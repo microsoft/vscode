@@ -458,6 +458,10 @@ export interface IEditorOptions {
 	 */
 	wordBasedSuggestions?: boolean;
 	/**
+	 * The history mode for suggestions.
+	 */
+	selectSuggestions?: string;
+	/**
 	 * The font size for the suggest widget.
 	 * Defaults to the editor font size.
 	 */
@@ -827,6 +831,7 @@ export interface EditorContribOptions {
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly wordBasedSuggestions: boolean;
+	readonly selectSuggestions: 'never' | 'byRecency' | 'byPrefix';
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly selectionHighlight: boolean;
@@ -1176,6 +1181,7 @@ export class InternalEditorOptions {
 			&& a.acceptSuggestionOnCommitCharacter === b.acceptSuggestionOnCommitCharacter
 			&& a.snippetSuggestions === b.snippetSuggestions
 			&& a.wordBasedSuggestions === b.wordBasedSuggestions
+			&& a.selectSuggestions === b.selectSuggestions
 			&& a.suggestFontSize === b.suggestFontSize
 			&& a.suggestLineHeight === b.suggestLineHeight
 			&& a.selectionHighlight === b.selectionHighlight
@@ -1706,6 +1712,7 @@ export class EditorOptionsValidator {
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippetSuggestions, ['top', 'bottom', 'inline', 'none']),
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
+			selectSuggestions: _stringSet<'never' | 'byRecency' | 'byPrefix'>(opts.selectSuggestions, defaults.selectSuggestions, ['never', 'byRecency', 'byPrefix']),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
@@ -1806,6 +1813,7 @@ export class InternalEditorOptionsFactory {
 				acceptSuggestionOnCommitCharacter: opts.contribInfo.acceptSuggestionOnCommitCharacter,
 				snippetSuggestions: opts.contribInfo.snippetSuggestions,
 				wordBasedSuggestions: opts.contribInfo.wordBasedSuggestions,
+				selectSuggestions: opts.contribInfo.selectSuggestions,
 				suggestFontSize: opts.contribInfo.suggestFontSize,
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2260,6 +2268,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		acceptSuggestionOnCommitCharacter: true,
 		snippetSuggestions: 'inline',
 		wordBasedSuggestions: true,
+		selectSuggestions: 'byRecency',
 		suggestFontSize: 0,
 		suggestLineHeight: 0,
 		selectionHighlight: true,

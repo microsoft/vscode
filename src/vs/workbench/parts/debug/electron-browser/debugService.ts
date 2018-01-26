@@ -580,13 +580,11 @@ export class DebugService implements debug.IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	public addBreakpoints(uri: uri, rawBreakpoints: debug.IRawBreakpoint[]): TPromise<debug.IBreakpoint[]> {
-		const bps = this.model.addBreakpoints(uri, rawBreakpoints);
+	public addBreakpoints(uri: uri, rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
+		this.model.addBreakpoints(uri, rawBreakpoints);
 		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, uri.fsPath)));
 
-		return this.sendBreakpoints(uri).then(_ => {
-			return bps;
-		});
+		return this.sendBreakpoints(uri);
 	}
 
 	public updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): void {
@@ -609,10 +607,9 @@ export class DebugService implements debug.IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	public addFunctionBreakpoint(name?: string): debug.IFunctionBreakpoint {
-		const newFunctionBreakpoint = this.model.addFunctionBreakpoint(name || '');
+	public addFunctionBreakpoint(name?: string, id?: string): void {
+		const newFunctionBreakpoint = this.model.addFunctionBreakpoint(name || '', id);
 		this.viewModel.setSelectedFunctionBreakpoint(newFunctionBreakpoint);
-		return newFunctionBreakpoint;
 	}
 
 	public renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void> {

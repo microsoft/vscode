@@ -110,9 +110,9 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this.workspace.getFolder(resource);
 	}
 
-	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[]): TPromise<void> {
+	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number): TPromise<void> {
 		assert.ok(this.jsonEditingService, 'Workbench is not initialized yet');
-		return this.workspaceEditingQueue.queue(() => this.doAddFolders(foldersToAdd));
+		return this.workspaceEditingQueue.queue(() => this.doAddFolders(foldersToAdd, index));
 	}
 
 	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
@@ -134,7 +134,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return false;
 	}
 
-	private doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[]): TPromise<void> {
+	private doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number): TPromise<void> {
 		if (this.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
 			return TPromise.as(void 0); // we need a workspace to begin with
 		}
@@ -176,7 +176,16 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		});
 
 		if (storedFoldersToAdd.length > 0) {
-			return this.setFolders([...currentStoredFolders, ...storedFoldersToAdd]);
+			let newStoredWorkspaceFolders: IStoredWorkspaceFolder[] = [];
+
+			if (typeof index === 'number' && index >= 0 && index < currentStoredFolders.length) {
+				newStoredWorkspaceFolders = currentStoredFolders.slice(0);
+				newStoredWorkspaceFolders.splice(index, 0, ...storedFoldersToAdd);
+			} else {
+				newStoredWorkspaceFolders = [...currentStoredFolders, ...storedFoldersToAdd];
+			}
+
+			return this.setFolders(newStoredWorkspaceFolders);
 		}
 
 		return TPromise.as(void 0);

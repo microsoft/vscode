@@ -429,6 +429,7 @@ interface ResourceTemplate {
 	fileLabel: FileLabel;
 	decorationIcon: HTMLElement;
 	actionBar: ActionBar;
+	elementDisposable: IDisposable;
 	dispose: () => void;
 }
 
@@ -464,7 +465,8 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		private actionItemProvider: IActionItemProvider,
 		private getSelectedResources: () => ISCMResource[],
 		@IThemeService private themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceTemplate {
@@ -480,7 +482,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		const decorationIcon = append(element, $('.decoration-icon'));
 
 		return {
-			element, name, fileLabel, decorationIcon, actionBar, dispose: () => {
+			element, name, fileLabel, decorationIcon, actionBar, elementDisposable: EmptyDisposable, dispose: () => {
 				actionBar.dispose();
 				fileLabel.dispose();
 			}
@@ -488,14 +490,22 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
+		template.elementDisposable.dispose();
 
 		const theme = this.themeService.getTheme();
 		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
 
 		template.fileLabel.setFile(resource.sourceUri, { fileDecorations: { colors: false, badges: !icon, data: resource.decorations } });
-		template.actionBar.clear();
 		template.actionBar.context = resource;
-		template.actionBar.push(this.scmMenus.getResourceActions(resource), { icon: true, label: false });
+
+		const updateActions = () => {
+			template.actionBar.clear();
+			template.actionBar.push(this.scmMenus.getResourceActions(resource), { icon: true, label: false });
+		};
+
+		template.elementDisposable = this.configurationService.onDidChangeConfiguration(updateActions);
+		updateActions();
+
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);
 
@@ -507,9 +517,12 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 			template.decorationIcon.style.display = 'none';
 			template.decorationIcon.style.backgroundImage = '';
 		}
+
+		template.element.setAttribute('data-tooltip', resource.decorations.tooltip);
 	}
 
 	disposeTemplate(template: ResourceTemplate): void {
+		template.elementDisposable.dispose();
 		template.dispose();
 	}
 }
