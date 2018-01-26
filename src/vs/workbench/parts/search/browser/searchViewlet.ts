@@ -1072,7 +1072,11 @@ export class SearchViewlet extends Viewlet {
 
 		this.searchWidget.searchInput.clearMessage();
 		this.searching = true;
-		this.changeActionAtPosition(0, this.instantiationService.createInstance(CancelSearchAction, CancelSearchAction.ID, CancelSearchAction.LABEL));
+		setTimeout(() => {
+			if (this.searching) {
+				this.changeActionAtPosition(0, this.instantiationService.createInstance(CancelSearchAction, CancelSearchAction.ID, CancelSearchAction.LABEL));
+			}
+		}, 2000);
 		this.showEmptyStage();
 
 		let onComplete = (completed?: ISearchComplete) => {
