@@ -777,6 +777,16 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			isDirectory: true
 		}, root);
 
+		const setInputAndExpand = (input: FileStat | Model, statsToExpand: FileStat[]) => {
+			// Make sure to expand all folders that where expanded in the previous session
+			// Special case: we are switching to multi workspace view, thus expand all the roots (they might just be added)
+			if (input === this.model && statsToExpand.every(fs => !fs.isRoot)) {
+				statsToExpand = this.model.roots.concat(statsToExpand);
+			}
+
+			return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(statsToExpand));
+		};
+
 		if (targetsToResolve.every(t => t.root.resource.scheme === 'file')) {
 			// All the roots are local, resolve them in parallel
 			return this.fileService.resolveFiles(targetsToResolve).then(results => {
@@ -792,17 +802,11 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
 
 				const statsToExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(expand => this.model.findClosest(expand)));
-
 				if (input === this.explorerViewer.getInput()) {
-					return this.explorerViewer.refresh().then(() => statsToExpand.length ? this.explorerViewer.expandAll(statsToExpand) : undefined);
+					return this.explorerViewer.refresh().then(() => this.explorerViewer.expandAll(statsToExpand));
 				}
 
-				// Make sure to expand all folders that where expanded in the previous session
-				// Special case: there is nothing to expand, thus expand all the roots (they might just be added)
-				if (statsToExpand.length === 0) {
-					statsToExpand.push(...this.model.roots);
-				}
-				return this.explorerViewer.setInput(input).then(() => statsToExpand.length ? this.explorerViewer.expandAll(statsToExpand) : undefined);
+				return setInputAndExpand(input, statsToExpand);
 			});
 		}
 
@@ -829,13 +833,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 					return delayerPromise;
 				}
 
-				// Display roots only when multi folder workspace
-				// Make sure to expand all folders that where expanded in the previous session
-				if (input === this.model) {
-					// We have transitioned into workspace view -> expand all roots
-					toExpand = this.model.roots.concat(toExpand);
-				}
-				return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(toExpand));
+				return setInputAndExpand(input, statsToExpand);
 			})));
 	}
 
