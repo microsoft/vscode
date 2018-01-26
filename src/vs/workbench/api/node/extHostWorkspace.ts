@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { normalize } from 'vs/base/common/paths';
-import { delta } from 'vs/base/common/arrays';
+import { delta as arrayDelta } from 'vs/base/common/arrays';
 import { relative, dirname } from 'path';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspaceShape, IMainContext } from './extHost.protocol';
@@ -20,6 +20,25 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
+}
+
+function compareWorkspaceFolderByUri(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder): number {
+	return isFolderEqual(a.uri, b.uri) ? 0 : compare(a.uri.toString(), b.uri.toString());
+}
+
+function compareWorkspaceFolderByUriAndNameAndIndex(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder): number {
+	if (a.index !== b.index) {
+		return a.index < b.index ? -1 : 1;
+	}
+
+	return isFolderEqual(a.uri, b.uri) ? compare(a.name, b.name) : compare(a.uri.toString(), b.uri.toString());
+}
+
+function delta(oldFolders: vscode.WorkspaceFolder[], newFolders: vscode.WorkspaceFolder[], compare: (a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder) => number): { removed: vscode.WorkspaceFolder[], added: vscode.WorkspaceFolder[] } {
+	const oldSortedFolders = oldFolders.sort(compare);
+	const newSortedFolders = newFolders.sort(compare);
+
+	return arrayDelta(oldSortedFolders, newSortedFolders, compare);
 }
 
 interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
@@ -63,25 +82,9 @@ class ExtHostWorkspaceImpl extends Workspace {
 		newWorkspaceFolders.sort((f1, f2) => f1.index < f2.index ? -1 : 1);
 
 		const workspace = new ExtHostWorkspaceImpl(id, name, newWorkspaceFolders);
-
-		const oldRoots = oldWorkspace ? oldWorkspace.workspaceFolders.sort(ExtHostWorkspaceImpl.compareWorkspaceFolderByUri) : [];
-		const newRoots = workspace.workspaceFolders.sort(ExtHostWorkspaceImpl.compareWorkspaceFolderByUri);
-
-		const { added, removed } = delta(oldRoots, newRoots, ExtHostWorkspaceImpl.compareWorkspaceFolderByUri);
+		const { added, removed } = delta(oldWorkspace ? oldWorkspace.workspaceFolders : [], workspace.workspaceFolders, compareWorkspaceFolderByUri);
 
 		return { workspace, added, removed };
-	}
-
-	static compareWorkspaceFolderByUri(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder, includeName?: boolean): number {
-		return isFolderEqual(a.uri, b.uri) ? 0 : compare(a.uri.toString(), b.uri.toString());
-	}
-
-	static compareWorkspaceFolderByUriAndNameAndIndex(a: vscode.WorkspaceFolder, b: vscode.WorkspaceFolder): number {
-		if (a.index !== b.index) {
-			return a.index < b.index ? -1 : 1;
-		}
-
-		return isFolderEqual(a.uri, b.uri) ? compare(a.name, b.name) : compare(a.uri.toString(), b.uri.toString());
 	}
 
 	private static _findFolder(workspace: ExtHostWorkspaceImpl, folderUriToFind: URI): MutableWorkspaceFolder {
@@ -180,9 +183,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 		const newWorkspaceFolders = currentWorkspaceFolders.slice(0);
 		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map((f, index) => ({ uri: f.uri, name: f.name || basenameOrAuthority(f.uri), index })));
-		const oldRoots = currentWorkspaceFolders.sort(ExtHostWorkspaceImpl.compareWorkspaceFolderByUri);
-		const newRoots = newWorkspaceFolders.sort(ExtHostWorkspaceImpl.compareWorkspaceFolderByUri);
-		const { added, removed } = delta(oldRoots, newRoots, ExtHostWorkspaceImpl.compareWorkspaceFolderByUriAndNameAndIndex);
+		const { added, removed } = delta(currentWorkspaceFolders, newWorkspaceFolders, compareWorkspaceFolderByUriAndNameAndIndex);
 		if (added.length === 0 && removed.length === 0) {
 			return false; // nothing actually changed
 		}
