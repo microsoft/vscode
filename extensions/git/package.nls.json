@@ -65,6 +65,7 @@
 	"config.discardAllScope": "Controls what changes are discarded by the `Discard all changes` command. `all` discards all changes. `tracked` discards only tracked files. `prompt` shows a prompt dialog every time the action is run.",
 	"config.decorations.enabled": "Controls if Git contributes colors and badges to the explorer and the open editors view.",
 	"config.promptToSaveFilesBeforeCommit": "Controls whether Git should check for unsaved files before committing.",
+	"config.showInlineOpenFileAction": "Controls whether to show an inline Open File action in the Git changes view.",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",
 	"colors.untracked": "Color for untracked resources.",

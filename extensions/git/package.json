@@ -726,7 +726,7 @@
         },
         {
           "command": "git.openFile2",
-          "when": "scmProvider == git && scmResourceGroup == merge",
+          "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction",
           "group": "inline0"
         },
         {
@@ -756,7 +756,7 @@
         },
         {
           "command": "git.openFile2",
-          "when": "scmProvider == git && scmResourceGroup == index",
+          "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction",
           "group": "inline0"
         },
         {
@@ -796,7 +796,7 @@
         },
         {
           "command": "git.openFile2",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction",
           "group": "inline0"
         },
         {
@@ -941,6 +941,11 @@
           "type": "boolean",
           "default": false,
           "description": "%config.promptToSaveFilesBeforeCommit%"
+        },
+        "git.showInlineOpenFileAction": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.showInlineOpenFileAction%"
         }
       }
     },
