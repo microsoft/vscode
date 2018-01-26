@@ -468,6 +468,12 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
+		'editor.suggestHistory': {
+			'type': 'string',
+			'enum': ['off', 'whenEmpty', 'byPrefix'],
+			'default': 'whenEmpty',
+			'description': nls.localize('suggestHistory', "Controls whether completions are selected based on previous completion sessions.")
+		},
 		'editor.suggestFontSize': {
 			'type': 'integer',
 			'default': 0,

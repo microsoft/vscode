@@ -166,7 +166,7 @@ export class PrefixMemory extends Memory {
 	}
 }
 
-export type MemMode = 'off' | 'shy' | 'always';
+export type MemMode = 'off' | 'whenEmpty' | 'byPrefix';
 
 export class SuggestMemories {
 
@@ -189,7 +189,7 @@ export class SuggestMemories {
 			return;
 		}
 		this._mode = mode;
-		this._strategy = mode === 'always' ? new PrefixMemory() : mode === 'shy' ? new ShyMemory() : new NoMemory();
+		this._strategy = mode === 'byPrefix' ? new PrefixMemory() : mode === 'whenEmpty' ? new ShyMemory() : new NoMemory();
 
 		try {
 			const raw = this._storageService.get(`${this._storagePrefix}/${this._mode}`, StorageScope.WORKSPACE);
