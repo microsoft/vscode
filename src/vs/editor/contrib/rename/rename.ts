@@ -80,17 +80,17 @@ export function rename(model: ITextModel, position: Position, newName: string): 
 }
 
 function resolveInitialRenameValue(model: ITextModel, position: Position): TPromise<RenameInitialValue> {
-	const supports = RenameProviderRegistry.ordered(model);
-	return asWinJsPromise((token) =>
-			supports.length > 0
-				? supports[0].resolveInitialRenameValue(model, position, token) //Use first rename provider so that we always use the same for resolving the location and for the actual rename
-				: undefined
-		).then(result => {
-			return !result ? undefined : result;
-		}, err => {
-			onUnexpectedExternalError(err);
-			return TPromise.wrapError<RenameInitialValue>(new Error('provider failed'));
-		});
+	const [first] = RenameProviderRegistry.ordered(model);
+	if (!first || typeof first.resolveInitialRenameValue !== 'function') {
+		return TPromise.as(null);
+	}
+	//Use first rename provider so that we always use the same for resolving the location and for the actual rename
+	return asWinJsPromise(token => first.resolveInitialRenameValue(model, position, token)).then(result => {
+		return !result ? undefined : result;
+	}, err => {
+		onUnexpectedExternalError(err);
+		return TPromise.wrapError<RenameInitialValue>(new Error('provider failed'));
+	});
 }
 
 // ---  register actions and commands
@@ -140,9 +140,9 @@ class RenameController implements IEditorContribution {
 
 		let initialValue = await resolveInitialRenameValue(this.editor.getModel(), this.editor.getPosition());
 
-		if(initialValue) {
+		if (initialValue) {
 			lineNumber = initialValue.range.startLineNumber;
-			if(initialValue.text) {
+			if (initialValue.text) {
 				word = initialValue.text;
 			}
 			else {
