@@ -11,7 +11,7 @@ import * as path from 'path';
 
 import { Command } from './commandManager';
 import { PreviewSecuritySelector } from './security';
-import { getMarkdownUri, MDDocumentContentProvider, isMarkdownFile, MarkdownPreviewWebviewManager } from './features/previewContentProvider';
+import { getMarkdownUri, isMarkdownFile, MarkdownPreviewWebviewManager } from './features/previewContentProvider';
 import { Logger } from './logger';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
 import { MarkdownEngine } from './markdownEngine';
@@ -123,22 +123,17 @@ export class RefreshPreviewCommand implements Command {
 	public readonly id = 'markdown.refreshPreview';
 
 	public constructor(
-		private readonly contentProvider: MDDocumentContentProvider
+		private readonly webviewManager: MarkdownPreviewWebviewManager
 	) { }
 
 	public execute(resource: string | undefined) {
 		if (resource) {
 			const source = vscode.Uri.parse(resource);
-			this.contentProvider.update(source);
+			this.webviewManager.update(source);
 		} else if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
-			this.contentProvider.update(getMarkdownUri(vscode.window.activeTextEditor.document.uri));
+			this.webviewManager.update(getMarkdownUri(vscode.window.activeTextEditor.document.uri));
 		} else {
-			// update all generated md documents
-			for (const document of vscode.workspace.textDocuments) {
-				if (document.uri.scheme === MDDocumentContentProvider.scheme) {
-					this.contentProvider.update(document.uri);
-				}
-			}
+			this.webviewManager.updateAll();
 		}
 	}
 }

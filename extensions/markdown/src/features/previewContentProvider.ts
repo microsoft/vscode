@@ -20,22 +20,22 @@ const previewStrings = {
 
 export function isMarkdownFile(document: vscode.TextDocument) {
 	return document.languageId === 'markdown'
-		&& document.uri.scheme !== MDDocumentContentProvider.scheme; // prevent processing of own documents
+		&& document.uri.scheme !== MarkdownContentProvider.scheme; // prevent processing of own documents
 }
 
 export function getMarkdownUri(uri: vscode.Uri) {
-	if (uri.scheme === MDDocumentContentProvider.scheme) {
+	if (uri.scheme === MarkdownContentProvider.scheme) {
 		return uri;
 	}
 
 	return uri.with({
-		scheme: MDDocumentContentProvider.scheme,
+		scheme: MarkdownContentProvider.scheme,
 		path: uri.path + '.rendered',
 		query: uri.toString()
 	});
 }
 
-class MarkdownPreviewConfig {
+export class MarkdownPreviewConfig {
 	public static getConfigForResource(resource: vscode.Uri) {
 		return new MarkdownPreviewConfig(resource);
 	}
@@ -105,7 +105,7 @@ class MarkdownPreviewConfig {
 	[key: string]: any;
 }
 
-class PreviewConfigManager {
+export class PreviewConfigManager {
 	private previewConfigurationsForWorkspaces = new Map<string, MarkdownPreviewConfig>();
 
 	public loadAndCacheConfiguration(
@@ -136,12 +136,8 @@ class PreviewConfigManager {
 	}
 }
 
-export class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
+export class MarkdownContentProvider {
 	public static readonly scheme = 'markdown';
-
-	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
-	private _waiting: boolean = false;
-	private previewConfigurations = new PreviewConfigManager();
 
 	private extraStyles: Array<vscode.Uri> = [];
 	private extraScripts: Array<vscode.Uri> = [];
@@ -228,9 +224,10 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 			.join('\n');
 	}
 
-	public async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
-		const sourceUri = vscode.Uri.parse(uri.query);
-
+	public async provideTextDocumentContent(
+		sourceUri: vscode.Uri,
+		previewConfigurations: PreviewConfigManager
+	): Promise<string> {
 		let initialLine: number | undefined = undefined;
 		const editor = vscode.window.activeTextEditor;
 		if (editor && editor.document.uri.toString() === sourceUri.toString()) {
@@ -238,10 +235,10 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		}
 
 		const document = await vscode.workspace.openTextDocument(sourceUri);
-		const config = this.previewConfigurations.loadAndCacheConfiguration(sourceUri);
+		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
 
 		const initialData = {
-			previewUri: uri.toString(),
+			previewUri: sourceUri.toString(), // TODO
 			source: sourceUri.toString(),
 			line: initialLine,
 			scrollPreviewWithEditorSelection: config.scrollPreviewWithEditorSelection,
@@ -276,32 +273,6 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 			</html>`;
 	}
 
-	public updateConfiguration() {
-		// update all generated md documents
-		for (const document of vscode.workspace.textDocuments) {
-			if (document.uri.scheme === MDDocumentContentProvider.scheme) {
-				const sourceUri = vscode.Uri.parse(document.uri.query);
-				if (this.previewConfigurations.shouldUpdateConfiguration(sourceUri)) {
-					this.update(document.uri);
-				}
-			}
-		}
-	}
-
-	get onDidChange(): vscode.Event<vscode.Uri> {
-		return this._onDidChange.event;
-	}
-
-	public update(uri: vscode.Uri) {
-		if (!this._waiting) {
-			this._waiting = true;
-			setTimeout(() => {
-				this._waiting = false;
-				this._onDidChange.fire(uri);
-			}, 300);
-		}
-	}
-
 	private getCspForResource(resource: vscode.Uri, nonce: string): string {
 		switch (this.cspArbiter.getSecurityLevelForResource(resource)) {
 			case MarkdownPreviewSecurityLevel.AllowInsecureContent:
@@ -319,26 +290,19 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 
 export class MarkdownPreviewWebviewManager {
 	private readonly webviews = new Map<string, vscode.Webview>();
+	private readonly previewConfigurations = new PreviewConfigManager();
 
 	private readonly disposables: vscode.Disposable[] = [];
 
 	public constructor(
-		private readonly contentProvider: MDDocumentContentProvider
+		private readonly contentProvider: MarkdownContentProvider
 	) {
 		vscode.workspace.onDidSaveTextDocument(document => {
-			if (isMarkdownFile(document)) {
-				const uri = getMarkdownUri(document.uri);
-				this.contentProvider.update(uri);
-			}
+			this.update(document.uri);
 		}, null, this.disposables);
 
 		vscode.workspace.onDidChangeTextDocument(event => {
-			if (isMarkdownFile(event.document)) {
-				const webview = this.webviews.get(event.document.uri.fsPath);
-				if (webview) {
-					this.contentProvider.provideTextDocumentContent(getMarkdownUri(event.document.uri)).then(x => webview.html = x);
-				}
-			}
+			this.update(event.document.uri);
 		}, null, this.disposables);
 	}
 
@@ -353,7 +317,26 @@ export class MarkdownPreviewWebviewManager {
 	}
 
 	public update(uri: vscode.Uri) {
-		this.contentProvider.update(uri);
+		const webview = this.webviews.get(uri.fsPath);
+		if (webview) {
+			this.contentProvider.provideTextDocumentContent(uri, this.previewConfigurations).then(x => webview.html = x);
+		}
+	}
+
+	public updateAll() {
+		for (const resource of this.webviews.keys()) {
+			const sourceUri = vscode.Uri.parse(resource);
+			this.update(sourceUri);
+		}
+	}
+
+	public updateConfiguration() {
+		for (const resource of this.webviews.keys()) {
+			const sourceUri = vscode.Uri.parse(resource);
+			if (this.previewConfigurations.shouldUpdateConfiguration(sourceUri)) {
+				this.update(sourceUri);
+			}
+		}
 	}
 
 	public create(
@@ -365,7 +348,7 @@ export class MarkdownPreviewWebviewManager {
 			viewColumn,
 			{ enableScripts: true });
 
-		this.contentProvider.provideTextDocumentContent(getMarkdownUri(resource)).then(x => view.html = x);
+		this.contentProvider.provideTextDocumentContent(resource, this.previewConfigurations).then(x => view.html = x);
 
 		view.onMessage(e => {
 			vscode.commands.executeCommand(e.command, ...e.args);

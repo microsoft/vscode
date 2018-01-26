@@ -544,6 +544,11 @@ declare module 'vscode' {
 		 * @param message Body of the message.
 		 */
 		postMessage(message: any): Thenable<any>;
+
+		/**
+		 * Dispose the webview.
+		 */
+		dispose(): any;
 	}
 
 	namespace window {
