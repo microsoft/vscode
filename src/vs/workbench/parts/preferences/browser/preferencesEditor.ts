@@ -510,7 +510,7 @@ class PreferencesRenderersController extends Disposable {
 		}
 
 		return this.getPreferencesEditorModel(target).then(model => {
-			return this._filterOrSearchPreferencesModel('', <ISettingsEditorModel>model, provider, groupId, groupLabel, groupOrder);
+			return model && this._filterOrSearchPreferencesModel('', <ISettingsEditorModel>model, provider, groupId, groupLabel, groupOrder);
 		}).then(result => {
 			const count = result ? this._flatten(result.filteredGroups).length : 0;
 			this._onDidFilterResultsCountChange.fire({ target, count });
@@ -530,8 +530,13 @@ class PreferencesRenderersController extends Disposable {
 
 		const targetKey = resource.toString();
 		if (!this._prefsModelsForSearch.has(targetKey)) {
-			const model = this._register(await this.preferencesService.createPreferencesEditorModel(resource));
-			this._prefsModelsForSearch.set(targetKey, <ISettingsEditorModel>model);
+			try {
+				const model = this._register(await this.preferencesService.createPreferencesEditorModel(resource));
+				this._prefsModelsForSearch.set(targetKey, <ISettingsEditorModel>model);
+			} catch (e) {
+				// Will throw when the settings file doesn't exist.
+				return null;
+			}
 		}
 
 		return this._prefsModelsForSearch.get(targetKey);
