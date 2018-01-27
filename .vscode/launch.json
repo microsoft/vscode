@@ -98,7 +98,7 @@
 			"name": "VS Code API Tests (workspace)",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/vscode-api-tests/testWorkspace.code-workspace",
+				"${workspaceFolder}/extensions/vscode-api-tests/testworkspace.code-workspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
 				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/workspace-tests"
 			],
