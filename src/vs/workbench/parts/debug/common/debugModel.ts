@@ -511,6 +511,10 @@ export class Thread implements IThread {
 		return this.process.session.stepOut({ threadId: this.threadId });
 	}
 
+	public writeTTDLog(uri: string): TPromise<any> {
+		return this.process.session.writeTTDLog({threadId: this.threadId, uri: uri});
+	}
+
 	public stepBack(): TPromise<any> {
 		return this.process.session.stepBack({ threadId: this.threadId });
 	}

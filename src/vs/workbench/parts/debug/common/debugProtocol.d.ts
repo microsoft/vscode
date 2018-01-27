@@ -563,6 +563,25 @@ declare module DebugProtocol {
 	export interface StepOutResponse extends Response {
 	}
 
+	/** WriteTTDLog request; value of command field is 'writeTTDLog'.
+		The request writes out the ttd log for the current live debugging session to the spcified location.
+	*/
+	export interface WriteTTDLogRequest extends Request {
+		// command: 'writeTTDLog';
+		arguments: WriteTTDLogArguments;
+	}
+
+	/** Arguments for 'writeTTDLog' request. */
+	export interface WriteTTDLogArguments {
+		/** Exceute 'writeTTDLog' for this thread. */
+		threadId: number;
+		uri: string;
+	}
+
+	/** Response to 'writeTTDLog' request. This is just an acknowledgement, so no body field is required. */
+	export interface WriteTTDLogResponse extends Response {
+	}
+
 	/** StepBack request; value of command field is 'stepBack'.
 		The request starts the debuggee to run one step backwards.
 		The debug adapter first sends the StepBackResponse and then a StoppedEvent (event type 'step') after the step has completed. Clients should only call this request if the capability supportsStepBack is true.

@@ -201,6 +201,10 @@ export class MockSession implements debug.ISession {
 		return TPromise.as(null);
 	}
 
+	public writeTTDLog(args: DebugProtocol.WriteTTDLogArguments): TPromise<DebugProtocol.WriteTTDLogResponse> {
+		return TPromise.as(null);
+	}
+
 	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
 		return TPromise.as(null);
 	}

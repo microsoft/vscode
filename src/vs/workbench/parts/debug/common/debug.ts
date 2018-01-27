@@ -118,6 +118,7 @@ export interface ISession {
 	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
 	stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse>;
 	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
+	writeTTDLog(args: DebugProtocol.WriteTTDLogArguments): TPromise<DebugProtocol.WriteTTDLogResponse>
 	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
 	stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse>;
 	reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse>;
@@ -192,6 +193,7 @@ export interface IThread extends ITreeElement {
 	next(): TPromise<any>;
 	stepIn(): TPromise<any>;
 	stepOut(): TPromise<any>;
+	writeTTDLog(uri: string): TPromise<any>;
 	stepBack(): TPromise<any>;
 	continue(): TPromise<any>;
 	pause(): TPromise<any>;

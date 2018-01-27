@@ -368,6 +368,12 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 		return this.send<DebugProtocol.EvaluateResponse>('evaluate', args);
 	}
 
+	public writeTTDLog(args: DebugProtocol.WriteTTDLogArguments): TPromise<DebugProtocol.WriteTTDLogResponse> {
+		return this.send('writeTTDLog', args).then(response => {
+			return response;
+		});
+	}
+
 	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
 		return this.send('stepBack', args).then(response => {
 			this.fireFakeContinued(args.threadId);
