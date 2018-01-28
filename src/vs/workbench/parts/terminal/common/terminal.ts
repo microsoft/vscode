@@ -393,9 +393,4 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
-
-	/**
-	 * Enter screen reader navigation mode.
-	 */
-	enterNavigationMode(): void;
 }

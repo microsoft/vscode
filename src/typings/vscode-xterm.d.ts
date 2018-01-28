@@ -353,12 +353,6 @@ declare module 'vscode-xterm' {
 		deregisterLinkMatcher(matcherId: number): void;
 
 		/**
-		 * Enters screen reader navigation mode. This will only work when
-		 * the screenReaderMode option is true.
-		 */
-		enterNavigationMode(): void;
-
-		/**
 		 * Gets whether the terminal has an active selection.
 		 */
 		hasSelection(): boolean;
