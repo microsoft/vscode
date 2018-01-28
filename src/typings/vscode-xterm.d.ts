@@ -199,6 +199,26 @@ declare module 'vscode-xterm' {
 		priority?: number;
 	}
 
+	export interface IEventEmitter {
+	  on(type: string, listener: (...args: any[]) => void): void;
+	  off(type: string, listener: (...args: any[]) => void): void;
+	  emit(type: string, data?: any): void;
+	  addDisposableListener(type: string, handler: (...args: any[]) => void): IDisposable;
+	}
+
+	/**
+	 * An object that can be disposed via a dispose function.
+	 */
+	export interface IDisposable {
+	  dispose(): void;
+	}
+
+	export interface ILocalizableStrings {
+	  blankLine: string;
+	  promptLabel: string;
+	  tooMuchOutput: string;
+	}
+
 	/**
 	 * The class that represents an xterm.js terminal.
 	 */
@@ -222,6 +242,11 @@ declare module 'vscode-xterm' {
 		 * The number of columns in the terminal's viewport.
 		 */
 		cols: number;
+
+		/**
+		 * Natural language strings that can be localized.
+		 */
+		static strings: ILocalizableStrings;
 
 		/**
 		 * Creates a new `Terminal` object.
