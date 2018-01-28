@@ -217,6 +217,22 @@ export class MockSession implements debug.ISession {
 		return TPromise.as(null);
 	}
 
+	public getTTDTraceWriteURI(args: DebugProtocol.GetTTDTraceWriteURIArguments): TPromise<DebugProtocol.GetTTDTraceWriteURIResponse> {
+		return TPromise.as(null);
+	}
+
+	public getTTDReplayConfiguration(args: DebugProtocol.GetTTDReplayConfigurationArguments): TPromise<DebugProtocol.GetTTDReplayConfigurationResponse> {
+		return TPromise.as(null);
+	}
+
+	public isTTDLiveMode(args: DebugProtocol.IsTTDLiveModeArguments): TPromise<DebugProtocol.IsTTDLiveModeResponse> {
+		return TPromise.as(null);
+	}
+
+	public isTTDReplayMode(args: DebugProtocol.IsTTDReplayModeArguments): TPromise<DebugProtocol.IsTTDReplayModeResponse> {
+		return TPromise.as(null);
+	}
+
 	public pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse> {
 		return TPromise.as(null);
 	}

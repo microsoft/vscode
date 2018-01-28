@@ -801,69 +801,49 @@ export class StartTTDAction extends AbstractDebugAction {
 		super(id, label, 'debug-action start-ttd', debugService, keybindingService, 50);
 	}
 
-	////
-	//Helpers for inner loop TTD -- maybe move into adapter and such
-	shouldTransitionToStepBack(thread: IThread): TPromise<boolean> {
-		const config = thread.process.configuration;
-		if(!Array.isArray(config["runtimeArgs"])) {
-			return TPromise.as(false);
-		}
-		else {
-			return TPromise.as(config["runtimeArgs"].includes("--tt-debug"));
-		}
-	}
+	ensureDirectoryAndEmpty(dir: string): TPromise<any> {
+		//
+		//TODO: what is the right api here??
+		//
 
-	requestTraceWrite(thread: IThread): TPromise<any> {
-		//TODO: I hijacked this we need to add the appropriate message
-		return thread.writeTTDLog("c:\\Users\\Marron\\Desktop\\multitest\\log");
+		return TPromise.as(null);
 	}
-
-	generateReplayConfiguration(thread: IThread): TPromise<any> {
-		return TPromise.as<any>({
-			"type": "node",
-            "request": "launch",
-            "name": "TTDReplay",
-            "protocol": "inspector",
-            "runtimeExecutable": "C:\\Code\\Node\\Debug\\node.exe",
-            "runtimeArgs": [
-                "--replay-debug=c:\\Users\\Marron\\Desktop\\multitest\\log"
-            ],
-            "console": "internalConsole"
-		});
-	}
-
-	launchReplayConfiguration(config: any): TPromise<any> {
-		return this.debugService.startDebugging(undefined, config);
-	}
-
-	isInTTDMode(process: IProcess): boolean {
-		const config = process.configuration;
-		if(!Array.isArray(config["runtimeArgs"])) {
-			return false;
-		}
-		else {
-			return config["runtimeArgs"].some((param) => param.startsWith("--replay-debug"));
-		}
-	}
-	////
 
 	public run(process: IProcess): TPromise<any> {
 		const thread = this.debugService.getViewModel().focusedThread;
 
-		return this.shouldTransitionToStepBack(thread)
-		.then((shouldtransition) => {
-			if(thread && shouldtransition) {
-				return this.requestTraceWrite(thread)
-					.then(() => {
-						return this.generateReplayConfiguration(thread);
-					})
-					.then((config) => {
-						return this.launchReplayConfiguration(config);
-					});
+		return thread.isTTDLiveMode().then((isLive: DebugProtocol.IsTTDLiveModeResponse) => {
+			if(!isLive.body.isInLiveMode) {
+				return TPromise.wrapError(new Error("Cannot start TTDReplay mode unless --tt-debug mode is enabled."));
 			}
 			else {
-				//write friendly error message here
-				return TPromise.as(null);
+				//
+				//TODO: Can we add a status bar or some sort of loading feedback here?
+				//TODO: What is the failire recovery strategy here (particularly once we add loading feedback info)?
+				//
+				//const statusItem = window.createStatusBarItem(StatusBarAlignment.Left);
+				//statusItem.text = "Preparing Time-Travel Debug Session...";
+				//statusItem.show();
+
+				return thread.getTTDTraceWriteURI()
+					.then((response: DebugProtocol.GetTTDTraceWriteURIResponse) => {
+						const uri = response.body.uri;
+						return this.ensureDirectoryAndEmpty(uri)
+							.then(() => {
+								return thread.writeTTDLog(uri);
+							})
+							.then(() => {
+								//statusItem.text = "Launching Time-Travel Debugger...";
+								return thread.getTTDReplayConfiguration(uri);
+							})
+							.then((config: DebugProtocol.GetTTDReplayConfigurationResponse) => {
+								return this.debugService.startDebugging(undefined, JSON.parse(config.body.jsonLaunchConfig));
+							})
+							.then(() => {
+								//statusItem.hide();
+								return TPromise.as(null);
+							});
+					});
 			}
 		});
 	}
@@ -888,22 +868,19 @@ export class StepBackAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.stepBack() : TPromise.as(null);
-	}
+		if(!thread) {
+			return TPromise.as(null);
+		}
 
-	////
-	//Helpers for inner loop TTD -- maybe move into adapter and such
-	isInTTDMode(process: IProcess): boolean {
-		const config = process.configuration;
-		if(!Array.isArray(config["runtimeArgs"])) {
-			return false;
-		}
-		else {
-			return config["runtimeArgs"].some((param) => param.startsWith("--replay-debug"));
-		}
+		return thread.isTTDReplayMode().then((response: DebugProtocol.IsTTDReplayModeResponse) => {
+			if(!response.body.isInReplayMode) {
+				return TPromise.wrapError(new Error("Cannot step-back unless running in TTDReplay mode."));
+			}
+			else {
+				return thread.stepBack();
+			}
+		});
 	}
-	//
-	////
 
 	protected isEnabled(state: State): boolean {
 		const process = this.debugService.getViewModel().focusedProcess;
@@ -925,22 +902,20 @@ export class ReverseContinueAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.reverseContinue() : TPromise.as(null);
-	}
+		if(!thread) {
+			return TPromise.as(null);
+		}
 
-	////
-	//Helpers for inner loop TTD -- maybe move into adapter and such
-	isInTTDMode(process: IProcess): boolean {
-		const config = process.configuration;
-		if(!Array.isArray(config["runtimeArgs"])) {
-			return false;
-		}
-		else {
-			return config["runtimeArgs"].some((param) => param.startsWith("--replay-debug"));
-		}
+
+		return thread.isTTDReplayMode().then((response: DebugProtocol.IsTTDReplayModeResponse) => {
+			if(!response.body.isInReplayMode) {
+				return TPromise.wrapError(new Error("Cannot reverse-continue unless running in TTDReplay mode."));
+			}
+			else {
+				return thread.reverseContinue();
+			}
+		});
 	}
-	//
-	////
 
 	protected isEnabled(state: State): boolean {
 		const process = this.debugService.getViewModel().focusedProcess;

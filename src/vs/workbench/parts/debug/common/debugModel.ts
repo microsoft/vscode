@@ -530,6 +530,22 @@ export class Thread implements IThread {
 	public reverseContinue(): TPromise<any> {
 		return this.process.session.reverseContinue({ threadId: this.threadId });
 	}
+
+	public getTTDTraceWriteURI(): TPromise<DebugProtocol.GetTTDTraceWriteURIResponse> {
+		return this.process.session.getTTDTraceWriteURI({ threadId: this.threadId });
+	}
+
+	public getTTDReplayConfiguration(uri: string): TPromise<DebugProtocol.GetTTDReplayConfigurationResponse> {
+		return this.process.session.getTTDReplayConfiguration({ threadId: this.threadId, uri: uri });
+	}
+
+	public isTTDLiveMode(): TPromise<DebugProtocol.IsTTDLiveModeResponse> {
+		return this.process.session.isTTDLiveMode({ threadId: this.threadId });
+	}
+
+	public isTTDReplayMode(): TPromise<DebugProtocol.IsTTDReplayModeResponse> {
+		return this.process.session.isTTDReplayMode({ threadId: this.threadId });
+	}
 }
 
 export class Process implements IProcess {
