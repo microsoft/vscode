@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RGBA } from 'vs/base/common/color';
+import { RGBA, Color } from 'vs/base/common/color';
 import { hash } from 'vs/base/common/hash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
@@ -234,4 +234,31 @@ export class ColorDetector implements IEditorContribution {
 	}
 }
 
+import 'vs/css!./colorPicker';
+import * as nls from 'vs/nls';
+import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
+import { ColorPickerWidget } from './colorPickerWidget';
+
+class ShowColorPickerAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.showColorPicker',
+			label: nls.localize('showColorPicker', "Show Color Picker"),
+			alias: 'Show Hover',
+			precondition: null
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.getDomNode()) {
+			return;
+		}
+		// Default
+		const rgb = new RGBA(255, 255, 255);
+		const color = new Color(rgb);
+		new ColorPickerWidget(editor.getDomNode(), new ColorPickerModel(color, [], 100), 100).layout();
+	}
+}
+
+registerEditorAction(ShowColorPickerAction);
 registerEditorContribution(ColorDetector);
