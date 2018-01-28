@@ -69,8 +69,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 			dnd: new WatchExpressionsDragAndDrop(this.debugService)
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
-				twistiePixels,
-				keyboardSupport: false
+				twistiePixels
 			});
 
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);

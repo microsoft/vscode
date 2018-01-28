@@ -75,8 +75,7 @@ export class DebugHoverWidget implements IContentWidget {
 		}, {
 				indentPixels: 6,
 				twistiePixels: 15,
-				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
-				keyboardSupport: false
+				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
 			});
 
 		this.valueContainer = $('.value');

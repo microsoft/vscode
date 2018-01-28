@@ -117,10 +117,21 @@ class MultipleSelectionController<T> implements IMultipleSelectionController<T> 
 	}
 }
 
+function handleMultiSelectSupport<T>(options: IListOptions<T>, configurationService: IConfigurationService): IListOptions<T> {
+	if (options.multipleSelectionSupport === true && !options.multipleSelectionController) {
+		options.multipleSelectionController = new MultipleSelectionController(configurationService);
+	}
+
+	return options;
+}
+
 export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
+
 	private listDoubleSelection: IContextKey<boolean>;
+
+	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -130,17 +141,14 @@ export class WorkbenchList<T> extends List<T> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
+		super(container, delegate, renderers, mixin(handleMultiSelectSupport(options, configurationService), { keyboardSupport: false } as IListOptions<any>, false));
 
-		if (multipleSelectionSupport && !options.multipleSelectionController) {
-			options.multipleSelectionController = new MultipleSelectionController(configurationService);
-		}
-
-		super(container, delegate, renderers, mixin(options, useAltAsMultipleSelectionModifier(configurationService)));
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
+
+		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(combinedDisposable([
 			this.contextKeyService,
@@ -148,13 +156,30 @@ export class WorkbenchList<T> extends List<T> {
 			attachListStyler(this, themeService),
 			this.onSelectionChange(() => this.listDoubleSelection.set(this.getSelection().length === 2))
 		]));
+
+		this.registerListeners();
+	}
+
+	public get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
+	private registerListeners(): void {
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
+			}
+		}));
 	}
 }
 
 export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	readonly contextKeyService: IContextKeyService;
-	private disposable: IDisposable;
+
+	private disposables: IDisposable[] = [];
+
+	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -164,34 +189,49 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
+		super(container, delegate, renderers, mixin(handleMultiSelectSupport(options, configurationService), { keyboardSupport: false } as IListOptions<any>, false));
 
-		if (multipleSelectionSupport && !options.multipleSelectionController) {
-			options.multipleSelectionController = new MultipleSelectionController(configurationService);
-		}
-
-		super(container, delegate, renderers, mixin(options, useAltAsMultipleSelectionModifier(configurationService)));
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
-		this.disposable = combinedDisposable([
+		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+
+		this.disposables.push(combinedDisposable([
 			this.contextKeyService,
 			(listService as ListService).register(this),
 			attachListStyler(this, themeService)
-		]);
+		]));
+
+		this.registerListeners();
+	}
+
+	public get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
+	private registerListeners(): void {
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
+			}
+		}));
 	}
 
 	dispose(): void {
-		this.disposable.dispose();
+		this.disposables = dispose(this.disposables);
 	}
 }
 
 export class WorkbenchTree extends Tree {
 
 	readonly contextKeyService: IContextKeyService;
+
 	protected disposables: IDisposable[] = [];
+
 	private listDoubleSelection: IContextKey<boolean>;
+
+	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -199,21 +239,39 @@ export class WorkbenchTree extends Tree {
 		options: ITreeOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, configuration, options);
+		super(container, configuration, mixin(options, { keyboardSupport: false } as ITreeOptions, false));
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
+
+		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(
 			this.contextKeyService,
 			(listService as ListService).register(this),
 			attachListStyler(this, themeService)
 		);
+
+		this.registerListeners();
+	}
+
+	public get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
+	private registerListeners(): void {
 		this.disposables.push(this.onDidChangeSelection(() => {
 			const selection = this.getSelection();
 			this.listDoubleSelection.set(selection && selection.length === 2);
+		}));
+
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
+			}
 		}));
 	}
 

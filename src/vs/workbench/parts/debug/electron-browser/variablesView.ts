@@ -90,8 +90,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 			controller: this.instantiationService.createInstance(VariablesController, new VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext)
 		}, {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
-				twistiePixels,
-				keyboardSupport: false
+				twistiePixels
 			});
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);

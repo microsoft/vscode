@@ -78,8 +78,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		const delegate = new Delegate();
 		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = this.instantiationService.createInstance(WorkbenchPagedList, this.extensionsList, delegate, [renderer], {
-			ariaLabel: localize('extensions', "Extensions"),
-			keyboardSupport: false
+			ariaLabel: localize('extensions', "Extensions")
 		});
 
 		chain(this.list.onSelectionChange)
@@ -443,6 +442,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		const activeEditorInput = this.editorService.getActiveEditorInput();
 
 		this.editorInputService.pinEditor(activeEditor.position, activeEditorInput);
+		activeEditor.focus();
 	}
 
 

@@ -92,7 +92,7 @@ export class TreeView extends TreeViewsViewletPanel {
 		const tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree,
 			container.getHTMLElement(),
 			{ dataSource, renderer, controller },
-			{ keyboardSupport: false }
+			{}
 		);
 
 		tree.contextKeyService.createKey<boolean>(this.id, true);

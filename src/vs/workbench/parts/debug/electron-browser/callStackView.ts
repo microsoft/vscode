@@ -102,8 +102,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 			controller
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
-				twistiePixels,
-				keyboardSupport: false
+				twistiePixels
 			});
 
 		const fileResultsNavigation = new FileResultsNavigation(this.tree);
@@ -116,7 +115,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 			const element = e.element;
 			if (element instanceof StackFrame) {
 				this.debugService.focusStackFrame(element, element.thread, element.thread.process, true);
-				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide).done(undefined, errors.onUnexpectedError);
+				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned).done(undefined, errors.onUnexpectedError);
 			}
 			if (element instanceof Thread) {
 				this.debugService.focusStackFrame(undefined, element, element.process, true);

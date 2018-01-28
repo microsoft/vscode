@@ -641,8 +641,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 			var options: tree.ITreeOptions = {
 				twistiePixels: 20,
-				ariaLabel: nls.localize('treeAriaLabel', "References"),
-				keyboardSupport: false
+				ariaLabel: nls.localize('treeAriaLabel', "References")
 			};
 
 			this._tree = this._instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), config, options);

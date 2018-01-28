@@ -526,8 +526,7 @@ export class ExtensionEditor extends BaseEditor {
 			controller
 		}, {
 				indentPixels: 40,
-				twistiePixels: 20,
-				keyboardSupport: false
+				twistiePixels: 20
 			});
 
 		tree.setInput(extensionDependencies);

@@ -505,8 +505,7 @@ export class SearchViewlet extends Viewlet {
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider),
 				dnd
 			}, {
-					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
-					keyboardSupport: false
+					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
 				});
 
 			this.tree.setInput(this.viewModel.searchResult);

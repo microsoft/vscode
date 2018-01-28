@@ -206,8 +206,7 @@ export class MarkersPanel extends Panel {
 		}, {
 				indentPixels: 0,
 				twistiePixels: 20,
-				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE,
-				keyboardSupport: false
+				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE
 			});
 
 		Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
