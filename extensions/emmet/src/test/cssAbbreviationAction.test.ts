@@ -65,6 +65,29 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 		});
 	});
 
+	test('No emmet when cursor in selector of a rule (CSS)', () => {
+		const testContent = `
+.foo {
+	margin: 10px;
+}
+
+nav#
+		`;
+
+		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+			editor.selection = new Selection(5, 4, 5, 4);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), testContent);
+				const cancelSrc = new CancellationTokenSource();
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token);
+				if (completionPromise) {
+					assert.equal(1, 2, `Invalid completion at property value`);
+				}
+				return Promise.resolve();
+			});
+		});
+	});
+
 	test('Skip when typing property values when there is a property in the next line (CSS)', () => {
 		const testContent = `
 .foo {
