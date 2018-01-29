@@ -100,11 +100,11 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 export const multiSelectModifierSettingKey = 'workbench.list.multiSelectModifier';
 export const openModeSettingKey = 'workbench.list.openMode';
 
-export function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
+function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
 }
 
-export function useSingleClickToOpen(configurationService: IConfigurationService): boolean {
+function useSingleClickToOpen(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue(openModeSettingKey) !== 'doubleClick';
 }
 
@@ -156,7 +156,6 @@ export class WorkbenchList<T> extends List<T> {
 
 	private listDoubleSelection: IContextKey<boolean>;
 
-	private _openOnSingleClick: boolean;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -174,7 +173,6 @@ export class WorkbenchList<T> extends List<T> {
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 
-		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(combinedDisposable([
@@ -187,20 +185,12 @@ export class WorkbenchList<T> extends List<T> {
 		this.registerListeners();
 	}
 
-	public get openOnSingleClick(): boolean {
-		return this._openOnSingleClick;
-	}
-
 	public get useAltAsMultipleSelectionModifier(): boolean {
 		return this._useAltAsMultipleSelectionModifier;
 	}
 
 	private registerListeners(): void {
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(openModeSettingKey)) {
-				this._openOnSingleClick = useSingleClickToOpen(this.configurationService);
-			}
-
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
 			}
@@ -214,7 +204,6 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	private disposables: IDisposable[] = [];
 
-	private _openOnSingleClick: boolean;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -231,7 +220,6 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
-		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(combinedDisposable([
@@ -243,20 +231,12 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.registerListeners();
 	}
 
-	public get openOnSingleClick(): boolean {
-		return this._openOnSingleClick;
-	}
-
 	public get useAltAsMultipleSelectionModifier(): boolean {
 		return this._useAltAsMultipleSelectionModifier;
 	}
 
 	private registerListeners(): void {
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(openModeSettingKey)) {
-				this._openOnSingleClick = useSingleClickToOpen(this.configurationService);
-			}
-
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
 			}
