@@ -635,7 +635,7 @@ export class TabsTitleControl extends TitleControl {
 				return void 0; // only for left mouse click
 			}
 
-			const { editor, position } = this.toTabContext(index);
+			const { editor, position } = this.getGroupPositionAndEditor(index);
 			if (!this.isTabActionBar(((e as GestureEvent).initialTarget || e.target || e.srcElement) as HTMLElement)) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
@@ -646,7 +646,7 @@ export class TabsTitleControl extends TitleControl {
 		const showContextMenu = (e: Event) => {
 			DOM.EventHelper.stop(e);
 
-			const { group, editor } = this.toTabContext(index);
+			const { group, editor } = this.getGroupPositionAndEditor(index);
 
 			this.onContextMenu({ group, editor }, e, tab);
 		};
@@ -668,7 +668,7 @@ export class TabsTitleControl extends TitleControl {
 			tab.blur();
 
 			if (e.button === 1 /* Middle Button*/ && !this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
-				this.closeEditorAction.run(this.toTabContext(index)).done(null, errors.onUnexpectedError);
+				this.closeEditorAction.run(this.getGroupPositionAndEditor(index)).done(null, errors.onUnexpectedError);
 			}
 		}));
 
@@ -690,7 +690,7 @@ export class TabsTitleControl extends TitleControl {
 			const event = new StandardKeyboardEvent(e);
 			let handled = false;
 
-			const { group, position, editor } = this.toTabContext(index);
+			const { group, position, editor } = this.getGroupPositionAndEditor(index);
 
 			// Run action on Enter/Space
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
@@ -733,7 +733,7 @@ export class TabsTitleControl extends TitleControl {
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DBLCLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e);
 
-			const { group, editor } = this.toTabContext(index);
+			const { group, editor } = this.getGroupPositionAndEditor(index);
 
 			this.editorGroupService.pinEditor(group, editor);
 		}));
@@ -741,14 +741,14 @@ export class TabsTitleControl extends TitleControl {
 		// Context menu
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.CONTEXT_MENU, (e: Event) => {
 			DOM.EventHelper.stop(e, true);
-			const { group, editor } = this.toTabContext(index);
+			const { group, editor } = this.getGroupPositionAndEditor(index);
 
 			this.onContextMenu({ group, editor }, e, tab);
 		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
 
 		// Drag start
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
-			const { group, editor } = this.toTabContext(index);
+			const { group, editor } = this.getGroupPositionAndEditor(index);
 
 			this.onEditorDragStart({ editor, group });
 			e.dataTransfer.effectAllowed = 'copyMove';
@@ -795,7 +795,7 @@ export class TabsTitleControl extends TitleControl {
 			let draggedEditorIsTab = false;
 			const draggedEditor = TabsTitleControl.getDraggedEditor();
 			if (draggedEditor) {
-				const { group, editor } = this.toTabContext(index);
+				const { group, editor } = this.getGroupPositionAndEditor(index);
 				if (draggedEditor.editor === editor && draggedEditor.group === group) {
 					draggedEditorIsTab = true;
 				}
@@ -832,7 +832,7 @@ export class TabsTitleControl extends TitleControl {
 			DOM.removeClass(tab, 'dragged-over');
 			this.updateDropFeedback(tab, false, index);
 
-			const { group, position } = this.toTabContext(index);
+			const { group, position } = this.getGroupPositionAndEditor(index);
 
 			this.onDrop(e, group, position, index);
 		}));
@@ -844,7 +844,7 @@ export class TabsTitleControl extends TitleControl {
 		return !!DOM.findParentWithClass(element, 'monaco-action-bar', 'tab');
 	}
 
-	private toTabContext(index: number): { group: IEditorGroup, position: Position, editor: IEditorInput } {
+	private getGroupPositionAndEditor(index: number): { group: IEditorGroup, position: Position, editor: IEditorInput } {
 		const group = this.context;
 		const position = this.stacks.positionOfGroup(group);
 		const editor = group.getEditor(index);
@@ -907,7 +907,7 @@ class TabActionRunner extends ActionRunner {
 			return TPromise.as(void 0);
 		}
 
-		return super.run(action, { group, editor: group.getEditor(this.index) });
+		return super.run(action, { groupId: group.id, editorIndex: this.index });
 	}
 }
 

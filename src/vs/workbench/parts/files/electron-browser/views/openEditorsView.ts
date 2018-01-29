@@ -311,7 +311,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 				fillInActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editor.getResource() : {} }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
-			getActionsContext: () => element instanceof OpenEditor ? { group: element.group, editor: element.editor } : { group: element }
+			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.group.id, editorIndex: element.editorIndex } : { groupId: element.id }
 		});
 	}
 
@@ -493,7 +493,7 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 	renderElement(editorGroup: IEditorGroup, index: number, templateData: IEditorGroupTemplateData): void {
 		templateData.editorGroup = editorGroup;
 		templateData.name.textContent = editorGroup.label;
-		templateData.actionBar.context = { group: editorGroup };
+		templateData.actionBar.context = { groupId: editorGroup.id };
 	}
 
 	disposeTemplate(templateData: IEditorGroupTemplateData): void {
@@ -597,7 +597,7 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 			extraClasses: ['open-editor'],
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations
 		});
-		templateData.actionBar.context = { group: editor.group, editor: editor.editor };
+		templateData.actionBar.context = { groupId: editor.group.id, editorIndex: editor.editorIndex };
 	}
 
 	disposeTemplate(templateData: IOpenEditorTemplateData): void {

@@ -380,6 +380,10 @@ export class OpenEditor implements IEditorIdentifier {
 		return this._editor;
 	}
 
+	public get editorIndex() {
+		return this._group.indexOf(this.editor);
+	}
+
 	public get group() {
 		return this._group;
 	}
