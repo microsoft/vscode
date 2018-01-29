@@ -1610,6 +1610,16 @@ export class FunctionBreakpoint extends Breakpoint {
 	}
 }
 
+export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
+	readonly command: string;
+	readonly args: string[];
+
+	constructor(command: string, args?: string[]) {
+		this.command = command;
+		this.args = args;
+	}
+}
+
 export enum LogLevel {
 	Trace = 1,
 	Debug = 2,

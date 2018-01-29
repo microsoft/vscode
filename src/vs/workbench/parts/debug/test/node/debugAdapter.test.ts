@@ -43,7 +43,7 @@ suite('Debug - Adapter', () => {
 	};
 
 	setup(() => {
-		adapter = new Adapter(rawAdapter, { extensionFolderPath, id: 'adapter', name: 'myAdapter', version: '1.0.0', publisher: 'vscode', isBuiltin: false, engines: null },
+		adapter = new Adapter(null, rawAdapter, { extensionFolderPath, id: 'adapter', name: 'myAdapter', version: '1.0.0', publisher: 'vscode', isBuiltin: false, engines: null },
 			new TestConfigurationService(), null);
 	});
 

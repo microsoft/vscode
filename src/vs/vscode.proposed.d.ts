@@ -360,6 +360,39 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a debug adapter executable and optional arguments passed to it.
+	 */
+	export class DebugAdapterExecutable {
+		/**
+		 * The command path of the debug adapter executable.
+		 * A command must be a either an absolute path or a name of an executable looked up via the PATH environment variable.
+		 * The special value 'node' will be mapped to VS Code's built-in node runtime.
+		 */
+		readonly command: string;
+
+		/**
+		 * Optional arguments passed to the debug adapter.
+		 */
+		readonly args: string[];
+
+		/**
+		 * Create a new debug adapter specification.
+		 */
+		constructor(command: string, args?: string[]);
+	}
+
+	export interface DebugConfigurationProvider {
+		/**
+		 * This optional method is called just before a debug adapter is started to determine its excutable path and arguments.
+		 * Registering more than one debugAdapterExecutable for a type results in an error.
+		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
+		 * @param token A cancellation token.
+		 * @return a [debug adapter's executable and optional arguments](#DebugAdapterExecutable) or undefined.
+		 */
+		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
+	}
+
+	/**
 	 * The severity level of a log message
 	 */
 	export enum LogLevel {

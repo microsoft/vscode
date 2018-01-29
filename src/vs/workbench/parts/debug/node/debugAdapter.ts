@@ -13,14 +13,14 @@ import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IRawAdapter, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, IRawAdapter, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class Adapter {
 
-	constructor(private rawAdapter: IRawAdapter, public extensionDescription: IExtensionDescription,
+	constructor(private configurationManager: IConfigurationManager, private rawAdapter: IRawAdapter, public extensionDescription: IExtensionDescription,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -33,12 +33,24 @@ export class Adapter {
 
 	public getAdapterExecutable(root: IWorkspaceFolder, verifyAgainstFS = true): TPromise<IAdapterExecutable> {
 
+		// start with extension API
+		if (this.configurationManager) {
+			const adapterExecutablePromise = this.configurationManager.debugAdapterExecutable(root.uri, this.rawAdapter.type);
+			if (adapterExecutablePromise) {
+				return adapterExecutablePromise.then(adapterExecutable => {
+					return this.verifyAdapterDetails(adapterExecutable, verifyAgainstFS);
+				});
+			}
+		}
+
+		// try deprecated command based extension API
 		if (this.rawAdapter.adapterExecutableCommand && root) {
 			return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root.uri.toString()).then(ad => {
 				return this.verifyAdapterDetails(ad, verifyAgainstFS);
 			});
 		}
 
+		// old style: executable contribution specified in package.json
 		const adapterExecutable = <IAdapterExecutable>{
 			command: this.getProgram(),
 			args: this.getAttributeBasedOnPlatform('args')

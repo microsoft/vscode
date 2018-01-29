@@ -27,7 +27,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, IRawAdapter, ICompound, IDebugConfiguration, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, IRawAdapter, ICompound, IDebugConfiguration, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable } from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -291,6 +291,14 @@ export class ConfigurationManager implements IConfigurationManager {
 			.then(results => results.reduce((first, second) => first.concat(second), []));
 	}
 
+	public debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable> | undefined {
+		const providers = this.providers.filter(p => p.type === type && p.debugAdapterExecutable);
+		if (providers.length === 1) {
+			return providers[0].debugAdapterExecutable(folderUri);
+		}
+		return undefined;
+	}
+
 	private registerListeners(lifecycleService: ILifecycleService): void {
 		debuggersExtPoint.setHandler((extensions) => {
 			extensions.forEach(extension => {
@@ -308,7 +316,7 @@ export class ConfigurationManager implements IConfigurationManager {
 					if (duplicate) {
 						duplicate.merge(rawAdapter, extension.description);
 					} else {
-						this.adapters.push(new Adapter(rawAdapter, extension.description, this.configurationService, this.commandService));
+						this.adapters.push(new Adapter(this, rawAdapter, extension.description, this.configurationService, this.commandService));
 					}
 				});
 			});
