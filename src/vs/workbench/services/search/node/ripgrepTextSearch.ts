@@ -23,6 +23,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSearch, LineMatch, FileMatch } from './search';
 import { IProgress } from 'vs/platform/search/common/search';
 
+// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
+const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+
 export class RipgrepEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
@@ -72,7 +75,7 @@ export class RipgrepEngine {
 
 			onMessage({ message: rgCmd });
 		});
-		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd });
+		this.rgProc = cp.spawn(rgDiskPath, rgArgs.args, { cwd });
 		process.once('exit', this.killRgProcFn);
 
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd, this.config.extraFiles);
