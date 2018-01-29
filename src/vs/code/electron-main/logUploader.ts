@@ -49,7 +49,7 @@ export async function uploadLogs(
 		console.log(localize('beginUploading', 'Uploading...'));
 		const outZip = await zipLogs(logsPath);
 		const result = await postLogs(endpoint, outZip, requestService);
-		console.log(localize('didUploadLogs', 'Uploaded logs ID: {0}', result.blob_id));
+		console.log(localize('didUploadLogs', 'Upload successful! Log file ID: {0}', result.blob_id));
 	} else {
 		console.log(localize('userDeniedUpload', 'Canceled upload'));
 	}
@@ -81,6 +81,7 @@ async function postLogs(
 	outZip: string,
 	requestService: IRequestService
 ): TPromise<PostResult> {
+	const dotter = setInterval(() => console.log('.'), 5000);
 	let result: IRequestContext;
 	try {
 		result = await requestService.request({
@@ -92,6 +93,7 @@ async function postLogs(
 			}
 		});
 	} catch (e) {
+		clearInterval(dotter);
 		console.log(localize('postError', 'Error posting logs: {0}', e));
 		throw e;
 	}
@@ -103,6 +105,7 @@ async function postLogs(
 		});
 
 		result.stream.on('end', () => {
+			clearInterval(dotter);
 			try {
 				const response = Buffer.concat(parts).toString('utf-8');
 				if (result.res.statusCode === 200) {
