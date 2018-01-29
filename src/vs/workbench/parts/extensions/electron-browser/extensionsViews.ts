@@ -81,7 +81,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			ariaLabel: localize('extensions', "Extensions")
 		});
 
-		chain(this.list.onSelectionChange)
+		chain(this.list.onOpen)
 			.map(e => e.elements[0])
 			.filter(e => !!e)
 			.on(this.openExtension, this, this.disposables);

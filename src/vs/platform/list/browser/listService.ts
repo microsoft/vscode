@@ -5,7 +5,7 @@
 'use strict';
 
 import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
+import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController, IOpenController } from 'vs/base/browser/ui/list/listWidget';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -125,10 +125,27 @@ class MultipleSelectionController<T> implements IMultipleSelectionController<T> 
 	}
 }
 
-function handleMultiSelectSupport<T>(options: IListOptions<T>, configurationService: IConfigurationService): IListOptions<T> {
+class OpenController implements IOpenController {
+
+	constructor(private configurationService: IConfigurationService) { }
+
+	shouldOpen(event: UIEvent): boolean {
+		if (event instanceof MouseEvent) {
+			const isDoubleClick = event.detail === 2;
+
+			return useSingleClickToOpen(this.configurationService) || isDoubleClick;
+		}
+
+		return true;
+	}
+}
+
+function handleListControllers<T>(options: IListOptions<T>, configurationService: IConfigurationService): IListOptions<T> {
 	if (options.multipleSelectionSupport === true && !options.multipleSelectionController) {
 		options.multipleSelectionController = new MultipleSelectionController(configurationService);
 	}
+
+	options.openController = new OpenController(configurationService);
 
 	return options;
 }
@@ -152,7 +169,7 @@ export class WorkbenchList<T> extends List<T> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, mixin(handleMultiSelectSupport(options, configurationService), { keyboardSupport: false } as IListOptions<any>, false));
+		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false } as IListOptions<any>, false));
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
@@ -210,7 +227,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, mixin(handleMultiSelectSupport(options, configurationService), { keyboardSupport: false } as IListOptions<any>, false));
+		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false } as IListOptions<any>, false));
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 

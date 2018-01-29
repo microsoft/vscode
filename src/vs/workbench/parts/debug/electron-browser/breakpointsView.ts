@@ -78,10 +78,10 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
-		const handleBreakpointFocus = (preserveFocus: boolean, sideBySide: boolean, selectFunctionBreakpoint: boolean, isSingleClick: boolean) => {
+		const handleBreakpointFocus = (preserveFocus: boolean, sideBySide: boolean, selectFunctionBreakpoint: boolean) => {
 			const focused = this.list.getFocusedElements();
 			const element = focused.length ? focused[0] : undefined;
-			if (element instanceof Breakpoint && (!isSingleClick || this.list.openOnSingleClick)) {
+			if (element instanceof Breakpoint) {
 				openBreakpointSource(element, sideBySide, preserveFocus, this.debugService, this.editorService).done(undefined, onUnexpectedError);
 			}
 			if (selectFunctionBreakpoint && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
@@ -89,17 +89,27 @@ export class BreakpointsView extends ViewsViewletPanel {
 				this.onBreakpointsChange();
 			}
 		};
+		this.disposables.push(this.list.onOpen(e => {
+			let isSingleClick = false;
+			let isDoubleClick = false;
+			let openToSide = false;
+
+			const browserEvent = e.browserEvent;
+			if (browserEvent instanceof MouseEvent) {
+				isSingleClick = browserEvent.detail === 1;
+				isDoubleClick = browserEvent.detail === 2;
+				openToSide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
+			}
+
+			handleBreakpointFocus(isSingleClick, openToSide, isDoubleClick);
+		}));
+
+		// TODO@Isidor this should be a command (breakpoints.openToSide)
 		this.disposables.push(this.list.onKeyUp(e => {
 			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter)) {
-				handleBreakpointFocus(false, event && (event.ctrlKey || event.metaKey || event.altKey), false, false);
+			if (event.equals(KeyCode.Enter) && (event.ctrlKey || event.metaKey || event.altKey)) {
+				handleBreakpointFocus(false, true, false);
 			}
-		}));
-		this.disposables.push(this.list.onMouseDblClick(e => {
-			handleBreakpointFocus(false, e.browserEvent.altKey, true, false);
-		}));
-		this.disposables.push(this.list.onMouseClick(e => {
-			handleBreakpointFocus(true, e.browserEvent.altKey, false, true);
 		}));
 
 		this.list.splice(0, this.list.length, this.elements);
