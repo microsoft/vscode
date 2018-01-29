@@ -684,7 +684,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 			}).join('\n');
 	}
 
-	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, actualResults: IScoredResults): TPromise<void> {
+	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, scoredResults: IScoredResults): TPromise<void> {
 		const model = feedbackEditor.getModel();
 		const expectedQueryLines = model.getLinesContent()
 			.filter(line => !strings.startsWith(line, '//'));
@@ -709,6 +709,13 @@ export class FeedbackWidgetRenderer extends Disposable {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		const autoIngest = workbenchSettings.naturalLanguageSearchAutoIngestFeedback;
 
+		const actualResultScores = {};
+		for (let key in scoredResults) {
+			actualResultScores[key] = {
+				score: scoredResults[key].score
+			};
+		}
+
 		/* __GDPR__
 			"settingsSearchResultFeedback" : {
 				"query" : { "classification": "CustomContent", "purpose": "FeatureInsight" },
@@ -721,7 +728,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 		return this.telemetryService.publicLog('settingsSearchResultFeedback', {
 			query: result.query,
 			userComment,
-			actualResults,
+			actualResults: actualResultScores,
 			expectedResults: expectedQuery.resultScores,
 			duration: result.metadata['nlpResult'].duration,
 			buildNumber: this.environmentService.settingsSearchBuildId,
