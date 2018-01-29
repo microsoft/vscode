@@ -56,8 +56,6 @@ export const extraLanguages: Language[] = [
 	{ id: 'tr', folderName: 'trk' }
 ];
 
-export const pseudoLanguage: Language = { id: 'pseudo', folderName: 'pseudo', transifexId: 'pseudo' };
-
 // non built-in extensions also that are transifex and need to be part of the language packs
 const externalExtensionsWithTranslations = {
 	'vscode-chrome-debug': 'msjsdiag.debugger-for-chrome',
@@ -283,6 +281,31 @@ export class XLF {
 		this.buffer.push(line.toString());
 	}
 
+	static parsePseudo = function (xlfString: string): Promise<ParsedXLF[]> {
+		return new Promise((resolve, reject) => {
+			let parser = new xml2js.Parser();
+			let files: { messages: Map<string>, originalFilePath: string, language: string }[] = [];
+			parser.parseString(xlfString, function (err, result) {
+				const fileNodes: any[] = result['xliff']['file'];
+				fileNodes.forEach((file) => {
+					const originalFilePath = file.$.original;
+					let messages: Map<string> = {};
+					const transUnits = file.body[0]['trans-unit'];
+					transUnits.forEach(unit => {
+						const key = unit.$.id;
+						const val = pseudify(unit.source[0]['_'].toString());
+						if (key && val) {
+							messages[key] = decodeEntities(val);
+						}
+					});
+
+					files.push({ messages: messages, originalFilePath: originalFilePath, language: 'ps' });
+				});
+			});
+			resolve(files);
+		});
+	};
+
 	static parse = function (xlfString: string): Promise<ParsedXLF[]> {
 		return new Promise((resolve, reject) => {
 			let parser = new xml2js.Parser();
@@ -304,9 +327,11 @@ export class XLF {
 					if (!originalFilePath) {
 						reject(new Error(`XLF parsing error: XLIFF file node does not contain original attribute to determine the original location of the resource file.`));
 					}
-					const language = file.$['target-language'];
+					let language = file.$['target-language'];
 					if (!language) {
 						reject(new Error(`XLF parsing error: XLIFF file node does not contain target-language attribute to determine translated language.`));
+					} else {
+						language = 'ps';
 					}
 
 					let messages: Map<string> = {};
@@ -1077,7 +1102,7 @@ function retrieveResource(language: Language, resource: Resource, apiHostname, c
 	return limiter.queue(() => new Promise<File>((resolve, reject) => {
 		const slug = resource.name.replace(/\//g, '_');
 		const project = resource.project;
-		const transifexLanguageId = language.transifexId || language.id;
+		let transifexLanguageId = language.id === 'ps' ? 'en' : language.transifexId || language.id;
 		const options = {
 			hostname: apiHostname,
 			path: `/api/2/project/${project}/resource/${slug}/translation/${transifexLanguageId}?file&mode=onlyreviewed`,
@@ -1166,10 +1191,10 @@ export interface TranslationPath {
 
 export function pullI18nPackFiles(apiHostname: string, username: string, password: string, language: Language, resultingTranslationPaths: TranslationPath[]): NodeJS.ReadableStream {
 	return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, externalExtensionsWithTranslations)
-		.pipe(prepareI18nPackFiles(externalExtensionsWithTranslations, resultingTranslationPaths));
+		.pipe(prepareI18nPackFiles(externalExtensionsWithTranslations, resultingTranslationPaths, language.id === 'ps'));
 }
 
-export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingTranslationPaths: TranslationPath[]): NodeJS.ReadWriteStream {
+export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingTranslationPaths: TranslationPath[], pseudo = false): NodeJS.ReadWriteStream {
 	let parsePromises: Promise<ParsedXLF[]>[] = [];
 	let mainPack: I18nPack = { version: i18nPackVersion, contents: {} };
 	let extensionsPacks: Map<I18nPack> = {};
@@ -1177,7 +1202,8 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 		let stream = this;
 		let project = path.dirname(xlf.path);
 		let resource = path.basename(xlf.path, '.xlf');
-		let parsePromise = XLF.parse(xlf.contents.toString());
+		let contents = xlf.contents.toString();
+		let parsePromise = pseudo ? XLF.parsePseudo(contents) : XLF.parse(contents);
 		parsePromises.push(parsePromise);
 		parsePromise.then(
 			resolvedFiles => {
@@ -1326,4 +1352,8 @@ function encodeEntities(value: string): string {
 
 function decodeEntities(value: string): string {
 	return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+}
+
+function pseudify(message: string) {
+	return '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
 }

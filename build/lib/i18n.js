@@ -40,7 +40,6 @@ exports.extraLanguages = [
     { id: 'hu', folderName: 'hun' },
     { id: 'tr', folderName: 'trk' }
 ];
-exports.pseudoLanguage = { id: 'pseudo', folderName: 'pseudo', transifexId: 'pseudo' };
 // non built-in extensions also that are transifex and need to be part of the language packs
 var externalExtensionsWithTranslations = {
     'vscode-chrome-debug': 'msjsdiag.debugger-for-chrome',
@@ -194,6 +193,29 @@ var XLF = /** @class */ (function () {
         line.append(content);
         this.buffer.push(line.toString());
     };
+    XLF.parsePseudo = function (xlfString) {
+        return new Promise(function (resolve, reject) {
+            var parser = new xml2js.Parser();
+            var files = [];
+            parser.parseString(xlfString, function (err, result) {
+                var fileNodes = result['xliff']['file'];
+                fileNodes.forEach(function (file) {
+                    var originalFilePath = file.$.original;
+                    var messages = {};
+                    var transUnits = file.body[0]['trans-unit'];
+                    transUnits.forEach(function (unit) {
+                        var key = unit.$.id;
+                        var val = pseudify(unit.source[0]['_'].toString());
+                        if (key && val) {
+                            messages[key] = decodeEntities(val);
+                        }
+                    });
+                    files.push({ messages: messages, originalFilePath: originalFilePath, language: 'ps' });
+                });
+            });
+            resolve(files);
+        });
+    };
     XLF.parse = function (xlfString) {
         return new Promise(function (resolve, reject) {
             var parser = new xml2js.Parser();
@@ -214,6 +236,9 @@ var XLF = /** @class */ (function () {
                     var language = file.$['target-language'];
                     if (!language) {
                         reject(new Error("XLF parsing error: XLIFF file node does not contain target-language attribute to determine translated language."));
+                    }
+                    else {
+                        language = 'ps';
                     }
                     var messages = {};
                     var transUnits = file.body[0]['trans-unit'];
@@ -952,7 +977,7 @@ function retrieveResource(language, resource, apiHostname, credentials) {
     return limiter.queue(function () { return new Promise(function (resolve, reject) {
         var slug = resource.name.replace(/\//g, '_');
         var project = resource.project;
-        var transifexLanguageId = language.transifexId || language.id;
+        var transifexLanguageId = language.id === 'ps' ? 'en' : language.transifexId || language.id;
         var options = {
             hostname: apiHostname,
             path: "/api/2/project/" + project + "/resource/" + slug + "/translation/" + transifexLanguageId + "?file&mode=onlyreviewed",
@@ -1025,10 +1050,11 @@ function createI18nFile(originalFilePath, messages) {
 var i18nPackVersion = "1.0.0";
 function pullI18nPackFiles(apiHostname, username, password, language, resultingTranslationPaths) {
     return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, externalExtensionsWithTranslations)
-        .pipe(prepareI18nPackFiles(externalExtensionsWithTranslations, resultingTranslationPaths));
+        .pipe(prepareI18nPackFiles(externalExtensionsWithTranslations, resultingTranslationPaths, language.id === 'ps'));
 }
 exports.pullI18nPackFiles = pullI18nPackFiles;
-function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths) {
+function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pseudo) {
+    if (pseudo === void 0) { pseudo = false; }
     var parsePromises = [];
     var mainPack = { version: i18nPackVersion, contents: {} };
     var extensionsPacks = {};
@@ -1036,7 +1062,8 @@ function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths) {
         var stream = this;
         var project = path.dirname(xlf.path);
         var resource = path.basename(xlf.path, '.xlf');
-        var parsePromise = XLF.parse(xlf.contents.toString());
+        var contents = xlf.contents.toString();
+        var parsePromise = pseudo ? XLF.parsePseudo(contents) : XLF.parse(contents);
         parsePromises.push(parsePromise);
         parsePromise.then(function (resolvedFiles) {
             resolvedFiles.forEach(function (file) {
@@ -1182,4 +1209,7 @@ function encodeEntities(value) {
 }
 function decodeEntities(value) {
     return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+}
+function pseudify(message) {
+    return '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
 }
