@@ -634,8 +634,8 @@ export class ExtensionEditor extends BaseEditor {
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('localizations', "Localizations ({0})", localizations.length)),
 			$('table', null,
-				$('tr', null, $('th', null, localize('localizations language id', "Language Id")), $('th', null, localize('localizations language name', "Langauge Name")), $('th', null, localize('translations location', "Translations Location"))),
-				...localizations.map(localization => $('tr', null, $('td', null, localization.languageId), $('td', null, localization.languageName), $('td', null, localization.translations)))
+				$('tr', null, $('th', null, localize('localizations language id', "Language Id")), $('th', null, localize('localizations language name', "Langauge Name")), $('th', null, localize('localizations localized language name', "Langauge Name (Localized)"))),
+				...localizations.map(localization => $('tr', null, $('td', null, localization.languageId), $('td', null, localization.languageName), $('td', null, localization.languageNameLocalized)))
 			)
 		);
 
