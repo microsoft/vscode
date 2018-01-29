@@ -7,7 +7,7 @@
 import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { IDelegate, IRenderer, IListMouseEvent, IListTouchEvent } from 'vs/base/browser/ui/list/list';
@@ -22,7 +22,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { DefaultController, IControllerOptions, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import Event, { Emitter } from 'vs/base/common/event';
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
 export const IListService = createDecorator<IListService>('listService');
@@ -348,6 +349,89 @@ export class WorkbenchTreeController extends DefaultController {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+	}
+}
+
+export interface IOpenResourceOptions {
+	editorOptions: IEditorOptions;
+	sideBySide: boolean;
+	element: any;
+	payload: any;
+}
+
+export interface IResourceResultsNavigationOptions {
+	openOnFocus: boolean;
+}
+
+export default class ResourceResultsNavigation extends Disposable {
+
+	private _openResource: Emitter<IOpenResourceOptions> = new Emitter<IOpenResourceOptions>();
+	public readonly openResource: Event<IOpenResourceOptions> = this._openResource.event;
+
+	constructor(private tree: WorkbenchTree, private options?: IResourceResultsNavigationOptions) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		if (this.options && this.options.openOnFocus) {
+			this._register(this.tree.onDidChangeFocus(e => this.onFocus(e)));
+		}
+
+		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
+	}
+
+	private onFocus({ payload }: any): void {
+		const element = this.tree.getFocus();
+		this.tree.setSelection([element], { fromFocus: true });
+
+		const originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
+		const isMouseEvent = payload && payload.origin === 'mouse';
+		const isDoubleClick = isMouseEvent && originalEvent && originalEvent.detail === 2;
+
+		if (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick) {
+			this._openResource.fire({
+				editorOptions: {
+					preserveFocus: true,
+					pinned: false,
+					revealIfVisible: true
+				},
+				sideBySide: false,
+				element,
+				payload
+			});
+		}
+	}
+
+	private onSelection({ payload }: any): void {
+		if (payload && payload.fromFocus) {
+			return;
+		}
+
+		const originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
+		const isMouseEvent = payload && payload.origin === 'mouse';
+		const isDoubleClick = isMouseEvent && originalEvent && originalEvent.detail === 2;
+
+		if (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick) {
+			if (isDoubleClick && originalEvent) {
+				originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
+			}
+
+			const isFromKeyboard = payload && payload.origin === 'keyboard';
+			const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey || originalEvent.altKey));
+			const preserveFocus = !((isFromKeyboard && (!payload || !payload.preserveFocus)) || isDoubleClick || (payload && payload.focusEditor));
+			this._openResource.fire({
+				editorOptions: {
+					preserveFocus,
+					pinned: isDoubleClick,
+					revealIfVisible: true
+				},
+				sideBySide,
+				element: this.tree.getSelection()[0],
+				payload
+			});
+		}
 	}
 }
 
