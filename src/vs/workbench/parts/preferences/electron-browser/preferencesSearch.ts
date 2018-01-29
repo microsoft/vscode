@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IEndpointDetails {
@@ -35,10 +35,16 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super();
-		this._installedExtensions = this.extensionManagementService.getInstalled(LocalExtensionType.User);
+
+		// This request goes to the shared process but results won't change during a window's lifetime, so cache the results.
+		this._installedExtensions = this.extensionManagementService.getInstalled(LocalExtensionType.User).then(exts => {
+			// Filter to enabled extensions
+			return exts.filter(ext => this.extensionEnablementService.isEnabled(ext.identifier));
+		});
 	}
 
 	private get remoteSearchAllowed(): boolean {
