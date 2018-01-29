@@ -380,10 +380,19 @@ function registerEditorCommands() {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService));
-			const groupIds = distinct(contexts.map(context => context.groupId));
-			const editorsToClose = new Map<Position, IEditorInput[]>();
 			const model = editorGroupService.getStacksModel();
 
+			if (contexts.length === 0) {
+				// Cover the case when run from command palette
+				const activeGroup = model.activeGroup;
+				const activeEditor = editorService.getActiveEditorInput();
+				if (activeGroup && activeEditor) {
+					contexts.push({ groupId: activeGroup.id, editorIndex: activeGroup.indexOf(activeEditor) });
+				}
+			}
+
+			const groupIds = distinct(contexts.map(context => context.groupId));
+			const editorsToClose = new Map<Position, IEditorInput[]>();
 			groupIds.forEach(groupId => {
 				const group = model.getGroup(groupId);
 				const inputsToSkip = contexts.map(c => {
