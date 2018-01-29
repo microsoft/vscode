@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const mkdirp = require('mkdirp');
 const rimraf = require('rimraf');
 const es = require('event-stream');
@@ -17,7 +18,7 @@ const util = require('gulp-util');
 
 const root = path.dirname(path.dirname(__dirname));
 const builtInExtensions = require('../builtInExtensions');
-const controlFilePath = path.join(process.env['HOME'], '.vscode-oss-dev', 'extensions', 'control.json');
+const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 
 function getExtensionPath(extension) {
 	return path.join(root, '.build', 'builtInExtensions', extension.name);
