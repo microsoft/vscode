@@ -1038,8 +1038,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 
 	private _hasAssociatedPreferencesModelChanged(associatedPreferencesModelUri: URI): TPromise<boolean> {
 		return this.preferencesRendererCreationPromise.then(preferencesRenderer => {
-			const associatedPreferencesModel = preferencesRenderer.getAssociatedPreferencesModel();
-			return !(preferencesRenderer && associatedPreferencesModel && associatedPreferencesModel.uri.toString() === associatedPreferencesModelUri.toString());
+			return !(preferencesRenderer && preferencesRenderer.getAssociatedPreferencesModel() && preferencesRenderer.getAssociatedPreferencesModel().uri.toString() === associatedPreferencesModelUri.toString());
 		});
 	}
 
