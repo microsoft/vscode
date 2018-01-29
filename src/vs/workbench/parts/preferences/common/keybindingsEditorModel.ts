@@ -21,7 +21,6 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 
 export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
-export const KEYBINDING_HEADER_TEMPLATE_ID = 'keybinding.header.template';
 
 export interface KeybindingMatch {
 	ctrlKey?: boolean;
