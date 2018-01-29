@@ -78,11 +78,11 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
-		const handleBreakpointFocus = (preserveFocuse: boolean, sideBySide: boolean, selectFunctionBreakpoint: boolean, isSingleClick: boolean) => {
+		const handleBreakpointFocus = (preserveFocus: boolean, sideBySide: boolean, selectFunctionBreakpoint: boolean, isSingleClick: boolean) => {
 			const focused = this.list.getFocusedElements();
 			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof Breakpoint && (!isSingleClick || this.list.openOnSingleClick)) {
-				openBreakpointSource(element, sideBySide, preserveFocuse, this.debugService, this.editorService).done(undefined, onUnexpectedError);
+				openBreakpointSource(element, sideBySide, preserveFocus, this.debugService, this.editorService).done(undefined, onUnexpectedError);
 			}
 			if (selectFunctionBreakpoint && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
 				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
