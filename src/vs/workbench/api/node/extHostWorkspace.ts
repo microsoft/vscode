@@ -331,16 +331,18 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			}
 		}
 
-		let excludePattern: string;
-		if (exclude) {
+		let excludePatternOrDisregardExcludes: string | false;
+		if (exclude === null) {
+			excludePatternOrDisregardExcludes = false;
+		} else if (exclude) {
 			if (typeof exclude === 'string') {
-				excludePattern = exclude;
+				excludePatternOrDisregardExcludes = exclude;
 			} else {
-				excludePattern = exclude.pattern;
+				excludePatternOrDisregardExcludes = exclude.pattern;
 			}
 		}
 
-		const result = this._proxy.$startSearch(includePattern, includeFolder, excludePattern, maxResults, requestId);
+		const result = this._proxy.$startSearch(includePattern, includeFolder, excludePatternOrDisregardExcludes, maxResults, requestId);
 		if (token) {
 			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
 		}
