@@ -94,9 +94,9 @@ export default (): string => `
 			</details>
 			<div>
 				<label for="reprosWithoutExtensions">${escape(localize('tryDisablingExtensions', "Is the problem reproducible when extensions are disabled?"))}</label>
-				<input type="checkbox" id="reprosWithoutExtensions" checked>
-				<button id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "Disable Extensions and Reload"))}</button>
-				<button id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "Show Running Extensions"))}</button>
+				<input type="checkbox" id="reprosWithoutExtensions">
+				<div class="instructions">Try to reproduce the problem after <button id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</button>.</div>
+				<div class="instructions">If you suspect it's an extension issue, <button id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "see all running extensions"))}</button>.</div>
 			</div>
 		</div>
 	</div>
@@ -105,11 +105,11 @@ export default (): string => `
 		<label for="description" id="issue-description-label">
 			<!-- To be dynamically filled -->
 		</label>
-		<small id="issue-description-subtitle">
+		<div class="instructions" id="issue-description-subtitle">
 			<!-- To be dynamically filled -->
-		</small>
+		</div>
 		<div class="block-info-text">
-			<small>${escape(localize('githubMarkdown', "We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."))}</small>
+			<div class="instructions">${escape(localize('githubMarkdown', "We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."))}</div>
 			<div id="description-validation-error" class="validation-error hidden">${escape(localize('issueDescriptionRequired', "Please enter a description."))}</div>
 			<textarea name="description" id="description" cols="100" rows="15" required></textarea>
 		</div>

@@ -69,7 +69,7 @@ export class IssueReporter extends Disposable {
 				os: `${os.type()} ${os.arch()} ${os.release()}`
 			},
 			extensionsDisabled: this.environmentService.disableExtensions,
-			reprosWithoutExtensions: true
+			reprosWithoutExtensions: false
 		});
 
 		ipcRenderer.on('issueInfoResponse', (event, info) => {

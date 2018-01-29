@@ -49,13 +49,6 @@ textarea {
 	overflow: auto;
 	resize: vertical;
 }
-small {
-	color: #868e96;
-	display: block;
-	margin-top: .25rem;
-	font-size: 80%;
-	font-weight: 400;
-}
 
 /**
  * Button
@@ -197,8 +190,14 @@ input:disabled {
 	margin-left: 1em;
 }
 
+.instructions {
+	font-size: 12px;
+	margin-left: 1em;
+	margin-top: .5em;
+}
+
 .workbenchCommand {
-	display: block;
+	padding: 0;
 	font-size: 12px;
 	background: transparent;
 }
