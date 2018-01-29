@@ -126,10 +126,19 @@ export function getRemotes(text: string): string[] {
 	return remotes;
 }
 
-export function getHashedRemotes(text: string): string[] {
+export function getHashedRemotesFromConfig(text: string): string[] {
 	return getRemotes(text).map(r => {
 		return crypto.createHash('sha1').update(r).digest('hex');
 	});
+}
+
+export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService): TPromise<string[]> {
+	let path = workspaceUri.path;
+	let uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+	return fileService.resolveContent(uri, { acceptTextOnly: true }).then(
+		content => getHashedRemotesFromConfig(content.value),
+		err => [] // ignore missing or binary file
+	);
 }
 
 export class WorkspaceStats implements IWorkbenchContribution {
@@ -329,18 +338,13 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private reportRemotes(workspaceUris: URI[]): void {
 		TPromise.join<string[]>(workspaceUris.map(workspaceUri => {
-			let path = workspaceUri.path;
-			let uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-			return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(
-				content => getHashedRemotes(content.value),
-				err => [] // ignore missing or binary file
-			);
+			return getHashedRemotesFromUri(workspaceUri, this.fileService);
 		})).then(hashedRemotes => {
 			/* __GDPR__
-				"workspace.hashedRemotes" : {
-					"remotes" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
-				}
-			*/
+					"workspace.hashedRemotes" : {
+						"remotes" : { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+					}
+				*/
 			this.telemetryService.publicLog('workspace.hashedRemotes', { remotes: hashedRemotes });
 		}, onUnexpectedError);
 	}
