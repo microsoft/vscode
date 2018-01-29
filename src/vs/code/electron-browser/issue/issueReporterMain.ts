@@ -391,7 +391,8 @@ export class IssueReporter extends Disposable {
 		}
 
 		const issueTitle = (<HTMLInputElement>document.getElementById('issue-title')).value;
-		const baseUrl = `https://github.com/microsoft/vscode/issues/new?title=${issueTitle}&body=`;
+		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
+		const baseUrl = `${product.reportIssueUrl}${queryStringPrefix}title=${issueTitle}&body=`;
 		const issueBody = this.issueReporterModel.serialize();
 		shell.openExternal(baseUrl + encodeURIComponent(issueBody));
 		return true;
