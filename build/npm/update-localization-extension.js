@@ -43,7 +43,7 @@ function update(idOrPath) {
 		let userName = localization.userName || 'api';
 		let apiToken = process.env.TRANSIFEX_API_TOKEN;
 		let languageId = localization.transifexId || localization.languageId;
-		let translationDataFolder = path.join(locExtFolder, localization.translations);
+		let translationDataFolder = path.join(locExtFolder, 'translations');
 
 		if (fs.existsSync(translationDataFolder) && fs.existsSync(path.join(translationDataFolder, 'main.i18n.json'))) {
 			console.log('Clearing  \'' + translationDataFolder + '\'...');
@@ -51,8 +51,16 @@ function update(idOrPath) {
 		}
 
 		console.log('Downloading translations for \'' + languageId + '\' to \'' + translationDataFolder + '\'...');
-		i18n.pullI18nPackFiles(server, userName, apiToken, { id: languageId })
-			.pipe(vfs.dest(translationDataFolder));
+		const translationPaths = [];
+		i18n.pullI18nPackFiles(server, userName, apiToken, { id: languageId }, translationPaths)
+			.pipe(vfs.dest(translationDataFolder)).on('end', function () {
+				localization.translations = [];
+				for (let tp of translationPaths) {
+					localization.translations.push({ id: tp.id, path: `./translations/${tp.resourceName}`});
+				}
+				fs.writeFileSync(path.join(locExtFolder, 'package.json'), JSON.stringify(packageJSON, null, '\t'));
+			});
+
 	});
 
 

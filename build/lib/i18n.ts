@@ -59,13 +59,12 @@ export const extraLanguages: Language[] = [
 export const pseudoLanguage: Language = { id: 'pseudo', folderName: 'pseudo', transifexId: 'pseudo' };
 
 // non built-in extensions also that are transifex and need to be part of the language packs
-const externalExtensionsWithTranslations = [
-	//"azure-account",
-	"vscode-chrome-debug",
-	"vscode-chrome-debug-core",
-	"vscode-node-debug",
-	"vscode-node-debug2"
-];
+const externalExtensionsWithTranslations = {
+	'vscode-chrome-debug': 'msjsdiag.debugger-for-chrome',
+	'vscode-node-debug': 'ms-vscode.node-debug',
+	'vscode-node-debug2': 'ms-vscode.node-debug2'
+};
+
 
 interface Map<V> {
 	[key: string]: V;
@@ -1011,7 +1010,7 @@ function updateResource(project: string, slug: string, xlfFile: File, apiHostnam
 // cache resources
 let _coreAndExtensionResources: Resource[];
 
-export function pullCoreAndExtensionsXlfFiles(apiHostname: string, username: string, password: string, language: Language, includeExternalExtensions?: boolean): NodeJS.ReadableStream {
+export function pullCoreAndExtensionsXlfFiles(apiHostname: string, username: string, password: string, language: Language, externalExtensions?: Map<string>): NodeJS.ReadableStream {
 	if (!_coreAndExtensionResources) {
 		_coreAndExtensionResources = [];
 		// editor and workbench
@@ -1024,15 +1023,15 @@ export function pullCoreAndExtensionsXlfFiles(apiHostname: string, username: str
 		glob.sync('./extensions/**/*.nls.json', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
 		glob.sync('./extensions/*/node_modules/vscode-nls', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
 
-		if (includeExternalExtensions) {
-			for (let extension of externalExtensionsWithTranslations) {
-				extensionsToLocalize[extension] = true;
-			}
-		}
-
 		Object.keys(extensionsToLocalize).forEach(extension => {
 			_coreAndExtensionResources.push({ name: extension, project: extensionsProject });
 		});
+
+		if (externalExtensions) {
+			for (let resourceName in externalExtensions) {
+				_coreAndExtensionResources.push({ name: resourceName, project: extensionsProject });
+			}
+		}
 	}
 	return pullXlfFiles(apiHostname, username, password, language, _coreAndExtensionResources);
 }
@@ -1086,7 +1085,7 @@ function retrieveResource(language: Language, resource: Resource, apiHostname, c
 			port: 443,
 			method: 'GET'
 		};
-		console.log('Fetching ' + options.path);
+		console.log('[transifex] Fetching ' + options.path);
 
 		let request = https.request(options, (res) => {
 			let xlfBuffer: Buffer[] = [];
@@ -1095,7 +1094,7 @@ function retrieveResource(language: Language, resource: Resource, apiHostname, c
 				if (res.statusCode === 200) {
 					resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${slug}.xlf` }));
 				} else if (res.statusCode === 404) {
-					console.log(`${slug} in ${project} returned no data.`);
+					console.log(`[transifex] ${slug} in ${project} returned no data.`);
 					resolve(null);
 				} else {
 					reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
@@ -1160,11 +1159,17 @@ interface I18nPack {
 
 const i18nPackVersion = "1.0.0";
 
-export function pullI18nPackFiles(apiHostname: string, username: string, password: string, language: Language): NodeJS.ReadableStream {
-	return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, true).pipe(prepareI18nPackFiles());
+export interface TranslationPath {
+	id: string;
+	resourceName: string;
 }
 
-export function prepareI18nPackFiles() {
+export function pullI18nPackFiles(apiHostname: string, username: string, password: string, language: Language, resultingTranslationPaths: TranslationPath[]): NodeJS.ReadableStream {
+	return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, externalExtensionsWithTranslations)
+		.pipe(prepareI18nPackFiles(externalExtensionsWithTranslations, resultingTranslationPaths));
+}
+
+export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingTranslationPaths: TranslationPath[]): NodeJS.ReadWriteStream {
 	let parsePromises: Promise<ParsedXLF[]>[] = [];
 	let mainPack: I18nPack = { version: i18nPackVersion, contents: {} };
 	let extensionsPacks: Map<I18nPack> = {};
@@ -1172,7 +1177,6 @@ export function prepareI18nPackFiles() {
 		let stream = this;
 		let project = path.dirname(xlf.path);
 		let resource = path.basename(xlf.path, '.xlf');
-		console.log(resource);
 		let parsePromise = XLF.parse(xlf.contents.toString());
 		parsePromises.push(parsePromise);
 		parsePromise.then(
@@ -1186,9 +1190,13 @@ export function prepareI18nPackFiles() {
 						if (!extPack) {
 							extPack = extensionsPacks[resource] = { version: i18nPackVersion, contents: {} };
 						}
-						const secondSlash = path.indexOf('/', firstSlash + 1);
-						let key = externalExtensionsWithTranslations.indexOf(resource) !== -1 ? path: path.substr(secondSlash + 1);
-						extPack.contents[key] = file.messages;
+						const externalId = externalExtensions[resource];
+						if (!externalId) { // internal extension: remove 'extensions/extensionId/' segnent
+							const secondSlash = path.indexOf('/', firstSlash + 1);
+							extPack.contents[path.substr(secondSlash + 1)] = file.messages;
+						} else {
+							extPack.contents[path] = file.messages;
+						}
 					} else {
 						mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
 					}
@@ -1199,10 +1207,20 @@ export function prepareI18nPackFiles() {
 		Promise.all(parsePromises)
 			.then(() => {
 				const translatedMainFile = createI18nFile('./main', mainPack);
+				resultingTranslationPaths.push({ id: 'vscode', resourceName: 'main.i18n.json' });
+
 				this.queue(translatedMainFile);
 				for (let extension in extensionsPacks) {
 					const translatedExtFile = createI18nFile(`./extensions/${extension}`, extensionsPacks[extension]);
 					this.queue(translatedExtFile);
+
+					const externalExtensionId = externalExtensions[extension];
+					if (externalExtensionId) {
+						resultingTranslationPaths.push({ id: externalExtensionId, resourceName: `extensions/${extension}.i18n.json` });
+					} else {
+						resultingTranslationPaths.push({ id: `vscode.${extension}`, resourceName: `extensions/${extension}.i18n.json` });
+					}
+
 				}
 				this.queue(null);
 			})

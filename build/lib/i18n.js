@@ -42,13 +42,11 @@ exports.extraLanguages = [
 ];
 exports.pseudoLanguage = { id: 'pseudo', folderName: 'pseudo', transifexId: 'pseudo' };
 // non built-in extensions also that are transifex and need to be part of the language packs
-var externalExtensionsWithTranslations = [
-    //"azure-account",
-    "vscode-chrome-debug",
-    "vscode-chrome-debug-core",
-    "vscode-node-debug",
-    "vscode-node-debug2"
-];
+var externalExtensionsWithTranslations = {
+    'vscode-chrome-debug': 'msjsdiag.debugger-for-chrome',
+    'vscode-node-debug': 'ms-vscode.node-debug',
+    'vscode-node-debug2': 'ms-vscode.node-debug2'
+};
 var LocalizeInfo;
 (function (LocalizeInfo) {
     function is(value) {
@@ -894,7 +892,7 @@ function updateResource(project, slug, xlfFile, apiHostname, credentials) {
 }
 // cache resources
 var _coreAndExtensionResources;
-function pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, includeExternalExtensions) {
+function pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, externalExtensions) {
     if (!_coreAndExtensionResources) {
         _coreAndExtensionResources = [];
         // editor and workbench
@@ -905,15 +903,14 @@ function pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language
         var extensionsToLocalize_1 = Object.create(null);
         glob.sync('./extensions/**/*.nls.json').forEach(function (extension) { return extensionsToLocalize_1[extension.split('/')[2]] = true; });
         glob.sync('./extensions/*/node_modules/vscode-nls').forEach(function (extension) { return extensionsToLocalize_1[extension.split('/')[2]] = true; });
-        if (includeExternalExtensions) {
-            for (var _i = 0, externalExtensionsWithTranslations_1 = externalExtensionsWithTranslations; _i < externalExtensionsWithTranslations_1.length; _i++) {
-                var extension = externalExtensionsWithTranslations_1[_i];
-                extensionsToLocalize_1[extension] = true;
-            }
-        }
         Object.keys(extensionsToLocalize_1).forEach(function (extension) {
             _coreAndExtensionResources.push({ name: extension, project: extensionsProject });
         });
+        if (externalExtensions) {
+            for (var resourceName in externalExtensions) {
+                _coreAndExtensionResources.push({ name: resourceName, project: extensionsProject });
+            }
+        }
     }
     return pullXlfFiles(apiHostname, username, password, language, _coreAndExtensionResources);
 }
@@ -963,7 +960,7 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             port: 443,
             method: 'GET'
         };
-        console.log('Fetching ' + options.path);
+        console.log('[transifex] Fetching ' + options.path);
         var request = https.request(options, function (res) {
             var xlfBuffer = [];
             res.on('data', function (chunk) { return xlfBuffer.push(chunk); });
@@ -972,7 +969,7 @@ function retrieveResource(language, resource, apiHostname, credentials) {
                     resolve(new File({ contents: Buffer.concat(xlfBuffer), path: project + "/" + slug + ".xlf" }));
                 }
                 else if (res.statusCode === 404) {
-                    console.log(slug + " in " + project + " returned no data.");
+                    console.log("[transifex] " + slug + " in " + project + " returned no data.");
                     resolve(null);
                 }
                 else {
@@ -1026,11 +1023,12 @@ function createI18nFile(originalFilePath, messages) {
     });
 }
 var i18nPackVersion = "1.0.0";
-function pullI18nPackFiles(apiHostname, username, password, language) {
-    return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, true).pipe(prepareI18nPackFiles());
+function pullI18nPackFiles(apiHostname, username, password, language, resultingTranslationPaths) {
+    return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, externalExtensionsWithTranslations)
+        .pipe(prepareI18nPackFiles(externalExtensionsWithTranslations, resultingTranslationPaths));
 }
 exports.pullI18nPackFiles = pullI18nPackFiles;
-function prepareI18nPackFiles() {
+function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths) {
     var parsePromises = [];
     var mainPack = { version: i18nPackVersion, contents: {} };
     var extensionsPacks = {};
@@ -1038,7 +1036,6 @@ function prepareI18nPackFiles() {
         var stream = this;
         var project = path.dirname(xlf.path);
         var resource = path.basename(xlf.path, '.xlf');
-        console.log(resource);
         var parsePromise = XLF.parse(xlf.contents.toString());
         parsePromises.push(parsePromise);
         parsePromise.then(function (resolvedFiles) {
@@ -1050,9 +1047,14 @@ function prepareI18nPackFiles() {
                     if (!extPack) {
                         extPack = extensionsPacks[resource] = { version: i18nPackVersion, contents: {} };
                     }
-                    var secondSlash = path.indexOf('/', firstSlash + 1);
-                    var key = externalExtensionsWithTranslations.indexOf(resource) !== -1 ? path : path.substr(secondSlash + 1);
-                    extPack.contents[key] = file.messages;
+                    var externalId = externalExtensions[resource];
+                    if (!externalId) {
+                        var secondSlash = path.indexOf('/', firstSlash + 1);
+                        extPack.contents[path.substr(secondSlash + 1)] = file.messages;
+                    }
+                    else {
+                        extPack.contents[path] = file.messages;
+                    }
                 }
                 else {
                     mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
@@ -1064,10 +1066,18 @@ function prepareI18nPackFiles() {
         Promise.all(parsePromises)
             .then(function () {
             var translatedMainFile = createI18nFile('./main', mainPack);
+            resultingTranslationPaths.push({ id: 'vscode', resourceName: 'main.i18n.json' });
             _this.queue(translatedMainFile);
             for (var extension in extensionsPacks) {
                 var translatedExtFile = createI18nFile("./extensions/" + extension, extensionsPacks[extension]);
                 _this.queue(translatedExtFile);
+                var externalExtensionId = externalExtensions[extension];
+                if (externalExtensionId) {
+                    resultingTranslationPaths.push({ id: externalExtensionId, resourceName: "extensions/" + extension + ".i18n.json" });
+                }
+                else {
+                    resultingTranslationPaths.push({ id: "vscode." + extension, resourceName: "extensions/" + extension + ".i18n.json" });
+                }
             }
             _this.queue(null);
         })
