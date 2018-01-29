@@ -291,28 +291,24 @@ function getNLSConfiguration(locale) {
 			if (!locale) {
 				return defaultResult();
 			}
-			let packConfigs = configs[locale];
-			if (!packConfigs || !Array.isArray(packConfigs) || packConfigs.length === 0) {
+			let packConfig = configs[locale];
+			let mainPack;
+			if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
 				return defaultResult();
 			}
-			// We take the first install language pack. No idea what to do if we have more
-			// than one :-)
-			let packConfig = packConfigs[0];
-			if (typeof packConfig.translations !== 'string' || typeof packConfig.version !== 'string' || packConfig.version.match(/\d+\.\d+\.\d+/) === null) {
-				return defaultResult();
-			}
-			return exists(packConfig.translations).then((fileExists) => {
+			return exists(mainPack).then((fileExists) => {
 				if (!fileExists) {
 					return defaultResult();
 				}
-				let packId = packConfig.extensionIdentifier.id + '-' + packConfig.version;
+				let packId = packConfig.hash + '.' + locale;
 				let cacheRoot = path.join(userData, 'clp', packId);
 				let coreLocation = path.join(cacheRoot, commit);
+				let translationsConfigFile = path.join(cacheRoot, 'tcf.json');
 				let result = {
 					locale: initialLocale,
 					availableLanguages: { '*': locale },
 					_languagePackId: packId,
-					_languagePackLocation: packConfig.translations,
+					_translationsConfigFile: translationsConfigFile,
 					_cacheRoot: cacheRoot,
 					_resolvedLanguagePackCoreLocation: coreLocation
 				};
@@ -324,7 +320,7 @@ function getNLSConfiguration(locale) {
 						return result;
 					}
 					return mkdirp(coreLocation).then(() => {
-						return Promise.all([readFile(path.join(__dirname, 'nls.metadata.json')), readFile(path.join(packConfig.translations, 'main.i18n.json'))]);
+						return Promise.all([readFile(path.join(__dirname, 'nls.metadata.json')), readFile(mainPack)]);
 					}).then((values) => {
 						let metadata = JSON.parse(values[0]);
 						let packData = JSON.parse(values[1]).contents;
@@ -356,6 +352,7 @@ function getNLSConfiguration(locale) {
 							}
 							writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g,'!') + '.nls.json'), JSON.stringify(target)));
 						}
+						writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
 						return Promise.all(writes);
 					}).then(() => {
 						perf.mark('nlsGeneration:end');

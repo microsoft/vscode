@@ -15,7 +15,7 @@
     "watch": "gulp watch-extension:grunt"
   },
   "dependencies": {
-    "vscode-nls": "^3.1.2"
+    "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
     "@types/node": "7.0.43"

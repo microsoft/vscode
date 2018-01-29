@@ -63,10 +63,10 @@ const tasks = compilations.map(function (tsconfigFile) {
 	let headerId, headerOut;
 	let index = relativeDirname.indexOf('/');
 	if (index < 0) {
-		headerId = relativeDirname;
+		headerId = 'vscode.' + relativeDirname;
 		headerOut = 'out';
 	} else {
-		headerId = relativeDirname.substr(0, index);
+		headerId = 'vscode.' + relativeDirname.substr(0, index);
 		headerOut = relativeDirname.substr(index + 1) + '/out';
 	}
 

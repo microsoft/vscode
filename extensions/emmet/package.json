@@ -320,6 +320,6 @@
         "vscode-emmet-helper": "^1.1.22",
         "vscode-languageserver-types": "^3.5.0",
         "image-size": "^0.5.2",
-        "vscode-nls": "3.1.2"
+        "vscode-nls": "3.2.1"
     }
 }

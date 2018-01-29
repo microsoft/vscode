@@ -20,7 +20,7 @@ import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, 
 import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ExtensionScanner, ILog, ExtensionScannerInput, IExtensionResolver, IExtensionReference } from 'vs/workbench/services/extensions/electron-browser/extensionPoints';
+import { ExtensionScanner, ILog, ExtensionScannerInput, IExtensionResolver, IExtensionReference, Translations } from 'vs/workbench/services/extensions/electron-browser/extensionPoints';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
@@ -652,86 +652,99 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private static _scanInstalledExtensions(instantiationService: IInstantiationService, messageService: IMessageService, environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
-		const version = pkg.version;
-		const commit = product.commit;
-		const devMode = !!process.env['VSCODE_DEV'];
-		const locale = platform.locale;
 
-		const builtinExtensions = this._scanExtensionsWithCache(
-			instantiationService,
-			messageService,
-			environmentService,
-			BUILTIN_MANIFEST_CACHE_FILE,
-			new ExtensionScannerInput(version, commit, locale, devMode, SystemExtensionsRoot, true),
-			log
-		);
-
-		let finalBuiltinExtensions: TPromise<IExtensionDescription[]> = builtinExtensions;
-
-		if (devMode) {
-			const builtInExtensionsFilePath = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'build', 'builtInExtensions.json'));
-			const builtInExtensions = pfs.readFile(builtInExtensionsFilePath, 'utf8')
-				.then<IBuiltInExtension[]>(raw => JSON.parse(raw));
-
-			const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
-			const controlFile = pfs.readFile(controlFilePath, 'utf8')
-				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
-
-			const input = new ExtensionScannerInput(version, commit, locale, devMode, ExtraDevSystemExtensionsRoot, true);
-			const extraBuiltinExtensions = TPromise.join([builtInExtensions, controlFile])
-				.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
-				.then(resolver => ExtensionScanner.scanExtensions(input, log, resolver));
-
-			finalBuiltinExtensions = TPromise.join([builtinExtensions, extraBuiltinExtensions]).then(([builtinExtensions, extraBuiltinExtensions]) => {
-				let resultMap: { [id: string]: IExtensionDescription; } = Object.create(null);
-				for (let i = 0, len = builtinExtensions.length; i < len; i++) {
-					resultMap[builtinExtensions[i].id] = builtinExtensions[i];
+		const translationConfig: TPromise<Translations> = platform.translationsConfigFile
+			? pfs.readFile(platform.translationsConfigFile, 'utf8').then((content) => {
+				try {
+					return JSON.parse(content) as Translations;
+				} catch (err) {
+					return Object.create(null);
 				}
-				// Overwrite with extensions found in extra
-				for (let i = 0, len = extraBuiltinExtensions.length; i < len; i++) {
-					resultMap[extraBuiltinExtensions[i].id] = extraBuiltinExtensions[i];
-				}
+			}, (err) => {
+				return Object.create(null);
+			})
+			: TPromise.as(Object.create(null));
 
-				let resultArr = Object.keys(resultMap).map((id) => resultMap[id]);
-				resultArr.sort((a, b) => {
-					const aLastSegment = path.basename(a.extensionFolderPath);
-					const bLastSegment = path.basename(b.extensionFolderPath);
-					if (aLastSegment < bLastSegment) {
-						return -1;
+		return translationConfig.then((translations) => {
+			const version = pkg.version;
+			const commit = product.commit;
+			const devMode = !!process.env['VSCODE_DEV'];
+			const locale = platform.locale;
+
+			const builtinExtensions = this._scanExtensionsWithCache(
+				instantiationService,
+				messageService,
+				environmentService,
+				BUILTIN_MANIFEST_CACHE_FILE,
+				new ExtensionScannerInput(version, commit, locale, devMode, SystemExtensionsRoot, true, translations),
+				log
+			);
+
+			let finalBuiltinExtensions: TPromise<IExtensionDescription[]> = builtinExtensions;
+
+			if (devMode) {
+				const builtInExtensionsFilePath = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'build', 'builtInExtensions.json'));
+				const builtInExtensions = pfs.readFile(builtInExtensionsFilePath, 'utf8')
+					.then<IBuiltInExtension[]>(raw => JSON.parse(raw));
+
+				const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
+				const controlFile = pfs.readFile(controlFilePath, 'utf8')
+					.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
+
+				const input = new ExtensionScannerInput(version, commit, locale, devMode, ExtraDevSystemExtensionsRoot, true, translations);
+				const extraBuiltinExtensions = TPromise.join([builtInExtensions, controlFile])
+					.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
+					.then(resolver => ExtensionScanner.scanExtensions(input, log, resolver));
+
+				finalBuiltinExtensions = TPromise.join([builtinExtensions, extraBuiltinExtensions]).then(([builtinExtensions, extraBuiltinExtensions]) => {
+					let resultMap: { [id: string]: IExtensionDescription; } = Object.create(null);
+					for (let i = 0, len = builtinExtensions.length; i < len; i++) {
+						resultMap[builtinExtensions[i].id] = builtinExtensions[i];
 					}
-					if (aLastSegment > bLastSegment) {
-						return 1;
+					// Overwrite with extensions found in extra
+					for (let i = 0, len = extraBuiltinExtensions.length; i < len; i++) {
+						resultMap[extraBuiltinExtensions[i].id] = extraBuiltinExtensions[i];
 					}
-					return 0;
+
+					let resultArr = Object.keys(resultMap).map((id) => resultMap[id]);
+					resultArr.sort((a, b) => {
+						const aLastSegment = path.basename(a.extensionFolderPath);
+						const bLastSegment = path.basename(b.extensionFolderPath);
+						if (aLastSegment < bLastSegment) {
+							return -1;
+						}
+						if (aLastSegment > bLastSegment) {
+							return 1;
+						}
+						return 0;
+					});
+					return resultArr;
 				});
-				return resultArr;
-			});
-		}
+			}
 
-		const userExtensions = (
-			environmentService.disableExtensions || !environmentService.extensionsPath
-				? TPromise.as([])
-				: this._scanExtensionsWithCache(
-					instantiationService,
-					messageService,
-					environmentService,
-					USER_MANIFEST_CACHE_FILE,
-					new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionsPath, false),
-					log
-				)
-		);
+			const userExtensions = (
+				environmentService.disableExtensions || !environmentService.extensionsPath
+					? TPromise.as([])
+					: this._scanExtensionsWithCache(
+						instantiationService,
+						messageService,
+						environmentService,
+						USER_MANIFEST_CACHE_FILE,
+						new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionsPath, false, translations),
+						log
+					)
+			);
 
-		// Always load developed extensions while extensions development
-		const developedExtensions = (
-			environmentService.isExtensionDevelopment
-				? ExtensionScanner.scanOneOrMultipleExtensions(
-					new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionDevelopmentPath, false), log
-				)
-				: TPromise.as([])
-		);
+			// Always load developed extensions while extensions development
+			const developedExtensions = (
+				environmentService.isExtensionDevelopment
+					? ExtensionScanner.scanOneOrMultipleExtensions(
+						new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionDevelopmentPath, false, translations), log
+					)
+					: TPromise.as([])
+			);
 
-		return TPromise.join([finalBuiltinExtensions, userExtensions, developedExtensions])
-			.then((extensionDescriptions: IExtensionDescription[][]) => {
+			return TPromise.join([finalBuiltinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
 				const system = extensionDescriptions[0];
 				const user = extensionDescriptions[1];
 				const development = extensionDescriptions[2];
@@ -740,6 +753,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				log.error('', err);
 				return { system: [], user: [], development: [] };
 			});
+		});
+
 	}
 
 	private static _handleExtensionPoint<T>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[], messageHandler: (msg: IMessage) => void): void {

@@ -329,7 +329,7 @@
 		"markdown-it": "^8.4.0",
 		"markdown-it-named-headers": "0.0.4",
 		"vscode-extension-telemetry": "^0.0.11",
-		"vscode-nls": "^3.1.2"
+		"vscode-nls": "^3.2.1"
 	},
 	"devDependencies": {
 		"@types/highlight.js": "9.1.10",

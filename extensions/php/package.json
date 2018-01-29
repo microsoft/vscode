@@ -10,7 +10,7 @@
 	],
 	"main": "./out/phpMain",
 	"dependencies": {
-		"vscode-nls": "^3.1.2"
+		"vscode-nls": "^3.2.1"
 	},
 	"contributes": {
 		"languages": [
