@@ -551,7 +551,8 @@ class Launch implements ILaunch {
 	}
 
 	public getConfiguration(name: string): IConfig {
-		const config = this.getConfig();
+		// We need to clone the configuration in order to be able to make changes to it #42198
+		const config = objects.deepClone(this.getConfig());
 		if (!config || !config.configurations) {
 			return null;
 		}
