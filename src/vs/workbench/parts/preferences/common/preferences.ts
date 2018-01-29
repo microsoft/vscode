@@ -110,6 +110,7 @@ export interface IFilterMetadata {
 	timestamp: number;
 	duration: number;
 	scoredResults: IScoredResults;
+	requestCount?: number;
 
 	/** The name of the server that actually served the request */
 	context: string;

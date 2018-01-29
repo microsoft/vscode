@@ -132,9 +132,16 @@ interface IRemoteSearchProviderOptions {
 	newExtensionsOnly: boolean;
 }
 
+interface IBingRequestDetails {
+	url: string;
+	body?: string;
+	hasMoreFilters?: boolean;
+}
+
 class RemoteSearchProvider implements ISearchProvider {
-	// Must keep extension filter size under 8kb. 42 extension filters + core buildnum filter puts us there.
-	private static MAX_EXTENSION_FILTERS = 42;
+	// Must keep extension filter size under 8kb. 42 filters puts us there.
+	private static MAX_REQUEST_FILTERS = 42;
+	private static MAX_REQUESTS = 10;
 
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
@@ -144,7 +151,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		@ILogService private logService: ILogService
 	) {
 		this._remoteSearchP = this.options.filter ?
-			this.getSettingsFromBing(this.options.filter) :
+			this.getSettingsForFilter(this.options.filter) :
 			TPromise.wrap(null);
 	}
 
@@ -185,76 +192,100 @@ class RemoteSearchProvider implements ISearchProvider {
 		});
 	}
 
-	private getSettingsFromBing(filter: string): TPromise<IFilterMetadata> {
-		const start = Date.now();
-		return this.prepareRequest(filter).then(details => {
-			this.logService.debug(`Searching settings via ${details.url}`);
-			if (details.body) {
-				this.logService.debug(`Body: ${details.body}`);
+	private async getSettingsForFilter(filter: string): TPromise<IFilterMetadata> {
+		const allRequestDetails: IBingRequestDetails[] = [];
+
+		// Only send MAX_REQUESTS requests in total just to keep it sane
+		for (let i = 0; i < RemoteSearchProvider.MAX_REQUESTS; i++) {
+			const details = await this.prepareRequest(filter, i);
+			allRequestDetails.push(details);
+			if (!details.hasMoreFilters) {
+				break;
+			}
+		}
+
+		return TPromise.join(allRequestDetails.map(details => this.getSettingsFromBing(details))).then(allResponses => {
+			// Merge all IFilterMetadata
+			const metadata = allResponses[0];
+			metadata.requestCount = 1;
+
+			for (let response of allResponses.slice(1)) {
+				metadata.requestCount++;
+				metadata.scoredResults = { ...metadata.scoredResults, ...response.scoredResults };
 			}
 
-			const requestType = details.body ? 'post' : 'get';
-			return this.requestService.request({
-				type: requestType,
-				url: details.url,
-				data: details.body,
-				headers: {
-					'User-Agent': 'request',
-					'Content-Type': 'application/json; charset=utf-8',
-					'api-key': this.options.endpoint.key
-				},
-				timeout: 5000
-			}).then(context => {
-				if (context.res.statusCode >= 300) {
-					throw new Error(`${details} returned status code: ${context.res.statusCode}`);
-				}
+			return metadata;
+		});
+	}
 
-				return asJson(context);
-			}).then((result: any) => {
-				const timestamp = Date.now();
-				const duration = timestamp - start;
-				const remoteSettings: IRemoteSetting[] = (result.value || [])
-					.map(r => {
-						const key = JSON.parse(r.setting || r.Setting);
-						const packageId = r['packageid'];
-						const id = getSettingKey(key, packageId);
+	private getSettingsFromBing(details: IBingRequestDetails): TPromise<IFilterMetadata> {
+		this.logService.debug(`Searching settings via ${details.url}`);
+		if (details.body) {
+			this.logService.debug(`Body: ${details.body}`);
+		}
 
-						const value = r['value'];
-						const defaultValue = value ? JSON.parse(value) : value;
+		const requestType = details.body ? 'post' : 'get';
+		const start = Date.now();
+		return this.requestService.request({
+			type: requestType,
+			url: details.url,
+			data: details.body,
+			headers: {
+				'User-Agent': 'request',
+				'Content-Type': 'application/json; charset=utf-8',
+				'api-key': this.options.endpoint.key
+			},
+			timeout: 5000
+		}).then(context => {
+			if (context.res.statusCode >= 300) {
+				throw new Error(`${details} returned status code: ${context.res.statusCode}`);
+			}
 
-						const packageName = r['packagename'];
-						let extensionName: string;
-						let extensionPublisher: string;
-						if (packageName && packageName.indexOf('##') >= 0) {
-							[extensionPublisher, extensionName] = packageName.split('##');
-						}
+			return asJson(context);
+		}).then((result: any) => {
+			const timestamp = Date.now();
+			const duration = timestamp - start;
+			const remoteSettings: IRemoteSetting[] = (result.value || [])
+				.map(r => {
+					const key = JSON.parse(r.setting || r.Setting);
+					const packageId = r['packageid'];
+					const id = getSettingKey(key, packageId);
 
-						return <IRemoteSetting>{
-							key,
-							id,
-							defaultValue,
-							score: r['@search.score'],
-							description: JSON.parse(r['details']),
-							packageId,
-							extensionName,
-							extensionPublisher
-						};
-					});
+					const value = r['value'];
+					const defaultValue = value ? JSON.parse(value) : value;
 
-				const scoredResults = Object.create(null);
-				remoteSettings.forEach(s => {
-					scoredResults[s.id] = s;
+					const packageName = r['packagename'];
+					let extensionName: string;
+					let extensionPublisher: string;
+					if (packageName && packageName.indexOf('##') >= 0) {
+						[extensionPublisher, extensionName] = packageName.split('##');
+					}
+
+					return <IRemoteSetting>{
+						key,
+						id,
+						defaultValue,
+						score: r['@search.score'],
+						description: JSON.parse(r['details']),
+						packageId,
+						extensionName,
+						extensionPublisher
+					};
 				});
 
-				return <IFilterMetadata>{
-					requestUrl: details.url,
-					requestBody: details.body,
-					duration,
-					timestamp,
-					scoredResults,
-					context: result['@odata.context']
-				};
+			const scoredResults = Object.create(null);
+			remoteSettings.forEach(s => {
+				scoredResults[s.id] = s;
 			});
+
+			return <IFilterMetadata>{
+				requestUrl: details.url,
+				requestBody: details.body,
+				duration,
+				timestamp,
+				scoredResults,
+				context: result['@odata.context']
+			};
 		});
 	}
 
@@ -272,7 +303,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		};
 	}
 
-	private async prepareRequest(query: string): TPromise<{ url: string, body?: string }> {
+	private async prepareRequest(query: string, filterPage = 0): TPromise<IBingRequestDetails> {
 		query = escapeSpecialChars(query);
 		const boost = 10;
 		const userQuery = `(${query})^${boost}`;
@@ -283,18 +314,18 @@ class RemoteSearchProvider implements ISearchProvider {
 		const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
 		let url = `${this.options.endpoint.urlBase}?`;
 
-		const buildNumber = this.environmentService.settingsSearchBuildId;
 		if (this.options.endpoint.key) {
 			url += `${API_VERSION}&${QUERY_TYPE}`;
 		}
 
 		const filters = this.options.newExtensionsOnly ?
 			[`diminish eq 'latest'`] :
-			await this.getVersionFilters(buildNumber);
+			await this.getVersionFilters(this.environmentService.settingsSearchBuildId);
 
 		const filterStr = filters
-			.slice(0, RemoteSearchProvider.MAX_EXTENSION_FILTERS)
+			.slice(filterPage * RemoteSearchProvider.MAX_REQUEST_FILTERS, (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS)
 			.join(' or ');
+		const hasMoreFilters = filters.length > (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS;
 
 		const body = JSON.stringify({
 			query: encodedQuery,
@@ -303,7 +334,8 @@ class RemoteSearchProvider implements ISearchProvider {
 
 		return {
 			url,
-			body
+			body,
+			hasMoreFilters
 		};
 	}
 

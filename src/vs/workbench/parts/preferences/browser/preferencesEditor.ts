@@ -316,14 +316,16 @@ export class PreferencesEditor extends BaseEditor {
 			let data = {
 				filter,
 				durations,
-				counts
+				counts,
+				requestCount: metadata && metadata['nlpResult'] && metadata['nlpResult'].requestCount
 			};
 
 			/* __GDPR__
 				"defaultSettings.filter" : {
 					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"durations" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"counts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"counts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
 			this.telemetryService.publicLog('defaultSettings.filter', data);
