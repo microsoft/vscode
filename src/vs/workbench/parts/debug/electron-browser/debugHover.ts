@@ -11,7 +11,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DefaultController, ICancelableEvent, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController, ICancelableEvent, ClickBehavior, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -336,7 +336,7 @@ export class DebugHoverWidget implements IContentWidget {
 class DebugHoverController extends DefaultController {
 
 	constructor(private editor: ICodeEditor) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false, openMode: OpenMode.SINGLE_CLICK });
 	}
 
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin = 'mouse'): boolean {

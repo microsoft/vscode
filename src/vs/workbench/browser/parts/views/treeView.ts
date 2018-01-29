@@ -14,7 +14,7 @@ import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
+import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
@@ -26,12 +26,13 @@ import { ViewsRegistry, TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvid
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IViewletViewOptions, IViewOptions, TreeViewsViewletPanel, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import URI from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TreeView extends TreeViewsViewletPanel {
 
@@ -96,7 +97,7 @@ export class TreeView extends TreeViewsViewletPanel {
 		);
 
 		tree.contextKeyService.createKey<boolean>(this.id, true);
-		this.disposables.push(tree.onDidChangeSelection(() => this.onSelection()));
+		this.disposables.push(tree.onDidChangeSelection(e => this.onSelection(e)));
 
 		return tree;
 	}
@@ -159,11 +160,17 @@ export class TreeView extends TreeViewsViewletPanel {
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
-	private onSelection(): void {
+	private onSelection({ payload }: any): void {
 		const selection: ITreeItem = this.tree.getSelection()[0];
 		if (selection) {
 			if (selection.command) {
-				this.commandService.executeCommand(selection.command.id, ...(selection.command.arguments || []));
+				const originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
+				const isMouseEvent = payload && payload.origin === 'mouse';
+				const isDoubleClick = isMouseEvent && originalEvent && originalEvent.detail === 2;
+
+				if (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick) {
+					this.commandService.executeCommand(selection.command.id, ...(selection.command.arguments || []));
+				}
 			}
 		}
 	}
@@ -347,15 +354,16 @@ class TreeRenderer implements IRenderer {
 	}
 }
 
-class TreeController extends DefaultController {
+class TreeController extends WorkbenchTreeController {
 
 	constructor(
 		private treeViewId: string,
 		private menus: Menus,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IKeybindingService private _keybindingService: IKeybindingService
+		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false }, configurationService);
 	}
 
 	public onContextMenu(tree: ITree, node: ITreeItem, event: ContextMenuEvent): boolean {

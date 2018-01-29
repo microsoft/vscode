@@ -20,6 +20,8 @@ import { mixin } from 'vs/base/common/objects';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { DefaultController, IControllerOptions, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
@@ -95,9 +97,14 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 }
 
 export const multiSelectModifierSettingKey = 'workbench.multiSelectModifier';
+export const openModeSettingKey = 'workbench.openMode';
 
 export function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
+}
+
+export function useSingleClickToOpen(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue(openModeSettingKey) !== 'doubleClick';
 }
 
 class MultipleSelectionController<T> implements IMultipleSelectionController<T> {
@@ -131,6 +138,7 @@ export class WorkbenchList<T> extends List<T> {
 
 	private listDoubleSelection: IContextKey<boolean>;
 
+	private _openOnSingleClick: boolean;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -148,6 +156,7 @@ export class WorkbenchList<T> extends List<T> {
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 
+		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(combinedDisposable([
@@ -160,12 +169,20 @@ export class WorkbenchList<T> extends List<T> {
 		this.registerListeners();
 	}
 
+	public get openOnSingleClick(): boolean {
+		return this._openOnSingleClick;
+	}
+
 	public get useAltAsMultipleSelectionModifier(): boolean {
 		return this._useAltAsMultipleSelectionModifier;
 	}
 
 	private registerListeners(): void {
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(openModeSettingKey)) {
+				this._openOnSingleClick = useSingleClickToOpen(this.configurationService);
+			}
+
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
 			}
@@ -179,6 +196,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	private disposables: IDisposable[] = [];
 
+	private _openOnSingleClick: boolean;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -195,6 +213,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
+		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(combinedDisposable([
@@ -206,12 +225,20 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.registerListeners();
 	}
 
+	public get openOnSingleClick(): boolean {
+		return this._openOnSingleClick;
+	}
+
 	public get useAltAsMultipleSelectionModifier(): boolean {
 		return this._useAltAsMultipleSelectionModifier;
 	}
 
 	private registerListeners(): void {
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(openModeSettingKey)) {
+				this._openOnSingleClick = useSingleClickToOpen(this.configurationService);
+			}
+
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
 			}
@@ -231,6 +258,7 @@ export class WorkbenchTree extends Tree {
 
 	private listDoubleSelection: IContextKey<boolean>;
 
+	private _openOnSingleClick: boolean;
 	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
@@ -247,6 +275,7 @@ export class WorkbenchTree extends Tree {
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 
+		this._openOnSingleClick = useSingleClickToOpen(configurationService);
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(
@@ -256,6 +285,10 @@ export class WorkbenchTree extends Tree {
 		);
 
 		this.registerListeners();
+	}
+
+	public get openOnSingleClick(): boolean {
+		return this._openOnSingleClick;
 	}
 
 	public get useAltAsMultipleSelectionModifier(): boolean {
@@ -269,10 +302,48 @@ export class WorkbenchTree extends Tree {
 		}));
 
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(openModeSettingKey)) {
+				this._openOnSingleClick = useSingleClickToOpen(this.configurationService);
+			}
+
 			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
 			}
 		}));
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class WorkbenchTreeController extends DefaultController {
+
+	protected disposables: IDisposable[] = [];
+
+	constructor(
+		options: IControllerOptions,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super(options);
+
+		// if the open mode is not set, we configure it based on settings
+		if (isUndefinedOrNull(options.openMode)) {
+			this.setOpenMode(this.getOpenModeSetting());
+			this.registerListeners();
+		}
+	}
+
+	private registerListeners(): void {
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(openModeSettingKey)) {
+				this.setOpenMode(this.getOpenModeSetting());
+			}
+		}));
+	}
+
+	private getOpenModeSetting(): OpenMode {
+		return useSingleClickToOpen(this.configurationService) ? OpenMode.SINGLE_CLICK : OpenMode.DOUBLE_CLICK;
 	}
 
 	dispose(): void {
@@ -303,6 +374,19 @@ configurationRegistry.registerConfiguration({
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
 			}, "The modifier to be used to add an item to a multi-selection with the mouse (for example in trees and lists, if supported). `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The 'Open to Side' mouse gestures - if supported - will adapt such that they do not conflict with the multiselect modifier.")
+		},
+		'workbench.openMode': {
+			'type': 'string',
+			'enum': ['singleClick', 'doubleClick'],
+			'enumDescriptions': [
+				localize('openMode.singleClick', "Opens items on mouse single click."),
+				localize('openMode.doubleClick', "Open items on mouse double click.")
+			],
+			'default': 'singleClick',
+			'description': localize({
+				key: 'openModeModifier',
+				comment: ['`singleClick` and `doubleClick` refers to a value the setting can take and should not be localized.']
+			}, "Controls how to open items in trees and lists using the mouse (if supported). Set to `singleClick` to open items with a single mouse click and `doubleClick` to only open via mouse double click.")
 		}
 	}
 });

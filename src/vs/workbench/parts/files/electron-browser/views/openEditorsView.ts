@@ -276,7 +276,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		if (event.browserEvent && event.browserEvent.button === 1 /* Middle Button */) {
 			const position = this.model.positionOfGroup(element.group);
 			this.editorService.closeEditor(position, element.editor).done(null, errors.onUnexpectedError);
-		} else {
+		} else if (isDoubleClick || this.list.openOnSingleClick) {
 			const sideBySide = this.list.useAltAsMultipleSelectionModifier ? (event.browserEvent.ctrlKey || event.browserEvent.metaKey) : event.browserEvent.altKey;
 			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick, sideBySide });
 		}

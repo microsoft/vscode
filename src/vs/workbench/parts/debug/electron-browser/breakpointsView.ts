@@ -78,10 +78,10 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
-		const handleBreakpointFocus = (preserveFocuse: boolean, sideBySide: boolean, selectFunctionBreakpoint: boolean) => {
+		const handleBreakpointFocus = (preserveFocuse: boolean, sideBySide: boolean, selectFunctionBreakpoint: boolean, isSingleClick: boolean) => {
 			const focused = this.list.getFocusedElements();
 			const element = focused.length ? focused[0] : undefined;
-			if (element instanceof Breakpoint) {
+			if (element instanceof Breakpoint && (!isSingleClick || this.list.openOnSingleClick)) {
 				openBreakpointSource(element, sideBySide, preserveFocuse, this.debugService, this.editorService).done(undefined, onUnexpectedError);
 			}
 			if (selectFunctionBreakpoint && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
@@ -92,14 +92,14 @@ export class BreakpointsView extends ViewsViewletPanel {
 		this.disposables.push(this.list.onKeyUp(e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter)) {
-				handleBreakpointFocus(false, event && (event.ctrlKey || event.metaKey || event.altKey), false);
+				handleBreakpointFocus(false, event && (event.ctrlKey || event.metaKey || event.altKey), false, false);
 			}
 		}));
 		this.disposables.push(this.list.onMouseDblClick(e => {
-			handleBreakpointFocus(false, e.browserEvent.altKey, true);
+			handleBreakpointFocus(false, e.browserEvent.altKey, true, false);
 		}));
 		this.disposables.push(this.list.onMouseClick(e => {
-			handleBreakpointFocus(true, e.browserEvent.altKey, false);
+			handleBreakpointFocus(true, e.browserEvent.altKey, false, true);
 		}));
 
 		this.list.splice(0, this.list.length, this.elements);

@@ -84,7 +84,7 @@ export class SearchViewlet extends Viewlet {
 	private searching: boolean;
 
 	private actions: SearchAction[] = [];
-	private tree: ITree;
+	private tree: WorkbenchTree;
 	private viewletSettings: any;
 	private messages: Builder;
 	private searchWidgetsContainer: Builder;
