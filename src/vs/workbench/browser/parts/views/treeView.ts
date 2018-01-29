@@ -342,6 +342,7 @@ class TreeRenderer implements IRenderer {
 
 		// Fix when the theme do not show folder icons but parent has opt in icon.
 		DOM.toggleClass(templateData.container, 'parent-has-icon', this.hasParentHasOptInIcon(node, tree));
+		DOM.toggleClass(templateData.container, 'has-icon', !!icon);
 	}
 
 	private hasParentHasOptInIcon(node: ITreeItem, tree: ITree): boolean {

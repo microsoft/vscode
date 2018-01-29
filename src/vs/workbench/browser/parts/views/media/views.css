@@ -20,17 +20,6 @@
 	content: ' ';
 }
 
-.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before,
-.file-icon-themable-tree.hide-arrows .monaco-tree-row .content::before {
-	display: none;
-}
-
-/** Show the twistie content if the parent has opt in icon **/
-.tree-explorer-viewlet-tree-view.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content.parent-has-icon::before,
-.tree-explorer-viewlet-tree-view.file-icon-themable-tree.hide-arrows .monaco-tree-row .content.parent-has-icon::before {
-	display: inline-block;
-}
-
 .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
 	background-image: url("expanded.svg");
 }
@@ -54,6 +43,17 @@
 
 .hc-black .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
 	background-image: url("collapsed-hc.svg");
+}
+
+.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before,
+.file-icon-themable-tree.hide-arrows .monaco-tree-row .content::before {
+	display: none;
+}
+
+/** Show the twistie content if the parent has opt in icon **/
+.tree-explorer-viewlet-tree-view.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content.parent-has-icon::before,
+.tree-explorer-viewlet-tree-view.file-icon-themable-tree.hide-arrows .monaco-tree-row .content.has-icon::before {
+	display: inline-block;
 }
 
 .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item {
