@@ -580,6 +580,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (!this.wordToLineNumbersMap) {
 			this.wordToLineNumbersMap = new Map<string, Position[]>();
 			const model = this.editor.getModel();
+			if (!model) {
+				return this.wordToLineNumbersMap;
+			}
+
 			// For every word in every line, map its ranges for fast lookup
 			for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
 				const lineContent = model.getLineContent(lineNumber);
