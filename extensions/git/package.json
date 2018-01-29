@@ -24,12 +24,18 @@
     "commands": [
       {
         "command": "git.clone",
-        "title": "%command.clone%",
+        "title": {
+          "original": "Clone",
+          "value": "%command.clone%"
+        },
         "category": "Git"
       },
       {
         "command": "git.init",
-        "title": "%command.init%",
+        "title": {
+          "original": "Initialize Repository",
+          "value": "%command.init%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/git.svg",
@@ -38,12 +44,18 @@
       },
       {
         "command": "git.close",
-        "title": "%command.close%",
+        "title": {
+          "original": "Close Repository",
+          "value": "%command.close%"
+        },
         "category": "Git"
       },
       {
         "command": "git.refresh",
-        "title": "%command.refresh%",
+        "title": {
+          "original": "Refresh",
+          "value": "%command.refresh%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/refresh.svg",
@@ -52,7 +64,10 @@
       },
       {
         "command": "git.openChange",
-        "title": "%command.openChange%",
+        "title": {
+          "original": "Open Changes",
+          "value": "%command.openChange%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/open-change.svg",
@@ -61,7 +76,10 @@
       },
       {
         "command": "git.openFile",
-        "title": "%command.openFile%",
+        "title": {
+          "original": "Open File",
+          "value": "%command.openFile%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/open-file.svg",
@@ -70,7 +88,10 @@
       },
       {
         "command": "git.openFile2",
-        "title": "%command.openFile%",
+        "title": {
+          "original": "Open File",
+          "value": "%command.openFile%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/open-file-mono.svg",
@@ -79,12 +100,18 @@
       },
       {
         "command": "git.openHEADFile",
-        "title": "%command.openHEADFile%",
+        "title": {
+          "original": "Open File (HEAD)",
+          "value": "%command.openHEADFile%"
+        },
         "category": "Git"
       },
       {
         "command": "git.stage",
-        "title": "%command.stage%",
+        "title": {
+          "original": "Stage Changes",
+          "value": "%command.stage%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/stage.svg",
@@ -93,7 +120,10 @@
       },
       {
         "command": "git.stageAll",
-        "title": "%command.stageAll%",
+        "title": {
+          "original": "Stage All Changes",
+          "value": "%command.stageAll%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/stage.svg",
@@ -102,17 +132,26 @@
       },
       {
         "command": "git.stageSelectedRanges",
-        "title": "%command.stageSelectedRanges%",
+        "title": {
+          "original": "Stage Selected Ranges",
+          "value": "%command.stageSelectedRanges%"
+        },
         "category": "Git"
       },
       {
         "command": "git.revertSelectedRanges",
-        "title": "%command.revertSelectedRanges%",
+        "title": {
+          "original": "Revert Selected Ranges",
+          "value": "%command.revertSelectedRanges%"
+        },
         "category": "Git"
       },
       {
         "command": "git.stageChange",
-        "title": "%command.stageChange%",
+        "title": {
+          "original": "Stage Change",
+          "value": "%command.stageChange%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/stage.svg",
@@ -121,7 +160,10 @@
       },
       {
         "command": "git.revertChange",
-        "title": "%command.revertChange%",
+        "title": {
+          "original": "Revert Change",
+          "value": "%command.revertChange%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/clean.svg",
@@ -130,7 +172,10 @@
       },
       {
         "command": "git.unstage",
-        "title": "%command.unstage%",
+        "title": {
+          "original": "Unstage Changes",
+          "value": "%command.unstage%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/unstage.svg",
@@ -139,7 +184,10 @@
       },
       {
         "command": "git.unstageAll",
-        "title": "%command.unstageAll%",
+        "title": {
+          "original": "Unstage All Changes",
+          "value": "%command.unstageAll%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/unstage.svg",
@@ -148,12 +196,18 @@
       },
       {
         "command": "git.unstageSelectedRanges",
-        "title": "%command.unstageSelectedRanges%",
+        "title": {
+          "original": "Unstage Selected Ranges",
+          "value": "%command.unstageSelectedRanges%"
+        },
         "category": "Git"
       },
       {
         "command": "git.clean",
-        "title": "%command.clean%",
+        "title": {
+          "original": "Discard Changes",
+          "value": "%command.clean%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/clean.svg",
@@ -162,7 +216,10 @@
       },
       {
         "command": "git.cleanAll",
-        "title": "%command.cleanAll%",
+        "title": {
+          "original": "Discard All Changes",
+          "value": "%command.cleanAll%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/clean.svg",
@@ -171,7 +228,10 @@
       },
       {
         "command": "git.commit",
-        "title": "%command.commit%",
+        "title": {
+          "original": "Commit",
+          "value": "%command.commit%"
+        },
         "category": "Git",
         "icon": {
           "light": "resources/icons/light/check.svg",
@@ -180,147 +240,234 @@
       },
       {
         "command": "git.commitStaged",
-        "title": "%command.commitStaged%",
+        "title": {
+          "original": "Commit Staged",
+          "value": "%command.commitStaged%"
+        },
         "category": "Git"
       },
       {
         "command": "git.commitStagedSigned",
-        "title": "%command.commitStagedSigned%",
+        "title": {
+          "original": "Commit Staged (Signed Off)",
+          "value": "%command.commitStagedSigned%"
+        },
         "category": "Git"
       },
       {
         "command": "git.commitStagedAmend",
-        "title": "%command.commitStagedAmend%",
+        "title": {
+          "original": "Commit Staged (Amend)",
+          "value": "%command.commitStagedAmend%"
+        },
         "category": "Git"
       },
       {
         "command": "git.commitAll",
-        "title": "%command.commitAll%",
+        "title": {
+          "original": "Commit All",
+          "value": "%command.commitAll%"
+        },
         "category": "Git"
       },
       {
         "command": "git.commitAllSigned",
-        "title": "%command.commitAllSigned%",
+        "title": {
+          "original": "Commit All (Signed Off)",
+          "value": "%command.commitAllSigned%"
+        },
         "category": "Git"
       },
       {
         "command": "git.commitAllAmend",
-        "title": "%command.commitAllAmend%",
+        "title": {
+          "original": "Commit All (Amend)",
+          "value": "%command.commitAllAmend%"
+        },
         "category": "Git"
       },
       {
         "command": "git.undoCommit",
-        "title": "%command.undoCommit%",
+        "title": {
+          "original": "Undo Last Commit",
+          "value": "%command.undoCommit%"
+        },
         "category": "Git"
       },
       {
         "command": "git.checkout",
-        "title": "%command.checkout%",
+        "title": {
+          "original": "Checkout to...",
+          "value": "%command.checkout%"
+        },
         "category": "Git"
       },
       {
         "command": "git.branch",
-        "title": "%command.branch%",
+        "title": {
+          "original": "Create Branch...",
+          "value": "%command.branch%"
+        },
         "category": "Git"
       },
       {
         "command": "git.deleteBranch",
-        "title": "%command.deleteBranch%",
+        "title": {
+          "original": "Delete Branch...",
+          "value": "%command.deleteBranch%"
+        },
         "category": "Git"
       },
       {
         "command": "git.renameBranch",
-        "title": "%command.renameBranch%",
+        "title": {
+          "original": "Rename Branch...",
+          "value": "%command.renameBranch%"
+        },
         "category": "Git"
       },
       {
         "command": "git.merge",
-        "title": "%command.merge%",
+        "title": {
+          "original": "Merge Branch...",
+          "value": "%command.merge%"
+        },
         "category": "Git"
       },
       {
         "command": "git.createTag",
-        "title": "%command.createTag%",
+        "title": {
+          "original": "Create Tag",
+          "value": "%command.createTag%"
+        },
         "category": "Git"
       },
       {
         "command": "git.fetch",
-        "title": "%command.fetch%",
+        "title": {
+          "original": "Fetch",
+          "value": "%command.fetch%"
+        },
         "category": "Git"
       },
       {
         "command": "git.pull",
-        "title": "%command.pull%",
+        "title": {
+          "original": "Pull",
+          "value": "%command.pull%"
+        },
         "category": "Git"
       },
       {
         "command": "git.pullRebase",
-        "title": "%command.pullRebase%",
+        "title": {
+          "original": "Pull (Rebase)",
+          "value": "%command.pullRebase%"
+        },
         "category": "Git"
       },
       {
         "command": "git.pullFrom",
-        "title": "%command.pullFrom%",
+        "title": {
+          "original": "Pull from...",
+          "value": "%command.pullFrom%"
+        },
         "category": "Git"
       },
       {
         "command": "git.push",
-        "title": "%command.push%",
+        "title": {
+          "original": "Push",
+          "value": "%command.push%"
+        },
         "category": "Git"
       },
       {
         "command": "git.pushTo",
-        "title": "%command.pushTo%",
+        "title": {
+          "original": "Push to...",
+          "value": "%command.pushTo%"
+        },
         "category": "Git"
       },
       {
         "command": "git.pushWithTags",
-        "title": "%command.pushWithTags%",
+        "title": {
+          "original": "Push With Tags",
+          "value": "%command.pushWithTags%"
+        },
         "category": "Git"
       },
       {
         "command": "git.sync",
-        "title": "%command.sync%",
+        "title": {
+          "original": "Sync",
+          "value": "%command.sync%"
+        },
         "category": "Git"
       },
       {
         "command": "git.syncRebase",
-        "title": "%command.syncRebase%",
+        "title": {
+          "original": "Sync (Rebase)",
+          "value": "%command.syncRebase%"
+        },
         "category": "Git"
       },
       {
         "command": "git.publish",
-        "title": "%command.publish%",
+        "title": {
+          "original": "Publish Branch",
+          "value": "%command.publish%"
+        },
         "category": "Git"
       },
       {
         "command": "git.showOutput",
-        "title": "%command.showOutput%",
+        "title": {
+          "original": "Show Git Output",
+          "value": "%command.showOutput%"
+        },
         "category": "Git"
       },
       {
         "command": "git.ignore",
-        "title": "%command.ignore%",
+        "title": {
+          "original": "Add File to .gitignore",
+          "value": "%command.ignore%"
+        },
         "category": "Git"
       },
       {
         "command": "git.stashIncludeUntracked",
-        "title": "%command.stashIncludeUntracked%",
+        "title": {
+          "original": "Stash (Include Untracked)",
+          "value": "%command.stashIncludeUntracked%"
+        },
         "category": "Git"
       },
       {
         "command": "git.stash",
-        "title": "%command.stash%",
+        "title": {
+          "original": "Stash",
+          "value": "%command.stash%"
+        },
         "category": "Git"
       },
       {
         "command": "git.stashPop",
-        "title": "%command.stashPop%",
+        "title": {
+          "original": "Pop Stash...",
+          "value": "%command.stashPop%"
+        },
         "category": "Git"
       },
       {
         "command": "git.stashPopLatest",
-        "title": "%command.stashPopLatest%",
+        "title": {
+          "original": "Pop Latest Stash",
+          "value": "%command.stashPopLatest%"
+        },
         "category": "Git"
       }
     ],
