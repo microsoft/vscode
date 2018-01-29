@@ -12,6 +12,12 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 export const ID = 'issueService';
 export const IIssueService = createDecorator<IIssueService>(ID);
 
+export enum IssueType {
+	Bug,
+	PerformanceIssue,
+	FeatureRequest
+}
+
 export interface IssueReporterStyles {
 	backgroundColor: string;
 	color: string;
@@ -30,6 +36,7 @@ export interface IssueReporterData {
 	styles: IssueReporterStyles;
 	zoomLevel: number;
 	enabledExtensions: ILocalExtension[];
+	issueType?: IssueType;
 }
 
 export interface IIssueService {

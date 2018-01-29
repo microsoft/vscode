@@ -7,12 +7,7 @@
 
 import { assign } from 'vs/base/common/objects';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-
-export enum IssueType {
-	Bug,
-	PerformanceIssue,
-	FeatureRequest
-}
+import { IssueType } from 'vs/platform/issue/common/issue';
 
 export interface IssueReporterData {
 	issueType?: IssueType;

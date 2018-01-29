@@ -29,8 +29,8 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IssueReporterModel, IssueType } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterData, IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
+import { IssueReporterData, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { debounce } from 'vs/base/common/decorators';
@@ -58,7 +58,7 @@ export class IssueReporter extends Disposable {
 		this.initServices(configuration);
 
 		this.issueReporterModel = new IssueReporterModel({
-			issueType: IssueType.Bug,
+			issueType: configuration.data.issueType || IssueType.Bug,
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
@@ -94,6 +94,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	render(): void {
+		(<HTMLSelectElement>document.getElementById('issue-type')).value = this.issueReporterModel.getData().issueType.toString();
 		this.renderBlocks();
 	}
 
