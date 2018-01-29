@@ -75,7 +75,7 @@ function syncExtension(extension, controlState) {
 				return es.readArray([]);
 			}
 
-			util.log(util.colors.blue('[local]'), `${extension.name}: ${controlState}`, util.colors.green('✔︎'));
+			util.log(util.colors.blue('[local]'), `${extension.name}: ${util.colors.cyan(controlState)}`, util.colors.green('✔︎'));
 			return es.readArray([]);
 	}
 }
@@ -95,7 +95,7 @@ function writeControlFile(control) {
 
 function main() {
 	util.log('Syncronizing built-in extensions...');
-	util.log('Control file:', controlFilePath);
+	util.log(`You can manage built-in extensions with the ${util.colors.cyan('--builtin')} flag`);
 
 	const control = readControlFile();
 	const streams = [];
@@ -115,7 +115,6 @@ function main() {
 			process.exit(1);
 		})
 		.on('end', () => {
-			util.log(`${streams.length} built-in extensions processed.`);
 			process.exit(0);
 		});
 }
