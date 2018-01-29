@@ -135,6 +135,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/selectbox",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/configuration",
 			"project": "vscode-workbench"
 		},

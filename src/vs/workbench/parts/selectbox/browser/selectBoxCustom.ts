@@ -13,8 +13,8 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IListEvent, IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISelectBoxDelegate, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -30,15 +30,30 @@ export interface ISelectOptionItem {
 	optionDisabled: boolean;
 }
 
-interface ISelectListTemplateData {
+export interface ISelectListTemplateData {
 	root: HTMLElement;
 	optionText: HTMLElement;
 	disposables: IDisposable[];
 }
 
-class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemplateData> {
+export class SelectListDelegate implements IDelegate<ISelectOptionItem> {
+	getHeight(element: ISelectOptionItem): number {
+		return 18;
+	}
 
-	get templateId(): string { return SELECT_OPTION_ENTRY_TEMPLATE_ID; }
+	getTemplateId(element: ISelectOptionItem): string { return SELECT_OPTION_ENTRY_TEMPLATE_ID; }
+
+	constructor() { }
+}
+
+export class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemplateData> {
+	public templateId = SELECT_OPTION_ENTRY_TEMPLATE_ID;
+
+	get getHeight(): number {
+		return 18;
+	}
+
+	get getTemplateId(): string { return SELECT_OPTION_ENTRY_TEMPLATE_ID; }
 
 	constructor() { }
 
@@ -90,8 +105,13 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private selectDropDownListContainer: HTMLElement;
 	private widthControlElement: HTMLElement;
 
-	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles) {
-
+	constructor(
+		options: string[],
+		selected: number,
+		contextViewProvider: IContextViewProvider,
+		styles: ISelectBoxStyles,
+		listCreator?: { container: HTMLElement, list: List<ISelectOptionItem>, delegate: SelectListDelegate, renderer: SelectListRenderer }
+	) {
 		this.toDispose = [];
 		this._isVisible = false;
 
@@ -102,9 +122,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this.styles = styles;
 
 		this.registerListeners();
-		this.constructSelectDropDown(contextViewProvider);
+		// const listCreator = undefined;
+		this.constructSelectDropDown(contextViewProvider, listCreator);
 
 		this.setOptions(options, selected);
+
 	}
 
 	// IDelegate - List renderer
@@ -117,14 +139,60 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		return SELECT_OPTION_ENTRY_TEMPLATE_ID;
 	}
 
-	private constructSelectDropDown(contextViewProvider: IContextViewProvider) {
+
+	private createSelectWorkbenchList(parent: HTMLElement, listCreator?: { container: HTMLElement, list: List<ISelectOptionItem>, delegate: SelectListDelegate, renderer: SelectListRenderer }): void {
+
+		if (listCreator !== undefined) {
+			this.selectDropDownListContainer = listCreator.container;
+			dom.append(parent, this.selectDropDownListContainer);
+			dom.addClass(this.selectDropDownListContainer, 'select-box-dropdown-list-container');
+
+			this.listRenderer = listCreator.renderer;
+			this.selectList = listCreator.list;
+		} else {
+
+			this.selectDropDownListContainer = dom.append(parent, $('.select-box-dropdown-list-container'));
+
+			this.listRenderer = new SelectListRenderer();
+
+			this.selectList = new List(this.selectDropDownListContainer, this, [this.listRenderer], {
+				useShadows: false,
+				selectOnMouseDown: false,
+				verticalScrollMode: ScrollbarVisibility.Visible,
+				keyboardSupport: false,
+				mouseSupport: false
+			});
+		}
+
+		const onSelectDropDownKeyDown = chain(domEvent(this.selectDropDownListContainer, 'keydown'))
+			.filter(() => this.selectList.length > 0)
+			.map(e => new StandardKeyboardEvent(e));
+
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => (e.keyCode >= KeyCode.KEY_0 && e.keyCode <= KeyCode.KEY_Z) || (e.keyCode >= KeyCode.US_SEMICOLON && e.keyCode <= KeyCode.NUMPAD_DIVIDE)).on(this.onCharacter, this, this.toDispose);
+
+		this.toDispose.push(this.selectList.onOpen(e => this.onEnter(e.elements[0])));
+
+		this.toDispose.push(this.selectList.onFocusChange(e => this.onFocusChange(e)));
+
+		// SetUp list mouse controller - control navigation, disabled items, focus
+
+		chain(domEvent(this.selectList.getHTMLElement(), 'mouseup'))
+			.filter(() => this.selectList.length > 0)
+			.on(e => this.onMouseUp(e), this, this.toDispose);
+
+		this.toDispose.push(this.selectList.onDidBlur(e => this.onListBlur()));
+
+	}
+
+	private constructSelectDropDown(contextViewProvider: IContextViewProvider, listCreator) {
 
 		// SetUp ContextView container to hold select Dropdown
 		this.contextViewProvider = contextViewProvider;
 		this.selectDropDownContainer = dom.$('.select-box-dropdown-container');
 
 		// Setup list for drop-down select
-		this.createSelectList(this.selectDropDownContainer);
+		this.createSelectWorkbenchList(this.selectDropDownContainer, listCreator);
 
 		// Create span flex box item/div we can measure and control
 		let widthControlOuterDiv = dom.append(this.selectDropDownContainer, $('.select-box-dropdown-container-width-control'));
@@ -218,16 +286,16 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 					const element = this.options[index];
 					let optionDisabled: boolean;
 					index === this.disabledOptionIndex ? optionDisabled = true : optionDisabled = false;
-					// listEntries.push({ optionText: element, optionDisabled: optionDisabled });
 					listEntries.push({ id: SELECT_OPTION_ENTRY_TEMPLATE_ID, optionText: element, optionDisabled: optionDisabled });
 				}
 
+				this.selectList.setDisabled([this.disabledOptionIndex]);
 				this.selectList.splice(0, this.selectList.length, listEntries);
-			}
-		}
 
-		if (selected !== undefined) {
-			this.select(selected);
+				if (selected !== undefined) {
+					this.select(selected);
+				}
+			}
 		}
 	}
 
@@ -243,12 +311,13 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this.selectElement.title = this.options[this.selected];
 	}
 
+
 	public focus(): void {
 		if (this.selectElement) {
 			this.selectElement.focus();
 		}
-	}
 
+	}
 	public blur(): void {
 		if (this.selectElement) {
 			this.selectElement.blur();
@@ -307,7 +376,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 	public applyStyles(): void {
 
-		// Style parent select
+		//Style parent select
 		if (this.selectElement) {
 			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
 			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : null;
@@ -340,7 +409,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		return option;
 	}
 
-	// Non-native select list handling
 	// ContextView dropdown methods
 
 	private showSelectDropDown() {
@@ -427,9 +495,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 			this.selectDropDownListContainer.setAttribute('tabindex', '0');
 			dom.toggleClass(this.selectElement, 'synthetic-focus', true);
 			dom.toggleClass(this.selectDropDownContainer, 'synthetic-focus', true);
+
 		}
 	}
-
 	private setWidthControlElement(container: HTMLElement): number {
 		let elementWidth = 0;
 
@@ -454,45 +522,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		const fontFamily = window.getComputedStyle(source, null).getPropertyValue('font-family');
 		target.style.fontFamily = fontFamily;
 		target.style.fontSize = fontSize;
-	}
-
-	private createSelectList(parent: HTMLElement): void {
-
-		// SetUp container for list
-		this.selectDropDownListContainer = dom.append(parent, $('.select-box-dropdown-list-container'));
-
-		this.listRenderer = new SelectListRenderer();
-
-		this.selectList = new List(this.selectDropDownListContainer, this, [this.listRenderer], {
-			useShadows: false,
-			selectOnMouseDown: false,
-			verticalScrollMode: ScrollbarVisibility.Visible,
-			keyboardSupport: false,
-			mouseSupport: false
-		});
-
-		// SetUp list keyboard controller - control navigation, disabled items, focus
-		const onSelectDropDownKeyDown = chain(domEvent(this.selectDropDownListContainer, 'keydown'))
-			.filter(() => this.selectList.length > 0)
-			.map(e => new StandardKeyboardEvent(e));
-
-		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(e => this.onEnter(e), this, this.toDispose);
-		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this, this.toDispose);
-		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.toDispose);
-		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.toDispose);
-		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDown, this, this.toDispose);
-		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUp, this, this.toDispose);
-		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Home).on(this.onHome, this, this.toDispose);
-		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.End).on(this.onEnd, this, this.toDispose);
-		onSelectDropDownKeyDown.filter(e => (e.keyCode >= KeyCode.KEY_0 && e.keyCode <= KeyCode.KEY_Z) || (e.keyCode >= KeyCode.US_SEMICOLON && e.keyCode <= KeyCode.NUMPAD_DIVIDE)).on(this.onCharacter, this, this.toDispose);
-
-		// SetUp list mouse controller - control navigation, disabled items, focus
-
-		chain(domEvent(this.selectList.getHTMLElement(), 'mouseup'))
-			.filter(() => this.selectList.length > 0)
-			.on(e => this.onMouseUp(e), this, this.toDispose);
-
-		this.toDispose.push(this.selectList.onDidBlur(e => this.onListBlur()));
 	}
 
 	// List methods
@@ -525,7 +554,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		dom.EventHelper.stop(e);
 	}
 
-	// List Exit - passive - hide drop-down, fire onDidSelect
+	private onFocusChange(e: IListEvent<ISelectOptionItem>): void {
+		const index = e.indexes[0];
+		this.select(index);
+	}
+
+	// List Exit - passive - hide drop - down, fire onDidSelect
 	private onListBlur(): void {
 
 		this._onDidSelect.fire({
@@ -550,115 +584,13 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	}
 
 	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
-	private onEnter(e: StandardKeyboardEvent): void {
-		dom.EventHelper.stop(e);
-
+	private onEnter(e: ISelectOptionItem): void {
 		this.hideSelectDropDown(true);
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
 			selected: this.selectElement.title
 		});
 	}
-
-	// List navigation - have to handle a disabled option (jump over)
-	private onDownArrow(): void {
-		if (this.selected < this.options.length - 1) {
-			// Skip disabled options
-			if ((this.selected + 1) === this.disabledOptionIndex && this.options.length > this.selected + 2) {
-				this.selected += 2;
-			} else {
-				this.selected++;
-			}
-			// Set focus/selection - only fire event when closing drop-down or on blur
-			this.select(this.selected);
-			this.selectList.setFocus([this.selected]);
-			this.selectList.reveal(this.selectList.getFocus()[0]);
-		}
-	}
-
-	private onUpArrow(): void {
-		if (this.selected > 0) {
-			// Skip disabled options
-			if ((this.selected - 1) === this.disabledOptionIndex && this.selected > 1) {
-				this.selected -= 2;
-			} else {
-				this.selected--;
-			}
-			// Set focus/selection - only fire event when closing drop-down or on blur
-			this.select(this.selected);
-			this.selectList.setFocus([this.selected]);
-			this.selectList.reveal(this.selectList.getFocus()[0]);
-		}
-	}
-
-	private onPageUp(e: StandardKeyboardEvent): void {
-		dom.EventHelper.stop(e);
-
-		this.selectList.focusPreviousPage();
-
-		// Allow scrolling to settle
-		setTimeout(() => {
-			this.selected = this.selectList.getFocus()[0];
-
-			// Shift selection down if we land on a disabled option
-			if (this.selected === this.disabledOptionIndex && this.selected < this.options.length - 1) {
-				this.selected++;
-				this.selectList.setFocus([this.selected]);
-			}
-			this.selectList.reveal(this.selected);
-			this.select(this.selected);
-		}, 1);
-	}
-
-	private onPageDown(e: StandardKeyboardEvent): void {
-		dom.EventHelper.stop(e);
-
-		this.selectList.focusNextPage();
-
-		// Allow scrolling to settle
-		setTimeout(() => {
-			this.selected = this.selectList.getFocus()[0];
-
-			// Shift selection up if we land on a disabled option
-			if (this.selected === this.disabledOptionIndex && this.selected > 0) {
-				this.selected--;
-				this.selectList.setFocus([this.selected]);
-			}
-			this.selectList.reveal(this.selected);
-			this.select(this.selected);
-		}, 1);
-	}
-
-	private onHome(e: StandardKeyboardEvent): void {
-		dom.EventHelper.stop(e);
-
-		if (this.options.length < 2) {
-			return;
-		}
-		this.selected = 0;
-		if (this.selected === this.disabledOptionIndex && this.selected > 1) {
-			this.selected++;
-		}
-		this.selectList.setFocus([this.selected]);
-		this.selectList.reveal(this.selected);
-		this.select(this.selected);
-	}
-
-	private onEnd(e: StandardKeyboardEvent): void {
-		dom.EventHelper.stop(e);
-
-		if (this.options.length < 2) {
-			return;
-		}
-		this.selected = this.options.length - 1;
-		if (this.selected === this.disabledOptionIndex && this.selected > 1) {
-			this.selected--;
-		}
-		this.selectList.setFocus([this.selected]);
-		this.selectList.reveal(this.selected);
-		this.select(this.selected);
-	}
-
 	// Mimic option first character navigation of native select
 	private onCharacter(e: StandardKeyboardEvent): void {
 		const ch = KeyCodeUtils.toString(e.keyCode);

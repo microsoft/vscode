@@ -9,8 +9,8 @@ import * as errors from 'vs/base/common/errors';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox } from 'vs/workbench/parts/selectBox/browser/selectBox';
+import { SelectListRenderer, SelectListDelegate, ISelectOptionItem } from 'vs/workbench/parts/selectBox/browser/selectBoxCustom';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -20,6 +20,11 @@ import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/c
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const $ = dom.$;
 
@@ -31,6 +36,10 @@ export class StartDebugActionItem implements IActionItem {
 	private container: HTMLElement;
 	private start: HTMLElement;
 	private selectBox: SelectBox;
+	public selectBoxListContainer: HTMLElement;
+	public selectBoxListRenderer: SelectListRenderer;
+	public selectBoxList: WorkbenchList<ISelectOptionItem>;
+
 	private options: { label: string, handler: (() => boolean) }[];
 	private toDispose: lifecycle.IDisposable[];
 	private selected: number;
@@ -43,9 +52,35 @@ export class StartDebugActionItem implements IActionItem {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService,
 		@IContextViewService contextViewService: IContextViewService,
+		@IListService listService: IListService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1, contextViewService);
+
+		if (isMacintosh) {
+			this.selectBox = new SelectBox([], -1, contextViewService, undefined);
+		} else {
+			// This assumes custom list
+			this.selectBoxListContainer = document.createElement('div');
+			this.selectBoxListRenderer = new SelectListRenderer();
+			const delegate = new SelectListDelegate();
+
+			this.selectBoxList = new WorkbenchList<ISelectOptionItem>(this.selectBoxListContainer, delegate, [this.selectBoxListRenderer], {
+				identityProvider: e => e.id,
+				useShadows: false,
+				selectOnMouseDown: false,
+				verticalScrollMode: ScrollbarVisibility.Visible,
+				keyboardSupport: false,
+				mouseSupport: false
+
+			}, contextKeyService, listService, themeService);
+
+			const listCreator = { container: this.selectBoxListContainer, list: this.selectBoxList, delegate: delegate, renderer: this.selectBoxListRenderer };
+			this.selectBox = new SelectBox([], -1, contextViewService, undefined, listCreator);
+
+		}
+
+
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {
 			selectBackground: SIDE_BAR_BACKGROUND
 		}));
