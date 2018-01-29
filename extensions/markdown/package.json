@@ -92,7 +92,10 @@
 		"commands": [
 			{
 				"command": "markdown.showPreview",
-				"title": "%markdown.preview.title%",
+				"title": {
+					"original": "Open Preview",
+					"value": "%markdown.preview.title%"
+				},
 				"category": "Markdown",
 				"icon": {
 					"light": "./media/Preview.svg",
@@ -101,7 +104,10 @@
 			},
 			{
 				"command": "markdown.showPreviewToSide",
-				"title": "%markdown.previewSide.title%",
+				"title": {
+					"original": "Open Preview to the Side",
+					"value": "%markdown.previewSide.title%"
+				},
 				"category": "Markdown",
 				"icon": {
 					"light": "./media/PreviewOnRightPane_16x.svg",
@@ -110,7 +116,10 @@
 			},
 			{
 				"command": "markdown.showSource",
-				"title": "%markdown.showSource.title%",
+				"title": {
+					"original": "Show Source",
+					"value": "%markdown.showSource.title%"
+				},
 				"category": "Markdown",
 				"icon": {
 					"light": "./media/ViewSource.svg",
@@ -119,12 +128,18 @@
 			},
 			{
 				"command": "markdown.refreshPreview",
-				"title": "%markdown.refreshPreview.title%",
+				"title": {
+					"original": "Refresh Preview",
+					"value": "%markdown.refreshPreview.title%"
+				},
 				"category": "Markdown"
 			},
 			{
 				"command": "markdown.showPreviewSecuritySelector",
-				"title": "%markdown.showPreviewSecuritySelector.title%",
+				"title": {
+					"original": "Change Preview Security Settings",
+					"value": "%markdown.showPreviewSecuritySelector.title%"
+				},
 				"category": "Markdown"
 			}
 		],
