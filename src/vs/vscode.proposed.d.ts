@@ -365,13 +365,13 @@ declare module 'vscode' {
 	export class DebugAdapterExecutable {
 		/**
 		 * The command path of the debug adapter executable.
-		 * A command must be a either an absolute path or a name of an executable looked up via the PATH environment variable.
+		 * A command must be either an absolute path or the name of an executable looked up via the PATH environment variable.
 		 * The special value 'node' will be mapped to VS Code's built-in node runtime.
 		 */
 		readonly command: string;
 
 		/**
-		 * Optional arguments passed to the debug adapter.
+		 * Optional arguments passed to the debug adapter executable.
 		 */
 		readonly args: string[];
 

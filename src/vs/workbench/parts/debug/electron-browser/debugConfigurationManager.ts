@@ -291,12 +291,12 @@ export class ConfigurationManager implements IConfigurationManager {
 			.then(results => results.reduce((first, second) => first.concat(second), []));
 	}
 
-	public debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable> | undefined {
+	public debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined> {
 		const providers = this.providers.filter(p => p.type === type && p.debugAdapterExecutable);
 		if (providers.length === 1) {
 			return providers[0].debugAdapterExecutable(folderUri);
 		}
-		return undefined;
+		return TPromise.as(undefined);
 	}
 
 	private registerListeners(lifecycleService: ILifecycleService): void {

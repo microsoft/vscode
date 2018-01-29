@@ -33,35 +33,32 @@ export class Adapter {
 
 	public getAdapterExecutable(root: IWorkspaceFolder, verifyAgainstFS = true): TPromise<IAdapterExecutable> {
 
-		// start with extension API
-		if (this.configurationManager) {
-			const adapterExecutablePromise = this.configurationManager.debugAdapterExecutable(root.uri, this.rawAdapter.type);
-			if (adapterExecutablePromise) {
-				return adapterExecutablePromise.then(adapterExecutable => {
-					return this.verifyAdapterDetails(adapterExecutable, verifyAgainstFS);
+		return this.configurationManager.debugAdapterExecutable(root ? root.uri : undefined, this.rawAdapter.type).then(adapterExecutable => {
+
+			if (adapterExecutable) {
+				return this.verifyAdapterDetails(adapterExecutable, verifyAgainstFS);
+			}
+
+			// try deprecated command based extension API
+			if (this.rawAdapter.adapterExecutableCommand && root) {
+				return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root.uri.toString()).then(ad => {
+					return this.verifyAdapterDetails(ad, verifyAgainstFS);
 				});
 			}
-		}
 
-		// try deprecated command based extension API
-		if (this.rawAdapter.adapterExecutableCommand && root) {
-			return this.commandService.executeCommand<IAdapterExecutable>(this.rawAdapter.adapterExecutableCommand, root.uri.toString()).then(ad => {
-				return this.verifyAdapterDetails(ad, verifyAgainstFS);
-			});
-		}
-
-		// old style: executable contribution specified in package.json
-		const adapterExecutable = <IAdapterExecutable>{
-			command: this.getProgram(),
-			args: this.getAttributeBasedOnPlatform('args')
-		};
-		const runtime = this.getRuntime();
-		if (runtime) {
-			const runtimeArgs = this.getAttributeBasedOnPlatform('runtimeArgs');
-			adapterExecutable.args = (runtimeArgs || []).concat([adapterExecutable.command]).concat(adapterExecutable.args || []);
-			adapterExecutable.command = runtime;
-		}
-		return this.verifyAdapterDetails(adapterExecutable, verifyAgainstFS);
+			// fallback: executable contribution specified in package.json
+			adapterExecutable = <IAdapterExecutable>{
+				command: this.getProgram(),
+				args: this.getAttributeBasedOnPlatform('args')
+			};
+			const runtime = this.getRuntime();
+			if (runtime) {
+				const runtimeArgs = this.getAttributeBasedOnPlatform('runtimeArgs');
+				adapterExecutable.args = (runtimeArgs || []).concat([adapterExecutable.command]).concat(adapterExecutable.args || []);
+				adapterExecutable.command = runtime;
+			}
+			return this.verifyAdapterDetails(adapterExecutable, verifyAgainstFS);
+		});
 	}
 
 	private verifyAdapterDetails(details: IAdapterExecutable, verifyAgainstFS: boolean): TPromise<IAdapterExecutable> {

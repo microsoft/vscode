@@ -431,7 +431,7 @@ export interface IConfigurationManager {
 	unregisterDebugConfigurationProvider(handle: number): void;
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
-	debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable> | undefined;
+	debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined>;
 }
 
 export interface ILaunch {
