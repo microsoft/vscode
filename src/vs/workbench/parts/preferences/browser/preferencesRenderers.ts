@@ -709,6 +709,10 @@ export class FeedbackWidgetRenderer extends Disposable {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		const autoIngest = workbenchSettings.naturalLanguageSearchAutoIngestFeedback;
 
+		const nlpMetadata = result.metadata && result.metadata['nlpResult'];
+		const duration = nlpMetadata && nlpMetadata.duration;
+		const requestBody = nlpMetadata && nlpMetadata.requestBody;
+
 		const actualResultScores = {};
 		for (let key in scoredResults) {
 			actualResultScores[key] = {
@@ -718,19 +722,24 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 		/* __GDPR__
 			"settingsSearchResultFeedback" : {
-				"query" : { "classification": "CustomContent", "purpose": "FeatureInsight" },
+				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+				"requestBody" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"buildNumber" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"alts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"autoIngest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		return this.telemetryService.publicLog('settingsSearchResultFeedback', {
 			query: result.query,
+			requestBody,
 			userComment,
 			actualResults: actualResultScores,
 			expectedResults: expectedQuery.resultScores,
-			duration: result.metadata['nlpResult'].duration,
+			duration,
 			buildNumber: this.environmentService.settingsSearchBuildId,
 			alts,
 			autoIngest
