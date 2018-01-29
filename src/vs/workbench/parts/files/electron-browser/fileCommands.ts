@@ -265,9 +265,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	id: OPEN_TO_SIDE_COMMAND_ID, handler: (accessor, resource: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
+		const editorGroupService = accessor.get(IEditorGroupService);
 		const listService = accessor.get(IListService);
 		const tree = listService.lastFocusedList;
 		const resources = getMultiSelectedResources(resource, listService, editorService);
+		const stacks = editorGroupService.getStacksModel();
+		const activeGroup = stacks.activeGroup;
 
 		// Remove highlight
 		if (tree instanceof Tree) {
@@ -283,7 +286,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						options: { preserveFocus: false }
 					}
 				};
-			}), true);
+			}), true).then(() => {
+				if (activeGroup) {
+					editorGroupService.focusGroup(stacks.positionOfGroup(activeGroup) + 1);
+				}
+			});
 		}
 
 		return TPromise.as(true);
