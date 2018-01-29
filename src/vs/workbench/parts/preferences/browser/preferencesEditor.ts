@@ -222,6 +222,7 @@ export class PreferencesEditor extends BaseEditor {
 	public clearInput(): void {
 		this.defaultSettingsEditorContextKey.set(false);
 		this.sideBySidePreferencesWidget.clearInput();
+		this.preferencesRenderers.onHidden();
 		super.clearInput();
 	}
 
@@ -265,6 +266,7 @@ export class PreferencesEditor extends BaseEditor {
 			return this.remoteSearchThrottle.trigger(() => this.preferencesRenderers.remoteSearchPreferences(query));
 		} else {
 			// When clearing the input, update immediately to clear it
+			this.remoteSearchThrottle.cancel();
 			return this.preferencesRenderers.remoteSearchPreferences(query);
 		}
 	}
@@ -314,14 +316,16 @@ export class PreferencesEditor extends BaseEditor {
 			let data = {
 				filter,
 				durations,
-				counts
+				counts,
+				requestCount: metadata && metadata['nlpResult'] && metadata['nlpResult'].requestCount
 			};
 
 			/* __GDPR__
 				"defaultSettings.filter" : {
 					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"durations" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"counts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"counts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
 			this.telemetryService.publicLog('defaultSettings.filter', data);
@@ -426,6 +430,11 @@ class PreferencesRenderersController extends Disposable {
 		await this.remoteSearchPreferences(this._lastQuery, true);
 	}
 
+	onHidden(): void {
+		this._prefsModelsForSearch.forEach(model => model.dispose());
+		this._prefsModelsForSearch = new Map<string, ISettingsEditorModel>();
+	}
+
 	remoteSearchPreferences(query: string, updateCurrentResults?: boolean): TPromise<void> {
 		if (this._remoteFilterInProgress && this._remoteFilterInProgress.cancel) {
 			// Resolved/rejected promises have no .cancel()
@@ -466,7 +475,7 @@ class PreferencesRenderersController extends Disposable {
 		}
 
 		filterPs.push(this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder),
-			this.updateSettingsTargetCounts(query, searchProvider, groupId, groupLabel, groupOrder));
+			this.searchAllSettingsTargets(query, searchProvider, groupId, groupLabel, groupOrder));
 
 		return TPromise.join(filterPs).then(results => {
 			const [defaultFilterResult, editableFilterResult] = results;
@@ -481,24 +490,30 @@ class PreferencesRenderersController extends Disposable {
 		});
 	}
 
-	private updateSettingsTargetCounts(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number): TPromise<void> {
+	private searchAllSettingsTargets(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number): TPromise<void> {
 		const searchPs = [
-			this.searchSettingsTarget(searchProvider, ConfigurationTarget.WORKSPACE, groupId, groupLabel, groupOrder),
-			this.searchSettingsTarget(searchProvider, ConfigurationTarget.USER, groupId, groupLabel, groupOrder)
+			this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.WORKSPACE, groupId, groupLabel, groupOrder),
+			this.searchSettingsTarget(query, searchProvider, ConfigurationTarget.USER, groupId, groupLabel, groupOrder)
 		];
 
 		for (const folder of this.workspaceContextService.getWorkspace().folders) {
 			const folderSettingsResource = this.preferencesService.getFolderSettingsResource(folder.uri);
-			searchPs.push(this.searchSettingsTarget(searchProvider, folderSettingsResource, groupId, groupLabel, groupOrder));
+			searchPs.push(this.searchSettingsTarget(query, searchProvider, folderSettingsResource, groupId, groupLabel, groupOrder));
 		}
 
 
 		return TPromise.join(searchPs).then(() => { });
 	}
 
-	private searchSettingsTarget(provider: ISearchProvider, target: SettingsTarget, groupId: string, groupLabel: string, groupOrder: number): TPromise<void> {
+	private searchSettingsTarget(query: string, provider: ISearchProvider, target: SettingsTarget, groupId: string, groupLabel: string, groupOrder: number): TPromise<void> {
+		if (!query) {
+			// Don't open the other settings targets when query is empty
+			this._onDidFilterResultsCountChange.fire({ target, count: 0 });
+			return TPromise.wrap(null);
+		}
+
 		return this.getPreferencesEditorModel(target).then(model => {
-			return this._filterOrSearchPreferencesModel('', <ISettingsEditorModel>model, provider, groupId, groupLabel, groupOrder);
+			return model && this._filterOrSearchPreferencesModel('', <ISettingsEditorModel>model, provider, groupId, groupLabel, groupOrder);
 		}).then(result => {
 			const count = result ? this._flatten(result.filteredGroups).length : 0;
 			this._onDidFilterResultsCountChange.fire({ target, count });
@@ -518,8 +533,13 @@ class PreferencesRenderersController extends Disposable {
 
 		const targetKey = resource.toString();
 		if (!this._prefsModelsForSearch.has(targetKey)) {
-			const model = this._register(await this.preferencesService.createPreferencesEditorModel(resource));
-			this._prefsModelsForSearch.set(targetKey, <ISettingsEditorModel>model);
+			try {
+				const model = this._register(await this.preferencesService.createPreferencesEditorModel(resource));
+				this._prefsModelsForSearch.set(targetKey, <ISettingsEditorModel>model);
+			} catch (e) {
+				// Will throw when the settings file doesn't exist.
+				return null;
+			}
 		}
 
 		return this._prefsModelsForSearch.get(targetKey);

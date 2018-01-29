@@ -34,6 +34,7 @@ import { IssueReporterData, IssueReporterStyles } from 'vs/platform/issue/common
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { debounce } from 'vs/base/common/decorators';
+import * as platform from 'vs/base/common/platform';
 
 export interface IssueReporterConfiguration extends IWindowConfiguration {
 	data: IssueReporterData;
@@ -42,12 +43,8 @@ export interface IssueReporterConfiguration extends IWindowConfiguration {
 export function startup(configuration: IssueReporterConfiguration) {
 	document.body.innerHTML = BaseHtml();
 	const issueReporter = new IssueReporter(configuration);
-
-	// workaround for flickering on page load as css is applied
-	setTimeout(() => {
-		issueReporter.render();
-		document.body.style.display = 'block';
-	}, 10);
+	issueReporter.render();
+	document.body.style.display = 'block';
 }
 
 export class IssueReporter extends Disposable {
@@ -70,7 +67,8 @@ export class IssueReporter extends Disposable {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
 				os: `${os.type()} ${os.arch()} ${os.release()}`
 			},
-			extensionsDisabled: this.environmentService.disableExtensions
+			extensionsDisabled: this.environmentService.disableExtensions,
+			reprosWithoutExtensions: true
 		});
 
 		ipcRenderer.on('issueInfoResponse', (event, info) => {
@@ -132,11 +130,11 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputActiveBorder) {
-			content.push(`input[type='text']:focus, textarea:focus, select:focus, summary:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
+			content.push(`input[type='text']:focus, textarea:focus, select:focus, summary:focus, button:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
 		}
 
 		if (styles.textLinkColor) {
-			content.push(`a { color: ${styles.textLinkColor}; }`);
+			content.push(`a, .workbenchCommand { color: ${styles.textLinkColor}; }`);
 		}
 
 		if (styles.buttonBackground) {
@@ -148,7 +146,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.buttonHoverBackground) {
-			content.push(`button:hover:enabled { background-color: ${styles.buttonHoverBackground}; }`);
+			content.push(`#github-submit-btn:hover:enabled, #github-submit-btn:focus:enabled { background-color: ${styles.buttonHoverBackground}; }`);
 		}
 
 		if (styles.textLinkColor) {
@@ -170,6 +168,10 @@ export class IssueReporter extends Disposable {
 		const numberOfThemeExtesions = themes && themes.length;
 		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes });
 		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
+
+		if (this.environmentService.disableExtensions || extensions.length === 0) {
+			(<HTMLButtonElement>document.getElementById('disableExtensions')).disabled = true;
+		}
 	}
 
 	private initServices(configuration: IWindowConfiguration): void {
@@ -206,7 +208,7 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions'].forEach(elementId => {
+		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'reprosWithoutExtensions'].forEach(elementId => {
 			document.getElementById(elementId).addEventListener('click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
@@ -221,14 +223,36 @@ export class IssueReporter extends Disposable {
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
 
-		document.onkeydown = (e: KeyboardEvent) => {
-			if (e.shiftKey && e.keyCode === 13) {
-				// Close the window if the issue was successfully created
-				if (this.createIssue()) {
-					remote.getCurrentWindow().close();
+		document.getElementById('disableExtensions').addEventListener('click', () => {
+			ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
+			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
+		});
+
+		document.getElementById('showRunning').addEventListener('click', () => {
+			ipcRenderer.send('workbenchCommand', 'workbench.action.showRuntimeExtensions');
+		});
+
+		// Cmd+Enter or Mac or Ctrl+Enter on other platforms previews issue and closes window
+		if (platform.isMacintosh) {
+			let prevKeyWasCommand = false;
+			document.onkeydown = (e: KeyboardEvent) => {
+				if (prevKeyWasCommand && e.keyCode === 13) {
+					if (this.createIssue()) {
+						remote.getCurrentWindow().close();
+					}
 				}
-			}
-		};
+
+				prevKeyWasCommand = e.keyCode === 91 || e.keyCode === 93;
+			};
+		} else {
+			document.onkeydown = (e: KeyboardEvent) => {
+				if (e.ctrlKey && e.keyCode === 13) {
+					if (this.createIssue()) {
+						remote.getCurrentWindow().close();
+					}
+				}
+			};
+		}
 	}
 
 	@debounce(300)
@@ -263,7 +287,14 @@ export class IssueReporter extends Disposable {
 					}
 				});
 			}).catch((error) => {
+				// TODO: Use LogService here.
 				console.log(error);
+				/* __GDPR__
+				"issueReporterSearchError" : {
+						"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					}
+				*/
+				this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
 			});
 		} else {
 			similarIssues.innerHTML = '';

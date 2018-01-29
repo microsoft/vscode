@@ -261,7 +261,7 @@ export function createApiFactory(
 				return extHostLanguageFeatures.registerReferenceProvider(selector, provider);
 			},
 			registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerRenameProvider(selector, provider);
+				return extHostLanguageFeatures.registerRenameProvider(selector, provider, extension.enableProposedApi);
 			},
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentSymbolProvider(selector, provider);

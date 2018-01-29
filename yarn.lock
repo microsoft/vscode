@@ -5976,7 +5976,7 @@ vscode-fsevents@0.3.8:
   dependencies:
     nan "^2.3.0"
 
-vscode-nls-dev@^3.0.5:
+vscode-nls-dev@3.0.6:
   version "3.0.6"
   resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.0.6.tgz#8d07a74b09763df0cf10175b8588ed0d7aa52664"
   dependencies:
@@ -6003,9 +6003,9 @@ vscode-textmate@^3.2.0:
     fast-plist "^0.1.2"
     oniguruma "^6.0.1"
 
-vscode-xterm@3.1.0-beta11:
-  version "3.1.0-beta11"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.1.0-beta11.tgz#a6cfa957a6cac3bcc574da0433a2aa58654f2d8f"
+vscode-xterm@3.1.0-beta13:
+  version "3.1.0-beta13"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.1.0-beta13.tgz#6f32cd108c2fac59a0e48a859c51101266d8ce97"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"

@@ -638,6 +638,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 		const feedbackQuery: any = {};
 		feedbackQuery['comment'] = FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT;
 		feedbackQuery['queryString'] = result.query;
+		feedbackQuery['duration'] = metadata ? metadata.duration : -1;
 		feedbackQuery['resultScores'] = [];
 		actualResultIds.forEach(settingId => {
 			feedbackQuery['resultScores'].push({
@@ -662,7 +663,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 			sendFeedbackWidget.render();
 
 			this._register(sendFeedbackWidget.onClick(() => {
-				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, metadata.scoredResults).then(() => {
+				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, actualResults).then(() => {
 					sendFeedbackWidget.dispose();
 					this.messageService.show(Severity.Info, 'Feedback sent successfully');
 				}, err => {
@@ -683,7 +684,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 			}).join('\n');
 	}
 
-	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, actualResults: IScoredResults): TPromise<void> {
+	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, scoredResults: IScoredResults): TPromise<void> {
 		const model = feedbackEditor.getModel();
 		const expectedQueryLines = model.getLinesContent()
 			.filter(line => !strings.startsWith(line, '//'));
@@ -708,21 +709,37 @@ export class FeedbackWidgetRenderer extends Disposable {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		const autoIngest = workbenchSettings.naturalLanguageSearchAutoIngestFeedback;
 
+		const nlpMetadata = result.metadata && result.metadata['nlpResult'];
+		const duration = nlpMetadata && nlpMetadata.duration;
+		const requestBody = nlpMetadata && nlpMetadata.requestBody;
+
+		const actualResultScores = {};
+		for (let key in scoredResults) {
+			actualResultScores[key] = {
+				score: scoredResults[key].score
+			};
+		}
+
 		/* __GDPR__
 			"settingsSearchResultFeedback" : {
-				"query" : { "classification": "CustomContent", "purpose": "FeatureInsight" },
+				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+				"requestBody" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"buildNumber" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"alts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"autoIngest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		return this.telemetryService.publicLog('settingsSearchResultFeedback', {
 			query: result.query,
+			requestBody,
 			userComment,
-			actualResults,
+			actualResults: actualResultScores,
 			expectedResults: expectedQuery.resultScores,
-			duration: result.metadata['nlpResult'].duration,
+			duration,
 			buildNumber: this.environmentService.settingsSearchBuildId,
 			alts,
 			autoIngest

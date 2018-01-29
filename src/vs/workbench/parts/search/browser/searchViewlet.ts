@@ -585,11 +585,13 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		// Reveal the newly selected element
-		const eventPayload = { preventEditorOpen: true };
-		this.tree.setFocus(next, eventPayload);
-		this.tree.setSelection([next], eventPayload);
-		this.tree.reveal(next);
-		this.selectCurrentMatchEmitter.fire();
+		if (next) {
+			const eventPayload = { preventEditorOpen: true };
+			this.tree.setFocus(next, eventPayload);
+			this.tree.setSelection([next], eventPayload);
+			this.tree.reveal(next);
+			this.selectCurrentMatchEmitter.fire();
+		}
 	}
 
 	public selectPreviousMatch(): void {

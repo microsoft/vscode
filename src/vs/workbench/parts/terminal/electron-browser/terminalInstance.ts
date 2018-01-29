@@ -271,6 +271,10 @@ export class TerminalInstance implements ITerminalInstance {
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/search/search'));
 			// Enable the winpty compatibility addon which will simulate wraparound mode
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/winptyCompat/winptyCompat'));
+			// Localize strings
+			Terminal.strings.blankLine = nls.localize('terminal.integrated.a11yBlankLine', 'Blank line');
+			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
+			Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce,navigate to rows manually to read');
 		}
 		const accessibilitySupport = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		const font = this._configHelper.getFont(true);
@@ -1151,15 +1155,6 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _updateTheme(theme?: ITheme): void {
 		this._xterm.setOption('theme', this._getXtermTheme(theme));
-	}
-
-	public enterNavigationMode(): void {
-		// Perform this asynchronously as entering navigation mode will override
-		// the key event handlers which seemed to mess with the keybindings
-		// system
-		setTimeout(() => {
-			this._xterm.enterNavigationMode();
-		}, 100);
 	}
 }
 

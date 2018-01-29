@@ -281,7 +281,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 export class FolderSettingsActionItem extends BaseActionItem {
 
 	private _folder: IWorkspaceFolder;
-	private _count: number;
+	private _folderSettingCounts = new Map<string, number>();
 
 	private container: HTMLElement;
 	private anchorElement: HTMLElement;
@@ -311,8 +311,9 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.update();
 	}
 
-	public setCount(value: number): void {
-		this._count = value;
+	public setCount(settingsTarget: URI, count: number): void {
+		const folder = this.contextService.getWorkspaceFolder(settingsTarget).uri;
+		this._folderSettingCounts.set(folder.toString(), count);
 		this.update();
 	}
 
@@ -383,21 +384,18 @@ export class FolderSettingsActionItem extends BaseActionItem {
 	}
 
 	private update(): void {
+		let total = 0;
+		this._folderSettingCounts.forEach(n => total += n);
+
 		const workspace = this.contextService.getWorkspace();
 		if (this._folder) {
 			this.labelElement.textContent = this._folder.name;
 			this.anchorElement.title = this._folder.name;
-			let detailsText = this._action.label;
-			if (this._count) {
-				detailsText += ` (${this._count})`;
-			}
+			const detailsText = this.labelWithCount(this._action.label, total);
 			this.detailsElement.textContent = detailsText;
 			DOM.toggleClass(this.dropDownElement, 'hide', workspace.folders.length === 1 || !this._action.checked);
 		} else {
-			let labelText = this._action.label;
-			if (this._count) {
-				labelText += ` (${this._count})`;
-			}
+			const labelText = this.labelWithCount(this._action.label, total);
 			this.labelElement.textContent = labelText;
 			this.detailsElement.textContent = '';
 			this.anchorElement.title = this._action.label;
@@ -424,9 +422,10 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
 			actions.push(new Separator());
 			actions.push(...workspaceFolders.map((folder, index) => {
+				const folderCount = this._folderSettingCounts.get(folder.uri.toString());
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
-					label: folder.name,
+					label: this.labelWithCount(folder.name, folderCount),
 					checked: this.folder && this.folder.uri.toString() === folder.uri.toString(),
 					enabled: true,
 					run: () => this._action.run(folder)
@@ -434,6 +433,15 @@ export class FolderSettingsActionItem extends BaseActionItem {
 			}));
 		}
 		return actions;
+	}
+
+	private labelWithCount(label: string, count: number | undefined): string {
+		// Append the count if it's >0 and not undefined
+		if (count) {
+			label += ` (${count})`;
+		}
+
+		return label;
 	}
 
 	public dispose(): void {
@@ -450,7 +458,6 @@ export class SettingsTargetsWidget extends Widget {
 	private userSettings: Action;
 	private workspaceSettings: Action;
 	private folderSettings: FolderSettingsActionItem;
-	private folderSettingCounts = new Map<string, number>();
 
 	private _settingsTarget: SettingsTarget;
 
@@ -523,11 +530,7 @@ export class SettingsTargetsWidget extends Widget {
 
 			this.userSettings.label = label;
 		} else if (settingsTarget instanceof URI) {
-			this.folderSettingCounts.set(settingsTarget.toString(), count);
-
-			let total = 0;
-			this.folderSettingCounts.forEach(count => total += count);
-			this.folderSettings.setCount(total);
+			this.folderSettings.setCount(settingsTarget, count);
 		}
 	}
 

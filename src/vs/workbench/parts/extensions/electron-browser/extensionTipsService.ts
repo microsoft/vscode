@@ -71,7 +71,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	) {
 		super();
 
-		if (!this._galleryService.isEnabled() || this.environmentService.extensionDevelopmentPath) {
+		if (!this.isEnabled()) {
 			return;
 		}
 
@@ -85,6 +85,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
 	}
 
+	private isEnabled(): boolean {
+		return this._galleryService.isEnabled() && !this.environmentService.extensionDevelopmentPath;
+	}
+
 	getAllRecommendationsWithReason(): { [id: string]: string; } {
 		let output: { [id: string]: string; } = Object.create(null);
 		this._allWorkspaceRecommendedExtensions.forEach(x => output[x.toLowerCase()] = localize('workspaceRecommendation', "This extension is recommended by users of the current workspace."));
@@ -94,6 +98,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
+		if (!this.isEnabled()) {
+			return TPromise.as([]);
+		}
 		const workspace = this.contextService.getWorkspace();
 		return TPromise.join([this.resolveWorkspaceRecommendations(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder))])
 			.then(recommendations => {
