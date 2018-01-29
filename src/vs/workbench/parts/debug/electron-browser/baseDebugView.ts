@@ -15,11 +15,13 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/functional';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
+import { ClickBehavior, IControllerOptions } from 'vs/base/parts/tree/browser/treeDefaults';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 export const twistiePixels = 20;
@@ -190,19 +192,23 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 	}));
 }
 
-export class BaseDebugController extends DefaultController {
+export const DefaultDebugControllerOptions: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false };
+
+export class BaseDebugController extends WorkbenchTreeController {
 
 	private contributedContextMenu: IMenu;
 
 	constructor(
 		private actionProvider: IActionProvider,
 		menuId: MenuId,
+		options: IControllerOptions,
 		@IDebugService protected debugService: IDebugService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService
+		@IMenuService menuService: IMenuService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false });
+		super(options, configurationService);
 
 		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
 	}

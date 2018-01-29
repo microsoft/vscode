@@ -97,7 +97,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startSearch(includePattern: string, includeFolder: string, excludePattern: string, maxResults: number, requestId: number): Thenable<URI[]> {
+	$startSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, requestId: number): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
 			return undefined;
@@ -129,7 +129,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			type: QueryType.File,
 			maxResults,
 			includePattern: { [typeof includePattern === 'string' ? includePattern : undefined]: true },
-			excludePattern: { [typeof excludePattern === 'string' ? excludePattern : undefined]: true },
+			excludePattern: { [typeof excludePatternOrDisregardExcludes === 'string' ? excludePatternOrDisregardExcludes : undefined]: true },
+			disregardExcludeSettings: excludePatternOrDisregardExcludes === false,
 			useRipgrep,
 			ignoreSymlinks
 		};

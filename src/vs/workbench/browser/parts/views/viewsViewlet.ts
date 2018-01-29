@@ -31,6 +31,7 @@ import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listServic
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -771,9 +772,10 @@ export class FileIconThemableWorkbenchTree extends WorkbenchTree {
 		options: ITreeOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IWorkbenchThemeService
+		@IThemeService themeService: IWorkbenchThemeService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(container, configuration, { ...options, ...{ showTwistie: false, twistiePixels: 12 } }, contextKeyService, listService, themeService);
+		super(container, configuration, { ...options, ...{ showTwistie: false, twistiePixels: 12 } }, contextKeyService, listService, themeService, configurationService);
 
 		DOM.addClass(container, 'file-icon-themable-tree');
 		DOM.addClass(container, 'show-file-icons');

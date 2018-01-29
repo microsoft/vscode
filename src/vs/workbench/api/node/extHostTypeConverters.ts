@@ -603,11 +603,11 @@ export function toGlobPattern(pattern: vscode.GlobPattern): string | IRelativePa
 		return pattern;
 	}
 
-	if (!isRelativePattern(pattern)) {
-		return undefined;
+	if (isRelativePattern(pattern)) {
+		return new types.RelativePattern(pattern.base, pattern.pattern);
 	}
 
-	return new types.RelativePattern(pattern.base, pattern.pattern);
+	return pattern; // preserve `undefined` and `null`
 }
 
 function isRelativePattern(obj: any): obj is vscode.RelativePattern {

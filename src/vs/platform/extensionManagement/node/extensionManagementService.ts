@@ -273,7 +273,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			installingExtension = this.getExtensionsReport()
 				.then(report => {
 					if (getMaliciousExtensionsSet(report).has(extension.identifier.id)) {
-						throw new Error(nls.localize('malicious extension', "Can't install extension since it was reported to be malicious."));
+						throw new Error(nls.localize('malicious extension', "Can't install extension since it was reported to be problematic."));
 					} else {
 						return extension;
 					}

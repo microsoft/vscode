@@ -486,7 +486,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 				if (maliciousExtensions.length) {
 					return TPromise.join(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e, true).then(() => {
 						this.messageService.show(Severity.Warning, {
-							message: localize('malicious warning', "We have uninstalled '{0}' which was reported to be malicious.", getGalleryExtensionIdFromLocal(e)),
+							message: localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", getGalleryExtensionIdFromLocal(e)),
 							actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Reload Now"))]
 						});
 					})));
