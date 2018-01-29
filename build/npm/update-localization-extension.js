@@ -36,8 +36,8 @@ function update(idOrPath) {
 	}
 
 	localizations.forEach(function (localization) {
-		if (!localization.languageId || !localization.languageName || !localization.translations) {
-			throw new Error('Each localization contribution must define "languageId", "languageName" and "translations" properties.');
+		if (!localization.languageId || !localization.languageName || !localization.localizedLanguageName) {
+			throw new Error('Each localization contribution must define "languageId", "languageName" and "localizedLanguageName" properties.');
 		}
 		let server = localization.server || 'www.transifex.com';
 		let userName = localization.userName || 'api';
