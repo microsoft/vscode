@@ -108,7 +108,7 @@ async function postLogs(
 				if (result.res.statusCode === 200) {
 					res(JSON.parse(response));
 				} else {
-					const errorMessage = localize('responseError', 'Error posting logs. Got {0}', result.res.statusCode);
+					const errorMessage = localize('responseError', 'Error posting logs. Got {0} — {1}', result.res.statusCode, response);
 					console.log(errorMessage);
 					reject(new Error(errorMessage));
 				}
