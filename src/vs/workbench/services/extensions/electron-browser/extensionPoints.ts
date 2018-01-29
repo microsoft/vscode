@@ -289,6 +289,25 @@ export class ExtensionScannerInput {
 	}
 }
 
+export interface IExtensionReference {
+	name: string;
+	path: string;
+}
+
+export interface IExtensionResolver {
+	resolveExtensions(): TPromise<IExtensionReference[]>;
+}
+
+class DefaultExtensionResolver implements IExtensionResolver {
+
+	constructor(private root: string) { }
+
+	resolveExtensions(): TPromise<IExtensionReference[]> {
+		return pfs.readDirsInDir(this.root)
+			.then(folders => folders.map(name => ({ name, path: join(this.root, name) })));
+	}
+}
+
 export class ExtensionScanner {
 
 	/**
@@ -318,9 +337,13 @@ export class ExtensionScanner {
 	/**
 	 * Scan a list of extensions defined in `absoluteFolderPath`
 	 */
-	public static async scanExtensions(input: ExtensionScannerInput, log: ILog): TPromise<IExtensionDescription[]> {
+	public static async scanExtensions(input: ExtensionScannerInput, log: ILog, resolver?: IExtensionResolver): TPromise<IExtensionDescription[]> {
 		const absoluteFolderPath = input.absoluteFolderPath;
 		const isBuiltin = input.isBuiltin;
+
+		if (!resolver) {
+			resolver = new DefaultExtensionResolver(absoluteFolderPath);
+		}
 
 		try {
 			let obsolete: { [folderName: string]: boolean; } = {};
@@ -333,38 +356,35 @@ export class ExtensionScanner {
 				}
 			}
 
-			const rawFolders = await pfs.readDirsInDir(absoluteFolderPath);
+			let refs = await resolver.resolveExtensions();
 
 			// Ensure the same extension order
-			rawFolders.sort();
+			refs.sort((a, b) => a.name < b.name ? -1 : 1);
 
-			let folders: string[] = null;
-			if (isBuiltin) {
-				folders = rawFolders;
-			} else {
+			if (!isBuiltin) {
 				// TODO: align with extensionsService
-				const nonGallery: string[] = [];
-				const gallery: string[] = [];
+				const nonGallery: IExtensionReference[] = [];
+				const gallery: IExtensionReference[] = [];
 
-				rawFolders.forEach(folder => {
-					if (obsolete[folder]) {
+				refs.forEach(ref => {
+					if (obsolete[ref.name]) {
 						return;
 					}
 
-					const { id, version } = getIdAndVersionFromLocalExtensionId(folder);
+					const { id, version } = getIdAndVersionFromLocalExtensionId(ref.name);
 
 					if (!id || !version) {
-						nonGallery.push(folder);
+						nonGallery.push(ref);
 					} else {
-						gallery.push(folder);
+						gallery.push(ref);
 					}
 				});
 
-				folders = [...nonGallery, ...gallery];
+				refs = [...nonGallery, ...gallery];
 			}
 
 			const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-			let extensionDescriptions = await TPromise.join(folders.map(f => this.scanExtension(input.ourVersion, log, join(absoluteFolderPath, f), isBuiltin, nlsConfig)));
+			let extensionDescriptions = await TPromise.join(refs.map(r => this.scanExtension(input.ourVersion, log, r.path, isBuiltin, nlsConfig)));
 			extensionDescriptions = extensionDescriptions.filter(item => item !== null);
 
 			if (!isBuiltin) {

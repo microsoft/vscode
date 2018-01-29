@@ -19,7 +19,7 @@ import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, 
 import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ExtensionScanner, ILog, ExtensionScannerInput } from 'vs/workbench/services/extensions/electron-browser/extensionPoints';
+import { ExtensionScanner, ILog, ExtensionScannerInput, IExtensionResolver, IExtensionReference } from 'vs/workbench/services/extensions/electron-browser/extensionPoints';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
@@ -45,6 +45,42 @@ import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 const ExtraDevSystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', '.build', 'builtInExtensions'));
+
+interface IBuiltInExtension {
+	name: string;
+	version: string;
+	repo: string;
+}
+
+interface IBuiltInExtensionControl {
+	[name: string]: 'marketplace' | 'disabled' | string;
+}
+
+class ExtraBuiltInExtensionResolver implements IExtensionResolver {
+
+	constructor(private builtInExtensions: IBuiltInExtension[], private control: IBuiltInExtensionControl) { }
+
+	resolveExtensions(): TPromise<IExtensionReference[]> {
+		const result: IExtensionReference[] = [];
+
+		for (const ext of this.builtInExtensions) {
+			const controlState = this.control[ext.name] || 'marketplace';
+
+			switch (controlState) {
+				case 'disabled':
+					break;
+				case 'marketplace':
+					result.push({ name: ext.name, path: path.join(ExtraDevSystemExtensionsRoot, ext.name) });
+					break;
+				default:
+					result.push({ name: ext.name, path: controlState });
+					break;
+			}
+		}
+
+		return TPromise.as(result);
+	}
+}
 
 // Enable to see detailed message communication between window and extension host
 const logExtensionHostCommunication = false;
@@ -632,7 +668,19 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		let finalBuiltinExtensions: TPromise<IExtensionDescription[]> = builtinExtensions;
 
 		if (devMode) {
-			const extraBuiltinExtensions = ExtensionScanner.scanExtensions(new ExtensionScannerInput(version, commit, locale, devMode, ExtraDevSystemExtensionsRoot, true), log);
+			const builtInExtensionsFilePath = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'build', 'builtInExtensions.json'));
+			const builtInExtensions = pfs.readFile(builtInExtensionsFilePath, 'utf8')
+				.then<IBuiltInExtension[]>(raw => JSON.parse(raw));
+
+			const controlFilePath = path.join(process.env['HOME'], '.vscode-oss-dev', 'extensions', 'control.json');
+			const controlFile = pfs.readFile(controlFilePath, 'utf8')
+				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
+
+			const input = new ExtensionScannerInput(version, commit, locale, devMode, ExtraDevSystemExtensionsRoot, true);
+			const extraBuiltinExtensions = TPromise.join([builtInExtensions, controlFile])
+				.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
+				.then(resolver => ExtensionScanner.scanExtensions(input, log, resolver));
+
 			finalBuiltinExtensions = TPromise.join([builtinExtensions, extraBuiltinExtensions]).then(([builtinExtensions, extraBuiltinExtensions]) => {
 				let resultMap: { [id: string]: IExtensionDescription; } = Object.create(null);
 				for (let i = 0, len = builtinExtensions.length; i < len; i++) {
