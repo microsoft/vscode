@@ -360,7 +360,7 @@ export interface IResourceResultsNavigationOptions {
 	openOnFocus: boolean;
 }
 
-export default class ResourceResultsNavigation extends Disposable {
+export class TreeResourceNavigator extends Disposable {
 
 	private _openResource: Emitter<IOpenResourceOptions> = new Emitter<IOpenResourceOptions>();
 	public readonly openResource: Event<IOpenResourceOptions> = this._openResource.event;

@@ -24,7 +24,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { basenameOrAuthority } from 'vs/base/common/resources';
-import ResourceResultsNavigation, { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
@@ -104,9 +104,9 @@ export class CallStackView extends TreeViewsViewletPanel {
 				twistiePixels
 			});
 
-		const fileResultsNavigation = new ResourceResultsNavigation(this.tree);
-		this.disposables.push(fileResultsNavigation);
-		this.disposables.push(fileResultsNavigation.openResource(e => {
+		const callstackNavigator = new TreeResourceNavigator(this.tree);
+		this.disposables.push(callstackNavigator);
+		this.disposables.push(callstackNavigator.openResource(e => {
 			if (this.ignoreSelectionChangedEvent) {
 				return;
 			}
