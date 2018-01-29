@@ -569,7 +569,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		}
 
 		if (extension.isMalicious) {
-			return TPromise.wrapError<void>(new Error(nls.localize('malicious', "This extension is reported to be malicious.")));
+			return TPromise.wrapError<void>(new Error(nls.localize('malicious', "This extension is reported to be problematic.")));
 		}
 
 		const ext = extension as Extension;
@@ -581,7 +581,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
-			title: nls.localize('installingMarketPlaceExtension', 'Installing extension from Market place....'),
+			title: nls.localize('installingMarketPlaceExtension', 'Installing extension from Marketplace....'),
 			tooltip: `${extension.id}`
 		}, () => this.extensionService.installFromGallery(gallery));
 	}
