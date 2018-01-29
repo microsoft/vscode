@@ -56,6 +56,7 @@ export class IssueReporter extends Disposable {
 		super();
 
 		this.initServices(configuration);
+		console.log((<any>require).getStats());
 
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
@@ -321,7 +322,7 @@ export class IssueReporter extends Disposable {
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = localize('bugDescription', "How did you encounter this problem? Please provide clear steps to reproduce the problem during our investigation. What did you expect to happen and what actually did happen?");
+			descriptionSubtitle.innerHTML = localize('bugDescription', "How did you encounter this problem? What steps do you need to perform to reliably reproduce the problem? What did you expect to happen and what actually did happen?");
 		} else if (issueType === IssueType.PerformanceIssue) {
 			show(systemBlock);
 			show(processBlock);
