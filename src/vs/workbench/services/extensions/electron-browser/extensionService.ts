@@ -11,6 +11,7 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import pkg from 'vs/platform/node/package';
 import * as path from 'path';
+import * as os from 'os';
 import * as pfs from 'vs/base/node/pfs';
 import URI from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
@@ -672,7 +673,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			const builtInExtensions = pfs.readFile(builtInExtensionsFilePath, 'utf8')
 				.then<IBuiltInExtension[]>(raw => JSON.parse(raw));
 
-			const controlFilePath = path.join(process.env['HOME'], '.vscode-oss-dev', 'extensions', 'control.json');
+			const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 			const controlFile = pfs.readFile(controlFilePath, 'utf8')
 				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
 
