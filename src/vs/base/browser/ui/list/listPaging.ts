@@ -6,7 +6,7 @@
 import 'vs/css!./list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
-import { IDelegate, IRenderer, IListEvent } from './list';
+import { IDelegate, IRenderer, IListEvent, IListOpenEvent } from './list';
 import { List, IListStyles, IListOptions } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import Event, { mapEvent } from 'vs/base/common/event';
@@ -97,6 +97,10 @@ export class PagedList<T> {
 		return mapEvent(this.list.onFocusChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 
+	get onOpen(): Event<IListOpenEvent<T>> {
+		return mapEvent(this.list.onOpen, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
+	}
+
 	get onSelectionChange(): Event<IListEvent<T>> {
 		return mapEvent(this.list.onSelectionChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
@@ -126,8 +130,8 @@ export class PagedList<T> {
 		this.list.scrollTop = scrollTop;
 	}
 
-	open(indexes: number[]): void {
-		this.list.open(indexes);
+	open(indexes: number[], browserEvent?: UIEvent): void {
+		this.list.open(indexes, browserEvent);
 	}
 
 	setFocus(indexes: number[]): void {

@@ -854,8 +854,7 @@ export class RepositoryPanel extends ViewletPanel {
 		];
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
-			identityProvider: scmResourceIdentityProvider,
-			keyboardSupport: false
+			identityProvider: scmResourceIdentityProvider
 		});
 
 		chain(this.list.onOpen)
@@ -941,6 +940,7 @@ export class RepositoryPanel extends ViewletPanel {
 		}
 
 		this.editorGroupService.pinEditor(activeEditor.position, activeEditorInput);
+		activeEditor.focus();
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<ISCMResourceGroup | ISCMResource>): void {

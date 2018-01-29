@@ -26,7 +26,7 @@ import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/elect
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultDragAndDrop, ClickBehavior, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IVariableTemplateData, renderVariable, renderRenameBox, renderExpressionValue, BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 
@@ -65,12 +65,11 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 			dataSource: new WatchExpressionsDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(WatchExpressionsRenderer),
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
-			controller: this.instantiationService.createInstance(WatchExpressionsController, actionProvider, MenuId.DebugWatchContext),
+			controller: this.instantiationService.createInstance(WatchExpressionsController, actionProvider, MenuId.DebugWatchContext, { clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false, openMode: OpenMode.SINGLE_CLICK }),
 			dnd: new WatchExpressionsDragAndDrop(this.debugService)
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
-				twistiePixels,
-				keyboardSupport: false
+				twistiePixels
 			});
 
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);

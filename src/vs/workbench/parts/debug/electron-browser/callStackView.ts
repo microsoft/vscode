@@ -15,7 +15,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
+import { BaseDebugController, twistiePixels, renderViewTree, DefaultDebugControllerOptions } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
 import { ITree, IActionProvider, IDataSource, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction } from 'vs/workbench/parts/debug/browser/debugActions';
@@ -24,9 +24,8 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { basenameOrAuthority } from 'vs/base/common/resources';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
 
 const $ = dom.$;
 
@@ -93,7 +92,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		dom.addClass(container, 'debug-call-stack');
 		this.treeContainer = renderViewTree(container);
 		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService);
-		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext);
+		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext, DefaultDebugControllerOptions);
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new CallStackDataSource(),
@@ -102,13 +101,12 @@ export class CallStackView extends TreeViewsViewletPanel {
 			controller
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
-				twistiePixels,
-				keyboardSupport: false
+				twistiePixels
 			});
 
-		const fileResultsNavigation = new FileResultsNavigation(this.tree);
-		this.disposables.push(fileResultsNavigation);
-		this.disposables.push(fileResultsNavigation.openFile(e => {
+		const callstackNavigator = new TreeResourceNavigator(this.tree);
+		this.disposables.push(callstackNavigator);
+		this.disposables.push(callstackNavigator.openResource(e => {
 			if (this.ignoreSelectionChangedEvent) {
 				return;
 			}
@@ -116,7 +114,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 			const element = e.element;
 			if (element instanceof StackFrame) {
 				this.debugService.focusStackFrame(element, element.thread, element.thread.process, true);
-				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide).done(undefined, errors.onUnexpectedError);
+				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned).done(undefined, errors.onUnexpectedError);
 			}
 			if (element instanceof Thread) {
 				this.debugService.focusStackFrame(undefined, element, element.process, true);

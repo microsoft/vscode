@@ -9,13 +9,15 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { IDataSource, ITree, IRenderer } from 'vs/base/parts/tree/browser/tree';
-import { DefaultController, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Action } from 'vs/base/common/actions';
 import { IExtensionDependencies, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IExtensionTemplateData {
 	icon: HTMLImageElement;
@@ -156,21 +158,24 @@ export class Renderer implements IRenderer {
 	}
 }
 
-export class Controller extends DefaultController {
+export class Controller extends WorkbenchTreeController {
 
-	constructor( @IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false });
+	constructor(
+		@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false }, configurationService);
 
 		// TODO@Sandeep this should be a command
 		this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, (tree: ITree, event: any) => this.openExtension(tree, true));
 	}
 
 	protected onLeftClick(tree: ITree, element: IExtensionDependencies, event: IMouseEvent): boolean {
-		let currentFoucssed = tree.getFocus();
+		let currentFocused = tree.getFocus();
 		if (super.onLeftClick(tree, element, event)) {
 			if (element.dependent === null) {
-				if (currentFoucssed) {
-					tree.setFocus(currentFoucssed);
+				if (currentFocused) {
+					tree.setFocus(currentFocused);
 				} else {
 					tree.focusFirst();
 				}

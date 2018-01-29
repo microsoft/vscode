@@ -23,7 +23,6 @@ import { GestureEvent } from 'vs/base/browser/touch';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import { DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -41,7 +40,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import URI from 'vs/base/common/uri';
 import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Location } from 'vs/editor/common/modes';
 
@@ -218,7 +217,7 @@ class DataSource implements tree.IDataSource {
 	}
 }
 
-class Controller extends DefaultController {
+class Controller extends WorkbenchTreeController {
 
 	private _onDidFocus = new Emitter<any>();
 	readonly onDidFocus: Event<any> = this._onDidFocus.event;
@@ -243,19 +242,22 @@ class Controller extends DefaultController {
 	}
 
 	public onMouseDown(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
+		var isDoubleClick = event.detail === 2;
 		if (event.leftButton) {
 			if (element instanceof FileReferences) {
-				event.preventDefault();
-				event.stopPropagation();
-				return this._expandCollapse(tree, element);
+				if (this.openOnSingleClick || isDoubleClick) {
+					event.preventDefault();
+					event.stopPropagation();
+					return this._expandCollapse(tree, element);
+				}
 			}
 
 			var result = super.onClick(tree, element, event);
 			if (event.ctrlKey || event.metaKey || event.altKey) {
 				this._onDidOpenToSide.fire(element);
-			} else if (event.detail === 2) {
+			} else if (isDoubleClick) {
 				this._onDidSelect.fire(element);
-			} else {
+			} else if (this.openOnSingleClick) {
 				this._onDidFocus.fire(element);
 			}
 			return result;
@@ -631,7 +633,9 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// tree
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
-			const controller = new Controller();
+			var controller = this._instantiationService.createInstance(Controller, {});
+			this._callOnDispose.push(controller);
+
 			var config = <tree.ITreeConfiguration>{
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer),
@@ -641,8 +645,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 			var options: tree.ITreeOptions = {
 				twistiePixels: 20,
-				ariaLabel: nls.localize('treeAriaLabel', "References"),
-				keyboardSupport: false
+				ariaLabel: nls.localize('treeAriaLabel', "References")
 			};
 
 			this._tree = this._instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), config, options);

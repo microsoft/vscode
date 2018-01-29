@@ -44,13 +44,13 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose } from 'vs/base/common/lifecycle';
+import { ClickBehavior, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 
 const $ = dom.$;
 
 const replTreeOptions: ITreeOptions = {
 	twistiePixels: 20,
-	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel"),
-	keyboardSupport: false
+	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel")
 };
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
@@ -135,7 +135,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.createReplInput(this.container);
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
-		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService), MenuId.DebugConsoleContext);
+		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService), MenuId.DebugConsoleContext, { clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false, openMode: OpenMode.SINGLE_CLICK });
 		controller.toFocusOnClick = this.replInput;
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
