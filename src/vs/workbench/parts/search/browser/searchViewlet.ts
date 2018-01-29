@@ -53,12 +53,11 @@ import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/act
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import ResourceResultsNavigation, { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export class SearchViewlet extends Viewlet {
@@ -84,7 +83,7 @@ export class SearchViewlet extends Viewlet {
 	private searching: boolean;
 
 	private actions: SearchAction[] = [];
-	private tree: ITree;
+	private tree: WorkbenchTree;
 	private viewletSettings: any;
 	private messages: Builder;
 	private searchWidgetsContainer: Builder;
@@ -505,15 +504,14 @@ export class SearchViewlet extends Viewlet {
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider),
 				dnd
 			}, {
-					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
-					keyboardSupport: false
+					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
 				});
 
 			this.tree.setInput(this.viewModel.searchResult);
 			this.toUnbind.push(renderer);
 
-			const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree, { openOnFocus: true }));
-			this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {
+			const fileResultsNavigation = this._register(new ResourceResultsNavigation(this.tree, { openOnFocus: true }));
+			this._register(debounceEvent(fileResultsNavigation.openResource, (last, event) => event, 75, true)(options => {
 				if (options.element instanceof Match) {
 					let selectedMatch: Match = options.element;
 					if (this.currentSelectedFileMatch) {

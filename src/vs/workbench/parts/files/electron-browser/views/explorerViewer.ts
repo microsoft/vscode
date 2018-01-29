@@ -29,7 +29,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData, SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
-import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
+import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { FileStat, NewStatPlaceholder, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -56,7 +56,7 @@ import { extractResources } from 'vs/workbench/browser/editor';
 import { relative } from 'path';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { distinctParents } from 'vs/base/common/resources';
-import { WorkbenchTree, multiSelectModifierSettingKey } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -325,12 +325,11 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 }
 
 // Explorer Controller
-export class FileController extends DefaultController implements IDisposable {
+export class FileController extends WorkbenchTreeController implements IDisposable {
 
 	private contributedContextMenu: IMenu;
 	private toDispose: IDisposable[];
 	private previousSelectionRangeStop: FileStat;
-	private useAltAsMultiSelectModifier: boolean;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -338,25 +337,14 @@ export class FileController extends DefaultController implements IDisposable {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMenuService private menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ }, configurationService);
 
-		this.useAltAsMultiSelectModifier = configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
 		this.toDispose = [];
-
-		this.registerListeners();
 	}
 
-	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-				this.useAltAsMultiSelectModifier = this.configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
-			}
-		}));
-	}
-
-	public onLeftClick(tree: ITree, stat: FileStat | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	public onLeftClick(tree: WorkbenchTree, stat: FileStat | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin };
 		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
@@ -394,7 +382,7 @@ export class FileController extends DefaultController implements IDisposable {
 		}
 
 		// Allow to multiselect
-		if ((this.useAltAsMultiSelectModifier && event.altKey) || !this.useAltAsMultiSelectModifier && (event.ctrlKey || event.metaKey)) {
+		if ((tree.useAltAsMultipleSelectionModifier && event.altKey) || !tree.useAltAsMultipleSelectionModifier && (event.ctrlKey || event.metaKey)) {
 			const selection = tree.getSelection();
 			this.previousSelectionRangeStop = undefined;
 			if (selection.indexOf(stat) >= 0) {
@@ -419,9 +407,12 @@ export class FileController extends DefaultController implements IDisposable {
 
 		// Select, Focus and open files
 		else {
+
 			// Expand / Collapse
-			tree.toggleExpansion(stat, event.altKey);
-			this.previousSelectionRangeStop = undefined;
+			if (isDoubleClick || this.openOnSingleClick) {
+				tree.toggleExpansion(stat, event.altKey);
+				this.previousSelectionRangeStop = undefined;
+			}
 
 			const preserveFocus = !isDoubleClick;
 			tree.setFocus(stat, payload);
@@ -432,10 +423,10 @@ export class FileController extends DefaultController implements IDisposable {
 
 			tree.setSelection([stat], payload);
 
-			if (!stat.isDirectory) {
+			if (!stat.isDirectory && (isDoubleClick || this.openOnSingleClick)) {
 				let sideBySide = false;
 				if (event) {
-					sideBySide = this.useAltAsMultiSelectModifier ? (event.ctrlKey || event.metaKey) : event.altKey;
+					sideBySide = tree.useAltAsMultipleSelectionModifier ? (event.ctrlKey || event.metaKey) : event.altKey;
 				}
 
 				this.openEditor(stat, { preserveFocus, sideBySide, pinned: isDoubleClick });

@@ -27,11 +27,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
 import { debounceEvent } from 'vs/base/common/event';
 import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import ResourceResultsNavigation, { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/common/markers';
 
 export class MarkersPanel extends Panel {
@@ -206,14 +205,13 @@ export class MarkersPanel extends Panel {
 		}, {
 				indentPixels: 0,
 				twistiePixels: 20,
-				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE,
-				keyboardSupport: false
+				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE
 			});
 
 		Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
 
-		const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree, { openOnFocus: true }));
-		this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {
+		const fileResultsNavigation = this._register(new ResourceResultsNavigation(this.tree, { openOnFocus: true }));
+		this._register(debounceEvent(fileResultsNavigation.openResource, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 		}));
 	}

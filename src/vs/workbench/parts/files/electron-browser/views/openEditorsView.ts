@@ -28,15 +28,13 @@ import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { WorkbenchList, useAltAsMultipleSelectionModifier } from 'vs/platform/list/browser/listService';
-import { IDelegate, IRenderer, IListContextMenuEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { IDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { EditorLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
@@ -153,7 +151,6 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService, this.editorGroupService),
 			new OpenEditorRenderer(getSelectedElements, this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
 		], {
-				keyboardSupport: false,
 				identityProvider: element => element instanceof OpenEditor ? element.getId() : element.id.toString()
 			});
 
@@ -185,15 +182,28 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		});
 
 		// Open when selecting via keyboard
-		this.disposables.push(this.list.onMouseClick(e => this.onMouseClick(e, false)));
-		this.disposables.push(this.list.onMouseDblClick(e => this.onMouseClick(e, true)));
-		this.disposables.push(this.list.onKeyDown(e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.keyCode === KeyCode.Enter) {
-				const focused = this.list.getFocusedElements();
-				const element = focused.length ? focused[0] : undefined;
-				if (element instanceof OpenEditor) {
-					this.openEditor(element, { pinned: false, sideBySide: !!(event.altKey || event.ctrlKey || event.metaKey), preserveFocus: false });
+		this.disposables.push(this.list.onOpen(e => {
+			const browserEvent = e.browserEvent;
+
+			let openToSide = false;
+			let isSingleClick = false;
+			let isDoubleClick = false;
+			let isMiddleClick = false;
+			if (browserEvent instanceof MouseEvent) {
+				isSingleClick = browserEvent.detail === 1;
+				isDoubleClick = browserEvent.detail === 2;
+				isMiddleClick = browserEvent.button === 1 /* middle button */;
+				openToSide = this.list.useAltAsMultipleSelectionModifier ? (browserEvent.ctrlKey || browserEvent.metaKey) : browserEvent.altKey;
+			}
+
+			const focused = this.list.getFocusedElements();
+			const element = focused.length ? focused[0] : undefined;
+			if (element instanceof OpenEditor) {
+				if (isMiddleClick) {
+					const position = this.model.positionOfGroup(element.group);
+					this.editorService.closeEditor(position, element.editor).done(null, errors.onUnexpectedError);
+				} else {
+					this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
 				}
 			}
 		}));
@@ -266,21 +276,6 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		}
 
 		return -1;
-	}
-
-	private onMouseClick(event: IListMouseEvent<OpenEditor | IEditorGroup>, isDoubleClick: boolean): void {
-		const element = event.element;
-		if (!(element instanceof OpenEditor)) {
-			return;
-		}
-
-		if (event.browserEvent && event.browserEvent.button === 1 /* Middle Button */) {
-			const position = this.model.positionOfGroup(element.group);
-			this.editorService.closeEditor(position, element.editor).done(null, errors.onUnexpectedError);
-		} else {
-			const sideBySide = useAltAsMultipleSelectionModifier(this.configurationService) ? event.browserEvent.altKey : (event.browserEvent.ctrlKey || event.browserEvent.metaKey);
-			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick, sideBySide });
-		}
 	}
 
 	private openEditor(element: OpenEditor, options: { preserveFocus: boolean; pinned: boolean; sideBySide: boolean; }): void {

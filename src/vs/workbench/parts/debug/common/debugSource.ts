@@ -56,7 +56,7 @@ export class Source {
 		return this.uri.scheme === DEBUG_SCHEME;
 	}
 
-	public openInEditor(editorService: IWorkbenchEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
+	public openInEditor(editorService: IWorkbenchEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		return !this.available ? TPromise.as(null) : editorService.openEditor({
 			resource: this.uri,
 			description: this.origin,
@@ -65,7 +65,7 @@ export class Source {
 				selection,
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true,
-				pinned: !preserveFocus && !this.inMemory
+				pinned: pinned || (!preserveFocus && !this.inMemory)
 			}
 		}, sideBySide);
 	}
