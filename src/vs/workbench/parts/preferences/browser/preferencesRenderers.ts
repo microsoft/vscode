@@ -191,7 +191,8 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	}
 
 	public editPreference(setting: ISetting): boolean {
-		return this.editSettingActionRenderer.activateOnSetting(setting);
+		const editableSetting = this.getSetting(setting);
+		return editableSetting && this.editSettingActionRenderer.activateOnSetting(editableSetting);
 	}
 }
 
