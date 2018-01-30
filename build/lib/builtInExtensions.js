@@ -59,7 +59,6 @@ function syncExtension(extension, controlState) {
 	switch (controlState) {
 		case 'disabled':
 			util.log(util.colors.blue('[disabled]'), util.colors.gray(extension.name));
-			rimraf.sync(getExtensionPath(extension));
 			return es.readArray([]);
 
 		case 'marketplace':
