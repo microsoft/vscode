@@ -293,7 +293,7 @@ export class FeedbackDropdown extends Dropdown {
 			this.autoHideTimeout = null;
 		}
 
-		if (!this.hideButton.checked) {
+		if (this.hideButton && !this.hideButton.checked) {
 			this.configurationService.updateValue(FEEDBACK_VISIBLE_CONFIG, false).done(null, errors.onUnexpectedError);
 		}
 
