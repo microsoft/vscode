@@ -6,7 +6,7 @@
 
 import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController, IOpenController } from 'vs/base/browser/ui/list/listWidget';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
@@ -20,7 +20,7 @@ import { mixin } from 'vs/base/common/objects';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { DefaultController, IControllerOptions, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController, IControllerOptions, OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -141,13 +141,21 @@ class OpenController implements IOpenController {
 }
 
 function handleListControllers<T>(options: IListOptions<T>, configurationService: IConfigurationService): IListOptions<T> {
-	if (options.multipleSelectionSupport === true && !options.multipleSelectionController) {
+	if (options.multipleSelectionSupport !== false && !options.multipleSelectionController) {
 		options.multipleSelectionController = new MultipleSelectionController(configurationService);
 	}
 
 	options.openController = new OpenController(configurationService);
 
 	return options;
+}
+
+function handleTreeController(configuration: ITreeConfiguration, instantiationService: IInstantiationService): ITreeConfiguration {
+	if (!configuration.controller) {
+		configuration.controller = instantiationService.createInstance(WorkbenchTreeController, { clickBehavior: ClickBehavior.ON_MOUSE_UP });
+	}
+
+	return configuration;
 }
 
 export class WorkbenchList<T> extends List<T> {
@@ -266,9 +274,10 @@ export class WorkbenchTree extends Tree {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, configuration, mixin(options, { keyboardSupport: false } as ITreeOptions, false));
+		super(container, handleTreeController(configuration, instantiationService), mixin(options, { keyboardSupport: false } as ITreeOptions, false));
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
