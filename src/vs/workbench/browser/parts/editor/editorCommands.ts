@@ -335,23 +335,17 @@ function registerEditorCommands() {
 				const group = model.getGroup(groupId);
 				const position = model.positionOfGroup(group);
 				if (position >= 0) {
-					editorsToClose.set(position, contexts.map(c => {
-						if (c && groupId === c.groupId) {
-							let input = group.getEditor(c.editorIndex);
-							if (!input) {
-
-								// Get Top Editor at Position
-								const visibleEditors = editorService.getVisibleEditors();
-								if (visibleEditors[position]) {
-									input = visibleEditors[position].input;
-								}
-							}
-
-							return input;
+					const inputs = contexts.map(c => {
+						if (c && groupId === c.groupId && types.isNumber(c.editorIndex)) {
+							return group.getEditor(c.editorIndex);
 						}
 
-						return void 0;
-					}).filter(input => !!input));
+						return undefined;
+					}).filter(input => !!input);
+
+					if (inputs.length) {
+						editorsToClose.set(position, inputs);
+					}
 				}
 			});
 
