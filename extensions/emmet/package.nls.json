@@ -47,5 +47,9 @@
 	"emmetPreferencesFilterCommentTrigger": "A comma-separated list of attribute names that should exist in abbreviation for the comment filter to be applied",
 	"emmetPreferencesFormatNoIndentTags": "An array of tag names that should not get inner indentation",
 	"emmetPreferencesFormatForceIndentTags": "An array of tag names that should always get inner indentation",
-	"emmetPreferencesAllowCompactBoolean": "If true, compact notation of boolean attributes are produced"
+	"emmetPreferencesAllowCompactBoolean": "If true, compact notation of boolean attributes are produced",
+	"emmetPreferencesCssWebkitProperties": "Comma separated css properties that get webkit vendor prefix when used in emmet abbreviation.",
+	"emmetPreferencesCssMozProperties": "Comma separated css properties that get moz vendor prefix when used in emmet abbreviation.",
+	"emmetPreferencesCssOProperties": "Comma separated css properties that get o vendor prefix when used in emmet abbreviation.",
+	"emmetPreferencesCssMsProperties": "Comma separated css properties that get ms vendor prefix when used in emmet abbreviation."
 }
