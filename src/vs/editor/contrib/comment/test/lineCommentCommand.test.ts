@@ -18,6 +18,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 var mockConfigService = new TestConfigurationService();
+mockConfigService.setUserConfiguration('editor', { 'insertSpaceAfterComment': true });
 
 suite('Editor Contrib - Line Comment Command', () => {
 
