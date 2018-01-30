@@ -77,8 +77,10 @@ ${this.getInfos()}
 	private getInfos(): string {
 		let info = '';
 
-		if (this._data.includeSystemInfo) {
-			info += this.generateSystemInfoMd();
+		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
+			if (this._data.includeSystemInfo) {
+				info += this.generateSystemInfoMd();
+			}
 		}
 
 		if (this._data.issueType === IssueType.PerformanceIssue) {
