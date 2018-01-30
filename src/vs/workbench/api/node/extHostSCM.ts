@@ -110,6 +110,10 @@ function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.S
 	return result;
 }
 
+export interface IValidateInput {
+	(value: string, cursorPosition: number): vscode.ProviderResult<vscode.SourceControlInputBoxValidation | undefined | null>;
+}
+
 export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	private _value: string = '';
@@ -140,18 +144,31 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this._placeholder = placeholder;
 	}
 
-	private _lineWarningLength: number | undefined;
+	private _validateInput: IValidateInput;
 
-	get lineWarningLength(): number | undefined {
-		return this._lineWarningLength;
+	get validateInput(): IValidateInput {
+		if (!this._extension.enableProposedApi) {
+			throw new Error(`[${this._extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.id}`);
+		}
+
+		return this._validateInput;
 	}
 
-	set lineWarningLength(lineWarningLength: number) {
-		this._proxy.$setLineWarningLength(this._sourceControlHandle, lineWarningLength);
-		this._lineWarningLength = lineWarningLength;
+	set validateInput(fn: IValidateInput) {
+		if (!this._extension.enableProposedApi) {
+			throw new Error(`[${this._extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this._extension.id}`);
+		}
+
+		if (fn && typeof fn !== 'function') {
+			console.warn('Invalid SCM input box validation function');
+			return;
+		}
+
+		this._validateInput = fn;
+		this._proxy.$setValidationProviderIsEnabled(this._sourceControlHandle, !!fn);
 	}
 
-	constructor(private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
+	constructor(private _extension: IExtensionDescription, private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
 		// noop
 	}
 
@@ -381,13 +398,14 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private handle: number = ExtHostSourceControl._handlePool++;
 
 	constructor(
+		_extension: IExtensionDescription,
 		private _proxy: MainThreadSCMShape,
 		private _commands: ExtHostCommands,
 		private _id: string,
 		private _label: string,
 		private _rootUri?: vscode.Uri
 	) {
-		this._inputBox = new ExtHostSCMInputBox(this._proxy, this.handle);
+		this._inputBox = new ExtHostSCMInputBox(_extension, this._proxy, this.handle);
 		this._proxy.$registerSourceControl(this.handle, _id, _label, _rootUri && _rootUri.toString());
 	}
 
@@ -503,7 +521,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.id, id, label, rootUri);
 
 		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(this._proxy, this._commands, id, label, rootUri);
+		const sourceControl = new ExtHostSourceControl(extension, this._proxy, this._commands, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.id) || [];
@@ -566,5 +584,27 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 
 		await group.$executeResourceCommand(handle);
+	}
+
+	async $validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined> {
+		this.logService.trace('ExtHostSCM#$validateInput', sourceControlHandle);
+
+		const sourceControl = this._sourceControls.get(sourceControlHandle);
+
+		if (!sourceControl) {
+			return TPromise.as(undefined);
+		}
+
+		if (!sourceControl.inputBox.validateInput) {
+			return TPromise.as(undefined);
+		}
+
+		const result = await sourceControl.inputBox.validateInput(value, cursorPosition);
+
+		if (!result) {
+			return TPromise.as(undefined);
+		}
+
+		return [result.message, result.type];
 	}
 }

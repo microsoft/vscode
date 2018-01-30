@@ -431,7 +431,7 @@ export interface MainThreadSCMShape extends IDisposable {
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
-	$setLineWarningLength(sourceControlHandle: number, lineWarningLength: number): void;
+	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 }
 
 export type DebugSessionUUID = string;
@@ -694,6 +694,7 @@ export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: string): TPromise<string>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void>;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void>;
+	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined>;
 }
 
 export interface ExtHostTaskShape {

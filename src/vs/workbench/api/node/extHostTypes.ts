@@ -1200,6 +1200,12 @@ export enum ColorFormat {
 	HSL = 2
 }
 
+export enum SourceControlInputBoxValidationType {
+	Error = 0,
+	Warning = 1,
+	Information = 2
+}
+
 export enum TaskRevealKind {
 	Always = 1,
 
