@@ -118,7 +118,7 @@
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
     "vsce": "1.33.2",
-    "vscode-nls-dev": "3.0.6"
+    "vscode-nls-dev": "3.0.7"
   },
   "repository": {
     "type": "git",
