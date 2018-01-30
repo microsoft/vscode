@@ -119,8 +119,8 @@ const eslintFilter = [
 
 const tslintFilter = [
 	'src/**/*.ts',
-	'test/**/*.ts',
-	'extensions/**/*.ts',
+	//'test/**/*.ts',
+	//'extensions/**/*.ts',
 	'!**/fixtures/**',
 	'!**/typings/**',
 	'!**/node_modules/**',
@@ -227,15 +227,19 @@ const hygiene = exports.hygiene = (some, options) => {
 
 	const tsl = es.through(function (file) {
 		const configuration = tslint.Configuration.findConfiguration(null, '.');
+		const program = tslint.Linter.createProgram("tsconfig.json", "src/");
 		const options = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };
 		const contents = file.contents.toString('utf8');
-		const linter = new tslint.Linter(options);
-		linter.lint(file.relative, contents, configuration.results);
-		const result = linter.getResult();
+		const linter = new tslint.Linter(options, program);
+		if (file.relative.startsWith('src')) {
 
-		if (result.failures.length > 0) {
-			reportFailures(result.failures);
-			errorCount += result.failures.length;
+			linter.lint(file.relative, contents, configuration.results);
+			const result = linter.getResult();
+
+			if (result.failures.length > 0) {
+				reportFailures(result.failures);
+				errorCount += result.failures.length;
+			}
 		}
 
 		this.emit('data', file);
