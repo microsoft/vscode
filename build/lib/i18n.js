@@ -212,8 +212,8 @@ var XLF = /** @class */ (function () {
                     });
                     files.push({ messages: messages, originalFilePath: originalFilePath, language: 'ps' });
                 });
+                resolve(files);
             });
-            resolve(files);
         });
     };
     XLF.parse = function (xlfString) {

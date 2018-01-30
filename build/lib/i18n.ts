@@ -301,8 +301,8 @@ export class XLF {
 
 					files.push({ messages: messages, originalFilePath: originalFilePath, language: 'ps' });
 				});
+				resolve(files);
 			});
-			resolve(files);
 		});
 	};
 
