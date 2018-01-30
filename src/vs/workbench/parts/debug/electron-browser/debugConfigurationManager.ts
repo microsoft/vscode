@@ -34,6 +34,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawAdapter[]>('debuggers', [], {
@@ -362,6 +363,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	private initLaunches(): void {
 		this.launches = this.contextService.getWorkspace().folders.map(folder => this.instantiationService.createInstance(Launch, this, folder));
+		this.launches.push(this.instantiationService.createInstance(UserLaunch, this));
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			this.launches.push(this.instantiationService.createInstance(WorkspaceLaunch, this));
 		}
@@ -520,8 +522,12 @@ class Launch implements ILaunch {
 		return this.workspace.name;
 	}
 
+	public get hidden(): boolean {
+		return false;
+	}
+
 	protected getConfig(): IGlobalConfig {
-		return this.configurationService.getValue<IGlobalConfig>('launch', { resource: this.workspace.uri });
+		return this.configurationService.inspect<IGlobalConfig>('launch', { resource: this.workspace.uri }).workspaceFolder;
 	}
 
 	public getCompound(name: string): ICompound {
@@ -539,7 +545,7 @@ class Launch implements ILaunch {
 			return [];
 		} else {
 			const names = config.configurations.filter(cfg => cfg && typeof cfg.name === 'string').map(cfg => cfg.name);
-			if (includeCompounds && names.length > 0 && config.compounds) {
+			if (includeCompounds && config.compounds) {
 				if (config.compounds) {
 					names.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length)
 						.map(compound => compound.name));
@@ -666,5 +672,39 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 
 	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
 		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
+	}
+}
+
+class UserLaunch extends Launch implements ILaunch {
+
+	constructor(
+		configurationManager: ConfigurationManager,
+		@IFileService fileService: IFileService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@IPreferencesService private preferencesService: IPreferencesService
+	) {
+		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService);
+	}
+
+	get uri(): uri {
+		return this.preferencesService.userSettingsResource;
+	}
+
+	get name(): string {
+		return nls.localize('user settings', "user settings");
+	}
+
+	public get hidden(): boolean {
+		return true;
+	}
+
+	protected getConfig(): IGlobalConfig {
+		return this.configurationService.inspect<IGlobalConfig>('launch').user;
+	}
+
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
+		return this.preferencesService.openGlobalSettings();
 	}
 }

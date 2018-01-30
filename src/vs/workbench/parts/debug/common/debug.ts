@@ -449,6 +449,11 @@ export interface ILaunch {
 	workspace: IWorkspaceFolder;
 
 	/**
+	 * Should this launch be shown in the debug dropdown.
+	 */
+	hidden: boolean;
+
+	/**
 	 * Returns a configuration with the specified name.
 	 * Returns null if there is no configuration with the specified name.
 	 */
