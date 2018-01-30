@@ -1954,7 +1954,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a new code action.
 		 *
-		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edits)
+		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edit)
 		 * or a [command](#CodeAction.command).
 		 *
 		 * @param title The title of the code action.
@@ -5585,7 +5585,7 @@ declare module 'vscode' {
 		 * An event that is emitted when a [text document](#TextDocument) is opened.
 		 *
 		 * To add an event listener when a visible text document is opened, use the [TextEditor](#TextEditor) events in the
-		 * [window](#_window) namespace. Note that:
+		 * [window](#window) namespace. Note that:
 		 *
 		 * - The event is emitted before the [document](#TextDocument) is updated in the
 		 * [active text editor](#window.activeTextEditor)
@@ -5598,7 +5598,7 @@ declare module 'vscode' {
 		 * An event that is emitted when a [text document](#TextDocument) is disposed.
 		 *
 		 * To add an event listener when a visible text document is closed, use the [TextEditor](#TextEditor) events in the
-		 * [window](#_window) namespace. Note that this event is not emitted when a [TextEditor](#TextEditor) is closed
+		 * [window](#window) namespace. Note that this event is not emitted when a [TextEditor](#TextEditor) is closed
 		 * but the document remains open in another [visible text editor](#window.visibleTextEditors).
 		 */
 		export const onDidCloseTextDocument: Event<TextDocument>;
