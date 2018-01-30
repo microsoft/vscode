@@ -491,7 +491,7 @@ export class CommandCenter {
 		if (arg instanceof Uri) {
 			if (arg.scheme === 'git') {
 				uris = [Uri.file(fromGitUri(arg).path)];
-			} else if (arg.scheme === 'file') {
+			} else {
 				uris = [arg];
 			}
 		} else {
