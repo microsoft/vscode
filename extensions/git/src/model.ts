@@ -191,11 +191,13 @@ export class Model {
 		}
 
 		try {
-			const repositoryRoot = await this.git.getRepositoryRoot(path);
+			const rawRoot = await this.git.getRepositoryRoot(path);
 
 			// This can happen whenever `path` has the wrong case sensitivity in
 			// case insensitive file systems
 			// https://github.com/Microsoft/vscode/issues/33498
+			const repositoryRoot = Uri.file(rawRoot).fsPath;
+
 			if (this.getRepository(repositoryRoot)) {
 				return;
 			}
