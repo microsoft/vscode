@@ -2,14 +2,14 @@
 set -e
 
 # setup nvm
-mv ../../../.nvmrc nvmrc # Remove for init otherwise nvm init could fail
+mv .nvmrc nvmrc-temp # Remove for init otherwise nvm init could fail
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	export NVM_DIR=~/.nvm
 	source $(brew --prefix nvm)/nvm.sh
 else
 	source $NVM_DIR/nvm.sh
 fi
-mv nvmrc ../../../.nvmrc
+mv nvmrc-temp .nvmrc
 
 # install node
 NODE_VERSION=8.9.1
