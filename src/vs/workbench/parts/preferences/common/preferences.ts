@@ -171,7 +171,7 @@ export interface IKeybindingsEditor extends IEditor {
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	copyKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
-	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 }
 
 export function getSettingsTargetName(target: ConfigurationTarget, resource: URI, workspaceContextService: IWorkspaceContextService): string {
@@ -224,7 +224,7 @@ export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybi
 export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindingEntry';
 export const KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND = 'keybindings.editor.copyCommandKeybindingEntry';
-export const KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS = 'keybindings.editor.showConflicts';
+export const KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR = 'keybindings.editor.showConflicts';
 export const KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS = 'keybindings.editor.focusKeybindings';
 
 export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');

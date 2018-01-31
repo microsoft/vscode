@@ -26,7 +26,7 @@ import { SearchWidget } from 'vs/workbench/parts/preferences/browser/preferences
 import { DefineKeybindingWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import {
 	IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY,
-	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS
+	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -259,7 +259,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.searchWidget.clear();
 	}
 
-	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
 		const value = `"${keybindingEntry.keybindingItem.keybinding.getAriaLabel()}"`;
 		if (value !== this.searchWidget.getValue()) {
 			this.searchWidget.setValue(value);
@@ -517,10 +517,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private createShowConflictsAction(keybindingItem: IKeybindingItemEntry): IAction {
 		return <IAction>{
-			label: localize('showConflictsLabel', "Show Conflicts"),
+			label: localize('showSameKeybindings', "Show Same Keybindings"),
 			enabled: !!keybindingItem.keybindingItem.keybinding,
-			id: KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS,
-			run: () => this.showConflicts(keybindingItem)
+			id: KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR,
+			run: () => this.showSimilarKeybindings(keybindingItem)
 		};
 	}
 
