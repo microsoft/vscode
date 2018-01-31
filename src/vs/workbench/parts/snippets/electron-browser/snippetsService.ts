@@ -167,7 +167,7 @@ class SnippetsService implements ISnippetsService {
 						this._files.get(contribution.path).defaultScopes.push(contribution.language);
 
 					} else {
-						const file = new SnippetFile(contribution.path, [contribution.language], extension.description);
+						const file = new SnippetFile(contribution.path, contribution.language ? [contribution.language] : undefined, extension.description);
 						this._files.set(file.filepath, file);
 
 						if (this._environmentService.isExtensionDevelopment) {
