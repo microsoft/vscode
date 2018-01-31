@@ -227,6 +227,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	private loadingFromFileInProgress: boolean = false;
 	private resettingDelayer: ThrottledDelayer<void>;
 	private readonly rotatingFilePath: string;
+	private hasContentsToFlush: boolean = false;
 
 	constructor(
 		outputChannelIdentifier: IOutputChannelIdentifier,
@@ -256,7 +257,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		if (this.loadingFromFileInProgress) {
 			this.appendedMessage += message;
 		} else {
-			this.outputWriter.critical(message);
+			this.write(message);
 			if (this.model) {
 				this.appendedMessage += message;
 				if (!this.modelUpdater.isScheduled()) {
@@ -289,7 +290,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 
 	private startLoadingFromFile(): void {
 		this.loadingFromFileInProgress = true;
-		this.outputWriter.flush();
+		this.flush();
 		if (this.modelUpdater.isScheduled()) {
 			this.modelUpdater.cancel();
 		}
@@ -298,7 +299,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 
 	private finishedLoadingFromFile(): void {
 		if (this.appendedMessage) {
-			this.outputWriter.critical(this.appendedMessage);
+			this.write(this.appendedMessage);
 			this.appendToModel(this.appendedMessage);
 			this.appendedMessage = '';
 		}
@@ -309,6 +310,18 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		// Check if rotating file has changed. It changes only when the main file exceeds its limit.
 		if (this.rotatingFilePath === fileName) {
 			this.resettingDelayer.trigger(() => this.resetModel());
+		}
+	}
+
+	private write(content: string): void {
+		this.outputWriter.critical(content);
+		this.hasContentsToFlush = true;
+	}
+
+	private flush(): void {
+		if (this.hasContentsToFlush) {
+			this.outputWriter.flush();
+			this.hasContentsToFlush = false;
 		}
 	}
 }
