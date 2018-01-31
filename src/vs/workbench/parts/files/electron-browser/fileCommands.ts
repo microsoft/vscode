@@ -356,10 +356,14 @@ CommandsRegistry.registerCommand({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
 
-		return editorService.openEditor({
-			leftResource: resources[0],
-			rightResource: resources[1]
-		});
+		if (resources.length === 2) {
+			return editorService.openEditor({
+				leftResource: resources[0],
+				rightResource: resources[1]
+			});
+		}
+
+		return TPromise.as(true);
 	}
 });
 
