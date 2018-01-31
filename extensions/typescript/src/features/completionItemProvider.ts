@@ -26,6 +26,7 @@ class MyCompletionItem extends CompletionItem {
 	constructor(
 		public readonly position: Position,
 		public readonly document: TextDocument,
+		line: string,
 		public readonly tsEntry: Proto.CompletionEntry,
 		enableDotCompletions: boolean,
 		useCodeSnippetsOnMethodSuggest: boolean
@@ -61,6 +62,11 @@ class MyCompletionItem extends CompletionItem {
 				if (this.insertText[0] === '[') { // o.x -> o['x']
 					this.filterText = '.' + this.label;
 				}
+
+				// Make sure we only replace a single line at most
+				if (!this.range.isSingleLine) {
+					this.range = new Range(this.range.start.line, this.range.start.character, this.range.start.line, line.length);
+				}
 			}
 		}
 
@@ -69,6 +75,7 @@ class MyCompletionItem extends CompletionItem {
 			this.filterText = this.label;
 			this.label += '?';
 		}
+
 	}
 
 	public resolve(): void {
@@ -249,6 +256,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			return [];
 		}
 
+		const line = document.lineAt(position.line);
 		const config = this.getConfiguration(document.uri);
 
 		if (context.triggerCharacter === '"' || context.triggerCharacter === '\'') {
@@ -257,8 +265,8 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 
 			// make sure we are in something that looks like the start of an import
-			const line = document.lineAt(position.line).text.slice(0, position.character);
-			if (!line.match(/\b(from|import)\s*["']$/) && !line.match(/\b(import|require)\(['"]$/)) {
+			const pre = line.text.slice(0, position.character);
+			if (!pre.match(/\b(from|import)\s*["']$/) && !pre.match(/\b(import|require)\(['"]$/)) {
 				return [];
 			}
 		}
@@ -269,16 +277,16 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 
 			// make sure we are in something that looks like an import path
-			const line = document.lineAt(position.line).text.slice(0, position.character);
-			if (!line.match(/\b(from|import)\s*["'][^'"]*$/) && !line.match(/\b(import|require)\(['"][^'"]*$/)) {
+			const pre = line.text.slice(0, position.character);
+			if (!pre.match(/\b(from|import)\s*["'][^'"]*$/) && !pre.match(/\b(import|require)\(['"][^'"]*$/)) {
 				return [];
 			}
 		}
 
 		if (context.triggerCharacter === '@') {
 			// make sure we are in something that looks like the start of a jsdoc comment
-			const line = document.lineAt(position.line).text.slice(0, position.character);
-			if (!line.match(/^\s*\*[ ]?@/) && !line.match(/\/\*\*+[ ]?@/)) {
+			const pre = line.text.slice(0, position.character);
+			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
 				return [];
 			}
 		}
@@ -329,7 +337,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 					if (!config.autoImportSuggestions && element.hasAction) {
 						continue;
 					}
-					const item = new MyCompletionItem(position, document, element, enableDotCompletions, config.useCodeSnippetsOnMethodSuggest);
+					const item = new MyCompletionItem(position, document, line.text, element, enableDotCompletions, config.useCodeSnippetsOnMethodSuggest);
 					completionItems.push(item);
 				}
 			}
