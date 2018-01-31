@@ -768,8 +768,9 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId: string): TPromise<void> {
+		const launch = root ? this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === root.uri.toString()).pop() : this.configurationManager.selectedLaunch;
 		return this.textFileService.saveAll().then(() =>
-			(this.configurationManager.selectedLaunch ? this.configurationManager.selectedLaunch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
+			(launch ? launch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
 					return undefined;
@@ -819,7 +820,7 @@ export class DebugService implements debug.IDebugService {
 							case 0:
 								return this.doCreateProcess(root, resolvedConfig, sessionId);
 							case 1:
-								return this.configurationManager.selectedLaunch.openConfigFile(false);
+								return launch && launch.openConfigFile(false);
 							case 2:
 								return this.taskService.configureAction().run();
 							default:
@@ -833,7 +834,7 @@ export class DebugService implements debug.IDebugService {
 					return undefined;
 				}
 
-				return this.configurationManager.selectedLaunch.openConfigFile(false).then(editor => void 0);
+				return launch && launch.openConfigFile(false).then(editor => void 0);
 			})
 		);
 	}

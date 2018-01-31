@@ -446,6 +446,9 @@ export interface ILaunch {
 	 */
 	name: string;
 
+	/**
+	 * Workspace of the launch. Can be null.
+	 */
 	workspace: IWorkspaceFolder;
 
 	/**
