@@ -16,13 +16,15 @@ function isUpToDate(extension) {
 	}
 	const packageContents = fs.readFileSync(packagePath);
 	try {
-		const diskVersion = JSON.parse(packageContents).version;
+		// TODO Review was missing call to toString()
+		const diskVersion = JSON.parse(packageContents.toString()).version;
 		return (diskVersion === extension.version);
 	} catch(err) {
 		return false;
 	}
 }
 
+// @ts-ignore Microsoft/TypeScript#21262
 const builtInExtensions = require('../builtInExtensions');
 builtInExtensions.forEach((extension) => {
 	if (!isUpToDate(extension)) {
