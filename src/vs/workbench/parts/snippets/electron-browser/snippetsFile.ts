@@ -237,13 +237,22 @@ export class SnippetFile {
 			scopes = [];
 		}
 
+		let source: string;
+		if (this._extension) {
+			source = this._extension.displayName || this._extension.name;
+		} else if (this.isGlobalSnippets) {
+			source = localize('source.snippetGlobal', "Global User Snippet");
+		} else {
+			source = localize('source.snippet', "User Snippet");
+		}
+
 		bucket.push(new Snippet(
 			scopes,
 			name,
 			prefix,
 			description,
 			body,
-			this._extension ? (this._extension.displayName || this._extension.name) : localize('source.snippet', "User Snippet"),
+			source,
 			this._extension !== void 0
 		));
 	}
