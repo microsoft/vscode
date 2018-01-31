@@ -320,7 +320,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	private static zoomLabel(scale: Scale): string {
 		return scale === 'fit'
 			? nls.localize('zoom.action.fit.label', 'Whole Image')
-			: `${+(scale * 100).toFixed(2)}%`;
+			: `${Math.round(scale * 100)}%`;
 	}
 }
 
