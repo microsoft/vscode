@@ -213,7 +213,7 @@ class LargeImageView {
 		const imageContainer = $(container)
 			.empty()
 			.p({
-				text: nls.localize('largeImageError', "The image is too large to display in the editor. ")
+				text: nls.localize('largeImageError', "The file size of the image is too large (>1MB) to display in the editor. ")
 			});
 
 		if (descriptor.resource.scheme !== Schemas.data) {
