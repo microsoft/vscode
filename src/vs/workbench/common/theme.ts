@@ -9,6 +9,14 @@ import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
+// < --- Workbench --- >
+
+export const WORKBENCH_BACKGROUND = registerColor('workbench.background', {
+	dark: '#252526',
+	light: '#F3F3F3',
+	hc: '#000000'
+}, nls.localize('workbenchBackground', "Workbench background color. The workbench is the container for all the other views."));
+
 // < --- Tabs --- >
 
 export const TAB_ACTIVE_BACKGROUND = registerColor('tab.activeBackground', {

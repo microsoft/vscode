@@ -80,6 +80,7 @@ import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-bro
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
@@ -501,17 +502,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 
 	// We need to set the workbench background color so that on Windows we get subpixel-antialiasing.
-	let workbenchBackground: string;
-	switch (theme.type) {
-		case 'dark':
-			workbenchBackground = '#252526';
-			break;
-		case 'light':
-			workbenchBackground = '#F3F3F3';
-			break;
-		default:
-			workbenchBackground = '#000000';
-	}
+	const workbenchBackground = theme.getColor(WORKBENCH_BACKGROUND);
 	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
 
 	// Scrollbars

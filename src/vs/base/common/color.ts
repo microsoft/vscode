@@ -399,14 +399,14 @@ export class Color {
 		return new Color(new RGBA(r, g, b, a));
 	}
 
-	toRGB(...backgrounds: Color[]): Color {
-		const background = backgrounds.reduceRight((accumulator, color, index) => {
-			return Color._toRGB(color, accumulator);
+	flatten(...backgrounds: Color[]): Color {
+		const background = backgrounds.reduceRight((accumulator, color) => {
+			return Color._flatten(color, accumulator);
 		});
-		return Color._toRGB(this, background);
+		return Color._flatten(this, background);
 	}
 
-	private static _toRGB(foreground: Color, background: Color) {
+	private static _flatten(foreground: Color, background: Color) {
 		const backgroundAlpha = 1 - foreground.rgba.a;
 		return new Color(new RGBA(
 			backgroundAlpha * background.rgba.r + foreground.rgba.a * foreground.rgba.r,

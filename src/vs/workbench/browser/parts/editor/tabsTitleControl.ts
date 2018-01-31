@@ -39,7 +39,7 @@ import { CodeDataTransfers, ISerializedDraggedEditor } from 'vs/workbench/browse
 import { getOrSet } from 'vs/base/common/map';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Dimension } from 'vs/base/browser/builder';
 import { scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
@@ -948,24 +948,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorGroupBackground = theme.getColor(EDITOR_GROUP_BACKGROUND);
 	const editorBackgroundColor = theme.getColor(editorBackground);
 	const editorDragAndDropBackground = theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
+	let workbenchBackground = theme.getColor(WORKBENCH_BACKGROUND);
 	const themeNotHC = theme.type !== 'hc';
-	let workbenchBackground: Color;
 	let adjustedTabBackground: Color;
 	let adjustedTabDragBackground: Color;
 
-	switch (theme.type) {
-		case 'dark':
-			workbenchBackground = Color.fromHex('#252526');
-			break;
-		case 'light':
-			workbenchBackground = Color.fromHex('#F3F3F3');
-			break;
-		default:
-			workbenchBackground = Color.fromHex('#000000');
-	}
-
-	adjustedTabBackground = editorGroupHeaderTabsBackground.toRGB(editorBackgroundColor, editorGroupBackground, editorBackgroundColor, workbenchBackground);
-	adjustedTabDragBackground = editorGroupHeaderTabsBackground.toRGB(editorBackgroundColor, editorDragAndDropBackground, editorBackgroundColor, workbenchBackground);
+	adjustedTabBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorGroupBackground, editorBackgroundColor, workbenchBackground);
+	adjustedTabDragBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorDragAndDropBackground, editorBackgroundColor, workbenchBackground);
 
 	// Hover Background
 	const tabHoverBackground = theme.getColor(TAB_HOVER_BACKGROUND);
@@ -977,8 +966,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 
 		if (themeNotHC) {
-			const adjustedColor = tabHoverBackground.toRGB(adjustedTabBackground);
-			const adjustedColorDrag = tabHoverBackground.toRGB(adjustedTabDragBackground);
+			const adjustedColor = tabHoverBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabHoverBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
 				.monaco-workbench > .part.editor > .content:not(.dropping) > .one-editor-silo > .container > .title.active .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
 					background: linear-gradient(to left, ${adjustedColor}, transparent);
@@ -1000,8 +989,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 
 		if (themeNotHC) {
-			const adjustedColor = tabUnfocusedHoverBackground.toRGB(adjustedTabBackground);
-			const adjustedColorDrag = tabUnfocusedHoverBackground.toRGB(adjustedTabDragBackground);
+			const adjustedColor = tabUnfocusedHoverBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabUnfocusedHoverBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
 				.monaco-workbench > .part.editor > .content:not(.dropping) > .one-editor-silo > .container > .title.inactive .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
 					background: linear-gradient(to left, ${adjustedColor}, transparent);
@@ -1034,7 +1023,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 
 	if (editorDragAndDropBackground && themeNotHC) {
-		const adjustedColorDrag = editorDragAndDropBackground.toRGB(adjustedTabDragBackground);
+		const adjustedColorDrag = editorDragAndDropBackground.flatten(adjustedTabDragBackground);
 		collector.addRule(`
 			.monaco-workbench > .part.editor > .content.dropping > .one-editor-silo > .container > .title.active .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged) > .tab-label::after,
 			.monaco-workbench > .part.editor > .content.dropping > .one-editor-silo > .container > .title.inactive .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged) > .tab-label::after {
@@ -1045,8 +1034,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const tabInactiveBackground = theme.getColor(TAB_INACTIVE_BACKGROUND);
 	if (tabInactiveBackground && themeNotHC) {
-		const adjustedColor = tabInactiveBackground.toRGB(adjustedTabBackground);
-		const adjustedColorDrag = tabInactiveBackground.toRGB(adjustedTabDragBackground);
+		const adjustedColor = tabInactiveBackground.flatten(adjustedTabBackground);
+		const adjustedColorDrag = tabInactiveBackground.flatten(adjustedTabDragBackground);
 		collector.addRule(`
 			.monaco-workbench > .part.editor > .content:not(.dropping) > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink:not(.dragged) > .tab-label::after {
 				background: linear-gradient(to left, ${adjustedColor}, transparent);
@@ -1061,8 +1050,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	const tabActiveBackground = theme.getColor(TAB_ACTIVE_BACKGROUND);
 	if (themeNotHC) {
-		const adjustedColor = tabActiveBackground.toRGB(adjustedTabBackground);
-		const adjustedColorDrag = tabActiveBackground.toRGB(adjustedTabDragBackground);
+		const adjustedColor = tabActiveBackground.flatten(adjustedTabBackground);
+		const adjustedColorDrag = tabActiveBackground.flatten(adjustedTabDragBackground);
 		collector.addRule(`
 			.monaco-workbench > .part.editor > .content:not(.dropping) > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
 				background: linear-gradient(to left, ${adjustedColor}, transparent);
