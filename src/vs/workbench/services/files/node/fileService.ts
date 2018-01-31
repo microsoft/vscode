@@ -680,7 +680,7 @@ export class FileService implements IFileService {
 				this.options.errorLogger(`Unable to write to file '${resource.toString(true)}' as elevated user (${error})`);
 			}
 
-			if (!(error instanceof FileOperationError)) {
+			if (!FileOperationError.isFileOperationError(error)) {
 				error = new FileOperationError(
 					nls.localize('filePermission', "Permission denied writing to file ({0})", resource.toString(true)),
 					FileOperationResult.FILE_PERMISSION_DENIED,
