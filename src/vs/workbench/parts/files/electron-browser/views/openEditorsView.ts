@@ -337,6 +337,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		if (this.model.activeGroup && this.model.activeGroup.activeEditor /* could be empty */) {
 			const index = this.getIndex(this.model.activeGroup, this.model.activeGroup.activeEditor);
 			this.list.setFocus([index]);
+			this.list.setSelection([index]);
 			this.list.reveal(index);
 		}
 	}
