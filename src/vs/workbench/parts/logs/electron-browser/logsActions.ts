@@ -55,7 +55,7 @@ export class ShowLogsAction extends Action {
 			{ id: Constants.mainLogChannelId, label: nls.localize('mainProcess', "Main") }
 		];
 
-		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select log for process") })
+		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select Log for Process") })
 			.then(entry => {
 				if (entry) {
 					return this.outputService.showChannel(entry.id);
@@ -88,7 +88,7 @@ export class OpenLogFileAction extends Action {
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `main.log`)).fsPath, label: nls.localize('mainProcess', "Main") }
 		];
 
-		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select log for process") })
+		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select Log for Process") })
 			.then(entry => {
 				if (entry) {
 					return this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, URI.file(entry.id));
