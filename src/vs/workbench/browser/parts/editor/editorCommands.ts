@@ -390,7 +390,7 @@ function registerEditorCommands() {
 			groupIds.forEach(groupId => {
 				const group = model.getGroup(groupId);
 				const inputsToSkip = contexts.map(c => {
-					if (c.groupId === groupId) {
+					if (c.groupId === groupId && types.isNumber(c.editorIndex)) {
 						return group.getEditor(c.editorIndex);
 					}
 
@@ -503,7 +503,7 @@ function positionAndInput(editorGroupService: IEditorGroupService, editorService
 	const model = editorGroupService.getStacksModel();
 	const group = context ? model.getGroup(context.groupId) : undefined;
 	let position = group ? model.positionOfGroup(group) : undefined;
-	let input = group ? group.getEditor(context.editorIndex) : undefined;
+	let input = group && types.isNumber(context.editorIndex) ? group.getEditor(context.editorIndex) : undefined;
 
 	// If position or input are not passed in take the position and input of the active editor.
 	const active = editorService.getActiveEditor();
