@@ -41,6 +41,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { getBaseLabel } from 'vs/base/common/labels';
 import { assign } from 'vs/base/common/objects';
 import { Readable } from 'stream';
+import { IWriteFileOptions } from 'vs/base/node/extfs';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -582,22 +583,19 @@ export class FileService implements IFileService {
 	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string | ITextSnapshot, addBOM: boolean, encodingToWrite: string, options?: { mode?: number; flag?: string; }): TPromise<IFileStat> {
 		let writeFilePromise: TPromise<void>;
 
-		// Write fast if we do UTF 8 without BOM
-		if (!addBOM && encodingToWrite === encoding.UTF8) {
-			if (typeof value === 'string') {
-				writeFilePromise = pfs.writeFile(absolutePath, value, options);
-			} else {
-				writeFilePromise = pfs.writeFile(absolutePath, this.snapshotToReadableStream(value), options);
-			}
+		// Configure encoding related options as needed
+		const writeFileOptions: IWriteFileOptions = options ? options : Object.create(null);
+		if (addBOM || encodingToWrite !== encoding.UTF8) {
+			writeFileOptions.encoding = {
+				charset: encodingToWrite,
+				addBOM
+			};
 		}
 
-		// Otherwise use encoding lib
-		else {
-			if (typeof value === 'string') {
-				writeFilePromise = pfs.writeFile(absolutePath, encoding.encode(value, encodingToWrite, { addBOM }), options);
-			} else {
-				writeFilePromise = pfs.writeFile(absolutePath, this.snapshotToReadableStream(value).pipe(encoding.encodeStream(encodingToWrite, { addBOM })), options);
-			}
+		if (typeof value === 'string') {
+			writeFilePromise = pfs.writeFile(absolutePath, value, writeFileOptions);
+		} else {
+			writeFilePromise = pfs.writeFile(absolutePath, this.snapshotToReadableStream(value), writeFileOptions);
 		}
 
 		// set contents
