@@ -223,6 +223,10 @@ export class XLF {
 	}
 
 	public addFile(original: string, keys: (string | LocalizeInfo)[], messages: string[]) {
+		if (keys.length === 0) {
+			console.log('No keys in ' + original);
+			return;
+		}
 		if (keys.length !== messages.length) {
 			throw new Error(`Unmatching keys(${keys.length}) and messages(${messages.length}).`);
 		}
@@ -287,19 +291,20 @@ export class XLF {
 			let files: { messages: Map<string>, originalFilePath: string, language: string }[] = [];
 			parser.parseString(xlfString, function (err, result) {
 				const fileNodes: any[] = result['xliff']['file'];
-				fileNodes.forEach((file) => {
+				fileNodes.forEach(file => {
 					const originalFilePath = file.$.original;
-					let messages: Map<string> = {};
+					const messages: Map<string> = {};
 					const transUnits = file.body[0]['trans-unit'];
-					transUnits.forEach(unit => {
-						const key = unit.$.id;
-						const val = pseudify(unit.source[0]['_'].toString());
-						if (key && val) {
-							messages[key] = decodeEntities(val);
-						}
-					});
-
-					files.push({ messages: messages, originalFilePath: originalFilePath, language: 'ps' });
+					if (transUnits) {
+						transUnits.forEach(unit => {
+							const key = unit.$.id;
+							const val = pseudify(unit.source[0]['_'].toString());
+							if (key && val) {
+								messages[key] = decodeEntities(val);
+							}
+						});
+						files.push({ messages: messages, originalFilePath: originalFilePath, language: 'ps' });
+					}
 				});
 				resolve(files);
 			});
@@ -330,28 +335,26 @@ export class XLF {
 					let language = file.$['target-language'];
 					if (!language) {
 						reject(new Error(`XLF parsing error: XLIFF file node does not contain target-language attribute to determine translated language.`));
-					} else {
-						language = 'ps';
 					}
+					const messages: Map<string> = {};
 
-					let messages: Map<string> = {};
 					const transUnits = file.body[0]['trans-unit'];
+					if (transUnits) {
+						transUnits.forEach(unit => {
+							const key = unit.$.id;
+							if (!unit.target) {
+								return; // No translation available
+							}
 
-					transUnits.forEach(unit => {
-						const key = unit.$.id;
-						if (!unit.target) {
-							return; // No translation available
-						}
-
-						const val = unit.target.toString();
-						if (key && val) {
-							messages[key] = decodeEntities(val);
-						} else {
-							reject(new Error(`XLF parsing error: XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.`));
-						}
-					});
-
-					files.push({ messages: messages, originalFilePath: originalFilePath, language: language.toLowerCase() });
+							const val = unit.target.toString();
+							if (key && val) {
+								messages[key] = decodeEntities(val);
+							} else {
+								reject(new Error(`XLF parsing error: XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.`));
+							}
+						});
+						files.push({ messages: messages, originalFilePath: originalFilePath, language: language.toLowerCase() });
+					}
 				});
 
 				resolve(files);

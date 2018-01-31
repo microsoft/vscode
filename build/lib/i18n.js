@@ -142,6 +142,10 @@ var XLF = /** @class */ (function () {
         return this.buffer.join('\r\n');
     };
     XLF.prototype.addFile = function (original, keys, messages) {
+        if (keys.length === 0) {
+            console.log('No keys in ' + original);
+            return;
+        }
         if (keys.length !== messages.length) {
             throw new Error("Unmatching keys(" + keys.length + ") and messages(" + messages.length + ").");
         }
@@ -203,14 +207,16 @@ var XLF = /** @class */ (function () {
                     var originalFilePath = file.$.original;
                     var messages = {};
                     var transUnits = file.body[0]['trans-unit'];
-                    transUnits.forEach(function (unit) {
-                        var key = unit.$.id;
-                        var val = pseudify(unit.source[0]['_'].toString());
-                        if (key && val) {
-                            messages[key] = decodeEntities(val);
-                        }
-                    });
-                    files.push({ messages: messages, originalFilePath: originalFilePath, language: 'ps' });
+                    if (transUnits) {
+                        transUnits.forEach(function (unit) {
+                            var key = unit.$.id;
+                            var val = pseudify(unit.source[0]['_'].toString());
+                            if (key && val) {
+                                messages[key] = decodeEntities(val);
+                            }
+                        });
+                        files.push({ messages: messages, originalFilePath: originalFilePath, language: 'ps' });
+                    }
                 });
                 resolve(files);
             });
@@ -237,25 +243,24 @@ var XLF = /** @class */ (function () {
                     if (!language) {
                         reject(new Error("XLF parsing error: XLIFF file node does not contain target-language attribute to determine translated language."));
                     }
-                    else {
-                        language = 'ps';
-                    }
                     var messages = {};
                     var transUnits = file.body[0]['trans-unit'];
-                    transUnits.forEach(function (unit) {
-                        var key = unit.$.id;
-                        if (!unit.target) {
-                            return; // No translation available
-                        }
-                        var val = unit.target.toString();
-                        if (key && val) {
-                            messages[key] = decodeEntities(val);
-                        }
-                        else {
-                            reject(new Error("XLF parsing error: XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present."));
-                        }
-                    });
-                    files.push({ messages: messages, originalFilePath: originalFilePath, language: language.toLowerCase() });
+                    if (transUnits) {
+                        transUnits.forEach(function (unit) {
+                            var key = unit.$.id;
+                            if (!unit.target) {
+                                return; // No translation available
+                            }
+                            var val = unit.target.toString();
+                            if (key && val) {
+                                messages[key] = decodeEntities(val);
+                            }
+                            else {
+                                reject(new Error("XLF parsing error: XLIFF file does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present."));
+                            }
+                        });
+                        files.push({ messages: messages, originalFilePath: originalFilePath, language: language.toLowerCase() });
+                    }
                 });
                 resolve(files);
             });
