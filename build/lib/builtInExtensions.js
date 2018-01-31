@@ -17,6 +17,7 @@ const ext = require('./extensions');
 const util = require('gulp-util');
 
 const root = path.dirname(path.dirname(__dirname));
+// @ts-ignore Microsoft/TypeScript#21262
 const builtInExtensions = require('../builtInExtensions');
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 
