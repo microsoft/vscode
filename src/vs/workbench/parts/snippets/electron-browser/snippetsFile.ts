@@ -232,7 +232,7 @@ export class SnippetFile {
 		if (this.defaultScopes) {
 			scopes = this.defaultScopes;
 		} else if (typeof snippet.scope === 'string') {
-			scopes = snippet.scope.split(',').filter(s => !isFalsyOrWhitespace(s));
+			scopes = snippet.scope.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s));
 		} else {
 			scopes = [];
 		}
