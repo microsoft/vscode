@@ -159,9 +159,16 @@ declare module 'vscode' {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
 
 		/**
-		 * Updates the [workspace folders](#workspace.workspaceFolders) of the currently opened workspace. This method allows to add, remove
-		 * and change workspace folders at the same time. Use the [onDidChangeWorkspaceFolders()](#onDidChangeWorkspaceFolders)
-		 * event to get notified when the workspace folders have been updated.
+		 * This method replaces `deleteCount` [workspace folders](#workspace.workspaceFolders) starting at index `start`
+		 * by an optional set of `workspaceFoldersToAdd` on the `vscode.workspace.workspaceFolders` array. This "splice"
+		 * behavior can be used to add, remove and change workspace folders in a single operation.
+		 *
+		 * If the first workspace folder is added, removed or changed, the currently executing extensions (including the
+		 * one that called this method) will be terminated and restarted so that the (deprecated) `rootPath` property is
+		 * updated to point to the first workspace folder.
+		 *
+		 * Use the [`onDidChangeWorkspaceFolders()`](#onDidChangeWorkspaceFolders) event to get notified when the
+		 * workspace folders have been updated.
 		 *
 		 * **Example:** adding a new workspace folder at the end of workspace folders
 		 * ```typescript
@@ -181,12 +188,8 @@ declare module 'vscode' {
 		 * It is valid to remove an existing workspace folder and add it again with a different name
 		 * to rename that folder.
 		 *
-		 * **Note:** if the first workspace folder is added, removed or changed, all extensions will be restarted
-		 * so that the (deprecated) `rootPath` property is updated to point to the first workspace
-		 * folder.
-		 *
 		 * **Note:** it is not valid to call [updateWorkspaceFolders()](#updateWorkspaceFolders) multiple times
-		 * without waiting for the [onDidChangeWorkspaceFolders()](#onDidChangeWorkspaceFolders) to fire.
+		 * without waiting for the [`onDidChangeWorkspaceFolders()`](#onDidChangeWorkspaceFolders) to fire.
 		 *
 		 * @param start the zero-based location in the list of currently opened [workspace folders](#WorkspaceFolder)
 		 * from which to start deleting workspace folders.
