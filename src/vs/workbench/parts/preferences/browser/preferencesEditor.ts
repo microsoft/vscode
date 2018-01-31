@@ -247,24 +247,26 @@ export class PreferencesEditor extends BaseEditor {
 	private onInputChanged(): void {
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
-		this.progressService.showWhile(TPromise.join([
-			this.preferencesRenderers.localFilterPreferences(query),
-			this.triggerThrottledSearch(query)
-		]), 250).then(() => {
-			const result = this.preferencesRenderers.lastFilterResult;
-			if (result) {
-				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(
-					query,
-					result.defaultSettingsGroupCounts,
-					result.metadata));
-			}
-		});
+		this.triggerThrottledSearch(query)
+			.then(() => {
+				const result = this.preferencesRenderers.lastFilterResult;
+				if (result) {
+					this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(
+						query,
+						result.defaultSettingsGroupCounts,
+						result.metadata));
+				}
+			});
 	}
 
 	private triggerThrottledSearch(query: string): TPromise<void> {
 		if (query) {
-			return this.remoteSearchThrottle.trigger(() => this.preferencesRenderers.remoteSearchPreferences(query));
+			return this.remoteSearchThrottle.trigger(() => {
+				this.preferencesRenderers.localFilterPreferences(query);
+				return this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500);
+			});
 		} else {
+			this.preferencesRenderers.localFilterPreferences(query);
 			// When clearing the input, update immediately to clear it
 			this.remoteSearchThrottle.cancel();
 			return this.preferencesRenderers.remoteSearchPreferences(query);
