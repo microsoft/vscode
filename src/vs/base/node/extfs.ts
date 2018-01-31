@@ -361,13 +361,18 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 	const writer = fs.createWriteStream(path, { mode: options.mode, flags: options.flag, autoClose: false });
 
 	// Event: 'open'
-	// Purpose: save the fd for later use
+	// Purpose: save the fd for later use and start piping
 	// Notes: will not be called when there is an error opening the file descriptor!
 	let fd: number;
 	let isOpen: boolean;
 	writer.once('open', descriptor => {
 		fd = descriptor;
 		isOpen = true;
+
+		// start data piping only when we got a successful open. this ensures that we do
+		// not consume the stream when an error happens and helps to fix this issue:
+		// https://github.com/Microsoft/vscode/issues/42542
+		reader.pipe(writer);
 	});
 
 	// Event: 'error'
@@ -403,9 +408,6 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 	// Purpose: signal we are done to the outside
 	// Notes: event is called when the writer's filedescriptor is closed
 	writer.once('close', () => finish());
-
-	// start data piping
-	reader.pipe(writer);
 }
 
 // Calls fs.writeFile() followed by a fs.sync() call to flush the changes to disk
