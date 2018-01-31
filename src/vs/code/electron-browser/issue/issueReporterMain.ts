@@ -277,9 +277,8 @@ export class IssueReporter extends Disposable {
 						for (let i = 0; i < numResultsToDisplay; i++) {
 							const link = $('a', { href: items[i].html_url });
 							link.textContent = items[i].title;
-							link.addEventListener('click', (event) => {
-								shell.openExternal((<HTMLAnchorElement>event.target).href);
-							});
+							link.addEventListener('click', openLink);
+							link.addEventListener('auxclick', openLink);
 
 							const item = $('li', {}, link);
 							issues.appendChild(item);
@@ -495,4 +494,13 @@ function hide(el) {
 }
 function show(el) {
 	el.classList.remove('hidden');
+}
+
+function openLink(event: MouseEvent) {
+	event.preventDefault();
+	event.stopPropagation();
+	// Exclude right click
+	if (event.which < 3) {
+		shell.openExternal((<HTMLAnchorElement>event.target).href);
+	}
 }
