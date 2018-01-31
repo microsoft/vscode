@@ -252,6 +252,7 @@ function packageTask(platform, arch, opts) {
 				// 	// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
 				.pipe(nlsFilter)
 				.pipe(buffer())
+				//@ts-ignore Review bad typing
 				.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
 				.pipe(nlsFilter.restore);
 		}));
@@ -446,6 +447,7 @@ gulp.task('vscode-translations-pull', function () {
 gulp.task('vscode-translations-import', function () {
 	[...i18n.defaultLanguages, ...i18n.extraLanguages].forEach(language => {
 		gulp.src(`../vscode-localization/${language.id}/build/*/*.xlf`)
+			//@ts-ignore Review bad typing?
 			.pipe(i18n.prepareI18nFiles(language))
 			.pipe(vfs.dest(`./i18n/${language.folderName}`));
 		gulp.src(`../vscode-localization/${language.id}/setup/*/*.xlf`)
