@@ -327,6 +327,14 @@ export class ShowStartupPerformance extends Action {
 
 			(<any>console).table(this.getStartupMetricsTable(nodeModuleLoadTime));
 
+			if (this.environmentService.performance) {
+				const data = this.analyzeLoaderStats();
+				for (let type in data) {
+					(<any>console).groupCollapsed(`Loader: ${type}`);
+					(<any>console).table(data[type]);
+					(<any>console).groupEnd();
+				}
+			}
 
 			(<any>console).groupEnd();
 
@@ -417,6 +425,114 @@ export class ShowStartupPerformance extends Action {
 		}
 
 		return { table: result, duration: Math.round(total) };
+	}
+
+	private analyzeLoaderStats(): { [type: string]: any[] } {
+		const stats = <ILoaderEvent[]>(<any>require).getStats().slice(0).sort((a: ILoaderEvent, b: ILoaderEvent) => {
+			if (a.detail < b.detail) {
+				return -1;
+			} else if (a.detail > b.detail) {
+				return 1;
+			} else if (a.type < b.type) {
+				return -1;
+			} else if (a.type > b.type) {
+				return 1;
+			} else {
+				return 0;
+			}
+		});
+
+		class Tick {
+
+			public readonly duration: number;
+			public readonly detail: string;
+
+			constructor(public readonly start: ILoaderEvent, public readonly end: ILoaderEvent) {
+				console.assert(start.detail === end.detail);
+
+				this.duration = this.end.timestamp - this.start.timestamp;
+				this.detail = start.detail;
+			}
+
+			toTableObject() {
+				return {
+					['Path']: this.start.detail,
+					['Took (ms)']: this.duration.toFixed(2),
+					// ['Start (ms)']: this.start.timestamp,
+					// ['End (ms)']: this.end.timestamp
+				};
+			}
+
+			static compareUsingStartTimestamp(a: Tick, b: Tick): number {
+				if (a.start.timestamp < b.start.timestamp) {
+					return -1;
+				} else if (a.start.timestamp > b.start.timestamp) {
+					return 1;
+				} else {
+					return 0;
+				}
+			}
+		}
+
+		const ticks: { [type: number]: Tick[] } = {
+			[LoaderEventType.BeginLoadingScript]: [],
+			[LoaderEventType.BeginInvokeFactory]: [],
+			[LoaderEventType.NodeBeginEvaluatingScript]: [],
+			[LoaderEventType.NodeBeginNativeRequire]: [],
+		};
+
+		for (let i = 1; i < stats.length - 1; i++) {
+			const stat = stats[i];
+			const nextStat = stats[i + 1];
+
+			if (nextStat.type - stat.type > 2) {
+				//bad?!
+				break;
+			}
+
+			i += 1;
+			ticks[stat.type].push(new Tick(stat, nextStat));
+		}
+
+		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
+		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
+		ticks[LoaderEventType.NodeBeginEvaluatingScript].sort(Tick.compareUsingStartTimestamp);
+		ticks[LoaderEventType.NodeBeginNativeRequire].sort(Tick.compareUsingStartTimestamp);
+
+		const ret = {
+			'Load Script': ticks[LoaderEventType.BeginLoadingScript].map(t => t.toTableObject()),
+			'(Node) Load Script': ticks[LoaderEventType.NodeBeginNativeRequire].map(t => t.toTableObject()),
+			'Eval Script': ticks[LoaderEventType.BeginInvokeFactory].map(t => t.toTableObject()),
+			'(Node) Eval Script': ticks[LoaderEventType.NodeBeginEvaluatingScript].map(t => t.toTableObject()),
+		};
+
+		function total(ticks: Tick[]): number {
+			let sum = 0;
+			for (const tick of ticks) {
+				sum += tick.duration;
+			}
+			return sum;
+		}
+
+		// totals
+		ret['Load Script'].push({
+			['Path']: 'TOTAL TIME',
+			['Took (ms)']: total(ticks[LoaderEventType.BeginLoadingScript]).toFixed(2)
+		});
+		ret['Eval Script'].push({
+			['Path']: 'TOTAL TIME',
+			['Took (ms)']: total(ticks[LoaderEventType.BeginInvokeFactory]).toFixed(2)
+		});
+		ret['(Node) Load Script'].push({
+			['Path']: 'TOTAL TIME',
+			['Took (ms)']: total(ticks[LoaderEventType.NodeBeginNativeRequire]).toFixed(2)
+		});
+		ret['(Node) Eval Script'].push({
+			['Path']: 'TOTAL TIME',
+			['Took (ms)']: total(ticks[LoaderEventType.NodeBeginEvaluatingScript]).toFixed(2)
+		});
+
+		return ret;
 	}
 }
 
