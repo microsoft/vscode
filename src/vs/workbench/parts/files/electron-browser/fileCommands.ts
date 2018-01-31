@@ -414,7 +414,8 @@ const copyPathHandler = (accessor, resource: URI) => {
 	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
 	if (resources.length) {
 		const clipboardService = accessor.get(IClipboardService);
-		const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join('\n');
+		const lineDelimiter = isWindows ? '\r\n' : '\n';
+		const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
 		clipboardService.writeText(text);
 	} else {
 		const messageService = accessor.get(IMessageService);
