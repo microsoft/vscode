@@ -1917,6 +1917,8 @@ declare module 'vscode' {
 	/**
 	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
 	 * to refactor code.
+	 *
+	 * A CodeAction must set either [`edit`](CodeAction#edit) and/or a [`command`](CodeAction#command). If both are supplied, the `edit` is applied first, then the command is executed.
 	 */
 	export class CodeAction {
 
@@ -1927,8 +1929,6 @@ declare module 'vscode' {
 
 		/**
 		 * A workspace edit this code action performs.
-		 *
-		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
 		 */
 		edit?: WorkspaceEdit;
 
@@ -1939,8 +1939,6 @@ declare module 'vscode' {
 
 		/**
 		 * A command this code action performs.
-		 *
-		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
 		 */
 		command?: Command;
 
