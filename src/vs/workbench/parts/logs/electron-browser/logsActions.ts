@@ -15,6 +15,7 @@ import { IOutputService, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/outp
 import * as Constants from 'vs/workbench/parts/logs/common/logConstants';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import URI from 'vs/base/common/uri';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class OpenLogsFolderAction extends Action {
 
@@ -40,20 +41,21 @@ export class ShowLogsAction extends Action {
 
 	constructor(id: string, label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<void> {
 		const entries: IPickOpenEntry[] = [
-			{ id: Constants.mainLogChannelId, label: nls.localize('mainProcess', "Main") },
+			{ id: Constants.rendererLogChannelId, label: this.contextService.getWorkspace().name ? nls.localize('rendererProcess', "Window ({0})", this.contextService.getWorkspace().name) : nls.localize('emptyWindow', "Window") },
+			{ id: Constants.extHostLogChannelId, label: nls.localize('extensionHost', "Extension Host") },
 			{ id: Constants.sharedLogChannelId, label: nls.localize('sharedProcess', "Shared") },
-			{ id: Constants.rendererLogChannelId, label: nls.localize('rendererProcess', "Window") },
-			{ id: Constants.extHostLogChannelId, label: nls.localize('extensionHost', "Extension Host") }
+			{ id: Constants.mainLogChannelId, label: nls.localize('mainProcess', "Main") }
 		];
 
-		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select process") })
+		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select log for process") })
 			.then(entry => {
 				if (entry) {
 					return this.outputService.showChannel(entry.id);
@@ -72,20 +74,21 @@ export class OpenLogFileAction extends Action {
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ICommandService private commandService: ICommandService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<void> {
 		const entries: IPickOpenEntry[] = [
-			{ id: URI.file(paths.join(this.environmentService.logsPath, `main.log`)).fsPath, label: nls.localize('mainProcess', "Main") },
+			{ id: URI.file(paths.join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: this.contextService.getWorkspace().name ? nls.localize('rendererProcess', "Window ({0})", this.contextService.getWorkspace().name) : nls.localize('emptyWindow', "Window") },
+			{ id: URI.file(paths.join(this.environmentService.logsPath, `extHost${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: nls.localize('extensionHost', "Extension Host") },
 			{ id: URI.file(paths.join(this.environmentService.logsPath, `sharedprocess.log`)).fsPath, label: nls.localize('sharedProcess', "Shared") },
-			{ id: URI.file(paths.join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: nls.localize('rendererProcess', "Window") },
-			{ id: URI.file(paths.join(this.environmentService.logsPath, `extHost${this.windowService.getCurrentWindowId()}.log`)).fsPath, label: nls.localize('extensionHost', "Extension Host") }
+			{ id: URI.file(paths.join(this.environmentService.logsPath, `main.log`)).fsPath, label: nls.localize('mainProcess', "Main") }
 		];
 
-		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select process") })
+		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select log for process") })
 			.then(entry => {
 				if (entry) {
 					return this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, URI.file(entry.id));
