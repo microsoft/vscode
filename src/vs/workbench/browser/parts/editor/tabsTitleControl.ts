@@ -668,7 +668,8 @@ export class TabsTitleControl extends TitleControl {
 			tab.blur();
 
 			if (e.button === 1 /* Middle Button*/ && !this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
-				this.closeEditorAction.run(this.getGroupPositionAndEditor(index)).done(null, errors.onUnexpectedError);
+				const { editor, position } = this.getGroupPositionAndEditor(index);
+				setTimeout(() => this.editorService.closeEditor(position, editor).done(null, errors.onUnexpectedError));
 			}
 		}));
 
