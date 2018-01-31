@@ -160,7 +160,7 @@ declare module 'vscode' {
 
 		/**
 		 * Updates the [workspace folders](#workspace.workspaceFolders) of the currently opened workspace. This method allows to add, remove
-		 * and change workspace folders a the same time. Use the [onDidChangeWorkspaceFolders()](#onDidChangeWorkspaceFolders)
+		 * and change workspace folders at the same time. Use the [onDidChangeWorkspaceFolders()](#onDidChangeWorkspaceFolders)
 		 * event to get notified when the workspace folders have been updated.
 		 *
 		 * **Example:** adding a new workspace folder at the end of workspace folders
