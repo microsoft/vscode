@@ -375,10 +375,34 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 		const detail = details[0];
 		item.detail = detail.displayParts.length ? Previewer.plain(detail.displayParts) : undefined;
+		item.documentation = this.getDocumentation(detail, item);
+
+		if (detail.codeActions && detail.codeActions.length) {
+			item.command = {
+				title: '',
+				command: ApplyCompletionCodeActionCommand.ID,
+				arguments: [filepath, detail.codeActions]
+			};
+		}
+
+		if (detail && item.useCodeSnippet) {
+			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position);
+			if (shouldCompleteFunction) {
+				item.insertText = this.snippetForFunctionCall(item, detail);
+			}
+			return item;
+		}
+
+		return item;
+	}
+
+	private getDocumentation(
+		detail: Proto.CompletionEntryDetails,
+		item: MyCompletionItem
+	): MarkdownString | undefined {
 		const documentation = new MarkdownString();
 		if (detail.source) {
 			let importPath = `'${Previewer.plain(detail.source)}'`;
-
 			if (this.client.apiVersion.has260Features() && !this.client.apiVersion.has262Features()) {
 				// Try to resolve the real import name that will be added
 				if (detail.codeActions && detail.codeActions[0]) {
@@ -399,27 +423,9 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 			documentation.appendMarkdown('\n\n');
 		}
-
 		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags);
-		item.documentation = documentation;
 
-		if (detail.codeActions && detail.codeActions.length) {
-			item.command = {
-				title: '',
-				command: ApplyCompletionCodeActionCommand.ID,
-				arguments: [filepath, detail.codeActions]
-			};
-		}
-
-		if (detail && item.useCodeSnippet) {
-			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position);
-			if (shouldCompleteFunction) {
-				item.insertText = this.snippetForFunctionCall(item, detail);
-			}
-			return item;
-		}
-
-		return item;
+		return documentation.value.length ? documentation : undefined;
 	}
 
 	private async isValidFunctionCompletionContext(filepath: string, position: Position): Promise<boolean> {
