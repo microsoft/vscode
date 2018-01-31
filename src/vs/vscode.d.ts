@@ -1928,22 +1928,22 @@ declare module 'vscode' {
 		title: string;
 
 		/**
-		 * A workspace edit this code action performs.
+		 * A [workspace edit](#WorkspaceEdit) this code action performs.
 		 */
 		edit?: WorkspaceEdit;
 
 		/**
-		 * Diagnostics that this code action resolves.
+		 * [Diagnostics](#Diagnostic) that this code action resolves.
 		 */
 		diagnostics?: Diagnostic[];
 
 		/**
-		 * A command this code action performs.
+		 * A [command](#Command) this code action executes.
 		 */
 		command?: Command;
 
 		/**
-		 * Kind of the code action.
+		 * [Kind](#CodeActionKind) of the code action.
 		 *
 		 * Used to filter code actions.
 		 */
