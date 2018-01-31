@@ -267,6 +267,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const editorGroupService = accessor.get(IEditorGroupService);
 		const listService = accessor.get(IListService);
+		const fileService = accessor.get(IFileService);
 		const tree = listService.lastFocusedList;
 		const resources = getMultiSelectedResources(resource, listService, editorService);
 		const stacks = editorGroupService.getStacksModel();
@@ -279,17 +280,19 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		// Set side input
 		if (resources.length) {
-			return editorService.openEditors(resources.map(resource => {
-				return {
+			return fileService.resolveFiles(resources.map(resource => ({ resource }))).then(resolved => {
+				const editors = resolved.filter(r => r.success && !r.stat.isDirectory).map(r => ({
 					input: {
-						resource,
+						resource: r.stat.resource,
 						options: { preserveFocus: false }
 					}
-				};
-			}), true).then(() => {
-				if (activeGroup) {
-					editorGroupService.focusGroup(stacks.positionOfGroup(activeGroup) + 1);
-				}
+				}));
+
+				return editorService.openEditors(editors, true).then(() => {
+					if (activeGroup) {
+						editorGroupService.focusGroup(stacks.positionOfGroup(activeGroup) + 1);
+					}
+				});
 			});
 		}
 
