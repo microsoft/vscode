@@ -3854,7 +3854,7 @@ declare module 'vscode' {
 	 * An output channel is a container for readonly textual information.
 	 *
 	 * To get an instance of an `OutputChannel` use
-	 * [createOutputChannel](#window.createOutputChannel).
+	 * [	createOutputChannel](#window.createOutputChannel).
 	 */
 	export interface OutputChannel {
 
@@ -5083,6 +5083,7 @@ declare module 'vscode' {
 	export interface TreeDataProvider<T> {
 		/**
 		 * An optional event to signal that an element or root has changed.
+		 * This will trigger the view to update the changed element/root and its children recursively (if shown).
 		 * To signal that root has changed, do not pass any argument or pass `undefined` or `null`.
 		 */
 		onDidChangeTreeData?: Event<T | undefined | null>;
