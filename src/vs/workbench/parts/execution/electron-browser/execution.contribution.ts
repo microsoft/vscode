@@ -112,7 +112,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const historyService = accessor.get(IHistoryService);
 		const terminalService = accessor.get(ITerminalService);
 		const root = historyService.getLastActiveWorkspaceRoot('file');
-		terminalService.openTerminal(root.fsPath);
+		if (root) {
+			terminalService.openTerminal(root.fsPath);
+		}
 	}
 });
 
