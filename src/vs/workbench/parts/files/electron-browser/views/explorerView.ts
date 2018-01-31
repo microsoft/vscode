@@ -779,7 +779,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		const setInputAndExpand = (input: FileStat | Model, statsToExpand: FileStat[]) => {
 			// Make sure to expand all folders that where expanded in the previous session
 			// Special case: we are switching to multi workspace view, thus expand all the roots (they might just be added)
-			if (input === this.model && statsToExpand.every(fs => !fs.isRoot)) {
+			if (input === this.model && statsToExpand.every(fs => fs && !fs.isRoot)) {
 				statsToExpand = this.model.roots.concat(statsToExpand);
 			}
 
