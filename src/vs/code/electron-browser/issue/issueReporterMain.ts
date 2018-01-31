@@ -172,6 +172,8 @@ export class IssueReporter extends Disposable {
 
 		if (this.environmentService.disableExtensions || extensions.length === 0) {
 			(<HTMLButtonElement>document.getElementById('disableExtensions')).disabled = true;
+			(<HTMLInputElement>document.getElementById('reprosWithoutExtensions')).checked = true;
+			this.issueReporterModel.update({ reprosWithoutExtensions: true });
 		}
 	}
 
