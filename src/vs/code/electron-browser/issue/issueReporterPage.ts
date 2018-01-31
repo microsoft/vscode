@@ -33,11 +33,11 @@ export default (): string => `
 
 	<div class="input-group">
 		<div class="two-col">
-			<label for="vscode-version">${escape(localize('vscodeVersion', "VS Code Version"))} <span class="required-input">*</span></label>
+			<label for="vscode-version">${escape(localize('vscodeVersion', "VS Code Version"))}</label>
 			<input id="vscode-version" type="text" value="${pkg.name} ${pkg.version}" disabled/>
 		</div>
 		<div class="two-col">
-			<label for="os">${escape(localize('osVersion', "OS Version"))} <span class="required-input">*</span></label>
+			<label for="os">${escape(localize('osVersion', "OS Version"))}</label>
 			<input id="os" type="text" value="${os.type()} ${os.arch()} ${os.release()}" disabled/>
 		</div>
 	</div>

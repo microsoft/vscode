@@ -56,7 +56,6 @@ export class IssueReporter extends Disposable {
 		super();
 
 		this.initServices(configuration);
-		console.log((<any>require).getStats());
 
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
@@ -128,7 +127,7 @@ export class IssueReporter extends Disposable {
 
 		if (styles.inputErrorBorder) {
 			content.push(`.invalid-input, .invalid-input:focus { border: 1px solid ${styles.inputErrorBorder} !important; }`);
-			content.push(`.validation-error { color: ${styles.inputErrorBorder}; }`);
+			content.push(`.validation-error, .required-input { color: ${styles.inputErrorBorder}; }`);
 		}
 
 		if (styles.inputActiveBorder) {
