@@ -80,7 +80,6 @@ class SpdLogService extends AbstractLogService implements ILogService {
 	}
 
 	dispose(): void {
-		this.logger.flush();
 		this.logger.drop();
 	}
 
