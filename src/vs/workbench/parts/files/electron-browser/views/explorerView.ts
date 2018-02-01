@@ -215,7 +215,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 			// Select file if input is inside workspace
 			if (this.isVisible() && this.contextService.isInsideWorkspace(activeFile)) {
-				const selection = this.hasSelection(activeFile);
+				const selection = this.hasSingleSelection(activeFile);
 				if (!selection) {
 					this.select(activeFile).done(null, errors.onUnexpectedError);
 				}
@@ -881,7 +881,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		// If path already selected, just reveal and return
-		const selection = this.hasSelection(resource);
+		const selection = this.hasSingleSelection(resource);
 		if (selection) {
 			return reveal ? this.reveal(selection, 0.5) : TPromise.as(null);
 		}
@@ -914,16 +914,11 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}, e => { this.messageService.show(Severity.Error, e); });
 	}
 
-	private hasSelection(resource: URI): FileStat {
+	private hasSingleSelection(resource: URI): FileStat {
 		const currentSelection: FileStat[] = this.explorerViewer.getSelection();
-
-		for (let i = 0; i < currentSelection.length; i++) {
-			if (currentSelection[i].resource.toString() === resource.toString()) {
-				return currentSelection[i];
-			}
-		}
-
-		return null;
+		return currentSelection.length === 1 && currentSelection[0].resource.toString() === resource.toString()
+			? currentSelection[0]
+			: undefined;
 	}
 
 	private doSelect(fileStat: FileStat, reveal: boolean): TPromise<void> {
