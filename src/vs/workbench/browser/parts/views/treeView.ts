@@ -372,25 +372,38 @@ class Aligner extends Disposable {
 
 	private alignByTheme(): void {
 		if (this.node) {
-			const fileIconTheme = this.themeService.getFileIconTheme();
-			const icon = this.themeService.getTheme().type === LIGHT ? this.node.icon : this.node.iconDark;
-			if (fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons) {
-				const hasIcon = !!icon || !!this.node.resourceUri;
-				DOM.toggleClass(this.container, 'align-with-twisty', hasIcon && !this.hasSiblingWithChildrenAndIcon());
-			} else {
-				DOM.removeClass(this.container, 'align-with-twisty');
-			}
+			DOM.toggleClass(this.container, 'align-with-twisty', this.hasToAlignWithTwisty());
 		}
 	}
 
-	private hasSiblingWithChildrenAndIcon(): boolean {
-		const navigator = this.tree.getNavigator(this.tree.getNavigator(this.node).first());
-		for (let next: ITreeItem = navigator.next(); !!next; next = navigator.next()) {
-			if (next.collapsibleState !== TreeItemCollapsibleState.None && (next.icon || next.iconDark)) {
-				return true;
+	private hasToAlignWithTwisty(): boolean {
+		const fileIconTheme = this.themeService.getFileIconTheme();
+		if (!(fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons)) {
+			return false;
+		}
+		if (this.node.collapsibleState !== TreeItemCollapsibleState.None) {
+			return false;
+		}
+		const icon = this.themeService.getTheme().type === LIGHT ? this.node.icon : this.node.iconDark;
+		const hasIcon = !!icon || !!this.node.resourceUri;
+		if (!hasIcon) {
+			return false;
+		}
+
+		const siblingsWithChildren = this.getSiblings().filter(s => s.collapsibleState !== TreeItemCollapsibleState.None);
+		for (const s of siblingsWithChildren) {
+			const icon = this.themeService.getTheme().type === LIGHT ? s.icon : s.iconDark;
+			if (icon) {
+				return false;
 			}
 		}
-		return false;
+
+		return true;
+	}
+
+	private getSiblings(): ITreeItem[] {
+		const parent: ITreeItem = this.tree.getNavigator(this.node).parent() || this.tree.getInput();
+		return parent.children;
 	}
 }
 
