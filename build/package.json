@@ -19,6 +19,6 @@
   "scripts": {
     "compile": "tsc -p tsconfig.build.json",
     "watch": "tsc -p tsconfig.build.json --watch",
-    "postinstall": "npm run compile -p tsconfig.build.json"
+    "postinstall": "npm run compile"
   }
 }
