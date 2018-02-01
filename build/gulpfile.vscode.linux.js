@@ -220,6 +220,7 @@ function buildSnapPackage(arch) {
 	const snapFilename = `${product.applicationName}-${packageJson.version}-${linuxPackageRevision}-${arch}.snap`;
 	return shell.task([
 		`chmod +x ${snapBuildPath}/electron-launch`,
+		`snapcraft --version`,
 		`cd ${snapBuildPath} && snapcraft snap --output ../${snapFilename}`
 	]);
 }
