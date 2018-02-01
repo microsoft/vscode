@@ -199,6 +199,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					}
 				});
 		}
+		this._dynamicWorkspaceRecommendations = [];
 	}
 
 	getFileBasedRecommendations(): string[] {
