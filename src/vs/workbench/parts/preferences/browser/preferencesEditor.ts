@@ -532,10 +532,14 @@ class PreferencesRenderersController extends Disposable {
 		});
 	}
 
-	private async getPreferencesEditorModel(target: SettingsTarget): TPromise<ISettingsEditorModel> {
+	private async getPreferencesEditorModel(target: SettingsTarget): TPromise<ISettingsEditorModel | null> {
 		const resource = target === ConfigurationTarget.USER ? this.preferencesService.userSettingsResource :
 			target === ConfigurationTarget.WORKSPACE ? this.preferencesService.workspaceSettingsResource :
 				target;
+
+		if (!resource) {
+			return null;
+		}
 
 		const targetKey = resource.toString();
 		if (!this._prefsModelsForSearch.has(targetKey)) {
