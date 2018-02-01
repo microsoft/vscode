@@ -990,6 +990,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	private el: HTMLElement;
 	private menus: SCMMenus;
 	private mainPanel: MainPanel | null = null;
+	private cachedMainPanelHeight: number | undefined;
 	private mainPanelDisposable: IDisposable = EmptyDisposable;
 	private _repositories: ISCMRepository[] = [];
 	private repositoryPanels: RepositoryPanel[] = [];
@@ -1107,6 +1108,11 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 	setVisible(visible: boolean): TPromise<void> {
 		const result = super.setVisible(visible);
+
+		if (!visible) {
+			this.cachedMainPanelHeight = this.getPanelSize(this.mainPanel);
+		}
+
 		this._onDidChangeVisibility.fire(visible);
 		return result;
 	}
@@ -1194,6 +1200,12 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		// Remove unselected panels
 		panelsToRemove.forEach(panel => this.removePanel(panel));
+
+		// Restore main panel height
+		if (this.isVisible() && typeof this.cachedMainPanelHeight === 'number') {
+			this.resizePanel(this.mainPanel, this.cachedMainPanelHeight);
+			this.cachedMainPanelHeight = undefined;
+		}
 
 		// Resize all panels equally
 		const height = typeof this.height === 'number' ? this.height : 1000;
