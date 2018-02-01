@@ -798,7 +798,11 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 					return errorFileStat(targetsToResolve[index].resource, targetsToResolve[index].root);
 				});
 				// Subsequent refresh: Merge stat into our local model and refresh tree
-				modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
+				modelStats.forEach((modelStat, index) => {
+					if (index < this.model.roots.length) {
+						FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
+					}
+				});
 
 				const statsToExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(expand => this.model.findClosest(expand)));
 				if (input === this.explorerViewer.getInput()) {
@@ -817,7 +821,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			.then(result => FileStat.create(result, target.root, target.options.resolveTo), err => errorFileStat(target.resource, target.root))
 			.then(modelStat => {
 				// Subsequent refresh: Merge stat into our local model and refresh tree
-				FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
+				if (index < this.model.roots.length) {
+					FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
+				}
 
 				let toExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
 				if (input === this.explorerViewer.getInput()) {
