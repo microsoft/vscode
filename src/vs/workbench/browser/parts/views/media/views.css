@@ -50,9 +50,7 @@
 	display: none;
 }
 
-/** Show the twistie content if the parent does not have file icon (Fix for seti themes) **/
-.tree-explorer-viewlet-tree-view.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content:not(parent-has-file-icon)::before,
-.tree-explorer-viewlet-tree-view.file-icon-themable-tree.hide-arrows .monaco-tree-row .content.has-icon::before {
+.tree-explorer-viewlet-tree-view.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content:not(.align-with-twisty)::before {
 	display: inline-block;
 }
 
