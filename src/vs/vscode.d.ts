@@ -5602,7 +5602,7 @@ declare module 'vscode' {
 		 * @param resource A resource for which the configuration is asked for
 		 * @return The full configuration or a subset.
 		 */
-		export function getConfiguration(section?: string, resource?: Uri): WorkspaceConfiguration;
+		export function getConfiguration(section?: string, resource?: Uri | null): WorkspaceConfiguration;
 
 		/**
 		 * An event that is emitted when the [configuration](#WorkspaceConfiguration) changed.

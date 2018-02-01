@@ -93,7 +93,7 @@ async function _activate(context: ExtensionContext, disposables: Disposable[]): 
 }
 
 export function activate(context: ExtensionContext): API {
-	const config = workspace.getConfiguration('git', null as any as undefined);
+	const config = workspace.getConfiguration('git', null);
 	const enabled = config.get<boolean>('enabled');
 
 	const disposables: Disposable[] = [];
@@ -104,8 +104,8 @@ export function activate(context: ExtensionContext): API {
 	if (enabled) {
 		activatePromise = _activate(context, disposables);
 	} else {
-		const onConfigChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', null as any as undefined));
-		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null as any as undefined).get<boolean>('enabled') === true);
+		const onConfigChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git'));
+		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
 
 		activatePromise = eventToPromise(onEnabled)
 			.then(() => _activate(context, disposables));
