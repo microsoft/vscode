@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+// @ts-ignore review
 const { remote } = require('electron');
 const dialog = remote.dialog;
 

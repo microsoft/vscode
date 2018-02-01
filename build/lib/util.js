@@ -173,7 +173,6 @@ function rimraf(dir) {
             if (!err) {
                 return cb();
             }
-            ;
             if (err.code === 'ENOTEMPTY' && ++retries < 5) {
                 return setTimeout(function () { return retry(cb); }, 10);
             }
