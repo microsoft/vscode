@@ -380,8 +380,12 @@ export class SearchWidget extends Widget {
 
 	private submitSearch(refresh: boolean = true): void {
 		const value = this.searchInput.getValue();
+		const useGlobalFindBuffer = this.configurationService.getValue<ISearchConfigurationProperties>('search').globalFindClipboard;
 		if (value) {
-			this.clipboardServce.writeFindText(value);
+			if (useGlobalFindBuffer) {
+				this.clipboardServce.writeFindText(value);
+			}
+
 			this._onSearchSubmit.fire(refresh);
 		}
 	}
