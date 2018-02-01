@@ -13,7 +13,7 @@ ROOT="$REPO/.."
 BUILDNAME="VSCode-$PLATFORM_LINUX"
 BUILD="$ROOT/$BUILDNAME"
 PACKAGEJSON="$BUILD/resources/app/package.json"
-VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
+# VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
 
 SNAP_FILENAME="$(ls $REPO/.build/linux/snap/$ARCH/ | grep .snap)"
 SNAP_PATH="$REPO/.build/linux/snap/$ARCH/$SNAP_FILENAME"
