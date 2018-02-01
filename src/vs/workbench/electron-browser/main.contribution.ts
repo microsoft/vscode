@@ -270,8 +270,7 @@ configurationRegistry.registerConfiguration({
 		'workbench.settings.enableNaturalLanguageSearch': {
 			'type': 'boolean',
 			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
-			'default': true,
-			'included': product.quality !== 'stable'
+			'default': true
 		}
 	}
 });

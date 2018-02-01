@@ -48,10 +48,6 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	}
 
 	private get remoteSearchAllowed(): boolean {
-		if (this.environmentService.appQuality === 'stable') {
-			return false;
-		}
-
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		if (!workbenchSettings.enableNaturalLanguageSearch) {
 			return false;
