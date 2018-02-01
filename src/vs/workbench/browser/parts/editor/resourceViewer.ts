@@ -307,7 +307,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	@memoize
 	private get zoomActions(): Action[] {
-		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.25, 'fit'];
+		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.2, 'fit'];
 		return scales.map(scale =>
 			new Action('zoom.' + scale, ZoomStatusbarItem.zoomLabel(scale), undefined, undefined, () => {
 				if (this.onSelectScale) {
@@ -336,9 +336,29 @@ interface ImageState {
 
 class InlineImageView {
 	private static readonly SCALE_PINCH_FACTOR = 0.05;
-	private static readonly SCALE_FACTOR = 1.5;
 	private static readonly MAX_SCALE = 20;
 	private static readonly MIN_SCALE = 0.1;
+
+	private static readonly zoomLevels: Scale[] = [
+		0.1,
+		0.2,
+		0.3,
+		0.4,
+		0.5,
+		0.6,
+		0.7,
+		0.8,
+		0.9,
+		1,
+		1.5,
+		2,
+		3,
+		5,
+		7,
+		10,
+		15,
+		20
+	];
 
 	/**
 	 * Enable image-rendering: pixelated for images scaled by more than this.
@@ -464,10 +484,23 @@ class InlineImageView {
 					firstZoom();
 				}
 
-				const scaleMultiplier = scaleDirection === ScaleDirection.IN
-					? InlineImageView.SCALE_FACTOR
-					: 1 / InlineImageView.SCALE_FACTOR;
-				updateScale(scale as number * scaleMultiplier);
+				if (scaleDirection === ScaleDirection.IN) {
+					let i = 0;
+					for (; i < InlineImageView.zoomLevels.length; ++i) {
+						if (InlineImageView.zoomLevels[i] > scale) {
+							break;
+						}
+					}
+					updateScale(InlineImageView.zoomLevels[i] || InlineImageView.MAX_SCALE);
+				} else {
+					let i = InlineImageView.zoomLevels.length - 1;
+					for (; i >= 0; --i) {
+						if (InlineImageView.zoomLevels[i] < scale) {
+							break;
+						}
+					}
+					updateScale(InlineImageView.zoomLevels[i] || InlineImageView.MIN_SCALE);
+				}
 			})
 			.on(DOM.EventType.WHEEL, (e: WheelEvent) => {
 				if (!img) {
