@@ -275,6 +275,10 @@ function registerEditorCommands() {
 			const model = editorGroupService.getStacksModel();
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService));
+			if (contexts.length === 0 && model.activeGroup) {
+				// If command is triggered from the command palette use the active group
+				contexts.push({ groupId: model.activeGroup.id });
+			}
 
 			let positionOne: { unmodifiedOnly: boolean } = void 0;
 			let positionTwo: { unmodifiedOnly: boolean } = void 0;
