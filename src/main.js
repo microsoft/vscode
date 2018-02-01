@@ -86,6 +86,7 @@ function getCommit() {
 	} catch (exp) {
 		_commit = null;
 	}
+	return _commit || undefined;
 }
 
 function mkdirp(dir) {
