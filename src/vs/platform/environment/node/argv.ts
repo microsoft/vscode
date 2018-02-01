@@ -29,7 +29,7 @@ const options: minimist.Opts = {
 		'enable-proposed-api',
 		'export-default-configuration',
 		'install-source',
-		'upload-logs-stdin-pipe'
+		'upload-logs'
 	],
 	boolean: [
 		'help',
@@ -61,8 +61,7 @@ const options: minimist.Opts = {
 		'skip-add-to-recently-opened',
 		'status',
 		'file-write',
-		'file-chmod',
-		'upload-logs'
+		'file-chmod'
 	],
 	alias: {
 		add: 'a',

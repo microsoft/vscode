@@ -9,8 +9,6 @@ import * as os from 'os';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as readline from 'readline';
-import * as net from 'net';
 
 import { localize } from 'vs/nls';
 import { ILaunchChannel } from 'vs/code/electron-main/launch';
@@ -53,31 +51,24 @@ export async function uploadLogs(
 		const outZip = await zipLogs(logsPath);
 		const result = await postLogs(endpoint, outZip, requestService);
 		console.log(localize('didUploadLogs', 'Upload successful! Log file ID: {0}', result.blob_id));
-	} else {
-		console.log(localize('userDeniedUpload', 'Canceled upload'));
 	}
 }
 
-async function promptUserToConfirmLogUpload(
+function promptUserToConfirmLogUpload(
 	logsPath: string,
 	environmentService: IEnvironmentService
-): Promise<boolean> {
-	const message = localize('logUploadPromptHeader', 'Upload session logs to secure endpoint?')
-		+ '\n\n' + localize('logUploadPromptBody', 'Please review your log files here: \'{0}\'', logsPath)
-		+ '\n\n' + localize('logUploadPromptBodyDetails', 'Logs may contain personal information such as full paths and file contents.')
-		+ '\n\n' + localize('logUploadPromptKey', 'I have reviewed my logs (enter \'y\' to confirm upload)');
-
-	const rl = readline.createInterface({
-		input: net.connect(environmentService.args['upload-logs-stdin-pipe']),
-		output: process.stdout
-	});
-
-	return new TPromise<boolean>(resolve =>
-		rl.question(message,
-			(answer: string) => {
-				rl.close();
-				resolve(answer && answer.trim()[0].toLowerCase() === 'y');
-			}));
+): boolean {
+	const confirmKey = 'iConfirmLogsUpload';
+	if ((environmentService.args['upload-logs'] || '').toLowerCase() === confirmKey.toLowerCase()) {
+		return true;
+	} else {
+		const message = localize('logUploadPromptHeader', 'Upload session logs to secure endpoint?')
+			+ '\n\n' + localize('logUploadPromptBody', 'Please review your log files here: \'{0}\'', logsPath)
+			+ '\n\n' + localize('logUploadPromptBodyDetails', 'Logs may contain personal information such as full paths and file contents.')
+			+ '\n\n' + localize('logUploadPromptKey', 'Once you have reviewed your logs, please run code with \'--upload-logs={0}\'', confirmKey);
+		console.log(message);
+		return false;
+	}
 }
 
 async function postLogs(

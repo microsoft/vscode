@@ -139,7 +139,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 			}
 
 			// Log uploader usage info
-			if (environmentService.args['upload-logs']) {
+			if (typeof environmentService.args['upload-logs'] !== 'undefined') {
 				logService.warn('Warning: The --upload-logs argument can only be used if Code is already running. Please run it again after Code has started.');
 				throw new ExpectedError('Terminating...');
 			}
@@ -201,7 +201,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					}
 
 					// Log uploader
-					if (environmentService.args['upload-logs']) {
+					if (typeof environmentService.args['upload-logs'] !== 'undefined') {
 						return uploadLogs(channel, requestService, environmentService)
 							.then(() => TPromise.wrapError(new ExpectedError()));
 					}

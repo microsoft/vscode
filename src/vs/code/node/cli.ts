@@ -124,7 +124,7 @@ export async function main(argv: string[]): TPromise<any> {
 
 		const processCallbacks: ((child: ChildProcess) => Thenable<any>)[] = [];
 
-		const verbose = args.verbose || args.status || args['upload-logs'];
+		const verbose = args.verbose || args.status || typeof args['upload-logs'] !== 'undefined';
 		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
@@ -312,32 +312,8 @@ export async function main(argv: string[]): TPromise<any> {
 			env
 		};
 
-		if (args['upload-logs']) {
-			// Create a socket for writing
-			const pipeName = `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.sock`;
-			stdinFilePath = isWindows
-				? '\\\\.\\pipe\\' + pipeName
-				: paths.join(os.tmpdir(), pipeName);
-
-			// open tmp file for writing
-			let stdinFileError: Error;
-			try {
-				const stdErrServer = net.createServer(stream => {
-					process.stdin.pipe(stream);
-				});
-				stdErrServer.listen(stdinFilePath);
-			} catch (error) {
-				stdinFileError = error;
-				if (verbose) {
-					console.error(`Failed to create file to read via stdin: ${error.toString()}`);
-				}
-			}
-
-			if (!stdinFileError) {
-				argv = argv.concat('--upload-logs-stdin-pipe', stdinFilePath);
-			}
-
-			options['stdio'] = ['ignore', 'pipe', 'pipe'];
+		if (typeof args['upload-logs'] !== undefined) {
+			options['stdio'] = ['pipe', 'pipe', 'pipe'];
 		} else if (!verbose) {
 			options['stdio'] = 'ignore';
 		}
