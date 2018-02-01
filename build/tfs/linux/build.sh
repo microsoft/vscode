@@ -16,32 +16,32 @@ VSO_PAT="$8"
 
 echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
-# step "Install dependencies" \
-# 	yarn
+step "Install dependencies" \
+	yarn
 
-# step "Hygiene" \
-# 	npm run gulp -- hygiene
+step "Hygiene" \
+	npm run gulp -- hygiene
 
-# step "Monaco Editor Check" \
-# 	./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
+step "Monaco Editor Check" \
+	./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
 
-# step "Mix in repository from vscode-distro" \
-# 	npm run gulp -- mixin
+step "Mix in repository from vscode-distro" \
+	npm run gulp -- mixin
 
-# step "Get Electron" \
-# 	npm run gulp -- "electron-$ARCH"
+step "Get Electron" \
+	npm run gulp -- "electron-$ARCH"
 
-# step "Install distro dependencies" \
-# 	node build/tfs/common/installDistro.js
+step "Install distro dependencies" \
+	node build/tfs/common/installDistro.js
 
-# step "Build minified" \
-# 	npm run gulp -- "vscode-linux-$ARCH-min"
+step "Build minified" \
+	npm run gulp -- "vscode-linux-$ARCH-min"
 
-# # step "Create loader snapshot"
-# # 	node build/lib/snapshotLoader.js --arch=$ARCH
+# step "Create loader snapshot"
+# 	node build/lib/snapshotLoader.js --arch=$ARCH
 
-# step "Run unit tests" \
-# 	./scripts/test.sh --build --reporter dot
+step "Run unit tests" \
+	./scripts/test.sh --build --reporter dot
 
 # function smoketest {
 # 	id -u testuser &>/dev/null || (useradd -m testuser; chpasswd <<< testuser:testpassword)
