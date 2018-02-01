@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
+// @ts-check
 
 const gulp = require('gulp');
 const fs = require('fs');
@@ -27,8 +28,12 @@ const common = require('./lib/optimize');
 const nlsDev = require('vscode-nls-dev');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
+// @ts-ignore Microsoft/TypeScript#21262
 const packageJson = require('../package.json');
+// @ts-ignore Microsoft/TypeScript#21262
 const product = require('../product.json');
+// @ts-ignore Microsoft/TypeScript#21262
+const builtInExtensions = require('./builtInExtensions.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
 const glob = require('glob');
@@ -37,6 +42,8 @@ const getElectronVersion = require('./lib/electron').getElectronVersion;
 // const createAsar = require('./lib/asar').createAsar;
 
 const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
+
+// @ts-ignore REVIEW - bad typing
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
 	.concat(Object.keys(product.dependencies || {}))
@@ -44,8 +51,6 @@ const nodeModules = ['electron', 'original-fs']
 	.concat(baseModules);
 
 // Build
-
-const builtInExtensions = require('./builtInExtensions');
 
 const excludedExtensions = [
 	'vscode-api-tests',
@@ -104,6 +109,8 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	header: BUNDLED_FILE_HEADER,
 	out: 'out-vscode',
 	languages: languages,
+	// keep @ts-check happy, bundleInfo is not defined as optional
+	bundleInfo: undefined
 }));
 
 
@@ -245,6 +252,7 @@ function packageTask(platform, arch, opts) {
 				// 	// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
 				.pipe(nlsFilter)
 				.pipe(buffer())
+				//@ts-ignore Review bad typing
 				.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
 				.pipe(nlsFilter.restore);
 		}));
@@ -439,6 +447,7 @@ gulp.task('vscode-translations-pull', function () {
 gulp.task('vscode-translations-import', function () {
 	[...i18n.defaultLanguages, ...i18n.extraLanguages].forEach(language => {
 		gulp.src(`../vscode-localization/${language.id}/build/*/*.xlf`)
+			//@ts-ignore Review bad typing?
 			.pipe(i18n.prepareI18nFiles(language))
 			.pipe(vfs.dest(`./i18n/${language.folderName}`));
 		gulp.src(`../vscode-localization/${language.id}/setup/*/*.xlf`)
@@ -470,6 +479,7 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
 gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () => {
 	const branch = process.env.BUILD_SOURCEBRANCH;
+	// @ts-ignore endsWith not defined in typings of String
 	if (!branch.endsWith('/master') && branch.indexOf('/release/') < 0) {
 		console.log(`Only runs on master and release branches, not ${branch}`);
 		return;

@@ -10,6 +10,8 @@ exports.base = [{
 	append: [ 'vs/base/worker/workerMain' ],
 	dest: 'vs/base/worker/workerMain.js'
 }];
+
+// @ts-ignore REVIEW collectModules doesn´t take arguments
 exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.main']);
 exports.code = require('./vs/code/buildfile').collectModules();
 

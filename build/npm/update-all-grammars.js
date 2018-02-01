@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 const cp = require('child_process');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 

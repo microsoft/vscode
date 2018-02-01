@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 const cp = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -49,6 +51,7 @@ extensions.forEach(extension => yarnInstall(`extensions/${extension}`));
 function yarnInstallBuildDependencies() {
 	// make sure we install the deps of build/lib/watch for the system installed
 	// node, since that is the driver of gulp
+	// @ts-ignore incorrect typings
 	const env = Object.assign({}, process.env);
 	const watchPath = path.join(path.dirname(__dirname), 'lib', 'watch');
 	const yarnrcPath = path.join(watchPath, '.yarnrc');

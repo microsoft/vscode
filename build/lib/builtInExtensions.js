@@ -17,6 +17,7 @@ const ext = require('./extensions');
 const util = require('gulp-util');
 
 const root = path.dirname(path.dirname(__dirname));
+// @ts-ignore Microsoft/TypeScript#21262
 const builtInExtensions = require('../builtInExtensions');
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 
@@ -34,7 +35,8 @@ function isUpToDate(extension) {
 	const packageContents = fs.readFileSync(packagePath);
 
 	try {
-		const diskVersion = JSON.parse(packageContents).version;
+		// TODO Review was missing call to toString()
+		const diskVersion = JSON.parse(packageContents.toString()).version;
 		return (diskVersion === extension.version);
 	} catch (err) {
 		return false;

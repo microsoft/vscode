@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
 
@@ -143,6 +145,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		const watchInput = watcher(src, srcOpts);
 
 		return watchInput
+			// @ts-ignore REVIEW, pipeline doesn´t take an argument
 			.pipe(util.incremental(() => pipeline(true), input))
 			.pipe(gulp.dest(out));
 	});
