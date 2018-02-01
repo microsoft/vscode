@@ -1603,6 +1603,9 @@ export class SourceBreakpoint extends Breakpoint {
 
 	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string) {
 		super(enabled, condition, hitCondition);
+		if (location === null) {
+			throw illegalArgument('location');
+		}
 		this.location = location;
 	}
 }
@@ -1612,6 +1615,9 @@ export class FunctionBreakpoint extends Breakpoint {
 
 	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string) {
 		super(enabled, condition, hitCondition);
+		if (!functionName) {
+			throw illegalArgument('functionName');
+		}
 		this.functionName = functionName;
 	}
 }
