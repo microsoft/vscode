@@ -46,7 +46,7 @@ export default (): string => `
 		<div class="block block-system">
 			<details>
 				<summary>${escape(localize('systemInfo', "My System Info"))}
-					<input type="checkbox" id="includeSystemInfo" checked>
+					<input class="sendData" type="checkbox" id="includeSystemInfo" checked>
 						<label class="caption" for="includeSystemInfo">${escape(localize('sendData', "Send my data"))}</label>
 					</input>
 				</summary>
@@ -58,7 +58,7 @@ export default (): string => `
 		<div class="block block-process">
 			<details>
 				<summary>${escape(localize('processes', "Currently Running Processes"))}
-					<input type="checkbox" id="includeProcessInfo" checked>
+					<input class="sendData"  type="checkbox" id="includeProcessInfo" checked>
 						<label class="caption" for="includeProcessInfo">${escape(localize('sendData', "Send my data"))}</label>
 					</input>
 				</summary>
@@ -70,7 +70,7 @@ export default (): string => `
 		<div class="block block-workspace">
 			<details>
 				<summary>${escape(localize('workspaceStats', "My Workspace Stats"))}
-					<input type="checkbox" id="includeWorkspaceInfo" checked>
+					<input class="sendData"  type="checkbox" id="includeWorkspaceInfo" checked>
 						<label class="caption" for="includeWorkspaceInfo">${escape(localize('sendData', "Send my data"))}</label>
 					</input>
 				</summary>
@@ -84,7 +84,7 @@ export default (): string => `
 		<div class="block block-extensions">
 			<details>
 				<summary>${escape(localize('extensions', "My Extensions"))}
-					<input type="checkbox" id="includeExtensions" checked>
+					<input class="sendData"  type="checkbox" id="includeExtensions" checked>
 						<label class="caption" for="includeExtensions">${escape(localize('sendData', "Send my data"))}</label>
 					</input>
 				</summary>
@@ -93,8 +93,8 @@ export default (): string => `
 				</div>
 			</details>
 			<div>
-				<label for="reprosWithoutExtensions">${escape(localize('tryDisablingExtensions', "Is the problem reproducible when extensions are disabled?"))}</label>
 				<input type="checkbox" id="reprosWithoutExtensions">
+				<label for="reprosWithoutExtensions">${escape(localize('tryDisablingExtensions', "The problem is reproducible when extensions are disabled"))}</label>
 				<div class="instructions">Try to reproduce the problem after <button id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</button>.</div>
 				<div class="instructions">If you suspect it's an extension issue, <button id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "see all running extensions"))}</button>.</div>
 			</div>

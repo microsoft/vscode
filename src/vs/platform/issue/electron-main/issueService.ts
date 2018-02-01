@@ -39,7 +39,7 @@ export class IssueService implements IIssueService {
 		});
 
 		this._issueWindow = new BrowserWindow({
-			width: 800,
+			width: 750,
 			height: 1100,
 			title: localize('issueReporter', "Issue Reporter"),
 			parent: BrowserWindow.getFocusedWindow(),

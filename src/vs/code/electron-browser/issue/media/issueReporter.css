@@ -124,7 +124,7 @@ button:disabled {
 }
 
 #issue-reporter {
-	max-width: 80vw;
+	max-width: 85vw;
 	margin-left: auto;
 	margin-right: auto;
 	margin-top: 2em;
@@ -172,8 +172,11 @@ summary {
 	height: 18px;
 }
 
-input[type="checkbox"] {
+.sendData {
 	margin-left: 1em;
+}
+
+input[type="checkbox"] {
 	height: 18px;
 	width: auto;
 	display: inline-block;
