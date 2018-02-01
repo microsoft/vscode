@@ -499,21 +499,21 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	private _resourceEdits: { seq: number, from: URI, to: URI }[] = [];
 	private _textEdits = new Map<string, { seq: number, uri: URI, edits: TextEdit[] }>();
 
-	createResource(uri: vscode.Uri): void {
-		this.renameResource(undefined, uri);
-	}
+	// createResource(uri: vscode.Uri): void {
+	// 	this.renameResource(undefined, uri);
+	// }
 
-	deleteResource(uri: vscode.Uri): void {
-		this.renameResource(uri, undefined);
-	}
+	// deleteResource(uri: vscode.Uri): void {
+	// 	this.renameResource(uri, undefined);
+	// }
 
-	renameResource(from: vscode.Uri, to: vscode.Uri): void {
-		this._resourceEdits.push({ seq: this._seqPool++, from, to });
-	}
+	// renameResource(from: vscode.Uri, to: vscode.Uri): void {
+	// 	this._resourceEdits.push({ seq: this._seqPool++, from, to });
+	// }
 
-	resourceEdits(): [vscode.Uri, vscode.Uri][] {
-		return this._resourceEdits.map(({ from, to }) => (<[vscode.Uri, vscode.Uri]>[from, to]));
-	}
+	// resourceEdits(): [vscode.Uri, vscode.Uri][] {
+	// 	return this._resourceEdits.map(({ from, to }) => (<[vscode.Uri, vscode.Uri]>[from, to]));
+	// }
 
 	replace(uri: URI, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
@@ -566,19 +566,20 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	allEntries(): ([URI, TextEdit[]] | [URI, URI])[] {
-		// use the 'seq' the we have assigned when inserting
-		// the operation and use that order in the resulting
-		// array
-		const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
-		this._textEdits.forEach(value => {
-			const { seq, uri, edits } = value;
-			res[seq] = [uri, edits];
-		});
-		this._resourceEdits.forEach(value => {
-			const { seq, from, to } = value;
-			res[seq] = [from, to];
-		});
-		return res;
+		return this.entries();
+		// 	// use the 'seq' the we have assigned when inserting
+		// 	// the operation and use that order in the resulting
+		// 	// array
+		// 	const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
+		// 	this._textEdits.forEach(value => {
+		// 		const { seq, uri, edits } = value;
+		// 		res[seq] = [uri, edits];
+		// 	});
+		// 	this._resourceEdits.forEach(value => {
+		// 		const { seq, from, to } = value;
+		// 		res[seq] = [from, to];
+		// 	});
+		// 	return res;
 	}
 
 	get size(): number {

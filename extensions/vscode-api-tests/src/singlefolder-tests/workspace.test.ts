@@ -523,42 +523,42 @@ suite('workspace-namespace', () => {
 	});
 
 
-	test('applyEdit should fail when editing deleted resource', async () => {
-		const resource = await createRandomFile();
+	// test('applyEdit should fail when editing deleted resource', async () => {
+	// 	const resource = await createRandomFile();
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.deleteResource(resource);
-		try {
-			edit.insert(resource, new vscode.Position(0, 0), '');
-			assert.fail(false, 'Should disallow edit of deleted resource');
-		} catch {
-			// noop
-		}
-	});
+	// 	const edit = new vscode.WorkspaceEdit();
+	// 	edit.deleteResource(resource);
+	// 	try {
+	// 		edit.insert(resource, new vscode.Position(0, 0), '');
+	// 		assert.fail(false, 'Should disallow edit of deleted resource');
+	// 	} catch {
+	// 		// noop
+	// 	}
+	// });
 
-	test('applyEdit should fail when renaming deleted resource', async () => {
-		const resource = await createRandomFile();
+	// test('applyEdit should fail when renaming deleted resource', async () => {
+	// 	const resource = await createRandomFile();
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.deleteResource(resource);
-		try {
-			edit.renameResource(resource, resource);
-			assert.fail(false, 'Should disallow rename of deleted resource');
-		} catch {
-			// noop
-		}
-	});
+	// 	const edit = new vscode.WorkspaceEdit();
+	// 	edit.deleteResource(resource);
+	// 	try {
+	// 		edit.renameResource(resource, resource);
+	// 		assert.fail(false, 'Should disallow rename of deleted resource');
+	// 	} catch {
+	// 		// noop
+	// 	}
+	// });
 
-	test('applyEdit should fail when editing renamed from resource', async () => {
-		const resource = await createRandomFile();
-		const newResource = vscode.Uri.parse(resource.fsPath + '.1');
-		const edit = new vscode.WorkspaceEdit();
-		edit.renameResource(resource, newResource);
-		try {
-			edit.insert(resource, new vscode.Position(0, 0), '');
-			assert.fail(false, 'Should disallow editing renamed file');
-		} catch {
-			// noop
-		}
-	});
+	// test('applyEdit should fail when editing renamed from resource', async () => {
+	// 	const resource = await createRandomFile();
+	// 	const newResource = vscode.Uri.parse(resource.fsPath + '.1');
+	// 	const edit = new vscode.WorkspaceEdit();
+	// 	edit.renameResource(resource, newResource);
+	// 	try {
+	// 		edit.insert(resource, new vscode.Position(0, 0), '');
+	// 		assert.fail(false, 'Should disallow editing renamed file');
+	// 	} catch {
+	// 		// noop
+	// 	}
+	// });
 });

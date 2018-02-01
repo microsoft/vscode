@@ -94,7 +94,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 
 		const dto: WorkspaceEditDto = { edits: [] };
 
-		for (let entry of edit.allEntries()) {
+		for (let entry of edit.entries()) {
 			let [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				let doc = this._extHostDocumentsAndEditors.getDocument(uri.toString());
@@ -103,8 +103,8 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 					modelVersionId: doc && doc.version,
 					edits: uriOrEdits.map(TypeConverters.TextEdit.from)
 				});
-			} else {
-				dto.edits.push({ oldUri: uri, newUri: uriOrEdits });
+				// } else {
+				// 	dto.edits.push({ oldUri: uri, newUri: uriOrEdits });
 			}
 		}
 
