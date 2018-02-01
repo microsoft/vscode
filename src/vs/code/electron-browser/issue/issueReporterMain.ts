@@ -51,6 +51,7 @@ export class IssueReporter extends Disposable {
 	private environmentService: IEnvironmentService;
 	private telemetryService: ITelemetryService;
 	private issueReporterModel: IssueReporterModel;
+	private shouldQueueSearch = true;
 
 	constructor(configuration: IssueReporterConfiguration) {
 		super();
@@ -222,7 +223,7 @@ export class IssueReporter extends Disposable {
 			this.issueReporterModel.update({ issueDescription: (<HTMLInputElement>event.target).value });
 		});
 
-		document.getElementById('issue-title').addEventListener('input', this.searchGitHub);
+		document.getElementById('issue-title').addEventListener('input', (e) => { this.searchGitHub(e); });
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
 
@@ -259,7 +260,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	@debounce(300)
-	private searchGitHub(event: Event) {
+	private searchGitHub(event: Event): void {
 		const title = (<HTMLInputElement>event.target).value;
 		const similarIssues = document.getElementById('similar-issues');
 		if (title) {
@@ -292,23 +293,41 @@ export class IssueReporter extends Disposable {
 						similarIssues.appendChild(message);
 					} else {
 						const message = $('div.list-title');
-						message.textContent = localize('rateLimited', "API rate limit exceeded");
+						message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
 						similarIssues.appendChild(message);
+
+						const resetTime = response.headers.get('X-RateLimit-Reset');
+						const timeToWait = parseInt(resetTime) - Math.floor(Date.now() / 1000);
+						if (this.shouldQueueSearch) {
+							this.shouldQueueSearch = false;
+							setTimeout(() => {
+								this.searchGitHub(event);
+								this.shouldQueueSearch = true;
+							}, timeToWait * 1000);
+						}
+
+						throw new Error(result.message);
 					}
+				}).catch((error) => {
+					this.logSearchError(error);
 				});
 			}).catch((error) => {
-				// TODO: Use LogService here.
-				console.log(error);
-				/* __GDPR__
-				"issueReporterSearchError" : {
-						"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-					}
-				*/
-				this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
+				this.logSearchError(error);
 			});
 		} else {
 			similarIssues.innerHTML = '';
 		}
+	}
+
+	private logSearchError(error: Error) {
+		// TODO: Use LogService here.
+		console.log(error);
+		/* __GDPR__
+		"issueReporterSearchError" : {
+				"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
+		this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
 	}
 
 	private renderBlocks(): void {
