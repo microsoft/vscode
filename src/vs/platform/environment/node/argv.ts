@@ -142,7 +142,7 @@ const optionsHelp: { [name: string]: string; } = {
 	'-r, --reuse-window': localize('reuseWindow', "Force to open a file or folder in the last active window."),
 	'-w, --wait': localize('wait', "Wait for the files to be closed before returning."),
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
-	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open two distinct instances of Code."),
+	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code."),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };
