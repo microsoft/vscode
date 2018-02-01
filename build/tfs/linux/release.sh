@@ -9,9 +9,6 @@ step "Build Debian package" \
 step "Build RPM package" \
 	npm run gulp -- "vscode-linux-$ARCH-build-rpm"
 
-step "Build snap package" \
-	npm run gulp -- "vscode-linux-$ARCH-build-snap"
-
 # Variables
 PLATFORM_LINUX="linux-$ARCH"
 PLATFORM_DEB="linux-deb-$ARCH"
@@ -48,17 +45,6 @@ RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
 
 step "Publish RPM package" \
 	node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_RPM package $RPM_FILENAME $VERSION true $RPM_PATH
-
-SNAP_FILENAME="$(ls $REPO/.build/linux/snap/$ARCH/ | grep .snap)"
-SNAP_PATH="$REPO/.build/linux/snap/$ARCH/$SNAP_FILENAME"
-
-echo SNAP_FILENAME
-echo $SNAP_FILENAME
-echo SNAP_PATH
-echo $SNAP_PATH
-
-step "Publish Snap package" \
-	node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_SNAP package $SNAP_FILENAME $VERSION true $SNAP_PATH
 
 IS_FROZEN="$(node build/tfs/linux/frozen-check.js $VSCODE_QUALITY)"
 

@@ -27,10 +27,7 @@ else
 	if [ -z "$SNAPCRAFT_LOGIN" ] || [ -z "$SNAPCRAFT_MACAROON" ] || [ -z "$SNAPCRAFT_UNBOUND_DISCHARGE" ]; then
 		echo "SNAPCRAFT* env vars not set, skipping repo package publish"
 	else
-		LOGIN_FILE=snapcraft_login_file
-		echo -e '[login.ubuntu.com]\nmacaroon = '$SNAPCRAFT_MACAROON'\nunbound_discharge = '$SNAPCRAFT_UNBOUND_DISCHARGE'\nemail = '$VSCODE_SNAP_LOGIN'\n' > $LOGIN_FILE
-		snapcraft login --with $LOGIN_FILE
-
+		IS_FROZEN="$(node build/tfs/linux/frozen-check.js $VSCODE_QUALITY)"
 		AUTO_RELEASE=0
 		if [ "$IS_FROZEN" != "true" ]; then
 			if [ "$BUILD_SOURCEBRANCH" = "master" ] || [ "$BUILD_SOURCEBRANCH" = "refs/heads/master" ]; then
@@ -42,6 +39,9 @@ else
 			fi
 		fi
 
+		LOGIN_FILE=snapcraft_login_file
+		echo -e '[login.ubuntu.com]\nmacaroon = '$SNAPCRAFT_MACAROON'\nunbound_discharge = '$SNAPCRAFT_UNBOUND_DISCHARGE'\nemail = '$VSCODE_SNAP_LOGIN'\n' > $LOGIN_FILE
+		snapcraft login --with $LOGIN_FILE
 		if [ "$AUTO_RELEASE" = "1" ]; then
 			echo "Pushing and releasing to Snap Store stable channel"
 			snapcraft push $SNAP_PATH --release stable
