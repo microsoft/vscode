@@ -335,7 +335,7 @@ interface ImageState {
 }
 
 class InlineImageView {
-	private static readonly SCALE_PINCH_FACTOR = 0.05;
+	private static readonly SCALE_PINCH_FACTOR = 0.01;
 	private static readonly MAX_SCALE = 20;
 	private static readonly MIN_SCALE = 0.1;
 
@@ -510,6 +510,10 @@ class InlineImageView {
 				if (!e.ctrlKey) {
 					return;
 				}
+
+				e.preventDefault();
+				e.stopPropagation();
+
 				if (scale === 'fit') {
 					firstZoom();
 				}
