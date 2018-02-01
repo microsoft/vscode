@@ -29,17 +29,31 @@ echo $SNAPCRAFT_UNBOUND_DISCHARGE
 
 if [ -z "$VSCODE_QUALITY" ]; then
 	echo "VSCODE_QUALITY is not set, skipping repo package publish"
-elif [ "$IS_FROZEN" = "true" ]; then
-	echo "$VSCODE_QUALITY is frozen, skipping repo package publish"
-elif [ -z "$SNAPCRAFT_LOGIN" ] || [ -z "$SNAPCRAFT_MACAROON" ] || [ -z "$SNAPCRAFT_UNBOUND_DISCHARGE" ]; then
-	echo "SNAPCRAFT* env vars not set, skipping repo package publish"
 else
-	#if [ "$BUILD_SOURCEBRANCH" = "master" ] || [ "$BUILD_SOURCEBRANCH" = "refs/heads/master" ]; then
-	#	if [[ $BUILD_QUEUEDBY = *"Project Collection Service Accounts"* || $BUILD_QUEUEDBY = *"Microsoft.VisualStudio.Services.TFS"* ]]; then
-			LOGIN_FILE=snapcraft_login_file
-			echo -e '[login.ubuntu.com]\nmacaroon = '$SNAPCRAFT_MACAROON'\nunbound_discharge = '$SNAPCRAFT_UNBOUND_DISCHARGE'\nemail = '$VSCODE_SNAP_LOGIN'\n' > $LOGIN_FILE
-			snapcraft login --with $LOGIN_FILE
+	if [ -z "$SNAPCRAFT_LOGIN" ] || [ -z "$SNAPCRAFT_MACAROON" ] || [ -z "$SNAPCRAFT_UNBOUND_DISCHARGE" ]; then
+		echo "SNAPCRAFT* env vars not set, skipping repo package publish"
+	else
+		LOGIN_FILE=snapcraft_login_file
+		echo -e '[login.ubuntu.com]\nmacaroon = '$SNAPCRAFT_MACAROON'\nunbound_discharge = '$SNAPCRAFT_UNBOUND_DISCHARGE'\nemail = '$VSCODE_SNAP_LOGIN'\n' > $LOGIN_FILE
+		snapcraft login --with $LOGIN_FILE
+
+		AUTO_RELEASE=0
+		if [ "$IS_FROZEN" != "true" ]; then
+			if [ "$BUILD_SOURCEBRANCH" = "master" ] || [ "$BUILD_SOURCEBRANCH" = "refs/heads/master" ]; then
+				if [[ $BUILD_QUEUEDBY = *"Project Collection Service Accounts"* || $BUILD_QUEUEDBY = *"Microsoft.VisualStudio.Services.TFS"* ]]; then
+					if [ "$VSCODE_QUALITY" = "insiders" ]; then
+						AUTO_RELEASE=1
+					fi
+				fi
+			fi
+		fi
+
+		if [ "$AUTO_RELEASE" = "1" ]; then
+			echo "Pushing and releasing to Snap Store stable channel"
+			snapcraft push $SNAP_PATH --release stable
+		else
+			echo "Pushing to Snap Store"
 			snapcraft push $SNAP_PATH
-	#	fi
-	#fi
+		fi
+	fi
 fi
