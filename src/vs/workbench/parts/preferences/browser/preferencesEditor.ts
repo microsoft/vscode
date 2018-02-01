@@ -113,6 +113,7 @@ export class PreferencesEditor extends BaseEditor {
 	private preferencesRenderers: PreferencesRenderersController;
 
 	private delayedFilterLogging: Delayer<void>;
+	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
 	private _lastReportedFilter: string;
 
@@ -131,6 +132,7 @@ export class PreferencesEditor extends BaseEditor {
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
 		this.focusSettingsContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
+		this.localSearchDelayer = new Delayer(100);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
 	}
 
@@ -247,7 +249,7 @@ export class PreferencesEditor extends BaseEditor {
 	private onInputChanged(): void {
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
-		this.triggerThrottledSearch(query)
+		this.triggerSearch(query)
 			.then(() => {
 				const result = this.preferencesRenderers.lastFilterResult;
 				if (result) {
@@ -259,15 +261,17 @@ export class PreferencesEditor extends BaseEditor {
 			});
 	}
 
-	private triggerThrottledSearch(query: string): TPromise<void> {
+	private triggerSearch(query: string): TPromise<void> {
 		if (query) {
-			return this.remoteSearchThrottle.trigger(() => {
-				this.preferencesRenderers.localFilterPreferences(query);
-				return this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500);
-			});
+			return TPromise.join([
+				this.localSearchDelayer.trigger(() => this.preferencesRenderers.localFilterPreferences(query)),
+				this.remoteSearchThrottle.trigger(() => this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500))
+			]) as TPromise;
 		} else {
-			this.preferencesRenderers.localFilterPreferences(query);
 			// When clearing the input, update immediately to clear it
+			this.localSearchDelayer.cancel();
+			this.preferencesRenderers.localFilterPreferences(query);
+
 			this.remoteSearchThrottle.cancel();
 			return this.preferencesRenderers.remoteSearchPreferences(query);
 		}
