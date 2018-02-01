@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { join } from 'vs/base/common/paths';
 import { mkdirp, dirExists } from 'vs/base/node/pfs';
 import Event from 'vs/base/common/event';
 import { LogLevel } from 'vs/workbench/api/node/extHostTypes';
@@ -22,11 +22,11 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 	private _loggers: Map<string, ExtHostLogger> = new Map();
 
 	constructor(
-		windowId: number,
+		private _windowId: number,
 		logLevel: LogLevel,
 		private _environmentService: IEnvironmentService
 	) {
-		super(createSpdLogService(`exthost${windowId}`, logLevel, _environmentService.logsPath));
+		super(createSpdLogService(`exthost${_windowId}`, logLevel, _environmentService.logsPath));
 	}
 
 	$setLevel(level: LogLevel): void {
@@ -43,8 +43,8 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 	}
 
 	private createLogger(extensionID: string): ExtHostLogger {
-		const logService = createSpdLogService(extensionID, this.getLevel(), this._environmentService.logsPath, extensionID);
-		const logsDirPath = path.join(this._environmentService.logsPath, extensionID);
+		const logsDirPath = join(this._environmentService.logsPath, `${extensionID}_${this._windowId}`);
+		const logService = createSpdLogService(extensionID, this.getLevel(), logsDirPath);
 		this._register(this.onDidChangeLogLevel(level => logService.setLevel(level)));
 		return new ExtHostLogger(logService, logsDirPath);
 	}

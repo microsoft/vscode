@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 var path = require('path');
+var fs = require('fs');
 var loader = require('./vs/loader');
 
 function uriFromPath(_path) {
@@ -16,8 +17,39 @@ function uriFromPath(_path) {
 	return encodeURI('file://' + pathName);
 }
 
+function readFile(file) {
+	return new Promise(function(resolve, reject) {
+		fs.readFile(file, 'utf8', function(err, data) {
+			if (err) {
+				reject(err);
+				return;
+			}
+			resolve(data);
+		});
+	});
+}
+
 var rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
 var nlsConfig = rawNlsConfig ? JSON.parse(rawNlsConfig) : { availableLanguages: {} };
+
+// We have a special location of the nls files. They come from a language pack
+if (nlsConfig._resolvedLanguagePackCoreLocation) {
+	let bundles = Object.create(null);
+	nlsConfig.loadBundle = function(bundle, language, cb) {
+		let result = bundles[bundle];
+		if (result) {
+			cb(undefined, result);
+			return;
+		}
+		let bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
+		readFile(bundleFile).then(function (content) {
+			let json = JSON.parse(content);
+			bundles[bundle] = json;
+			cb(undefined, json);
+		})
+		.catch(cb);
+	};
+}
 
 loader.config({
 	baseUrl: uriFromPath(__dirname),

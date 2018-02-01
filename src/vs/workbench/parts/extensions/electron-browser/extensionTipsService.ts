@@ -19,7 +19,7 @@ import { IChoiceService, IMessageService } from 'vs/platform/message/common/mess
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
-import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
@@ -31,7 +31,11 @@ import { flatten, distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { ShowLanguageExtensionsAction } from 'vs/workbench/browser/parts/editor/editorStatus';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { getHashedRemotesFromUri } from 'vs/workbench/parts/stats/node/workspaceStats';
+import { IRequestService } from 'vs/platform/request/node/request';
+import { asJson } from 'vs/base/node/request';
+import { isNumber } from 'vs/base/common/types';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -42,6 +46,11 @@ const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't show again");
 const choiceClose = localize('close', "Close");
 
+interface IDynamicWorkspaceRecommendations {
+	remoteSet: string[];
+	recommendations: string[];
+}
+
 export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
 	_serviceBrand: any;
@@ -49,9 +58,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _fileBasedRecommendations: { [id: string]: number; } = Object.create(null);
 	private _exeBasedRecommendations: { [id: string]: string; } = Object.create(null);
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
-	private _disposables: IDisposable[] = [];
-
 	private _allWorkspaceRecommendedExtensions: string[] = [];
+	private _dynamicWorkspaceRecommendations: string[] = [];
+	private _extensionsRecommendationsUrl: string;
+	private _disposables: IDisposable[] = [];
 	public promptWorkspaceRecommendationsPromise: TPromise<any>;
 
 	constructor(
@@ -67,17 +77,20 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@IExtensionService private extensionService: IExtensionService,
+		@IRequestService private requestService: IRequestService
 	) {
 		super();
 
-		if (!this._galleryService.isEnabled() || this.environmentService.extensionDevelopmentPath) {
+		if (!this.isEnabled()) {
 			return;
 		}
 
-		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-			this._suggestFileBasedRecommendations();
-		});
+		if (product.extensionsGallery && product.extensionsGallery.recommendationsUrl) {
+			this._extensionsRecommendationsUrl = product.extensionsGallery.recommendationsUrl;
+		}
+		this.getDynamicWorkspaceRecommendations();
+		this._suggestFileBasedRecommendations();
 
 		this.promptWorkspaceRecommendationsPromise = this._suggestWorkspaceRecommendations();
 
@@ -87,15 +100,23 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
 	}
 
+	private isEnabled(): boolean {
+		return this._galleryService.isEnabled() && !this.environmentService.extensionDevelopmentPath;
+	}
+
 	getAllRecommendationsWithReason(): { [id: string]: string; } {
 		let output: { [id: string]: string; } = Object.create(null);
 		this._allWorkspaceRecommendedExtensions.forEach(x => output[x.toLowerCase()] = localize('workspaceRecommendation', "This extension is recommended by users of the current workspace."));
 		Object.keys(this._fileBasedRecommendations).forEach(x => output[x.toLowerCase()] = output[x.toLowerCase()] || localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened."));
 		forEach(this._exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = output[entry.key.toLowerCase()] || localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", entry.value));
+		this._dynamicWorkspaceRecommendations.forEach(x => output[x.toLowerCase()] = output[x.toLowerCase()] || localize('dynamicWorkspaceRecommendation', "This extension might interest you because many other users of the current workspace use it."));
 		return output;
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
+		if (!this.isEnabled()) {
+			return TPromise.as([]);
+		}
 		const workspace = this.contextService.getWorkspace();
 		return TPromise.join([this.resolveWorkspaceRecommendations(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder))])
 			.then(recommendations => {
@@ -197,7 +218,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	getOtherRecommendations(): string[] {
-		return Object.keys(this._exeBasedRecommendations);
+		if (!this._dynamicWorkspaceRecommendations || !this._dynamicWorkspaceRecommendations.length) {
+			return Object.keys(this._exeBasedRecommendations);
+		}
+		const coinToss = Math.round(Math.random());
+		return distinct(coinToss
+			? [...Object.keys(this._exeBasedRecommendations), ...this._dynamicWorkspaceRecommendations]
+			: [...this._dynamicWorkspaceRecommendations, ...Object.keys(this._exeBasedRecommendations)]);
 	}
 
 	getKeymapRecommendations(): string[] {
@@ -261,6 +288,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		this._modelService.onModelAdded(this._suggest, this, this._disposables);
 		this._modelService.getModels().forEach(model => this._suggest(model));
+	}
+
+	private getMimeTypes(path: string): TPromise<string[]> {
+		return this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			return guessMimeTypes(path);
+		});
 	}
 
 	private _suggest(model: ITextModel): void {
@@ -380,10 +413,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				});
 			});
 
-			importantTipsPromise.then(() => {
+			const mimeTypesPromise = this.getMimeTypes(uri.fsPath);
+			TPromise.join([importantTipsPromise, mimeTypesPromise]).then(result => {
+
 				const fileExtensionSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get
 					('extensionsAssistant/fileExtensionsSuggestionIgnore', StorageScope.GLOBAL, '[]'));
-				let mimeTypes = guessMimeTypes(uri.fsPath);
+				const mimeTypes = result[1];
 				let fileExtension = paths.extname(uri.fsPath);
 				if (fileExtension) {
 					fileExtension = fileExtension.substr(1); // Strip the dot
@@ -605,6 +640,70 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 			this.storageService.store(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);
 		}
+	}
+
+	private getDynamicWorkspaceRecommendations(): TPromise<void> {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+			return TPromise.as(null);
+		}
+
+		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
+		let storedRecommendationsJson = {};
+		try {
+			storedRecommendationsJson = JSON.parse(this.storageService.get(storageKey, StorageScope.WORKSPACE, '{}'));
+		} catch (e) {
+			this.storageService.remove(storageKey, StorageScope.WORKSPACE);
+		}
+
+		if (Array.isArray(storedRecommendationsJson['recommendations'])
+			&& isNumber(storedRecommendationsJson['timestamp'])
+			&& storedRecommendationsJson['timestamp'] > 0
+			&& (Date.now() - storedRecommendationsJson['timestamp']) / milliSecondsInADay < 14) {
+			this._dynamicWorkspaceRecommendations = storedRecommendationsJson['recommendations'];
+			return TPromise.as(null);
+		}
+
+		if (!this._extensionsRecommendationsUrl) {
+			return TPromise.as(null);
+		}
+
+		return getHashedRemotesFromUri(this.contextService.getWorkspace().folders[0].uri, this.fileService).then(hashedRemotes => {
+			if (!hashedRemotes || !hashedRemotes.length) {
+				return null;
+			}
+
+			return new TPromise((c, e) => {
+				setTimeout(() => {
+					this.requestService.request({ type: 'GET', url: this._extensionsRecommendationsUrl }).then(context => {
+						if (context.res.statusCode !== 200) {
+							return c(null);
+						}
+						return asJson(context).then((result) => {
+							const allRecommendations: IDynamicWorkspaceRecommendations[] = Array.isArray(result['workspaceRecommendations']) ? result['workspaceRecommendations'] : [];
+							if (!allRecommendations.length) {
+								return c(null);
+							}
+
+							let foundRemote = false;
+							for (let i = 0; i < hashedRemotes.length && !foundRemote; i++) {
+								for (let j = 0; j < allRecommendations.length && !foundRemote; j++) {
+									if (Array.isArray(allRecommendations[j].remoteSet) && allRecommendations[j].remoteSet.indexOf(hashedRemotes[i]) > -1) {
+										foundRemote = true;
+										this._dynamicWorkspaceRecommendations = allRecommendations[j].recommendations || [];
+										this.storageService.store(storageKey, JSON.stringify({
+											recommendations: this._dynamicWorkspaceRecommendations,
+											timestamp: Date.now()
+										}), StorageScope.WORKSPACE);
+									}
+								}
+							}
+
+							return c(null);
+						});
+					});
+				}, 10000);
+			});
+		});
 	}
 
 	getKeywordsForExtension(extension: string): string[] {

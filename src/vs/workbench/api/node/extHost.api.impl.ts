@@ -261,7 +261,7 @@ export function createApiFactory(
 				return extHostLanguageFeatures.registerReferenceProvider(selector, provider);
 			},
 			registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerRenameProvider(selector, provider);
+				return extHostLanguageFeatures.registerRenameProvider(selector, provider, extension.enableProposedApi);
 			},
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentSymbolProvider(selector, provider);
@@ -419,6 +419,9 @@ export function createApiFactory(
 			set name(value) {
 				throw errors.readonly();
 			},
+			updateWorkspaceFolders: proposedApiFunction(extension, (index, deleteCount, ...workspaceFoldersToAdd) => {
+				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount, ...workspaceFoldersToAdd);
+			}),
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},
@@ -538,7 +541,13 @@ export function createApiFactory(
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
-			}
+			},
+			addBreakpoints: proposedApiFunction(extension, (breakpoints: vscode.Breakpoint[]) => {
+				return extHostDebugService.addBreakpoints(breakpoints);
+			}),
+			removeBreakpoints: proposedApiFunction(extension, (breakpoints: vscode.Breakpoint[]) => {
+				return extHostDebugService.removeBreakpoints(breakpoints);
+			})
 		};
 
 
@@ -567,6 +576,7 @@ export function createApiFactory(
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionList: extHostTypes.CompletionList,
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
+			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
 			Diagnostic: extHostTypes.Diagnostic,
 			DiagnosticSeverity: extHostTypes.DiagnosticSeverity,
 			Disposable: extHostTypes.Disposable,
@@ -592,6 +602,7 @@ export function createApiFactory(
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolKind: extHostTypes.SymbolKind,
+			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
 			TextEdit: extHostTypes.TextEdit,
 			TextEditorCursorStyle: TextEditorCursorStyle,

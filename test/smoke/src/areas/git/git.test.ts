@@ -12,8 +12,9 @@ const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[t
 
 export function setup() {
 	describe('Git', () => {
-		before(function () {
-			this.app.suiteName = 'Git';
+		before(async function () {
+			const app = this.app as SpectronApplication;
+			app.suiteName = 'Git';
 		});
 
 		it('reflects working tree changes', async function () {

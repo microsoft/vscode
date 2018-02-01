@@ -177,6 +177,7 @@ export interface ISearchConfigurationProperties {
 	useIgnoreFiles: boolean;
 	followSymlinks: boolean;
 	smartCase: boolean;
+	globalFindClipboard: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

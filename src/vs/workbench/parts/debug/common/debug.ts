@@ -223,6 +223,7 @@ export interface IEnablement extends ITreeElement {
 }
 
 export interface IRawBreakpoint {
+	id?: string;
 	lineNumber: number;
 	column?: number;
 	enabled?: boolean;
@@ -401,6 +402,7 @@ export interface IDebugConfigurationProvider {
 	handle: number;
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;
+	debugAdapterExecutable(folderUri: uri | undefined): TPromise<IAdapterExecutable>;
 }
 
 export interface IConfigurationManager {
@@ -427,7 +429,9 @@ export interface IConfigurationManager {
 
 	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
 	unregisterDebugConfigurationProvider(handle: number): void;
+
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
+	debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined>;
 }
 
 export interface ILaunch {
@@ -442,7 +446,15 @@ export interface ILaunch {
 	 */
 	name: string;
 
+	/**
+	 * Workspace of the launch. Can be null.
+	 */
 	workspace: IWorkspaceFolder;
+
+	/**
+	 * Should this launch be shown in the debug dropdown.
+	 */
+	hidden: boolean;
 
 	/**
 	 * Returns a configuration with the specified name.
@@ -549,9 +561,9 @@ export interface IDebugService {
 	removeBreakpoints(id?: string): TPromise<any>;
 
 	/**
-	 * Adds a new no name function breakpoint. The function breakpoint should be renamed once user enters the name.
+	 * Adds a new function breakpoint for the given name.
 	 */
-	addFunctionBreakpoint(): void;
+	addFunctionBreakpoint(name?: string, id?: string): void;
 
 	/**
 	 * Renames an already existing function breakpoint.

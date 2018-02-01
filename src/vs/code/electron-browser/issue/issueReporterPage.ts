@@ -24,7 +24,7 @@ export default (): string => `
 
 	<div class="input-group">
 		<label for="issue-title">${escape(localize('issueTitleLabel', "Title"))} <span class="required-input">*</span></label>
-		<div id="issue-title-validation-error" class="validation-error hidden">${escape(localize('issueTitleRequired', "Please enter a title."))}</div>
+		<div id="issue-title-validation-error" class="validation-error hidden" role="alert">${escape(localize('issueTitleRequired', "Please enter a title."))}</div>
 		<input id="issue-title" type="text" required>
 		<small id="similar-issues">
 			<!-- To be dynamically filled -->
@@ -33,11 +33,11 @@ export default (): string => `
 
 	<div class="input-group">
 		<div class="two-col">
-			<label for="vscode-version">${escape(localize('vscodeVersion', "VS Code Version"))} <span class="required-input">*</span></label>
+			<label for="vscode-version">${escape(localize('vscodeVersion', "VS Code Version"))}</label>
 			<input id="vscode-version" type="text" value="${pkg.name} ${pkg.version}" disabled/>
 		</div>
 		<div class="two-col">
-			<label for="os">${escape(localize('osVersion', "OS Version"))} <span class="required-input">*</span></label>
+			<label for="os">${escape(localize('osVersion', "OS Version"))}</label>
 			<input id="os" type="text" value="${os.type()} ${os.arch()} ${os.release()}" disabled/>
 		</div>
 	</div>
@@ -46,7 +46,7 @@ export default (): string => `
 		<div class="block block-system">
 			<details>
 				<summary>${escape(localize('systemInfo', "My System Info"))}
-					<input type="checkbox" id="includeSystemInfo" checked>
+					<input class="sendData" type="checkbox" id="includeSystemInfo" checked>
 						<label class="caption" for="includeSystemInfo">${escape(localize('sendData', "Send my data"))}</label>
 					</input>
 				</summary>
@@ -58,7 +58,7 @@ export default (): string => `
 		<div class="block block-process">
 			<details>
 				<summary>${escape(localize('processes', "Currently Running Processes"))}
-					<input type="checkbox" id="includeProcessInfo" checked>
+					<input class="sendData"  type="checkbox" id="includeProcessInfo" checked>
 						<label class="caption" for="includeProcessInfo">${escape(localize('sendData', "Send my data"))}</label>
 					</input>
 				</summary>
@@ -70,7 +70,7 @@ export default (): string => `
 		<div class="block block-workspace">
 			<details>
 				<summary>${escape(localize('workspaceStats', "My Workspace Stats"))}
-					<input type="checkbox" id="includeWorkspaceInfo" checked>
+					<input class="sendData"  type="checkbox" id="includeWorkspaceInfo" checked>
 						<label class="caption" for="includeWorkspaceInfo">${escape(localize('sendData', "Send my data"))}</label>
 					</input>
 				</summary>
@@ -83,8 +83,8 @@ export default (): string => `
 		</div>
 		<div class="block block-extensions">
 			<details>
-				<summary>${escape(localize('extensions', "Extensions"))}
-					<input type="checkbox" id="includeExtensions" checked>
+				<summary>${escape(localize('extensions', "My Extensions"))}
+					<input class="sendData"  type="checkbox" id="includeExtensions" checked>
 						<label class="caption" for="includeExtensions">${escape(localize('sendData', "Send my data"))}</label>
 					</input>
 				</summary>
@@ -92,6 +92,12 @@ export default (): string => `
 					<!-- To be dynamically filled -->
 				</div>
 			</details>
+			<div>
+				<input type="checkbox" id="reprosWithoutExtensions">
+				<label for="reprosWithoutExtensions">${escape(localize('tryDisablingExtensions', "The problem is reproducible when extensions are disabled"))}</label>
+				<div class="instructions">Try to reproduce the problem after <button id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</button>.</div>
+				<div class="instructions">If you suspect it's an extension issue, <button id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "see all running extensions"))}</button>.</div>
+			</div>
 		</div>
 	</div>
 
@@ -99,12 +105,12 @@ export default (): string => `
 		<label for="description" id="issue-description-label">
 			<!-- To be dynamically filled -->
 		</label>
-		<small id="issue-description-subtitle">
+		<div class="instructions" id="issue-description-subtitle">
 			<!-- To be dynamically filled -->
-		</small>
+		</div>
 		<div class="block-info-text">
-			<small>${escape(localize('githubMarkdown', "We support GitHub-flavored Markdown. You will still be able to edit your issue and add screenshots when we preview it on GitHub."))}</small>
-			<div id="description-validation-error" class="validation-error hidden">${escape(localize('issueDescriptionRequired', "Please enter a description."))}</div>
+			<div class="instructions">${escape(localize('githubMarkdown', "We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."))}</div>
+			<div id="description-validation-error" class="validation-error hidden" role="alert">${escape(localize('issueDescriptionRequired', "Please enter a description."))}</div>
 			<textarea name="description" id="description" cols="100" rows="15" required></textarea>
 		</div>
 	</div>

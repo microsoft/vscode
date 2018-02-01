@@ -624,4 +624,10 @@ suite('SnippetParser', () => {
 		const clone = transform.clone();
 		assert.equal(clone.resolve('my-file-name'), 'MyFileName');
 	});
+
+	test('problem with snippets regex #40570', function () {
+
+		const snippet = new SnippetParser().parse('${TM_DIRECTORY/.*src[\\/](.*)/$1/}');
+		assertMarker(snippet, Variable);
+	});
 });

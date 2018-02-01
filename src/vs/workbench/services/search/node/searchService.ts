@@ -90,6 +90,7 @@ export class SearchService implements ISearchService {
 			// Allow caller to register progress callback
 			process.nextTick(() => localResults.values().filter((res) => !!res).forEach(onProgress));
 
+			this.logService.trace('SearchService#search', JSON.stringify(query));
 			const providerPromises = this.searchProvider.map(provider => TPromise.wrap(provider.search(query)).then(e => e,
 				err => {
 					// TODO@joh
@@ -108,7 +109,7 @@ export class SearchService implements ISearchService {
 					}
 
 					if (progress.message) {
-						this.logService.info('SearchService#search', progress.message);
+						this.logService.debug('SearchService#search', progress.message);
 					}
 				}
 			));

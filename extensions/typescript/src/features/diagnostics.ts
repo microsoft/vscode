@@ -94,4 +94,8 @@ export default class DiagnosticsManager {
 		const syntaxDiagnostics = this.syntaxDiagnostics.get(file);
 		this.currentDiagnostics.set(file, semanticDiagnostics.concat(syntaxDiagnostics));
 	}
+
+	public getDiagnostics(file: Uri): Diagnostic[] {
+		return this.currentDiagnostics.get(file) || [];
+	}
 }

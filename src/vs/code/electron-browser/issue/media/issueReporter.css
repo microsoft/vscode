@@ -49,13 +49,6 @@ textarea {
 	overflow: auto;
 	resize: vertical;
 }
-small {
-	color: #868e96;
-	display: block;
-	margin-top: .25rem;
-	font-size: 80%;
-	font-weight: 400;
-}
 
 /**
  * Button
@@ -72,6 +65,7 @@ button {
 	font-size: 1rem;
 	border-radius: .25rem;
 	background: none;
+	border: 1px solid transparent;
 }
 
 select {
@@ -130,7 +124,7 @@ button:disabled {
 }
 
 #issue-reporter {
-	max-width: 80vw;
+	max-width: 85vw;
 	margin-left: auto;
 	margin-right: auto;
 	margin-top: 2em;
@@ -140,7 +134,6 @@ button:disabled {
 	float: right;
 	margin-top: 10px;
 	margin-bottom: 10px;
-
 }
 
 .two-col {
@@ -179,8 +172,11 @@ summary {
 	height: 18px;
 }
 
-input[type="checkbox"] {
+.sendData {
 	margin-left: 1em;
+}
+
+input[type="checkbox"] {
 	height: 18px;
 	width: auto;
 	display: inline-block;
@@ -195,6 +191,26 @@ input:disabled {
 .list-title {
 	margin-top: 1em;
 	margin-left: 1em;
+}
+
+.instructions {
+	font-size: 12px;
+	margin-left: 1em;
+	margin-top: .5em;
+}
+
+.workbenchCommand {
+	padding: 0;
+	font-size: 12px;
+	background: transparent;
+}
+
+.workbenchCommand:disabled {
+	color: #868e96;
+}
+
+.block-extensions .block-info {
+	margin-bottom: 1.5em;
 }
 
 /* Default styles, overwritten if a theme is provided */
@@ -219,5 +235,4 @@ a {
 button {
 	background-color: #007ACC;
 	color: #fff;
-	border: none;
 }

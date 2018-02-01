@@ -7,26 +7,26 @@
 
 import { assign } from 'vs/base/common/objects';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-
-export enum IssueType {
-	Bug,
-	PerformanceIssue,
-	FeatureRequest
-}
+import { IssueType } from 'vs/platform/issue/common/issue';
 
 export interface IssueReporterData {
 	issueType?: IssueType;
 	issueDescription?: string;
+
 	versionInfo?: any;
 	systemInfo?: any;
 	processInfo?: any;
 	workspaceInfo?: any;
+
 	includeSystemInfo?: boolean;
 	includeWorkspaceInfo?: boolean;
 	includeProcessInfo?: boolean;
 	includeExtensions?: boolean;
+
 	numberOfThemeExtesions?: number;
 	enabledNonThemeExtesions?: ILocalExtension[];
+	extensionsDisabled?: boolean;
+	reprosWithoutExtensions?: boolean;
 }
 
 export class IssueReporterModel {
@@ -77,13 +77,9 @@ ${this.getInfos()}
 	private getInfos(): string {
 		let info = '';
 
-		if (this._data.includeSystemInfo) {
-			info += this.generateSystemInfoMd();
-		}
-
-		if (this._data.issueType === IssueType.Bug) {
-			if (this._data.includeExtensions) {
-				info += this.generateExtensionsMd();
+		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
+			if (this._data.includeSystemInfo) {
+				info += this.generateSystemInfoMd();
 			}
 		}
 
@@ -96,10 +92,14 @@ ${this.getInfos()}
 			if (this._data.includeWorkspaceInfo) {
 				info += this.generateWorkspaceInfoMd();
 			}
+		}
 
+		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
 			if (this._data.includeExtensions) {
 				info += this.generateExtensionsMd();
 			}
+
+			info += this._data.reprosWithoutExtensions ? '\nReproduces without extensions' : '\nReproduces only with extensions';
 		}
 
 		return info;
@@ -152,6 +152,10 @@ ${this._data.workspaceInfo};
 	}
 
 	private generateExtensionsMd(): string {
+		if (this._data.extensionsDisabled) {
+			return 'Extensions disabled';
+		}
+
 		const themeExclusionStr = this._data.numberOfThemeExtesions ? `\n(${this._data.numberOfThemeExtesions} theme extensions excluded)` : '';
 
 		if (!this._data.enabledNonThemeExtesions) {

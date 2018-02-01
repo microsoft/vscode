@@ -171,7 +171,7 @@ export class FeedbackDropdown extends Dropdown {
 		$('div').append($('a').attr('target', '_blank').attr('href', '#').text(nls.localize("submit a bug", "Submit a bug")).attr('tabindex', '0'))
 			.on('click', event => {
 				dom.EventHelper.stop(event);
-				this.commandService.executeCommand('workbench.action.reportIssues').done(null, errors.onUnexpectedError);
+				this.commandService.executeCommand('workbench.action.openIssueReporter').done(null, errors.onUnexpectedError);
 			})
 			.appendTo($contactUsContainer);
 
@@ -293,7 +293,7 @@ export class FeedbackDropdown extends Dropdown {
 			this.autoHideTimeout = null;
 		}
 
-		if (!this.hideButton.checked) {
+		if (this.hideButton && !this.hideButton.checked) {
 			this.configurationService.updateValue(FEEDBACK_VISIBLE_CONFIG, false).done(null, errors.onUnexpectedError);
 		}
 

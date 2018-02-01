@@ -362,7 +362,7 @@ class DefineKeybindingCommand extends EditorCommand {
 	constructor() {
 		super({
 			id: DefineKeybindingCommand.ID,
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.languageId.isEqualTo('json')),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.languageId.isEqualTo('jsonc')),
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)

@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind } from 'vscode';
 import { join } from 'path';
-import { closeAllEditors, pathEquals, createRandomFile } from './utils';
+import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
 
 suite('window namespace tests', () => {
 

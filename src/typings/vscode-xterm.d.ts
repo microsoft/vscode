@@ -197,6 +197,34 @@ declare module 'vscode-xterm' {
 		 * default value is 0.
 		 */
 		priority?: number;
+
+		/**
+		 * A callback that fires when the mousedown and click events occur that
+		 * determines whether a link will be activated upon click. This enables
+		 * only activating a link when a certain modifier is held down, if not the
+		 * mouse event will continue propagation (eg. double click to select word).
+		 */
+		willLinkActivate?: (event: MouseEvent, uri: string) => boolean;
+	}
+
+	export interface IEventEmitter {
+	  on(type: string, listener: (...args: any[]) => void): void;
+	  off(type: string, listener: (...args: any[]) => void): void;
+	  emit(type: string, data?: any): void;
+	  addDisposableListener(type: string, handler: (...args: any[]) => void): IDisposable;
+	}
+
+	/**
+	 * An object that can be disposed via a dispose function.
+	 */
+	export interface IDisposable {
+	  dispose(): void;
+	}
+
+	export interface ILocalizableStrings {
+	  blankLine: string;
+	  promptLabel: string;
+	  tooMuchOutput: string;
 	}
 
 	/**
@@ -222,6 +250,11 @@ declare module 'vscode-xterm' {
 		 * The number of columns in the terminal's viewport.
 		 */
 		cols: number;
+
+		/**
+		 * Natural language strings that can be localized.
+		 */
+		static strings: ILocalizableStrings;
 
 		/**
 		 * Creates a new `Terminal` object.
@@ -351,12 +384,6 @@ declare module 'vscode-xterm' {
 		 * @param matcherId The link matcher's ID (returned after register)
 		 */
 		deregisterLinkMatcher(matcherId: number): void;
-
-		/**
-		 * Enters screen reader navigation mode. This will only work when
-		 * the screenReaderMode option is true.
-		 */
-		enterNavigationMode(): void;
 
 		/**
 		 * Gets whether the terminal has an active selection.

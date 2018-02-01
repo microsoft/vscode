@@ -400,7 +400,7 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 	}
 
 	public serialize(): string {
-		return `${this.keys} =~ /${this.regexp ? this.regexp.source : '<invalid>'}/`;
+		return `${this.key} =~ /${this.regexp ? this.regexp.source : '<invalid>'}/`;
 	}
 
 	public keys(): string[] {

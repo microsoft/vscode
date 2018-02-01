@@ -196,8 +196,8 @@ export class MessageList {
 		// Telemetry (TODO@Ben remove me later)
 		/* __GDPR__
 			"showMessage" : {
-				"message" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"message" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"buttons" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/

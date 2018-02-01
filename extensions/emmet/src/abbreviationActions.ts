@@ -237,6 +237,14 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			return true;
 		}
 
+		// Fix for upstream issue https://github.com/emmetio/css-parser/issues/3
+		if (currentNode.type === 'property'
+			&& currentNode.parent
+			&& currentNode.parent.type !== 'rule'
+			&& currentNode.parent.type !== 'at-rule') {
+			return false;
+		}
+
 		// Fix for https://github.com/Microsoft/vscode/issues/34162
 		// Other than sass, stylus, we can make use of the terminator tokens to validate position
 		if (syntax !== 'sass' && syntax !== 'stylus' && currentNode.type === 'property') {

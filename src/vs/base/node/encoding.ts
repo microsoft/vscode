@@ -32,7 +32,7 @@ export function decode(buffer: NodeBuffer, encoding: string): string {
 	return iconv.decode(buffer, toNodeEncoding(encoding));
 }
 
-export function encode(content: string, encoding: string, options?: { addBOM?: boolean }): NodeBuffer {
+export function encode(content: string | NodeBuffer, encoding: string, options?: { addBOM?: boolean }): NodeBuffer {
 	return iconv.encode(content, toNodeEncoding(encoding), options);
 }
 

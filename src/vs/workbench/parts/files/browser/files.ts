@@ -12,6 +12,7 @@ import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerMo
 import { toResource } from 'vs/workbench/common/editor';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { List } from 'vs/base/browser/ui/list/listWidget';
+import { IFileStat } from 'vs/platform/files/common/files';
 
 // Commands can get exeucted from a command pallete, from a context menu or from some list using a keybinding
 // To cover all these cases we need to properly compute the resource on which the command is being executed
@@ -38,18 +39,26 @@ export function getMultiSelectedResources(resource: URI, listService: IListServi
 	if (list && list.isDOMFocused()) {
 		// Explorer
 		if (list instanceof Tree) {
-			const focus = list.getFocus();
-			const selection = list.getSelection();
-			if (selection && selection.indexOf(focus) >= 0) {
-				return selection.map(fs => fs.resource);
+			const focus: IFileStat = list.getFocus();
+			// If the resource is passed it has to be a part of the returned context.
+			if (focus && (!URI.isUri(resource) || focus.resource.toString() === resource.toString())) {
+				const selection = list.getSelection();
+				// We only respect the selection if it contains the focused element.
+				if (selection && selection.indexOf(focus) >= 0) {
+					return selection.map(fs => fs.resource);
+				}
 			}
 		}
 		// Open editors view
 		if (list instanceof List) {
 			const focus = list.getFocusedElements();
-			const selection = list.getSelectedElements();
-			if (selection && focus.length && selection.indexOf(focus[0]) >= 0) {
-				return selection.filter(s => s instanceof OpenEditor).map((oe: OpenEditor) => oe.getResource());
+			// If the resource is passed it has to be a part of the returned context.
+			if (focus.length && (!URI.isUri(resource) || (focus[0] instanceof OpenEditor && focus[0].getResource().toString() === resource.toString()))) {
+				const selection = list.getSelectedElements();
+				// We only respect the selection if it contains the focused element.
+				if (selection && selection.indexOf(focus[0]) >= 0) {
+					return selection.filter(s => s instanceof OpenEditor).map((oe: OpenEditor) => oe.getResource());
+				}
 			}
 		}
 	}

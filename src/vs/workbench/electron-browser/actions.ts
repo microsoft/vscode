@@ -8,7 +8,6 @@
 import 'vs/css!./media/actions';
 
 import URI from 'vs/base/common/uri';
-import * as collections from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
@@ -21,7 +20,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, LocalExtensionType, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
@@ -46,8 +45,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
 import { IEditor } from 'vs/platform/editor/common/editor';
-import { IIssueService } from 'vs/platform/issue/common/issue';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IIssueService, IssueReporterData, IssueType, IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
@@ -328,6 +327,14 @@ export class ShowStartupPerformance extends Action {
 
 			(<any>console).table(this.getStartupMetricsTable(nodeModuleLoadTime));
 
+			if (this.environmentService.performance) {
+				const data = this.analyzeLoaderStats();
+				for (let type in data) {
+					(<any>console).groupCollapsed(`Loader: ${type}`);
+					(<any>console).table(data[type]);
+					(<any>console).groupEnd();
+				}
+			}
 
 			(<any>console).groupEnd();
 
@@ -363,6 +370,7 @@ export class ShowStartupPerformance extends Action {
 
 		if (metrics.initialStartup) {
 			table.push({ Topic: '[main] start => app.isReady', 'Took (ms)': metrics.timers.ellapsedAppReady });
+			table.push({ Topic: '[main] nls:start => nls:end', 'Took (ms)': metrics.timers.ellapsedNlsGeneration });
 			table.push({ Topic: '[main] app.isReady => window.loadUrl()', 'Took (ms)': metrics.timers.ellapsedWindowLoad });
 		}
 
@@ -417,6 +425,114 @@ export class ShowStartupPerformance extends Action {
 		}
 
 		return { table: result, duration: Math.round(total) };
+	}
+
+	private analyzeLoaderStats(): { [type: string]: any[] } {
+		const stats = <ILoaderEvent[]>(<any>require).getStats().slice(0).sort((a: ILoaderEvent, b: ILoaderEvent) => {
+			if (a.detail < b.detail) {
+				return -1;
+			} else if (a.detail > b.detail) {
+				return 1;
+			} else if (a.type < b.type) {
+				return -1;
+			} else if (a.type > b.type) {
+				return 1;
+			} else {
+				return 0;
+			}
+		});
+
+		class Tick {
+
+			public readonly duration: number;
+			public readonly detail: string;
+
+			constructor(public readonly start: ILoaderEvent, public readonly end: ILoaderEvent) {
+				console.assert(start.detail === end.detail);
+
+				this.duration = this.end.timestamp - this.start.timestamp;
+				this.detail = start.detail;
+			}
+
+			toTableObject() {
+				return {
+					['Path']: this.start.detail,
+					['Took (ms)']: this.duration.toFixed(2),
+					// ['Start (ms)']: this.start.timestamp,
+					// ['End (ms)']: this.end.timestamp
+				};
+			}
+
+			static compareUsingStartTimestamp(a: Tick, b: Tick): number {
+				if (a.start.timestamp < b.start.timestamp) {
+					return -1;
+				} else if (a.start.timestamp > b.start.timestamp) {
+					return 1;
+				} else {
+					return 0;
+				}
+			}
+		}
+
+		const ticks: { [type: number]: Tick[] } = {
+			[LoaderEventType.BeginLoadingScript]: [],
+			[LoaderEventType.BeginInvokeFactory]: [],
+			[LoaderEventType.NodeBeginEvaluatingScript]: [],
+			[LoaderEventType.NodeBeginNativeRequire]: [],
+		};
+
+		for (let i = 1; i < stats.length - 1; i++) {
+			const stat = stats[i];
+			const nextStat = stats[i + 1];
+
+			if (nextStat.type - stat.type > 2) {
+				//bad?!
+				break;
+			}
+
+			i += 1;
+			ticks[stat.type].push(new Tick(stat, nextStat));
+		}
+
+		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
+		ticks[LoaderEventType.BeginInvokeFactory].sort(Tick.compareUsingStartTimestamp);
+		ticks[LoaderEventType.NodeBeginEvaluatingScript].sort(Tick.compareUsingStartTimestamp);
+		ticks[LoaderEventType.NodeBeginNativeRequire].sort(Tick.compareUsingStartTimestamp);
+
+		const ret = {
+			'Load Script': ticks[LoaderEventType.BeginLoadingScript].map(t => t.toTableObject()),
+			'(Node) Load Script': ticks[LoaderEventType.NodeBeginNativeRequire].map(t => t.toTableObject()),
+			'Eval Script': ticks[LoaderEventType.BeginInvokeFactory].map(t => t.toTableObject()),
+			'(Node) Eval Script': ticks[LoaderEventType.NodeBeginEvaluatingScript].map(t => t.toTableObject()),
+		};
+
+		function total(ticks: Tick[]): number {
+			let sum = 0;
+			for (const tick of ticks) {
+				sum += tick.duration;
+			}
+			return sum;
+		}
+
+		// totals
+		ret['Load Script'].push({
+			['Path']: 'TOTAL TIME',
+			['Took (ms)']: total(ticks[LoaderEventType.BeginLoadingScript]).toFixed(2)
+		});
+		ret['Eval Script'].push({
+			['Path']: 'TOTAL TIME',
+			['Took (ms)']: total(ticks[LoaderEventType.BeginInvokeFactory]).toFixed(2)
+		});
+		ret['(Node) Load Script'].push({
+			['Path']: 'TOTAL TIME',
+			['Took (ms)']: total(ticks[LoaderEventType.NodeBeginNativeRequire]).toFixed(2)
+		});
+		ret['(Node) Eval Script'].push({
+			['Path']: 'TOTAL TIME',
+			['Took (ms)']: total(ticks[LoaderEventType.NodeBeginEvaluatingScript]).toFixed(2)
+		});
+
+		return ret;
 	}
 }
 
@@ -747,9 +863,25 @@ export class CloseMessagesAction extends Action {
 	}
 }
 
+export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {
+	return {
+		backgroundColor: theme.getColor(SIDE_BAR_BACKGROUND) && theme.getColor(SIDE_BAR_BACKGROUND).toString(),
+		color: theme.getColor(foreground).toString(),
+		textLinkColor: theme.getColor(textLinkForeground) && theme.getColor(textLinkForeground).toString(),
+		inputBackground: theme.getColor(inputBackground) && theme.getColor(inputBackground).toString(),
+		inputForeground: theme.getColor(inputForeground) && theme.getColor(inputForeground).toString(),
+		inputBorder: theme.getColor(inputBorder) && theme.getColor(inputBorder).toString(),
+		inputActiveBorder: theme.getColor(inputActiveOptionBorder) && theme.getColor(inputActiveOptionBorder).toString(),
+		inputErrorBorder: theme.getColor(inputValidationErrorBorder) && theme.getColor(inputValidationErrorBorder).toString(),
+		buttonBackground: theme.getColor(buttonBackground) && theme.getColor(buttonBackground).toString(),
+		buttonForeground: theme.getColor(buttonForeground) && theme.getColor(buttonForeground).toString(),
+		buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString()
+	};
+}
+
 export class OpenIssueReporterAction extends Action {
 	public static readonly ID = 'workbench.action.openIssueReporter';
-	public static readonly LABEL = nls.localize('openIssueReporter', "Open Issue Reporter");
+	public static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 
 	constructor(
 		id: string,
@@ -766,23 +898,8 @@ export class OpenIssueReporterAction extends Action {
 		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
 			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
 			const theme = this.themeService.getTheme();
-			const styles = {
-				backgroundColor: theme.getColor(SIDE_BAR_BACKGROUND) && theme.getColor(SIDE_BAR_BACKGROUND).toString(),
-				color: theme.getColor(foreground).toString(),
-				textLinkColor: theme.getColor(textLinkForeground) && theme.getColor(textLinkForeground).toString(),
-				inputBackground: theme.getColor(inputBackground) && theme.getColor(inputBackground).toString(),
-				inputForeground: theme.getColor(inputForeground) && theme.getColor(inputForeground).toString(),
-				inputBorder: theme.getColor(inputBorder) && theme.getColor(inputBorder).toString(),
-				inputActiveBorder: theme.getColor(inputActiveOptionBorder) && theme.getColor(inputActiveOptionBorder).toString(),
-				inputErrorBorder: theme.getColor(inputValidationErrorBorder) && theme.getColor(inputValidationErrorBorder).toString(),
-				buttonBackground: theme.getColor(buttonBackground) && theme.getColor(buttonBackground).toString(),
-				buttonForeground: theme.getColor(buttonForeground) && theme.getColor(buttonForeground).toString(),
-				buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString(),
-				zoomLevel: webFrame.getZoomLevel(),
-				extensions
-			};
-			const issueReporterData = {
-				styles,
+			const issueReporterData: IssueReporterData = {
+				styles: getIssueReporterStyles(theme),
 				zoomLevel: webFrame.getZoomLevel(),
 				enabledExtensions
 			};
@@ -794,109 +911,41 @@ export class OpenIssueReporterAction extends Action {
 	}
 }
 
-export class ReportIssueAction extends Action {
-
-	public static readonly ID = 'workbench.action.reportIssues';
-	public static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
+export class ReportPerformanceIssueUsingReporterAction extends Action {
+	public static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
+	public static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
 
 	constructor(
 		id: string,
 		label: string,
-		@IIntegrityService private integrityService: IIntegrityService,
+		@IIssueService private issueService: IIssueService,
+		@IThemeService private themeService: IThemeService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super(id, label);
 	}
 
-	private _optimisticIsPure(): TPromise<boolean> {
-		let isPure = true;
-		let integrityPromise = this.integrityService.isPure().then(res => {
-			isPure = res.isPure;
-		});
-
-		return TPromise.any([TPromise.timeout(100), integrityPromise]).then(() => {
-			return isPure;
-		});
-	}
-
 	public run(): TPromise<boolean> {
-		return this._optimisticIsPure().then(isPure => {
-			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-				extensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
-				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions, this.environmentService.disableExtensions);
+		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
+			const theme = this.themeService.getTheme();
+			const issueReporterData: IssueReporterData = {
+				styles: getIssueReporterStyles(theme),
+				zoomLevel: webFrame.getZoomLevel(),
+				enabledExtensions,
+				issueType: IssueType.PerformanceIssue
+			};
 
-				window.open(issueUrl);
-
+			// TODO: Reporter should send timings table as well
+			return this.issueService.openReporter(issueReporterData).then(() => {
 				return TPromise.as(true);
 			});
 		});
 	}
-
-	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, extensions: ILocalExtension[], areExtensionsDisabled: boolean): string {
-		// Avoid backticks, these can trigger XSS detectors. (https://github.com/Microsoft/vscode/issues/13098)
-		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
-		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
-		const body = encodeURIComponent(
-			`<ul>
-	<li>VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})</li>
-	<li>OS Version: ${osVersion}</li>
-	<li>${areExtensionsDisabled ? 'Extensions: Extensions are disabled' : this.generateExtensionTable(extensions)}</li>
-</ul>
-
----
-
-Steps to Reproduce:
-
-1.
-2.` + (extensions.length ? `
-
-<!-- Launch with \`code --disable-extensions\` to check. -->
-Reproduces without extensions: Yes/No` : '')
-		);
-
-		return `${baseUrl}${queryStringPrefix}body=${body}`;
-	}
-
-	private generateExtensionTable(extensions: ILocalExtension[]): string {
-		const { nonThemes, themes } = collections.groupBy(extensions, ext => {
-			const manifestKeys = ext.manifest.contributes ? Object.keys(ext.manifest.contributes) : [];
-			const onlyTheme = !ext.manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
-			return onlyTheme ? 'themes' : 'nonThemes';
-		});
-
-		const themeExclusionStr = (themes && themes.length) ? `\n(${themes.length} theme extensions excluded)` : '';
-		extensions = nonThemes || [];
-
-		if (!extensions.length) {
-			return 'Extensions: none' + themeExclusionStr;
-		}
-
-		let tableHeader = `Extension|Author (truncated)|Version
----|---|---`;
-		const table = extensions.map(e => {
-			return `${e.manifest.name}|${e.manifest.publisher.substr(0, 3)}|${e.manifest.version}`;
-		}).join('\n');
-
-		const extensionTable = `<details><summary>Extensions (${extensions.length})</summary>
-
-${tableHeader}
-${table}
-${themeExclusionStr}
-
-</details>`;
-
-		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
-		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
-		if (encodeURIComponent(extensionTable).length > 1600) {
-			return 'the listing length exceeds browsers\' URL characters limit';
-		}
-
-		return extensionTable;
-	}
 }
 
+// NOTE: This is still used when running --prof-startup, which already opens a dialog, so the reporter is not used.
 export class ReportPerformanceIssueAction extends Action {
 
 	public static readonly ID = 'workbench.action.reportPerformanceIssue';

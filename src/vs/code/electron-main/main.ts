@@ -109,7 +109,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const requestService = accessor.get(IRequestService);
-	const choiceService = accessor.get(IChoiceService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
 		let promise = TPromise.wrap<void>(void 0);
@@ -203,7 +202,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					// Log uploader
 					if (environmentService.args['upload-logs']) {
-						return uploadLogs(channel, requestService, choiceService)
+						return uploadLogs(channel, requestService)
 							.then(() => TPromise.wrapError(new ExpectedError()));
 					}
 

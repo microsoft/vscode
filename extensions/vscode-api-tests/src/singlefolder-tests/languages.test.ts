@@ -21,7 +21,7 @@ suite('languages namespace tests', () => {
 			constructor() {
 				super(new Range(0, 2, 0, 7), 'sonntag');
 			}
-		};
+		}
 
 		let diag1 = new Diagnostic(new Range(0, 0, 0, 5), 'montag');
 		let diag2 = new D2();

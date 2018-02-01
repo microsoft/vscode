@@ -14,10 +14,12 @@ let _isNative = false;
 let _isWeb = false;
 let _locale: string = undefined;
 let _language: string = undefined;
+let _translationsConfigFile: string = undefined;
 
 interface NLSConfig {
 	locale: string;
 	availableLanguages: { [key: string]: string; };
+	_translationsConfigFile: string;
 }
 
 export interface IProcessEnvironment {
@@ -55,6 +57,7 @@ if (typeof process === 'object') {
 			_locale = nlsConfig.locale;
 			// VSCode's default language is 'en'
 			_language = resolved ? resolved : LANGUAGE_DEFAULT;
+			_translationsConfigFile = nlsConfig._translationsConfigFile;
 		} catch (e) {
 		}
 	}
@@ -108,6 +111,11 @@ export const language = _language;
  * Chinese). The UI is not necessarily shown in the provided locale.
  */
 export const locale = _locale;
+
+/**
+ * The translatios that are available through language packs.
+ */
+export const translationsConfigFile = _translationsConfigFile;
 
 export interface TimeoutToken {
 }

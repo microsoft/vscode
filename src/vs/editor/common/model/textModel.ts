@@ -37,15 +37,21 @@ import { LinesTextBufferBuilder } from 'vs/editor/common/model/linesTextBuffer/l
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { ChunksTextBufferBuilder } from 'vs/editor/common/model/chunksTextBuffer/chunksTextBufferBuilder';
 
+export enum TextBufferType {
+	LinesArray,
+	PieceTree,
+	Chunks
+}
 // Here is the master switch for the text buffer implementation:
-const USE_PIECE_TREE_IMPLEMENTATION = true;
-const USE_CHUNKS_TEXT_BUFFER = false;
+export const OPTIONS = {
+	TEXT_BUFFER_IMPLEMENTATION: TextBufferType.LinesArray
+};
 
 function createTextBufferBuilder() {
-	if (USE_PIECE_TREE_IMPLEMENTATION) {
+	if (OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.PieceTree) {
 		return new PieceTreeTextBufferBuilder();
 	}
-	if (USE_CHUNKS_TEXT_BUFFER) {
+	if (OPTIONS.TEXT_BUFFER_IMPLEMENTATION === TextBufferType.Chunks) {
 		return new ChunksTextBufferBuilder();
 	}
 	return new LinesTextBufferBuilder();

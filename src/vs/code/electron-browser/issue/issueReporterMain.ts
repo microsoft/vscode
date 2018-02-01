@@ -29,10 +29,12 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IssueReporterModel, IssueType } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterData, IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
+import { IssueReporterData, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { debounce } from 'vs/base/common/decorators';
+import * as platform from 'vs/base/common/platform';
 
 export interface IssueReporterConfiguration extends IWindowConfiguration {
 	data: IssueReporterData;
@@ -41,12 +43,8 @@ export interface IssueReporterConfiguration extends IWindowConfiguration {
 export function startup(configuration: IssueReporterConfiguration) {
 	document.body.innerHTML = BaseHtml();
 	const issueReporter = new IssueReporter(configuration);
-
-	// workaround for flickering on page load as css is applied
-	setTimeout(() => {
-		issueReporter.render();
-		document.body.style.display = 'block';
-	}, 10);
+	issueReporter.render();
+	document.body.style.display = 'block';
 }
 
 export class IssueReporter extends Disposable {
@@ -57,8 +55,10 @@ export class IssueReporter extends Disposable {
 	constructor(configuration: IssueReporterConfiguration) {
 		super();
 
+		this.initServices(configuration);
+
 		this.issueReporterModel = new IssueReporterModel({
-			issueType: IssueType.Bug,
+			issueType: configuration.data.issueType || IssueType.Bug,
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
@@ -66,7 +66,9 @@ export class IssueReporter extends Disposable {
 			versionInfo: {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
 				os: `${os.type()} ${os.arch()} ${os.release()}`
-			}
+			},
+			extensionsDisabled: this.environmentService.disableExtensions,
+			reprosWithoutExtensions: false
 		});
 
 		ipcRenderer.on('issueInfoResponse', (event, info) => {
@@ -81,19 +83,18 @@ export class IssueReporter extends Disposable {
 
 		ipcRenderer.send('issueInfoRequest');
 
-		this.initServices(configuration);
-		this.setEventHandlers();
-
 		if (window.document.documentElement.lang !== 'en') {
 			show(document.getElementById('english'));
 		}
 
+		this.setEventHandlers();
 		this.applyZoom(configuration.data.zoomLevel);
 		this.applyStyles(configuration.data.styles);
 		this.handleExtensionData(configuration.data.enabledExtensions);
 	}
 
 	render(): void {
+		(<HTMLSelectElement>document.getElementById('issue-type')).value = this.issueReporterModel.getData().issueType.toString();
 		this.renderBlocks();
 	}
 
@@ -126,15 +127,15 @@ export class IssueReporter extends Disposable {
 
 		if (styles.inputErrorBorder) {
 			content.push(`.invalid-input, .invalid-input:focus { border: 1px solid ${styles.inputErrorBorder} !important; }`);
-			content.push(`.validation-error { color: ${styles.inputErrorBorder}; }`);
+			content.push(`.validation-error, .required-input { color: ${styles.inputErrorBorder}; }`);
 		}
 
 		if (styles.inputActiveBorder) {
-			content.push(`input[type='text']:focus, textarea:focus, select:focus, summary:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
+			content.push(`input[type='text']:focus, textarea:focus, select:focus, summary:focus, button:focus  { border: 1px solid ${styles.inputActiveBorder}; outline-style: none; }`);
 		}
 
 		if (styles.textLinkColor) {
-			content.push(`a { color: ${styles.textLinkColor}; }`);
+			content.push(`a, .workbenchCommand { color: ${styles.textLinkColor}; }`);
 		}
 
 		if (styles.buttonBackground) {
@@ -146,7 +147,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.buttonHoverBackground) {
-			content.push(`button:hover:enabled { background-color: ${styles.buttonHoverBackground}; }`);
+			content.push(`#github-submit-btn:hover:enabled, #github-submit-btn:focus:enabled { background-color: ${styles.buttonHoverBackground}; }`);
 		}
 
 		if (styles.textLinkColor) {
@@ -168,6 +169,12 @@ export class IssueReporter extends Disposable {
 		const numberOfThemeExtesions = themes && themes.length;
 		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes });
 		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
+
+		if (this.environmentService.disableExtensions || extensions.length === 0) {
+			(<HTMLButtonElement>document.getElementById('disableExtensions')).disabled = true;
+			(<HTMLInputElement>document.getElementById('reprosWithoutExtensions')).checked = true;
+			this.issueReporterModel.update({ reprosWithoutExtensions: true });
+		}
 	}
 
 	private initServices(configuration: IWindowConfiguration): void {
@@ -204,7 +211,7 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions'].forEach(elementId => {
+		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'reprosWithoutExtensions'].forEach(elementId => {
 			document.getElementById(elementId).addEventListener('click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
@@ -215,53 +222,93 @@ export class IssueReporter extends Disposable {
 			this.issueReporterModel.update({ issueDescription: (<HTMLInputElement>event.target).value });
 		});
 
-		function addIssuesToList(list, issueJSON) {
-			for (let i = 0; i < 5; i++) {
-				const link = $('a', { href: issueJSON[i].html_url });
-				link.textContent = issueJSON[i].title;
-				link.addEventListener('click', (event) => {
-					shell.openExternal((<HTMLAnchorElement>event.target).href);
-				});
-
-				const item = $('li', {}, link);
-				list.appendChild(item);
-			}
-		}
-
-		document.getElementById('issue-title').addEventListener('blur', (event) => {
-			const title = (<HTMLInputElement>event.target).value;
-			const similarIssues = document.getElementById('similar-issues');
-			similarIssues.innerHTML = '';
-
-			if (title) {
-				const query = `is:issue+repo:microsoft/vscode+${title}`;
-				window.fetch(`https://api.github.com/search/issues?q=${query}&per_page=5`).then((response) => {
-					response.json().then(result => {
-						if (result.items.length) {
-							const issues = $('ul');
-							const issuesText = $('div.list-title');
-							issuesText.textContent = localize('similarIssues', "Similar issues");
-							addIssuesToList(issues, result.items);
-							similarIssues.appendChild(issuesText);
-							similarIssues.appendChild(issues);
-						}
-					});
-				}).catch((error) => {
-					console.log(error);
-				});
-			}
-		});
+		document.getElementById('issue-title').addEventListener('input', this.searchGitHub);
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
 
-		document.onkeydown = (e: KeyboardEvent) => {
-			if (e.shiftKey && e.keyCode === 13) {
-				// Close the window if the issue was successfully created
-				if (this.createIssue()) {
-					remote.getCurrentWindow().close();
+		document.getElementById('disableExtensions').addEventListener('click', () => {
+			ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
+			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
+		});
+
+		document.getElementById('showRunning').addEventListener('click', () => {
+			ipcRenderer.send('workbenchCommand', 'workbench.action.showRuntimeExtensions');
+		});
+
+		// Cmd+Enter or Mac or Ctrl+Enter on other platforms previews issue and closes window
+		if (platform.isMacintosh) {
+			let prevKeyWasCommand = false;
+			document.onkeydown = (e: KeyboardEvent) => {
+				if (prevKeyWasCommand && e.keyCode === 13) {
+					if (this.createIssue()) {
+						remote.getCurrentWindow().close();
+					}
 				}
-			}
-		};
+
+				prevKeyWasCommand = e.keyCode === 91 || e.keyCode === 93;
+			};
+		} else {
+			document.onkeydown = (e: KeyboardEvent) => {
+				if (e.ctrlKey && e.keyCode === 13) {
+					if (this.createIssue()) {
+						remote.getCurrentWindow().close();
+					}
+				}
+			};
+		}
+	}
+
+	@debounce(300)
+	private searchGitHub(event: Event) {
+		const title = (<HTMLInputElement>event.target).value;
+		const similarIssues = document.getElementById('similar-issues');
+		if (title) {
+			const query = `is:issue+repo:microsoft/vscode+${title}`;
+			window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
+				response.json().then(result => {
+					similarIssues.innerHTML = '';
+					if (result && result.items && result.items.length) {
+						const issues = $('ul');
+						const issuesText = $('div.list-title');
+						issuesText.textContent = localize('similarIssues', "Similar issues");
+
+						const { items } = result;
+						const numResultsToDisplay = items.length < 5 ? items.length : 5;
+						for (let i = 0; i < numResultsToDisplay; i++) {
+							const link = $('a', { href: items[i].html_url });
+							link.textContent = items[i].title;
+							link.addEventListener('click', openLink);
+							link.addEventListener('auxclick', openLink);
+
+							const item = $('li', {}, link);
+							issues.appendChild(item);
+						}
+
+						similarIssues.appendChild(issuesText);
+						similarIssues.appendChild(issues);
+					} else if (result && result.items) {
+						const message = $('div.list-title');
+						message.textContent = localize('noResults', "No results found");
+						similarIssues.appendChild(message);
+					} else {
+						const message = $('div.list-title');
+						message.textContent = localize('rateLimited', "API rate limit exceeded");
+						similarIssues.appendChild(message);
+					}
+				});
+			}).catch((error) => {
+				// TODO: Use LogService here.
+				console.log(error);
+				/* __GDPR__
+				"issueReporterSearchError" : {
+						"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					}
+				*/
+				this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
+			});
+		} else {
+			similarIssues.innerHTML = '';
+		}
 	}
 
 	private renderBlocks(): void {
@@ -283,7 +330,7 @@ export class IssueReporter extends Disposable {
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = localize('bugDescription', "How did you encounter this problem? Please provide clear steps to reproduce the problem during our investigation. What did you expect to happen and what actually did happen?");
+			descriptionSubtitle.innerHTML = localize('bugDescription', "How did you encounter this problem? What steps do you need to perform to reliably reproduce the problem? What did you expect to happen and what actually did happen?");
 		} else if (issueType === IssueType.PerformanceIssue) {
 			show(systemBlock);
 			show(processBlock);
@@ -354,7 +401,8 @@ export class IssueReporter extends Disposable {
 		}
 
 		const issueTitle = (<HTMLInputElement>document.getElementById('issue-title')).value;
-		const baseUrl = `https://github.com/microsoft/vscode/issues/new?title=${issueTitle}&body=`;
+		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
+		const baseUrl = `${product.reportIssueUrl}${queryStringPrefix}title=${issueTitle}&body=`;
 		const issueBody = this.issueReporterModel.serialize();
 		shell.openExternal(baseUrl + encodeURIComponent(issueBody));
 		return true;
@@ -413,6 +461,12 @@ export class IssueReporter extends Disposable {
 
 	private updateExtensionTable(extensions: ILocalExtension[], numThemeExtensions: number): void {
 		const target = document.querySelector('.block-extensions .block-info');
+
+		if (this.environmentService.disableExtensions) {
+			target.innerHTML = localize('disabledExtensions', "Extensions are disabled");
+			return;
+		}
+
 		const themeExclusionStr = numThemeExtensions ? `\n(${numThemeExtensions} theme extensions excluded)` : '';
 		extensions = extensions || [];
 
@@ -448,4 +502,13 @@ function hide(el) {
 }
 function show(el) {
 	el.classList.remove('hidden');
+}
+
+function openLink(event: MouseEvent) {
+	event.preventDefault();
+	event.stopPropagation();
+	// Exclude right click
+	if (event.which < 3) {
+		shell.openExternal((<HTMLAnchorElement>event.target).href);
+	}
 }

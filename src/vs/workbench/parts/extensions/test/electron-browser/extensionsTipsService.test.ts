@@ -268,9 +268,21 @@ suite('ExtensionsTipsService Test', () => {
 	function testNoPromptForValidRecommendations(recommendations: string[]) {
 		return setUpFolderWorkspace('myFolder', recommendations).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);
-			const promise = testObject.promptWorkspaceRecommendationsPromise || testObject.getWorkspaceRecommendations();
-			return promise.then(() => {
+			return testObject.promptWorkspaceRecommendationsPromise.then(() => {
 				assert.equal(Object.keys(testObject.getAllRecommendationsWithReason()).length, recommendations.length);
+				assert.ok(!prompted);
+			});
+		});
+	}
+
+	function testNoPromptOrRecommendationsForValidRecommendations(recommendations: string[]) {
+		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+			assert.equal(!testObject.promptWorkspaceRecommendationsPromise, true);
+			assert.ok(!prompted);
+
+			return testObject.getWorkspaceRecommendations().then(() => {
+				assert.equal(Object.keys(testObject.getAllRecommendationsWithReason()).length, 0);
 				assert.ok(!prompted);
 			});
 		});
@@ -278,12 +290,12 @@ suite('ExtensionsTipsService Test', () => {
 
 	test('ExtensionTipsService: No Prompt for valid workspace recommendations when galleryService is absent', () => {
 		instantiationService.stub(IExtensionGalleryService, 'isEnabled', false);
-		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
+		return testNoPromptOrRecommendationsForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 
 	test('ExtensionTipsService: No Prompt for valid workspace recommendations during extension development', () => {
 		instantiationService.stub(IEnvironmentService, { extensionDevelopmentPath: true });
-		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
+		return testNoPromptOrRecommendationsForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 
 	test('ExtensionTipsService: No workspace recommendations or prompts when extensions.json has empty array', () => {

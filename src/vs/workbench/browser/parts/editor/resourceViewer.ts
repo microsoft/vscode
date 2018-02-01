@@ -213,7 +213,7 @@ class LargeImageView {
 		const imageContainer = $(container)
 			.empty()
 			.p({
-				text: nls.localize('largeImageError', "The image is too large to display in the editor. ")
+				text: nls.localize('largeImageError', "The file size of the image is too large (>1MB) to display in the editor. ")
 			});
 
 		if (descriptor.resource.scheme !== Schemas.data) {
@@ -302,16 +302,14 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	}
 
 	private updateLabel(scale: Scale) {
-		this.statusBarItem.textContent = scale === 'fit'
-			? nls.localize('zoom.fit.label', 'Fit')
-			: `${+(scale * 100).toFixed(2)}%`;
+		this.statusBarItem.textContent = ZoomStatusbarItem.zoomLabel(scale);
 	}
 
 	@memoize
 	private get zoomActions(): Action[] {
-		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.25, 'fit'];
+		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.2, 'fit'];
 		return scales.map(scale =>
-			new Action('zoom.' + scale, ZoomStatusbarItem.zoomActionLabel(scale), undefined, undefined, () => {
+			new Action('zoom.' + scale, ZoomStatusbarItem.zoomLabel(scale), undefined, undefined, () => {
 				if (this.onSelectScale) {
 					this.onSelectScale(scale);
 				}
@@ -319,22 +317,48 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 			}));
 	}
 
-	private static zoomActionLabel(scale: Scale): string {
+	private static zoomLabel(scale: Scale): string {
 		return scale === 'fit'
-			? nls.localize('zoom.action.fit.label', 'Reset')
-			: `${+(scale * 100).toFixed(2)}%`;
+			? nls.localize('zoom.action.fit.label', 'Whole Image')
+			: `${Math.round(scale * 100)}%`;
 	}
 }
 
 Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
-	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, -1)
+	new StatusbarItemDescriptor(ZoomStatusbarItem, StatusbarAlignment.RIGHT, 101)
 );
 
+interface ImageState {
+	scale: Scale;
+	offsetX: number;
+	offsetY: number;
+}
+
 class InlineImageView {
-	private static readonly SCALE_PINCH_FACTOR = 0.05;
-	private static readonly SCALE_FACTOR = 1.5;
+	private static readonly SCALE_PINCH_FACTOR = 0.075;
 	private static readonly MAX_SCALE = 20;
 	private static readonly MIN_SCALE = 0.1;
+
+	private static readonly zoomLevels: Scale[] = [
+		0.1,
+		0.2,
+		0.3,
+		0.4,
+		0.5,
+		0.6,
+		0.7,
+		0.8,
+		0.9,
+		1,
+		1.5,
+		2,
+		3,
+		5,
+		7,
+		10,
+		15,
+		20
+	];
 
 	/**
 	 * Enable image-rendering: pixelated for images scaled by more than this.
@@ -350,9 +374,9 @@ class InlineImageView {
 	private static IMAGE_RESOURCE_ETAG_CACHE = new LRUCache<string, { etag: string, src: string }>(100);
 
 	/**
-	 * Store the scale of an image so it can be restored when changing editor tabs
+	 * Store the scale and position of an image so it can be restored when changing editor tabs
 	 */
-	private static readonly IMAGE_SCALE_CACHE = new LRUCache<string, number>(100);
+	private static readonly imageStateCache = new LRUCache<string, ImageState>(100);
 
 	public static create(
 		container: Builder,
@@ -367,7 +391,8 @@ class InlineImageView {
 		const cacheKey = descriptor.resource.toString();
 
 		let scaleDirection = ScaleDirection.IN;
-		let scale: Scale = InlineImageView.IMAGE_SCALE_CACHE.get(cacheKey) || 'fit';
+		const initialState: ImageState = InlineImageView.imageStateCache.get(cacheKey) || { scale: 'fit', offsetX: 0, offsetY: 0 };
+		let scale = initialState.scale;
 		let img: Builder | null = null;
 		let imgElement: HTMLImageElement | null = null;
 
@@ -380,8 +405,9 @@ class InlineImageView {
 				scale = 'fit';
 				img.addClass('scale-to-fit');
 				img.removeClass('pixelated');
+				img.style('min-width', 'auto');
 				img.style('width', 'auto');
-				InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, null);
+				InlineImageView.imageStateCache.set(cacheKey, null);
 			} else {
 				const oldWidth = imgElement.width;
 				const oldHeight = imgElement.height;
@@ -398,17 +424,21 @@ class InlineImageView {
 				const dy = (scrollTop + imgElement.parentElement.clientHeight / 2) / imgElement.parentElement.scrollHeight;
 
 				img.removeClass('scale-to-fit');
+				img.style('min-width', `${(imgElement.naturalWidth * scale)}px`);
 				img.style('width', `${(imgElement.naturalWidth * scale)}px`);
-				img.style('height', 'auto');
-				InlineImageView.IMAGE_SCALE_CACHE.set(cacheKey, scale);
 
 				const newWidth = imgElement.width;
 				const scaleFactor = (newWidth - oldWidth) / oldWidth;
 
+				const newScrollLeft = ((oldWidth * scaleFactor * dx) + scrollLeft);
+				const newScrollTop = ((oldHeight * scaleFactor * dy) + scrollTop);
 				scrollbar.setScrollPosition({
-					scrollLeft: ((oldWidth * scaleFactor * dx) + scrollLeft),
-					scrollTop: ((oldHeight * scaleFactor * dy) + scrollTop),
+					scrollLeft: newScrollLeft,
+					scrollTop: newScrollTop,
 				});
+
+				InlineImageView.imageStateCache.set(cacheKey, { scale: scale, offsetX: newScrollLeft, offsetY: newScrollTop });
+
 			}
 			ZoomStatusbarItem.instance.show(scale, updateScale);
 			scrollbar.scanDomNode();
@@ -454,10 +484,23 @@ class InlineImageView {
 					firstZoom();
 				}
 
-				const scaleMultiplier = scaleDirection === ScaleDirection.IN
-					? InlineImageView.SCALE_FACTOR
-					: 1 / InlineImageView.SCALE_FACTOR;
-				updateScale(scale as number * scaleMultiplier);
+				if (scaleDirection === ScaleDirection.IN) {
+					let i = 0;
+					for (; i < InlineImageView.zoomLevels.length; ++i) {
+						if (InlineImageView.zoomLevels[i] > scale) {
+							break;
+						}
+					}
+					updateScale(InlineImageView.zoomLevels[i] || InlineImageView.MAX_SCALE);
+				} else {
+					let i = InlineImageView.zoomLevels.length - 1;
+					for (; i >= 0; --i) {
+						if (InlineImageView.zoomLevels[i] < scale) {
+							break;
+						}
+					}
+					updateScale(InlineImageView.zoomLevels[i] || InlineImageView.MIN_SCALE);
+				}
 			})
 			.on(DOM.EventType.WHEEL, (e: WheelEvent) => {
 				if (!img) {
@@ -467,26 +510,49 @@ class InlineImageView {
 				if (!e.ctrlKey) {
 					return;
 				}
+
+				e.preventDefault();
+				e.stopPropagation();
+
 				if (scale === 'fit') {
 					firstZoom();
 				}
 
 				// scrolling up, pinching out should increase the scale
-				const delta = -e.deltaY;
-				updateScale(scale as number + delta * InlineImageView.SCALE_PINCH_FACTOR);
+				const delta = e.deltaY < 0 ? 1 : -1;
+				updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
+			})
+			.on(DOM.EventType.SCROLL, () => {
+				if (!imgElement || !imgElement.parentElement || scale === 'fit') {
+					return;
+				}
+
+				const entry = InlineImageView.imageStateCache.get(cacheKey);
+				if (entry) {
+					const { scrollTop, scrollLeft } = imgElement.parentElement;
+					InlineImageView.imageStateCache.set(cacheKey, { scale: entry.scale, offsetX: scrollLeft, offsetY: scrollTop });
+				}
 			});
 
 		$(container)
 			.empty()
 			.addClass('image', 'zoom-in')
 			.img({ src: InlineImageView.imageSrc(descriptor) })
+			.style('visibility', 'hidden')
 			.addClass('scale-to-fit')
 			.on(DOM.EventType.LOAD, (e, i) => {
 				img = i;
 				imgElement = img.getHTMLElement() as HTMLImageElement;
 				metadataClb(nls.localize('imgMeta', '{0}x{1} {2}', imgElement.naturalWidth, imgElement.naturalHeight, BinarySize.formatSize(descriptor.size)));
 				scrollbar.scanDomNode();
-				updateScale('fit');
+				img.style('visibility', 'visible');
+				updateScale(scale);
+				if (initialState.scale !== 'fit') {
+					scrollbar.setScrollPosition({
+						scrollLeft: initialState.offsetX,
+						scrollTop: initialState.offsetY,
+					});
+				}
 			});
 
 		return context;

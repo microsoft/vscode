@@ -273,7 +273,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			installingExtension = this.getExtensionsReport()
 				.then(report => {
 					if (getMaliciousExtensionsSet(report).has(extension.identifier.id)) {
-						throw new Error(nls.localize('malicious extension', "Can't install extension since it was reported to be malicious."));
+						throw new Error(nls.localize('malicious extension', "Can't install extension since it was reported to be problematic."));
 					} else {
 						return extension;
 					}
@@ -712,7 +712,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 							if (manifest.extensionDependencies) {
 								manifest.extensionDependencies = manifest.extensionDependencies.map(id => adoptToGalleryExtensionId(id));
 							}
-							const identifier = { id, uuid: metadata ? metadata.id : null };
+							const identifier = { id: type === LocalExtensionType.System ? id : getLocalExtensionIdFromManifest(manifest), uuid: metadata ? metadata.id : null };
 							return { type, identifier, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
 						});
 				}).then(null, () => null);

@@ -9,7 +9,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import { first } from 'vs/base/common/arrays';
-import severity from 'vs/base/common/severity';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
@@ -28,14 +27,14 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, IRawAdapter, ICompound, IDebugConfiguration, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, IRawAdapter, ICompound, IDebugConfiguration, IConfig, IEnvConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable } from 'vs/workbench/parts/debug/common/debug';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawAdapter[]>('debuggers', [], {
@@ -293,6 +292,14 @@ export class ConfigurationManager implements IConfigurationManager {
 			.then(results => results.reduce((first, second) => first.concat(second), []));
 	}
 
+	public debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined> {
+		const providers = this.providers.filter(p => p.type === type && p.debugAdapterExecutable);
+		if (providers.length === 1) {
+			return providers[0].debugAdapterExecutable(folderUri);
+		}
+		return TPromise.as(undefined);
+	}
+
 	private registerListeners(lifecycleService: ILifecycleService): void {
 		debuggersExtPoint.setHandler((extensions) => {
 			extensions.forEach(extension => {
@@ -310,7 +317,7 @@ export class ConfigurationManager implements IConfigurationManager {
 					if (duplicate) {
 						duplicate.merge(rawAdapter, extension.description);
 					} else {
-						this.adapters.push(new Adapter(rawAdapter, extension.description, this.configurationService, this.commandService));
+						this.adapters.push(new Adapter(this, rawAdapter, extension.description, this.configurationService, this.commandService));
 					}
 				});
 			});
@@ -356,6 +363,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	private initLaunches(): void {
 		this.launches = this.contextService.getWorkspace().folders.map(folder => this.instantiationService.createInstance(Launch, this, folder));
+		this.launches.push(this.instantiationService.createInstance(UserLaunch, this));
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			this.launches.push(this.instantiationService.createInstance(WorkspaceLaunch, this));
 		}
@@ -501,8 +509,7 @@ class Launch implements ILaunch {
 		@IFileService private fileService: IFileService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
-		@IMessageService private messageService: IMessageService
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService
 	) {
 		// noop
 	}
@@ -515,8 +522,12 @@ class Launch implements ILaunch {
 		return this.workspace.name;
 	}
 
+	public get hidden(): boolean {
+		return false;
+	}
+
 	protected getConfig(): IGlobalConfig {
-		return this.configurationService.getValue<IGlobalConfig>('launch', { resource: this.workspace.uri });
+		return this.configurationService.inspect<IGlobalConfig>('launch', { resource: this.workspace.uri }).workspaceFolder;
 	}
 
 	public getCompound(name: string): ICompound {
@@ -534,7 +545,7 @@ class Launch implements ILaunch {
 			return [];
 		} else {
 			const names = config.configurations.filter(cfg => cfg && typeof cfg.name === 'string').map(cfg => cfg.name);
-			if (includeCompounds && names.length > 0 && config.compounds) {
+			if (includeCompounds && config.compounds) {
 				if (config.compounds) {
 					names.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length)
 						.map(compound => compound.name));
@@ -546,7 +557,8 @@ class Launch implements ILaunch {
 	}
 
 	public getConfiguration(name: string): IConfig {
-		const config = this.getConfig();
+		// We need to clone the configuration in order to be able to make changes to it #42198
+		const config = objects.deepClone(this.getConfig());
 		if (!config || !config.configurations) {
 			return null;
 		}
@@ -579,7 +591,7 @@ class Launch implements ILaunch {
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
 		const resource = this.uri;
-		let configFileCreated = false;
+		let pinned = false;
 
 		return this.fileService.resolveContent(resource).then(content => content.value, err => {
 
@@ -599,7 +611,7 @@ class Launch implements ILaunch {
 					return undefined;
 				}
 
-				configFileCreated = true;
+				pinned = true; // pin only if config file is created #8727
 				return this.fileService.updateContent(resource, content).then(() => {
 					// convert string into IContent; see #32135
 					return content;
@@ -623,16 +635,10 @@ class Launch implements ILaunch {
 				options: {
 					forceOpen: true,
 					selection,
-					pinned: configFileCreated, // pin only if config file is created #8727
+					pinned,
 					revealIfVisible: true
 				},
-			}, sideBySide).then(editor => {
-				if (configFileCreated) {
-					this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
-				}
-
-				return editor;
-			});
+			}, sideBySide);
 		}, (error) => {
 			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 		});
@@ -647,10 +653,9 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IMessageService messageService: IMessageService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService, messageService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService);
 	}
 
 	get uri(): uri {
@@ -667,5 +672,39 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 
 	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
 		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
+	}
+}
+
+class UserLaunch extends Launch implements ILaunch {
+
+	constructor(
+		configurationManager: ConfigurationManager,
+		@IFileService fileService: IFileService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@IPreferencesService private preferencesService: IPreferencesService
+	) {
+		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService);
+	}
+
+	get uri(): uri {
+		return this.preferencesService.userSettingsResource;
+	}
+
+	get name(): string {
+		return nls.localize('user settings', "user settings");
+	}
+
+	public get hidden(): boolean {
+		return true;
+	}
+
+	protected getConfig(): IGlobalConfig {
+		return this.configurationService.inspect<IGlobalConfig>('launch').user;
+	}
+
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
+		return this.preferencesService.openGlobalSettings();
 	}
 }

@@ -17,6 +17,12 @@ export interface IRenderer<TElement, TTemplateData> {
 	disposeTemplate(templateData: TTemplateData): void;
 }
 
+export interface IListOpenEvent<T> {
+	elements: T[];
+	indexes: number[];
+	browserEvent?: UIEvent;
+}
+
 export interface IListEvent<T> {
 	elements: T[];
 	indexes: number[];

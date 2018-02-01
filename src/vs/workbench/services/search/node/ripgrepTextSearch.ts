@@ -23,6 +23,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSearch, LineMatch, FileMatch } from './search';
 import { IProgress } from 'vs/platform/search/common/search';
 
+// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
+const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+
 export class RipgrepEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
@@ -72,7 +75,7 @@ export class RipgrepEngine {
 
 			onMessage({ message: rgCmd });
 		});
-		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd });
+		this.rgProc = cp.spawn(rgDiskPath, rgArgs.args, { cwd });
 		process.once('exit', this.killRgProcFn);
 
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd, this.config.extraFiles);
@@ -424,11 +427,7 @@ export function fixDriveC(path: string): string {
 
 function getRgArgs(config: IRawSearch) {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
-	if (config.contentPattern.isSmartCase) {
-		args.push('--smart-case');
-	} else {
-		args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
-	}
+	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {
