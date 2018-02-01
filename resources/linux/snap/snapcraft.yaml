@@ -24,8 +24,14 @@ parts:
       - libxss1
       - libxtst6
       # desktop-gtk2 deps below
+      - libxkbcommon0
       - libgtk2.0-0
+      - libgdk-pixbuf2.0-0
+      - libglib2.0-bin
+      - libgtk2.0-bin
+      - unity-gtk2-module
       - libappindicator1
+      - xdg-user-dirs
     prime:
       - -usr/share/dh-python
   electron-launch:
