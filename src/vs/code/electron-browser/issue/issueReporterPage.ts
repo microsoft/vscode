@@ -24,7 +24,7 @@ export default (): string => `
 
 	<div class="input-group">
 		<label for="issue-title">${escape(localize('issueTitleLabel', "Title"))} <span class="required-input">*</span></label>
-		<div id="issue-title-validation-error" class="validation-error hidden">${escape(localize('issueTitleRequired', "Please enter a title."))}</div>
+		<div id="issue-title-validation-error" class="validation-error hidden" role="alert">${escape(localize('issueTitleRequired', "Please enter a title."))}</div>
 		<input id="issue-title" type="text" required>
 		<small id="similar-issues">
 			<!-- To be dynamically filled -->
@@ -110,7 +110,7 @@ export default (): string => `
 		</div>
 		<div class="block-info-text">
 			<div class="instructions">${escape(localize('githubMarkdown', "We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."))}</div>
-			<div id="description-validation-error" class="validation-error hidden">${escape(localize('issueDescriptionRequired', "Please enter a description."))}</div>
+			<div id="description-validation-error" class="validation-error hidden" role="alert">${escape(localize('issueDescriptionRequired', "Please enter a description."))}</div>
 			<textarea name="description" id="description" cols="100" rows="15" required></textarea>
 		</div>
 	</div>
