@@ -335,7 +335,7 @@ interface ImageState {
 }
 
 class InlineImageView {
-	private static readonly SCALE_PINCH_FACTOR = 0.01;
+	private static readonly SCALE_PINCH_FACTOR = 0.075;
 	private static readonly MAX_SCALE = 20;
 	private static readonly MIN_SCALE = 0.1;
 
@@ -519,8 +519,8 @@ class InlineImageView {
 				}
 
 				// scrolling up, pinching out should increase the scale
-				const delta = -e.deltaY;
-				updateScale(scale as number + delta * InlineImageView.SCALE_PINCH_FACTOR);
+				const delta = e.deltaY < 0 ? 1 : -1;
+				updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
 			})
 			.on(DOM.EventType.SCROLL, () => {
 				if (!imgElement || !imgElement.parentElement || scale === 'fit') {
