@@ -16,6 +16,7 @@ step "Build snap package" \
 PLATFORM_LINUX="linux-$ARCH"
 PLATFORM_DEB="linux-deb-$ARCH"
 PLATFORM_RPM="linux-rpm-$ARCH"
+PLATFORM_SNAP="linux-snap-$ARCH"
 [[ "$ARCH" == "ia32" ]] && DEB_ARCH="i386" || DEB_ARCH="amd64"
 [[ "$ARCH" == "ia32" ]] && RPM_ARCH="i386" || RPM_ARCH="x86_64"
 REPO="`pwd`"
@@ -55,6 +56,9 @@ echo SNAP_FILENAME
 echo $SNAP_FILENAME
 echo SNAP_PATH
 echo $SNAP_PATH
+
+step "Publish Snap package" \
+	node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_SNAP package $SNAP_FILENAME $VERSION true $SNAP_PATH
 
 IS_FROZEN="$(node build/tfs/linux/frozen-check.js $VSCODE_QUALITY)"
 
