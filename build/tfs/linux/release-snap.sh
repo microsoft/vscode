@@ -35,7 +35,7 @@ else
 		if [ "$IS_FROZEN" != "true" ]; then
 			if [ "$BUILD_SOURCEBRANCH" = "master" ] || [ "$BUILD_SOURCEBRANCH" = "refs/heads/master" ]; then
 				if [[ $BUILD_QUEUEDBY = *"Project Collection Service Accounts"* || $BUILD_QUEUEDBY = *"Microsoft.VisualStudio.Services.TFS"* ]]; then
-					if [ "$VSCODE_QUALITY" = "insiders" ]; then
+					if [ "$VSCODE_QUALITY" = "insider" ]; then
 						AUTO_RELEASE=1
 					fi
 				fi
