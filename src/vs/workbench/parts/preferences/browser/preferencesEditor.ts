@@ -265,7 +265,10 @@ export class PreferencesEditor extends BaseEditor {
 		if (query) {
 			return TPromise.join([
 				this.localSearchDelayer.trigger(() => this.preferencesRenderers.localFilterPreferences(query)),
-				this.remoteSearchThrottle.trigger(() => this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500))
+				this.remoteSearchThrottle.trigger(() => {
+					this.progressService.showWhile(this.preferencesRenderers.remoteSearchPreferences(query), 500);
+					return TPromise.wrap(null);
+				})
 			]) as TPromise;
 		} else {
 			// When clearing the input, update immediately to clear it
