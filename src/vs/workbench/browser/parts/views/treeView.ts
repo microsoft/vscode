@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
@@ -271,11 +271,11 @@ class TreeDataSource implements IDataSource {
 }
 
 interface ITreeExplorerTemplateData {
-	container: HTMLElement;
 	label: HTMLElement;
 	resourceLabel: ResourceLabel;
 	icon: HTMLElement;
 	actionBar: ActionBar;
+	aligner: Aligner;
 }
 
 class TreeRenderer implements IRenderer {
@@ -312,7 +312,7 @@ class TreeRenderer implements IRenderer {
 			actionRunner: new MultipleSelectionActionRunner(() => tree.getSelection())
 		});
 
-		return { container, label, resourceLabel, icon, actionBar };
+		return { label, resourceLabel, icon, actionBar, aligner: new Aligner(container, tree, this.themeService) };
 	}
 
 	public renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
@@ -343,27 +343,54 @@ class TreeRenderer implements IRenderer {
 		templateData.actionBar.context = (<TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle });
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
 
-		const fileIconTheme = this.themeService.getFileIconTheme();
-		if (fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons) {
-			const hasIcon = !!icon || !!resource;
-			DOM.toggleClass(templateData.container, 'align-with-twisty', hasIcon && !this.hasSiblingWithChildrenAndIcon(node, tree));
-		} else {
-			DOM.removeClass(templateData.container, 'align-with-twisty');
+		templateData.aligner.align(node);
+	}
+
+	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
+		templateData.resourceLabel.dispose();
+		templateData.aligner.dispose();
+	}
+}
+
+class Aligner extends Disposable {
+
+	private node: ITreeItem;
+
+	constructor(
+		private container: HTMLElement,
+		private tree: ITree,
+		private themeService: IWorkbenchThemeService
+	) {
+		super();
+		this._register(this.themeService.onDidFileIconThemeChange(() => this.alignByTheme()));
+	}
+
+	align(treeItem: ITreeItem): void {
+		this.node = treeItem;
+		this.alignByTheme();
+	}
+
+	private alignByTheme(): void {
+		if (this.node) {
+			const fileIconTheme = this.themeService.getFileIconTheme();
+			const icon = this.themeService.getTheme().type === LIGHT ? this.node.icon : this.node.iconDark;
+			if (fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons) {
+				const hasIcon = !!icon || !!this.node.resourceUri;
+				DOM.toggleClass(this.container, 'align-with-twisty', hasIcon && !this.hasSiblingWithChildrenAndIcon());
+			} else {
+				DOM.removeClass(this.container, 'align-with-twisty');
+			}
 		}
 	}
 
-	private hasSiblingWithChildrenAndIcon(node: ITreeItem, tree: ITree): boolean {
-		const navigator = tree.getNavigator(tree.getNavigator(node).first());
+	private hasSiblingWithChildrenAndIcon(): boolean {
+		const navigator = this.tree.getNavigator(this.tree.getNavigator(this.node).first());
 		for (let next: ITreeItem = navigator.next(); !!next; next = navigator.next()) {
 			if (next.collapsibleState !== TreeItemCollapsibleState.None && (next.icon || next.iconDark)) {
 				return true;
 			}
 		}
 		return false;
-	}
-
-	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
-		templateData.resourceLabel.dispose();
 	}
 }
 
