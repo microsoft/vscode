@@ -197,6 +197,14 @@ declare module 'vscode-xterm' {
 		 * default value is 0.
 		 */
 		priority?: number;
+
+		/**
+		 * A callback that fires when the mousedown and click events occur that
+		 * determines whether a link will be activated upon click. This enables
+		 * only activating a link when a certain modifier is held down, if not the
+		 * mouse event will continue propagation (eg. double click to select word).
+		 */
+		willLinkActivate?: (event: MouseEvent, uri: string) => boolean;
 	}
 
 	export interface IEventEmitter {
