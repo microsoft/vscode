@@ -12,9 +12,12 @@ const shell = require('gulp-shell');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
 const util = require('./lib/util');
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const packageJson = require('../package.json');
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const product = require('../product.json');
-const rpmDependencies = require('../resources/linux/rpm/dependencies');
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
+const rpmDependencies = require('../resources/linux/rpm/dependencies.json');
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 

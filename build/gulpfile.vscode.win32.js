@@ -11,7 +11,9 @@ const assert = require('assert');
 const cp = require('child_process');
 const _7z = require('7zip')['7z'];
 const util = require('./lib/util');
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const pkg = require('../package.json');
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const product = require('../product.json');
 const vfs = require('vinyl-fs');
 

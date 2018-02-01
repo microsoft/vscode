@@ -94,8 +94,11 @@ const tasks = compilations.map(function (tsconfigFile) {
 					sourceRoot: '../src'
 				}))
 				.pipe(tsFilter.restore)
+				// @ts-ignore review
 				.pipe(build ? nlsDev.createAdditionalLanguageFiles(languages, i18nPath, out) : es.through())
+				// @ts-ignore review
 				.pipe(build ? nlsDev.bundleMetaDataFiles(headerId, headerOut) : es.through())
+				// @ts-ignore review
 				.pipe(build ? nlsDev.bundleLanguageFiles() : es.through())
 				.pipe(reporter.end(emitError));
 
@@ -143,6 +146,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		const watchInput = watcher(src, srcOpts);
 
 		return watchInput
+			// @ts-ignore review
 			.pipe(util.incremental(() => pipeline(true), input))
 			.pipe(gulp.dest(out));
 	});

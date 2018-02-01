@@ -25,6 +25,7 @@ function watch(root) {
 	var child = cp.spawn(watcherPath, [root]);
 
 	child.stdout.on('data', function(data) {
+		//@ts-ignore review
 		var lines = data.toString('utf8').split('\n');
 		for (var i = 0; i < lines.length; i++) {
 			var line = lines[i].trim();
@@ -46,7 +47,7 @@ function watch(root) {
 				path: changePathFull,
 				base: root
 			});
-
+			//@ts-ignore review
 			file.event = toChangeType(changeType);
 			result.emit('data', file);
 		}

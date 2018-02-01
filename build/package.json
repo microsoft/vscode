@@ -17,8 +17,9 @@
     "xml2js": "^0.4.17"
   },
   "scripts": {
-    "compile": "tsc",
-    "watch": "tsc --watch",
-    "postinstall": "npm run compile"
+    "compile": "tsc -p tsconfig.build.json",
+    "watch": "tsc -p tsconfig.build.json --watch",
+    "postinstall": "npm run compile",
+    "npmCheckJs": "tsc --noEmit"
   }
 }

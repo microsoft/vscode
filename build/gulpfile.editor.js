@@ -12,6 +12,7 @@ var File = require('vinyl');
 
 var root = path.dirname(__dirname);
 var sha1 = util.getVersion(root);
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 var semver = require('./monaco/package.json').version;
 var headerVersion = semver + '(' + sha1 + ')';
 
@@ -79,7 +80,8 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'],
 	bundleLoader: false,
 	header: BUNDLED_FILE_HEADER,
 	bundleInfo: true,
-	out: 'out-editor'
+	out: 'out-editor',
+	languages: undefined
 }));
 
 gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
@@ -155,6 +157,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 });
 
 gulp.task('analyze-editor-distro', function() {
+	// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 	var bundleInfo = require('../out-editor/bundleInfo.json');
 	var graph = bundleInfo.graph;
 	var bundles = bundleInfo.bundles;

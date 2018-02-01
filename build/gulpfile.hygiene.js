@@ -151,8 +151,8 @@ gulp.task('tslint', () => {
 
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(tslintFilter))
-		.pipe(gulptslint({ rulesDirectory: 'build/lib/tslint' }))
-		.pipe(gulptslint.report(options));
+		.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint' }))
+		.pipe(gulptslint.default.report(options));
 });
 
 const hygiene = exports.hygiene = (some, options) => {
@@ -202,6 +202,11 @@ const hygiene = exports.hygiene = (some, options) => {
 			verify: true,
 			tsfmt: true,
 			// verbose: true
+			// keep checkJS happy
+			editorconfig: undefined,
+			replace: undefined,
+			tsconfig: undefined,
+			tslint: undefined
 		}).then(result => {
 			if (result.error) {
 				console.error(result.message);
@@ -227,9 +232,9 @@ const hygiene = exports.hygiene = (some, options) => {
 
 	const tsl = es.through(function (file) {
 		const configuration = tslint.Configuration.findConfiguration(null, '.');
-		const options = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };
+		const linterOptions = { fix: false, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
 		const contents = file.contents.toString('utf8');
-		const linter = new tslint.Linter(options);
+		const linter = new tslint.Linter(linterOptions);
 		linter.lint(file.relative, contents, configuration.results);
 		const result = linter.getResult();
 
