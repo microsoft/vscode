@@ -60,5 +60,10 @@ step "Run unit tests" \
 # step "Run smoke test" \
 # 	smoketest
 
-step "Publish release" \
-	./build/tfs/linux/release.sh
+if [ -z "$VSCODE_SNAP" ]; then
+	step "Publish release" \
+		./build/tfs/linux/release.sh
+else
+	step "Publish release (snap)" \
+		./build/tfs/linux/release-snap.sh
+fi
