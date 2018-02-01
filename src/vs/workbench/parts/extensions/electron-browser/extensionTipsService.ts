@@ -27,7 +27,7 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as pfs from 'vs/base/node/pfs';
 import * as os from 'os';
-import { flatten, distinct } from 'vs/base/common/arrays';
+import { flatten, distinct, shuffle } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { ShowLanguageExtensionsAction } from 'vs/workbench/browser/parts/editor/editorStatus';
@@ -109,7 +109,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._allWorkspaceRecommendedExtensions.forEach(x => output[x.toLowerCase()] = localize('workspaceRecommendation', "This extension is recommended by users of the current workspace."));
 		Object.keys(this._fileBasedRecommendations).forEach(x => output[x.toLowerCase()] = output[x.toLowerCase()] || localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened."));
 		forEach(this._exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = output[entry.key.toLowerCase()] || localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", entry.value));
-		this._dynamicWorkspaceRecommendations.forEach(x => output[x.toLowerCase()] = output[x.toLowerCase()] || localize('dynamicWorkspaceRecommendation', "This extension might interest you because many other users of the current workspace use it."));
+		if (this.contextService.getWorkspace().folders && this.contextService.getWorkspace().folders.length === 1) {
+			const currentRepo = this.contextService.getWorkspace().folders[0].name;
+			this._dynamicWorkspaceRecommendations.forEach(x => output[x.toLowerCase()] = output[x.toLowerCase()] || localize('dynamicWorkspaceRecommendation', "This extension may interest you because it's popular among users of the {0} repository.", currentRepo));
+		}
 		return output;
 	}
 
@@ -219,13 +222,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	getOtherRecommendations(): string[] {
-		if (!this._dynamicWorkspaceRecommendations || !this._dynamicWorkspaceRecommendations.length) {
-			return Object.keys(this._exeBasedRecommendations);
-		}
-		const coinToss = Math.round(Math.random());
-		return distinct(coinToss
-			? [...Object.keys(this._exeBasedRecommendations), ...this._dynamicWorkspaceRecommendations]
-			: [...this._dynamicWorkspaceRecommendations, ...Object.keys(this._exeBasedRecommendations)]);
+		const others = distinct([...Object.keys(this._exeBasedRecommendations), ...this._dynamicWorkspaceRecommendations]);
+		shuffle(others);
+		return others;
 	}
 
 	getKeymapRecommendations(): string[] {
