@@ -23,13 +23,16 @@ PACKAGEJSON="$BUILD/resources/app/package.json"
 
 wget https://az764295.vo.msecnd.net/insider/17e511973822098b8b122c7653b6b7809db16f14/code-insiders-1.20.0-1517509866-x64.snap
 SNAP_PATH=code-insiders-1.20.0-1517509866-x64.snap
+echo $SNAPCRAFT_LOGIN
+echo $SNAPCRAFT_MACAROON
+echo $SNAPCRAFT_UNBOUND_DISCHARGE
 
 if [ -z "$VSCODE_QUALITY" ]; then
 	echo "VSCODE_QUALITY is not set, skipping repo package publish"
 elif [ "$IS_FROZEN" = "true" ]; then
 	echo "$VSCODE_QUALITY is frozen, skipping repo package publish"
-elif [ -z "$SNAPCRAFT_MACAROON" ] || [ -z "$SNAPCRAFT_UNBOUND_DISCHARGE" ]; then
-	echo "SNAPCRAFT_MACAROON or SNAPCRAFT_UNBOUND_DISCHARGE is not set, skipping repo package publish"
+elif [ -z "$SNAPCRAFT_LOGIN" ] || [ -z "$SNAPCRAFT_MACAROON" ] || [ -z "$SNAPCRAFT_UNBOUND_DISCHARGE" ]; then
+	echo "SNAPCRAFT* env vars not set, skipping repo package publish"
 else
 	#if [ "$BUILD_SOURCEBRANCH" = "master" ] || [ "$BUILD_SOURCEBRANCH" = "refs/heads/master" ]; then
 	#	if [[ $BUILD_QUEUEDBY = *"Project Collection Service Accounts"* || $BUILD_QUEUEDBY = *"Microsoft.VisualStudio.Services.TFS"* ]]; then
