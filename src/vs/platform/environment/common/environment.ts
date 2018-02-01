@@ -56,6 +56,7 @@ export interface ParsedArgs {
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'upload-logs'?: boolean;
+	'upload-logs-stdin-pipe'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

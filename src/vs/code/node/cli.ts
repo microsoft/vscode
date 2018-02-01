@@ -13,6 +13,7 @@ import pkg from 'vs/platform/node/package';
 import * as paths from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
+import * as net from 'net';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
@@ -312,7 +313,31 @@ export async function main(argv: string[]): TPromise<any> {
 		};
 
 		if (args['upload-logs']) {
-			options['stdio'] = [process.stdin, 'pipe', 'pipe'];
+			// Create a socket for writing
+			const pipeName = `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.sock`;
+			stdinFilePath = isWindows
+				? '\\\\.\\pipe\\' + pipeName
+				: paths.join(os.tmpdir(), pipeName);
+
+			// open tmp file for writing
+			let stdinFileError: Error;
+			try {
+				const stdErrServer = net.createServer(stream => {
+					process.stdin.pipe(stream);
+				});
+				stdErrServer.listen(stdinFilePath);
+			} catch (error) {
+				stdinFileError = error;
+				if (verbose) {
+					console.error(`Failed to create file to read via stdin: ${error.toString()}`);
+				}
+			}
+
+			if (!stdinFileError) {
+				argv = argv.concat('--upload-logs-stdin-pipe', stdinFilePath);
+			}
+
+			options['stdio'] = ['ignore', 'pipe', 'pipe'];
 		} else if (!verbose) {
 			options['stdio'] = 'ignore';
 		}

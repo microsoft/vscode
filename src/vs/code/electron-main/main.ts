@@ -202,7 +202,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					// Log uploader
 					if (environmentService.args['upload-logs']) {
-						return uploadLogs(channel, requestService)
+						return uploadLogs(channel, requestService, environmentService)
 							.then(() => TPromise.wrapError(new ExpectedError()));
 					}
 

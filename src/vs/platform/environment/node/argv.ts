@@ -28,7 +28,8 @@ const options: minimist.Opts = {
 		'debugBrkSearch',
 		'enable-proposed-api',
 		'export-default-configuration',
-		'install-source'
+		'install-source',
+		'upload-logs-stdin-pipe'
 	],
 	boolean: [
 		'help',

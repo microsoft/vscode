@@ -10,6 +10,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
+import * as net from 'net';
 
 import { localize } from 'vs/nls';
 import { ILaunchChannel } from 'vs/code/electron-main/launch';
@@ -17,6 +18,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import product from 'vs/platform/node/product';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { IRequestContext } from 'vs/base/node/request';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface PostResult {
 	readonly blob_id: string;
@@ -35,7 +37,8 @@ class Endpoint {
 
 export async function uploadLogs(
 	channel: ILaunchChannel,
-	requestService: IRequestService
+	requestService: IRequestService,
+	environmentService: IEnvironmentService
 ): TPromise<any> {
 	const endpoint = Endpoint.getFromProduct();
 	if (!endpoint) {
@@ -45,7 +48,7 @@ export async function uploadLogs(
 
 	const logsPath = await channel.call('get-logs-path', null);
 
-	if (await promptUserToConfirmLogUpload(logsPath)) {
+	if (await promptUserToConfirmLogUpload(logsPath, environmentService)) {
 		console.log(localize('beginUploading', 'Uploading...'));
 		const outZip = await zipLogs(logsPath);
 		const result = await postLogs(endpoint, outZip, requestService);
@@ -57,6 +60,7 @@ export async function uploadLogs(
 
 async function promptUserToConfirmLogUpload(
 	logsPath: string,
+	environmentService: IEnvironmentService
 ): Promise<boolean> {
 	const message = localize('logUploadPromptHeader', 'Upload session logs to secure endpoint?')
 		+ '\n\n' + localize('logUploadPromptBody', 'Please review your log files here: \'{0}\'', logsPath)
@@ -64,7 +68,7 @@ async function promptUserToConfirmLogUpload(
 		+ '\n\n' + localize('logUploadPromptKey', 'I have reviewed my logs (enter \'y\' to confirm upload)');
 
 	const rl = readline.createInterface({
-		input: process.stdin,
+		input: net.connect(environmentService.args['upload-logs-stdin-pipe']),
 		output: process.stdout
 	});
 
