@@ -286,6 +286,14 @@ export class IssueReporter extends Disposable {
 
 						similarIssues.appendChild(issuesText);
 						similarIssues.appendChild(issues);
+					} else if (result && result.items) {
+						const message = $('div.list-title');
+						message.textContent = localize('noResults', "No results found");
+						similarIssues.appendChild(message);
+					} else {
+						const message = $('div.list-title');
+						message.textContent = localize('rateLimited', "API rate limit exceeded");
+						similarIssues.appendChild(message);
 					}
 				});
 			}).catch((error) => {
