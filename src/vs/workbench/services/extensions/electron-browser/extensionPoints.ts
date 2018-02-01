@@ -16,7 +16,7 @@ import { isValidExtensionDescription } from 'vs/platform/extensions/node/extensi
 import * as semver from 'semver';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { groupByExtension, getGalleryExtensionId, getLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 const MANIFEST_FILE = 'package.json';
 
@@ -459,25 +459,19 @@ export class ExtensionScanner {
 				const gallery: IExtensionReference[] = [];
 
 				refs.forEach(ref => {
-					if (obsolete[ref.name]) {
-						return;
-					}
-
 					const { id, version } = getIdAndVersionFromLocalExtensionId(ref.name);
-
 					if (!id || !version) {
 						nonGallery.push(ref);
 					} else {
 						gallery.push(ref);
 					}
 				});
-
 				refs = [...nonGallery, ...gallery];
 			}
 
 			const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
 			let extensionDescriptions = await TPromise.join(refs.map(r => this.scanExtension(input.ourVersion, log, r.path, isBuiltin, nlsConfig)));
-			extensionDescriptions = extensionDescriptions.filter(item => item !== null);
+			extensionDescriptions = extensionDescriptions.filter(item => item !== null && !obsolete[getLocalExtensionId(getGalleryExtensionId(item.publisher, item.name), item.version)]);
 
 			if (!isBuiltin) {
 				// Filter out outdated extensions
