@@ -103,7 +103,7 @@ export class LocalSearchProvider implements ISearchProvider {
 
 		let score = 1000; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
-			const matches = new SettingMatches(this._filter, setting, true, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			const matches = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 			return matches && matches.length ?
 				{
 					matches,
