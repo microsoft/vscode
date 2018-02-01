@@ -21,7 +21,7 @@ import { createActionItem, fillInActions } from 'vs/platform/actions/browser/men
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ActionItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionItem, ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewsRegistry, TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvider, TreeViewItemHandleArg } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IViewletViewOptions, IViewOptions, TreeViewsViewletPanel, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -88,8 +88,9 @@ export class TreeView extends TreeViewsViewletPanel {
 	}
 
 	public createViewer(container: Builder): WorkbenchTree {
+		const actionItemProvider = (action: IAction) => this.getActionItem(action);
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.id);
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, this.menus);
+		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, this.menus, actionItemProvider);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, this.menus);
 		const tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree,
 			container.getHTMLElement(),
@@ -286,6 +287,7 @@ class TreeRenderer implements IRenderer {
 	constructor(
 		private treeViewId: string,
 		private menus: Menus,
+		private actionItemProvider: IActionItemProvider,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
@@ -307,6 +309,7 @@ class TreeRenderer implements IRenderer {
 		const resourceLabel = this.instantiationService.createInstance(ResourceLabel, el, {});
 		const actionsContainer = DOM.append(el, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
+			actionItemProvider: this.actionItemProvider,
 			actionRunner: new MultipleSelectionActionRunner(() => tree.getSelection())
 		});
 

@@ -85,6 +85,7 @@
 
 .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .actions {
 	display: none;
+	padding-right: 6px;
 }
 
 .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row:hover .custom-view-tree-node-item > .actions,
