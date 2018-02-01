@@ -219,14 +219,9 @@ export class Model {
 		const disappearListener = onDidDisappearRepository(() => dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
-		const scanSubmodules = () => {
-			repository.submodules
-				.map(r => path.join(repository.root, r.path))
-				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
-		};
 
-		const statusListener = repository.onDidRunGitStatus(scanSubmodules);
-		scanSubmodules();
+		const statusListener = repository.onDidRunGitStatus(() => this.scanSubmodules(repository));
+		this.scanSubmodules(repository);
 
 		const dispose = () => {
 			disappearListener.dispose();
@@ -242,6 +237,20 @@ export class Model {
 		const openRepository = { repository, dispose };
 		this.openRepositories.push(openRepository);
 		this._onDidOpenRepository.fire(repository);
+	}
+
+	private scanSubmodules(repository: Repository): void {
+		const shouldScanSubmodules = workspace
+			.getConfiguration('git', Uri.file(repository.root))
+			.get<boolean>('detectSubmodules') === true;
+
+		if (!shouldScanSubmodules) {
+			return;
+		}
+
+		repository.submodules
+			.map(r => path.join(repository.root, r.path))
+			.forEach(p => this.eventuallyScanPossibleGitRepository(p));
 	}
 
 	close(repository: Repository): void {

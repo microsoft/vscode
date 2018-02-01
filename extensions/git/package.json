@@ -956,6 +956,11 @@
           ],
           "default": "warn",
           "description": "%config.inputValidation%"
+        },
+        "git.detectSubmodules": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.detectSubmodules%"
         }
       }
     },

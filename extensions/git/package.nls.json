@@ -67,6 +67,7 @@
 	"config.promptToSaveFilesBeforeCommit": "Controls whether Git should check for unsaved files before committing.",
 	"config.showInlineOpenFileAction": "Controls whether to show an inline Open File action in the Git changes view.",
 	"config.inputValidation": "Controls when to show input validation the input counter.",
+	"config.detectSubmodules": "Controls whether to automatically detect git submodules.",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",
 	"colors.untracked": "Color for untracked resources.",
