@@ -3,8 +3,8 @@
 . ./scripts/env.sh
 . ./build/tfs/common/common.sh
 
-step "Build snap package" \
-	npm run gulp -- "vscode-linux-$ARCH-build-snap"
+# step "Build snap package" \
+#	npm run gulp -- "vscode-linux-$ARCH-build-snap"
 
 # Variables
 PLATFORM_SNAP="linux-snap-$ARCH"
