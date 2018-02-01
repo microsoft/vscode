@@ -33,6 +33,7 @@ import { basename } from 'vs/base/common/paths';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Schemas } from 'vs/base/common/network';
 
 export class TreeView extends TreeViewsViewletPanel {
 
@@ -341,13 +342,13 @@ class TreeRenderer implements IRenderer {
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
 
 		// Fix when the theme do not show folder icons but parent has opt in icon.
-		DOM.toggleClass(templateData.container, 'parent-has-icon', this.hasParentHasOptInIcon(node, tree));
+		DOM.toggleClass(templateData.container, 'parent-has-file-icon', this.hasParentHasFileIcon(node, tree));
 		DOM.toggleClass(templateData.container, 'has-icon', !!icon);
 	}
 
-	private hasParentHasOptInIcon(node: ITreeItem, tree: ITree): boolean {
+	private hasParentHasFileIcon(node: ITreeItem, tree: ITree): boolean {
 		const parent: ITreeItem = tree.getNavigator(node).parent();
-		return parent ? !!(this.themeService.getTheme().type === LIGHT ? parent.icon : parent.iconDark) : false;
+		return parent && parent.resourceUri && URI.revive(parent.resourceUri).scheme === Schemas.file;
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
