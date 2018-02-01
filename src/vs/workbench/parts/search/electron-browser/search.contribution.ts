@@ -14,6 +14,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import * as objects from 'vs/base/common/objects';
+import * as platform from 'vs/base/common/platform';
 import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -428,6 +429,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('search.smartCase', "Searches case-insensitively if the pattern is all lowercase, otherwise, searches case-sensitively"),
 			'default': false
+		},
+		'search.globalFindClipboard': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('search.globalFindClipboard', "Controls if the Search Viewlet should read or modify the shared find clipboard on macOS"),
+			'included': platform.isMacintosh
 		}
 	}
 });
