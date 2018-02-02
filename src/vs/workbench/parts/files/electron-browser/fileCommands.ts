@@ -56,6 +56,7 @@ export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
 export const COMPARE_RESOURCE_COMMAND_ID = 'compareFiles';
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
 export const COPY_PATH_COMMAND_ID = 'copyFilePath';
+export const COPY_REL_PATH_COMMAND_ID = 'copyRelativeFilePath';
 
 export const SAVE_FILE_AS_COMMAND_ID = 'workbench.action.files.saveAs';
 export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
@@ -414,16 +415,35 @@ CommandsRegistry.registerCommand({
 	handler: revealInOSHandler
 });
 
-const copyPathHandler = (accessor, resource: URI) => {
+const copyPathBase = (accessor, resource: URI) => {
 	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
 	if (resources.length) {
-		const clipboardService = accessor.get(IClipboardService);
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
 		const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
-		clipboardService.writeText(text);
+		return text;
 	} else {
 		const messageService = accessor.get(IMessageService);
 		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
+		return null;
+	}
+};
+
+const copyPathHandler = (accessor, resource: URI) => {
+	const clipboardService = accessor.get(IClipboardService);
+	const text = copyPathBase(accessor, resource);
+	if (text) {
+		clipboardService.writeText(text);
+	}
+};
+
+const copyRelativePathHandler = (accessor, resource: URI) => {
+	const clipboardService = accessor.get(IClipboardService);
+	const contextService = accessor.get(IWorkspaceContextService);
+	const workspaceFolder = contextService.getWorkspaceFolder(resource);
+	let text = copyPathBase(accessor, resource);
+	if (text) {
+		text = text.replace(workspaceFolder.uri.fsPath + '/', '');
+		clipboardService.writeText(text);
 	}
 };
 
@@ -436,6 +456,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	id: COPY_PATH_COMMAND_ID,
 	handler: copyPathHandler
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ExplorerFocusCondition,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_C,
+	win: {
+		primary: KeyMod.WinCtrl | KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
+	},
+	id: COPY_REL_PATH_COMMAND_ID,
+	handler: copyRelativePathHandler
 });
 
 // TODO@isidor deprecated remove in february
