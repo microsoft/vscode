@@ -62,10 +62,10 @@ function promptUserToConfirmLogUpload(
 	if ((environmentService.args['upload-logs'] || '').toLowerCase() === confirmKey.toLowerCase()) {
 		return true;
 	} else {
-		const message = localize('logUploadPromptHeader', 'Upload session logs to secure endpoint?')
-			+ '\n\n' + localize('logUploadPromptBody', 'Please review your log files here: \'{0}\'', logsPath)
-			+ '\n\n' + localize('logUploadPromptBodyDetails', 'Logs may contain personal information such as full paths and file contents.')
-			+ '\n\n' + localize('logUploadPromptKey', 'Once you have reviewed your logs, please run code with \'--upload-logs={0}\'', confirmKey);
+		const message = localize('logUploadPromptHeader', 'You are about to upload your session logs to a secure Microsoft endpoint that only Microsoft\'s members of the VS Code team can access.')
+			+ '\n\n' + localize('logUploadPromptBody', 'Session logs may contain personal information such as full paths or file contents. Please review and redact your session log files here: \'{0}\'', logsPath)
+			+ '\n\n' + localize('logUploadPromptBodyDetails', 'By continuing you confirm that you have reviewed and redacted your session log files and that you agree to Microsoft using them to debug VS Code.')
+			+ '\n\n' + localize('logUploadPromptAcceptInstructions', 'Please run code with \'--upload-logs={0}\' to proceed with upload', confirmKey);
 		console.log(message);
 		return false;
 	}
