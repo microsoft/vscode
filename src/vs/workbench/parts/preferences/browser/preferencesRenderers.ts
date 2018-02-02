@@ -116,16 +116,22 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 		if (this.filterResult) {
 			data['query'] = this.filterResult.query;
-			data['index'] = source.index;
 			data['groupId'] = source.groupId;
 			data['editableSide'] = !!fromEditableSettings;
+
+			const nlpMetadata = this.filterResult.metadata && this.filterResult.metadata['nlpResult'];
+			if (nlpMetadata) {
+				const sortedKeys = Object.keys(nlpMetadata.scoredResults).sort((a, b) => nlpMetadata.scoredResults[b].score - nlpMetadata.scoredResults[a].score);
+				const suffix = '##' + key;
+				data['nlpIndex'] = arrays.firstIndex(sortedKeys, key => strings.endsWith(key, suffix));
+			}
 		}
 
 		/* __GDPR__
 			"defaultSettingsActions.copySetting" : {
 				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"query" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"editableSide" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
