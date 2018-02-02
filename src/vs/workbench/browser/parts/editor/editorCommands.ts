@@ -344,7 +344,7 @@ function registerEditorCommands() {
 							return group.getEditor(c.editorIndex);
 						}
 
-						return undefined;
+						return group.activeEditor;
 					}).filter(input => !!input);
 
 					if (inputs.length) {
