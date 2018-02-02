@@ -199,6 +199,34 @@ export class DeleteWordRightTerminalAction extends BaseSendTextTerminalAction {
 	}
 }
 
+export class MoveToLineStartTerminalAction extends BaseSendTextTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.moveToLineStart';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.moveToLineStart', "Move To Line Start");
+
+	constructor(
+		id: string,
+		label: string,
+		@ITerminalService terminalService: ITerminalService
+	) {
+		// Send ctrl+A
+		super(id, label, String.fromCharCode('A'.charCodeAt(0) - 64), terminalService);
+	}
+}
+
+export class MoveToLineEndTerminalAction extends BaseSendTextTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.moveToLineEnd';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.moveToLineEnd', "Move To Line End");
+
+	constructor(
+		id: string,
+		label: string,
+		@ITerminalService terminalService: ITerminalService
+	) {
+		// Send ctrl+A
+		super(id, label, String.fromCharCode('E'.charCodeAt(0) - 64), terminalService);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.new';
