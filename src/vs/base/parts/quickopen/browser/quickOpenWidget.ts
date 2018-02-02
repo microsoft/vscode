@@ -516,7 +516,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 		// Trigger open of element on selection
 		if (this.isVisible()) {
-			let mode = (event && event.payload && event.payload.middleButton ? Mode.OPEN_IN_BACKGROUND : false) || preferredMode || Mode.OPEN;
+			let mode = (event && event.payload && event.payload.originalEvent && event.payload.originalEvent.middleButton ? Mode.OPEN_IN_BACKGROUND : false) || preferredMode || Mode.OPEN;
 
 			const context: IEntryRunContext = { event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
 

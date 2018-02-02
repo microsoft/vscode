@@ -158,7 +158,7 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onLeftClick(tree: _.ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
-		const payload = { origin: origin, originalEvent: eventish, middleButton: (<mouse.IMouseEvent>eventish).middleButton };
+		const payload = { origin: origin, originalEvent: eventish };
 		const isDoubleClick = (origin === 'mouse' && (<mouse.IMouseEvent>eventish).detail === 2);
 
 		if (tree.getInput() === element) {
