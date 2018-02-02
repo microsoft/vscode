@@ -667,8 +667,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return TPromise.as(null);
 		}
 
-		return getHashedRemotesFromUri(this.contextService.getWorkspace().folders[0].uri, this.fileService).then(hashedRemotes => {
-			if (!hashedRemotes || !hashedRemotes.length) {
+		const workspaceUri = this.contextService.getWorkspace().folders[0].uri;
+		return TPromise.join([getHashedRemotesFromUri(workspaceUri, this.fileService, false), getHashedRemotesFromUri(workspaceUri, this.fileService, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
+			const hashedRemotes = (hashedRemotes1 || []).concat(hashedRemotes2 || []);
+			if (!hashedRemotes.length) {
 				return null;
 			}
 
