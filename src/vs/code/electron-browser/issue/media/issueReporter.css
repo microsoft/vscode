@@ -35,16 +35,16 @@ td {
 }
 
 #issue-type-label {
-	width: 25%;
+	width: 12%;
 }
 
 #issue-type {
-	width: calc(75% - 5px);
+	width: calc(88% - 5px);
 }
 
 #issue-title-label {
 	width: 10%;
-	display: inline-block;
+	display: inline-block
 }
 
 #issue-title {

@@ -13,7 +13,7 @@ export default (): string => `
 
 	<div class="section">
 		<div class="input-group">
-			<label id="issue-type-label" class="inline-form-control" for="issue-type">${escape(localize('issueTypeLabel', "I want to submit a"))}</label>
+			<label id="issue-type-label" class="inline-form-control" for="issue-type">${escape(localize('issueTypeLabel', "This is a"))}</label>
 			<select id="issue-type" class="inline-form-control">
 				<option value="0">${escape(localize('bugReporter', "Bug Report"))}</option>
 				<option value="1">${escape(localize('performanceIssue', "Performance Issue"))}</option>
@@ -109,7 +109,6 @@ export default (): string => `
 			<!-- To be dynamically filled -->
 		</div>
 		<div class="block-info-text">
-			<div id="description-validation-error" class="validation-error hidden" role="alert">${escape(localize('issueDescriptionRequired', "Please enter a description."))}</div>
 			<textarea name="description" id="description" cols="100" rows="12" required></textarea>
 		</div>
 	</div>

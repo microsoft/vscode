@@ -359,9 +359,7 @@ export class IssueReporter extends Disposable {
 			show(disabledExtensions);
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
-			show(descriptionSubtitle);
-			const textArea = document.getElementById('description');
-			(<HTMLTextAreaElement>textArea).placeholder = localize('bugDescription', "What steps do you need to perform to reliably reproduce the problem? What did you expect to happen and what actually did happen?\nWe support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			descriptionSubtitle.innerHTML = localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
 		} else if (issueType === IssueType.PerformanceIssue) {
 			show(systemBlock);
 			show(processBlock);
@@ -370,9 +368,7 @@ export class IssueReporter extends Disposable {
 			show(disabledExtensions);
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
-			show(descriptionSubtitle);
-			const textArea = document.getElementById('description');
-			(<HTMLTextAreaElement>textArea).placeholder = localize('performanceIssueDesciption', "When did this performance issue happen? For example, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.");
+			descriptionSubtitle.innerHTML = localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
 		} else {
 			hide(systemBlock);
 			hide(processBlock);
@@ -381,20 +377,16 @@ export class IssueReporter extends Disposable {
 			hide(disabledExtensions);
 
 			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
-			const textArea = document.getElementById('description');
-			(<HTMLTextAreaElement>textArea).placeholder = '';
-			hide(descriptionSubtitle);
+			descriptionSubtitle.innerHTML = localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
 		}
 	}
 
 	private validateInput(inputId: string): boolean {
 		const inputElement = (<HTMLInputElement>document.getElementById(inputId));
 		if (!inputElement.value) {
-			show(document.getElementById(`${inputId}-validation-error`));
 			inputElement.classList.add('invalid-input');
 			return false;
 		} else {
-			hide(document.getElementById(`${inputId}-validation-error`));
 			inputElement.classList.remove('invalid-input');
 			return true;
 		}
