@@ -435,7 +435,18 @@ export class IssueReporter extends Disposable {
 		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
 		const baseUrl = `${product.reportIssueUrl}${queryStringPrefix}title=${issueTitle}&body=`;
 		const issueBody = this.issueReporterModel.serialize();
-		shell.openExternal(baseUrl + encodeURIComponent(issueBody));
+		const url = baseUrl + encodeURIComponent(issueBody);
+
+		const lengthValidationElement = document.getElementById('url-length-validation-error');
+		if (url.length > 2081) {
+			lengthValidationElement.textContent = localize('urlLengthError', "The data exceeds the length limit of 2081. The data is length {0}.", url.length);
+			show(lengthValidationElement);
+			return false;
+		} else {
+			hide(lengthValidationElement);
+		}
+
+		shell.openExternal(url);
 		return true;
 	}
 

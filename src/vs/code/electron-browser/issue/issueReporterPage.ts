@@ -129,5 +129,8 @@ export default (): string => `
 		</div>
 	</div>
 
+	<div id="url-length-validation-error" class="validation-error hidden" role="alert">
+		<-- To be dynamically filled -->
+	</div>
 	<button id="github-submit-btn" disabled>${escape(localize('loadingData', "Loading data..."))}</button>
 </div>`;
