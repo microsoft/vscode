@@ -30,14 +30,17 @@ td {
 	border-top: 1px solid #e9ecef;
 }
 
+.section {
+	margin-bottom: 2em;
+}
+
 /**
  * Forms
  */
-input, textarea {
+input[type="text"], textarea {
 	display: block;
 	width: 100%;
 	padding: .375rem .75rem;
-	margin: 0;
 	font-size: 1rem;
 	line-height: 1.5;
 	color: #495057;
@@ -149,6 +152,19 @@ button:disabled {
 	margin-bottom: 1em;
 }
 
+.choice {
+	display: inline-block;
+	margin: 0 5px;
+}
+
+.choice > label, .choice > input {
+	cursor: pointer;
+}
+
+.system-info {
+	margin-bottom: 1.25em;
+}
+
 select, input, textarea {
 	border: 1px solid transparent;
 	margin-top: 10px;
@@ -177,7 +193,6 @@ summary {
 }
 
 input[type="checkbox"] {
-	height: 18px;
 	width: auto;
 	display: inline-block;
 	margin-top: 0;

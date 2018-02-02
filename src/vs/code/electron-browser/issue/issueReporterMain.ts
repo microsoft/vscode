@@ -113,17 +113,17 @@ export class IssueReporter extends Disposable {
 		const content: string[] = [];
 
 		if (styles.inputBackground) {
-			content.push(`input, textarea, select { background-color: ${styles.inputBackground}; }`);
+			content.push(`input[type="text"], textarea, select { background-color: ${styles.inputBackground}; }`);
 		}
 
 		if (styles.inputBorder) {
-			content.push(`input, textarea, select { border: 1px solid ${styles.inputBorder}; }`);
+			content.push(`input[type="text"], textarea, select { border: 1px solid ${styles.inputBorder}; }`);
 		} else {
-			content.push(`input, textarea, select { border: 1px solid transparent; }`);
+			content.push(`input[type="text"], textarea, select { border: 1px solid transparent; }`);
 		}
 
 		if (styles.inputForeground) {
-			content.push(`input, textarea, select { color: ${styles.inputForeground}; }`);
+			content.push(`input[type="text"], textarea, select { color: ${styles.inputForeground}; }`);
 		}
 
 		if (styles.inputErrorBorder) {
@@ -212,11 +212,19 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'reprosWithoutExtensions'].forEach(elementId => {
+		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions'].forEach(elementId => {
 			document.getElementById(elementId).addEventListener('click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
 			});
+		});
+
+		document.getElementById('reproducesWithoutExtensions').addEventListener('click', (e) => {
+			this.issueReporterModel.update({ reprosWithoutExtensions: true });
+		});
+
+		document.getElementById('reproducesWithExtensions').addEventListener('click', (e) => {
+			this.issueReporterModel.update({ reprosWithoutExtensions: false });
 		});
 
 		document.getElementById('description').addEventListener('blur', (event: Event) => {
@@ -337,6 +345,7 @@ export class IssueReporter extends Disposable {
 		const processBlock = document.querySelector('.block-process');
 		const workspaceBlock = document.querySelector('.block-workspace');
 		const extensionsBlock = document.querySelector('.block-extensions');
+		const disabledExtensions = document.getElementById('disabledExtensions');
 
 		const descriptionTitle = document.getElementById('issue-description-label');
 		const descriptionSubtitle = document.getElementById('issue-description-subtitle');
@@ -346,6 +355,7 @@ export class IssueReporter extends Disposable {
 			hide(processBlock);
 			hide(workspaceBlock);
 			show(extensionsBlock);
+			show(disabledExtensions);
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
@@ -355,6 +365,7 @@ export class IssueReporter extends Disposable {
 			show(processBlock);
 			show(workspaceBlock);
 			show(extensionsBlock);
+			show(disabledExtensions);
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
@@ -364,6 +375,7 @@ export class IssueReporter extends Disposable {
 			hide(processBlock);
 			hide(workspaceBlock);
 			hide(extensionsBlock);
+			hide(disabledExtensions);
 
 			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
 			hide(descriptionSubtitle);
