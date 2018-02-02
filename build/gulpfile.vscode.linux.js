@@ -223,7 +223,7 @@ function buildSnapPackage(arch) {
 	const snapBuildPath = getSnapBuildPath(arch);
 	const snapFilename = `${product.applicationName}-${packageJson.version}-${linuxPackageRevision}-${arch}.snap`;
 	return shell.task([
-		`chmod a+x ${snapBuildPath}/electron-launch ${snapBuildPath}/hooks/post-refresh`,
+		`chmod a+x ${snapBuildPath}/electron-launch ${snapBuildPath}/snap/hooks/post-refresh`,
 		`snapcraft --version`,
 		`cd ${snapBuildPath} && snapcraft snap --output ../${snapFilename}`
 	]);
