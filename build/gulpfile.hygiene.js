@@ -225,23 +225,14 @@ const hygiene = exports.hygiene = (some, options) => {
 		});
 	}
 
+	const program = tslint.Linter.createProgram("src/tsconfig.json");
+	const configuration = tslint.Configuration.findConfiguration('tslint.json', '.');
+	const tslintOptions = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };
+	const linter = new tslint.Linter(tslintOptions, program);
+
 	const tsl = es.through(function (file) {
-		const configuration = tslint.Configuration.findConfiguration(null, '.');
-		const program = tslint.Linter.createProgram("tsconfig.json", "src/");
-		const options = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };
 		const contents = file.contents.toString('utf8');
-		const linter = new tslint.Linter(options, program);
-		if (file.relative.startsWith('src')) {
-
-			linter.lint(file.relative, contents, configuration.results);
-			const result = linter.getResult();
-
-			if (result.failures.length > 0) {
-				reportFailures(result.failures);
-				errorCount += result.failures.length;
-			}
-		}
-
+		linter.lint(file.relative, contents, configuration.results);
 		this.emit('data', file);
 	});
 
@@ -275,6 +266,13 @@ const hygiene = exports.hygiene = (some, options) => {
 			this.emit('data', data);
 		}, function () {
 			process.stdout.write('\n');
+			
+			const tslintResult = linter.getResult();
+			if (tslintResult.failures.length > 0) {
+				reportFailures(tslintResult.failures);
+				errorCount += tslintResult.failures.length;
+			}
+
 			if (errorCount > 0) {
 				this.emit('error', 'Hygiene failed with ' + errorCount + ' errors. Check \'build/gulpfile.hygiene.js\'.');
 			} else {
