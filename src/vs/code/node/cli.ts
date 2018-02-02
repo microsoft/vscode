@@ -13,7 +13,6 @@ import pkg from 'vs/platform/node/package';
 import * as paths from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
-import * as net from 'net';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
