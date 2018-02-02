@@ -27,6 +27,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { memoize } from 'vs/base/common/decorators';
+import * as platform from 'vs/base/common/platform';
 
 interface MapExtToMediaMimes {
 	[index: string]: string;
@@ -455,7 +456,7 @@ class InlineImageView {
 					return;
 				}
 
-				if (e.altKey) {
+				if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
 					scaleDirection = ScaleDirection.OUT;
 					c.removeClass('zoom-in').addClass('zoom-out');
 				}
@@ -465,7 +466,7 @@ class InlineImageView {
 					return;
 				}
 
-				if (!e.altKey) {
+				if (!(platform.isMacintosh ? e.altKey : e.ctrlKey)) {
 					scaleDirection = ScaleDirection.IN;
 					c.removeClass('zoom-out').addClass('zoom-in');
 				}
