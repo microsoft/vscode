@@ -20,7 +20,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionTipsService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -349,7 +349,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private windowService: IWindowService,
 		@ILogService private logService: ILogService,
-		@IProgressService2 private progressService: IProgressService2
+		@IProgressService2 private progressService: IProgressService2,
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -876,12 +877,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const data = active.extension.telemetryData;
 		const duration = new Date().getTime() - active.start.getTime();
 		const eventName = toTelemetryEventName(active.operation);
-
+		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+		const recommendationsData = extRecommendations[active.extension.id.toLowerCase()] ? { recommendationReason: extRecommendations[active.extension.id.toLowerCase()].reasonId } : {};
 		/* __GDPR__
 			"extensionGallery:install" : {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
@@ -892,6 +895,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
@@ -902,12 +906,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
 			}
 		*/
-		this.telemetryService.publicLog(eventName, assign(data, { success: !errorcode, duration, errorcode }));
+		this.telemetryService.publicLog(eventName, assign(data, { success: !errorcode, duration, errorcode }, recommendationsData));
 	}
 
 	private onError(err: any): void {
