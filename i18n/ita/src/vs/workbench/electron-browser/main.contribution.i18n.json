@@ -35,7 +35,6 @@
 	"panelDefaultLocation": "Controlla la posizione predefinita del pannello. Può essere mostrato nella parte inferiore o a destra del banco di lavoro.",
 	"statusBarVisibility": "Controlla la visibilità della barra di stato nella parte inferiore del workbench.",
 	"activityBarVisibility": "Controlla la visibilità della barra attività nel workbench.",
-	"fontAliasing": "Controlla il metodo di aliasing dei caratteri nell'area di lavoro.\n- impostazione predefinita: anti-aliasing dei caratteri a livello di sub-pixel. Nella maggior parte delle visualizzazioni non retina consentirà di ottenere un testo con il massimo contrasto.\n- anti-aliasing: anti-aliasing dei caratteri a livello di pixel, invece che a livello di sub-pixel. Consente di visualizzare i caratteri più chiari.\n- nessuno: disabilita l'anti-aliasing dei caratteri. Il testo verrà visualizzato con contorni irregolari.",
 	"workbench.fontAliasing.default": "Anti-aliasing dei caratteri a livello di sub-pixel. Nella maggior parte delle visualizzazioni non retina consentirà di ottenere un testo con il massimo contrasto.",
 	"workbench.fontAliasing.antialiased": "Anti-aliasing dei caratteri a livello di pixel, invece che a livello di sub-pixel. Consente di visualizzare i caratteri più chiari.",
 	"workbench.fontAliasing.none": "Disabilita l'anti-aliasing dei caratteri. Il testo verrà visualizzato con contorni irregolari. ",

@@ -18,5 +18,7 @@
 	"sort by name": "Sırala: Ada Göre",
 	"suggestProxyError": "Market, 'ECONNREFUSED' döndürdü. Lütfen 'http.proxy' ayarını kontrol edin.",
 	"extensions": "Eklentiler",
-	"outdatedExtensions": "{0} Eski Eklenti"
+	"outdatedExtensions": "{0} Eski Eklenti",
+	"malicious warning": "'{0}' eklentisini sorunlu olarak bildirildiği için kaldırdık.",
+	"reloadNow": "Şimdi Yeniden Yükle"
 }

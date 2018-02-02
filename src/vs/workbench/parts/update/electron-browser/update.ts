@@ -263,8 +263,8 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			message: nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available!", product.nameShort),
 			actions: [
 				LinkAction('update.show64bitreleasenotes', nls.localize('learn more', "Learn More"), url),
-				CloseAction,
-				neverShowAgain.action
+				neverShowAgain.action,
+				CloseAction
 			]
 		});
 	}
@@ -420,7 +420,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		this.messageService.show(severity.Info, {
 			message: nls.localize('updateInstalling', "{0} {1} is being installed in the background, we'll let you know when it's done.", product.nameLong, update.productVersion),
-			actions: [CloseAction, neverShowAgain.action]
+			actions: [neverShowAgain.action, CloseAction]
 		});
 	}
 

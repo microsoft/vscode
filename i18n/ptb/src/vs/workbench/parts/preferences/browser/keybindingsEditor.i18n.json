@@ -17,7 +17,6 @@
 	"addLabel": "Adicionar Keybinding",
 	"removeLabel": "Remover Keybinding",
 	"resetLabel": "Redefinir Keybinding",
-	"showConflictsLabel": "Mostrar Conflitos",
 	"copyLabel": "Copiar",
 	"copyCommandLabel": "Copiar Comando",
 	"error": "Erro '{0}' enquanto edita keybinding. Por favor, abra o arquivo 'keybindings.json' e verifique.",

@@ -165,7 +165,7 @@ export class PrefixMemory extends Memory {
 	}
 }
 
-export type MemMode = 'never' | 'byRecency' | 'byPrefix';
+export type MemMode = 'first' | 'byRecency' | 'byPrefix';
 
 export class SuggestMemories {
 

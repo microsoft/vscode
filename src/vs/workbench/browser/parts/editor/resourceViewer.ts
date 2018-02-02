@@ -27,6 +27,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { memoize } from 'vs/base/common/decorators';
+import * as platform from 'vs/base/common/platform';
 
 interface MapExtToMediaMimes {
 	[index: string]: string;
@@ -307,7 +308,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	@memoize
 	private get zoomActions(): Action[] {
-		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.25, 'fit'];
+		const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.2, 'fit'];
 		return scales.map(scale =>
 			new Action('zoom.' + scale, ZoomStatusbarItem.zoomLabel(scale), undefined, undefined, () => {
 				if (this.onSelectScale) {
@@ -320,7 +321,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 	private static zoomLabel(scale: Scale): string {
 		return scale === 'fit'
 			? nls.localize('zoom.action.fit.label', 'Whole Image')
-			: `${+(scale * 100).toFixed(2)}%`;
+			: `${Math.round(scale * 100)}%`;
 	}
 }
 
@@ -335,10 +336,30 @@ interface ImageState {
 }
 
 class InlineImageView {
-	private static readonly SCALE_PINCH_FACTOR = 0.05;
-	private static readonly SCALE_FACTOR = 1.5;
+	private static readonly SCALE_PINCH_FACTOR = 0.075;
 	private static readonly MAX_SCALE = 20;
 	private static readonly MIN_SCALE = 0.1;
+
+	private static readonly zoomLevels: Scale[] = [
+		0.1,
+		0.2,
+		0.3,
+		0.4,
+		0.5,
+		0.6,
+		0.7,
+		0.8,
+		0.9,
+		1,
+		1.5,
+		2,
+		3,
+		5,
+		7,
+		10,
+		15,
+		20
+	];
 
 	/**
 	 * Enable image-rendering: pixelated for images scaled by more than this.
@@ -435,7 +456,7 @@ class InlineImageView {
 					return;
 				}
 
-				if (e.altKey) {
+				if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
 					scaleDirection = ScaleDirection.OUT;
 					c.removeClass('zoom-in').addClass('zoom-out');
 				}
@@ -445,7 +466,7 @@ class InlineImageView {
 					return;
 				}
 
-				if (!e.altKey) {
+				if (!(platform.isMacintosh ? e.altKey : e.ctrlKey)) {
 					scaleDirection = ScaleDirection.IN;
 					c.removeClass('zoom-out').addClass('zoom-in');
 				}
@@ -464,10 +485,23 @@ class InlineImageView {
 					firstZoom();
 				}
 
-				const scaleMultiplier = scaleDirection === ScaleDirection.IN
-					? InlineImageView.SCALE_FACTOR
-					: 1 / InlineImageView.SCALE_FACTOR;
-				updateScale(scale as number * scaleMultiplier);
+				if (scaleDirection === ScaleDirection.IN) {
+					let i = 0;
+					for (; i < InlineImageView.zoomLevels.length; ++i) {
+						if (InlineImageView.zoomLevels[i] > scale) {
+							break;
+						}
+					}
+					updateScale(InlineImageView.zoomLevels[i] || InlineImageView.MAX_SCALE);
+				} else {
+					let i = InlineImageView.zoomLevels.length - 1;
+					for (; i >= 0; --i) {
+						if (InlineImageView.zoomLevels[i] < scale) {
+							break;
+						}
+					}
+					updateScale(InlineImageView.zoomLevels[i] || InlineImageView.MIN_SCALE);
+				}
 			})
 			.on(DOM.EventType.WHEEL, (e: WheelEvent) => {
 				if (!img) {
@@ -477,13 +511,17 @@ class InlineImageView {
 				if (!e.ctrlKey) {
 					return;
 				}
+
+				e.preventDefault();
+				e.stopPropagation();
+
 				if (scale === 'fit') {
 					firstZoom();
 				}
 
 				// scrolling up, pinching out should increase the scale
-				const delta = -e.deltaY;
-				updateScale(scale as number + delta * InlineImageView.SCALE_PINCH_FACTOR);
+				const delta = e.deltaY < 0 ? 1 : -1;
+				updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
 			})
 			.on(DOM.EventType.SCROLL, () => {
 				if (!imgElement || !imgElement.parentElement || scale === 'fit') {

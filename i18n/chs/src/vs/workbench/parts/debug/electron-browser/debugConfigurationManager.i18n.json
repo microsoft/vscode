@@ -32,8 +32,12 @@
 	"app.launch.json.configurations": "配置列表。使用 IntelliSense 添加新配置或编辑现有配置。",
 	"app.launch.json.compounds": "复合列表。每个复合可引用多个配置，这些配置将一起启动。",
 	"app.launch.json.compound.name": "复合的名称。在启动配置下拉菜单中显示。",
+	"useUniqueNames": "配置名称必须唯一。",
+	"app.launch.json.compound.folder": "复合项所在的文件夹的名称。",
 	"app.launch.json.compounds.configurations": "将作为此复合的一部分启动的配置名称。",
 	"debugNoType": "不可省略调试适配器“类型”，其类型必须是“字符串”。",
 	"selectDebug": "选择环境",
-	"DebugConfig.failed": "无法在 \".vscode\" 文件夹({0})内创建 \"launch.json\" 文件。"
+	"DebugConfig.failed": "无法在 \".vscode\" 文件夹({0})内创建 \"launch.json\" 文件。",
+	"workspace": "工作区",
+	"user settings": "用户设置"
 }

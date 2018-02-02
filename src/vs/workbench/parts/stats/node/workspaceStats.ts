@@ -15,6 +15,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { endsWith } from 'vs/base/common/strings';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -89,24 +90,27 @@ function stripPort(authority: string): string {
 	return match ? match[2] : null;
 }
 
-function normalizeRemote(host: string, path: string): string {
+function normalizeRemote(host: string, path: string, stripEndingDotGit: boolean): string {
 	if (host && path) {
+		if (stripEndingDotGit && endsWith(path, '.git')) {
+			path = path.substr(0, path.length - 4);
+		}
 		return (path.indexOf('/') === 0) ? `${host}${path}` : `${host}/${path}`;
 	}
 	return null;
 }
 
-function extractRemote(url: string): string {
+function extractRemote(url: string, stripEndingDotGit: boolean): string {
 	if (url.indexOf('://') === -1) {
 		const match = url.match(SshUrlMatcher);
 		if (match) {
-			return normalizeRemote(match[2], match[3]);
+			return normalizeRemote(match[2], match[3], stripEndingDotGit);
 		}
 	}
 	try {
 		const uri = URI.parse(url);
 		if (uri.authority) {
-			return normalizeRemote(stripPort(uri.authority), uri.path);
+			return normalizeRemote(stripPort(uri.authority), uri.path, stripEndingDotGit);
 		}
 	} catch (e) {
 		// ignore invalid URIs
@@ -114,11 +118,11 @@ function extractRemote(url: string): string {
 	return null;
 }
 
-export function getRemotes(text: string): string[] {
+export function getRemotes(text: string, stripEndingDotGit: boolean = false): string[] {
 	const remotes: string[] = [];
 	let match: RegExpExecArray;
 	while (match = RemoteMatcher.exec(text)) {
-		const remote = extractRemote(match[1]);
+		const remote = extractRemote(match[1], stripEndingDotGit);
 		if (remote) {
 			remotes.push(remote);
 		}
@@ -126,17 +130,17 @@ export function getRemotes(text: string): string[] {
 	return remotes;
 }
 
-export function getHashedRemotesFromConfig(text: string): string[] {
-	return getRemotes(text).map(r => {
+export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: boolean = false): string[] {
+	return getRemotes(text, stripEndingDotGit).map(r => {
 		return crypto.createHash('sha1').update(r).digest('hex');
 	});
 }
 
-export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService): TPromise<string[]> {
+export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): TPromise<string[]> {
 	let path = workspaceUri.path;
 	let uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
 	return fileService.resolveContent(uri, { acceptTextOnly: true }).then(
-		content => getHashedRemotesFromConfig(content.value),
+		content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
 		err => [] // ignore missing or binary file
 	);
 }
@@ -338,7 +342,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private reportRemotes(workspaceUris: URI[]): void {
 		TPromise.join<string[]>(workspaceUris.map(workspaceUri => {
-			return getHashedRemotesFromUri(workspaceUri, this.fileService);
+			return getHashedRemotesFromUri(workspaceUri, this.fileService, true);
 		})).then(hashedRemotes => {
 			/* __GDPR__
 					"workspace.hashedRemotes" : {

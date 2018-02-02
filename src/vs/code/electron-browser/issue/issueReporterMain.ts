@@ -51,6 +51,7 @@ export class IssueReporter extends Disposable {
 	private environmentService: IEnvironmentService;
 	private telemetryService: ITelemetryService;
 	private issueReporterModel: IssueReporterModel;
+	private shouldQueueSearch = true;
 
 	constructor(configuration: IssueReporterConfiguration) {
 		super();
@@ -112,17 +113,17 @@ export class IssueReporter extends Disposable {
 		const content: string[] = [];
 
 		if (styles.inputBackground) {
-			content.push(`input, textarea, select { background-color: ${styles.inputBackground}; }`);
+			content.push(`input[type="text"], textarea, select { background-color: ${styles.inputBackground}; }`);
 		}
 
 		if (styles.inputBorder) {
-			content.push(`input, textarea, select { border: 1px solid ${styles.inputBorder}; }`);
+			content.push(`input[type="text"], textarea, select { border: 1px solid ${styles.inputBorder}; }`);
 		} else {
-			content.push(`input, textarea, select { border: 1px solid transparent; }`);
+			content.push(`input[type="text"], textarea, select { border: 1px solid transparent; }`);
 		}
 
 		if (styles.inputForeground) {
-			content.push(`input, textarea, select { color: ${styles.inputForeground}; }`);
+			content.push(`input[type="text"], textarea, select { color: ${styles.inputForeground}; }`);
 		}
 
 		if (styles.inputErrorBorder) {
@@ -172,7 +173,7 @@ export class IssueReporter extends Disposable {
 
 		if (this.environmentService.disableExtensions || extensions.length === 0) {
 			(<HTMLButtonElement>document.getElementById('disableExtensions')).disabled = true;
-			(<HTMLInputElement>document.getElementById('reprosWithoutExtensions')).checked = true;
+			(<HTMLInputElement>document.getElementById('reproducesWithoutExtensions')).checked = true;
 			this.issueReporterModel.update({ reprosWithoutExtensions: true });
 		}
 	}
@@ -211,18 +212,26 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'reprosWithoutExtensions'].forEach(elementId => {
+		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions'].forEach(elementId => {
 			document.getElementById(elementId).addEventListener('click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
 			});
 		});
 
+		document.getElementById('reproducesWithoutExtensions').addEventListener('click', (e) => {
+			this.issueReporterModel.update({ reprosWithoutExtensions: true });
+		});
+
+		document.getElementById('reproducesWithExtensions').addEventListener('click', (e) => {
+			this.issueReporterModel.update({ reprosWithoutExtensions: false });
+		});
+
 		document.getElementById('description').addEventListener('blur', (event: Event) => {
 			this.issueReporterModel.update({ issueDescription: (<HTMLInputElement>event.target).value });
 		});
 
-		document.getElementById('issue-title').addEventListener('input', this.searchGitHub);
+		document.getElementById('issue-title').addEventListener('input', (e) => { this.searchGitHub(e); });
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
 
@@ -259,7 +268,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	@debounce(300)
-	private searchGitHub(event: Event) {
+	private searchGitHub(event: Event): void {
 		const title = (<HTMLInputElement>event.target).value;
 		const similarIssues = document.getElementById('similar-issues');
 		if (title) {
@@ -286,21 +295,47 @@ export class IssueReporter extends Disposable {
 
 						similarIssues.appendChild(issuesText);
 						similarIssues.appendChild(issues);
+					} else if (result && result.items) {
+						const message = $('div.list-title');
+						message.textContent = localize('noResults', "No results found");
+						similarIssues.appendChild(message);
+					} else {
+						const message = $('div.list-title');
+						message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
+						similarIssues.appendChild(message);
+
+						const resetTime = response.headers.get('X-RateLimit-Reset');
+						const timeToWait = parseInt(resetTime) - Math.floor(Date.now() / 1000);
+						if (this.shouldQueueSearch) {
+							this.shouldQueueSearch = false;
+							setTimeout(() => {
+								this.searchGitHub(event);
+								this.shouldQueueSearch = true;
+							}, timeToWait * 1000);
+						}
+
+						throw new Error(result.message);
 					}
+				}).catch((error) => {
+					this.logSearchError(error);
 				});
 			}).catch((error) => {
-				// TODO: Use LogService here.
-				console.log(error);
-				/* __GDPR__
-				"issueReporterSearchError" : {
-						"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-					}
-				*/
-				this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
+				this.logSearchError(error);
 			});
 		} else {
 			similarIssues.innerHTML = '';
 		}
+	}
+
+	private logSearchError(error: Error) {
+		// TODO: Use LogService here.
+		console.log(error);
+		/* __GDPR__
+		"issueReporterSearchError" : {
+				"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
+		this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
 	}
 
 	private renderBlocks(): void {
@@ -310,6 +345,7 @@ export class IssueReporter extends Disposable {
 		const processBlock = document.querySelector('.block-process');
 		const workspaceBlock = document.querySelector('.block-workspace');
 		const extensionsBlock = document.querySelector('.block-extensions');
+		const disabledExtensions = document.getElementById('disabledExtensions');
 
 		const descriptionTitle = document.getElementById('issue-description-label');
 		const descriptionSubtitle = document.getElementById('issue-description-subtitle');
@@ -319,6 +355,7 @@ export class IssueReporter extends Disposable {
 			hide(processBlock);
 			hide(workspaceBlock);
 			show(extensionsBlock);
+			show(disabledExtensions);
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
@@ -328,6 +365,7 @@ export class IssueReporter extends Disposable {
 			show(processBlock);
 			show(workspaceBlock);
 			show(extensionsBlock);
+			show(disabledExtensions);
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
@@ -337,6 +375,7 @@ export class IssueReporter extends Disposable {
 			hide(processBlock);
 			hide(workspaceBlock);
 			hide(extensionsBlock);
+			hide(disabledExtensions);
 
 			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
 			hide(descriptionSubtitle);
@@ -396,7 +435,18 @@ export class IssueReporter extends Disposable {
 		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
 		const baseUrl = `${product.reportIssueUrl}${queryStringPrefix}title=${issueTitle}&body=`;
 		const issueBody = this.issueReporterModel.serialize();
-		shell.openExternal(baseUrl + encodeURIComponent(issueBody));
+		const url = baseUrl + encodeURIComponent(issueBody);
+
+		const lengthValidationElement = document.getElementById('url-length-validation-error');
+		if (url.length > 2081) {
+			lengthValidationElement.textContent = localize('urlLengthError', "The data exceeds the length limit of 2081. The data is length {0}.", url.length);
+			show(lengthValidationElement);
+			return false;
+		} else {
+			hide(lengthValidationElement);
+		}
+
+		shell.openExternal(url);
 		return true;
 	}
 

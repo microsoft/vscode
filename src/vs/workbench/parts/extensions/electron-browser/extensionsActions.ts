@@ -80,7 +80,7 @@ export class InstallVSIXAction extends Action {
 				this.messageService.show(
 					severity.Info,
 					{
-						message: localize('InstallVSIXAction.success', "Successfully installed the extension. Restart to enable it."),
+						message: localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."),
 						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('InstallVSIXAction.reloadNow', "Reload Now"))]
 					}
 				);

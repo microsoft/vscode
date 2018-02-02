@@ -74,7 +74,7 @@
 	"cursorBlinking": "控制游標動畫樣式，可能的值為 'blink'、'smooth'、'phase'、'expand' 和 'solid'",
 	"mouseWheelZoom": "使用滑鼠滾輪並按住 Ctrl 時，縮放編輯器的字型",
 	"cursorStyle": "控制游標樣式。接受的值為 'block'、'block-outline'、'line'、'line-thin'、'underline' 及 'underline-thin'",
-	"lineCursorWidth": "控制游標寬度，當 editor.cursorStyle 設定為 'line' 時。",
+	"cursorWidth": "控制游標寬度，當 editor.cursorStyle 設定為 'line' 時。",
 	"fontLigatures": "啟用連字字型",
 	"hideCursorInOverviewRuler": "控制游標是否應隱藏在概觀尺規中。",
 	"renderWhitespace": "控制編輯器轉譯空白字元的方式，可能為 'none'、'boundary' 及 'all'。'boundary' 選項不會轉譯字組間的單一空格。",

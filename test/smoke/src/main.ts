@@ -125,7 +125,7 @@ process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
 let quality: Quality;
 if (process.env.VSCODE_DEV === '1') {
 	quality = Quality.Dev;
-} else if ((testCodePath.indexOf('Code - Insiders') /* macOS/Windows */ || testCodePath.indexOf('code-insiders') /* Linux */) >= 0) {
+} else if ((electronPath.indexOf('Code - Insiders') /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */) >= 0) {
 	quality = Quality.Insiders;
 } else {
 	quality = Quality.Stable;

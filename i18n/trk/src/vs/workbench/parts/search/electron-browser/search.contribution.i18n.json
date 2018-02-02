@@ -23,5 +23,7 @@
 	"useRipgrep": "Metin ve dosya aramasında Ripgrep kullanılıp kullanılmayacağını denetler",
 	"useIgnoreFiles": "Dosyaları ararken .gitignore ve .ignore dosyalarının kullanılıp kullanılmayacağını denetler.",
 	"search.quickOpen.includeSymbols": "Dosya sonuçlarındaki bir global sembol aramasının sonuçlarının Hızlı Aç'a dahil edilip edilmeyeceğini yapılandırın.",
-	"search.followSymlinks": "Arama yaparken sembolik linklerin takip edilip edilmeyeceğini denetler."
+	"search.followSymlinks": "Arama yaparken sembolik linklerin takip edilip edilmeyeceğini denetler.",
+	"search.smartCase": "Örüntü tamamen küçük harflerden oluşuyorsa büyük küçük harf duyarlılığı olmadan arar, diğer durumda ise büyük küçük harf duyarlılığı ile arar",
+	"search.globalFindClipboard": "macOS'de Arama Görünümünün paylaşılan panoyu okuyup okumamasını veya değiştirip değiştirmemesini denetler"
 }

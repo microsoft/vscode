@@ -8,5 +8,6 @@
 	],
 	"quickFixWithKb": "修正プログラム ({0}) を表示する",
 	"quickFix": "修正プログラムを表示する",
-	"quickfix.trigger.label": "クイック修正"
+	"quickfix.trigger.label": "クイック修正",
+	"refactor.label": "リファクタリング"
 }

@@ -22,6 +22,7 @@
 	"closeAllUnmodified": "Değiştirilmeyenleri Kapat",
 	"closeAll": "Tümünü Kapat",
 	"keepOpen": "Açık Tut",
+	"toggleInlineView": "Satır İçi Görünümü Aç/Kapat",
 	"showOpenedEditors": "Açık Düzenleyicileri Göster",
 	"keepEditor": "Düzenleyiciyi Tut",
 	"closeEditorsInGroup": "Gruptaki Tüm Düzenleyicileri Kapat",

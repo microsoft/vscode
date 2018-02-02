@@ -53,6 +53,10 @@ export class BaseDropdown extends ActionRunner {
 		this.$label.on([EventType.CLICK, EventType.MOUSE_DOWN, GestureEventType.Tap], (e: Event) => {
 			EventHelper.stop(e, true); // prevent default click behaviour to trigger
 		}).on([EventType.MOUSE_DOWN, GestureEventType.Tap], (e: Event) => {
+			if (e instanceof MouseEvent && e.detail > 1) {
+				return; // prevent multiple clicks to open multiple context menus (https://github.com/Microsoft/vscode/issues/41363)
+			}
+
 			this.show();
 		}).appendTo(this.$el);
 

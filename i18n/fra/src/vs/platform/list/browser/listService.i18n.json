@@ -8,6 +8,5 @@
 	],
 	"workbenchConfigurationTitle": "Banc d'essai",
 	"multiSelectModifier.ctrlCmd": "Mappe vers 'Contrôle' dans Windows et Linux, et vers 'Commande' dans macOS.",
-	"multiSelectModifier.alt": "Mappe vers 'Alt' dans Windows et Linux, et vers 'Option' dans macOS.",
-	"multiSelectModifier": "Le modificateur à utiliser pour ajouter un élément à une multi-sélection avec la souris. 'ctrlCmd' mappe vers 'Contrôle' dans Windows et Linux, et vers 'Commande' dans macOS. Les mouvements de souris 'Ouvrir sur le côté', si supportés, s'adaptent pour ne pas entrer en conflit avec le modificateur multiselect."
+	"multiSelectModifier.alt": "Mappe vers 'Alt' dans Windows et Linux, et vers 'Option' dans macOS."
 }

@@ -8,5 +8,6 @@
 	],
 	"quickFixWithKb": "Düzeltmeleri Göster ({0})",
 	"quickFix": "Düzeltmeleri Göster",
-	"quickfix.trigger.label": "Hızlı Düzeltme"
+	"quickfix.trigger.label": "Hızlı Düzeltme",
+	"refactor.label": "Yeniden Düzenle"
 }

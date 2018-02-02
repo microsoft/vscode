@@ -8,6 +8,5 @@
 	],
 	"workbenchConfigurationTitle": "Munkaterület",
 	"multiSelectModifier.ctrlCmd": "Windows és Linux alatt a `Control`, macOS alatt a `Command` billentyűt jelenti.",
-	"multiSelectModifier.alt": "Windows és Linux alatt az `Alt`, macOS alatt az `Option` billentyűt jelenti.",
-	"multiSelectModifier": "Több elem kijelölése esetén újabb elem hozzáadásához használt módosítóbillentyű (például a fanézetekben és listáknál, ha támogatva van). A `ctrlCmd` Windows és Linux alatt a `Control`, macOS alatt a `Command` billentyűt jelenti. A 'Megnyitás oldalt\" egérgesztusok – ha támogatva vannak – automatikusan úgy lesznek beállítva, hogy ne ütközzenek a több elem kijelöléséhez tartozó módosítóbillentyűvel."
+	"multiSelectModifier.alt": "Windows és Linux alatt az `Alt`, macOS alatt az `Option` billentyűt jelenti."
 }

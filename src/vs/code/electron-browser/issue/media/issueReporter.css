@@ -30,14 +30,17 @@ td {
 	border-top: 1px solid #e9ecef;
 }
 
+.section {
+	margin-bottom: 2em;
+}
+
 /**
  * Forms
  */
-input, textarea {
+input[type="text"], textarea {
 	display: block;
 	width: 100%;
 	padding: .375rem .75rem;
-	margin: 0;
 	font-size: 1rem;
 	line-height: 1.5;
 	color: #495057;
@@ -124,7 +127,7 @@ button:disabled {
 }
 
 #issue-reporter {
-	max-width: 80vw;
+	max-width: 85vw;
 	margin-left: auto;
 	margin-right: auto;
 	margin-top: 2em;
@@ -147,6 +150,19 @@ button:disabled {
 
 .input-group {
 	margin-bottom: 1em;
+}
+
+.choice {
+	display: inline-block;
+	margin: 0 5px;
+}
+
+.choice > label, .choice > input {
+	cursor: pointer;
+}
+
+.system-info {
+	margin-bottom: 1.25em;
 }
 
 select, input, textarea {
@@ -172,9 +188,11 @@ summary {
 	height: 18px;
 }
 
-input[type="checkbox"] {
+.sendData {
 	margin-left: 1em;
-	height: 18px;
+}
+
+input[type="checkbox"] {
 	width: auto;
 	display: inline-block;
 	margin-top: 0;

@@ -48,10 +48,6 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	}
 
 	private get remoteSearchAllowed(): boolean {
-		if (this.environmentService.appQuality === 'stable') {
-			return false;
-		}
-
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		if (!workbenchSettings.enableNaturalLanguageSearch) {
 			return false;
@@ -103,7 +99,7 @@ export class LocalSearchProvider implements ISearchProvider {
 
 		let score = 1000; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
-			const matches = new SettingMatches(this._filter, setting, true, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			const matches = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 			return matches && matches.length ?
 				{
 					matches,
@@ -304,15 +300,16 @@ class RemoteSearchProvider implements ISearchProvider {
 	}
 
 	private async prepareRequest(query: string, filterPage = 0): TPromise<IBingRequestDetails> {
+		const verbatimQuery = query;
 		query = escapeSpecialChars(query);
 		const boost = 10;
-		const userQuery = `(${query})^${boost}`;
+		const boostedQuery = `(${query})^${boost}`;
 
 		// Appending Fuzzy after each word.
 		query = query.replace(/\ +/g, '~ ') + '~';
 
-		const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
-		let url = `${this.options.endpoint.urlBase}?`;
+		const encodedQuery = encodeURIComponent(boostedQuery + ' || ' + query);
+		let url = `${this.options.endpoint.urlBase}`;
 
 		if (this.options.endpoint.key) {
 			url += `${API_VERSION}&${QUERY_TYPE}`;
@@ -329,7 +326,8 @@ class RemoteSearchProvider implements ISearchProvider {
 
 		const body = JSON.stringify({
 			query: encodedQuery,
-			filters: encodeURIComponent(filterStr)
+			filters: encodeURIComponent(filterStr),
+			rawQuery: encodeURIComponent(verbatimQuery)
 		});
 
 		return {

@@ -51,7 +51,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
@@ -282,16 +282,27 @@ export class WorkbenchShell {
 	}
 
 	private logLocalStorageMetrics(): void {
-		perf.mark('willReadLocalStorage');
-		if (!this.storageService.getBoolean('localStorageMetricsSent')) {
-			perf.mark('didReadLocalStorage');
+		if (this.lifecycleService.startupKind === StartupKind.ReloadedWindow || this.lifecycleService.startupKind === StartupKind.ReopenedWindow) {
+			return; // avoid logging localStorage metrics for reload/reopen, we prefer cold startup numbers
+		}
 
+		perf.mark('willReadLocalStorage');
+		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend');
+		perf.mark('didReadLocalStorage');
+
+		if (!readyToSend) {
+			this.storageService.store('localStorageMetricsReadyToSend', true);
+			return; // avoid logging localStorage metrics directly after the update, we prefer cold startup numbers
+		}
+
+		if (!this.storageService.getBoolean('localStorageMetricsSent')) {
 			perf.mark('willWriteLocalStorage');
 			this.storageService.store('localStorageMetricsSent', true);
+			perf.mark('didWriteLocalStorage');
 
 			stat(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage'), (error, stat) => {
 				/* __GDPR__
-					"localStorageMetrics" : {
+					"localStorageTimers" : {
 						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"subsequentReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -300,11 +311,11 @@ export class WorkbenchShell {
 						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
-				this.telemetryService.publicLog('localStorageMetrics', {
+				this.telemetryService.publicLog('localStorageTimers', {
 					'accessTime': perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage'),
 					'firstReadTime': perf.getDuration('willReadWorkspaceIdentifier', 'didReadWorkspaceIdentifier'),
 					'subsequentReadTime': perf.getDuration('willReadLocalStorage', 'didReadLocalStorage'),
-					'writeTime': perf.getDuration('willWriteLocalStorage', 'willComputeLocalStorageSize'),
+					'writeTime': perf.getDuration('willWriteLocalStorage', 'didWriteLocalStorage'),
 					'keys': window.localStorage.length,
 					'size': stat ? stat.size : -1
 				});

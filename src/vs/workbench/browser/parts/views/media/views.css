@@ -50,9 +50,8 @@
 	display: none;
 }
 
-/** Show the twistie content if the parent has opt in icon **/
-.tree-explorer-viewlet-tree-view.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content.parent-has-icon::before,
-.tree-explorer-viewlet-tree-view.file-icon-themable-tree.hide-arrows .monaco-tree-row .content.has-icon::before {
+.tree-explorer-viewlet-tree-view.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content:not(.align-with-twisty)::before,
+.tree-explorer-viewlet-tree-view.file-icon-themable-tree.hide-arrows .monaco-tree-row .content::before {
 	display: inline-block;
 }
 
@@ -85,6 +84,7 @@
 
 .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .actions {
 	display: none;
+	padding-right: 6px;
 }
 
 .tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row:hover .custom-view-tree-node-item > .actions,
