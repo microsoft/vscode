@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# @@NAME@@ --snap-update
+echo "refresh hook" | c -
