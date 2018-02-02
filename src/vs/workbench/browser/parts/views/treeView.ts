@@ -17,7 +17,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
-import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInActions, ContextAwareMenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -112,7 +112,10 @@ export class TreeView extends TreeViewsViewletPanel {
 	}
 
 	getActionItem(action: IAction): IActionItem {
-		return createActionItem(action, this.keybindingService, this.messageService, this.contextMenuService);
+		if (!(action instanceof MenuItemAction)) {
+			return undefined;
+		}
+		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.messageService, this.contextMenuService);
 	}
 
 	private setInput(): TPromise<void> {
