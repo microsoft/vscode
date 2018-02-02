@@ -152,47 +152,50 @@ export class SelectAllTerminalAction extends Action {
 	}
 }
 
-export class DeleteWordLeftTerminalAction extends Action {
-
-	public static readonly ID = 'workbench.action.terminal.deleteWordLeft';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteWordLeft', "Delete Word Left");
-
+export abstract class BaseSendTextTerminalAction extends Action {
 	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		id: string,
+		label: string,
+		private _text: string,
+		@ITerminalService private _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
+		let terminalInstance = this._terminalService.getActiveInstance();
 		if (terminalInstance) {
-			// Send ctrl+W
-			terminalInstance.sendText(String.fromCharCode('W'.charCodeAt(0) - 64), false);
+			terminalInstance.sendText(this._text, false);
 		}
 		return TPromise.as(void 0);
 	}
 }
 
-export class DeleteWordRightTerminalAction extends Action {
+export class DeleteWordLeftTerminalAction extends BaseSendTextTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.deleteWordLeft';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteWordLeft', "Delete Word Left");
 
+	constructor(
+		id: string,
+		label: string,
+		@ITerminalService terminalService: ITerminalService
+	) {
+		// Send ctrl+W
+		super(id, label, String.fromCharCode('W'.charCodeAt(0) - 64), terminalService);
+	}
+}
+
+export class DeleteWordRightTerminalAction extends BaseSendTextTerminalAction {
 	public static readonly ID = 'workbench.action.terminal.deleteWordRight';
 	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteWordRight', "Delete Word Right");
 
 	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		id: string,
+		label: string,
+		@ITerminalService terminalService: ITerminalService
 	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			// Send alt+D
-			terminalInstance.sendText('\x1bD', false);
-		}
-		return TPromise.as(void 0);
+		// Send alt+D
+		super(id, label, '\x1bD', terminalService);
 	}
 }
 
