@@ -253,7 +253,8 @@ export class QuickOpenWidget implements IModelProvider {
 
 				this.toUnbind.push(this.tree.onDidChangeSelection((event: ISelectionEvent) => {
 					if (event.selection && event.selection.length > 0) {
-						this.elementSelected(event.selection[0], event);
+						const mode = event.payload && event.payload.originalEvent && event.payload.originalEvent.middleButton ? Mode.OPEN_IN_BACKGROUND : undefined;
+						this.elementSelected(event.selection[0], event, mode);
 					}
 				}));
 			}).
@@ -516,7 +517,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 		// Trigger open of element on selection
 		if (this.isVisible()) {
-			let mode = (event && event.payload && event.payload.originalEvent && event.payload.originalEvent.middleButton ? Mode.OPEN_IN_BACKGROUND : false) || preferredMode || Mode.OPEN;
+			let mode = preferredMode || Mode.OPEN;
 
 			const context: IEntryRunContext = { event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
 
