@@ -18,5 +18,6 @@
 	"sort by name": "Сортировать по: название",
 	"suggestProxyError": "Marketplace вернул значение \"ECONNREFUSED\". Проверьте параметр \"http.proxy\".",
 	"extensions": "Расширения",
-	"outdatedExtensions": "Устаревшие расширения: {0}"
+	"outdatedExtensions": "Устаревшие расширения: {0}",
+	"reloadNow": "Перезагрузить"
 }

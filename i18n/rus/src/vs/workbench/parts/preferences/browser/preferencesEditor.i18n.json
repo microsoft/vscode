@@ -10,8 +10,6 @@
 	"SearchSettingsWidget.AriaLabel": "Параметры поиска",
 	"SearchSettingsWidget.Placeholder": "Параметры поиска",
 	"noSettingsFound": "Нет результатов",
-	"oneSettingFound": "Один соответствующий параметр",
-	"settingsFound": "Соответствующих параметров: {0}",
 	"totalSettingsMessage": "Всего параметров: {0}",
 	"defaultSettings": "Параметры по умолчанию",
 	"defaultFolderSettings": "Параметры папок по умолчанию",

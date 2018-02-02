@@ -17,7 +17,6 @@
 	"addLabel": "Ajouter une combinaison de touches",
 	"removeLabel": "Supprimer la combinaison de touches",
 	"resetLabel": "Définir une combinaison de touches",
-	"showConflictsLabel": "Afficher les conflits",
 	"copyLabel": "Copier",
 	"copyCommandLabel": "Copier la Commande",
 	"error": "Erreur '{0}' durant la modification de la combinaison de touches. Ouvrez le fichier 'keybindings.json', puis effectuez la vérification.",

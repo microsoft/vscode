@@ -21,6 +21,7 @@
 	"workspaceConfig.name.description": "資料夾的選用名稱。",
 	"workspaceConfig.uri.description": "資料夾的 URI",
 	"workspaceConfig.settings.description": "工作區設定",
+	"workspaceConfig.launch.description": "工作區啟動配置",
 	"workspaceConfig.extensions.description": "工作區延伸模組",
 	"unknownWorkspaceProperty": "未知的工作區組態屬性"
 }

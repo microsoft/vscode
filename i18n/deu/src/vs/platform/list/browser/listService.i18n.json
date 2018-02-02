@@ -8,6 +8,5 @@
 	],
 	"workbenchConfigurationTitle": "Workbench",
 	"multiSelectModifier.ctrlCmd": "Ist unter Windows und Linux der Taste \"STRG\" und unter macOSX der Befehlstaste zugeordnet.",
-	"multiSelectModifier.alt": "Ist unter Windows und Linux der Taste \"Alt\" und unter macOSX der Wahltaste zugeordnet. ",
-	"multiSelectModifier": "Der Modifizierer zum Hinzufügen eines Elements zu einer Mehrfachselektion mit der Maus (zum Beispiel bei Bäumen und Listen sofern unterstützt). \"ctrlCmd\" wird unter Windows und Linux der Taste \"STRG\" und unter macOSX der Befehlstaste zugeordnet. Die Mausbewegung \"Seitlich öffnen\" wird - sofern unterstützt - so angepasst, dass kein Konflikt mit dem Modifizierer zur Mehrfachselektion entsteht."
+	"multiSelectModifier.alt": "Ist unter Windows und Linux der Taste \"Alt\" und unter macOSX der Wahltaste zugeordnet. "
 }

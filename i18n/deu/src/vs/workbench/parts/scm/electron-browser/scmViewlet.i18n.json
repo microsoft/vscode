@@ -8,8 +8,6 @@
 	],
 	"scm providers": "Quellcodeanbieter",
 	"hideRepository": "Ausblenden",
-	"commitMessageInfo": "{0} Zeichen in aktueller Zeile",
-	"commitMessageCountdown": "{0} Zeichen in der aktuellen Zeile verbleibend",
 	"installAdditionalSCMProviders": "Installiere weiter SCM Provider...",
 	"no open repo": "Es gibt keine aktiven Quellcodeanbieter.",
 	"source control": "Quellcodeverwaltung",

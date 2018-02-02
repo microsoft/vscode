@@ -8,5 +8,6 @@
 	],
 	"release notes": "版本資訊",
 	"updateConfigurationTitle": "更新",
-	"updateChannel": "設定是否要從更新頻道接收自動更新。變更後需要重新啟動。"
+	"updateChannel": "設定是否要從更新頻道接收自動更新。變更後需要重新啟動。",
+	"enableWindowsBackgroundUpdates": "啟用 Windows 背景更新"
 }

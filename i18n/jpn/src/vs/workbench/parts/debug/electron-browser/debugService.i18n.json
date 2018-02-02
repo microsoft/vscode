@@ -19,12 +19,12 @@
 	"debugRequesMissing": "選択しているデバッグ構成に属性 '{0}' が含まれていません。",
 	"debugTypeNotSupported": "構成されているデバッグの種類 '{0}' はサポートされていません。",
 	"debugTypeMissing": "選択している起動構成の `type` プロパティがありません。",
-	"debugAnyway": "このままデバッグを続ける",
 	"preLaunchTaskErrors": "preLaunchTask '{0}' の実行中にビルド エラーが検出されました。",
 	"preLaunchTaskError": "preLaunchTask '{0}' の実行中にビルド エラーが検出されました。",
 	"preLaunchTaskExitCode": "preLaunchTask '{0}' が終了コード {1} で終了しました。",
+	"debugAnyway": "このままデバッグを続ける",
+	"cancel": "キャンセル",
 	"noFolderWorkspaceDebugError": "アクティブ ファイルをデバッグできません。ファイルがディスクに保存されており、そのファイル タイプのデバッグ拡張機能がインストールされていることを確認してください。",
-	"NewLaunchConfig": "アプリケーションの起動構成ファイルをセットアップしてください。{0}",
 	"DebugTaskNotFound": "preLaunchTask '{0}' が見つかりませんでした。",
 	"taskNotTracked": "preLaunchTask '{0}' を追跡できません。"
 }

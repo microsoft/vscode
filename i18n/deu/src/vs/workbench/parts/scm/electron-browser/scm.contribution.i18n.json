@@ -11,6 +11,5 @@
 	"toggleSCMViewlet": "SCM anzeigen",
 	"view": "Anzeigen",
 	"scmConfigurationTitle": "SCM",
-	"alwaysShowProviders": "Ob der Quellcodeverwaltungsanbieter-Abschnitt immer angezeigt wird.",
-	"inputCounter": "Steuert die Anzeige des Eingabezählers."
+	"alwaysShowProviders": "Ob der Quellcodeverwaltungsanbieter-Abschnitt immer angezeigt wird."
 }

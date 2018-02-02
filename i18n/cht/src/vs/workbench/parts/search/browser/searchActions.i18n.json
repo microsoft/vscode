@@ -18,6 +18,7 @@
 	"RefreshAction.label": "重新整理",
 	"CollapseDeepestExpandedLevelAction.label": "全部摺疊",
 	"ClearSearchResultsAction.label": "清除",
+	"CancelSearchAction.label": "取消搜索",
 	"FocusNextSearchResult.label": "聚焦於下一個搜尋結果",
 	"FocusPreviousSearchResult.label": "聚焦於上一個搜尋結果",
 	"RemoveAction.label": "關閉",

@@ -18,5 +18,7 @@
 	"sort by name": "排序依据: 名称",
 	"suggestProxyError": "市场返回 \"ECONNREFUSED\"。请检查 \"http.proxy\" 设置。",
 	"extensions": "扩展",
-	"outdatedExtensions": "{0} 个过时的扩展"
+	"outdatedExtensions": "{0} 个过时的扩展",
+	"malicious warning": "我们卸载了“{0}”，它被报告存在问题。",
+	"reloadNow": "立即重新加载"
 }

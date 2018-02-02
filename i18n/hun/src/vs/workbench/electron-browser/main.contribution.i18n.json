@@ -35,7 +35,6 @@
 	"panelDefaultLocation": "Meghatározza a panel alapértelmezett pozícióját. A panel a munkaterület alján vagy jobb oldalán jelenhet meg.",
 	"statusBarVisibility": "Meghatározza, hogy megjelenjen-e az állapotsor a munkaterület alján.",
 	"activityBarVisibility": "Meghatározza, hogy megjelenjen-e a tevékenységsáv a munkaterületen.",
-	"fontAliasing": "Meghatározza a munkaterületen megjelenő betűtípusok élsimítási módszerét.\n- default: Szubpixeles betűsimítás. A legtöbb nem-retina típusú kijelzőn ez adja a legélesebb szöveget.\n- antialiased: A betűket pixelek, és nem szubpixelek szintjén simítja. A betűtípus vékonyabbnak tűnhet összességében.\n- none: Letiltja a betűtípusok élsimítését. A szövegek egyenetlen, éles szélekkel jelennek meg.",
 	"workbench.fontAliasing.default": "Szubpixeles betűsimítás. A legtöbb nem-retina típusú kijelzőn ez adja a legélesebb szöveget.",
 	"workbench.fontAliasing.antialiased": "A betűket pixelek, és nem szubpixelek szintjén simítja. A betűtípus vékonyabbnak tűnhet összességében.",
 	"workbench.fontAliasing.none": "Letiltja a betűtípusok élsimítését. A szövegek egyenetlen, éles szélekkel jelennek meg.",
