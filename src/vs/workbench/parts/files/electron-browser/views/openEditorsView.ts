@@ -540,7 +540,7 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 			e.dataTransfer.setDragImage(dragImage, -10, -10);
 			setTimeout(() => document.body.removeChild(dragImage), 0);
 
-			const dragged = <OpenEditor[]>this.getSelectedElements().filter(e => e instanceof OpenEditor);
+			const dragged = <OpenEditor[]>this.getSelectedElements().filter(e => e instanceof OpenEditor && !!e.getResource());
 			OpenEditorRenderer.DRAGGED_OPEN_EDITORS = dragged;
 
 			if (editorTemplate.openEditor && editorTemplate.openEditor.editor) {
