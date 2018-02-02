@@ -350,6 +350,7 @@ export class IssueReporter extends Disposable {
 		const descriptionTitle = document.getElementById('issue-description-label');
 		const descriptionSubtitle = document.getElementById('issue-description-subtitle');
 
+
 		if (issueType === IssueType.Bug) {
 			show(systemBlock);
 			hide(processBlock);
@@ -359,7 +360,8 @@ export class IssueReporter extends Disposable {
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = localize('bugDescription', "How did you encounter this problem? What steps do you need to perform to reliably reproduce the problem? What did you expect to happen and what actually did happen?");
+			const textArea = document.getElementById('description');
+			(<HTMLTextAreaElement>textArea).placeholder = localize('bugDescription', "What steps do you need to perform to reliably reproduce the problem? What did you expect to happen and what actually did happen?\nWe support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
 		} else if (issueType === IssueType.PerformanceIssue) {
 			show(systemBlock);
 			show(processBlock);
@@ -369,7 +371,8 @@ export class IssueReporter extends Disposable {
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			show(descriptionSubtitle);
-			descriptionSubtitle.innerHTML = localize('performanceIssueDesciption', "When did this performance issue happen? For example, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.");
+			const textArea = document.getElementById('description');
+			(<HTMLTextAreaElement>textArea).placeholder = localize('performanceIssueDesciption', "When did this performance issue happen? For example, does it occur on startup or after a specific series of actions? Any details you can provide help our investigation.");
 		} else {
 			hide(systemBlock);
 			hide(processBlock);
@@ -378,6 +381,8 @@ export class IssueReporter extends Disposable {
 			hide(disabledExtensions);
 
 			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
+			const textArea = document.getElementById('description');
+			(<HTMLTextAreaElement>textArea).placeholder = '';
 			hide(descriptionSubtitle);
 		}
 	}
@@ -410,10 +415,6 @@ export class IssueReporter extends Disposable {
 			// If inputs are invalid, set focus to the first one and add listeners on them
 			// to detect further changes
 			(<HTMLInputElement>document.getElementsByClassName('invalid-input')[0]).focus();
-
-			document.getElementById('issue-title').addEventListener('input', (event) => {
-				this.validateInput('issue-title');
-			});
 
 			document.getElementById('description').addEventListener('input', (event) => {
 				this.validateInput('description');

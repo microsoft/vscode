@@ -21,6 +21,7 @@ const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 export class IssueService implements IIssueService {
 	_serviceBrand: any;
 	_issueWindow: BrowserWindow;
+	_parentWindow: BrowserWindow;
 
 	constructor(
 		private machineId: string,
@@ -36,9 +37,10 @@ export class IssueService implements IIssueService {
 		});
 
 		ipcMain.on('workbenchCommand', (event, arg) => {
-			this._issueWindow.getParentWindow().webContents.send('vscode:runAction', { id: arg });
+			this._parentWindow.webContents.send('vscode:runAction', { id: arg });
 		});
 
+		this._parentWindow = BrowserWindow.getFocusedWindow();
 		const position = this.getWindowPosition();
 		this._issueWindow = new BrowserWindow({
 			width: position.width,
@@ -46,7 +48,6 @@ export class IssueService implements IIssueService {
 			x: position.x,
 			y: position.y,
 			title: localize('issueReporter', "Issue Reporter"),
-			parent: BrowserWindow.getFocusedWindow(),
 			backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR
 		});
 
@@ -61,7 +62,6 @@ export class IssueService implements IIssueService {
 		// We want the new window to open on the same display that the parent is in
 		let displayToUse: Electron.Display;
 		const displays = screen.getAllDisplays();
-		const parent = BrowserWindow.getFocusedWindow();
 
 		// Single Display
 		if (displays.length === 1) {
@@ -78,8 +78,8 @@ export class IssueService implements IIssueService {
 			}
 
 			// if we have a last active window, use that display for the new window
-			if (!displayToUse && parent) {
-				displayToUse = screen.getDisplayMatching(parent.getBounds());
+			if (!displayToUse && this._parentWindow) {
+				displayToUse = screen.getDisplayMatching(this._parentWindow.getBounds());
 			}
 
 			// fallback to primary display or first display
@@ -90,7 +90,7 @@ export class IssueService implements IIssueService {
 
 		let state = {
 			width: 750,
-			height: 1100,
+			height: 850,
 			x: undefined,
 			y: undefined
 		};
