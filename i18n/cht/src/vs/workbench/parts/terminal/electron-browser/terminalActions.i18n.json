@@ -14,7 +14,6 @@
 	"workbench.action.terminal.selectAll": "全選",
 	"workbench.action.terminal.deleteWordLeft": "刪除左方文字",
 	"workbench.action.terminal.deleteWordRight": "刪除右方文字",
-	"workbench.action.terminal.enterLineNavigationMode": "進入螢幕閱讀器導航模式",
 	"workbench.action.terminal.new": "建立新的整合式終端機",
 	"workbench.action.terminal.new.short": "新增終端機",
 	"workbench.action.terminal.newWorkspacePlaceholder": "為新的終端機選擇目前的工作目錄",

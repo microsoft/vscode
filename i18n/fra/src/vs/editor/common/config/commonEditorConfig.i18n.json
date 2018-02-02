@@ -74,7 +74,7 @@
 	"cursorBlinking": "Contrôle le style d'animation du curseur. Valeurs possibles : 'blink', 'smooth', 'phase', 'expand' et 'solid'",
 	"mouseWheelZoom": "Agrandir ou réduire la police de l'éditeur quand l'utilisateur fait tourner la roulette de la souris tout en maintenant la touche Ctrl enfoncée",
 	"cursorStyle": "Contrôle le style du curseur. Les valeurs acceptées sont 'block', 'block-outline', 'line', 'line-thin', 'underline' et 'underline-thin'",
-	"lineCursorWidth": "Contrôle la largeur du curseur quand editor.cursorStyle est à 'line'",
+	"cursorWidth": "Contrôle la largeur du curseur quand editor.cursorStyle est à 'line'",
 	"fontLigatures": "Active les ligatures de police",
 	"hideCursorInOverviewRuler": "Contrôle si le curseur doit être masqué dans la règle d'aperçu.",
 	"renderWhitespace": "Contrôle la façon dont l'éditeur affiche les espaces blancs. Il existe trois options possibles : 'none', 'boundary' et 'all'. L'option 'boundary' n'affiche pas les espaces uniques qui séparent les mots.",

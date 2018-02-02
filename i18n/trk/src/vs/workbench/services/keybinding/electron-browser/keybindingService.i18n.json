@@ -24,5 +24,6 @@
 	"keybindings.json.when": "Tuşun aktif olacağı koşul",
 	"keybindings.json.args": "Yürütülecek komuta iletilecek argümanlar.",
 	"keyboardConfigurationTitle": "Klavye",
-	"dispatch": "Tuş basımlarının ya `code` (önerilen) ya da `keyCode` kullanarak gönderilmesini denetler."
+	"dispatch": "Tuş basımlarının ya `code` (önerilen) ya da `keyCode` kullanarak gönderilmesini denetler.",
+	"touchbar.enabled": "Varsa macOS dokunmatik çubuk düğmelerini etkinleştirir."
 }

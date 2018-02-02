@@ -263,17 +263,23 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private createBreakpointDecorations(model: ITextModel, breakpoints: IBreakpoint[]): { range: Range; options: IModelDecorationOptions; }[] {
-		return breakpoints.map((breakpoint) => {
-			const column = model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber);
-			const range = model.validateRange(
-				breakpoint.column ? new Range(breakpoint.lineNumber, breakpoint.column, breakpoint.lineNumber, breakpoint.column + 1)
-					: new Range(breakpoint.lineNumber, column, breakpoint.lineNumber, column + 1) // Decoration has to have a width #20688
-			);
-			return {
-				options: this.getBreakpointDecorationOptions(breakpoint),
-				range
-			};
+		const result: { range: Range; options: IModelDecorationOptions; }[] = [];
+		breakpoints.forEach((breakpoint) => {
+			if (breakpoint.lineNumber <= model.getLineCount()) {
+				const column = model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber);
+				const range = model.validateRange(
+					breakpoint.column ? new Range(breakpoint.lineNumber, breakpoint.column, breakpoint.lineNumber, breakpoint.column + 1)
+						: new Range(breakpoint.lineNumber, column, breakpoint.lineNumber, column + 1) // Decoration has to have a width #20688
+				);
+
+				result.push({
+					options: this.getBreakpointDecorationOptions(breakpoint),
+					range
+				});
+			}
 		});
+
+		return result;
 	}
 
 	private getBreakpointDecorationOptions(breakpoint: IBreakpoint): IModelDecorationOptions {

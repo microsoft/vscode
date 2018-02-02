@@ -253,7 +253,8 @@ class Controller extends WorkbenchTreeController {
 			}
 
 			var result = super.onClick(tree, element, event);
-			if (event.ctrlKey || event.metaKey || event.altKey) {
+			var openToSide = event.ctrlKey || event.metaKey || event.altKey;
+			if (openToSide && (isDoubleClick || this.openOnSingleClick)) {
 				this._onDidOpenToSide.fire(element);
 			} else if (isDoubleClick) {
 				this._onDidSelect.fire(element);

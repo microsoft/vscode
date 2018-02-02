@@ -40,7 +40,6 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -130,7 +129,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 	protected model: ITextModel;
 	readonly file: URI;
 
-	private startOffset: number = 0;
+	protected startOffset: number = 0;
 	protected endOffset: number = 0;
 
 	constructor(
@@ -164,38 +163,20 @@ abstract class AbstractFileOutputChannel extends Disposable {
 		this.startOffset = this.endOffset;
 	}
 
-	loadModel(): TPromise<ITextModel> {
-		return this.fileService.resolveContent(this.file, { position: this.startOffset })
-			.then(content => {
-				if (this.model) {
-					this.model.setValue(content.value);
-				} else {
-					this.model = this.createModel(content.value);
-				}
-				this.endOffset = this.startOffset + new Buffer(this.model.getValueLength()).byteLength;
-				return this.model;
-			});
-	}
-
-	resetModel(): TPromise<void> {
-		this.startOffset = 0;
-		this.endOffset = 0;
+	protected createModel(content: string): ITextModel {
 		if (this.model) {
-			return this.loadModel() as TPromise;
+			this.model.setValue(content);
+		} else {
+			this.model = this.modelService.createModel(content, this.modeService.getOrCreateMode(OUTPUT_MIME), this.modelUri);
+			this.onModelCreated(this.model);
+			const disposables: IDisposable[] = [];
+			disposables.push(this.model.onWillDispose(() => {
+				this.onModelWillDispose(this.model);
+				this.model = null;
+				dispose(disposables);
+			}));
 		}
-		return TPromise.as(null);
-	}
-
-	private createModel(content: string): ITextModel {
-		const model = this.modelService.createModel(content, this.modeService.getOrCreateMode(OUTPUT_MIME), this.modelUri);
-		this.onModelCreated(model);
-		const disposables: IDisposable[] = [];
-		disposables.push(model.onWillDispose(() => {
-			this.onModelWillDispose(model);
-			this.model = null;
-			dispose(disposables);
-		}));
-		return model;
+		return this.model;
 	}
 
 	appendToModel(content: string): void {
@@ -235,14 +216,12 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@ILogService logService: ILogService,
-		@IConfigurationService configurationService: IConfigurationService
+		@ILogService logService: ILogService
 	) {
 		super({ ...outputChannelIdentifier, file: URI.file(paths.join(outputDir, `${outputChannelIdentifier.id}.log`)) }, modelUri, fileService, modelService, modeService);
 
 		// Use one rotating file to check for main file reset
-		const threshold = configurationService.getValue('output.threshold');
-		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, threshold && typeof threshold === 'number' ? threshold : 1024 * 1024 * 30, 1);
+		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 30, 1);
 		this.outputWriter.clearFormatters();
 		this.rotatingFilePath = `${outputChannelIdentifier.id}.1.log`;
 		this._register(watchOutputDirectory(paths.dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
@@ -256,7 +235,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		if (this.loadingFromFileInProgress) {
 			this.appendedMessage += message;
 		} else {
-			this.outputWriter.critical(message);
+			this.write(message);
 			if (this.model) {
 				this.appendedMessage += message;
 				if (!this.modelUpdater.isScheduled()) {
@@ -272,12 +251,43 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	}
 
 	loadModel(): TPromise<ITextModel> {
-		this.startLoadingFromFile();
-		return super.loadModel()
-			.then(model => {
-				this.finishedLoadingFromFile();
-				return model;
+		this.loadingFromFileInProgress = true;
+		if (this.modelUpdater.isScheduled()) {
+			this.modelUpdater.cancel();
+		}
+		this.appendedMessage = '';
+		return this.loadFile()
+			.then(content => {
+				if (this.endOffset !== this.startOffset + new Buffer(content).byteLength) {
+					// Queue content is not written into the file
+					// Flush it and load file again
+					this.flush();
+					return this.loadFile();
+				}
+				return content;
+			})
+			.then(content => {
+				if (this.appendedMessage) {
+					this.write(this.appendedMessage);
+					this.appendedMessage = '';
+				}
+				this.loadingFromFileInProgress = false;
+				return this.createModel(content);
 			});
+	}
+
+	private resetModel(): TPromise<void> {
+		this.startOffset = 0;
+		this.endOffset = 0;
+		if (this.model) {
+			return this.loadModel() as TPromise;
+		}
+		return TPromise.as(null);
+	}
+
+	private loadFile(): TPromise<string> {
+		return this.fileService.resolveContent(this.file, { position: this.startOffset })
+			.then(content => this.appendedMessage ? content.value + this.appendedMessage : content.value);
 	}
 
 	protected updateModel(): void {
@@ -287,29 +297,19 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		}
 	}
 
-	private startLoadingFromFile(): void {
-		this.loadingFromFileInProgress = true;
-		this.outputWriter.flush();
-		if (this.modelUpdater.isScheduled()) {
-			this.modelUpdater.cancel();
-		}
-		this.appendedMessage = '';
-	}
-
-	private finishedLoadingFromFile(): void {
-		if (this.appendedMessage) {
-			this.outputWriter.critical(this.appendedMessage);
-			this.appendToModel(this.appendedMessage);
-			this.appendedMessage = '';
-		}
-		this.loadingFromFileInProgress = false;
-	}
-
 	private onFileChangedInOutputDirector(eventType: string, fileName: string): void {
 		// Check if rotating file has changed. It changes only when the main file exceeds its limit.
 		if (this.rotatingFilePath === fileName) {
 			this.resettingDelayer.trigger(() => this.resetModel());
 		}
+	}
+
+	private write(content: string): void {
+		this.outputWriter.critical(content);
+	}
+
+	private flush(): void {
+		this.outputWriter.flush();
 	}
 }
 
@@ -369,6 +369,14 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		this.fileHandler = this._register(new OutputFileListener(this.file));
 		this._register(this.fileHandler.onDidContentChange(() => this.onDidContentChange()));
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
+	}
+
+	loadModel(): TPromise<ITextModel> {
+		return this.fileService.resolveContent(this.file, { position: this.startOffset })
+			.then(content => {
+				this.endOffset = this.startOffset + new Buffer(content.value).byteLength;
+				return this.createModel(content.value);
+			});
 	}
 
 	append(message: string): void {

@@ -109,8 +109,9 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 					configurations.push(new StartDebugEntry(this.debugService, this.contextService, this.messageService, launch, config, highlights));
 				});
 		}
-		launches.forEach((l, index) => {
-			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
+		launches.filter(l => !l.hidden).forEach((l, index) => {
+
+			const label = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, Filters.matchesContiguousSubString(input, label));
 			if (index === 0) {
 				configurations.push(new QuickOpenEntryGroup(entry, undefined, true));

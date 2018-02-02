@@ -17,6 +17,9 @@ set CODE=".build\electron\%NAMESHORT%"
 node build\lib\electron.js
 if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
 
+:: Manage build-in extensions
+if "%1"=="--builtin" goto builtin
+
 :: Sync built-in extensions
 node build\lib\builtInExtensions.js
 
@@ -37,6 +40,13 @@ set ELECTRON_ENABLE_STACK_DUMPING=1
 :: %CODE% --js-flags="--trace-hydrogen --trace-phase=Z --trace-deopt --code-comments --hydrogen-track-positions --redirect-code-traces" . %*
 
 %CODE% . %*
+goto end
+
+:builtin
+%CODE% build/builtin
+
+:end
+
 popd
 
 endlocal

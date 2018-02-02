@@ -8,5 +8,6 @@
 	],
 	"quickFixWithKb": "Javítások megjelenítése ({0})",
 	"quickFix": "Javítások megjelenítése",
-	"quickfix.trigger.label": "Gyorsjavítás"
+	"quickfix.trigger.label": "Gyorsjavítás",
+	"refactor.label": "Refaktorálás"
 }

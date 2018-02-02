@@ -14,7 +14,6 @@
 	"workbench.action.terminal.selectAll": "Összes kijelölése",
 	"workbench.action.terminal.deleteWordLeft": "Balra lévő szó törlése",
 	"workbench.action.terminal.deleteWordRight": "Jobbra lévő szó törlése",
-	"workbench.action.terminal.enterLineNavigationMode": "Belépés a képernyőolvasó navigációs módjába",
 	"workbench.action.terminal.new": "Új integrált terminál létrehozása",
 	"workbench.action.terminal.new.short": "Új terminál",
 	"workbench.action.terminal.newWorkspacePlaceholder": "Az aktuális munkakönyvtár kiválasztása az új terminálhoz",

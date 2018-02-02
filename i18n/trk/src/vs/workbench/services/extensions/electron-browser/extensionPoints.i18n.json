@@ -8,6 +8,6 @@
 	],
 	"jsonParseFail": "{0} ayrıştırılamadı: {1}.",
 	"fileReadFail": "{0} dosyası okunamadı: {1}.",
-	"jsonsParseFail": "{0} veya {1} ayrıştırılamadı: {2}.",
+	"jsonsParseReportErrors": "{0} ayrıştırılamadı: {1}.",
 	"missingNLSKey": "{0} anahtarı için mesaj bulunamadı."
 }

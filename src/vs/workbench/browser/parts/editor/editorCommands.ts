@@ -275,6 +275,10 @@ function registerEditorCommands() {
 			const model = editorGroupService.getStacksModel();
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService));
+			if (contexts.length === 0 && model.activeGroup) {
+				// If command is triggered from the command palette use the active group
+				contexts.push({ groupId: model.activeGroup.id });
+			}
 
 			let positionOne: { unmodifiedOnly: boolean } = void 0;
 			let positionTwo: { unmodifiedOnly: boolean } = void 0;
@@ -335,23 +339,17 @@ function registerEditorCommands() {
 				const group = model.getGroup(groupId);
 				const position = model.positionOfGroup(group);
 				if (position >= 0) {
-					editorsToClose.set(position, contexts.map(c => {
-						if (c && groupId === c.groupId) {
-							let input = group.getEditor(c.editorIndex);
-							if (!input) {
-
-								// Get Top Editor at Position
-								const visibleEditors = editorService.getVisibleEditors();
-								if (visibleEditors[position]) {
-									input = visibleEditors[position].input;
-								}
-							}
-
-							return input;
+					const inputs = contexts.map(c => {
+						if (c && groupId === c.groupId && types.isNumber(c.editorIndex)) {
+							return group.getEditor(c.editorIndex);
 						}
 
-						return void 0;
-					}).filter(input => !!input));
+						return undefined;
+					}).filter(input => !!input);
+
+					if (inputs.length) {
+						editorsToClose.set(position, inputs);
+					}
 				}
 			});
 
@@ -380,14 +378,23 @@ function registerEditorCommands() {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService));
-			const groupIds = distinct(contexts.map(context => context.groupId));
-			const editorsToClose = new Map<Position, IEditorInput[]>();
 			const model = editorGroupService.getStacksModel();
 
+			if (contexts.length === 0) {
+				// Cover the case when run from command palette
+				const activeGroup = model.activeGroup;
+				const activeEditor = editorService.getActiveEditorInput();
+				if (activeGroup && activeEditor) {
+					contexts.push({ groupId: activeGroup.id, editorIndex: activeGroup.indexOf(activeEditor) });
+				}
+			}
+
+			const groupIds = distinct(contexts.map(context => context.groupId));
+			const editorsToClose = new Map<Position, IEditorInput[]>();
 			groupIds.forEach(groupId => {
 				const group = model.getGroup(groupId);
 				const inputsToSkip = contexts.map(c => {
-					if (c.groupId === groupId) {
+					if (c.groupId === groupId && types.isNumber(c.editorIndex)) {
 						return group.getEditor(c.editorIndex);
 					}
 
@@ -500,7 +507,7 @@ function positionAndInput(editorGroupService: IEditorGroupService, editorService
 	const model = editorGroupService.getStacksModel();
 	const group = context ? model.getGroup(context.groupId) : undefined;
 	let position = group ? model.positionOfGroup(group) : undefined;
-	let input = group ? group.getEditor(context.editorIndex) : undefined;
+	let input = group && types.isNumber(context.editorIndex) ? group.getEditor(context.editorIndex) : undefined;
 
 	// If position or input are not passed in take the position and input of the active editor.
 	const active = editorService.getActiveEditor();
@@ -513,18 +520,19 @@ function positionAndInput(editorGroupService: IEditorGroupService, editorService
 }
 
 export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsContext, listService: IListService): IEditorCommandsContext[] {
-	const elementToContext = (element: IEditorIdentifier | EditorGroup) =>
-		element instanceof EditorGroup ? { groupId: element.id, editorIndex: undefined } : { groupId: element.group.id, editorIndex: element.group.indexOf(element.editor) };
-
 	// First check for a focused list to return the selected items from
 	const list = listService.lastFocusedList;
 	if (list instanceof List && list.isDOMFocused()) {
-		const focusedElements: (IEditorIdentifier | EditorGroup)[] = list.getFocusedElements();
+		const elementToContext = (element: IEditorIdentifier | EditorGroup) =>
+			element instanceof EditorGroup ? { groupId: element.id, editorIndex: undefined } : { groupId: element.group.id, editorIndex: element.group.indexOf(element.editor) };
+		const onlyEditorGroupAndEditor = (e) => e instanceof EditorGroup || ('editor' in e && 'group' in e);
+
+		const focusedElements: (IEditorIdentifier | EditorGroup)[] = list.getFocusedElements().filter(onlyEditorGroupAndEditor);
 		// need to take into account when editor context is { group: group }
 		const focus = editorContext ? editorContext : focusedElements.length ? focusedElements.map(elementToContext)[0] : undefined;
 
 		if (focus) {
-			const selection: (IEditorIdentifier | EditorGroup)[] = list.getSelectedElements();
+			const selection: (IEditorIdentifier | EditorGroup)[] = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
 			// Only respect selection if it contains focused element
 			if (selection && selection.some(s => s instanceof EditorGroup ? s.id === focus.groupId : s.group.id === focus.groupId && s.group.indexOf(s.editor) === focus.editorIndex)) {
 				return selection.map(elementToContext);

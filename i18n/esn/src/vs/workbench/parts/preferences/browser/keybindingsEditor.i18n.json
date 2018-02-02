@@ -17,7 +17,6 @@
 	"addLabel": "Agregar enlace de teclado",
 	"removeLabel": "Quitar enlace de teclado",
 	"resetLabel": "Restablecer enlaces de teclado",
-	"showConflictsLabel": "Mostrar conflictos",
 	"copyLabel": "Copiar",
 	"copyCommandLabel": "Comando Copiar",
 	"error": "Error \"{0}\" al editar el enlace de teclado. Abra el archivo \"keybindings.json\" y compruébelo.",

@@ -337,6 +337,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		if (this.model.activeGroup && this.model.activeGroup.activeEditor /* could be empty */) {
 			const index = this.getIndex(this.model.activeGroup, this.model.activeGroup.activeEditor);
 			this.list.setFocus([index]);
+			this.list.setSelection([index]);
 			this.list.reveal(index);
 		}
 	}
@@ -539,7 +540,7 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 			e.dataTransfer.setDragImage(dragImage, -10, -10);
 			setTimeout(() => document.body.removeChild(dragImage), 0);
 
-			const dragged = <OpenEditor[]>this.getSelectedElements().filter(e => e instanceof OpenEditor);
+			const dragged = <OpenEditor[]>this.getSelectedElements().filter(e => e instanceof OpenEditor && !!e.getResource());
 			OpenEditorRenderer.DRAGGED_OPEN_EDITORS = dragged;
 
 			if (editorTemplate.openEditor && editorTemplate.openEditor.editor) {

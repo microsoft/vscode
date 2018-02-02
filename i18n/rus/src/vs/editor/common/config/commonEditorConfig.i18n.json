@@ -71,7 +71,7 @@
 	"cursorBlinking": "Управляет стилем анимации курсора. Допустимые значения: \"blink\", \"smooth\", \"phase\", \"expand\" и \"solid\"",
 	"mouseWheelZoom": "Изменение размера шрифта в редакторе при нажатой клавише CTRL и движении колесика мыши",
 	"cursorStyle": "Определяет стиль курсора. Допустимые значения: \"block\", \"block-outline\", \"line\", \"line-thin\", \"underline\" и \"underline-thin\"",
-	"lineCursorWidth": "Управляет шириной курсора, когда для параметра editor.cursorStyle установлено значение 'line'",
+	"cursorWidth": "Управляет шириной курсора, когда для параметра editor.cursorStyle установлено значение 'line'",
 	"fontLigatures": "Включает лигатуры шрифта.",
 	"hideCursorInOverviewRuler": "Управляет скрытием курсора в обзорной линейке.",
 	"renderWhitespace": "Определяет, должен ли редактор обрабатывать символы пробела; возможные значения: \"none\", \"boundary\" и \"all\". Параметр \"boundary\" не обрабатывает единичные пробелы между словами.",

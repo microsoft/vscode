@@ -14,7 +14,6 @@
 	"workbench.action.terminal.selectAll": "Seleziona tutto",
 	"workbench.action.terminal.deleteWordLeft": "Elimina parola a sinistra",
 	"workbench.action.terminal.deleteWordRight": "Elimina la parola a destra",
-	"workbench.action.terminal.enterLineNavigationMode": "Entra nella modalità navigazione tramite utilità lettura schermo",
 	"workbench.action.terminal.new": "Crea nuovo terminale integrato",
 	"workbench.action.terminal.new.short": "Nuovo terminale",
 	"workbench.action.terminal.newWorkspacePlaceholder": "Selezionare la cartella di lavoro corrente per un nuovo terminale.",

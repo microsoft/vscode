@@ -12,6 +12,5 @@
 	"view": "Afficher",
 	"scmConfigurationTitle": "SCM",
 	"alwaysShowProviders": "S'il faut toujours afficher la section Fournisseur de contrôle de code source.",
-	"diffDecorations": "Contrôle les décorations diff dans l'éditeur",
-	"inputCounter": "Contrôle quand afficher le compteur de saisie"
+	"diffDecorations": "Contrôle les décorations diff dans l'éditeur"
 }

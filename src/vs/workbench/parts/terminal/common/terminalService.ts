@@ -70,7 +70,7 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract selectDefaultWindowsShell(): TPromise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
-	private _onWillShutdown(): boolean {
+	private _onWillShutdown(): boolean | TPromise<boolean> {
 		if (this.terminalInstances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
@@ -78,9 +78,12 @@ export abstract class TerminalService implements ITerminalService {
 
 		if (this.configHelper.config.confirmOnExit) {
 			// veto if configured to show confirmation and the user choosed not to exit
-			if (this._showTerminalCloseConfirmation()) {
-				return true;
-			}
+			return this._showTerminalCloseConfirmation().then(veto => {
+				if (!veto) {
+					this._isShuttingDown = true;
+				}
+				return veto;
+			});
 		}
 
 		this._isShuttingDown = true;

@@ -15,6 +15,8 @@
 	"reallyRecommendedExtensionPack": "'{0}' eklenti paketi bu dosya türü için tavsiye edilir.",
 	"showRecommendations": "Tavsiyeleri Göster",
 	"install": "Yükle",
+	"showLanguageExtensions": "Markette '.{0}' dosyaları için yardımcı olabilecek eklentiler bulunuyor",
+	"searchMarketplace": "Marketi Ara",
 	"workspaceRecommended": "Bu çalışma alanı bazı eklentileri tavsiye ediyor.",
 	"installAll": "Tümünü Yükle",
 	"ignoreExtensionRecommendations": "Tüm eklenti tavsiyelerini yok saymak istiyor musunuz?",

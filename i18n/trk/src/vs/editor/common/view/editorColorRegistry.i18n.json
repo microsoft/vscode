@@ -8,6 +8,7 @@
 	],
 	"lineHighlight": "İmlecin bulunduğu satırın vurgusunun arka plan rengi.",
 	"lineHighlightBorderBox": "İmlecin bulunduğu satırın kenarlığının arka plan rengi.",
+	"rangeHighlight": "Hızlı açma veya arama özellikleri gibi vurgulanan aralıkların arka plan rengi. Altta yer alan süslemeleri gizlememek için renk opak olmamalıdır.",
 	"caret": "Düzenleyici imlecinin rengi.",
 	"editorCursorBackground": "Düzenleyici imlecinin arka plan rengi. Bir blok imlecinin kapladığı bir karakterin rengini özelleştirmeyi sağlar.",
 	"editorWhitespaces": "Düzenleyicideki boşluk karakterlerinin rengi.",

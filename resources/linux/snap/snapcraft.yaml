@@ -13,17 +13,21 @@ parts:
   code:
     plugin: dump
     source: .
-    after:
-      - desktop-gtk2
     stage-packages:
-      - gconf2
       - libasound2
+      - libgconf2-4
       - libnotify4
       - libnspr4
       - libnss3
+      - libpcre3
       - libpulse0
       - libxss1
       - libxtst6
+      # desktop-gtk2 deps below
+      - libxkbcommon0
+      - libgtk2.0-0
+      # - unity-gtk2-module
+      - libappindicator1
     prime:
       - -usr/share/dh-python
   electron-launch:
@@ -31,12 +35,8 @@ parts:
     source: .
     organize:
       electron-launch: bin/electron-launch
-    prime:
-      - -monitor.sh
-      - -OLD_VERSION
-      - -*.bz2
 
 apps:
   @@NAME@@:
-    command: bin/electron-launch classic ${SNAP}/usr/share/@@NAME@@/bin/@@NAME@@
+    command: bin/electron-launch ${SNAP}/usr/share/@@NAME@@/bin/@@NAME@@
     desktop: usr/share/applications/@@NAME@@.desktop

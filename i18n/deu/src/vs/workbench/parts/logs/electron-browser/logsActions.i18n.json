@@ -8,7 +8,7 @@
 	],
 	"openLogsFolder": "Protokollordner öffnen",
 	"showLogs": "Protokolle anzeigen...",
-	"rendererProcess": "Fenster",
+	"emptyWindow": "Fenster",
 	"extensionHost": "Erweiterungshost",
 	"setLogLevel": "Protokollstufe festlegen",
 	"debug": "Debuggen",
@@ -17,5 +17,6 @@
 	"err": "Fehler",
 	"critical": "Kritisch",
 	"off": "Aus",
-	"selectLogLevel": "Protokollstufe auswählen"
+	"selectLogLevel": "Protokollstufe auswählen",
+	"default": "Standard"
 }

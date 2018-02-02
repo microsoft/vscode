@@ -402,6 +402,7 @@ export interface IDebugConfigurationProvider {
 	handle: number;
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;
+	debugAdapterExecutable(folderUri: uri | undefined): TPromise<IAdapterExecutable>;
 }
 
 export interface IConfigurationManager {
@@ -428,7 +429,9 @@ export interface IConfigurationManager {
 
 	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
 	unregisterDebugConfigurationProvider(handle: number): void;
+
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
+	debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined>;
 }
 
 export interface ILaunch {
@@ -443,7 +446,15 @@ export interface ILaunch {
 	 */
 	name: string;
 
+	/**
+	 * Workspace of the launch. Can be null.
+	 */
 	workspace: IWorkspaceFolder;
+
+	/**
+	 * Should this launch be shown in the debug dropdown.
+	 */
+	hidden: boolean;
 
 	/**
 	 * Returns a configuration with the specified name.

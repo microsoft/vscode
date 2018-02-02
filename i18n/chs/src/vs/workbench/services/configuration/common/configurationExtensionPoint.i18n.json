@@ -21,6 +21,7 @@
 	"workspaceConfig.name.description": "文件夹的可选名称。",
 	"workspaceConfig.uri.description": "文件夹的 URI",
 	"workspaceConfig.settings.description": "工作区设置",
+	"workspaceConfig.launch.description": "工作区启动配置",
 	"workspaceConfig.extensions.description": "工作区扩展",
 	"unknownWorkspaceProperty": "未知的工作区配置属性"
 }

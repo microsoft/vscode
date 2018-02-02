@@ -10,5 +10,7 @@
 	"source control": "Kaynak Kontrolü",
 	"toggleSCMViewlet": "SCM'yi Göster",
 	"view": "Görüntüle",
-	"scmConfigurationTitle": "SCM"
+	"scmConfigurationTitle": "SCM",
+	"alwaysShowProviders": "Kaynak Kontrolü Sağlayıcısı bölümünün her zaman gösterilip gösterilmeyeceği.",
+	"diffDecorations": "Düzenleyicideki farklar(diff) dekoratörlerini denetler."
 }

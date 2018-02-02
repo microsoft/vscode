@@ -148,7 +148,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		});
 	}
 
-	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, handle: number): TPromise<void> {
+	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasDebugAdapterExecutable: boolean, handle: number): TPromise<void> {
 
 		const provider = <IDebugConfigurationProvider>{
 			type: debugType
@@ -161,6 +161,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		if (hasResolve) {
 			provider.resolveDebugConfiguration = (folder, debugConfiguration) => {
 				return this._proxy.$resolveDebugConfiguration(handle, folder, debugConfiguration);
+			};
+		}
+		if (hasDebugAdapterExecutable) {
+			provider.debugAdapterExecutable = (folder) => {
+				return this._proxy.$debugAdapterExecutable(handle, folder);
 			};
 		}
 		this.debugService.getConfigurationManager().registerDebugConfigurationProvider(handle, provider);

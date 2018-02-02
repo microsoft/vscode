@@ -159,9 +159,16 @@ declare module 'vscode' {
 		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider): Disposable;
 
 		/**
-		 * Updates the [workspace folders](#workspace.workspaceFolders) of the currently opened workspace. This method allows to add, remove
-		 * and change workspace folders a the same time. Use the [onDidChangeWorkspaceFolders()](#onDidChangeWorkspaceFolders)
-		 * event to get notified when the workspace folders have been updated.
+		 * This method replaces `deleteCount` [workspace folders](#workspace.workspaceFolders) starting at index `start`
+		 * by an optional set of `workspaceFoldersToAdd` on the `vscode.workspace.workspaceFolders` array. This "splice"
+		 * behavior can be used to add, remove and change workspace folders in a single operation.
+		 *
+		 * If the first workspace folder is added, removed or changed, the currently executing extensions (including the
+		 * one that called this method) will be terminated and restarted so that the (deprecated) `rootPath` property is
+		 * updated to point to the first workspace folder.
+		 *
+		 * Use the [`onDidChangeWorkspaceFolders()`](#onDidChangeWorkspaceFolders) event to get notified when the
+		 * workspace folders have been updated.
 		 *
 		 * **Example:** adding a new workspace folder at the end of workspace folders
 		 * ```typescript
@@ -181,12 +188,8 @@ declare module 'vscode' {
 		 * It is valid to remove an existing workspace folder and add it again with a different name
 		 * to rename that folder.
 		 *
-		 * **Note:** if the first workspace folder is added, removed or changed, all extensions will be restarted
-		 * so that the (deprecated) `rootPath` property is updated to point to the first workspace
-		 * folder.
-		 *
 		 * **Note:** it is not valid to call [updateWorkspaceFolders()](#updateWorkspaceFolders) multiple times
-		 * without waiting for the [onDidChangeWorkspaceFolders()](#onDidChangeWorkspaceFolders) to fire.
+		 * without waiting for the [`onDidChangeWorkspaceFolders()`](#onDidChangeWorkspaceFolders) to fire.
 		 *
 		 * @param start the zero-based location in the list of currently opened [workspace folders](#WorkspaceFolder)
 		 * from which to start deleting workspace folders.
@@ -360,6 +363,39 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a debug adapter executable and optional arguments passed to it.
+	 */
+	export class DebugAdapterExecutable {
+		/**
+		 * The command path of the debug adapter executable.
+		 * A command must be either an absolute path or the name of an executable looked up via the PATH environment variable.
+		 * The special value 'node' will be mapped to VS Code's built-in node runtime.
+		 */
+		readonly command: string;
+
+		/**
+		 * Optional arguments passed to the debug adapter executable.
+		 */
+		readonly args: string[];
+
+		/**
+		 * Create a new debug adapter specification.
+		 */
+		constructor(command: string, args?: string[]);
+	}
+
+	export interface DebugConfigurationProvider {
+		/**
+		 * This optional method is called just before a debug adapter is started to determine its excutable path and arguments.
+		 * Registering more than one debugAdapterExecutable for a type results in an error.
+		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
+		 * @param token A cancellation token.
+		 * @return a [debug adapter's executable and optional arguments](#DebugAdapterExecutable) or undefined.
+		 */
+		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
+	}
+
+	/**
 	 * The severity level of a log message
 	 */
 	export enum LogLevel {
@@ -405,5 +441,51 @@ declare module 'vscode' {
 		export interface RenameProvider2 extends RenameProvider {
 			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
 		}
+	}
+
+	/**
+	 * Represents the validation type of the Source Control input.
+	 */
+	export enum SourceControlInputBoxValidationType {
+
+		/**
+		 * Something not allowed by the rules of a language or other means.
+		 */
+		Error = 0,
+
+		/**
+		 * Something suspicious but allowed.
+		 */
+		Warning = 1,
+
+		/**
+		 * Something to inform about but not a problem.
+		 */
+		Information = 2
+	}
+
+	export interface SourceControlInputBoxValidation {
+
+		/**
+		 * The validation message to display.
+		 */
+		readonly message: string;
+
+		/**
+		 * The validation type.
+		 */
+		readonly type: SourceControlInputBoxValidationType;
+	}
+
+	/**
+	 * Represents the input box in the Source Control viewlet.
+	 */
+	export interface SourceControlInputBox {
+
+		/**
+		 * A validation function for the input box. It's possible to change
+		 * the validation provider simply by setting this property to a different function.
+		 */
+		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
 	}
 }

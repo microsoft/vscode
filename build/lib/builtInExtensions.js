@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const mkdirp = require('mkdirp');
 const rimraf = require('rimraf');
 const es = require('event-stream');
@@ -17,7 +18,7 @@ const util = require('gulp-util');
 
 const root = path.dirname(path.dirname(__dirname));
 const builtInExtensions = require('../builtInExtensions');
-const controlFilePath = path.join(process.env['HOME'], '.vscode-oss-dev', 'extensions', 'control.json');
+const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 
 function getExtensionPath(extension) {
 	return path.join(root, '.build', 'builtInExtensions', extension.name);
@@ -58,7 +59,6 @@ function syncExtension(extension, controlState) {
 	switch (controlState) {
 		case 'disabled':
 			util.log(util.colors.blue('[disabled]'), util.colors.gray(extension.name));
-			rimraf.sync(getExtensionPath(extension));
 			return es.readArray([]);
 
 		case 'marketplace':
@@ -74,7 +74,7 @@ function syncExtension(extension, controlState) {
 				return es.readArray([]);
 			}
 
-			util.log(util.colors.blue('[local]'), `${extension.name}: ${controlState}`, util.colors.green('✔︎'));
+			util.log(util.colors.blue('[local]'), `${extension.name}: ${util.colors.cyan(controlState)}`, util.colors.green('✔︎'));
 			return es.readArray([]);
 	}
 }
@@ -94,7 +94,7 @@ function writeControlFile(control) {
 
 function main() {
 	util.log('Syncronizing built-in extensions...');
-	util.log('Control file:', controlFilePath);
+	util.log(`You can manage built-in extensions with the ${util.colors.cyan('--builtin')} flag`);
 
 	const control = readControlFile();
 	const streams = [];
@@ -114,7 +114,6 @@ function main() {
 			process.exit(1);
 		})
 		.on('end', () => {
-			util.log(`${streams.length} built-in extensions processed.`);
 			process.exit(0);
 		});
 }

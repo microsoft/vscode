@@ -263,7 +263,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		let handle = this.nextHandle();
 		this._handlers.set(handle, provider);
-		this._debugServiceProxy.$registerDebugConfigurationProvider(type, !!provider.provideDebugConfigurations, !!provider.resolveDebugConfiguration, handle);
+		this._debugServiceProxy.$registerDebugConfigurationProvider(type,
+			!!provider.provideDebugConfigurations,
+			!!provider.resolveDebugConfiguration,
+			!!provider.debugAdapterExecutable, handle);
 
 		return new Disposable(() => {
 			this._handlers.delete(handle);
@@ -291,6 +294,17 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			return TPromise.wrapError<vscode.DebugConfiguration>(new Error('handler has no method resolveDebugConfiguration'));
 		}
 		return asWinJsPromise(token => handler.resolveDebugConfiguration(this.getFolder(folderUri), debugConfiguration, token));
+	}
+
+	public $debugAdapterExecutable(handle: number, folderUri: UriComponents | undefined): TPromise<vscode.DebugAdapterExecutable> {
+		let handler = this._handlers.get(handle);
+		if (!handler) {
+			return TPromise.wrapError<vscode.DebugAdapterExecutable>(new Error('no handler found'));
+		}
+		if (!handler.debugAdapterExecutable) {
+			return TPromise.wrapError<vscode.DebugAdapterExecutable>(new Error('handler has no method debugAdapterExecutable'));
+		}
+		return asWinJsPromise(token => handler.debugAdapterExecutable(this.getFolder(folderUri), token));
 	}
 
 	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> {

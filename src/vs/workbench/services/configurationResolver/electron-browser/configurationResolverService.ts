@@ -19,6 +19,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { relative } from 'path';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 class VariableResolver {
 	static VARIABLE_REGEXP = /\$\{(.*?)\}/g;
@@ -85,9 +86,9 @@ class VariableResolver {
 					switch (variable) {
 						case 'workspaceRoot':
 						case 'workspaceFolder':
-							return context ? context.uri.fsPath : match;
+							return context ? normalizeDriveLetter(context.uri.fsPath) : match;
 						case 'cwd':
-							return context ? context.uri.fsPath : process.cwd();
+							return context ? normalizeDriveLetter(context.uri.fsPath) : process.cwd();
 						case 'workspaceRootFolderName':
 						case 'workspaceFolderBasename':
 							return context ? paths.basename(context.uri.fsPath) : match;

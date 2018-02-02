@@ -9,5 +9,6 @@
 	"workbenchConfigurationTitle": "ワークベンチ",
 	"multiSelectModifier.ctrlCmd": "Windows および Linux 上の `Control` キーと macOS 上の `Command` キーに割り当てます。",
 	"multiSelectModifier.alt": "Windows および Linux 上の `Alt` キーと macOS 上の `Option` キーに割り当てます。",
-	"multiSelectModifier": "(tたとえば、サポートしている場合、ツリーやリストで) マウスを使用して項目を複数選択するときに使用する修飾キーです。`ctrlCmd` は Windows および Linux 上の `Control` キーと macOS 上の `Command` に割り当てます。「横に開く」のマウス操作をサポートしている場合、複数選択の修飾キーと競合しないように適応されます。"
+	"openMode.singleClick": "マウスのシングル クリックで項目を開きます。",
+	"openMode.doubleClick": "マウスのダブル クリックで項目を開きます。"
 }

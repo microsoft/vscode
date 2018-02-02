@@ -10,8 +10,6 @@
 	"SearchSettingsWidget.AriaLabel": "Cerca impostazioni",
 	"SearchSettingsWidget.Placeholder": "Cerca impostazioni",
 	"noSettingsFound": "Nessun risultato",
-	"oneSettingFound": "1 impostazione corrispondente",
-	"settingsFound": "{0} impostazioni corrispondenti",
 	"totalSettingsMessage": "{0} impostazioni in totale",
 	"nlpResult": "Risultati linguaggio naturale",
 	"filterResult": "Risultati filtrati",

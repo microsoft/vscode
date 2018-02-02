@@ -74,7 +74,7 @@
 	"cursorBlinking": "Steuert den Cursoranimationsstil. Gültige Werte sind \"blink\", \"smooth\", \"phase\", \"expand\" und \"solid\".",
 	"mouseWheelZoom": "Schriftart des Editors vergrößern, wenn das Mausrad verwendet und die STRG-TASTE gedrückt wird",
 	"cursorStyle": "Steuert den Cursorstil. Gültige Werte sind  \"block\", \"block-outline\", \"line\", \"line-thin\", \"underline\" und \"underline-thin\".",
-	"lineCursorWidth": "Steuert die Breite des Cursors, falls editor.cursorStyle auf \"line\" gestellt ist.",
+	"cursorWidth": "Steuert die Breite des Cursors, falls editor.cursorStyle auf \"line\" gestellt ist.",
 	"fontLigatures": "Aktiviert Schriftartligaturen.",
 	"hideCursorInOverviewRuler": "Steuert die Sichtbarkeit des Cursors im Übersichtslineal.",
 	"renderWhitespace": "Steuert, wie der Editor Leerzeichen rendert. Mögliche Optionen: \"none\", \"boundary\" und \"all\". Die Option \"boundary\" rendert keine einzelnen Leerzeichen zwischen Wörtern.",

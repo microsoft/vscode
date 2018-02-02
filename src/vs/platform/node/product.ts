@@ -26,6 +26,7 @@ export interface IProductConfiguration {
 		serviceUrl: string;
 		itemUrl: string;
 		controlUrl: string;
+		recommendationsUrl: string;
 	};
 	extensionTips: { [id: string]: string; };
 	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
