@@ -125,7 +125,7 @@ export default (): string => `
 		<div class="block-info-text">
 			<div class="instructions">${escape(localize('githubMarkdown', "We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."))}</div>
 			<div id="description-validation-error" class="validation-error hidden" role="alert">${escape(localize('issueDescriptionRequired', "Please enter a description."))}</div>
-			<textarea name="description" id="description" cols="100" rows="15" required></textarea>
+			<textarea name="description" id="description" cols="100" rows="12" required></textarea>
 		</div>
 	</div>
 
