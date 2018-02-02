@@ -43,7 +43,7 @@ interface IExtensionsContent {
 
 const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
-const choiceNever = localize('neverShowAgain', "Don't show again");
+const choiceNever = localize('neverShowAgain', "Don't Show Again");
 const choiceClose = localize('close', "Close");
 
 interface IDynamicWorkspaceRecommendations {
