@@ -677,6 +677,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			&& storedRecommendationsJson['timestamp'] > 0
 			&& (Date.now() - storedRecommendationsJson['timestamp']) / milliSecondsInADay < 14) {
 			this._dynamicWorkspaceRecommendations = storedRecommendationsJson['recommendations'];
+			/* __GDPR__
+				"dynamicWorkspaceRecommendations" : {
+					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 1 });
 			return TPromise.as(null);
 		}
 
@@ -713,6 +720,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 											recommendations: this._dynamicWorkspaceRecommendations,
 											timestamp: Date.now()
 										}), StorageScope.WORKSPACE);
+										/* __GDPR__
+											"dynamicWorkspaceRecommendations" : {
+												"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+												"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+											}
+										*/
+										this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 0 });
 									}
 								}
 							}
