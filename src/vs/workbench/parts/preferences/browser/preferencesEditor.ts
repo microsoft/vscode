@@ -6,6 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
+import * as strings from 'vs/base/common/strings';
 import { onUnexpectedError, isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
@@ -25,7 +26,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, IPreferencesSearchService,
-	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, ISearchProvider, ISearchResult, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING
+	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, ISearchProvider, ISearchResult, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -255,8 +256,7 @@ export class PreferencesEditor extends BaseEditor {
 				if (result) {
 					this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(
 						query,
-						result.defaultSettingsGroupCounts,
-						result.metadata));
+						this.preferencesRenderers.lastFilterResult));
 				}
 			});
 	}
@@ -311,8 +311,26 @@ export class PreferencesEditor extends BaseEditor {
 		}
 	}
 
-	private reportFilteringUsed(filter: string, counts: IStringDictionary<number>, metadata?: IStringDictionary<IFilterMetadata>): void {
+	private _countById(settingsGroups: ISettingsGroup[]): IStringDictionary<number> {
+		const result = {};
+
+		for (const group of settingsGroups) {
+			let i = 0;
+			for (const section of group.sections) {
+				i += section.settings.length;
+			}
+
+			result[group.id] = i;
+		}
+
+		return result;
+	}
+
+	private reportFilteringUsed(filter: string, filterResult: IFilterResult): void {
 		if (filter && filter !== this._lastReportedFilter) {
+			const metadata = filterResult && filterResult.metadata;
+			const counts = filterResult && this._countById(filterResult.filteredGroups);
+
 			let durations: any;
 			if (metadata) {
 				durations = Object.create(null);
@@ -355,11 +373,6 @@ class SettingsNavigator extends ArrayNavigator<ISetting> {
 	}
 }
 
-interface IFilterOrSearchResult {
-	defaultSettingsGroupCounts: IStringDictionary<number>;
-	metadata: IStringDictionary<IFilterMetadata>;
-}
-
 interface IPreferencesCount {
 	target?: SettingsTarget;
 	count: number;
@@ -380,7 +393,7 @@ class PreferencesRenderersController extends Disposable {
 	private _currentLocalSearchProvider: ISearchProvider;
 	private _currentRemoteSearchProvider: ISearchProvider;
 	private _lastQuery: string;
-	private _lastFilterResult: IFilterOrSearchResult;
+	private _lastFilterResult: IFilterResult;
 
 	private _onDidFilterResultsCountChange: Emitter<IPreferencesCount> = this._register(new Emitter<IPreferencesCount>());
 	public onDidFilterResultsCountChange: Event<IPreferencesCount> = this._onDidFilterResultsCountChange.event;
@@ -394,7 +407,7 @@ class PreferencesRenderersController extends Disposable {
 		super();
 	}
 
-	get lastFilterResult(): IFilterOrSearchResult {
+	get lastFilterResult(): IFilterResult {
 		return this._lastFilterResult;
 	}
 
@@ -413,7 +426,10 @@ class PreferencesRenderersController extends Disposable {
 			this._defaultPreferencesRendererDisposables = dispose(this._defaultPreferencesRendererDisposables);
 
 			if (this._defaultPreferencesRenderer) {
-				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source }) => this._updatePreference(key, value, source, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
+				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source }) => {
+					this._editablePreferencesRenderer.updatePreference(key, value, source);
+					this._updatePreference(key, value, source);
+				}, this, this._defaultPreferencesRendererDisposables);
 				this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 				this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
 			}
@@ -427,6 +443,8 @@ class PreferencesRenderersController extends Disposable {
 			if (this._editablePreferencesRenderer) {
 				(<ISettingsEditorModel>this._editablePreferencesRenderer.preferencesModel)
 					.onDidChangeGroups(this._onEditableContentDidChange, this, this._editablePreferencesRendererDisposables);
+
+				this._editablePreferencesRenderer.onUpdatePreference(({ key, value, source }) => this._updatePreference(key, value, source, true), this, this._defaultPreferencesRendererDisposables);
 			}
 		}
 	}
@@ -474,25 +492,21 @@ class PreferencesRenderersController extends Disposable {
 	private filterOrSearchPreferences(query: string, searchProvider: ISearchProvider, groupId: string, groupLabel: string, groupOrder: number, editableContentOnly?: boolean): TPromise<void> {
 		this._lastQuery = query;
 
-		const filterPs = [];
+		const filterPs: TPromise<any>[] = [this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder)];
 		if (!editableContentOnly) {
 			filterPs.push(
 				this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder));
 		}
 
-		filterPs.push(this._filterOrSearchPreferences(query, this.editablePreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder),
-			this.searchAllSettingsTargets(query, searchProvider, groupId, groupLabel, groupOrder));
+		filterPs.push(this.searchAllSettingsTargets(query, searchProvider, groupId, groupLabel, groupOrder));
 
 		return TPromise.join(filterPs).then(results => {
-			const [defaultFilterResult, editableFilterResult] = results;
+			const [editableFilterResult, defaultFilterResult] = results;
 
 			this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
-			const result = <IFilterOrSearchResult>{
-				metadata: defaultFilterResult && defaultFilterResult.metadata,
-				defaultSettingsGroupCounts: defaultFilterResult && this._countById(defaultFilterResult.filteredGroups)
-			};
-
-			this._lastFilterResult = result;
+			if (defaultFilterResult) {
+				this._lastFilterResult = defaultFilterResult;
+			}
 		});
 	}
 
@@ -598,13 +612,14 @@ class PreferencesRenderersController extends Disposable {
 				} else {
 					/* __GDPR__
 						"defaultSettings.searchError" : {
-							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
 					*/
 					const message = getErrorMessage(err).trim();
 					if (message) {
 						// Empty message = any generic network error
-						this.telemetryService.publicLog('defaultSettings.searchError', { message });
+						this.telemetryService.publicLog('defaultSettings.searchError', { message, filter });
 					}
 					return null;
 				}
@@ -668,10 +683,58 @@ class PreferencesRenderersController extends Disposable {
 		}
 	}
 
-	private _updatePreference(key: string, value: any, source: ISetting, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
-		if (preferencesRenderer) {
-			preferencesRenderer.updatePreference(key, value, source);
+	private _updatePreference(key: string, value: any, source: ISetting, fromEditableSettings?: boolean): void {
+		const data = {
+			userConfigurationKeys: [key]
+		};
+
+		if (this.lastFilterResult) {
+			data['query'] = this.lastFilterResult.query;
+			data['editableSide'] = !!fromEditableSettings;
+
+			const nlpMetadata = this.lastFilterResult.metadata && this.lastFilterResult.metadata['nlpResult'];
+			if (nlpMetadata) {
+				const sortedKeys = Object.keys(nlpMetadata.scoredResults).sort((a, b) => nlpMetadata.scoredResults[b].score - nlpMetadata.scoredResults[a].score);
+				const suffix = '##' + key;
+				data['nlpIndex'] = arrays.firstIndex(sortedKeys, key => strings.endsWith(key, suffix));
+			}
+
+			const settingLocation = this._findSetting(this.lastFilterResult, key);
+			if (settingLocation) {
+				data['groupId'] = this.lastFilterResult.filteredGroups[settingLocation.groupIdx].id;
+				data['displayIdx'] = settingLocation.overallSettingIdx;
+			}
 		}
+
+		/* __GDPR__
+			"defaultSettingsActions.copySetting" : {
+				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"query" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"displayIdx" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"editableSide" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog('defaultSettingsActions.copySetting', data);
+	}
+
+	private _findSetting(filterResult: IFilterResult, key: string): { groupIdx: number, settingIdx: number, overallSettingIdx: number } {
+		let overallSettingIdx = 0;
+
+		for (let groupIdx = 0; groupIdx < filterResult.filteredGroups.length; groupIdx++) {
+			const group = filterResult.filteredGroups[groupIdx];
+			for (let settingIdx = 0; settingIdx < group.sections[0].settings.length; settingIdx++) {
+				const setting = group.sections[0].settings[settingIdx];
+				if (key === setting.key) {
+					return { groupIdx, settingIdx, overallSettingIdx };
+				}
+
+				overallSettingIdx++;
+			}
+		}
+
+		return null;
 	}
 
 	private _consolidateSettings(editableSettingsGroups: ISettingsGroup[], defaultSettingsGroups: ISettingsGroup[]): ISetting[] {
@@ -689,21 +752,6 @@ class PreferencesRenderersController extends Disposable {
 		}
 
 		return settings;
-	}
-
-	private _countById(settingsGroups: ISettingsGroup[]): IStringDictionary<number> {
-		const result = {};
-
-		for (const group of settingsGroups) {
-			let i = 0;
-			for (const section of group.sections) {
-				i += section.settings.length;
-			}
-
-			result[group.id] = i;
-		}
-
-		return result;
 	}
 
 	public dispose(): void {
