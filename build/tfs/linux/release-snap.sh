@@ -7,6 +7,7 @@ step "Build snap package" \
 	npm run gulp -- "vscode-linux-$ARCH-build-snap"
 
 # Variables
+PLATFORM_LINUX="linux-$ARCH"
 PLATFORM_SNAP="linux-snap-$ARCH"
 REPO="`pwd`"
 ROOT="$REPO/.."
