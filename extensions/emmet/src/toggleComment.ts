@@ -42,14 +42,10 @@ export function toggleComment(): Thenable<boolean> | undefined {
 		});
 
 		// Apply edits in order so we can skip nested ones.
-		let sortEditsByStart = (arr1, arr2) => {
+		allEdits.sort((arr1, arr2) => {
 			let result = arr1[0].range.start.line - arr2[0].range.start.line;
-			if (result === 0) {
-				result = arr1[0].range.start.character - arr2[0].range.start.character;
-			}
-			return result;
-		};
-		allEdits.sort((arr1, arr2) => sortEditsByStart(arr1, arr2));
+			return result === 0 ? arr1[0].range.start.character - arr2[0].range.start.character : result;
+		});
 		let lastEditPosition = new vscode.Position(0, 0);
 		for (let i = 0; i < allEdits.length; i++) {
 			const edits = allEdits[i];
