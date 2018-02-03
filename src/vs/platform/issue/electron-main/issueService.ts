@@ -10,16 +10,18 @@ import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData } from 'vs/platform/issue/common/issue';
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, screen } from 'electron';
 import { ILaunchService } from 'vs/code/electron-main/launch';
 import { buildDiagnostics, DiagnosticInfo } from 'vs/code/electron-main/diagnostics';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
 export class IssueService implements IIssueService {
 	_serviceBrand: any;
 	_issueWindow: BrowserWindow;
+	_parentWindow: BrowserWindow;
 
 	constructor(
 		private machineId: string,
@@ -35,14 +37,17 @@ export class IssueService implements IIssueService {
 		});
 
 		ipcMain.on('workbenchCommand', (event, arg) => {
-			this._issueWindow.getParentWindow().webContents.send('vscode:runAction', { id: arg });
+			this._parentWindow.webContents.send('vscode:runAction', { id: arg });
 		});
 
+		this._parentWindow = BrowserWindow.getFocusedWindow();
+		const position = this.getWindowPosition();
 		this._issueWindow = new BrowserWindow({
-			width: 750,
-			height: 1100,
+			width: position.width,
+			height: position.height,
+			x: position.x,
+			y: position.y,
 			title: localize('issueReporter', "Issue Reporter"),
-			parent: BrowserWindow.getFocusedWindow(),
 			backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR
 		});
 
@@ -51,6 +56,48 @@ export class IssueService implements IIssueService {
 		this._issueWindow.loadURL(this.getIssueReporterPath(data));
 
 		return TPromise.as(null);
+	}
+
+	private getWindowPosition() {
+		// We want the new window to open on the same display that the parent is in
+		let displayToUse: Electron.Display;
+		const displays = screen.getAllDisplays();
+
+		// Single Display
+		if (displays.length === 1) {
+			displayToUse = displays[0];
+		}
+
+		// Multi Display
+		else {
+
+			// on mac there is 1 menu per window so we need to use the monitor where the cursor currently is
+			if (isMacintosh) {
+				const cursorPoint = screen.getCursorScreenPoint();
+				displayToUse = screen.getDisplayNearestPoint(cursorPoint);
+			}
+
+			// if we have a last active window, use that display for the new window
+			if (!displayToUse && this._parentWindow) {
+				displayToUse = screen.getDisplayMatching(this._parentWindow.getBounds());
+			}
+
+			// fallback to primary display or first display
+			if (!displayToUse) {
+				displayToUse = screen.getPrimaryDisplay() || displays[0];
+			}
+		}
+
+		let state = {
+			width: 750,
+			height: 900,
+			x: undefined,
+			y: undefined
+		};
+		state.x = displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width / 2);
+		state.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height / 2);
+
+		return state;
 	}
 
 	private getStatusInfo(): TPromise<DiagnosticInfo> {

@@ -31,7 +31,29 @@ td {
 }
 
 .section {
-	margin-bottom: 2em;
+	margin-bottom: 1.5em;
+}
+
+#issue-type-label {
+	width: 12%;
+}
+
+#issue-type {
+	width: calc(88% - 5px);
+}
+
+#issue-title-label {
+	width: 10%;
+	display: inline-block
+}
+
+#issue-title {
+	width: calc(90% - 5px);
+}
+
+#similar-issues {
+	margin-left: 67px;
+	display: block;
 }
 
 /**
@@ -48,6 +70,11 @@ input[type="text"], textarea {
 	border-radius: .25rem;
 	border: 1px solid #ced4da;
 }
+
+.inline-form-control {
+	display: inline-block !important;
+}
+
 textarea {
 	overflow: auto;
 	resize: vertical;
@@ -73,10 +100,9 @@ button {
 
 select {
 	height: calc(2.25rem + 2px);
-	display: block;
-	width: 100%;
-	padding: 0.375rem 0.75rem;
-	font-size: 1rem;
+	display: inline-block;
+	padding: 3px 3px;
+	font-size: 14px;
 	line-height: 1.5;
 	color: #495057;
 	background-color: #fff;
@@ -87,6 +113,11 @@ select {
 * {
 	box-sizing: border-box;
 }
+
+textarea {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+}
+
 html {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	color: #CCCCCC;
@@ -107,7 +138,7 @@ body {
 .block .block-info {
 	width: 100%;
 	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
-	font-size: 14px;
+	font-size: 12px;
 	overflow: auto;
 	overflow-wrap: break-word;
 }
@@ -172,7 +203,7 @@ select, input, textarea {
 
 summary {
 	border: 1px solid transparent;
-	padding: 10px;
+	padding: 0 10px;
 	margin-bottom: 5px;
 }
 
