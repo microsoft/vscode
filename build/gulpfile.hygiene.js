@@ -226,8 +226,8 @@ const hygiene = exports.hygiene = (some, options) => {
 	}
 
 	const program = tslint.Linter.createProgram("src/tsconfig.json");
-	const configuration = tslint.Configuration.findConfiguration('tslint.json', '.');
-	const tslintOptions = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };
+	const configuration = tslint.Configuration.findConfiguration('tslint-hygiene.json', '.');
+	const tslintOptions = { fix: false, formatter: 'json' };
 	const linter = new tslint.Linter(tslintOptions, program);
 
 	const tsl = es.through(function (file) {
@@ -266,7 +266,7 @@ const hygiene = exports.hygiene = (some, options) => {
 			this.emit('data', data);
 		}, function () {
 			process.stdout.write('\n');
-			
+
 			const tslintResult = linter.getResult();
 			if (tslintResult.failures.length > 0) {
 				reportFailures(tslintResult.failures);
