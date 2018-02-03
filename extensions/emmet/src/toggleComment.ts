@@ -36,7 +36,9 @@ export function toggleComment(): Thenable<boolean> | undefined {
 		let allEdits: vscode.TextEdit[][] = [];
 		editor.selections.reverse().forEach(selection => {
 			let edits = toggleCommentInternal(editor.document, selection, rootNode!);
-			allEdits.push(edits);
+			if (edits.length > 0) {
+				allEdits.push(edits);
+			}
 		});
 
 		// Apply edits in order so we can skip nested ones.
