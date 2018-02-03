@@ -408,6 +408,10 @@ export class IssueReporter extends Disposable {
 			// to detect further changes
 			(<HTMLInputElement>document.getElementsByClassName('invalid-input')[0]).focus();
 
+			document.getElementById('issue-title').addEventListener('input', (event) => {
+				this.validateInput('issue-title');
+			});
+
 			document.getElementById('description').addEventListener('input', (event) => {
 				this.validateInput('description');
 			});
