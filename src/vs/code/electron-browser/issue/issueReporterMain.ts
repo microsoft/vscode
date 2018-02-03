@@ -227,7 +227,7 @@ export class IssueReporter extends Disposable {
 			this.issueReporterModel.update({ reprosWithoutExtensions: false });
 		});
 
-		document.getElementById('description').addEventListener('blur', (event: Event) => {
+		document.getElementById('description').addEventListener('input', (event: Event) => {
 			this.issueReporterModel.update({ issueDescription: (<HTMLInputElement>event.target).value });
 		});
 
