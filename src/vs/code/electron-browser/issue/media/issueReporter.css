@@ -138,7 +138,7 @@ body {
 .block .block-info {
 	width: 100%;
 	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
-	font-size: 14px;
+	font-size: 12px;
 	overflow: auto;
 	overflow-wrap: break-word;
 }

@@ -109,7 +109,7 @@ export default (): string => `
 			<!-- To be dynamically filled -->
 		</div>
 		<div class="block-info-text">
-			<textarea name="description" id="description" cols="100" rows="12" required></textarea>
+			<textarea name="description" id="description" cols="100" rows="12" placeholder="${escape(localize('details', "Please enter details."))}" required></textarea>
 		</div>
 	</div>
 
