@@ -6,8 +6,6 @@
 
 import { escape } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
-import * as os from 'os';
-import pkg from 'vs/platform/node/package';
 
 export default (): string => `
 <div id="issue-reporter">
@@ -15,8 +13,8 @@ export default (): string => `
 
 	<div class="section">
 		<div class="input-group">
-			<label for="issue-type">${escape(localize('issueTypeLabel', "I want to submit a"))}</label>
-			<select id="issue-type" class="form-control">
+			<label id="issue-type-label" class="inline-form-control" for="issue-type">${escape(localize('issueTypeLabel', "This is a"))}</label>
+			<select id="issue-type" class="inline-form-control">
 				<option value="0">${escape(localize('bugReporter', "Bug Report"))}</option>
 				<option value="1">${escape(localize('performanceIssue', "Performance Issue"))}</option>
 				<option value="2">${escape(localize('featureRequest', "Feature Request"))}</option>
@@ -24,9 +22,8 @@ export default (): string => `
 		</div>
 
 		<div class="input-group">
-			<label for="issue-title">${escape(localize('issueTitleLabel', "Title"))} <span class="required-input">*</span></label>
-			<div id="issue-title-validation-error" class="validation-error hidden" role="alert">${escape(localize('issueTitleRequired', "Please enter a title."))}</div>
-			<input id="issue-title" type="text" required>
+			<label id="issue-title-label" for="issue-title">${escape(localize('issueTitleLabel', "Title"))} <span class="required-input">*</span></label>
+			<input id="issue-title" type="text" class="inline-form-control" placeholder="${escape(localize('issueTitleRequired', "Please enter a title."))}" required>
 			<small id="similar-issues">
 				<!-- To be dynamically filled -->
 			</small>
@@ -34,17 +31,6 @@ export default (): string => `
 	</div>
 
 	<div class="system-info">
-		<div class="input-group">
-			<div class="two-col">
-				<label for="vscode-version">${escape(localize('vscodeVersion', "VS Code Version"))}</label>
-				<input id="vscode-version" type="text" value="${pkg.name} ${pkg.version}" disabled/>
-			</div>
-			<div class="two-col">
-				<label for="os">${escape(localize('osVersion', "OS Version"))}</label>
-				<input id="os" type="text" value="${os.type()} ${os.arch()} ${os.release()}" disabled/>
-			</div>
-		</div>
-
 		<div id="block-container">
 			<div class="block block-system">
 				<details>
@@ -123,9 +109,7 @@ export default (): string => `
 			<!-- To be dynamically filled -->
 		</div>
 		<div class="block-info-text">
-			<div class="instructions">${escape(localize('githubMarkdown', "We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."))}</div>
-			<div id="description-validation-error" class="validation-error hidden" role="alert">${escape(localize('issueDescriptionRequired', "Please enter a description."))}</div>
-			<textarea name="description" id="description" cols="100" rows="15" required></textarea>
+			<textarea name="description" id="description" cols="100" rows="12" placeholder="${escape(localize('details', "Please enter details."))}" required></textarea>
 		</div>
 	</div>
 

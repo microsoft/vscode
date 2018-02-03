@@ -49,6 +49,7 @@ import { IIssueService, IssueReporterData, IssueType, IssueReporterStyles } from
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 // --- actions
 
@@ -896,7 +897,7 @@ export class OpenIssueReporterAction extends Action {
 
 	public run(): TPromise<boolean> {
 		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
+			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled({ id: getGalleryExtensionIdFromLocal(extension) }));
 			const theme = this.themeService.getTheme();
 			const issueReporterData: IssueReporterData = {
 				styles: getIssueReporterStyles(theme),
