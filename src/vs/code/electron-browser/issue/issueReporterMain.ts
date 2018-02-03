@@ -431,7 +431,7 @@ export class IssueReporter extends Disposable {
 		const url = baseUrl + encodeURIComponent(issueBody);
 
 		const lengthValidationElement = document.getElementById('url-length-validation-error');
-		if (url.length > 2081) {
+		if (url.length > 5400) {
 			lengthValidationElement.textContent = localize('urlLengthError', "The data exceeds the length limit of 2081. The data is length {0}.", url.length);
 			show(lengthValidationElement);
 			return false;
