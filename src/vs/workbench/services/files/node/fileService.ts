@@ -548,23 +548,22 @@ export class FileService implements IFileService {
 				// 3.) check to add UTF BOM
 				return addBomPromise.then(addBom => {
 
-					// 4.) set contents and resolve
-					return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite).then(void 0, error => {
-						if (!exists || error.code !== 'EPERM' || !isWindows) {
-							return TPromise.wrapError(error);
-						}
-
-						// On Windows and if the file exists with an EPERM error, we try a different strategy of saving the file
+					if (!exists || !isWindows) {
+						// 4.) set contents and resolve
+						return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite);
+					} else {
+						// On Windows and if the file exists, we use a different strategy of saving the file
 						// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
-						// (see https://github.com/Microsoft/vscode/issues/931)
+						// (see https://github.com/Microsoft/vscode/issues/931) and prevent removing alternate data streams
+						// (see https://github.com/Microsoft/vscode/issues/6363)
 
-						// 5.) truncate
+						// 4.) truncate
 						return pfs.truncate(absolutePath, 0).then(() => {
 
-							// 6.) set contents (this time with r+ mode) and resolve again
+							// 5.) set contents (with r+ mode) and resolve
 							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' });
 						});
-					});
+					}
 				});
 			});
 		}).then(null, error => {
