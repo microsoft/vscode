@@ -73,15 +73,28 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		}
 
 		// Add & Delete Folders
-		if (this.includesSingleFolderWorkspace(foldersToDelete)) {
+		else {
+
 			// if we are in single-folder state and the folder is replaced with
 			// other folders, we handle this specially and just enter workspace
 			// mode with the folders that are being added.
-			return this.createAndEnterWorkspace(foldersToAdd);
-		}
+			if (this.includesSingleFolderWorkspace(foldersToDelete)) {
+				return this.createAndEnterWorkspace(foldersToAdd);
+			}
 
-		// Make sure to first remove folders and then add them to account for folders being updated
-		return this.removeFolders(foldersToDelete).then(() => this.doAddFolders(foldersToAdd, index, donotNotifyError));
+			// if we are not in workspace-state, we just add the folders
+			if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
+				return this.doAddFolders(foldersToAdd, index, donotNotifyError);
+			}
+
+			// finally, update folders within the workspace
+			return this.doUpdateFolders(foldersToAdd, foldersToDelete, index, donotNotifyError);
+		}
+	}
+
+	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToDelete: URI[], index?: number, donotNotifyError: boolean = false): TPromise<void> {
+		return this.contextService.updateFolders(foldersToAdd, foldersToDelete, index)
+			.then(() => null, error => donotNotifyError ? TPromise.wrapError(error) : this.handleWorkspaceConfigurationEditingError(error));
 	}
 
 	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[], donotNotifyError: boolean = false): TPromise<void> {
