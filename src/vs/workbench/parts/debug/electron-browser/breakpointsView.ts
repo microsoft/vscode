@@ -72,7 +72,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 		], {
 				identityProvider: element => element.getId(),
 				multipleSelectionSupport: false
-			});
+			}) as WorkbenchList<IEnablement>;
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 

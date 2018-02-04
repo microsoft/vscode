@@ -339,7 +339,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ }, configurationService);
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ }, configurationService);
 
 		this.toDispose = [];
 	}
