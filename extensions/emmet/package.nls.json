@@ -51,5 +51,5 @@
 	"emmetPreferencesCssWebkitProperties": "Comma separated CSS properties that get the 'webkit' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'webkit' prefix.",
 	"emmetPreferencesCssMozProperties": "Comma separated CSS properties that get the 'moz' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'moz' prefix.",
 	"emmetPreferencesCssOProperties": "Comma separated CSS properties that get the 'o' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'o' prefix.",
-	"emmetPreferencesCssMsProperties": "Comma separatedCSS properties that get the 'ms' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'ms' prefix."
+	"emmetPreferencesCssMsProperties": "Comma separated CSS properties that get the 'ms' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'ms' prefix."
 }
