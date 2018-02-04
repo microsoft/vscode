@@ -52,13 +52,13 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { deepClone } from 'vs/base/common/objects';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 // TODO@Sandeep layer breaker
 // tslint:disable-next-line:import-patterns
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { deepClone } from 'vs/base/common/objects';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 	if (input instanceof SideBySideEditorInput) {
