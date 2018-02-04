@@ -430,13 +430,20 @@ export class UpdateContribution implements IGlobalActivity {
 			return;
 		}
 
-		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
+		// TODO: Clean up
+		let releaseNotesAction: ShowReleaseNotesAction;
+		if (update) {
+			releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
+		}
+
 		const applyUpdateAction = new Action('update.applyUpdate', nls.localize('updateNow', "Update Now"), undefined, true, () =>
 			this.updateService.quitAndInstall());
 
 		this.messageService.show(severity.Info, {
 			message: nls.localize('updateAvailableAfterRestart', "{0} will be updated after it restarts.", product.nameLong),
-			actions: [applyUpdateAction, NotNowAction, releaseNotesAction]
+			actions: releaseNotesAction ?
+				[applyUpdateAction, NotNowAction, releaseNotesAction] :
+				[applyUpdateAction, NotNowAction]
 		});
 	}
 

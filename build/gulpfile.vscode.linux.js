@@ -203,13 +203,17 @@ function prepareSnapPackage(arch) {
 
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@VERSION@@', packageJson.version))
+			.pipe(replace('@@VERSION@@', `${packageJson.version}-${linuxPackageRevision}`))
 			.pipe(rename('snap/snapcraft.yaml'));
+
+		const postRefreshHook = gulp.src('resources/linux/snap/hooks/post-refresh', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('snap/hooks/post-refresh'));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
 			.pipe(rename('electron-launch'));
 
-		const all = es.merge(desktop, icon, code, snapcraft, electronLaunch);
+		const all = es.merge(desktop, icon, code, snapcraft, electronLaunch, postRefreshHook);
 
 		return all.pipe(vfs.dest(destination));
 	};
@@ -219,7 +223,8 @@ function buildSnapPackage(arch) {
 	const snapBuildPath = getSnapBuildPath(arch);
 	const snapFilename = `${product.applicationName}-${packageJson.version}-${linuxPackageRevision}-${arch}.snap`;
 	return shell.task([
-		`chmod +x ${snapBuildPath}/electron-launch`,
+		`chmod a+x ${snapBuildPath}/electron-launch ${snapBuildPath}/snap/hooks/post-refresh`,
+		`snapcraft --version`,
 		`cd ${snapBuildPath} && snapcraft snap --output ../${snapFilename}`
 	]);
 }

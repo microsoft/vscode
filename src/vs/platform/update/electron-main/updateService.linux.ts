@@ -16,6 +16,9 @@ import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/elect
 import { asJson } from 'vs/base/node/request';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { shell } from 'electron';
+import { realpath } from 'vs/base/node/pfs';
+import product from 'vs/platform/node/product';
+import * as path from 'path';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -46,33 +49,51 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 		this.setState(State.CheckingForUpdates(explicit));
 
-		this.requestService.request({ url: this.url })
-			.then<IUpdate>(asJson)
-			.then(update => {
-				if (!update || !update.url || !update.version || !update.productVersion) {
+		if (process.env.SNAP && process.env.SNAP_REVISION) {
+			this.checkForSnapUpdate();
+		} else {
+			this.requestService.request({ url: this.url })
+				.then<IUpdate>(asJson)
+				.then(update => {
+					if (!update || !update.url || !update.version || !update.productVersion) {
+						/* __GDPR__
+								"update:notAvailable" : {
+									"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
+						this.telemetryService.publicLog('update:notAvailable', { explicit });
+
+						this.setState(State.Idle);
+					} else {
+						this.setState(State.AvailableForDownload(update));
+					}
+				})
+				.then(null, err => {
+					this.logService.error(err);
+
 					/* __GDPR__
-							"update:notAvailable" : {
-								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-							}
+						"update:notAvailable" : {
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
 						*/
 					this.telemetryService.publicLog('update:notAvailable', { explicit });
-
 					this.setState(State.Idle);
-				} else {
-					this.setState(State.AvailableForDownload(update));
-				}
-			})
-			.then(null, err => {
-				this.logService.error(err);
+				});
+		}
+	}
 
-				/* __GDPR__
-					"update:notAvailable" : {
-					"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-					*/
-				this.telemetryService.publicLog('update:notAvailable', { explicit });
+	private checkForSnapUpdate() {
+		// If the application was installed as a snap, updates happen in the
+		// background automatically, we just need to check to see if an update
+		// has already happened.
+		realpath(`/snap/${product.applicationName}/current`).then(resolvedCurrentSnapPath => {
+			const currentRevision = path.basename(resolvedCurrentSnapPath);
+			if (process.env.SNAP_REVISION !== currentRevision) {
+				this.setState(State.Ready(null));
+			} else {
 				this.setState(State.Idle);
-			});
+			}
+		});
 	}
 
 	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
