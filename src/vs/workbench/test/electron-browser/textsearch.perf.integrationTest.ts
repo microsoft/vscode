@@ -44,7 +44,7 @@ declare var __dirname: string;
 // Run from repository root folder with (test.bat on Windows): ./scripts/test-int-mocha.sh --grep TextSearch.performance --timeout 500000 --testWorkspace <path>
 suite('TextSearch performance (integration)', () => {
 
-	test('Measure', () => {
+	const theTest = () => {
 		if (process.env['VSCODE_PID']) {
 			return undefined; // TODO@Rob find out why test fails when run from within VS Code
 		}
@@ -139,7 +139,18 @@ suite('TextSearch performance (integration)', () => {
 					});
 				}
 			});
-	});
+	};
+
+	test('Measure 0', theTest);
+	test('Measure 1', theTest);
+	test('Measure 2', theTest);
+	test('Measure 3', theTest);
+	test('Measure 4', theTest);
+	test('Measure 5', theTest);
+	test('Measure 6', theTest);
+	test('Measure 7', theTest);
+	test('Measure 8', theTest);
+	test('Measure 9', theTest);
 });
 
 class TestTelemetryService implements ITelemetryService {
