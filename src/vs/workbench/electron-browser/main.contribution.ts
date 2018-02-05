@@ -374,7 +374,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme, and to dark theme when switching away from a Windows high contrast theme."),
-			'included': !isWindows
+			'included': isWindows
 		},
 		'window.titleBarStyle': {
 			'type': 'string',
