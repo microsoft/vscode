@@ -52,8 +52,11 @@ export function isValidLocalization(localization: ILocalization): boolean {
 ExtensionsRegistry.registerExtensionPoint('localizations', [], {
 	description: localize('vscode.extension.contributes.localizations', "Contributes localizations to the editor"),
 	type: 'array',
+	default: [],
 	items: {
 		type: 'object',
+		required: ['languageId', 'translations'],
+		defaultSnippets: [{ body: { languageId: '', languageName: '', languageNameLocalized: '', translations: [{ id: 'vscode', path: '' }] } }],
 		properties: {
 			languageId: {
 				description: localize('vscode.extension.contributes.localizations.languageId', 'Id of the language into which the display strings are translated.'),
@@ -70,9 +73,10 @@ ExtensionsRegistry.registerExtensionPoint('localizations', [], {
 			translations: {
 				description: localize('vscode.extension.contributes.localizations.translations', 'List of translations associated to the language.'),
 				type: 'array',
-				default: [],
+				default: [{ id: 'vscode', path: '' }],
 				items: {
 					type: 'object',
+					required: ['id', 'path'],
 					properties: {
 						id: {
 							type: 'string',
@@ -84,8 +88,9 @@ ExtensionsRegistry.registerExtensionPoint('localizations', [], {
 							type: 'string',
 							description: localize('vscode.extension.contributes.localizations.translations.path', "A relative path to a file containing translations for the language.")
 						}
-					}
-				}
+					},
+					defaultSnippets: [{ body: { id: '', path: '' } }],
+				},
 			}
 		}
 	}
