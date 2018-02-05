@@ -96,31 +96,35 @@ export class LifecycleService implements ILifecycleService {
 		const windowId = this._windowService.getCurrentWindowId();
 
 		// Main side indicates that window is about to unload, check for vetos
-		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason, payload: object }) => {
+		ipc.on('vscode:onBeforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
 			this._storageService.store(LifecycleService._lastShutdownReasonKey, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
 
 			// trigger onWillShutdown events and veto collecting
-			this.onBeforeUnload(reply.reason, reply.payload).done(veto => {
+			this.onBeforeUnload(reply.reason).done(veto => {
 				if (veto) {
 					this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
-					this._onShutdown.fire(reply.reason);
 					ipc.send(reply.okChannel, windowId);
 				}
 			});
 		});
+
+		// Main side indicates that we will indeed shutdown
+		ipc.on('vscode:onWillUnload', (event, reply: { replyChannel: string, reason: ShutdownReason }) => {
+			this._onShutdown.fire(reply.reason);
+			ipc.send(reply.replyChannel, windowId);
+		});
 	}
 
-	private onBeforeUnload(reason: ShutdownReason, payload?: object): TPromise<boolean> {
+	private onBeforeUnload(reason: ShutdownReason): TPromise<boolean> {
 		const vetos: (boolean | TPromise<boolean>)[] = [];
 
 		this._onWillShutdown.fire({
 			veto(value) {
 				vetos.push(value);
 			},
-			reason,
-			payload
+			reason
 		});
 
 		return handleVetos(vetos, err => this._messageService.show(Severity.Error, toErrorMessage(err)));

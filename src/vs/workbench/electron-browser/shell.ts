@@ -35,7 +35,7 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SearchService } from 'vs/workbench/services/search/node/searchService';
-import { LifecycleService } from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
+import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
