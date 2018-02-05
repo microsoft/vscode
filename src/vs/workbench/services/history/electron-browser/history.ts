@@ -10,7 +10,7 @@ import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection, Position as GroupPosition } from 'vs/platform/editor/common/editor';
-import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorGroup, IEditorInputFactoryRegistry, toResource } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorGroup, IEditorInputFactoryRegistry, toResource, Extensions as EditorInputExtensions, IFileInputFactory } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
@@ -125,6 +125,8 @@ export class HistoryService implements IHistoryService {
 	private loaded: boolean;
 	private resourceFilter: ResourceGlobMatcher;
 
+	private fileInputFactory: IFileInputFactory;
+
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
@@ -138,6 +140,8 @@ export class HistoryService implements IHistoryService {
 	) {
 		this.toUnbind = [];
 		this.activeEditorListeners = [];
+
+		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileInputFactory();
 
 		this.index = -1;
 		this.lastIndex = -1;
@@ -572,10 +576,8 @@ export class HistoryService implements IHistoryService {
 	}
 
 	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
-		const resource = input ? input.getResource() : void 0;
-		const preferResourceInput = resource && this.fileService.canHandleResource(resource); // file'ish things prefer resources
-		if (preferResourceInput) {
-			return { resource };
+		if (this.fileInputFactory.isFileInput(input)) {
+			return { resource: input.getResource() };
 		}
 
 		return input;

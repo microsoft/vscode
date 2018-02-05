@@ -245,7 +245,7 @@ class Controller extends WorkbenchTreeController {
 		var isDoubleClick = event.detail === 2;
 		if (event.leftButton) {
 			if (element instanceof FileReferences) {
-				if (this.openOnSingleClick || isDoubleClick) {
+				if (this.openOnSingleClick || isDoubleClick || this.isClickOnTwistie(event)) {
 					event.preventDefault();
 					event.stopPropagation();
 					return this._expandCollapse(tree, element);

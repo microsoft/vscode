@@ -245,7 +245,7 @@ class MainPanel extends ViewletPanel {
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
 			identityProvider: repository => repository.provider.id
-		});
+		}) as WorkbenchList<ISCMRepository>;
 
 		this.disposables.push(this.list);
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
@@ -817,7 +817,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider
-		});
+		}) as WorkbenchList<ISCMResourceGroup | ISCMResource>;
 
 		chain(this.list.onOpen)
 			.map(e => e.elements[0])
