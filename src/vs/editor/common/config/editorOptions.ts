@@ -2280,7 +2280,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		find: {
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: false,
-			globalFindClipboard: true
+			globalFindClipboard: false
 		},
 		colorDecorators: true,
 		lightbulbEnabled: true
