@@ -54,6 +54,8 @@ export class IssueReporter extends Disposable {
 	private telemetryService: ITelemetryService;
 	private issueReporterModel: IssueReporterModel;
 	private shouldQueueSearch = true;
+	private receivedSystemInfo = false;
+	private receivedPerformanceInfo = false;
 
 	constructor(configuration: IssueReporterConfiguration) {
 		super();
@@ -74,17 +76,26 @@ export class IssueReporter extends Disposable {
 			reprosWithoutExtensions: false
 		});
 
-		ipcRenderer.on('issueInfoResponse', (event, info) => {
+		ipcRenderer.on('issuePerformanceInfoResponse', (event, info) => {
 			this.issueReporterModel.update(info);
+			this.receivedPerformanceInfo = true;
 
-			this.updateAllBlocks(this.issueReporterModel.getData());
-
-			const submitButton = <HTMLButtonElement>document.getElementById('github-submit-btn');
-			submitButton.disabled = false;
-			submitButton.textContent = localize('previewOnGitHub', "Preview on GitHub");
+			const state = this.issueReporterModel.getData();
+			this.updateProcessInfo(state);
+			this.updateWorkspaceInfo(state);
+			this.updatePreviewButtonState();
 		});
 
-		ipcRenderer.send('issueInfoRequest');
+		ipcRenderer.on('issueSystemInfoResponse', (event, info) => {
+			this.issueReporterModel.update({ systemInfo: info });
+			this.receivedSystemInfo = true;
+
+			this.updateSystemInfo(this.issueReporterModel.getData());
+			this.updatePreviewButtonState();
+		});
+
+		ipcRenderer.send('issueSystemInfoRequest');
+		ipcRenderer.send('issuePerformanceInfoRequest');
 
 		if (window.document.documentElement.lang !== 'en') {
 			show(document.getElementById('english'));
@@ -211,6 +222,7 @@ export class IssueReporter extends Disposable {
 	private setEventHandlers(): void {
 		document.getElementById('issue-type').addEventListener('change', (event: Event) => {
 			this.issueReporterModel.update({ issueType: parseInt((<HTMLInputElement>event.target).value) });
+			this.updatePreviewButtonState();
 			this.render();
 		});
 
@@ -267,6 +279,34 @@ export class IssueReporter extends Disposable {
 				}
 			};
 		}
+	}
+
+	private updatePreviewButtonState() {
+		const submitButton = <HTMLButtonElement>document.getElementById('github-submit-btn');
+		if (this.isPreviewEnabled()) {
+			submitButton.disabled = false;
+			submitButton.textContent = localize('previewOnGitHub', "Preview on GitHub");
+		} else {
+			submitButton.disabled = true;
+			submitButton.textContent = localize('loadingData', "Loading data...");
+		}
+	}
+
+	private isPreviewEnabled() {
+		const issueType = this.issueReporterModel.getData().issueType;
+		if (issueType === IssueType.Bug && this.receivedSystemInfo) {
+			return true;
+		}
+
+		if (issueType === IssueType.PerformanceIssue && this.receivedSystemInfo && this.receivedPerformanceInfo) {
+			return true;
+		}
+
+		if (issueType === IssueType.FeatureRequest) {
+			return true;
+		}
+
+		return false;
 	}
 
 	@debounce(300)
@@ -447,16 +487,6 @@ export class IssueReporter extends Disposable {
 
 		shell.openExternal(url);
 		return true;
-	}
-
-	/**
-	 * Update blocks
-	 */
-
-	private updateAllBlocks(state) {
-		this.updateSystemInfo(state);
-		this.updateProcessInfo(state);
-		this.updateWorkspaceInfo(state);
 	}
 
 	private updateSystemInfo = (state) => {

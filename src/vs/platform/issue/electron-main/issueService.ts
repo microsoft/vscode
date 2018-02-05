@@ -12,7 +12,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import { ILaunchService } from 'vs/code/electron-main/launch';
-import { buildDiagnostics, DiagnosticInfo } from 'vs/code/electron-main/diagnostics';
+import { getPerformanceInfo, PerformanceInfo, getSystemInfo, SystemInfo } from 'vs/code/electron-main/diagnostics';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh } from 'vs/base/common/platform';
 
@@ -30,9 +30,15 @@ export class IssueService implements IIssueService {
 	) { }
 
 	openReporter(data: IssueReporterData): TPromise<void> {
-		ipcMain.on('issueInfoRequest', event => {
-			this.getStatusInfo().then(msg => {
-				event.sender.send('issueInfoResponse', msg);
+		ipcMain.on('issueSystemInfoRequest', event => {
+			this.getSystemInformation().then(msg => {
+				event.sender.send('issueSystemInfoResponse', msg);
+			});
+		});
+
+		ipcMain.on('issuePerformanceInfoRequest', event => {
+			this.getPerformanceInfo().then(msg => {
+				event.sender.send('issuePerformanceInfoResponse', msg);
 			});
 		});
 
@@ -100,10 +106,18 @@ export class IssueService implements IIssueService {
 		return state;
 	}
 
-	private getStatusInfo(): TPromise<DiagnosticInfo> {
+	private getSystemInformation(): TPromise<SystemInfo> {
 		return new Promise((resolve, reject) => {
 			this.launchService.getMainProcessInfo().then(info => {
-				buildDiagnostics(info)
+				resolve(getSystemInfo(info));
+			});
+		});
+	}
+
+	private getPerformanceInfo(): TPromise<PerformanceInfo> {
+		return new Promise((resolve, reject) => {
+			this.launchService.getMainProcessInfo().then(info => {
+				getPerformanceInfo(info)
 					.then(diagnosticInfo => {
 						resolve(diagnosticInfo);
 					})
