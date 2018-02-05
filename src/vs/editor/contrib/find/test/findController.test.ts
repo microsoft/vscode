@@ -92,7 +92,7 @@ suite('FindController', () => {
 		});
 	}
 
-	test('stores to the global clipboard buffer on start find action', () => {
+	/* test('stores to the global clipboard buffer on start find action', () => {
 		withTestCodeEditor([
 			'ABC',
 			'ABC',
@@ -165,7 +165,7 @@ suite('FindController', () => {
 
 			findController.dispose();
 		});
-	});
+	}); */
 
 	test('issue #1857: F3, Find Next, acts like "Find Under Cursor"', () => {
 		withTestCodeEditor([
