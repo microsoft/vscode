@@ -90,6 +90,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { stat } from 'fs';
 import { join } from 'path';
+import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/common/localizationsIpc';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 
 /**
  * Services that we require for the Shell
@@ -446,6 +448,9 @@ export class WorkbenchShell {
 		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorServiceImpl));
 
 		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
+
+		const localizationsChannel = getDelayedChannel<ILocalizationsChannel>(sharedProcess.then(c => c.getChannel('localizations')));
+		serviceCollection.set(ILocalizationsService, new SyncDescriptor(LocalizationsChannelClient, localizationsChannel));
 
 		return [instantiationService, serviceCollection];
 	}

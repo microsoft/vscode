@@ -28,9 +28,6 @@ export function activate(context: vscode.ExtensionContext): void {
 	//extensions suggestions
 	context.subscriptions.push(...registerExtensionsCompletions());
 
-	//locale suggestions
-	context.subscriptions.push(registerLocaleCompletionsInLanguageDocument());
-
 	// launch.json decorations
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
 	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
@@ -105,20 +102,6 @@ function registerSettingsCompletions(): vscode.Disposable {
 	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern: '**/settings.json' }, {
 		provideCompletionItems(document, position, token) {
 			return new SettingsDocument(document).provideCompletionItems(position, token);
-		}
-	});
-}
-
-function registerLocaleCompletionsInLanguageDocument(): vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider({ pattern: '**/locale.json' }, {
-		provideCompletionItems(document, position, token) {
-			const location = getLocation(document.getText(), document.offsetAt(position));
-			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-			if (location.path[0] === 'locale') {
-				const extensionsContent = <IExtensionsContent>parse(document.getText());
-				return provideContributedLocalesProposals(range);
-			}
-			return [];
 		}
 	});
 }
