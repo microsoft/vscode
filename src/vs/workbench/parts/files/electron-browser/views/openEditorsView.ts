@@ -287,13 +287,21 @@ export class OpenEditorsView extends ViewsViewletPanel {
 				}
 			*/
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
+
 			let position = this.model.positionOfGroup(element.group);
 			if (options.sideBySide && position !== Position.THREE) {
 				position++;
 			}
-			this.editorGroupService.activateGroup(this.model.groupAt(position));
-			this.editorService.openEditor(element.editor, options, position)
-				.done(() => this.editorGroupService.activateGroup(this.model.groupAt(position)), errors.onUnexpectedError);
+
+			const preserveActivateGroup = options.sideBySide && options.preserveFocus; // needed for https://github.com/Microsoft/vscode/issues/42399
+			if (!preserveActivateGroup) {
+				this.editorGroupService.activateGroup(this.model.groupAt(position)); // needed for https://github.com/Microsoft/vscode/issues/6672
+			}
+			this.editorService.openEditor(element.editor, options, position).done(() => {
+				if (!preserveActivateGroup) {
+					this.editorGroupService.activateGroup(this.model.groupAt(position));
+				}
+			}, errors.onUnexpectedError);
 		}
 	}
 
