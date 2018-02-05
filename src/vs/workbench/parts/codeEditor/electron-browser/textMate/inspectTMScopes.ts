@@ -273,7 +273,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
 		let theme = this._themeService.getColorTheme();
 		result += `<hr class="tm-metadata-separator"/>`;
-		let matchingRule = findMatchingThemeRule(theme, data.tokens1[token1Index].scopes);
+		let matchingRule = findMatchingThemeRule(theme, data.tokens1[token1Index].scopes, false);
 		if (matchingRule) {
 			result += `<code class="tm-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
 		} else {
