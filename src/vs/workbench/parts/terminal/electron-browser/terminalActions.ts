@@ -222,7 +222,7 @@ export class MoveToLineEndTerminalAction extends BaseSendTextTerminalAction {
 		label: string,
 		@ITerminalService terminalService: ITerminalService
 	) {
-		// Send ctrl+A
+		// Send ctrl+E
 		super(id, label, String.fromCharCode('E'.charCodeAt(0) - 64), terminalService);
 	}
 }
