@@ -938,19 +938,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
-	const editorGroupHeaderTabsBackground = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
-	const editorGroupBackground = theme.getColor(EDITOR_GROUP_BACKGROUND);
-	const editorBackgroundColor = theme.getColor(editorBackground);
-	const editorDragAndDropBackground = theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
-	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
-	const themeNotHC = theme.type !== 'hc';
-
-	let adjustedTabBackground: Color;
-	let adjustedTabDragBackground: Color;
-
-	adjustedTabBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorGroupBackground, editorBackgroundColor, workbenchBackground);
-	adjustedTabDragBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorDragAndDropBackground, editorBackgroundColor, workbenchBackground);
-
 	// Hover Background
 	const tabHoverBackground = theme.getColor(TAB_HOVER_BACKGROUND);
 	if (tabHoverBackground) {
@@ -959,20 +946,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				background: ${tabHoverBackground} !important;
 			}
 		`);
-
-		if (themeNotHC) {
-			const adjustedColor = tabHoverBackground.flatten(adjustedTabBackground);
-			const adjustedColorDrag = tabHoverBackground.flatten(adjustedTabDragBackground);
-			collector.addRule(`
-				.monaco-workbench > .part.editor > .content:not(.dragged-over) > .one-editor-silo > .container > .title.active .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColor}, transparent);
-				}
-
-				.monaco-workbench > .part.editor > .content.dragged-over > .one-editor-silo > .container > .title.active .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
-				}
-			`);
-		}
 	}
 
 	const tabUnfocusedHoverBackground = theme.getColor(TAB_UNFOCUSED_HOVER_BACKGROUND);
@@ -982,20 +955,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				background: ${tabUnfocusedHoverBackground} !important;
 			}
 		`);
-
-		if (themeNotHC) {
-			const adjustedColor = tabUnfocusedHoverBackground.flatten(adjustedTabBackground);
-			const adjustedColorDrag = tabUnfocusedHoverBackground.flatten(adjustedTabDragBackground);
-			collector.addRule(`
-				.monaco-workbench > .part.editor > .content:not(.dragged-over) > .one-editor-silo > .container > .title.inactive .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColor}, transparent);
-				}
-
-				.monaco-workbench > .part.editor > .content.dragged-over > .one-editor-silo > .container > .title.inactive .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
-				}
-			`);
-		}
 	}
 
 	// Hover Border
@@ -1017,44 +976,96 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
-	if (editorDragAndDropBackground && themeNotHC) {
-		const adjustedColorDrag = editorDragAndDropBackground.flatten(adjustedTabDragBackground);
-		collector.addRule(`
-			.monaco-workbench > .part.editor > .content.dragged-over > .one-editor-silo > .container > .title.active .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged) > .tab-label::after,
-			.monaco-workbench > .part.editor > .content.dragged-over > .one-editor-silo > .container > .title.inactive .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged) > .tab-label::after {
+	// Fade out styles via linear gradient (when tabs are set to shrink)
+	if (theme.type !== 'hc') {
+		const workbenchBackground = WORKBENCH_BACKGROUND(theme);
+		const editorBackgroundColor = theme.getColor(editorBackground);
+		const editorGroupBackground = theme.getColor(EDITOR_GROUP_BACKGROUND);
+		const editorGroupHeaderTabsBackground = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
+		const editorDragAndDropBackground = theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
+
+		let adjustedTabBackground: Color;
+		if (editorGroupHeaderTabsBackground && editorBackgroundColor && editorGroupBackground) {
+			adjustedTabBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorGroupBackground, editorBackgroundColor, workbenchBackground);
+		}
+
+		let adjustedTabDragBackground: Color;
+		if (editorGroupHeaderTabsBackground && editorBackgroundColor && editorDragAndDropBackground && editorBackgroundColor) {
+			adjustedTabDragBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorDragAndDropBackground, editorBackgroundColor, workbenchBackground);
+		}
+
+		// Adjust gradient for (focused) hover background
+		if (tabHoverBackground && adjustedTabBackground && adjustedTabDragBackground) {
+			const adjustedColor = tabHoverBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabHoverBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(`
+				.monaco-workbench > .part.editor > .content:not(.dropping) > .one-editor-silo > .container > .title.active .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+					background: linear-gradient(to left, ${adjustedColor}, transparent);
+				}
+
+				.monaco-workbench > .part.editor > .content.dropping > .one-editor-silo > .container > .title.active .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+					background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
+				}
+			`);
+		}
+
+		// Adjust gradient for unfocused hover background
+		if (tabUnfocusedHoverBackground && adjustedTabBackground && adjustedTabDragBackground) {
+			const adjustedColor = tabUnfocusedHoverBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabUnfocusedHoverBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(`
+				.monaco-workbench > .part.editor > .content:not(.dropping) > .one-editor-silo > .container > .title.inactive .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+					background: linear-gradient(to left, ${adjustedColor}, transparent);
+				}
+
+				.monaco-workbench > .part.editor > .content.dropping > .one-editor-silo > .container > .title.inactive .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+					background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
+				}
+			`);
+		}
+
+		// Adjust gradient for drag and drop background
+		if (editorDragAndDropBackground && adjustedTabDragBackground) {
+			const adjustedColorDrag = editorDragAndDropBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(`
+			.monaco-workbench > .part.editor > .content.dropping > .one-editor-silo > .container > .title.active .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged) > .tab-label::after,
+			.monaco-workbench > .part.editor > .content.dropping > .one-editor-silo > .container > .title.inactive .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged) > .tab-label::after {
 				background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
 			}
 		`);
-	}
+		}
 
-	const tabInactiveBackground = theme.getColor(TAB_INACTIVE_BACKGROUND);
-	if (tabInactiveBackground && themeNotHC) {
-		const adjustedColor = tabInactiveBackground.flatten(adjustedTabBackground);
-		const adjustedColorDrag = tabInactiveBackground.flatten(adjustedTabDragBackground);
-		collector.addRule(`
-			.monaco-workbench > .part.editor > .content:not(.dragged-over) > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink:not(.dragged) > .tab-label::after {
+		// Adjust gradient for active tab background
+		const tabActiveBackground = theme.getColor(TAB_ACTIVE_BACKGROUND);
+		if (tabActiveBackground && adjustedTabBackground && adjustedTabDragBackground) {
+			const adjustedColor = tabActiveBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabActiveBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(`
+				.monaco-workbench > .part.editor > .content:not(.dropping) > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
+					background: linear-gradient(to left, ${adjustedColor}, transparent);
+				}
+
+				.monaco-workbench > .part.editor > .content.dropping > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
+					background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
+				}
+			`);
+		}
+
+		// Adjust gradient for inactive tab background
+		const tabInactiveBackground = theme.getColor(TAB_INACTIVE_BACKGROUND);
+		if (tabInactiveBackground && adjustedTabBackground && adjustedTabDragBackground) {
+			const adjustedColor = tabInactiveBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabInactiveBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(`
+			.monaco-workbench > .part.editor > .content:not(.dropping) > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink:not(.dragged) > .tab-label::after {
 				background: linear-gradient(to left, ${adjustedColor}, transparent);
 			}
 
-			.monaco-workbench > .part.editor > .content.dragged-over > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink:not(.dragged) > .tab-label::after {
+			.monaco-workbench > .part.editor > .content.dropping > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink:not(.dragged) > .tab-label::after {
 				background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
 			}
 
 		`);
-	}
-
-	const tabActiveBackground = theme.getColor(TAB_ACTIVE_BACKGROUND);
-	if (themeNotHC) {
-		const adjustedColor = tabActiveBackground.flatten(adjustedTabBackground);
-		const adjustedColorDrag = tabActiveBackground.flatten(adjustedTabDragBackground);
-		collector.addRule(`
-			.monaco-workbench > .part.editor > .content:not(.dragged-over) > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
-				background: linear-gradient(to left, ${adjustedColor}, transparent);
-			}
-
-			.monaco-workbench > .part.editor > .content.dragged-over > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.active:not(.dragged) > .tab-label::after {
-				background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
-			}
-		`);
+		}
 	}
 });
