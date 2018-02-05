@@ -470,7 +470,7 @@ export class IssueReporter extends Disposable {
 			this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType });
 		}
 
-		const issueTitle = (<HTMLInputElement>document.getElementById('issue-title')).value;
+		const issueTitle = encodeURIComponent((<HTMLInputElement>document.getElementById('issue-title')).value);
 		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
 		const baseUrl = `${product.reportIssueUrl}${queryStringPrefix}title=${issueTitle}&body=`;
 		const issueBody = this.issueReporterModel.serialize();
