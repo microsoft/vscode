@@ -153,13 +153,13 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.fontWeight': {
 			'type': 'string',
 			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			'description': nls.localize('terminal.integrated.fontWeight', "The font weight to use within the termianl for non-bold text."),
+			'description': nls.localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text."),
 			'default': 'normal'
 		},
 		'terminal.integrated.fontWeightBold': {
 			'type': 'string',
 			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			'description': nls.localize('terminal.integrated.fontWeightBold', "The font weight to use within the termianl for bold text."),
+			'description': nls.localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text."),
 			'default': 'bold'
 		},
 		'terminal.integrated.cursorBlinking': {
