@@ -190,15 +190,20 @@ export class LifecycleService implements ILifecycleService {
 		// first ask the window itself if it vetos the unload
 		return this.onBeforeUnloadWindowInRenderer(window, windowUnloadReason).then(veto => {
 			if (veto) {
+				this.logService.trace('Lifecycle#unload(): veto in renderer', window.id);
+
 				return this.handleVeto(veto);
 			}
 
 			// then check for vetos in the main side
 			return this.onBeforeUnloadWindowInMain(window, windowUnloadReason).then(veto => {
 				if (veto) {
-					return this.handleVeto(veto);
-				}
+					this.logService.trace('Lifecycle#unload(): veto in main', window.id);
 
+					return this.handleVeto(veto);
+				} else {
+					this.logService.trace('Lifecycle#unload(): unload continues without veto', window.id);
+				}
 
 				// finally if there are no vetos, unload the renderer
 				return this.onWillUnloadWindowInRenderer(window, windowUnloadReason).then(() => false);
@@ -294,10 +299,14 @@ export class LifecycleService implements ILifecycleService {
 	}
 
 	public kill(code?: number): void {
+		this.logService.trace('Lifecycle#kill()');
+
 		app.exit(code);
 	}
 
 	public relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void {
+		this.logService.trace('Lifecycle#relaunch()');
+
 		const args = process.argv.slice(1);
 		if (options && options.addArgs) {
 			args.push(...options.addArgs);

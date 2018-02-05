@@ -340,7 +340,7 @@ export class WorkbenchShell {
 
 		const instantiationService: IInstantiationService = new InstantiationService(serviceCollection, true);
 
-		this.broadcastService = new BroadcastService(this.configuration.windowId);
+		this.broadcastService = instantiationService.createInstance(BroadcastService, this.configuration.windowId);
 		serviceCollection.set(IBroadcastService, this.broadcastService);
 
 		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, this.configuration.windowId, this.configuration));
