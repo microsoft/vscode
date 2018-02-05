@@ -626,8 +626,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private preUninstallExtension(extension: ILocalExtension): TPromise<void> {
-		const extensionPath = path.join(this.extensionsPath, extension.identifier.id);
-		return pfs.exists(extensionPath)
+		return pfs.exists(extension.path)
 			.then(exists => exists ? null : TPromise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
 			.then(() => {
 				this.logService.info('Uninstalling extension:', extension.identifier.id);
