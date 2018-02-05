@@ -16,6 +16,7 @@ import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
+	supportDescriptionHighlights?: boolean;
 }
 
 export interface IIconLabelOptions {
@@ -23,6 +24,7 @@ export interface IIconLabelOptions {
 	extraClasses?: string[];
 	italic?: boolean;
 	matches?: IMatch[];
+	descriptionMatches?: IMatch[];
 }
 
 class FastLabelNode {
@@ -83,7 +85,7 @@ class FastLabelNode {
 export class IconLabel {
 	private domNode: FastLabelNode;
 	private labelNode: FastLabelNode | HighlightedLabel;
-	private descriptionNode: FastLabelNode;
+	private descriptionNode: FastLabelNode | HighlightedLabel;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		this.domNode = new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label')));
@@ -96,7 +98,11 @@ export class IconLabel {
 			this.labelNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('a.label-name')));
 		}
 
-		this.descriptionNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('span.label-description')));
+		if (options && options.supportDescriptionHighlights) {
+			this.descriptionNode = new HighlightedLabel(dom.append(labelDescriptionContainer.element, dom.$('span.label-description')));
+		} else {
+			this.descriptionNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('span.label-description')));
+		}
 	}
 
 	public get element(): HTMLElement {
@@ -105,18 +111,9 @@ export class IconLabel {
 
 	public onClick(callback: (event: MouseEvent) => void): IDisposable {
 		return combinedDisposable([
-			dom.addDisposableListener(this.labelElement, dom.EventType.CLICK, (e: MouseEvent) => callback(e)),
+			dom.addDisposableListener(this.labelNode.element, dom.EventType.CLICK, (e: MouseEvent) => callback(e)),
 			dom.addDisposableListener(this.descriptionNode.element, dom.EventType.CLICK, (e: MouseEvent) => callback(e))
 		]);
-	}
-
-	private get labelElement(): HTMLElement {
-		const labelNode = this.labelNode;
-		if (labelNode instanceof HighlightedLabel) {
-			return labelNode.element;
-		}
-
-		return labelNode.element;
 	}
 
 	public setValue(label?: string, description?: string, options?: IIconLabelOptions): void {
@@ -141,8 +138,13 @@ export class IconLabel {
 			labelNode.textContent = label || '';
 		}
 
-		this.descriptionNode.textContent = description || '';
-		this.descriptionNode.empty = !description;
+		const descriptionNode = this.descriptionNode;
+		if (descriptionNode instanceof HighlightedLabel) {
+			descriptionNode.set(description || '', options ? options.descriptionMatches : void 0);
+		} else {
+			descriptionNode.textContent = description || '';
+			descriptionNode.empty = !description;
+		}
 	}
 
 	public dispose(): void {

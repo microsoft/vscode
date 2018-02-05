@@ -298,7 +298,6 @@ export interface IQuickOpenEntryTemplateData {
 	icon: HTMLSpanElement;
 	label: IconLabel;
 	detail: HighlightedLabel;
-	description: HighlightedLabel;
 	keybinding: KeybindingLabel;
 	actionBar: ActionBar;
 }
@@ -352,13 +351,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		row1.appendChild(icon);
 
 		// Label
-		const label = new IconLabel(row1, { supportHighlights: true });
-
-		// Description
-		const descriptionContainer = document.createElement('span');
-		row1.appendChild(descriptionContainer);
-		DOM.addClass(descriptionContainer, 'quick-open-entry-description');
-		const description = new HighlightedLabel(descriptionContainer);
+		const label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true });
 
 		// Keybinding
 		const keybindingContainer = document.createElement('span');
@@ -397,7 +390,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			icon,
 			label,
 			detail,
-			description,
 			keybinding,
 			group,
 			actionBar
@@ -462,14 +454,11 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			// Label
 			const options: IIconLabelOptions = entry.getLabelOptions() || Object.create(null);
 			options.matches = labelHighlights || [];
-			data.label.setValue(entry.getLabel(), null, options);
+			options.descriptionMatches = descriptionHighlights || [];
+			data.label.setValue(entry.getLabel(), entry.getDescription(), options);
 
 			// Meta
 			data.detail.set(entry.getDetail(), detailHighlights);
-
-			// Description
-			data.description.set(entry.getDescription(), descriptionHighlights || []);
-			data.description.element.title = entry.getDescription();
 
 			// Keybinding
 			data.keybinding.set(entry.getKeybinding(), null);
@@ -482,8 +471,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		data.actionBar = null;
 		data.container = null;
 		data.entry = null;
-		data.description.dispose();
-		data.description = null;
 		data.keybinding.dispose();
 		data.keybinding = null;
 		data.detail.dispose();
