@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Node, HtmlNode, Rule } from 'EmmetNode';
+import { Node, HtmlNode, Rule, Property } from 'EmmetNode';
 import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode } from './util';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
+const hexColorRegex = /^#\d+$/;
 
 interface ExpandAbbreviationInput {
 	syntax: string;
@@ -23,6 +24,7 @@ export function wrapWithAbbreviation(args: any) {
 	}
 
 	const editor = vscode.window.activeTextEditor;
+	let rootNode = parseDocument(editor.document, false);
 
 	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
 	if (!syntax) {
@@ -32,15 +34,27 @@ export function wrapWithAbbreviation(args: any) {
 	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
 	const helper = getEmmetHelper();
 
-	return abbreviationPromise.then(abbreviation => {
-		if (!abbreviation || !abbreviation.trim() || !helper.isAbbreviationValid(syntax, abbreviation)) { return false; }
+	return abbreviationPromise.then(inputAbbreviation => {
+		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) { return false; }
+
+		let extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
+		if (!extractedResults) {
+			return false;
+		}
+		let { abbreviation, filter } = extractedResults;
 
 		let expandAbbrList: ExpandAbbreviationInput[] = [];
 
 		editor.selections.forEach(selection => {
 			let rangeToReplace: vscode.Range = selection.isReversed ? new vscode.Range(selection.active, selection.anchor) : selection;
 			if (rangeToReplace.isEmpty) {
-				rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
+				let { active } = selection;
+				let currentNode = getNode(rootNode, active, true);
+				if (currentNode && (currentNode.start.line === active.line || currentNode.end.line === active.line)) {
+					rangeToReplace = new vscode.Range(currentNode.start, currentNode.end);
+				} else {
+					rangeToReplace = new vscode.Range(rangeToReplace.start.line, 0, rangeToReplace.start.line, editor.document.lineAt(rangeToReplace.start.line).text.length);
+				}
 			}
 
 			const firstLineOfSelection = editor.document.lineAt(rangeToReplace.start).text.substr(rangeToReplace.start.character);
@@ -48,7 +62,7 @@ export function wrapWithAbbreviation(args: any) {
 			const preceedingWhiteSpace = matches ? matches[1].length : 0;
 
 			rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + preceedingWhiteSpace, rangeToReplace.end.line, rangeToReplace.end.character);
-			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap: ['\n\t$TM_SELECTED_TEXT\n'] });
+			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap: ['\n\t$TM_SELECTED_TEXT\n'], filter });
 		});
 
 		return expandAbbreviationInRange(editor, expandAbbrList, true);
@@ -223,6 +237,32 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			return true;
 		}
 
+		// Fix for https://github.com/Microsoft/vscode/issues/34162
+		// Other than sass, stylus, we can make use of the terminator tokens to validate position
+		if (syntax !== 'sass' && syntax !== 'stylus' && currentNode.type === 'property') {
+
+			// Fix for upstream issue https://github.com/emmetio/css-parser/issues/3
+			if (currentNode.parent
+				&& currentNode.parent.type !== 'rule'
+				&& currentNode.parent.type !== 'at-rule') {
+				return false;
+			}
+
+			const abbreviation = document.getText(new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character));
+			const propertyNode = <Property>currentNode;
+			if (propertyNode.terminatorToken
+				&& propertyNode.separator
+				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
+				&& position.isBeforeOrEqual(propertyNode.terminatorToken.start)) {
+				return hexColorRegex.test(abbreviation);
+			}
+			if (!propertyNode.terminatorToken
+				&& propertyNode.separator
+				&& position.isAfterOrEqual(propertyNode.separatorToken.end)) {
+				return hexColorRegex.test(abbreviation);
+			}
+		}
+
 		// If current node is a rule or at-rule, then perform additional checks to ensure
 		// emmet suggestions are not provided in the rule selector
 		if (currentNode.type !== 'rule' && currentNode.type !== 'at-rule') {
@@ -242,7 +282,10 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 		if (currentCssNode.parent
 			&& (currentCssNode.parent.type === 'rule' || currentCssNode.parent.type === 'at-rule')
 			&& currentCssNode.selectorToken
-			&& position.line !== currentCssNode.selectorToken.end.line) {
+			&& position.line !== currentCssNode.selectorToken.end.line
+			&& currentCssNode.selectorToken.start.character === abbreviationRange.start.character
+			&& currentCssNode.selectorToken.start.line === abbreviationRange.start.line
+		) {
 			return true;
 		}
 
@@ -252,6 +295,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 	const startAngle = '<';
 	const endAngle = '>';
 	const escape = '\\';
+	const question = '?';
 	const currentHtmlNode = <HtmlNode>currentNode;
 	let start = new vscode.Position(0, 0);
 
@@ -296,6 +340,10 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 		i--;
 		if (!foundSpace && /\s/.test(char)) {
 			foundSpace = true;
+			continue;
+		}
+		if (char === question && textToBackTrack[i] === startAngle) {
+			i--;
 			continue;
 		}
 		if (char !== startAngle && char !== endAngle) {

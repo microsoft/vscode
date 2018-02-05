@@ -15,6 +15,7 @@ import { beginsWithIgnoreCase } from 'vs/base/common/strings';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -83,7 +84,7 @@ export interface IFileService {
 	/**
 	 * Updates the content replacing its previous value.
 	 */
-	updateContent(resource: URI, value: string, options?: IUpdateContentOptions): TPromise<IFileStat>;
+	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat>;
 
 	/**
 	 * Moves the file to a new path identified by the resource.
@@ -410,12 +411,6 @@ export interface IFileStat extends IBaseStat {
 	isDirectory: boolean;
 
 	/**
-	 * Return {{true}} when this is a directory
-	 * that is not empty.
-	 */
-	hasChildren: boolean;
-
-	/**
 	 * The children of the file stat or undefined if none.
 	 */
 	children?: IFileStat[];
@@ -466,6 +461,28 @@ export interface IStringStream {
 }
 
 /**
+ * Text snapshot that works like an iterator.
+ * Will try to return chunks of roughly ~64KB size.
+ * Will return null when finished.
+ */
+export interface ITextSnapshot {
+	read(): string;
+}
+
+/**
+ * Helper method to convert a snapshot into its full string form.
+ */
+export function snapshotToString(snapshot: ITextSnapshot): string {
+	const chunks: string[] = [];
+	let chunk: string;
+	while (typeof (chunk = snapshot.read()) === 'string') {
+		chunks.push(chunk);
+	}
+
+	return chunks.join('');
+}
+
+/**
  * Streamable content and meta information of a file.
  */
 export interface IStreamContent extends IBaseStat {
@@ -506,6 +523,12 @@ export interface IResolveContentOptions {
 	 * The optional guessEncoding parameter allows to guess encoding from content of the file.
 	 */
 	autoGuessEncoding?: boolean;
+
+	/**
+	 * Is an integer specifying where to begin reading from in the file. If position is null,
+	 * data will be read from the current file position.
+	 */
+	position?: number;
 }
 
 export interface IUpdateContentOptions {
@@ -562,8 +585,12 @@ export interface IImportResult {
 }
 
 export class FileOperationError extends Error {
-	constructor(message: string, public fileOperationResult: FileOperationResult) {
+	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IResolveContentOptions & IUpdateContentOptions & ICreateFileOptions) {
 		super(message);
+	}
+
+	static isFileOperationError(obj: any): obj is FileOperationError {
+		return obj instanceof Error && !isUndefinedOrNull((obj as FileOperationError).fileOperationResult);
 	}
 }
 

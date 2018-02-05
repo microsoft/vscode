@@ -20,11 +20,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/platform/extensions/common/extensions';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
-import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -103,8 +102,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IThemeService themeService: IThemeService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IListService private readonly _listService: IListService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMessageService private readonly _messageService: IMessageService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -365,9 +362,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			}
 		};
 
-		this._list = new WorkbenchList<IRuntimeExtension>(container, delegate, [renderer], {
+		this._list = this._instantiationService.createInstance(WorkbenchList, container, delegate, [renderer], {
 			multipleSelectionSupport: false
-		}, this._contextKeyService, this._listService, this.themeService);
+		});
 
 		this._list.splice(0, this._list.length, this._elements);
 
@@ -413,7 +410,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 export class RuntimeExtensionsInput extends EditorInput {
 
-	static ID = 'workbench.runtimeExtensions.input';
+	static readonly ID = 'workbench.runtimeExtensions.input';
 
 	constructor() {
 		super();
@@ -451,7 +448,7 @@ export class RuntimeExtensionsInput extends EditorInput {
 }
 
 export class ShowRuntimeExtensionsAction extends Action {
-	static ID = 'workbench.action.showRuntimeExtensions';
+	static readonly ID = 'workbench.action.showRuntimeExtensions';
 	static LABEL = nls.localize('showRuntimeExtensions', "Show Running Extensions");
 
 	constructor(
@@ -468,7 +465,7 @@ export class ShowRuntimeExtensionsAction extends Action {
 }
 
 class ReportExtensionIssueAction extends Action {
-	static ID = 'workbench.extensions.action.reportExtensionIssue';
+	static readonly ID = 'workbench.extensions.action.reportExtensionIssue';
 	static LABEL = nls.localize('reportExtensionIssue', "Report Issue");
 
 	constructor(
@@ -506,7 +503,7 @@ class ReportExtensionIssueAction extends Action {
 }
 
 class ExtensionHostProfileAction extends Action {
-	static ID = 'workbench.extensions.action.extensionHostProfile';
+	static readonly ID = 'workbench.extensions.action.extensionHostProfile';
 	static LABEL_START = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
 	static LABEL_STOP = nls.localize('extensionHostProfileStop', "Stop Extension Host Profile");
 	static STOP_CSS_CLASS = 'extension-host-profile-stop';
@@ -549,7 +546,7 @@ class ExtensionHostProfileAction extends Action {
 class SaveExtensionHostProfileAction extends Action {
 
 	static LABEL = nls.localize('saveExtensionHostProfile', "Save Extension Host Profile");
-	static ID = 'workbench.extensions.action.saveExtensionHostProfile';
+	static readonly ID = 'workbench.extensions.action.saveExtensionHostProfile';
 
 	constructor(
 		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,

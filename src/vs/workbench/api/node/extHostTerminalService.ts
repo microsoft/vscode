@@ -23,6 +23,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 		name?: string,
 		shellPath?: string,
 		shellArgs?: string[],
+		cwd?: string,
 		env?: { [key: string]: string },
 		waitOnExit?: boolean
 	) {
@@ -32,7 +33,8 @@ export class ExtHostTerminal implements vscode.Terminal {
 		this._pidPromise = new Promise<number>(c => {
 			this._pidPromiseComplete = c;
 		});
-		this._proxy.$createTerminal(name, shellPath, shellArgs, env, waitOnExit).then((id) => {
+
+		this._proxy.$createTerminal(name, shellPath, shellArgs, cwd, env, waitOnExit).then((id) => {
 			this._id = id;
 			this._queuedRequests.forEach((r) => {
 				r.run(this._proxy, this._id);
@@ -113,7 +115,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
-		let terminal = new ExtHostTerminal(this._proxy, options.name, options.shellPath, options.shellArgs, options.env/*, options.waitOnExit*/);
+		let terminal = new ExtHostTerminal(this._proxy, options.name, options.shellPath, options.shellArgs, options.cwd, options.env /*, options.waitOnExit*/);
 		this._terminals.push(terminal);
 		return terminal;
 	}

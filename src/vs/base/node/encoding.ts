@@ -28,11 +28,11 @@ export function bomLength(encoding: string): number {
 	return 0;
 }
 
-export function decode(buffer: NodeBuffer, encoding: string, options?: any): string {
-	return iconv.decode(buffer, toNodeEncoding(encoding), options);
+export function decode(buffer: NodeBuffer, encoding: string): string {
+	return iconv.decode(buffer, toNodeEncoding(encoding));
 }
 
-export function encode(content: string, encoding: string, options?: any): NodeBuffer {
+export function encode(content: string | NodeBuffer, encoding: string, options?: { addBOM?: boolean }): NodeBuffer {
 	return iconv.encode(content, toNodeEncoding(encoding), options);
 }
 
@@ -42,6 +42,10 @@ export function encodingExists(encoding: string): boolean {
 
 export function decodeStream(encoding: string): NodeJS.ReadWriteStream {
 	return iconv.decodeStream(toNodeEncoding(encoding));
+}
+
+export function encodeStream(encoding: string, options?: { addBOM?: boolean }): NodeJS.ReadWriteStream {
+	return iconv.encodeStream(toNodeEncoding(encoding), options);
 }
 
 function toNodeEncoding(enc: string): string {
@@ -181,6 +185,7 @@ const windowsTerminalEncodings = {
 	'865': 'cp865', // Nordic
 	'866': 'cp866', // Russian
 	'869': 'cp869', // Modern Greek
+	'936': 'cp936', // Simplified Chinese
 	'1252': 'cp1252' // West European Latin
 };
 

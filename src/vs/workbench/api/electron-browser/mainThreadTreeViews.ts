@@ -9,8 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { ViewsRegistry } from 'vs/workbench/browser/parts/views/viewsRegistry';
-import { ITreeViewDataProvider, ITreeItem } from 'vs/workbench/common/views';
+import { ViewsRegistry, ITreeViewDataProvider, ITreeItem } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { assign } from 'vs/base/common/objects';
 
@@ -68,7 +67,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				return this.postGetElements(elements);
 			}, err => {
 				this.messageService.show(Severity.Error, err);
-				return null;
+				return [];
 			});
 	}
 
@@ -81,7 +80,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				return this.postGetElements(children);
 			}, err => {
 				this.messageService.show(Severity.Error, err);
-				return null;
+				return [];
 			});
 	}
 

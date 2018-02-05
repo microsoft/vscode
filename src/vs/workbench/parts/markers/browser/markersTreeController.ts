@@ -10,24 +10,22 @@ import tree = require('vs/base/parts/tree/browser/tree');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import { MarkersModel } from 'vs/workbench/parts/markers/common/markersModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export class Controller extends treedefaults.DefaultController {
-
-	private contextMenu: IMenu;
+export class Controller extends WorkbenchTreeController {
 
 	constructor(
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService private _keybindingService: IKeybindingService
+		@IMenuService private menuService: IMenuService,
+		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
-		this.contextMenu = menuService.createMenu(MenuId.ProblemsPanelContext, contextKeyService);
+		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false }, configurationService);
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
@@ -45,9 +43,9 @@ export class Controller extends treedefaults.DefaultController {
 		return false;
 	}
 
-	public onContextMenu(tree: tree.ITree, element: any, event: tree.ContextMenuEvent): boolean {
+	public onContextMenu(tree: WorkbenchTree, element: any, event: tree.ContextMenuEvent): boolean {
 		tree.setFocus(element);
-		const actions = this._getMenuActions();
+		const actions = this._getMenuActions(tree);
 		if (!actions.length) {
 			return true;
 		}
@@ -77,9 +75,11 @@ export class Controller extends treedefaults.DefaultController {
 		return true;
 	}
 
-	private _getMenuActions(): IAction[] {
+	private _getMenuActions(tree: WorkbenchTree): IAction[] {
 		const result: IAction[] = [];
-		const groups = this.contextMenu.getActions();
+		const menu = this.menuService.createMenu(MenuId.ProblemsPanelContext, tree.contextKeyService);
+		const groups = menu.getActions();
+		menu.dispose();
 
 		for (let group of groups) {
 			const [, actions] = group;

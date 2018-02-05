@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vscode-nls';
-const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
+const localize = nls.loadMessageBundle();
 import { ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
@@ -14,7 +14,7 @@ import { CommandCenter } from './commands';
 import { GitContentProvider } from './contentProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
-import { toDisposable } from './util';
+import { toDisposable, filterEvent, mapEvent, eventToPromise } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { API, createApi } from './api';
 
@@ -77,7 +77,7 @@ async function _activate(context: ExtensionContext, disposables: Disposable[]): 
 		outputChannel.show();
 
 		const download = localize('downloadgit', "Download Git");
-		const neverShowAgain = localize('neverShowAgain', "Don't show again");
+		const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
 		const choice = await window.showWarningMessage(
 			localize('notfound', "Git not found. Install it or configure it using the 'git.path' setting."),
 			download,
@@ -93,11 +93,27 @@ async function _activate(context: ExtensionContext, disposables: Disposable[]): 
 }
 
 export function activate(context: ExtensionContext): API {
+	const config = workspace.getConfiguration('git', null);
+	const enabled = config.get<boolean>('enabled');
+
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 
-	const activatePromise = _activate(context, disposables);
-	const modelPromise = activatePromise.then(model => model || Promise.reject<Model>('Git model not found'));
+	let activatePromise: Promise<Model | undefined>;
+
+	if (enabled) {
+		activatePromise = _activate(context, disposables);
+	} else {
+		const onConfigChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git'));
+		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
+
+		activatePromise = eventToPromise(onEnabled)
+			.then(() => _activate(context, disposables));
+	}
+
+	const modelPromise = activatePromise
+		.then(model => model || Promise.reject<Model>('Git model not found'));
+
 	activatePromise.catch(err => console.error(err));
 
 	return createApi(modelPromise);
@@ -116,7 +132,7 @@ async function checkGitVersion(info: IGit): Promise<void> {
 	}
 
 	const update = localize('updateGit', "Update Git");
-	const neverShowAgain = localize('neverShowAgain', "Don't show again");
+	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
 
 	const choice = await window.showWarningMessage(
 		localize('git20', "You seem to have git {0} installed. Code works best with git >= 2", info.version),

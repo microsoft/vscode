@@ -17,10 +17,20 @@ suite('Keytar', () => {
 		}
 		(async () => {
 			const keytar = await import('keytar');
-			await keytar.setPassword('VSCode Test', 'foo', 'bar');
-			assert.equal(await keytar.getPassword('VSCode Test', 'foo'), 'bar');
-			await keytar.deletePassword('VSCode Test', 'foo');
-			assert.equal(await keytar.getPassword('VSCode Test', 'foo'), undefined);
+			const name = `VSCode Test ${Math.floor(Math.random() * 1e9)}`;
+			try {
+				await keytar.setPassword(name, 'foo', 'bar');
+				assert.equal(await keytar.getPassword(name, 'foo'), 'bar');
+				await keytar.deletePassword(name, 'foo');
+				assert.equal(await keytar.getPassword(name, 'foo'), undefined);
+			} catch (err) {
+				// try to clean up
+				try {
+					await keytar.deletePassword(name, 'foo');
+				} finally {
+					throw err;
+				}
+			}
 		})().then(done, done);
 	});
 });

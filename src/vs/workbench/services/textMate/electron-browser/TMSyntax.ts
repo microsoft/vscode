@@ -12,14 +12,13 @@ import { join, normalize } from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId } from 'vs/editor/common/modes';
+import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId, TokenMetadata } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
 import { IWorkbenchThemeService, ITokenColorizationRule } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { Color } from 'vs/base/common/color';
@@ -139,6 +138,23 @@ export class TextMateService implements ITextMateService {
 				}
 			}
 		});
+
+		// Generate some color map until the grammar registry is loaded
+		let colorTheme = this._themeService.getColorTheme();
+		let defaultForeground: Color = Color.transparent;
+		let defaultBackground: Color = Color.transparent;
+		for (let i = 0, len = colorTheme.tokenColors.length; i < len; i++) {
+			let rule = colorTheme.tokenColors[i];
+			if (!rule.scope) {
+				if (rule.settings.foreground) {
+					defaultForeground = Color.fromHex(rule.settings.foreground);
+				}
+				if (rule.settings.background) {
+					defaultBackground = Color.fromHex(rule.settings.background);
+				}
+			}
+		}
+		TokenizationRegistry.setColorMap([null, defaultForeground, defaultBackground]);
 
 		this._modeService.onDidCreateMode((mode) => {
 			let modeId = mode.getId();

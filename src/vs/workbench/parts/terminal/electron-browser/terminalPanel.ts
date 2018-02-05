@@ -27,6 +27,7 @@ import URI from 'vs/base/common/uri';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class TerminalPanel extends Panel {
 
@@ -45,6 +46,7 @@ export class TerminalPanel extends Panel {
 		@IContextMenuService private _contextMenuService: IContextMenuService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@ITerminalService private _terminalService: ITerminalService,
+		@ILifecycleService private _lifecycleService: ILifecycleService,
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
@@ -102,16 +104,20 @@ export class TerminalPanel extends Panel {
 				this._updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
-					// Allow time for the panel to display if it is being shown
-					// for the first time. If there is not wait here the initial
-					// dimensions of the pty could be wrong.
-					setTimeout(() => {
-						const instance = this._terminalService.createInstance();
-						if (instance) {
-							this._updateFont();
-							this._updateTheme();
-						}
-					}, 0);
+					// Ensure the "Running" lifecycle face has been reached before creating the
+					// first terminal.
+					this._lifecycleService.when(LifecyclePhase.Running).then(() => {
+						// Allow time for the panel to display if it is being shown
+						// for the first time. If there is not wait here the initial
+						// dimensions of the pty could be wrong.
+						setTimeout(() => {
+							const instance = this._terminalService.createInstance();
+							if (instance) {
+								this._updateFont();
+								this._updateTheme();
+							}
+						}, 0);
+					});
 					return TPromise.as(void 0);
 				});
 			}
@@ -219,6 +225,20 @@ export class TerminalPanel extends Panel {
 						}, 0);
 					}
 					this._cancelContextMenu = true;
+				}
+			}
+		}));
+		this._register(dom.addDisposableListener(this._parentDomElement, 'mouseup', (event: MouseEvent) => {
+			if (this._configurationService.getValue('terminal.integrated.copyOnSelection')) {
+				if (this._terminalService.terminalInstances.length === 0) {
+					return;
+				}
+
+				if (event.which === 1) {
+					let terminal = this._terminalService.getActiveInstance();
+					if (terminal.hasSelection()) {
+						terminal.copySelection();
+					}
 				}
 			}
 		}));

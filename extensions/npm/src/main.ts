@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-let localize = nls.loadMessageBundle();
+const localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off';
 let taskProvider: vscode.Disposable | undefined;

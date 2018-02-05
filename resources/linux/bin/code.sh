@@ -3,11 +3,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
-# If root, ensure that --user-data-dir or --write-elevated-helper is specified
+# If root, ensure that --user-data-dir or --file-write is specified
 if [ "$(id -u)" = "0" ]; then
 	for i in $@
 	do
-		if [[ $i == --user-data-dir=* || $i == --write-elevated-helper ]]; then
+		if [[ $i == --user-data-dir || $i == --user-data-dir=* || $i == --file-write ]]; then
 			CAN_LAUNCH_AS_ROOT=1
 		fi
 	done

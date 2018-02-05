@@ -54,7 +54,7 @@ import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 
 const HELP_PREFIX = '?';
 
@@ -107,7 +107,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
-		@IListService private listService: IListService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -311,7 +310,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				}, {
 					inputPlaceHolder: options.placeHolder || '',
 					keyboardSupport: false,
-					treeCreator: (container, config, opts) => new WorkbenchTree(container, config, opts, this.contextKeyService, this.listService, this.themeService)
+					treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
 				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
@@ -569,7 +568,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				}, {
 					inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '',
 					keyboardSupport: false,
-					treeCreator: (container, config, opts) => new WorkbenchTree(container, config, opts, this.contextKeyService, this.listService, this.themeService)
+					treeCreator: (container, config, opts) => this.instantiationService.createInstance(WorkbenchTree, container, config, opts)
 				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
@@ -1301,7 +1300,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			const sideBySide = !context.quickNavigateConfiguration && context.keymods.ctrlCmd;
+			const sideBySide = !context.quickNavigateConfiguration && (context.keymods.alt || context.keymods.ctrlCmd);
 			const pinned = !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen || context.keymods.alt;
 
 			if (this.input instanceof EditorInput) {

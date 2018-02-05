@@ -7,6 +7,7 @@
 
 import { spawn, exec } from 'child_process';
 import * as path from 'path';
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 
 export interface ProcessItem {
@@ -120,6 +121,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		if (process.platform === 'win32') {
 
+			console.log(nls.localize('collecting', 'Collecting CPU and memory information. This might take a couple of seconds.'));
+
 			interface ProcessInfo {
 				type: 'processInfo';
 				name: string;
@@ -158,10 +161,10 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				}
 			};
 
-			const execMain = path.basename(process.execPath).replace(/ /g, '` ');
-			const script = URI.parse(require.toUrl('vs/base/node/ps-win.ps1')).fsPath.replace(/ /g, '` ');
-			const commandLine = `${script} -ProcessName ${execMain} -MaxSamples 3`;
-			const cmd = spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-Command', commandLine]);
+			const execMain = path.basename(process.execPath);
+			const script = URI.parse(require.toUrl('vs/base/node/ps-win.ps1')).fsPath;
+			const commandLine = `& {& '${script}' -ProcessName '${execMain}' -MaxSamples 3}`;
+			const cmd = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', commandLine]);
 
 			let stdout = '';
 			let stderr = '';
@@ -175,7 +178,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			cmd.on('exit', () => {
 				if (stderr.length > 0) {
-					reject(stderr);
+					reject(new Error(stderr));
+					return;
 				}
 				let processItems: Map<number, ProcessItem> = new Map();
 				try {
@@ -223,12 +227,13 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 						reject(new Error(`Root process ${rootPid} not found`));
 					}
 				} catch (error) {
+					console.log(stdout);
 					reject(error);
 				}
 			});
 		} else {	// OS X & Linux
 
-			const CMD = 'ps -ax -o pid=,ppid=,pcpu=,pmem=,command=';
+			const CMD = '/bin/ps -ax -o pid=,ppid=,pcpu=,pmem=,command=';
 			const PID_CMD = /^\s*([0-9]+)\s+([0-9]+)\s+([0-9]+\.[0-9]+)\s+([0-9]+\.[0-9]+)\s+(.+)$/;
 
 			exec(CMD, { maxBuffer: 1000 * 1024 }, (err, stdout, stderr) => {

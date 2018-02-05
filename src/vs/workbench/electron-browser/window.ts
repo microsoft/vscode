@@ -273,7 +273,6 @@ export class ElectronWindow extends Themable {
 	}
 
 	private updateWindowZoomLevel(): void {
-
 		const windowConfig: IWindowsConfiguration = this.configurationService.getValue<IWindowsConfiguration>();
 
 		let newZoomLevel = 0;
@@ -338,13 +337,9 @@ export class ElectronWindow extends Themable {
 				// Update title
 				this.titleService.updateProperties({ isAdmin });
 
-				// Show warning message
-				if (isAdmin) {
-					if (isWindows) {
-						this.messageService.show(Severity.Warning, nls.localize('runningAsAdmin', "It is not recommended to run {0} as Administrator.", product.nameShort));
-					} else {
-						this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
-					}
+				// Show warning message (unix only)
+				if (isAdmin && !isWindows) {
+					this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is not recommended to run {0} as root user.", product.nameShort));
 				}
 			});
 		});
@@ -353,6 +348,11 @@ export class ElectronWindow extends Themable {
 	private updateTouchbarMenu(): void {
 		if (!isMacintosh) {
 			return; // macOS only
+		}
+
+		const touchbarEnabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled');
+		if (!touchbarEnabled) {
+			return; // disabled via setting
 		}
 
 		// Dispose old
@@ -376,7 +376,7 @@ export class ElectronWindow extends Themable {
 		const actions: (MenuItemAction | Separator)[] = [];
 
 		// Fill actions into groups respecting order
-		fillInActions(this.touchBarMenu, void 0, actions);
+		fillInActions(this.touchBarMenu, void 0, actions, this.contextMenuService);
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];

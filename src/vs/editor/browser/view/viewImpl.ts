@@ -450,6 +450,13 @@ export class View extends ViewEventHandler {
 		this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 
+	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number; }): void {
+		this._context.viewLayout.setScrollPositionNow({ scrollTop: scrollPosition.scrollTop });
+		this._renderNow();
+		this.viewLines.updateLineWidths();
+		this._context.viewLayout.setScrollPositionNow({ scrollLeft: scrollPosition.scrollLeft });
+	}
+
 	public getOffsetForColumn(modelLineNumber: number, modelColumn: number): number {
 		let modelPosition = this._context.model.validateModelPosition({
 			lineNumber: modelLineNumber,

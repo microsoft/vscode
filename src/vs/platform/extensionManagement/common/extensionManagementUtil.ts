@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { ILocalExtension, IGalleryExtension, EXTENSION_IDENTIFIER_REGEX, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, EXTENSION_IDENTIFIER_REGEX, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -37,6 +37,10 @@ export function getIdFromLocalExtensionId(localExtensionId: string): string {
 
 export function adoptToGalleryExtensionId(id: string): string {
 	return id.replace(EXTENSION_IDENTIFIER_REGEX, (match, publisher: string, name: string) => getGalleryExtensionId(publisher, name));
+}
+
+export function getLocalExtensionId(id: string, version: string): string {
+	return `${id}-${version}`;
 }
 
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
@@ -102,3 +106,15 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 
 export const BetterMergeDisabledNowKey = 'extensions/bettermergedisablednow';
 export const BetterMergeId = 'pprice.better-merge';
+
+export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<string> {
+	const result = new Set<string>();
+
+	for (const extension of report) {
+		if (extension.malicious) {
+			result.add(extension.id.id);
+		}
+	}
+
+	return result;
+}

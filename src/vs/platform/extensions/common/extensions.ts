@@ -169,6 +169,11 @@ export interface IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 
 	/**
+	 * Check if the extension host can be profiled.
+	 */
+	canProfileExtensionHost(): boolean;
+
+	/**
 	 * Begin an extension host process profile session.
 	 */
 	startExtensionHostProfile(): TPromise<ProfileSession>;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vscode-nls';
-const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
+const localize = nls.loadMessageBundle();
 
 import * as vscode from 'vscode';
 import * as path from 'path';
@@ -140,7 +140,7 @@ export class RefreshPreviewCommand implements Command {
 		} else {
 			// update all generated md documents
 			for (const document of vscode.workspace.textDocuments) {
-				if (document.uri.scheme === 'markdown') {
+				if (document.uri.scheme === MDDocumentContentProvider.scheme) {
 					this.contentProvider.update(document.uri);
 				}
 			}

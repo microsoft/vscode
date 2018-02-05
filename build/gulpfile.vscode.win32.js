@@ -13,6 +13,7 @@ const _7z = require('7zip')['7z'];
 const util = require('./lib/util');
 const pkg = require('../package.json');
 const product = require('../product.json');
+const vfs = require('vinyl-fs');
 
 const repoPath = path.dirname(__dirname);
 const buildPath = arch => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
@@ -77,7 +78,7 @@ gulp.task('vscode-win32-x64-setup', ['clean-vscode-win32-x64-setup'], buildWin32
 
 function archiveWin32Setup(arch) {
 	return cb => {
-		const args = ['a', '-tzip', zipPath(arch), '.', '-r'];
+		const args = ['a', '-tzip', zipPath(arch), '.', '-r', '-x!inno_updater.exe'];
 
 		cp.spawn(_7z, args, { stdio: 'inherit', cwd: buildPath(arch) })
 			.on('error', cb)
@@ -90,3 +91,13 @@ gulp.task('vscode-win32-ia32-archive', ['clean-vscode-win32-ia32-archive'], arch
 
 gulp.task('clean-vscode-win32-x64-archive', util.rimraf(zipDir('x64')));
 gulp.task('vscode-win32-x64-archive', ['clean-vscode-win32-x64-archive'], archiveWin32Setup('x64'));
+
+function copyInnoUpdater(arch) {
+	return () => {
+		return gulp.src('build/win32/inno_updater.exe', { base: 'build/win32' })
+			.pipe(vfs.dest(buildPath(arch)));
+	};
+}
+
+gulp.task('vscode-win32-ia32-copy-inno-updater', copyInnoUpdater('ia32'));
+gulp.task('vscode-win32-x64-copy-inno-updater', copyInnoUpdater('x64'));

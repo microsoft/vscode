@@ -13,7 +13,7 @@ import { Color, RGBA } from 'vs/base/common/color';
  */
 export const editorLineHighlight = registerColor('editor.lineHighlightBackground', { dark: null, light: null, hc: null }, nls.localize('lineHighlight', 'Background color for the highlight of line at the cursor position.'));
 export const editorLineHighlightBorder = registerColor('editor.lineHighlightBorder', { dark: '#282828', light: '#eeeeee', hc: '#f38518' }, nls.localize('lineHighlightBorderBox', 'Background color for the border around the line at the cursor position.'));
-export const editorRangeHighlight = registerColor('editor.rangeHighlightBackground', { dark: '#ffffff0b', light: '#fdff0033', hc: null }, nls.localize('rangeHighlight', 'Background color of highlighted ranges, like by quick open and find features.'));
+export const editorRangeHighlight = registerColor('editor.rangeHighlightBackground', { dark: '#ffffff0b', light: '#fdff0033', hc: null }, nls.localize('rangeHighlight', 'Background color of highlighted ranges, like by quick open and find features. The color must not be opaque to not hide underlying decorations.'), true);
 export const editorCursorForeground = registerColor('editorCursor.foreground', { dark: '#AEAFAD', light: Color.black, hc: Color.white }, nls.localize('caret', 'Color of the editor cursor.'));
 export const editorCursorBackground = registerColor('editorCursor.background', null, nls.localize('editorCursorBackground', 'The background color of the editor cursor. Allows customizing the color of a character overlapped by a block cursor.'));
 export const editorWhitespaces = registerColor('editorWhitespace.foreground', { dark: '#e3e4e229', light: '#33333333', hc: '#e3e4e229' }, nls.localize('editorWhitespaces', 'Color of whitespace characters in the editor.'));
@@ -30,10 +30,10 @@ export const editorOverviewRulerBorder = registerColor('editorOverviewRuler.bord
 
 export const editorGutter = registerColor('editorGutter.background', { dark: editorBackground, light: editorBackground, hc: editorBackground }, nls.localize('editorGutter', 'Background color of the editor gutter. The gutter contains the glyph margins and the line numbers.'));
 
-export const editorErrorForeground = registerColor('editorError.foreground', { dark: '#FF0000', light: '#FF0000', hc: null }, nls.localize('errorForeground', 'Foreground color of error squigglies in the editor.'));
+export const editorErrorForeground = registerColor('editorError.foreground', { dark: '#ea4646', light: '#d60a0a', hc: null }, nls.localize('errorForeground', 'Foreground color of error squigglies in the editor.'));
 export const editorErrorBorder = registerColor('editorError.border', { dark: null, light: null, hc: Color.fromHex('#E47777').transparent(0.8) }, nls.localize('errorBorder', 'Border color of error squigglies in the editor.'));
 
-export const editorWarningForeground = registerColor('editorWarning.foreground', { dark: '#008000', light: '#008000', hc: null }, nls.localize('warningForeground', 'Foreground color of warning squigglies in the editor.'));
+export const editorWarningForeground = registerColor('editorWarning.foreground', { dark: '#4d9e4d', light: '#117711', hc: null }, nls.localize('warningForeground', 'Foreground color of warning squigglies in the editor.'));
 export const editorWarningBorder = registerColor('editorWarning.border', { dark: null, light: null, hc: Color.fromHex('#71B771').transparent(0.8) }, nls.localize('warningBorder', 'Border color of warning squigglies in the editor.'));
 
 export const editorInfoForeground = registerColor('editorInfo.foreground', { dark: '#008000', light: '#008000', hc: null }, nls.localize('infoForeground', 'Foreground color of info squigglies in the editor.'));

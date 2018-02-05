@@ -7,10 +7,8 @@
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
-import {
-	IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions,
-	IContentDecorationRenderOptions, OverviewRulerLane, TrackedRangeStickiness, isThemeColor
-} from 'vs/editor/common/editorCommon';
+import { IDecorationRenderOptions, IThemeDecorationRenderOptions, IContentDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -210,6 +208,8 @@ const _CSS_MAP = {
 	borderStyle: 'border-style:{0};',
 	borderWidth: 'border-width:{0};',
 
+	fontStyle: 'font-style:{0};',
+	fontWeight: 'font-weight:{0};',
 	textDecoration: 'text-decoration:{0};',
 	cursor: 'cursor:{0};',
 	letterSpacing: 'letter-spacing:{0};',
@@ -357,7 +357,7 @@ class DecorationCSSRules {
 			return '';
 		}
 		let cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['textDecoration', 'cursor', 'color', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'cursor', 'color', 'letterSpacing'], cssTextArr);
 		return cssTextArr.join('');
 	}
 
@@ -385,7 +385,7 @@ class DecorationCSSRules {
 
 				cssTextArr.push(strings.format(_CSS_MAP.contentText, escaped));
 			}
-			this.collectCSSText(opts, ['textDecoration', 'color', 'backgroundColor', 'margin'], cssTextArr);
+			this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'textDecoration', 'color', 'backgroundColor', 'margin'], cssTextArr);
 			if (this.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
 				cssTextArr.push('display:inline-block;');
 			}

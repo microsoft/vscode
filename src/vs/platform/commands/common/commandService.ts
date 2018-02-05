@@ -10,7 +10,6 @@ import { ICommandService, ICommandEvent, CommandsRegistry } from 'vs/platform/co
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class CommandService extends Disposable implements ICommandService {
@@ -25,7 +24,6 @@ export class CommandService extends Disposable implements ICommandService {
 	constructor(
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IExtensionService private _extensionService: IExtensionService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@ILogService private _logService: ILogService
 	) {
 		super();
@@ -53,12 +51,6 @@ export class CommandService extends Disposable implements ICommandService {
 		if (!command) {
 			return TPromise.wrapError(new Error(`command '${id}' not found`));
 		}
-
-		if (command.precondition && !this._contextKeyService.contextMatchesRules(command.precondition)) {
-			// not enabled
-			return TPromise.wrapError(new Error('NOT_ENABLED'));
-		}
-
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));

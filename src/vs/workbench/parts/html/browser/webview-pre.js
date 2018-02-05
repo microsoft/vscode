@@ -109,8 +109,8 @@
 			styleBody(body[0]);
 
 			// iframe
-			Object.keys(variables).forEach(function(variable) {
-				target.contentDocument.documentElement.style.setProperty(`--${variable}`,variables[variable]);
+			Object.keys(variables).forEach(function (variable) {
+				target.contentDocument.documentElement.style.setProperty(`--${variable}`, variables[variable]);
 			});
 		});
 
@@ -128,6 +128,12 @@
 			const text = data.contents.join('\n');
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
+			newDocument.querySelectorAll('a').forEach(a => {
+				if (!a.title) {
+					a.title = a.href;
+				}
+			});
+
 			// set base-url if applicable
 			if (initData.baseUrl && newDocument.head.getElementsByTagName('base').length === 0) {
 				const baseElement = newDocument.createElement('base');
@@ -139,7 +145,7 @@
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
 
-			const vars = Object.keys(initData.styles).map(function(variable) {
+			const vars = Object.keys(initData.styles).map(function (variable) {
 				return `--${variable}: ${initData.styles[variable]};`;
 			});
 			defaultStyles.innerHTML = `
@@ -159,6 +165,11 @@
 				max-width: 100%;
 				max-height: 100%;
 			}
+
+			body a {
+				color: var(--link-color);
+			}
+
 			a:focus,
 			input:focus,
 			select:focus,
@@ -252,8 +263,8 @@
 					newFrame.style.visibility = 'visible';
 					contentWindow.addEventListener('scroll', handleInnerScroll);
 
-					pendingMessages.forEach(function(data) {
-						contentWindow.postMessage(data, document.location.origin);
+					pendingMessages.forEach(function (data) {
+						contentWindow.postMessage(data, '*');
 					});
 					pendingMessages = [];
 				}
@@ -292,7 +303,7 @@
 			} else {
 				const target = getActiveFrame();
 				if (target) {
-					target.contentWindow.postMessage(data, document.location.origin);
+					target.contentWindow.postMessage(data, '*');
 				}
 			}
 		});

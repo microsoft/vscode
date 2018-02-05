@@ -31,6 +31,11 @@ export function resolveUpdateExtensionsPath() {
 	}
 	if (_currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
+		if (_currentExtensionsPath && !path.isAbsolute(_currentExtensionsPath)) {
+			vscode.window.showErrorMessage('The path provided in emmet.extensionsPath setting should be absolute path');
+			_emmetHelper.updateExtensionsPath();
+			return;
+		}
 		_emmetHelper.updateExtensionsPath(_currentExtensionsPath).then(null, (err: string) => vscode.window.showErrorMessage(err));
 	}
 }
@@ -42,10 +47,10 @@ export const LANGUAGE_MODES: any = {
 	'haml': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'xml': ['.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'xsl': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'css': [':', ';', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'scss': [':', ';', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'css': [':', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'scss': [':', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'sass': [':', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'less': [':', ';', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'less': [':', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'stylus': [':', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'javascriptreact': ['.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'typescriptreact': ['.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
@@ -331,7 +336,9 @@ export function getEmmetConfiguration(syntax: string) {
 		showExpandedAbbreviation: emmetConfig['showExpandedAbbreviation'],
 		showAbbreviationSuggestions: emmetConfig['showAbbreviationSuggestions'],
 		syntaxProfiles,
-		variables: emmetConfig['variables']
+		variables: emmetConfig['variables'],
+		excludeLanguages: emmetConfig['excludeLanguages'],
+		showSuggestionsAsSnippets: emmetConfig['showSuggestionsAsSnippets']
 	};
 }
 

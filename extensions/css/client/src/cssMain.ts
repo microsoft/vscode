@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-
 import * as path from 'path';
+
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 import { languages, window, commands, ExtensionContext, TextDocument, ColorInformation, ColorPresentation, Color, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';
@@ -12,16 +14,13 @@ import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } f
 import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
 import { DocumentColorRequest, DocumentColorParams, ColorPresentationRequest, ColorPresentationParams } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
-import * as nls from 'vscode-nls';
-let localize = nls.loadMessageBundle();
-
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'cssServerMain.js'));
 	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--inspect=6004'] };
+	let debugOptions = { execArgv: ['--nolazy', '--inspect=6044'] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
@@ -104,7 +103,7 @@ export function activate(context: ExtensionContext) {
 		indentationRules: indentationRules
 	});
 
-	const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?/;
+	const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?$/;
 	languages.registerCompletionItemProvider(documentSelector, {
 		provideCompletionItems(doc, pos) {
 			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));

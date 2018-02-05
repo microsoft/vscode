@@ -7,7 +7,6 @@
 
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { stringify } from 'vs/base/common/marshalling';
 import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -36,6 +35,7 @@ import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_C
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { getScopes } from 'vs/platform/configuration/common/configurationRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionHostProcessWorker {
 
@@ -71,7 +71,8 @@ export class ExtensionHostProcessWorker {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IWorkspaceConfigurationService private readonly _configurationService: IWorkspaceConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService
+		@ICrashReporterService private readonly _crashReporterService: ICrashReporterService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this._isExtensionDevHost = this._environmentService.isExtensionDevelopment;
@@ -143,7 +144,6 @@ export class ExtensionHostProcessWorker {
 						VSCODE_WINDOW_ID: String(this._windowService.getCurrentWindowId()),
 						VSCODE_IPC_HOOK_EXTHOST: pipeName,
 						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
-						ELECTRON_NO_ASAR: '1',
 						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || product.quality !== 'stable' || this._environmentService.verbose)
 					}),
 					// We only detach the extension host on windows. Linux and Mac orphan by default
@@ -275,6 +275,8 @@ export class ExtensionHostProcessWorker {
 		let startPort = 9333;
 		if (typeof this._environmentService.debugExtensionHost.port === 'number') {
 			startPort = expected = this._environmentService.debugExtensionHost.port;
+		} else {
+			return TPromise.as({ expected: undefined, actual: 0 });
 		}
 		return new TPromise((c, e) => {
 			return findFreePort(startPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
@@ -329,7 +331,7 @@ export class ExtensionHostProcessWorker {
 
 					if (msg === 'ready') {
 						// 1) Extension Host is ready to receive messages, initialize it
-						this._createExtHostInitData().then(data => protocol.send(stringify(data)));
+						this._createExtHostInitData().then(data => protocol.send(JSON.stringify(data)));
 						return;
 					}
 
@@ -378,7 +380,8 @@ export class ExtensionHostProcessWorker {
 				telemetryInfo,
 				args: this._environmentService.args,
 				execPath: this._environmentService.execPath,
-				windowId: this._windowService.getCurrentWindowId()
+				windowId: this._windowService.getCurrentWindowId(),
+				logLevel: this._logService.getLevel()
 			};
 			return r;
 		});

@@ -176,9 +176,9 @@ export class ModelRawLinesInserted {
 	/**
 	 * The text that was inserted
 	 */
-	public readonly detail: string;
+	public readonly detail: string[];
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string) {
+	constructor(fromLineNumber: number, toLineNumber: number, detail: string[]) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
 		this.detail = detail;

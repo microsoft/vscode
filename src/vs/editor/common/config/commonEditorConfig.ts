@@ -153,7 +153,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	private static _digitCount(n: number): number {
-		var r = 0;
+		let r = 0;
 		while (n) {
 			n = Math.floor(n / 10);
 			r++;
@@ -211,7 +211,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('lineNumbers.interval', "Line numbers are rendered every 10 lines.")
 			],
 			'default': 'on',
-			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', and 'relative'.")
+			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', 'relative' and 'interval'.")
 		},
 		'editor.rulers': {
 			'type': 'array',
@@ -264,6 +264,12 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.enabled,
 			'description': nls.localize('minimap.enabled', "Controls if the minimap is shown")
 		},
+		'editor.minimap.side': {
+			'type': 'string',
+			'enum': ['left', 'right'],
+			'default': EDITOR_DEFAULTS.viewInfo.minimap.side,
+			'description': nls.localize('minimap.side', "Controls the side where to render the minimap. Possible values are \'right\' and \'left\'")
+		},
 		'editor.minimap.showSlider': {
 			'type': 'string',
 			'enum': ['always', 'mouseover'],
@@ -293,7 +299,8 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.find.globalFindClipboard': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.globalFindClipboard,
-			'description': nls.localize('find.globalFindClipboard', "Controls if the Find Widget should read or modify the shared find clipboard on macOS")
+			'description': nls.localize('find.globalFindClipboard', "Controls if the Find Widget should read or modify the shared find clipboard on macOS"),
+			'included': platform.isMacintosh
 		},
 		'editor.wordWrap': {
 			'type': 'string',
@@ -351,8 +358,8 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['ctrlCmd', 'alt'],
 			'enumDescriptions': [
-				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on OSX."),
-				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on OSX.")
+				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
+				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
 			],
 			'default': 'alt',
 			'description': nls.localize({
@@ -361,7 +368,7 @@ const editorConfiguration: IConfigurationNode = {
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on OSX. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
+			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
 		},
 		'editor.quickSuggestions': {
 			'anyOf': [
@@ -461,6 +468,17 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
+		'editor.suggestSelection': {
+			'type': 'string',
+			'enum': ['first', 'recentlyUsed', 'recentlyUsedByPrefix'],
+			'enumDescriptions': [
+				nls.localize('suggestSelection.first', "Always select the first suggestion."),
+				nls.localize('suggestSelection.recentlyUsed', "Select recent suggestions unless further typing selects one, e.g. `console.| -> console.log` because `log` has been completed recently."),
+				nls.localize('suggestSelection.recentlyUsedByPrefix', "Select suggestions based on previous prefixes that have completed those suggestions, e.g. `co -> console` and `con -> const`."),
+			],
+			'default': 'recentlyUsed',
+			'description': nls.localize('suggestSelection', "Controls how suggestions are pre-selected when showing the suggest list.")
+		},
 		'editor.suggestFontSize': {
 			'type': 'integer',
 			'default': 0,
@@ -509,6 +527,11 @@ const editorConfiguration: IConfigurationNode = {
 			'enum': ['block', 'block-outline', 'line', 'line-thin', 'underline', 'underline-thin'],
 			'default': editorOptions.cursorStyleToString(EDITOR_DEFAULTS.viewInfo.cursorStyle),
 			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'block-outline', 'line', 'line-thin', 'underline' and 'underline-thin'")
+		},
+		'editor.cursorWidth': {
+			'type': 'integer',
+			'default': EDITOR_DEFAULTS.viewInfo.cursorWidth,
+			'description': nls.localize('cursorWidth', "Controls the width of the cursor when editor.cursorStyle is set to 'line'")
 		},
 		'editor.fontLigatures': {
 			'type': 'boolean',

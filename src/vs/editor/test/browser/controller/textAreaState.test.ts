@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { TextAreaState, ITextAreaWrapper, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
 
 export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
@@ -507,7 +507,7 @@ suite('TextAreaState', () => {
 	suite('PagedScreenReaderStrategy', () => {
 
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
-			const model = Model.createFromString(lines.join('\n'));
+			const model = TextModel.createFromString(lines.join('\n'));
 			const actual = PagedScreenReaderStrategy.fromEditorSelection(TextAreaState.EMPTY, model, selection, true);
 			assert.ok(equalsTextAreaState(actual, expected));
 			model.dispose();

@@ -14,14 +14,19 @@ var url = require('url');
 
 function getOptions(urlString) {
 	var _url = url.parse(urlString);
+	var headers = {
+		'User-Agent': 'VSCode'
+	};
+	var token = process.env['GITHUB_TOKEN'];
+	if (token) {
+		headers['Authorization'] = 'token ' + token
+	}
 	return {
 		protocol: _url.protocol,
 		host: _url.host,
 		port: _url.port,
 		path: _url.path,
-		headers: {
-			'User-Agent': 'NodeJS'
-		}
+		headers: headers
 	};
 }
 
@@ -68,8 +73,8 @@ function getCommitSha(repoId, repoPath) {
 	});
 }
 
-exports.update = function (repoId, repoPath, dest, modifyGrammar) {
-	var contentPath = 'https://raw.githubusercontent.com/' + repoId + '/master/' + repoPath;
+exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'master') {
+	var contentPath = 'https://raw.githubusercontent.com/' + repoId + `/${version}/` + repoPath;
 	console.log('Reading from ' + contentPath);
 	return download(contentPath).then(function (content) {
 		var ext = path.extname(repoPath);

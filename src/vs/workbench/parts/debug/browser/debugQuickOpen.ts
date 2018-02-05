@@ -29,7 +29,7 @@ class AddConfigEntry extends Model.QuickOpenEntry {
 	}
 
 	public getDescription(): string {
-		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.workspace.name : '';
+		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.name : '';
 	}
 
 	public getAriaLabel(): string {
@@ -40,7 +40,7 @@ class AddConfigEntry extends Model.QuickOpenEntry {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
-		this.commandService.executeCommand('debug.addConfiguration', this.launch.workspace.uri.toString()).done(undefined, errors.onUnexpectedError);
+		this.commandService.executeCommand('debug.addConfiguration', this.launch.uri.toString()).done(undefined, errors.onUnexpectedError);
 
 		return true;
 	}
@@ -57,7 +57,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 	}
 
 	public getDescription(): string {
-		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.workspace.name : '';
+		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.name : '';
 	}
 
 	public getAriaLabel(): string {
@@ -109,8 +109,9 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 					configurations.push(new StartDebugEntry(this.debugService, this.contextService, this.messageService, launch, config, highlights));
 				});
 		}
-		launches.forEach((l, index) => {
-			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.workspace.name) : nls.localize('addConfiguration', "Add Configuration...");
+		launches.filter(l => !l.hidden).forEach((l, index) => {
+
+			const label = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, Filters.matchesContiguousSubString(input, label));
 			if (index === 0) {
 				configurations.push(new QuickOpenEntryGroup(entry, undefined, true));

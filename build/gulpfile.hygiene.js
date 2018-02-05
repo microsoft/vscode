@@ -77,7 +77,8 @@ const indentationFilter = [
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
 	'!extensions/**/colorize-fixtures/**',
-	'!extensions/vscode-api-tests/testWorkspace/**'
+	'!extensions/vscode-api-tests/testWorkspace/**',
+	'!extensions/vscode-api-tests/testWorkspace2/**'
 ];
 
 const copyrightFilter = [
@@ -95,6 +96,7 @@ const copyrightFilter = [
 	'!**/*.xpm',
 	'!**/*.opts',
 	'!**/*.disabled',
+	'!**/*.code-workspace',
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
@@ -124,6 +126,7 @@ const tslintFilter = [
 	'!**/node_modules/**',
 	'!extensions/typescript/test/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
+	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!extensions/**/*.test.ts',
 	'!extensions/html/server/lib/jquery.d.ts'
 ];

@@ -7,7 +7,8 @@
     "vscode": "0.10.x"
   },
   "activationEvents": [
-    "onLanguage:json", "onLanguage:jsonc"
+    "onLanguage:json",
+    "onLanguage:jsonc"
   ],
   "enableProposedApi": true,
   "main": "./client/out/jsonMain",
@@ -53,7 +54,8 @@
           ".code-workspace",
           "language-configuration.json",
           "icon-theme.json",
-          "color-theme.json"
+          "color-theme.json",
+          ".code-snippets"
         ],
         "filenames": [
           "settings.json",
@@ -160,9 +162,9 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.8",
+    "vscode-extension-telemetry": "0.0.11",
     "vscode-languageclient": "^3.5.0",
-    "vscode-nls": "2.0.2"
+    "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
     "@types/node": "7.0.43"

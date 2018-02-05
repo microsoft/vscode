@@ -9,6 +9,15 @@ export default class MergeConflictContentProvider implements vscode.TextDocument
 
 	static scheme = 'merge-conflict.conflict-diff';
 
+	constructor(private context: vscode.ExtensionContext) {
+	}
+
+	begin() {
+		this.context.subscriptions.push(
+			vscode.workspace.registerTextDocumentContentProvider(MergeConflictContentProvider.scheme, this)
+		);
+	}
+
 	dispose() {
 	}
 

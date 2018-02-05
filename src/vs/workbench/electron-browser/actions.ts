@@ -8,7 +8,6 @@
 import 'vs/css!./media/actions';
 
 import URI from 'vs/base/common/uri';
-import * as collections from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
@@ -21,11 +20,11 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, LocalExtensionType, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
-import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -46,32 +45,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
 import { IEditor } from 'vs/platform/editor/common/editor';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { IIssueService, IssueReporterData, IssueType, IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder } from 'vs/platform/theme/common/colorRegistry';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 // --- actions
-
-export class CloseEditorAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeActiveEditor';
-	public static readonly LABEL = nls.localize('closeActiveEditor', "Close Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<void> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
-		}
-
-		return TPromise.as(null);
-	}
-}
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -91,7 +71,7 @@ export class CloseCurrentWindowAction extends Action {
 
 export class CloseWorkspaceAction extends Action {
 
-	static ID = 'workbench.action.closeFolder';
+	static readonly ID = 'workbench.action.closeFolder';
 	static LABEL = nls.localize('closeWorkspace', "Close Workspace");
 
 	constructor(
@@ -117,7 +97,7 @@ export class CloseWorkspaceAction extends Action {
 
 export class NewWindowAction extends Action {
 
-	static ID = 'workbench.action.newWindow';
+	static readonly ID = 'workbench.action.newWindow';
 	static LABEL = nls.localize('newWindow', "New Window");
 
 	constructor(
@@ -135,7 +115,7 @@ export class NewWindowAction extends Action {
 
 export class ToggleFullScreenAction extends Action {
 
-	static ID = 'workbench.action.toggleFullScreen';
+	static readonly ID = 'workbench.action.toggleFullScreen';
 	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
 
 	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
@@ -149,7 +129,7 @@ export class ToggleFullScreenAction extends Action {
 
 export class ToggleMenuBarAction extends Action {
 
-	static ID = 'workbench.action.toggleMenuBar';
+	static readonly ID = 'workbench.action.toggleMenuBar';
 	static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
 	private static readonly menuBarVisibilityKey = 'window.menuBarVisibility';
@@ -183,7 +163,7 @@ export class ToggleMenuBarAction extends Action {
 
 export class ToggleDevToolsAction extends Action {
 
-	static ID = 'workbench.action.toggleDevTools';
+	static readonly ID = 'workbench.action.toggleDevTools';
 	static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
 
 	constructor(id: string, label: string, @IWindowService private windowsService: IWindowService) {
@@ -391,6 +371,7 @@ export class ShowStartupPerformance extends Action {
 
 		if (metrics.initialStartup) {
 			table.push({ Topic: '[main] start => app.isReady', 'Took (ms)': metrics.timers.ellapsedAppReady });
+			table.push({ Topic: '[main] nls:start => nls:end', 'Took (ms)': metrics.timers.ellapsedNlsGeneration });
 			table.push({ Topic: '[main] app.isReady => window.loadUrl()', 'Took (ms)': metrics.timers.ellapsedWindowLoad });
 		}
 
@@ -558,7 +539,7 @@ export class ShowStartupPerformance extends Action {
 
 export class ReloadWindowAction extends Action {
 
-	static ID = 'workbench.action.reloadWindow';
+	static readonly ID = 'workbench.action.reloadWindow';
 	static LABEL = nls.localize('reloadWindow', "Reload Window");
 
 	constructor(
@@ -654,7 +635,7 @@ class CloseWindowAction extends Action implements IPickOpenAction {
 
 export class SwitchWindow extends BaseSwitchWindow {
 
-	static ID = 'workbench.action.switchWindow';
+	static readonly ID = 'workbench.action.switchWindow';
 	static LABEL = nls.localize('switchWindow', "Switch Window...");
 
 	constructor(
@@ -676,7 +657,7 @@ export class SwitchWindow extends BaseSwitchWindow {
 
 export class QuickSwitchWindow extends BaseSwitchWindow {
 
-	static ID = 'workbench.action.quickSwitchWindow';
+	static readonly ID = 'workbench.action.quickSwitchWindow';
 	static LABEL = nls.localize('quickSwitchWindow', "Quick Switch Window...");
 
 	constructor(
@@ -883,106 +864,89 @@ export class CloseMessagesAction extends Action {
 	}
 }
 
-export class ReportIssueAction extends Action {
+export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {
+	return {
+		backgroundColor: theme.getColor(SIDE_BAR_BACKGROUND) && theme.getColor(SIDE_BAR_BACKGROUND).toString(),
+		color: theme.getColor(foreground).toString(),
+		textLinkColor: theme.getColor(textLinkForeground) && theme.getColor(textLinkForeground).toString(),
+		inputBackground: theme.getColor(inputBackground) && theme.getColor(inputBackground).toString(),
+		inputForeground: theme.getColor(inputForeground) && theme.getColor(inputForeground).toString(),
+		inputBorder: theme.getColor(inputBorder) && theme.getColor(inputBorder).toString(),
+		inputActiveBorder: theme.getColor(inputActiveOptionBorder) && theme.getColor(inputActiveOptionBorder).toString(),
+		inputErrorBorder: theme.getColor(inputValidationErrorBorder) && theme.getColor(inputValidationErrorBorder).toString(),
+		buttonBackground: theme.getColor(buttonBackground) && theme.getColor(buttonBackground).toString(),
+		buttonForeground: theme.getColor(buttonForeground) && theme.getColor(buttonForeground).toString(),
+		buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString()
+	};
+}
 
-	public static readonly ID = 'workbench.action.reportIssues';
+export class OpenIssueReporterAction extends Action {
+	public static readonly ID = 'workbench.action.openIssueReporter';
 	public static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 
 	constructor(
 		id: string,
 		label: string,
-		@IIntegrityService private integrityService: IIntegrityService,
+		@IIssueService private issueService: IIssueService,
+		@IThemeService private themeService: IThemeService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super(id, label);
 	}
 
-	private _optimisticIsPure(): TPromise<boolean> {
-		let isPure = true;
-		let integrityPromise = this.integrityService.isPure().then(res => {
-			isPure = res.isPure;
-		});
-
-		return TPromise.any([TPromise.timeout(100), integrityPromise]).then(() => {
-			return isPure;
-		});
-	}
-
 	public run(): TPromise<boolean> {
-		return this._optimisticIsPure().then(isPure => {
-			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-				extensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
-				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions, this.environmentService.disableExtensions);
+		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled({ id: getGalleryExtensionIdFromLocal(extension) }));
+			const theme = this.themeService.getTheme();
+			const issueReporterData: IssueReporterData = {
+				styles: getIssueReporterStyles(theme),
+				zoomLevel: webFrame.getZoomLevel(),
+				enabledExtensions
+			};
 
-				window.open(issueUrl);
-
+			return this.issueService.openReporter(issueReporterData).then(() => {
 				return TPromise.as(true);
 			});
 		});
 	}
+}
 
-	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, extensions: ILocalExtension[], areExtensionsDisabled: boolean): string {
-		// Avoid backticks, these can trigger XSS detectors. (https://github.com/Microsoft/vscode/issues/13098)
-		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
-		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
-		const body = encodeURIComponent(
-			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
-- OS Version: ${osVersion}
-- Extensions: ${areExtensionsDisabled ? 'Extensions are disabled' : this.generateExtensionTable(extensions)}
----
+export class ReportPerformanceIssueUsingReporterAction extends Action {
+	public static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
+	public static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
 
-Steps to Reproduce:
-
-1.
-2.` + (extensions.length ? `
-
-<!-- Launch with \`code --disable-extensions\` to check. -->
-Reproduces without extensions: Yes/No` : '')
-		);
-
-		return `${baseUrl}${queryStringPrefix}body=${body}`;
+	constructor(
+		id: string,
+		label: string,
+		@IIssueService private issueService: IIssueService,
+		@IThemeService private themeService: IThemeService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+	) {
+		super(id, label);
 	}
 
-	private generateExtensionTable(extensions: ILocalExtension[]): string {
-		const { nonThemes, themes } = collections.groupBy(extensions, ext => {
-			const manifestKeys = ext.manifest.contributes ? Object.keys(ext.manifest.contributes) : [];
-			const onlyTheme = !ext.manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
-			return onlyTheme ? 'themes' : 'nonThemes';
+	public run(): TPromise<boolean> {
+		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
+			const theme = this.themeService.getTheme();
+			const issueReporterData: IssueReporterData = {
+				styles: getIssueReporterStyles(theme),
+				zoomLevel: webFrame.getZoomLevel(),
+				enabledExtensions,
+				issueType: IssueType.PerformanceIssue
+			};
+
+			// TODO: Reporter should send timings table as well
+			return this.issueService.openReporter(issueReporterData).then(() => {
+				return TPromise.as(true);
+			});
 		});
-
-		const themeExclusionStr = (themes && themes.length) ? `\n(${themes.length} theme extensions excluded)` : '';
-		extensions = nonThemes || [];
-
-		if (!extensions.length) {
-			return 'none' + themeExclusionStr;
-		}
-
-		let tableHeader = `Extension|Author (truncated)|Version
----|---|---`;
-		const table = extensions.map(e => {
-			return `${e.manifest.name}|${e.manifest.publisher.substr(0, 3)}|${e.manifest.version}`;
-		}).join('\n');
-
-		const extensionTable = `
-
-${tableHeader}
-${table}
-${themeExclusionStr}
-
-`;
-
-		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
-		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
-		if (encodeURIComponent(extensionTable).length > 1600) {
-			return 'the listing length exceeds browsers\' URL characters limit';
-		}
-
-		return extensionTable;
 	}
 }
 
+// NOTE: This is still used when running --prof-startup, which already opens a dialog, so the reporter is not used.
 export class ReportPerformanceIssueAction extends Action {
 
 	public static readonly ID = 'workbench.action.reportPerformanceIssue';
@@ -1189,7 +1153,7 @@ export class OpenTipsAndTricksUrlAction extends Action {
 
 export class ToggleSharedProcessAction extends Action {
 
-	static ID = 'workbench.action.toggleSharedProcess';
+	static readonly ID = 'workbench.action.toggleSharedProcess';
 	static LABEL = nls.localize('toggleSharedProcess', "Toggle Shared Process");
 
 	constructor(id: string, label: string, @IWindowsService private windowsService: IWindowsService) {
@@ -1681,84 +1645,6 @@ export class ConfigureLocaleAction extends Action {
 			});
 		}, (error) => {
 			throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.contextService), error));
-		});
-	}
-}
-
-export class OpenLogsFolderAction extends Action {
-
-	static ID = 'workbench.action.openLogsFolder';
-	static LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
-
-	constructor(id: string, label: string,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowsService private windowsService: IWindowsService,
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<void> {
-		return this.windowsService.showItemInFolder(paths.join(this.environmentService.logsPath, 'main.log'));
-	}
-}
-
-export class ShowLogsAction extends Action {
-
-	static ID = 'workbench.action.showLogs';
-	static LABEL = nls.localize('showLogs', "Show Logs...");
-
-	constructor(id: string, label: string,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowService private windowService: IWindowService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<void> {
-		const entries: IPickOpenEntry[] = [
-			{ id: 'main', label: nls.localize('mainProcess', "Main"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, 'main.log')) }) },
-			{ id: 'shared', label: nls.localize('sharedProcess', "Shared"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, 'sharedprocess.log')) }) },
-			{ id: 'renderer', label: nls.localize('rendererProcess', "Renderer"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)) }) },
-			{ id: 'extenshionHost', label: nls.localize('extensionHost', "Extension Host"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, `exthost${this.windowService.getCurrentWindowId()}.log`)) }) }
-		];
-
-		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select process") }).then(entry => {
-			if (entry) {
-				entry.run(null);
-			}
-		});
-	}
-}
-
-export class SetLogLevelAction extends Action {
-
-	static ID = 'workbench.action.setLogLevel';
-	static LABEL = nls.localize('setLogLevel', "Set Log Level");
-
-	constructor(id: string, label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@ILogService private logService: ILogService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<void> {
-		const entries = [
-			{ label: nls.localize('trace', "Trace"), level: LogLevel.Trace },
-			{ label: nls.localize('debug', "Debug"), level: LogLevel.Debug },
-			{ label: nls.localize('info', "Info"), level: LogLevel.Info },
-			{ label: nls.localize('warn', "Warning"), level: LogLevel.Warning },
-			{ label: nls.localize('err', "Error"), level: LogLevel.Error },
-			{ label: nls.localize('critical', "Critical"), level: LogLevel.Critical },
-			{ label: nls.localize('off', "Off"), level: LogLevel.Off }
-		];
-
-		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectLogLevel', "Select log level"), autoFocus: { autoFocusIndex: this.logService.getLevel() } }).then(entry => {
-			if (entry) {
-				this.logService.setLevel(entry.level);
-			}
 		});
 	}
 }

@@ -143,7 +143,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public notifyConfigurationSchemaUpdated(configuration: IConfigurationNode) {
-		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
+		contributionRegistry.notifySchemaChanged(editorConfigurationSchemaId);
 	}
 
 	public registerOverrideIdentifiers(overrideIdentifiers: string[]): void {

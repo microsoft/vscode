@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import Event from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestResult, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/suggestModel';
@@ -25,8 +25,9 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
 
-function createMockEditor(model: Model): TestCodeEditor {
+function createMockEditor(model: TextModel): TestCodeEditor {
 	const contextKeyService = new MockContextKeyService();
 	const telemetryService = NullTelemetryService;
 	const instantiationService = new InstantiationService(new ServiceCollection(
@@ -42,10 +43,10 @@ function createMockEditor(model: Model): TestCodeEditor {
 
 suite('SuggestModel - Context', function () {
 
-	let model: Model;
+	let model: TextModel;
 
 	setup(function () {
-		model = Model.createFromString('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
+		model = TextModel.createFromString('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
 	});
 
 	teardown(function () {
@@ -96,11 +97,11 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	};
 
 	let disposables: IDisposable[] = [];
-	let model: Model;
+	let model: TextModel;
 
 	setup(function () {
 		disposables = dispose(disposables);
-		model = Model.createFromString('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
+		model = TextModel.createFromString('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
 		disposables.push(model);
 	});
 
@@ -590,7 +591,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
-				_onDidSelectItem(item) {
+				_onDidSelectItem(item: ISelectedSuggestion) {
 					super._onDidSelectItem(item);
 				}
 			}
@@ -606,7 +607,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 				assert.equal(first.suggestion.label, 'bar');
 
-				ctrl._onDidSelectItem(first);
+				ctrl._onDidSelectItem({ item: first, index: 0, model: event.completionModel });
 			});
 
 			assert.equal(
