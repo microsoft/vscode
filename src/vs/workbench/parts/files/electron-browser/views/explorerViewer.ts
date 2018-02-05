@@ -409,7 +409,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		else {
 
 			// Expand / Collapse
-			if (isDoubleClick || this.openOnSingleClick) {
+			if (isDoubleClick || this.openOnSingleClick || this.isClickOnTwistie(event)) {
 				tree.toggleExpansion(stat, event.altKey);
 				this.previousSelectionRangeStop = undefined;
 			}
@@ -715,6 +715,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
 		const sources: FileStat[] = data.getData();
 		if (sources && sources.length) {
+
 			// When dragging folders, make sure to collapse them to free up some space
 			sources.forEach(s => {
 				if (s.isDirectory && tree.isExpanded(s)) {
