@@ -36,6 +36,8 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 import { debounce } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
 
+const MAX_URL_LENGTH = 5400;
+
 export interface IssueReporterConfiguration extends IWindowConfiguration {
 	data: IssueReporterData;
 }
@@ -435,8 +437,8 @@ export class IssueReporter extends Disposable {
 		const url = baseUrl + encodeURIComponent(issueBody);
 
 		const lengthValidationElement = document.getElementById('url-length-validation-error');
-		if (url.length > 5400) {
-			lengthValidationElement.textContent = localize('urlLengthError', "The data exceeds the length limit of 2081. The data is length {0}.", url.length);
+		if (url.length > MAX_URL_LENGTH) {
+			lengthValidationElement.textContent = localize('urlLengthError', "The data exceeds the length limit of {0} characters. The data is length {1}.", MAX_URL_LENGTH, url.length);
 			show(lengthValidationElement);
 			return false;
 		} else {
