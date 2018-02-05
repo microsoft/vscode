@@ -15,7 +15,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/functional';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { ClickBehavior, IControllerOptions } from 'vs/base/parts/tree/browser/treeDefaults';
+import { IControllerOptions } from 'vs/base/parts/tree/browser/treeDefaults';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -191,8 +191,6 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 		wrapUp(true);
 	}));
 }
-
-export const DefaultDebugControllerOptions: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false };
 
 export class BaseDebugController extends WorkbenchTreeController {
 

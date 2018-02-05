@@ -194,7 +194,7 @@ export class MarkersPanel extends Panel {
 		dom.addClass(this.treeContainer, 'show-file-icons');
 		const renderer = this.instantiationService.createInstance(Viewer.Renderer);
 		const dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof Resource ? obj.uri : void 0);
-		let controller = this.instantiationService.createInstance(Controller);
+		const controller = this.instantiationService.createInstance(Controller);
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer,

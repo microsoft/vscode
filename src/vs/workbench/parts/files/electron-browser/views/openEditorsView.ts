@@ -151,8 +151,9 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService, this.editorGroupService),
 			new OpenEditorRenderer(getSelectedElements, this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
 		], {
-				identityProvider: element => element instanceof OpenEditor ? element.getId() : element.id.toString()
-			});
+				identityProvider: element => element instanceof OpenEditor ? element.getId() : element.id.toString(),
+				selectOnMouseDown: false /* disabled to better support DND */
+			}) as WorkbenchList<OpenEditor | IEditorGroup>;
 
 		this.contributedContextMenu = this.menuService.createMenu(MenuId.OpenEditorsContext, this.list.contextKeyService);
 		this.disposables.push(this.contributedContextMenu);
