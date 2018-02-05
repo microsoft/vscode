@@ -87,17 +87,19 @@ export default (): string => `
 
 	<div class="section">
 		<div id="disabledExtensions">
-			<label>${escape(localize('tryDisablingExtensions', "Is the problem reproducible when extensions are disabled?"))}</label>
-			<div class="choice">
-				<input type="radio" id="reproducesWithoutExtensions" value=true name="reprosWithoutExtensions" />
-				<label for="reproducesWithoutExtensions">${escape(localize('yes', "Yes"))}</label>
+			<div class="extensions-form">
+				<label>${escape(localize('tryDisablingExtensions', "Is the problem reproducible when extensions are disabled?"))}</label>
+				<div class="choice">
+					<input type="radio" id="reproducesWithoutExtensions" value=true name="reprosWithoutExtensions" />
+					<label for="reproducesWithoutExtensions">${escape(localize('yes', "Yes"))}</label>
+				</div>
+				<div class="choice">
+					<input type="radio" id="reproducesWithExtensions" value=false name="reprosWithoutExtensions" checked/>
+					<label for="reproducesWithExtensions">${escape(localize('no', "No"))}</label>
+				</div>
 			</div>
-			<div class="choice">
-				<input type="radio" id="reproducesWithExtensions" value=false name="reprosWithoutExtensions" checked/>
-				<label for="reproducesWithExtensions">${escape(localize('no', "No"))}</label>
-			</div>
-			<div class="instructions">Try to reproduce the problem after <button id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</button>.</div>
-			<div class="instructions">If you suspect it's an extension issue, <button id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "see all running extensions"))}</button>.</div>
+			<div class="instructions">${escape(localize('disableExtensionsLabel', "Try to reproduce the problem after "))}<button id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</button>.</div>
+			<div class="instructions">${escape(localize('showRunningExtensionsLabel', "If you suspect it's an extension issue, "))}<button id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "see all running extensions"))}</button>.</div>
 		</div>
 	</div>
 
