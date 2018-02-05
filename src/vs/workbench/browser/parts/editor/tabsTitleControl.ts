@@ -948,8 +948,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorGroupBackground = theme.getColor(EDITOR_GROUP_BACKGROUND);
 	const editorBackgroundColor = theme.getColor(editorBackground);
 	const editorDragAndDropBackground = theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
-	let workbenchBackground = theme.getColor(WORKBENCH_BACKGROUND);
+	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 	const themeNotHC = theme.type !== 'hc';
+
 	let adjustedTabBackground: Color;
 	let adjustedTabDragBackground: Color;
 

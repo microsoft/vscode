@@ -80,7 +80,6 @@ import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-bro
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { TextResourceConfigurationService } from 'vs/editor/common/services/resourceConfigurationImpl';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { TextMateService } from 'vs/workbench/services/textMate/electron-browser/TMSyntax';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
@@ -88,6 +87,7 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 
 /**
  * Services that we require for the Shell
@@ -502,7 +502,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 
 	// We need to set the workbench background color so that on Windows we get subpixel-antialiasing.
-	const workbenchBackground = theme.getColor(WORKBENCH_BACKGROUND);
+	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
 
 	// Scrollbars

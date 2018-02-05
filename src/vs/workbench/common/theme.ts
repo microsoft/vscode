@@ -9,13 +9,18 @@ import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
-// < --- Workbench --- >
+// < --- Workbench (not customizable) --- >
 
-export const WORKBENCH_BACKGROUND = registerColor('workbench.background', {
-	dark: '#252526',
-	light: '#F3F3F3',
-	hc: '#000000'
-}, nls.localize('workbenchBackground', "Workbench background color. The workbench is the container for all the other views."));
+export function WORKBENCH_BACKGROUND(theme: ITheme): Color {
+	switch (theme.type) {
+		case 'dark':
+			return Color.fromHex('#252526');
+		case 'light':
+			return Color.fromHex('#F3F3F3');
+		default:
+			return Color.fromHex('#000000');
+	}
+}
 
 // < --- Tabs --- >
 
