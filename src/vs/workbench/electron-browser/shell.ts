@@ -87,6 +87,7 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { stat } from 'fs';
 import { join } from 'path';
 
@@ -559,17 +560,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 
 	// We need to set the workbench background color so that on Windows we get subpixel-antialiasing.
-	let workbenchBackground: string;
-	switch (theme.type) {
-		case 'dark':
-			workbenchBackground = '#252526';
-			break;
-		case 'light':
-			workbenchBackground = '#F3F3F3';
-			break;
-		default:
-			workbenchBackground = '#000000';
-	}
+	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
 
 	// Scrollbars
