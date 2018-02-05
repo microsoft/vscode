@@ -36,7 +36,10 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
 export interface IFileInputFactory {
+
 	createFileInput(resource: URI, encoding: string, instantiationService: IInstantiationService): IFileEditorInput;
+
+	isFileInput(obj: any): obj is IFileEditorInput;
 }
 
 export interface IEditorInputFactoryRegistry {
