@@ -288,7 +288,8 @@ export class TerminalInstance implements ITerminalInstance {
 			lineHeight: font.lineHeight,
 			bellStyle: this._configHelper.config.enableBell ? 'sound' : 'none',
 			screenReaderMode: accessibilitySupport === 'on',
-			macOptionIsMeta: this._configHelper.config.macOptionIsMeta
+			macOptionIsMeta: this._configHelper.config.macOptionIsMeta,
+			rightClickSelectsWord: this._configHelper.config.rightClickBehavior === 'selectWord'
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -988,6 +989,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._setScrollback(this._configHelper.config.scrollback);
 		this._setEnableBell(this._configHelper.config.enableBell);
 		this._setMacOptionIsMeta(this._configHelper.config.macOptionIsMeta);
+		this._setRightClickSelectsWord(this._configHelper.config.rightClickBehavior === 'selectWord');
 	}
 
 	public updateAccessibilitySupport(): void {
@@ -1023,6 +1025,12 @@ export class TerminalInstance implements ITerminalInstance {
 	private _setMacOptionIsMeta(value: boolean): void {
 		if (this._xterm && this._xterm.getOption('macOptionIsMeta') !== value) {
 			this._xterm.setOption('macOptionIsMeta', value);
+		}
+	}
+
+	private _setRightClickSelectsWord(value: boolean): void {
+		if (this._xterm && this._xterm.getOption('rightClickSelectsWord') !== value) {
+			this._xterm.setOption('rightClickSelectsWord', value);
 		}
 	}
 
