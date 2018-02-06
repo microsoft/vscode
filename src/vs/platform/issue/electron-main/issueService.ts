@@ -51,6 +51,8 @@ export class IssueService implements IIssueService {
 		this._issueWindow = new BrowserWindow({
 			width: position.width,
 			height: position.height,
+			minWidth: 300,
+			minHeight: 200,
 			x: position.x,
 			y: position.y,
 			title: localize('issueReporter', "Issue Reporter"),
@@ -95,7 +97,7 @@ export class IssueService implements IIssueService {
 		}
 
 		let state = {
-			width: 750,
+			width: 800,
 			height: 900,
 			x: undefined,
 			y: undefined

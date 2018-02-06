@@ -249,13 +249,28 @@ export class IssueReporter extends Disposable {
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
 
-		document.getElementById('disableExtensions').addEventListener('click', () => {
+		const disableExtensions = document.getElementById('disableExtensions');
+		disableExtensions.addEventListener('click', () => {
 			ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
 			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
 		});
 
-		document.getElementById('showRunning').addEventListener('click', () => {
+		disableExtensions.addEventListener('keydown', (e) => {
+			if (e.keyCode === 13 || e.keyCode === 32) {
+				ipcRenderer.send('workbenchCommand', 'workbench.extensions.action.disableAll');
+				ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindow');
+			}
+		});
+
+		const showRunning = document.getElementById('showRunning');
+		showRunning.addEventListener('click', () => {
 			ipcRenderer.send('workbenchCommand', 'workbench.action.showRuntimeExtensions');
+		});
+
+		showRunning.addEventListener('keydown', (e) => {
+			if (e.keyCode === 13 || e.keyCode === 32) {
+				ipcRenderer.send('workbenchCommand', 'workbench.action.showRuntimeExtensions');
+			}
 		});
 
 		// Cmd+Enter or Mac or Ctrl+Enter on other platforms previews issue and closes window
