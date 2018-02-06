@@ -55,13 +55,14 @@ interface JSONSchemaSettings {
 	schema?: any;
 }
 
+let telemetryReporter: TelemetryReporter;
+
 export function activate(context: ExtensionContext) {
 
 	let toDispose = context.subscriptions;
 
 	let packageInfo = getPackageInfo(context);
-	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
-	toDispose.push(telemetryReporter);
+	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
@@ -167,6 +168,10 @@ export function activate(context: ExtensionContext) {
 	};
 	languages.setLanguageConfiguration('json', languageConfiguration);
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
+}
+
+export function deactivate(): Promise<any> {
+	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }
 
 function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
