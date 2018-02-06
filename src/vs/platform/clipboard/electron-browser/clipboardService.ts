@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 
 export class ClipboardService implements IClipboardService {
 
-	private static FILE_FORMAT = 'application/octet-stream';
+	private static FILE_FORMAT = 'code/file-list';
 
 	_serviceBrand: any;
 
@@ -48,6 +48,10 @@ export class ClipboardService implements IClipboardService {
 		return this.fromBuffer(clipboard.readBuffer(ClipboardService.FILE_FORMAT));
 	}
 
+	public hasFiles(): boolean {
+		return clipboard.has(ClipboardService.FILE_FORMAT);
+	}
+
 	private toBuffer(resources: URI[]): Buffer {
 		return new Buffer(resources.map(r => r.fsPath).join('\n'));
 	}
@@ -58,7 +62,12 @@ export class ClipboardService implements IClipboardService {
 		}
 
 		try {
-			return buffer.toString().split('\n').map(f => URI.file(f));
+			const bufferValue = buffer.toString();
+			if (!bufferValue) {
+				return [];
+			}
+
+			return bufferValue.split('\n').map(f => URI.file(f));
 		} catch (error) {
 			return []; // do not trust clipboard data
 		}

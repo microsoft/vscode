@@ -43,4 +43,9 @@ export interface IClipboardService {
 	 * Reads files from the system clipboard.
 	 */
 	readFiles(): URI[];
+
+	/**
+	 * Find out if files are copied to the clipboard.
+	 */
+	hasFiles(): boolean;
 }

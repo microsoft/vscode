@@ -50,7 +50,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { distinctParents, basenameOrAuthority } from 'vs/base/common/resources';
 
 export interface IEditableData {
@@ -873,9 +873,6 @@ export class ImportFileAction extends BaseFileAction {
 }
 
 // Copy File/Folder
-let filesToCopy: URI[];
-let fileCopiedContextKey: IContextKey<boolean>;
-
 class CopyFileAction extends BaseFileAction {
 
 	private tree: ITree;
@@ -885,22 +882,19 @@ class CopyFileAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IClipboardService private clipboardService: IClipboardService
 	) {
 		super('filesExplorer.copy', COPY_FILE_LABEL, fileService, messageService, textFileService);
 
 		this.tree = tree;
-		if (!fileCopiedContextKey) {
-			fileCopiedContextKey = FileCopiedContext.bindTo(contextKeyService);
-		}
 		this._updateEnablement();
 	}
 
 	public run(): TPromise<any> {
 
-		// Remember as file/folder to copy
-		filesToCopy = this.elements.map(e => e.resource);
-		fileCopiedContextKey.set(!!filesToCopy.length);
+		// Write to clipboard as file/folder to copy
+		this.clipboardService.writeFiles(this.elements.map(e => e.resource));
 
 		// Remove highlight
 		if (this.tree) {
@@ -946,30 +940,35 @@ class PasteFileAction extends BaseFileAction {
 			throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 		}
 
-		// Remove highlight
-		if (this.tree) {
-			this.tree.clearHighlight();
-		}
+		return this.fileService.resolveFile(fileToPaste).then(fileToPasteStat => {
 
-		// Find target
-		let target: FileStat;
-		if (this.element.resource.toString() === fileToPaste.toString()) {
-			target = this.element.parent;
-		} else {
-			target = this.element.isDirectory ? this.element : this.element.parent;
-		}
-
-		const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste });
-
-		// Copy File
-		return this.fileService.copyFile(fileToPaste, targetFile).then(stat => {
-			if (!stat.isDirectory) {
-				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+			// Remove highlight
+			if (this.tree) {
+				this.tree.clearHighlight();
 			}
 
-			return void 0;
-		}, error => this.onError(error)).then(() => {
-			this.tree.DOMFocus();
+			// Find target
+			let target: FileStat;
+			if (this.element.resource.toString() === fileToPaste.toString()) {
+				target = this.element.parent;
+			} else {
+				target = this.element.isDirectory ? this.element : this.element.parent;
+			}
+
+			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory });
+
+			// Copy File
+			return this.fileService.copyFile(fileToPaste, targetFile).then(stat => {
+				if (!stat.isDirectory) {
+					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+				}
+
+				return void 0;
+			}, error => this.onError(error)).then(() => {
+				this.tree.DOMFocus();
+			});
+		}, error => {
+			this.onError(new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
 		});
 	}
 }
@@ -1591,9 +1590,10 @@ export const copyFileHandler = (accessor: ServicesAccessor) => {
 export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
+	const clipboardService = accessor.get(IClipboardService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
-	return TPromise.join(distinctParents(filesToCopy, r => r).map(toCopy => {
+	return TPromise.join(distinctParents(clipboardService.readFiles(), r => r).map(toCopy => {
 		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
 		return pasteFileAction.run(toCopy);
 	}));
