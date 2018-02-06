@@ -149,7 +149,6 @@ export interface ITerminalService {
 	onActiveInstanceChanged: Event<string>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
-	onInstanceData: Event<{ instance: ITerminalInstance, data: string }>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];

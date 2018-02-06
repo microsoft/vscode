@@ -53,7 +53,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			shell);
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		terminalInstance.addDisposable(terminalInstance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
-		terminalInstance.addDisposable(terminalInstance.onDataForApi(this._onInstanceData.fire, this._onInstanceData));
 		terminalInstance.addDisposable(terminalInstance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
 		this.terminalInstances.push(terminalInstance);
 		if (this.terminalInstances.length === 1) {
