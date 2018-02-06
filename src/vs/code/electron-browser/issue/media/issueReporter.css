@@ -31,7 +31,12 @@ td {
 }
 
 .section {
-	margin-bottom: 2em;
+	margin-bottom: 1.5em;
+}
+
+#similar-issues {
+	margin-left: 10%;
+	display: block;
 }
 
 /**
@@ -48,6 +53,11 @@ input[type="text"], textarea {
 	border-radius: .25rem;
 	border: 1px solid #ced4da;
 }
+
+.inline-form-control {
+	display: inline-block !important;
+}
+
 textarea {
 	overflow: auto;
 	resize: vertical;
@@ -73,10 +83,9 @@ button {
 
 select {
 	height: calc(2.25rem + 2px);
-	display: block;
-	width: 100%;
-	padding: 0.375rem 0.75rem;
-	font-size: 1rem;
+	display: inline-block;
+	padding: 3px 3px;
+	font-size: 14px;
 	line-height: 1.5;
 	color: #495057;
 	background-color: #fff;
@@ -87,6 +96,11 @@ select {
 * {
 	box-sizing: border-box;
 }
+
+textarea {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+}
+
 html {
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
 	color: #CCCCCC;
@@ -107,7 +121,7 @@ body {
 .block .block-info {
 	width: 100%;
 	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
-	font-size: 14px;
+	font-size: 12px;
 	overflow: auto;
 	overflow-wrap: break-word;
 }
@@ -152,13 +166,31 @@ button:disabled {
 	margin-bottom: 1em;
 }
 
-.choice {
-	display: inline-block;
-	margin: 0 5px;
+.extensions-form {
+	display: flex;
 }
 
-.choice > label, .choice > input {
+.extensions-form > .form-buttons {
+	display: flex;
+	margin-left: 20px;
+}
+
+.extensions-form > .form-buttons > .choice {
+	margin-right: 35px;
+	position: relative;
+}
+
+.extensions-form > .form-buttons > .choice > label, .extensions-form  > .form-buttons > .choice > input {
 	cursor: pointer;
+	height: 100%;
+	margin-top: 1px;
+}
+
+.extensions-form > .form-buttons > .choice > label {
+	position: absolute;
+	top: 50%;
+	margin-top: -50%;
+	left: 20px;
 }
 
 .system-info {
@@ -172,7 +204,7 @@ select, input, textarea {
 
 summary {
 	border: 1px solid transparent;
-	padding: 10px;
+	padding: 0 10px;
 	margin-bottom: 5px;
 }
 
@@ -181,11 +213,18 @@ summary {
 	margin-top: 1em;
 }
 
-.caption {
+.include-data {
+	display: inline-block;
+	position: relative;
+}
+
+.include-data > .caption {
 	display: inline-block;
 	font-size: 12px;
-	vertical-align: middle;
-	height: 18px;
+	position: absolute;
+	width: 80px;
+	top: 2px;
+	left: 30px;
 }
 
 .sendData {
@@ -214,14 +253,9 @@ input:disabled {
 	margin-top: .5em;
 }
 
-.workbenchCommand {
-	padding: 0;
-	font-size: 12px;
-	background: transparent;
-}
-
 .workbenchCommand:disabled {
 	color: #868e96;
+	cursor: pointer;
 }
 
 .block-extensions .block-info {
@@ -250,4 +284,55 @@ a {
 button {
 	background-color: #007ACC;
 	color: #fff;
+}
+
+#issue-type-label {
+	width: 95px;
+}
+
+#issue-type {
+	width: calc(100% - 100px);
+}
+
+#issue-title-label {
+	width: 80px;
+	display: inline-block;
+}
+
+#issue-title {
+	width: calc(100% - 85px);
+}
+
+
+@media (max-width: 950px) {
+	#issue-type-label {
+		width: 12%;
+	}
+
+	#issue-type {
+		width: calc(88% - 5px);
+	}
+
+	#issue-title-label {
+		width: 10%;
+		display: inline-block
+	}
+
+	#issue-title {
+		width: calc(90% - 5px);
+	}
+}
+
+@media (max-width: 620px) {
+	#issue-title-label, #issue-type-label {
+		display: none !important;
+	}
+
+	#issue-type, #issue-title {
+		width: 100%;
+	}
+
+	#similar-issues {
+		margin-left: 0;
+	}
 }

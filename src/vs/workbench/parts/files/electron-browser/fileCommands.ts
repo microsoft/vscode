@@ -385,48 +385,48 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-const revealInOSHandler = (accessor: ServicesAccessor, resource: URI) => {
-	// Without resource, try to look at the active editor
-	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
-
+function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, messageService: IMessageService): void {
 	if (resources.length) {
-		const windowsService = accessor.get(IWindowsService);
 		sequence(resources.map(r => () => windowsService.showItemInFolder(paths.normalize(r.fsPath, true))));
 	} else {
-		const messageService = accessor.get(IMessageService);
 		messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
 	}
-};
+}
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: undefined,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R),
-	secondary: [KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R],
+	when: ExplorerFocusCondition,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
 	},
-	handler: revealInOSHandler
+	handler: (accessor: ServicesAccessor, resource: URI) => {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(IMessageService));
+	}
 });
-// TODO@isidor deprecated remove in february
-CommandsRegistry.registerCommand({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: undefined,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R),
 	id: 'workbench.action.files.revealActiveFileInWindows',
-	handler: revealInOSHandler
+	handler: (accessor: ServicesAccessor, resource: URI) => {
+		const editorService = accessor.get(IWorkbenchEditorService);
+		const activeInput = editorService.getActiveEditorInput();
+		const resources = activeInput && activeInput.getResource() ? [activeInput.getResource()] : [];
+		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(IMessageService));
+	}
 });
 
-const copyPathHandler = (accessor, resource: URI) => {
-	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+function resourcesToClipboard(resources: URI[], clipboardService: IClipboardService, messageService: IMessageService): void {
 	if (resources.length) {
-		const clipboardService = accessor.get(IClipboardService);
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
 		const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
 		clipboardService.writeText(text);
 	} else {
-		const messageService = accessor.get(IMessageService);
 		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
 	}
-};
-
+}
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ExplorerFocusCondition,
@@ -435,13 +435,23 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
 	},
 	id: COPY_PATH_COMMAND_ID,
-	handler: copyPathHandler
+	handler: (accessor, resource: URI) => {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
+		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(IMessageService));
+	}
 });
 
-// TODO@isidor deprecated remove in february
-CommandsRegistry.registerCommand({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: undefined,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_P),
 	id: 'workbench.action.files.copyPathOfActiveFile',
-	handler: copyPathHandler
+	handler: (accessor, resource: URI) => {
+		const editorService = accessor.get(IWorkbenchEditorService);
+		const activeInput = editorService.getActiveEditorInput();
+		const resources = activeInput && activeInput.getResource() ? [activeInput.getResource()] : [];
+		resourcesToClipboard(resources, accessor.get(IClipboardService), accessor.get(IMessageService));
+	}
 });
 
 CommandsRegistry.registerCommand({

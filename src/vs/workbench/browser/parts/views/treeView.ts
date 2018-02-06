@@ -14,7 +14,6 @@ import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { fillInActions, ContextAwareMenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
@@ -380,6 +379,10 @@ class Aligner extends Disposable {
 	}
 
 	private hasToAlignWithTwisty(): boolean {
+		if (this.hasParentHasIcon()) {
+			return false;
+		}
+
 		const fileIconTheme = this.themeService.getFileIconTheme();
 		if (!(fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons)) {
 			return false;
@@ -408,6 +411,21 @@ class Aligner extends Disposable {
 		const parent: ITreeItem = this.tree.getNavigator(this.node).parent() || this.tree.getInput();
 		return parent.children;
 	}
+
+	private hasParentHasIcon(): boolean {
+		const parent = this.tree.getNavigator(this.node).parent() || this.tree.getInput();
+		const icon = this.themeService.getTheme().type === LIGHT ? parent.icon : parent.iconDark;
+		if (icon) {
+			return true;
+		}
+		if (parent.resourceUri) {
+			const fileIconTheme = this.themeService.getFileIconTheme();
+			if (fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons) {
+				return true;
+			}
+		}
+		return false;
+	}
 }
 
 class TreeController extends WorkbenchTreeController {
@@ -419,7 +437,7 @@ class TreeController extends WorkbenchTreeController {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false }, configurationService);
+		super({}, configurationService);
 	}
 
 	public onContextMenu(tree: ITree, node: ITreeItem, event: ContextMenuEvent): boolean {

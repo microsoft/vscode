@@ -79,7 +79,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = this.instantiationService.createInstance(WorkbenchPagedList, this.extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions")
-		});
+		}) as WorkbenchPagedList<IExtension>;
 
 		chain(this.list.onOpen)
 			.map(e => e.elements[0])

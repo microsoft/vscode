@@ -191,6 +191,7 @@ export class LaunchService implements ILaunchService {
 
 	public getLogsPath(): TPromise<string> {
 		this.logService.trace('Received request for logs path from other instance.');
+
 		return TPromise.as(this.environmentService.logsPath);
 	}
 

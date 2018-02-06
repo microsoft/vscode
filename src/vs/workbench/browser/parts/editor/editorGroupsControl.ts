@@ -1064,7 +1064,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		}
 
 		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
-			$this.updateFromDropping(node, false);
+			$this.updateFromDragAndDrop(node, false);
 			cleanUp();
 
 			const editorService = $this.editorService;
@@ -1268,7 +1268,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				DOM.EventHelper.stop(e, true);
 				onDrop(e, Position.ONE);
 			} else {
-				this.updateFromDropping(node, false);
+				this.updateFromDragAndDrop(node, false);
 			}
 		}));
 
@@ -1286,7 +1286,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			}
 
 			counter++;
-			this.updateFromDropping(node, true);
+			this.updateFromDragAndDrop(node, true);
 
 			const target = <HTMLElement>e.target;
 			if (target) {
@@ -1296,7 +1296,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				createOverlay(target);
 
 				if (overlay) {
-					this.updateFromDropping(node, false); // if we show an overlay, we can remove the drop feedback from the editor background
+					this.updateFromDragAndDrop(node, false); // if we show an overlay, we can remove the drop feedback from the editor background
 				}
 			}
 		}));
@@ -1305,7 +1305,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.toUnbind.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			counter--;
 			if (counter === 0) {
-				this.updateFromDropping(node, false);
+				this.updateFromDragAndDrop(node, false);
 			}
 		}));
 
@@ -1313,7 +1313,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		[node, window].forEach(container => {
 			this.toUnbind.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_END, (e: DragEvent) => {
 				counter = 0;
-				this.updateFromDropping(node, false);
+				this.updateFromDragAndDrop(node, false);
 				cleanUp();
 			}));
 		});
@@ -1571,16 +1571,18 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		}
 	}
 
-	private updateFromDropping(element: HTMLElement, isDropping: boolean): void {
+	private updateFromDragAndDrop(element: HTMLElement, isDraggedOver: boolean): void {
 		const groupCount = this.stacks.groups.length;
-		const background = this.getColor(isDropping ? EDITOR_DRAG_AND_DROP_BACKGROUND : groupCount > 0 ? EDITOR_GROUP_BACKGROUND : null);
+		const background = this.getColor(isDraggedOver ? EDITOR_DRAG_AND_DROP_BACKGROUND : groupCount > 0 ? EDITOR_GROUP_BACKGROUND : null);
 		element.style.backgroundColor = background;
 
 		const activeContrastBorderColor = this.getColor(activeContrastBorder);
-		element.style.outlineColor = isDropping ? activeContrastBorderColor : null;
-		element.style.outlineStyle = isDropping && activeContrastBorderColor ? 'dashed' : null;
-		element.style.outlineWidth = isDropping && activeContrastBorderColor ? '2px' : null;
-		element.style.outlineOffset = isDropping && activeContrastBorderColor ? '-2px' : null;
+		element.style.outlineColor = isDraggedOver ? activeContrastBorderColor : null;
+		element.style.outlineStyle = isDraggedOver && activeContrastBorderColor ? 'dashed' : null;
+		element.style.outlineWidth = isDraggedOver && activeContrastBorderColor ? '2px' : null;
+		element.style.outlineOffset = isDraggedOver && activeContrastBorderColor ? '-2px' : null;
+
+		DOM.toggleClass(element, 'dragged-over', isDraggedOver);
 	}
 
 	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number, borderLeftTopWidth?: string | number): void {

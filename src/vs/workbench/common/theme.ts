@@ -9,6 +9,19 @@ import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
+// < --- Workbench (not customizable) --- >
+
+export function WORKBENCH_BACKGROUND(theme: ITheme): Color {
+	switch (theme.type) {
+		case 'dark':
+			return Color.fromHex('#252526');
+		case 'light':
+			return Color.fromHex('#F3F3F3');
+		default:
+			return Color.fromHex('#000000');
+	}
+}
+
 // < --- Tabs --- >
 
 export const TAB_ACTIVE_BACKGROUND = registerColor('tab.activeBackground', {

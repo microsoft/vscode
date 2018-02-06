@@ -525,16 +525,24 @@ export class SearchViewlet extends Viewlet {
 				}
 			}));
 
+			let treeHasFocus = false;
+			this.tree.onDidFocus(() => {
+				treeHasFocus = true;
+			});
+
 			this.toUnbind.push(this.tree.onDidChangeFocus((e: IFocusEvent) => {
-				const focus = e.focus;
-				this.firstMatchFocused.set(this.tree.getNavigator().first() === focus);
-				this.fileMatchOrMatchFocused.set(true);
-				this.fileMatchFocused.set(focus instanceof FileMatch);
-				this.folderMatchFocused.set(focus instanceof FolderMatch);
-				this.matchFocused.set(focus instanceof Match);
+				if (treeHasFocus) {
+					const focus = e.focus;
+					this.firstMatchFocused.set(this.tree.getNavigator().first() === focus);
+					this.fileMatchOrMatchFocused.set(true);
+					this.fileMatchFocused.set(focus instanceof FileMatch);
+					this.folderMatchFocused.set(focus instanceof FolderMatch);
+					this.matchFocused.set(focus instanceof Match);
+				}
 			}));
 
 			this.toUnbind.push(this.tree.onDidBlur(e => {
+				treeHasFocus = false;
 				this.firstMatchFocused.reset();
 				this.fileMatchOrMatchFocused.reset();
 				this.fileMatchFocused.reset();

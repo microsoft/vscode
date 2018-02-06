@@ -152,7 +152,7 @@ function handleListControllers<T>(options: IListOptions<T>, configurationService
 
 function handleTreeController(configuration: ITreeConfiguration, instantiationService: IInstantiationService): ITreeConfiguration {
 	if (!configuration.controller) {
-		configuration.controller = instantiationService.createInstance(WorkbenchTreeController, { clickBehavior: ClickBehavior.ON_MOUSE_UP });
+		configuration.controller = instantiationService.createInstance(WorkbenchTreeController, {});
 	}
 
 	return configuration;
@@ -176,7 +176,7 @@ export class WorkbenchList<T> extends List<T> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false } as IListOptions<any>, false));
+		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false, selectOnMouseDown: true } as IListOptions<any>, false));
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
@@ -224,7 +224,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false } as IListOptions<any>, false));
+		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false, selectOnMouseDown: true } as IListOptions<any>, false));
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
@@ -324,6 +324,18 @@ export class WorkbenchTree extends Tree {
 	}
 }
 
+function massageControllerOptions(options: IControllerOptions): IControllerOptions {
+	if (typeof options.keyboardSupport !== 'boolean') {
+		options.keyboardSupport = false;
+	}
+
+	if (typeof options.clickBehavior !== 'number') {
+		options.clickBehavior = ClickBehavior.ON_MOUSE_DOWN;
+	}
+
+	return options;
+}
+
 export class WorkbenchTreeController extends DefaultController {
 
 	protected disposables: IDisposable[] = [];
@@ -332,7 +344,7 @@ export class WorkbenchTreeController extends DefaultController {
 		options: IControllerOptions,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(options);
+		super(massageControllerOptions(options));
 
 		// if the open mode is not set, we configure it based on settings
 		if (isUndefinedOrNull(options.openMode)) {

@@ -100,6 +100,10 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileInputFactory({
 	createFileInput: (resource, encoding, instantiationService): IFileEditorInput => {
 		return instantiationService.createInstance(FileEditorInput, resource, encoding);
+	},
+
+	isFileInput: (obj): obj is IFileEditorInput => {
+		return obj instanceof FileEditorInput;
 	}
 });
 

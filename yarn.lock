@@ -5992,9 +5992,9 @@ vscode-nls-dev@3.0.7:
     xml2js "^0.4.19"
     yargs "^10.1.1"
 
-vscode-ripgrep@^0.7.1-patch.0:
-  version "0.7.1-patch.0"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.7.1-patch.0.tgz#738be8b6da5cb9a8807b528595a884b0dfcb60a5"
+vscode-ripgrep@0.7.1-patch.1.1:
+  version "0.7.1-patch.1.1"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.7.1-patch.1.1.tgz#d5fd19979998ccd040fd54c144c4190135e9e5c2"
 
 vscode-textmate@^3.2.0:
   version "3.2.0"
@@ -6003,9 +6003,9 @@ vscode-textmate@^3.2.0:
     fast-plist "^0.1.2"
     oniguruma "^6.0.1"
 
-vscode-xterm@3.1.0-beta15:
-  version "3.1.0-beta15"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.1.0-beta15.tgz#d0b5353fb1fd574ccd023c67c71957b9b0f158c5"
+vscode-xterm@3.2.0-beta1:
+  version "3.2.0-beta1"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.2.0-beta1.tgz#31ef2abaad87dd654cc538780d450a399e687469"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"

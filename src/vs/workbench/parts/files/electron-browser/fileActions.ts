@@ -50,8 +50,8 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { distinctParents } from 'vs/base/common/resources';
+import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { distinctParents, basenameOrAuthority } from 'vs/base/common/resources';
 
 export interface IEditableData {
 	action: IAction;
@@ -873,9 +873,6 @@ export class ImportFileAction extends BaseFileAction {
 }
 
 // Copy File/Folder
-let filesToCopy: FileStat[];
-let fileCopiedContextKey: IContextKey<boolean>;
-
 class CopyFileAction extends BaseFileAction {
 
 	private tree: ITree;
@@ -885,22 +882,19 @@ class CopyFileAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IClipboardService private clipboardService: IClipboardService
 	) {
 		super('filesExplorer.copy', COPY_FILE_LABEL, fileService, messageService, textFileService);
 
 		this.tree = tree;
-		if (!fileCopiedContextKey) {
-			fileCopiedContextKey = FileCopiedContext.bindTo(contextKeyService);
-		}
 		this._updateEnablement();
 	}
 
 	public run(): TPromise<any> {
 
-		// Remember as file/folder to copy
-		filesToCopy = this.elements;
-		fileCopiedContextKey.set(!!filesToCopy.length);
+		// Write to clipboard as file/folder to copy
+		this.clipboardService.writeFiles(this.elements.map(e => e.resource));
 
 		// Remove highlight
 		if (this.tree) {
@@ -926,7 +920,7 @@ class PasteFileAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(PasteFileAction.ID, PASTE_FILE_LABEL, fileService, messageService, textFileService);
 
@@ -939,33 +933,42 @@ class PasteFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(fileToCopy: FileStat): TPromise<any> {
-
-		const exists = fileToCopy.root.find(fileToCopy.resource);
-		if (!exists) {
-			fileToCopy = null;
-			fileCopiedContextKey.set(false);
-			throw new Error(nls.localize('fileDeleted', "File was deleted or moved meanwhile"));
-		}
+	public run(fileToPaste: URI): TPromise<any> {
 
 		// Check if target is ancestor of pasted folder
-		if (this.element.resource.toString() !== fileToCopy.resource.toString() && resources.isEqualOrParent(this.element.resource, fileToCopy.resource, !isLinux /* ignorecase */)) {
-			throw new Error(nls.localize('fileIsAncestor', "File to copy is an ancestor of the desitnation folder"));
+		if (this.element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(this.element.resource, fileToPaste, !isLinux /* ignorecase */)) {
+			throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 		}
 
-		// Find target
-		let target: FileStat;
-		if (this.element.resource.toString() === fileToCopy.resource.toString()) {
-			target = this.element.parent;
-		} else {
-			target = this.element.isDirectory ? this.element : this.element.parent;
-		}
+		return this.fileService.resolveFile(fileToPaste).then(fileToPasteStat => {
 
-		// Reuse duplicate action
-		const pasteAction = this.instantiationService.createInstance(DuplicateFileAction, this.tree, fileToCopy, target);
+			// Remove highlight
+			if (this.tree) {
+				this.tree.clearHighlight();
+			}
 
-		return pasteAction.run().then(() => {
-			this.tree.DOMFocus();
+			// Find target
+			let target: FileStat;
+			if (this.element.resource.toString() === fileToPaste.toString()) {
+				target = this.element.parent;
+			} else {
+				target = this.element.isDirectory ? this.element : this.element.parent;
+			}
+
+			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory });
+
+			// Copy File
+			return this.fileService.copyFile(fileToPaste, targetFile).then(stat => {
+				if (!stat.isDirectory) {
+					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+				}
+
+				return void 0;
+			}, error => this.onError(error)).then(() => {
+				this.tree.DOMFocus();
+			});
+		}, error => {
+			this.onError(new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
 		});
 	}
 }
@@ -973,11 +976,11 @@ class PasteFileAction extends BaseFileAction {
 // Duplicate File/Folder
 export class DuplicateFileAction extends BaseFileAction {
 	private tree: ITree;
-	private target: IFileStat;
+	private target: FileStat;
 
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		fileToDuplicate: FileStat,
 		target: FileStat,
 		@IFileService fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -987,8 +990,8 @@ export class DuplicateFileAction extends BaseFileAction {
 		super('workbench.files.action.duplicateFile', nls.localize('duplicateFile', "Duplicate"), fileService, messageService, textFileService);
 
 		this.tree = tree;
-		this.element = element;
-		this.target = (target && target.isDirectory) ? target : element.parent;
+		this.element = fileToDuplicate;
+		this.target = (target && target.isDirectory) ? target : fileToDuplicate.parent;
 		this._updateEnablement();
 	}
 
@@ -1000,7 +1003,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		}
 
 		// Copy File
-		const result = this.fileService.copyFile(this.element.resource, this.findTarget()).then(stat => {
+		const result = this.fileService.copyFile(this.element.resource, findValidPasteFileTarget(this.target, { resource: this.element.resource, isDirectory: this.element.isDirectory })).then(stat => {
 			if (!stat.isDirectory) {
 				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
@@ -1010,44 +1013,44 @@ export class DuplicateFileAction extends BaseFileAction {
 
 		return result;
 	}
+}
 
-	private findTarget(): URI {
-		let name = this.element.name;
+function findValidPasteFileTarget(targetFolder: FileStat, fileToPaste: { resource: URI, isDirectory?: boolean }): URI {
+	let name = basenameOrAuthority(fileToPaste.resource);
 
-		let candidate = this.target.resource.with({ path: paths.join(this.target.resource.path, name) });
-		while (true) {
-			if (!this.element.root.find(candidate)) {
-				break;
-			}
-
-			name = this.toCopyName(name, this.element.isDirectory);
-			candidate = this.target.resource.with({ path: paths.join(this.target.resource.path, name) });
+	let candidate = targetFolder.resource.with({ path: paths.join(targetFolder.resource.path, name) });
+	while (true) {
+		if (!targetFolder.root.find(candidate)) {
+			break;
 		}
 
-		return candidate;
+		name = incrementFileName(name, fileToPaste.isDirectory);
+		candidate = targetFolder.resource.with({ path: paths.join(targetFolder.resource.path, name) });
 	}
 
-	private toCopyName(name: string, isFolder: boolean): string {
+	return candidate;
+}
 
-		// file.1.txt=>file.2.txt
-		if (!isFolder && name.match(/(.*\.)(\d+)(\..*)$/)) {
-			return name.replace(/(.*\.)(\d+)(\..*)$/, (match, g1?, g2?, g3?) => { return g1 + (parseInt(g2) + 1) + g3; });
-		}
+function incrementFileName(name: string, isFolder: boolean): string {
 
-		// file.txt=>file.1.txt
-		const lastIndexOfDot = name.lastIndexOf('.');
-		if (!isFolder && lastIndexOfDot >= 0) {
-			return strings.format('{0}.1{1}', name.substr(0, lastIndexOfDot), name.substr(lastIndexOfDot));
-		}
-
-		// folder.1=>folder.2
-		if (isFolder && name.match(/(\d+)$/)) {
-			return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => { return String(parseInt(groups[0]) + 1); });
-		}
-
-		// file/folder=>file.1/folder.1
-		return strings.format('{0}.1', name);
+	// file.1.txt=>file.2.txt
+	if (!isFolder && name.match(/(.*\.)(\d+)(\..*)$/)) {
+		return name.replace(/(.*\.)(\d+)(\..*)$/, (match, g1?, g2?, g3?) => { return g1 + (parseInt(g2) + 1) + g3; });
 	}
+
+	// file.txt=>file.1.txt
+	const lastIndexOfDot = name.lastIndexOf('.');
+	if (!isFolder && lastIndexOfDot >= 0) {
+		return strings.format('{0}.1{1}', name.substr(0, lastIndexOfDot), name.substr(lastIndexOfDot));
+	}
+
+	// folder.1=>folder.2
+	if (isFolder && name.match(/(\d+)$/)) {
+		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => { return String(parseInt(groups[0]) + 1); });
+	}
+
+	// file/folder=>file.1/folder.1
+	return strings.format('{0}.1', name);
 }
 
 // Global Compare with
@@ -1587,9 +1590,10 @@ export const copyFileHandler = (accessor: ServicesAccessor) => {
 export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
+	const clipboardService = accessor.get(IClipboardService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
-	return TPromise.join(distinctParents(filesToCopy, s => s.resource).map(toCopy => {
+	return TPromise.join(distinctParents(clipboardService.readFiles(), r => r).map(toCopy => {
 		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
 		return pasteFileAction.run(toCopy);
 	}));

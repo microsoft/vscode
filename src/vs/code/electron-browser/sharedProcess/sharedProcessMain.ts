@@ -40,6 +40,9 @@ import { createSharedProcessContributions } from 'vs/code/electron-browser/share
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { LocalizationsChannel } from 'vs/platform/localizations/common/localizationsIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -141,6 +144,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 
 		const instantiationService2 = instantiationService.createChild(services);
 
@@ -151,6 +155,10 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+
+			const localizationsService = accessor.get(ILocalizationsService);
+			const localizationsChannel = new LocalizationsChannel(localizationsService);
+			server.registerChannel('localizations', localizationsChannel);
 
 			createSharedProcessContributions(instantiationService2);
 		});

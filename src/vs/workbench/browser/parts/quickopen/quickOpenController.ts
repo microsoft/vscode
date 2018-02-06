@@ -180,7 +180,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 			// open quick pick with just one choice. we will recurse whenever
 			// the validation/success message changes
-			this.doPick(TPromise.as([{ label: currentPick }]), {
+			this.doPick(TPromise.as([{ label: currentPick, tooltip: currentPick /* make sure message/validation can be read through the hover */ }]), {
 				ignoreFocusLost: options.ignoreFocusLost,
 				autoFocus: { autoFocusFirstEntry: true },
 				password: options.password,
@@ -1024,6 +1024,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 	private _shouldRunWithContext: IEntryRunContext;
 	private description: string;
 	private detail: string;
+	private tooltip: string;
 	private hasSeparator: boolean;
 	private separatorLabel: string;
 	private alwaysShow: boolean;
@@ -1045,6 +1046,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 
 		this.description = item.description;
 		this.detail = item.detail;
+		this.tooltip = item.tooltip;
 		this.hasSeparator = item.separator && item.separator.border;
 		this.separatorLabel = item.separator && item.separator.label;
 		this.alwaysShow = item.alwaysShow;
@@ -1095,6 +1097,10 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 
 	public getDetail(): string {
 		return this.detail;
+	}
+
+	public getTooltip(): string {
+		return this.tooltip;
 	}
 
 	public showBorder(): boolean {

@@ -26,7 +26,7 @@ import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
-import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData, SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -36,7 +36,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IConfirmation, Severity, IConfirmationResult, getConfirmMessage } from 'vs/platform/message/common/message';
@@ -57,6 +57,7 @@ import { relative } from 'path';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { distinctParents } from 'vs/base/common/resources';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -326,7 +327,7 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 
 // Explorer Controller
 export class FileController extends WorkbenchTreeController implements IDisposable {
-
+	private fileCopiedContextKey: IContextKey<boolean>;
 	private contributedContextMenu: IMenu;
 	private toDispose: IDisposable[];
 	private previousSelectionRangeStop: FileStat;
@@ -337,10 +338,12 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMenuService private menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IClipboardService private clipboardService: IClipboardService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ }, configurationService);
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ }, configurationService);
 
+		this.fileCopiedContextKey = FileCopiedContext.bindTo(contextKeyService);
 		this.toDispose = [];
 	}
 
@@ -409,7 +412,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		else {
 
 			// Expand / Collapse
-			if (isDoubleClick || this.openOnSingleClick) {
+			if (isDoubleClick || this.openOnSingleClick || this.isClickOnTwistie(event)) {
 				tree.toggleExpansion(stat, event.altKey);
 				this.previousSelectionRangeStop = undefined;
 			}
@@ -445,6 +448,9 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		event.stopPropagation();
 
 		tree.setFocus(stat);
+
+		// update dynamic contexts
+		this.fileCopiedContextKey.set(this.clipboardService.hasFiles());
 
 		if (!this.contributedContextMenu) {
 			this.contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, tree.contextKeyService);
@@ -715,6 +721,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
 		const sources: FileStat[] = data.getData();
 		if (sources && sources.length) {
+
 			// When dragging folders, make sure to collapse them to free up some space
 			sources.forEach(s => {
 				if (s.isDirectory && tree.isExpanded(s)) {

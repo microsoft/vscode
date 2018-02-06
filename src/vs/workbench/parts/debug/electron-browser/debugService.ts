@@ -708,7 +708,7 @@ export class DebugService implements debug.IDebugService {
 								rootForName = launch.workspace;
 							} else {
 								return TPromise.wrapError(new Error(launchesContainingName.length === 0 ? nls.localize('noConfigurationNameInWorkspace', "Could not find launch configuration '{0}' in the workspace.", name)
-									: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurates `{0}` in the workspace. Use folder name to qualify the configuration.", name)));
+									: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurations `{0}` in the workspace. Use folder name to qualify the configuration.", name)));
 							}
 						} else if (configData.folder) {
 							const root = this.contextService.getWorkspace().folders.filter(f => f.name === configData.folder).pop();
