@@ -34,10 +34,3 @@ steps:
     .\scripts\test.bat
     .\scripts\test-integration.bat
   name: test
-
-- task: PublishBuildArtifacts@1
-  inputs:
-    PathtoPublish: 'C:\NPM\Cache\_logs'
-    ArtifactName: 'npm_logs'
-    ArtifactType: 'Container'
-  condition: always()
