@@ -7,12 +7,16 @@
 
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { clipboard } from 'electron';
-import * as platform from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
+import { isMacintosh } from 'vs/base/common/platform';
+import { parse } from 'fast-plist';
 
 export class ClipboardService implements IClipboardService {
 
-	private static FILE_FORMAT = 'code/file-list';
+	// Clipboard format for files
+	// Windows/Linux: custom
+	// macOS: native, see https://developer.apple.com/documentation/appkit/nsfilenamespboardtype
+	private static FILE_FORMAT = isMacintosh ? 'NSFilenamesPboardType' : 'code/file-list';
 
 	_serviceBrand: any;
 
@@ -25,7 +29,7 @@ export class ClipboardService implements IClipboardService {
 	}
 
 	public readFindText(): string {
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			return clipboard.readFindText();
 		}
 
@@ -33,7 +37,7 @@ export class ClipboardService implements IClipboardService {
 	}
 
 	public writeFindText(text: string): void {
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			clipboard.writeFindText(text);
 		}
 	}
@@ -41,30 +45,40 @@ export class ClipboardService implements IClipboardService {
 	public writeFiles(resources: URI[]): void {
 		const files = resources.filter(f => f.scheme === 'file');
 
-		clipboard.writeBuffer(ClipboardService.FILE_FORMAT, this.toBuffer(files));
+		if (files.length) {
+			clipboard.writeBuffer(ClipboardService.FILE_FORMAT, this.filesToBuffer(files));
+		}
 	}
 
 	public readFiles(): URI[] {
-		return this.fromBuffer(clipboard.readBuffer(ClipboardService.FILE_FORMAT));
+		return this.bufferToFiles(clipboard.readBuffer(ClipboardService.FILE_FORMAT));
 	}
 
 	public hasFiles(): boolean {
 		return clipboard.has(ClipboardService.FILE_FORMAT);
 	}
 
-	private toBuffer(resources: URI[]): Buffer {
+	private filesToBuffer(resources: URI[]): Buffer {
+		if (isMacintosh) {
+			return this.macOSFilesToBuffer(resources);
+		}
+
 		return new Buffer(resources.map(r => r.fsPath).join('\n'));
 	}
 
-	private fromBuffer(buffer: Buffer): URI[] {
+	private bufferToFiles(buffer: Buffer): URI[] {
 		if (!buffer) {
 			return [];
 		}
 
+		const bufferValue = buffer.toString();
+		if (!bufferValue) {
+			return [];
+		}
+
 		try {
-			const bufferValue = buffer.toString();
-			if (!bufferValue) {
-				return [];
+			if (isMacintosh) {
+				return this.macOSBufferToFiles(bufferValue);
 			}
 
 			return bufferValue.split('\n').map(f => URI.file(f));
@@ -73,4 +87,24 @@ export class ClipboardService implements IClipboardService {
 		}
 	}
 
+	private macOSFilesToBuffer(resources: URI[]): Buffer {
+		return new Buffer(`
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<array>
+	${resources.map(r => `<string>${r.fsPath}</string>`).join('\n')}
+	</array>
+</plist>
+		`);
+	}
+
+	private macOSBufferToFiles(buffer: string): URI[] {
+		const result = parse(buffer) as string[];
+		if (Array.isArray(result)) {
+			return result.map(f => URI.file(f));
+		}
+
+		return [];
+	}
 }
