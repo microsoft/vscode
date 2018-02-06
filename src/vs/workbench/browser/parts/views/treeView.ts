@@ -380,6 +380,10 @@ class Aligner extends Disposable {
 	}
 
 	private hasToAlignWithTwisty(): boolean {
+		if (this.hasParentHasIcon()) {
+			return false;
+		}
+
 		const fileIconTheme = this.themeService.getFileIconTheme();
 		if (!(fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons)) {
 			return false;
@@ -407,6 +411,21 @@ class Aligner extends Disposable {
 	private getSiblings(): ITreeItem[] {
 		const parent: ITreeItem = this.tree.getNavigator(this.node).parent() || this.tree.getInput();
 		return parent.children;
+	}
+
+	private hasParentHasIcon(): boolean {
+		const parent = this.tree.getNavigator(this.node).parent() || this.tree.getInput();
+		const icon = this.themeService.getTheme().type === LIGHT ? parent.icon : parent.iconDark;
+		if (icon) {
+			return true;
+		}
+		if (parent.resourceUri) {
+			const fileIconTheme = this.themeService.getFileIconTheme();
+			if (fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
 
