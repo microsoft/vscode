@@ -176,7 +176,7 @@ button:disabled {
 }
 
 .extensions-form > .form-buttons > .choice {
-	margin-right: 30px;
+	margin-right: 35px;
 	position: relative;
 }
 
@@ -191,7 +191,6 @@ button:disabled {
 	top: 50%;
 	margin-top: -50%;
 	left: 20px;
-	margin-right: 10px;
 }
 
 .system-info {
