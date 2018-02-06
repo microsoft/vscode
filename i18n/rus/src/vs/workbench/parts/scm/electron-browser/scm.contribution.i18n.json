@@ -11,5 +11,6 @@
 	"toggleSCMViewlet": "Показать SCM",
 	"view": "Просмотреть",
 	"scmConfigurationTitle": "SCM",
-	"alwaysShowProviders": "Всегда отображать хранилище исходного кода"
+	"alwaysShowProviders": "Всегда отображать хранилище исходного кода",
+	"diffDecorations": "Управляет декораторами diff в редакторе."
 }

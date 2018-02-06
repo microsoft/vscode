@@ -22,6 +22,7 @@
 	"closeAllUnmodified": "Nicht geänderte schließen",
 	"closeAll": "Alle schließen",
 	"keepOpen": "Geöffnet lassen",
+	"toggleInlineView": "Inlineansicht umschalten",
 	"showOpenedEditors": "Geöffnete Editoren anzeigen",
 	"keepEditor": "Editor beibehalten",
 	"closeEditorsInGroup": "Alle Editoren in der Gruppe schließen",

@@ -20,6 +20,7 @@
 	"processes": "当前运行的进程",
 	"workspaceStats": "我的工作区数据",
 	"extensions": "我的扩展",
+	"tryDisablingExtensions": "此问题可在禁用扩展后重现",
 	"disableExtensions": "禁用所有扩展并重新加载窗口",
 	"showRunningExtensions": "查看所有运行中的扩展",
 	"githubMarkdown": "我们支持 GitHub 版 Markdown。您将能在 GitHub 上预览时编辑问题并添加截图。",

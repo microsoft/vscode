@@ -32,8 +32,12 @@
 	"app.launch.json.configurations": "A konfigurációk listája. Új konfigurációk hozzáadhatók vagy a meglévők szerkeszthetők az IntelliSense használatával.",
 	"app.launch.json.compounds": "A kombinációk listája. Minden kombináció több konfigurációt hivatkozik meg, melyek együtt indulnak el.",
 	"app.launch.json.compound.name": "A kombináció neve. Az indítási konfiguráció lenyíló menüjében jelenik meg.",
+	"useUniqueNames": "Használjon egyedi konfigurációs neveket!",
+	"app.launch.json.compound.folder": "A mappa neve, ahol az összetett konfiguráció található.",
 	"app.launch.json.compounds.configurations": "Azon konfigurációk neve, melyek elindulnak ezen kombináció részeként.",
 	"debugNoType": "A hibakeresési illesztő 'type' tulajdonsága kötelező, és 'string' típusúnak kell lennie.",
 	"selectDebug": "Környezet kiválasztása",
-	"DebugConfig.failed": "Nem sikerült létrehozni a 'launch.json' fájlt a '.vscode' mappánan ({0})."
+	"DebugConfig.failed": "Nem sikerült létrehozni a 'launch.json' fájlt a '.vscode' mappánan ({0}).",
+	"workspace": "munkaterület",
+	"user settings": "felhasználói beállítások"
 }

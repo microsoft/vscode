@@ -52,6 +52,8 @@
 	"configureWorkspaceRecommendedExtensions": "Configurer les extensions recommandées (espace de travail)",
 	"configureWorkspaceFolderRecommendedExtensions": "Configurer les extensions recommandées (Dossier d'espace de travail)",
 	"builtin": "Intégrée",
+	"malicious tooltip": "Cette extension a été signalée comme problématique.",
+	"malicious": "Malveillant",
 	"disableAll": "Désactiver toutes les extensions installées",
 	"disableAllWorkspace": "Désactiver toutes les extensions installées pour cet espace de travail",
 	"enableAll": "Activer toutes les extensions installées",

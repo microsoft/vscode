@@ -15,5 +15,6 @@
 	"moreInfo.title": "Informations",
 	"enableSecurityWarning.title": "Activer l'aperçu d'avertissements de sécurité pour cet espace de travail",
 	"disableSecurityWarning.title": "Désactiver l'aperçu d'avertissements de sécurité pour cet espace de travail",
+	"toggleSecurityWarning.description": "N’affecte pas le niveau de sécurité du contenu",
 	"preview.showPreviewSecuritySelector.title": "Sélectionner les paramètres de sécurité pour les aperçus Markdown dans cet espace de travail"
 }

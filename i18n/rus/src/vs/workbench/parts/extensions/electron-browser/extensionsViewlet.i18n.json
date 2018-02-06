@@ -19,5 +19,6 @@
 	"suggestProxyError": "Marketplace вернул значение \"ECONNREFUSED\". Проверьте параметр \"http.proxy\".",
 	"extensions": "Расширения",
 	"outdatedExtensions": "Устаревшие расширения: {0}",
+	"malicious warning": "Мы удалили расширение '{0}', которое вызывало проблемы.",
 	"reloadNow": "Перезагрузить"
 }

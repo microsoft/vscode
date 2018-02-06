@@ -20,6 +20,9 @@
 	"noUpdatesAvailable": "Não há nenhuma atualização disponível.",
 	"download now": "Baixar agora",
 	"thereIsUpdateAvailable": "Há uma atualização disponível.",
+	"installUpdate": "Instalar Atualização",
+	"updateAvailable": "Há uma atualização disponível: {0} {1}",
+	"updateInstalling": "{0} {1} está sendo instalado no plano de fundo, nós te avisaremos quando estiver pronto.",
 	"updateNow": "Atualizar Agora",
 	"updateAvailableAfterRestart": "{0} será atualizado após reiniciar.",
 	"commandPalette": "Paleta de comandos...",
@@ -31,6 +34,7 @@
 	"checkForUpdates": "Verificar atualizações...",
 	"checkingForUpdates": "Verificando Atualizações...",
 	"DownloadingUpdate": "Baixando Atualização...",
+	"installUpdate...": "Instalar Atualização...",
 	"installingUpdate": "Instalando Atualização...",
 	"restartToUpdate": "Reinicie para Atualizar..."
 }

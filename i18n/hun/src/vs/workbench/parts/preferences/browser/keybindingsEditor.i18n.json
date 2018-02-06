@@ -17,6 +17,7 @@
 	"addLabel": "Billentyűparancs hozzáadása",
 	"removeLabel": "Billentyűparancs eltávolítása",
 	"resetLabel": "Billentyűparancs visszaállítása",
+	"showSameKeybindings": "Egyező billentyűparancsok megjelenítése",
 	"copyLabel": "Másolás",
 	"copyCommandLabel": "Parancs másolása",
 	"error": "'{0}' hiba a billentyűparancsok szerkesztése közben. Nyissa meg a 'keybindings.json' fájlt, és ellenőrizze!",

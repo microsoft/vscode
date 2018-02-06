@@ -10,6 +10,8 @@
 	"SearchSettingsWidget.AriaLabel": "Beállítások keresése",
 	"SearchSettingsWidget.Placeholder": "Beállítások keresése",
 	"noSettingsFound": "Nincs eredmény",
+	"oneSettingFound": "1 egyező beállítás",
+	"settingsFound": "{0} egyező beállítás",
 	"totalSettingsMessage": "Összesen {0} beállítás",
 	"nlpResult": "Természetes nyelvi keresés eredményei",
 	"filterResult": "Szűrt találatok",

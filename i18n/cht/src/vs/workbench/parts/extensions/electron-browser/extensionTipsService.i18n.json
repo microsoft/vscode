@@ -11,6 +11,7 @@
 	"workspaceRecommendation": "根據目前工作區的使用者，建議您使用此延伸模組。",
 	"fileBasedRecommendation": "根據您最近開啟的檔案，建議您使用此延伸模組。",
 	"exeBasedRecommendation": "因為您已安裝 {0}，所以建議您使用此延伸模組。",
+	"dynamicWorkspaceRecommendation": "因為目前的工作區有許多使用者使用此延伸模組，所以您可能會對其有興趣。",
 	"reallyRecommended2": "建議對此檔案類型使用 '{0}' 延伸模組。",
 	"reallyRecommendedExtensionPack": "建議對此檔案類型使用 '{0}' 延伸模組套件。",
 	"showRecommendations": "顯示建議",

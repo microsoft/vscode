@@ -38,6 +38,7 @@
 	"editorConfigurationTitle": "Editor",
 	"formatOnSave": "Hiermit wird eine Datei beim Speichern formatiert. Es muss ein Formatierer vorhanden sein, die Datei darf nicht automatisch gespeichert werden, und der Editor darf nicht geschlossen werden.",
 	"explorerConfigurationTitle": "Datei-Explorer",
+	"openEditorsVisible": "Die Anzahl der Editoren, die im Bereich \"Geöffnete Editoren\" angezeigt werden.",
 	"autoReveal": "Steuert, ob der Explorer Dateien beim Öffnen automatisch anzeigen und auswählen soll.",
 	"enableDragAndDrop": "Steuert, ob der Explorer das Verschieben von Dateien und Ordnern mithilfe von Drag  Drop zulassen soll.",
 	"confirmDragAndDrop": "Steuert, ob der Explorer um Bestätigung bittet, um Dateien und Ordner per Drag & Drop zu verschieben.",

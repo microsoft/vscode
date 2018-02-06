@@ -32,6 +32,8 @@
 	"app.launch.json.configurations": "構成の一覧。IntelliSense を使用して、新しい構成を追加したり、既存の構成を編集したります。",
 	"app.launch.json.compounds": "複合の一覧。各複合は、同時に起動される複数の構成を参照します。",
 	"app.launch.json.compound.name": "複合の名前。起動構成のドロップダウン メニューに表示されます。",
+	"useUniqueNames": "一意の構成名を使用してください。",
+	"app.launch.json.compound.folder": "複合があるフォルダーの名前。",
 	"app.launch.json.compounds.configurations": "この複合の一部として開始される構成の名前。",
 	"debugNoType": "デバッグ アダプター 'type' は省略不可で、'string' 型でなければなりません。",
 	"selectDebug": "環境の選択",

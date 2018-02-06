@@ -11,6 +11,7 @@
 	"workspaceRecommendation": "現在のワークスペースのユーザーによってこの拡張機能が推奨されています。",
 	"fileBasedRecommendation": "最近開いたファイルに基づいてこの拡張機能が推奨されます。",
 	"exeBasedRecommendation": "{0} がインストールされているため、この拡張機能を推奨します。",
+	"dynamicWorkspaceRecommendation": "現在のワークスペースの他の多くのユーザーがこの拡張機能を使用しているので、お客様も関心を持たれるかもしれません。",
 	"reallyRecommended2": "このファイルの種類には拡張機能 '{0}' が推奨されます。",
 	"reallyRecommendedExtensionPack": "このファイルの種類には拡張機能パック '{0}' が推奨されます。",
 	"showRecommendations": "推奨事項を表示",

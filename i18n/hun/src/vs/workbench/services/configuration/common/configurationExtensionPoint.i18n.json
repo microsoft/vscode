@@ -21,6 +21,7 @@
 	"workspaceConfig.name.description": "A mappa neve. Nem kötelező megadni.",
 	"workspaceConfig.uri.description": "A mappa URI-ja",
 	"workspaceConfig.settings.description": "Munkaterület-beállítások",
+	"workspaceConfig.launch.description": "Munkaterületspecifikus indítási konfigurációk",
 	"workspaceConfig.extensions.description": "Munkaterület-kiegészítők",
 	"unknownWorkspaceProperty": "Ismeretlen munkaterület-konfigurációs tulajdonság"
 }

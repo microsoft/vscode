@@ -52,6 +52,8 @@
 	"configureWorkspaceRecommendedExtensions": "Configurar Extensões Recomendadas (Espaço de Trabalho)",
 	"configureWorkspaceFolderRecommendedExtensions": "Configurar as Extensões Recomendadas (Pasta do Espaço de Trabalho)",
 	"builtin": "Intrínseco",
+	"malicious tooltip": "Esta extensão foi relatada como problemática.",
+	"malicious": "Malicioso",
 	"disableAll": "Desabilitar Todas as Extensões Instaladas",
 	"disableAllWorkspace": "Desabilitar Todas as Extensões Instaladas para este Espaço de Trabalho",
 	"enableAll": "Habilitar Todas as Extensões Instaladas",

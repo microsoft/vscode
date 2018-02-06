@@ -19,5 +19,6 @@
 	"suggestProxyError": "Marketplace が 'ECONNREFUSED' を返しました。'http.proxy' 設定を確認してください。",
 	"extensions": "拡張機能",
 	"outdatedExtensions": "{0} 古くなった拡張機能",
+	"malicious warning": "問題があることが報告された '{0}' をアンインストールしました。",
 	"reloadNow": "今すぐ再度読み込む"
 }

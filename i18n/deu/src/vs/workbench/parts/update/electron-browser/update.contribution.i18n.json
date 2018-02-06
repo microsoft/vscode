@@ -8,5 +8,6 @@
 	],
 	"release notes": "Anmerkungen zu dieser Version",
 	"updateConfigurationTitle": "Aktualisieren",
-	"updateChannel": "Konfiguriert, ob automatische Updates aus einem Updatekanal empfangen werden sollen. Erfordert einen Neustart nach der Änderung."
+	"updateChannel": "Konfiguriert, ob automatische Updates aus einem Updatekanal empfangen werden sollen. Erfordert einen Neustart nach der Änderung.",
+	"enableWindowsBackgroundUpdates": "Aktiviert Windows-Hintergrundaktualisierungen."
 }
