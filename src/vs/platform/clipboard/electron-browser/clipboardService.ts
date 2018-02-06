@@ -8,8 +8,11 @@
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { clipboard } from 'electron';
 import * as platform from 'vs/base/common/platform';
+import URI from 'vs/base/common/uri';
 
 export class ClipboardService implements IClipboardService {
+
+	private static FILE_FORMAT = 'application/octet-stream';
 
 	_serviceBrand: any;
 
@@ -25,6 +28,7 @@ export class ClipboardService implements IClipboardService {
 		if (platform.isMacintosh) {
 			return clipboard.readFindText();
 		}
+
 		return '';
 	}
 
@@ -33,4 +37,31 @@ export class ClipboardService implements IClipboardService {
 			clipboard.writeFindText(text);
 		}
 	}
+
+	public writeFiles(resources: URI[]): void {
+		const files = resources.filter(f => f.scheme === 'file');
+
+		clipboard.writeBuffer(ClipboardService.FILE_FORMAT, this.toBuffer(files));
+	}
+
+	public readFiles(): URI[] {
+		return this.fromBuffer(clipboard.readBuffer(ClipboardService.FILE_FORMAT));
+	}
+
+	private toBuffer(resources: URI[]): Buffer {
+		return new Buffer(resources.map(r => r.fsPath).join('\n'));
+	}
+
+	private fromBuffer(buffer: Buffer): URI[] {
+		if (!buffer) {
+			return [];
+		}
+
+		try {
+			return buffer.toString().split('\n').map(f => URI.file(f));
+		} catch (error) {
+			return []; // do not trust clipboard data
+		}
+	}
+
 }

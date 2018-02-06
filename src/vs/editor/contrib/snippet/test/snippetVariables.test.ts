@@ -217,6 +217,8 @@ suite('Snippet Variables Resolver', function () {
 			writeText = this._throw;
 			readFindText = this._throw;
 			writeFindText = this._throw;
+			writeFiles = this._throw;
+			readFiles = this._throw;
 		};
 		let resolver = new ClipboardBasedVariableResolver(clipboardService, 1, 0);
 
@@ -247,6 +249,8 @@ suite('Snippet Variables Resolver', function () {
 			writeText = this._throw;
 			readFindText = this._throw;
 			writeFindText = this._throw;
+			writeFiles = this._throw;
+			readFiles = this._throw;
 		};
 
 		resolver = new ClipboardBasedVariableResolver(clipboardService, 1, 2);
