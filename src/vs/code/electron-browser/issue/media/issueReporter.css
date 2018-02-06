@@ -34,25 +34,8 @@ td {
 	margin-bottom: 1.5em;
 }
 
-#issue-type-label {
-	width: 12%;
-}
-
-#issue-type {
-	width: calc(88% - 5px);
-}
-
-#issue-title-label {
-	width: 10%;
-	display: inline-block
-}
-
-#issue-title {
-	width: calc(90% - 5px);
-}
-
 #similar-issues {
-	margin-left: 67px;
+	margin-left: 10%;
 	display: block;
 }
 
@@ -183,13 +166,31 @@ button:disabled {
 	margin-bottom: 1em;
 }
 
-.choice {
-	display: inline-block;
-	margin: 0 5px;
+.extensions-form {
+	display: flex;
 }
 
-.choice > label, .choice > input {
+.extensions-form > .form-buttons {
+	display: flex;
+	margin-left: 20px;
+}
+
+.extensions-form > .form-buttons > .choice {
+	margin-right: 35px;
+	position: relative;
+}
+
+.extensions-form > .form-buttons > .choice > label, .extensions-form  > .form-buttons > .choice > input {
 	cursor: pointer;
+	height: 100%;
+	margin-top: 1px;
+}
+
+.extensions-form > .form-buttons > .choice > label {
+	position: absolute;
+	top: 50%;
+	margin-top: -50%;
+	left: 20px;
 }
 
 .system-info {
@@ -212,11 +213,18 @@ summary {
 	margin-top: 1em;
 }
 
-.caption {
+.include-data {
+	display: inline-block;
+	position: relative;
+}
+
+.include-data > .caption {
 	display: inline-block;
 	font-size: 12px;
-	vertical-align: middle;
-	height: 18px;
+	position: absolute;
+	width: 80px;
+	top: 2px;
+	left: 30px;
 }
 
 .sendData {
@@ -245,14 +253,9 @@ input:disabled {
 	margin-top: .5em;
 }
 
-.workbenchCommand {
-	padding: 0;
-	font-size: 12px;
-	background: transparent;
-}
-
 .workbenchCommand:disabled {
 	color: #868e96;
+	cursor: pointer;
 }
 
 .block-extensions .block-info {
@@ -281,4 +284,55 @@ a {
 button {
 	background-color: #007ACC;
 	color: #fff;
+}
+
+#issue-type-label {
+	width: 95px;
+}
+
+#issue-type {
+	width: calc(100% - 100px);
+}
+
+#issue-title-label {
+	width: 80px;
+	display: inline-block;
+}
+
+#issue-title {
+	width: calc(100% - 85px);
+}
+
+
+@media (max-width: 950px) {
+	#issue-type-label {
+		width: 12%;
+	}
+
+	#issue-type {
+		width: calc(88% - 5px);
+	}
+
+	#issue-title-label {
+		width: 10%;
+		display: inline-block
+	}
+
+	#issue-title {
+		width: calc(90% - 5px);
+	}
+}
+
+@media (max-width: 620px) {
+	#issue-title-label, #issue-type-label {
+		display: none !important;
+	}
+
+	#issue-type, #issue-title {
+		width: 100%;
+	}
+
+	#similar-issues {
+		margin-left: 0;
+	}
 }

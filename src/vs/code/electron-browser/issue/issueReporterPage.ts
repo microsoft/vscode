@@ -35,9 +35,11 @@ export default (): string => `
 			<div class="block block-system">
 				<details>
 					<summary>${escape(localize('systemInfo', "My System Info"))}
-						<input class="sendData" type="checkbox" id="includeSystemInfo" checked>
-							<label class="caption" for="includeSystemInfo">${escape(localize('sendData', "Send my data"))}</label>
-						</input>
+						<div class="include-data">
+							<input class="sendData" type="checkbox" id="includeSystemInfo" checked>
+								<label class="caption" for="includeSystemInfo">${escape(localize('sendData', "Send my data"))}</label>
+							</input>
+						</div>
 					</summary>
 					<div class="block-info">
 						<!-- To be dynamically filled -->
@@ -47,9 +49,11 @@ export default (): string => `
 			<div class="block block-process">
 				<details>
 					<summary>${escape(localize('processes', "Currently Running Processes"))}
-						<input class="sendData"  type="checkbox" id="includeProcessInfo" checked>
-							<label class="caption" for="includeProcessInfo">${escape(localize('sendData', "Send my data"))}</label>
-						</input>
+						<div class="include-data">
+							<input class="sendData"  type="checkbox" id="includeProcessInfo" checked>
+								<label class="caption" for="includeProcessInfo">${escape(localize('sendData', "Send my data"))}</label>
+							</input>
+						</div>
 					</summary>
 					<div class="block-info">
 						<!-- To be dynamically filled -->
@@ -59,9 +63,11 @@ export default (): string => `
 			<div class="block block-workspace">
 				<details>
 					<summary>${escape(localize('workspaceStats', "My Workspace Stats"))}
-						<input class="sendData"  type="checkbox" id="includeWorkspaceInfo" checked>
-							<label class="caption" for="includeWorkspaceInfo">${escape(localize('sendData', "Send my data"))}</label>
-						</input>
+						<div class="include-data">
+							<input class="sendData"  type="checkbox" id="includeWorkspaceInfo" checked>
+								<label class="caption" for="includeWorkspaceInfo">${escape(localize('sendData', "Send my data"))}</label>
+							</input>
+						</div>
 					</summary>
 					<pre class="block-info">
 						<code>
@@ -73,9 +79,11 @@ export default (): string => `
 			<div class="block block-extensions">
 				<details>
 					<summary>${escape(localize('extensions', "My Extensions"))}
-						<input class="sendData"  type="checkbox" id="includeExtensions" checked>
-							<label class="caption" for="includeExtensions">${escape(localize('sendData', "Send my data"))}</label>
-						</input>
+						<div class="include-data">
+							<input class="sendData"  type="checkbox" id="includeExtensions" checked>
+								<label class="caption" for="includeExtensions">${escape(localize('sendData', "Send my data"))}</label>
+							</input>
+						</div>
 					</summary>
 					<div class="block-info">
 						<!-- To be dynamically filled -->
@@ -87,17 +95,21 @@ export default (): string => `
 
 	<div class="section">
 		<div id="disabledExtensions">
-			<label>${escape(localize('tryDisablingExtensions', "Is the problem reproducible when extensions are disabled?"))}</label>
-			<div class="choice">
-				<input type="radio" id="reproducesWithoutExtensions" value=true name="reprosWithoutExtensions" />
-				<label for="reproducesWithoutExtensions">${escape(localize('yes', "Yes"))}</label>
+			<div class="extensions-form">
+				<label>${escape(localize('tryDisablingExtensions', "Is the problem reproducible when extensions are disabled?"))}</label>
+				<div class="form-buttons">
+					<div class="choice">
+						<input type="radio" id="reproducesWithoutExtensions" value=true name="reprosWithoutExtensions" />
+						<label for="reproducesWithoutExtensions">${escape(localize('yes', "Yes"))}</label>
+					</div>
+					<div class="choice">
+						<input type="radio" id="reproducesWithExtensions" value=false name="reprosWithoutExtensions" checked/>
+						<label for="reproducesWithExtensions">${escape(localize('no', "No"))}</label>
+					</div>
+				</div>
 			</div>
-			<div class="choice">
-				<input type="radio" id="reproducesWithExtensions" value=false name="reprosWithoutExtensions" checked/>
-				<label for="reproducesWithExtensions">${escape(localize('no', "No"))}</label>
-			</div>
-			<div class="instructions">Try to reproduce the problem after <button id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</button>.</div>
-			<div class="instructions">If you suspect it's an extension issue, <button id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "see all running extensions"))}</button>.</div>
+			<div class="instructions">${escape(localize('disableExtensionsLabel', "Try to reproduce the problem after "))}<span tabIndex=0 role="button" id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</span>.</div>
+			<div class="instructions">${escape(localize('showRunningExtensionsLabel', "If you suspect it's an extension issue, "))}<span tabIndex=0 role="button"id="showRunning" class="workbenchCommand">${escape(localize('showRunningExtensions', "see all running extensions"))}</span>.</div>
 		</div>
 	</div>
 
