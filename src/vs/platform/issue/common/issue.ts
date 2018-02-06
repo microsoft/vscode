@@ -30,6 +30,9 @@ export interface IssueReporterStyles {
 	buttonBackground: string;
 	buttonForeground: string;
 	buttonHoverBackground: string;
+	sliderBackgroundColor: string;
+	sliderHoverColor: string;
+	sliderActiveColor: string;
 }
 
 export interface IssueReporterData {

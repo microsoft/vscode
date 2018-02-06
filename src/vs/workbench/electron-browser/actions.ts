@@ -46,7 +46,7 @@ import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/commo
 import { getEntries } from 'vs/base/common/performance';
 import { IIssueService, IssueReporterData, IssueType, IssueReporterStyles } from 'vs/platform/issue/common/issue';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder } from 'vs/platform/theme/common/colorRegistry';
+import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
@@ -875,7 +875,10 @@ export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {
 		inputErrorBorder: theme.getColor(inputValidationErrorBorder) && theme.getColor(inputValidationErrorBorder).toString(),
 		buttonBackground: theme.getColor(buttonBackground) && theme.getColor(buttonBackground).toString(),
 		buttonForeground: theme.getColor(buttonForeground) && theme.getColor(buttonForeground).toString(),
-		buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString()
+		buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString(),
+		sliderActiveColor: theme.getColor(scrollbarSliderActiveBackground) && theme.getColor(scrollbarSliderActiveBackground).toString(),
+		sliderBackgroundColor: theme.getColor(scrollbarSliderBackground) && theme.getColor(scrollbarSliderBackground).toString(),
+		sliderHoverColor: theme.getColor(scrollbarSliderHoverBackground) && theme.getColor(scrollbarSliderHoverBackground).toString()
 	};
 }
 

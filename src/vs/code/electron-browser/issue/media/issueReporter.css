@@ -336,3 +336,11 @@ button {
 		margin-left: 0;
 	}
 }
+
+body::-webkit-scrollbar {
+	width: 14px;
+}
+
+body::-webkit-scrollbar-thumb {
+	min-height: 20px;
+}
