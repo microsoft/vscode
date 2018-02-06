@@ -117,6 +117,13 @@ export class QuickOpenEntry {
 	}
 
 	/**
+	 * A tooltip to show when hovering over the entry.
+	 */
+	public getTooltip(): string {
+		return null;
+	}
+
+	/**
 	 * An optional keybinding to show for an entry.
 	 */
 	public getKeybinding(): ResolvedKeybinding {
@@ -454,6 +461,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			// Label
 			const options: IIconLabelOptions = entry.getLabelOptions() || Object.create(null);
 			options.matches = labelHighlights || [];
+			options.title = entry.getTooltip() || void 0;
 			options.descriptionMatches = descriptionHighlights || [];
 			data.label.setValue(entry.getLabel(), entry.getDescription(), options);
 
