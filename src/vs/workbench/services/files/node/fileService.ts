@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, FileChangesEvent, ICreateFileOptions, IContentData, ITextSnapshot } from 'vs/platform/files/common/files';
-import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
+import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/platform/files/node/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -36,6 +36,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { getBaseLabel } from 'vs/base/common/labels';
@@ -131,6 +132,7 @@ export class FileService implements IFileService {
 
 	constructor(
 		private contextService: IWorkspaceContextService,
+		private environmentService: IEnvironmentService,
 		private textResourceConfigurationService: ITextResourceConfigurationService,
 		private configurationService: IConfigurationService,
 		private lifecycleService: ILifecycleService,
@@ -316,12 +318,20 @@ export class FileService implements IFileService {
 			}
 
 			// Return early if file is too large to load
-			if (typeof stat.size === 'number' && stat.size > MAX_FILE_SIZE) {
-				return onStatError(new FileOperationError(
-					nls.localize('fileTooLargeError', "File too large to open"),
-					FileOperationResult.FILE_TOO_LARGE,
-					options
-				));
+			if (typeof stat.size === 'number') {
+				if (stat.size > Math.max(this.environmentService.args['max_old_space_size'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+					return onStatError(new FileOperationError(
+						nls.localize('fileTooLargeForHeapError', "File size exceeds V8 heap limit, please try to run code --max_old_space_size=NEWSIZE"),
+						FileOperationResult.FILE_EXCEED_HEAP
+					));
+				}
+
+				if (stat.size > MAX_FILE_SIZE) {
+					return onStatError(new FileOperationError(
+						nls.localize('fileTooLargeError', "File too large to open"),
+						FileOperationResult.FILE_TOO_LARGE
+					));
+				}
 			}
 
 			return void 0;
@@ -453,6 +463,13 @@ export class FileService implements IFileService {
 							// if we received a position argument as option we need to ensure that
 							// we advance the position by the number of bytesread
 							currentPosition += bytesRead;
+						}
+
+						if (totalBytesRead > Math.max(this.environmentService.args['max_old_space_size'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+							finish(new FileOperationError(
+								nls.localize('fileTooLargeForHeapError', "File size exceeds V8 heap limit, please try to run code --max_old_space_size=NEWSIZE"),
+								FileOperationResult.FILE_EXCEED_HEAP
+							));
 						}
 
 						if (totalBytesRead > MAX_FILE_SIZE) {

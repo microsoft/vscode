@@ -306,6 +306,13 @@ export async function main(argv: string[]): TPromise<any> {
 			});
 		}
 
+		if (args['js-flags']) {
+			const match = /max_old_space_size=(\d+)/g.exec(args['js-flags']);
+			if (match && !args['max_old_space_size']) {
+				argv.push(`--max_old_space_size=${match[1]}`);
+			}
+		}
+
 		const options = {
 			detached: true,
 			env
