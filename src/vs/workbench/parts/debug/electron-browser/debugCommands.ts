@@ -169,7 +169,7 @@ export function registerCommands(): void {
 				accessor.get(IMessageService).show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 				return TPromise.as(null);
 			}
-			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedLaunch;
+			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
 
 			return launch.openConfigFile(false).done(editor => {
 				if (editor) {

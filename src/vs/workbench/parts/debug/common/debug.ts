@@ -412,11 +412,12 @@ export interface IConfigurationManager {
 	canSetBreakpointsIn(model: EditorIModel): boolean;
 
 	/**
-	 * Returns null for no folder workspace. Otherwise returns a launch object corresponding to the selected debug configuration.
+	 * Returns an object containing the selected launch configuration and the selected configuration name. Both these fields can be null (no folder workspace).
 	 */
-	selectedLaunch: ILaunch;
-
-	selectedName: string;
+	selectedConfiguration: {
+		launch: ILaunch;
+		name: string;
+	};
 
 	selectConfiguration(launch: ILaunch, name?: string, debugStarted?: boolean): void;
 

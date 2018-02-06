@@ -673,7 +673,7 @@ export class DebugService implements debug.IDebugService {
 
 				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {
-					configOrName = this.configurationManager.selectedName;
+					configOrName = this.configurationManager.selectedConfiguration.name;
 				}
 				if (typeof configOrName === 'string' && launch) {
 					config = launch.getConfiguration(configOrName);
@@ -768,7 +768,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId: string): TPromise<void> {
-		const launch = root ? this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === root.uri.toString()).pop() : this.configurationManager.selectedLaunch;
+		const launch = root ? this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === root.uri.toString()).pop() : undefined;
 		return this.textFileService.saveAll().then(() =>
 			(launch ? launch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
@@ -1063,9 +1063,11 @@ export class DebugService implements debug.IDebugService {
 					setTimeout(() => {
 						// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
 						let config = process.configuration;
-						if (this.launchJsonChanged && this.configurationManager.selectedLaunch) {
+
+						const launch = this.configurationManager.getLaunches().filter(l => l.workspace && process.session.root && l.workspace.uri.toString() === process.session.root.uri.toString()).pop();
+						if (this.launchJsonChanged && launch) {
 							this.launchJsonChanged = false;
-							config = this.configurationManager.selectedLaunch.getConfiguration(process.configuration.name) || config;
+							config = launch.getConfiguration(process.configuration.name) || config;
 							// Take the type from the process since the debug extension might overwrite it #21316
 							config.type = process.configuration.type;
 							config.noDebug = process.configuration.noDebug;

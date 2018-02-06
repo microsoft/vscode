@@ -77,7 +77,8 @@ export class ConfigureAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
 		this.toDispose.push(debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateClass()));
@@ -85,7 +86,7 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	public get tooltip(): string {
-		if (this.debugService.getConfigurationManager().selectedName) {
+		if (this.debugService.getConfigurationManager().selectedConfiguration.name) {
 			return ConfigureAction.LABEL;
 		}
 
@@ -93,17 +94,17 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	private updateClass(): void {
-		this.class = this.debugService.getConfigurationManager().selectedName ? 'debug-action configure' : 'debug-action configure notification';
+		this.class = this.debugService.getConfigurationManager().selectedConfiguration.name ? 'debug-action configure' : 'debug-action configure notification';
 	}
 
 	public run(event?: any): TPromise<any> {
-		if (!this.debugService.getConfigurationManager().selectedLaunch) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.messageService.show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return TPromise.as(null);
 		}
 
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		return this.debugService.getConfigurationManager().selectedLaunch.openConfigFile(sideBySide);
+		return this.debugService.getConfigurationManager().selectedConfiguration.launch.openConfigFile(sideBySide);
 	}
 }
 
@@ -124,7 +125,7 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const launch = this.debugService.getConfigurationManager().selectedLaunch;
+		const launch = this.debugService.getConfigurationManager().selectedConfiguration.launch;
 		return this.debugService.startDebugging(launch ? launch.workspace : undefined, undefined, this.isNoDebug());
 	}
 
@@ -134,7 +135,7 @@ export class StartAction extends AbstractDebugAction {
 
 	public static isEnabled(debugService: IDebugService, contextService: IWorkspaceContextService, configName: string) {
 		const processes = debugService.getModel().getProcesses();
-		const launch = debugService.getConfigurationManager().selectedLaunch;
+		const launch = debugService.getConfigurationManager().selectedConfiguration.launch;
 
 		if (debugService.state === State.Initializing) {
 			return false;
@@ -155,7 +156,7 @@ export class StartAction extends AbstractDebugAction {
 
 	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: State): boolean {
-		return StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedName);
+		return StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedConfiguration.name);
 	}
 }
 
