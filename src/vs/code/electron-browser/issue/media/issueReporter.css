@@ -323,7 +323,7 @@ button {
 	}
 }
 
-@media (max-width: 550px) {
+@media (max-width: 620px) {
 	#issue-title-label, #issue-type-label {
 		display: none !important;
 	}
