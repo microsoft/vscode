@@ -55,6 +55,8 @@ import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const HELP_PREFIX = '?';
 
@@ -538,6 +540,33 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}, 100 /* to prevent flashing, we accumulate visibility changes over a timeout of 100ms */);
 	}
 
+	private getSelectedText(): string | null {
+		const activeEditor = this.editorService.getActiveEditor();
+
+		if (!activeEditor) {
+			return null;
+		}
+
+		const editorControl = activeEditor.getControl() as ICodeEditor | null;
+
+		if (!editorControl) {
+			return null;
+		}
+
+		return getSelectionSearchString(editorControl);
+	}
+
+	private shouldPrefill(prefix?: string): boolean {
+		const isTurnedOn = this.configurationService.getValue('workbench.quickOpen.prefillFromSelection') as boolean;
+		const prefixes = this.configurationService.getValue('workbench.quickOpen.prefillPrefixes') as Array<string | null>;
+
+		if (!isTurnedOn) {
+			return false;
+		}
+
+		return prefixes.indexOf(prefix || '') !== -1;
+	}
+
 	public show(prefix?: string, options?: IShowOptions): TPromise<void> {
 		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
 		let inputSelection = options ? options.inputSelection : void 0;
@@ -581,6 +610,16 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Layout
 		if (this.layoutDimensions) {
 			this.quickOpenWidget.layout(this.layoutDimensions);
+		}
+
+		const selectedText = this.getSelectedText();
+
+		if (selectedText && this.shouldPrefill(prefix)) {
+			inputSelection = {
+				start: prefix ? prefix.length : 0,
+				end: selectedText.length + 1
+			};
+			prefix = (prefix || '') + selectedText;
 		}
 
 		// Show quick open with prefix or editor history

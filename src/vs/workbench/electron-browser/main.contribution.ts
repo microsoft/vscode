@@ -224,6 +224,21 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),
 			'default': true
 		},
+		'workbench.quickOpen.prefillFromSelection': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('quickopen.prefillFromSelection', "Controls if selected text should prefill quickopen query"),
+		},
+		'workbench.quickOpen.prefillPrefixes': {
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': [
+				'#'
+			],
+			'description': nls.localize('quickopen.prefillPrefixes', "Controls which prefixes should be prefilled on quickopen if prefill feature turned on"),
+		},
 		'workbench.settings.openDefaultSettings': {
 			'type': 'boolean',
 			'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),

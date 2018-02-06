@@ -22,8 +22,6 @@ import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpen
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
@@ -254,25 +252,13 @@ class ShowAllSymbolsAction extends Action {
 
 	constructor(
 		actionId: string, actionLabel: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@ICodeEditorService private editorService: ICodeEditorService) {
+		@IQuickOpenService private quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel);
 		this.enabled = !!this.quickOpenService;
 	}
 
 	public run(context?: any): TPromise<void> {
-
-		let prefix = ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX;
-		let inputSelection: { start: number; end: number; } = void 0;
-		let editor = this.editorService.getFocusedCodeEditor();
-		const word = editor && getSelectionSearchString(editor);
-		if (word) {
-			prefix = prefix + word;
-			inputSelection = { start: 1, end: word.length + 1 };
-		}
-
-		this.quickOpenService.show(prefix, { inputSelection });
-
+		this.quickOpenService.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
 		return TPromise.as(null);
 	}
 }

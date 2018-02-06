@@ -41,7 +41,7 @@ export interface IWorkbenchEditorService extends IEditorService {
 	/**
 	 * Returns the currently active editor or null if none.
 	 */
-	getActiveEditor(): IEditor;
+	getActiveEditor(): IEditor | null;
 
 	/**
 	 * Returns the currently active editor input or null if none.
