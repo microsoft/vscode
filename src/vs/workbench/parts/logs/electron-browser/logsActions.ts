@@ -101,7 +101,7 @@ export class OpenLogFileAction extends Action {
 export class SetLogLevelAction extends Action {
 
 	static ID = 'workbench.action.setLogLevel';
-	static LABEL = nls.localize('setLogLevel', "Set Log Level");
+	static LABEL = nls.localize('setLogLevel', "Set Log Level...");
 
 	constructor(id: string, label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
