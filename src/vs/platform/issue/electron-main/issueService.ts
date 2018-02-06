@@ -97,7 +97,7 @@ export class IssueService implements IIssueService {
 		}
 
 		let state = {
-			width: 750,
+			width: 800,
 			height: 900,
 			x: undefined,
 			y: undefined
