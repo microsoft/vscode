@@ -56,13 +56,9 @@ export class TableOfContentsProvider {
 	}
 
 	public async lookup(fragment: string): Promise<TocEntry | undefined> {
+		const toc = await this.getToc();
 		const slug = Slug.fromHeading(fragment);
-		for (const entry of await this.getToc()) {
-			if (entry.slug.equals(slug)) {
-				return entry;
-			}
-		}
-		return undefined;
+		return toc.find(entry => entry.slug.equals(slug));
 	}
 
 	private async buildToc(document: vscode.TextDocument): Promise<TocEntry[]> {
