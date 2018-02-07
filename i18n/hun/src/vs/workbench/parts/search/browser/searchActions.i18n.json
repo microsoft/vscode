@@ -18,6 +18,7 @@
 	"RefreshAction.label": "Frissítés",
 	"CollapseDeepestExpandedLevelAction.label": "Összes bezárása",
 	"ClearSearchResultsAction.label": "Törlés",
+	"CancelSearchAction.label": "Keresés megszakítása",
 	"FocusNextSearchResult.label": "Váltás a következő keresési eredményre",
 	"FocusPreviousSearchResult.label": "Váltás az előző keresési eredményre",
 	"RemoveAction.label": "Elvetés",

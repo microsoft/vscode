@@ -18,6 +18,7 @@
 	"RefreshAction.label": "Aggiorna",
 	"CollapseDeepestExpandedLevelAction.label": "Comprimi tutto",
 	"ClearSearchResultsAction.label": "Cancella",
+	"CancelSearchAction.label": "Annulla ricerca",
 	"FocusNextSearchResult.label": "Sposta lo stato attivo sul risultato della ricerca successivo",
 	"FocusPreviousSearchResult.label": "Sposta lo stato attivo sul risultato della ricerca precedente",
 	"RemoveAction.label": "Chiudi",

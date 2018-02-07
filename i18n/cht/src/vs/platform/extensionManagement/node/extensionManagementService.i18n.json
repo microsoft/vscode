@@ -13,6 +13,7 @@
 	"cancel": "取消",
 	"errorInstallingDependencies": "安裝相依套件時發生錯誤。{0}",
 	"notFoundCompatible": "無法安裝 '{0}'；沒有任何與 VS Code 相容的可用版本 '{1}'。",
+	"malicious extension": "因為有使用者回報該延伸模組有問題，所以無法安裝延伸模組。",
 	"notFoundCompatibleDependency": "無法安裝，因為找不到相容於 VS Code 目前版本 '{1}' 的相依擴充功能 '{0}'。",
 	"quitCode": "無法安裝擴充功能。重新安裝以前請重啟 VS Code。",
 	"exitCode": "無法安裝擴充功能。重新安裝以前請離開並再次啟動 VS Code。",

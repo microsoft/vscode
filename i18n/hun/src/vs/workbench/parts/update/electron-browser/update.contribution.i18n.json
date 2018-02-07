@@ -8,5 +8,6 @@
 	],
 	"release notes": "Kiadási jegyzék",
 	"updateConfigurationTitle": "Frissítés",
-	"updateChannel": "Meghatározza, hogy érkeznek-e automatikus frissítések a frissítési csatornáról. A beállítás módosítása után újraindítás szükséges."
+	"updateChannel": "Meghatározza, hogy érkeznek-e automatikus frissítések a frissítési csatornáról. A beállítás módosítása után újraindítás szükséges.",
+	"enableWindowsBackgroundUpdates": "Háttérben történő frissítés engedélyezése Windowson."
 }

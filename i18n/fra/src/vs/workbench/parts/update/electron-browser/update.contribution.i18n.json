@@ -8,5 +8,6 @@
 	],
 	"release notes": "Notes de publication",
 	"updateConfigurationTitle": "Mettre à jour",
-	"updateChannel": "Indiquez si vous recevez des mises à jour automatiques en provenance d'un canal de mises à jour. Un redémarrage est nécessaire en cas de modification."
+	"updateChannel": "Indiquez si vous recevez des mises à jour automatiques en provenance d'un canal de mises à jour. Un redémarrage est nécessaire en cas de modification.",
+	"enableWindowsBackgroundUpdates": "Active les mises à jour Windows en arrière-plan."
 }

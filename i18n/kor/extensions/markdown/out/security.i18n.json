@@ -15,5 +15,6 @@
 	"moreInfo.title": "추가 정보",
 	"enableSecurityWarning.title": "이 작업 영역에서 미리 보기 보안 경고 사용",
 	"disableSecurityWarning.title": "이 작업 영역에서 미리보기 보안 경고 사용 안 함",
+	"toggleSecurityWarning.description": "콘텐츠 보안 수준에 영향을 주지 않습니다.",
 	"preview.showPreviewSecuritySelector.title": "이 작업 영역에 대해 Markdown 미리 보기의 보안 설정 선택"
 }

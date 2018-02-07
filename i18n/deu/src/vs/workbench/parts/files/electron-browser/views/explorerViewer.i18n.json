@@ -12,6 +12,7 @@
 	"dropFolder": "Möchten Sie den Ordner zum Arbeitsbereich hinzufügen?",
 	"addFolders": "&&Ordner hinzufügen",
 	"addFolder": "&&Ordner hinzufügen",
+	"confirmMultiMove": "Möchten Sie die folgenden {0} Dateien verschieben?",
 	"confirmMove": "Möchten Sie \"{0}\" wirklich verschieben?",
 	"doNotAskAgain": "Nicht erneut fragen",
 	"moveButtonLabel": "&&Verschieben",

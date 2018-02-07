@@ -10,5 +10,6 @@
 	"terminal.foreground": "Die Vordergrundfarbe des Terminal.",
 	"terminalCursor.foreground": "Die Vordergrundfarbe des Terminalcursors.",
 	"terminalCursor.background": "Die Hintergrundfarbe des Terminalcursors. Ermöglicht das Anpassen der Farbe eines Zeichens, das von einem Blockcursor überdeckt wird.",
-	"terminal.selectionBackground": "Die Auswahlvordergrundfarbe des Terminals."
+	"terminal.selectionBackground": "Die Auswahlvordergrundfarbe des Terminals.",
+	"terminal.ansiColor": "\"{0}\" ANSI-Farbe im Terminal"
 }

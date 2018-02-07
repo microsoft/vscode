@@ -90,6 +90,7 @@
 	"miMarker": "問題(&&P)",
 	"miAdditionalViews": "其他檢視(&&V)",
 	"miCommandPalette": "命令選擇區(&&C)...",
+	"miOpenView": "開啟檢視(&&O)...",
 	"miToggleFullScreen": "切換全螢幕(&&F)",
 	"miToggleZenMode": "切換無干擾模式",
 	"miToggleMenuBar": "切換功能表列(&&B)",

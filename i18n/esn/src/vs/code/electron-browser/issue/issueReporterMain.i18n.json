@@ -9,6 +9,7 @@
 	"previewOnGitHub": "Visualizar en GitHub",
 	"similarIssues": "Problemas similares",
 	"noResults": "No se encontraron resultados",
+	"rateLimited": "Límite de la API superado",
 	"stepsToReproduce": "Pasos para reproducir",
 	"bugDescription": "¿Cómo se enfrentó a este problema? ¿Qué pasos hay que realizar para reproducir de forma fiable el problema? ¿Qué esperabas que ocurriera y qué pasó realmente?",
 	"performanceIssueDesciption": "¿Cuándo ocurrió este problema de rendimiento? Por ejemplo, ¿se produce al iniciar o después de una serie específica de acciones? Cualquier detalle que usted puede proporcionar ayuda a nuestra investigación",

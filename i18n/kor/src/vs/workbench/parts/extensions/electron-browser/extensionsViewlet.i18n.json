@@ -19,5 +19,6 @@
 	"suggestProxyError": "마켓플레이스에서 'ECONNREFUSED'를 반환했습니다. 'http.proxy' 설정을 확인하세요.",
 	"extensions": "확장",
 	"outdatedExtensions": "{0}개의 만료된 확장",
+	"malicious warning": "문제가 있다고 보고된 '{0}'을(를) 제거했습니다.",
 	"reloadNow": "지금 다시 로드"
 }

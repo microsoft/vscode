@@ -8,5 +8,6 @@
 	],
 	"release notes": "Note sulla versione",
 	"updateConfigurationTitle": "Aggiorna",
-	"updateChannel": "Consente di configurare la ricezione degli aggiornamenti automatici da un canale di aggiornamento. Richiede un riavvio dopo la modifica."
+	"updateChannel": "Consente di configurare la ricezione degli aggiornamenti automatici da un canale di aggiornamento. Richiede un riavvio dopo la modifica.",
+	"enableWindowsBackgroundUpdates": "Abilita gli aggiornamenti di Windows in background."
 }
