@@ -42,8 +42,8 @@ interface Settings {
 		format?: { enable: boolean; };
 	};
 	http?: {
-		proxy: string;
-		proxyStrictSSL: boolean;
+		proxy?: string;
+		proxyStrictSSL?: boolean;
 	};
 }
 
@@ -53,7 +53,7 @@ interface JSONSchemaSettings {
 	schema?: any;
 }
 
-let telemetryReporter: TelemetryReporter;
+let telemetryReporter: TelemetryReporter | undefined;
 
 export function activate(context: ExtensionContext) {
 
@@ -197,14 +197,14 @@ function getSettings(): Settings {
 			let schemaSetting = schemaSettingsById[url];
 			if (!schemaSetting) {
 				schemaSetting = schemaSettingsById[url] = { url, fileMatch: [] };
-				settings.json.schemas.push(schemaSetting);
+				settings.json!.schemas!.push(schemaSetting);
 			}
 			let fileMatches = setting.fileMatch;
 			if (Array.isArray(fileMatches)) {
 				if (fileMatchPrefix) {
 					fileMatches = fileMatches.map(m => fileMatchPrefix + m);
 				}
-				schemaSetting.fileMatch.push(...fileMatches);
+				schemaSetting.fileMatch!.push(...fileMatches);
 			}
 			if (setting.schema) {
 				schemaSetting.schema = setting.schema;
@@ -222,7 +222,7 @@ function getSettings(): Settings {
 		for (let folder of folders) {
 			let folderUri = folder.uri;
 			let schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
-			let folderSchemas = schemaConfigInfo.workspaceFolderValue;
+			let folderSchemas = schemaConfigInfo!.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
 				let folderPath = folderUri.toString();
 				if (folderPath[folderPath.length - 1] !== '/') {
@@ -247,7 +247,7 @@ function getSchemaId(schema: JSONSchemaSettings, rootPath?: string) {
 	return url;
 }
 
-function getPackageInfo(context: ExtensionContext): IPackageInfo {
+function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
 	let extensionPackage = require(context.asAbsolutePath('./package.json'));
 	if (extensionPackage) {
 		return {
@@ -256,5 +256,5 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo {
 			aiKey: extensionPackage.aiKey
 		};
 	}
-	return null;
+	return void 0;
 }
