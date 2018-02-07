@@ -36,9 +36,8 @@ export default (): string => `
 				<details>
 					<summary>${escape(localize('systemInfo', "My System Info"))}
 						<div class="include-data">
-							<input class="sendData" type="checkbox" id="includeSystemInfo" checked>
-								<label class="caption" for="includeSystemInfo">${escape(localize('sendData', "Send my data"))}</label>
-							</input>
+							<input class="sendData" type="checkbox" id="includeSystemInfo" checked/>
+							<label class="caption" for="includeSystemInfo">${escape(localize('sendData', "Send my data"))}</label>
 						</div>
 					</summary>
 					<div class="block-info">
@@ -50,9 +49,8 @@ export default (): string => `
 				<details>
 					<summary>${escape(localize('processes', "Currently Running Processes"))}
 						<div class="include-data">
-							<input class="sendData"  type="checkbox" id="includeProcessInfo" checked>
-								<label class="caption" for="includeProcessInfo">${escape(localize('sendData', "Send my data"))}</label>
-							</input>
+							<input class="sendData"  type="checkbox" id="includeProcessInfo" checked/>
+							<label class="caption" for="includeProcessInfo">${escape(localize('sendData', "Send my data"))}</label>
 						</div>
 					</summary>
 					<div class="block-info">
@@ -64,9 +62,8 @@ export default (): string => `
 				<details>
 					<summary>${escape(localize('workspaceStats', "My Workspace Stats"))}
 						<div class="include-data">
-							<input class="sendData"  type="checkbox" id="includeWorkspaceInfo" checked>
-								<label class="caption" for="includeWorkspaceInfo">${escape(localize('sendData', "Send my data"))}</label>
-							</input>
+							<input class="sendData"  type="checkbox" id="includeWorkspaceInfo" checked/>
+							<label class="caption" for="includeWorkspaceInfo">${escape(localize('sendData', "Send my data"))}</label>
 						</div>
 					</summary>
 					<pre class="block-info">
@@ -80,9 +77,8 @@ export default (): string => `
 				<details>
 					<summary>${escape(localize('extensions', "My Extensions"))}
 						<div class="include-data">
-							<input class="sendData"  type="checkbox" id="includeExtensions" checked>
-								<label class="caption" for="includeExtensions">${escape(localize('sendData', "Send my data"))}</label>
-							</input>
+							<input class="sendData"  type="checkbox" id="includeExtensions" checked/>
+							<label class="caption" for="includeExtensions">${escape(localize('sendData', "Send my data"))}</label>
 						</div>
 					</summary>
 					<div class="block-info">

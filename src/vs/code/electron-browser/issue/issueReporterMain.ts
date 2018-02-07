@@ -245,6 +245,24 @@ export class IssueReporter extends Disposable {
 			});
 		});
 
+		const labelElements = document.getElementsByClassName('caption');
+		for (let i = 0; i < labelElements.length; i++) {
+			const label = labelElements.item(i);
+			label.addEventListener('click', (e) => {
+				e.stopPropagation();
+
+				// Stop propgagation not working as expected in this case https://bugs.chromium.org/p/chromium/issues/detail?id=809801
+				// preventDefault does prevent outer details tag from toggling, so use that and manually toggle the checkbox
+				e.preventDefault();
+				const containingDiv = (<HTMLLabelElement>e.target).parentElement;
+				const checkbox = <HTMLInputElement>containingDiv.firstElementChild;
+				if (checkbox) {
+					checkbox.checked = !checkbox.checked;
+					this.issueReporterModel.update({ [checkbox.id]: !this.issueReporterModel.getData()[checkbox.id] });
+				}
+			});
+		}
+
 		document.getElementById('reproducesWithoutExtensions').addEventListener('click', (e) => {
 			this.issueReporterModel.update({ reprosWithoutExtensions: true });
 		});

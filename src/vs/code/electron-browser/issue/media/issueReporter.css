@@ -225,6 +225,7 @@ summary {
 	width: 80px;
 	top: 2px;
 	left: 30px;
+	cursor: pointer;
 }
 
 .sendData {
@@ -236,6 +237,7 @@ input[type="checkbox"] {
 	display: inline-block;
 	margin-top: 0;
 	vertical-align: middle;
+	cursor: pointer;
 }
 
 input:disabled {
