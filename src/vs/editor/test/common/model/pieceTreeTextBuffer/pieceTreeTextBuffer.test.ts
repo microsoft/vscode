@@ -1625,4 +1625,53 @@ suite('search offset cache', () => {
 		var content = pieceTable.getLinesRawContent();
 		assert(content === str);
 	});
+
+	test('Line breaks replacement is not necessary when EOL is normalized', () => {
+		let pieceTable = createTextBuffer(['abc']);
+		let str = 'abc';
+
+		pieceTable.insert(3, 'def\nabc');
+		str = str + 'def\nabc';
+
+		testLineStarts(str, pieceTable);
+		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
+	});
+
+	test('Line breaks replacement is not necessary when EOL is normalized 2', () => {
+		let pieceTable = createTextBuffer(['abc\n']);
+		let str = 'abc\n';
+
+		pieceTable.insert(4, 'def\nabc');
+		str = str + 'def\nabc';
+
+		testLineStarts(str, pieceTable);
+		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
+	});
+
+	test('Line breaks replacement is not necessary when EOL is normalized 3', () => {
+		let pieceTable = createTextBuffer(['abc\n']);
+		let str = 'abc\n';
+
+		pieceTable.insert(2, 'def\nabc');
+		str = str.substring(0, 2) + 'def\nabc' + str.substring(2);
+
+		testLineStarts(str, pieceTable);
+		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
+	});
+
+	test('Line breaks replacement is not necessary when EOL is normalized 4', () => {
+		let pieceTable = createTextBuffer(['abc\n']);
+		let str = 'abc\n';
+
+		pieceTable.insert(3, 'def\nabc');
+		str = str.substring(0, 3) + 'def\nabc' + str.substring(3);
+
+		testLineStarts(str, pieceTable);
+		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
+	});
+
 });

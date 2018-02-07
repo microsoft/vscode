@@ -18,11 +18,11 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	private _mightContainRTL: boolean;
 	private _mightContainNonBasicASCII: boolean;
 
-	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, isBasicASCII: boolean) {
+	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, isBasicASCII: boolean, eolNormalized: boolean) {
 		this._BOM = BOM;
 		this._mightContainNonBasicASCII = !isBasicASCII;
 		this._mightContainRTL = containsRTL;
-		this._pieceTree = new PieceTreeBase(chunks, eol);
+		this._pieceTree = new PieceTreeBase(chunks, eol, eolNormalized);
 	}
 
 	// #region TextBuffer
