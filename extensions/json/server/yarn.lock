@@ -48,9 +48,9 @@ https-proxy-agent@2.1.1:
     agent-base "^4.1.0"
     debug "^3.1.0"
 
-jsonc-parser@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.0.tgz#ddcc864ae708e60a7a6dd36daea00172fa8d9272"
+jsonc-parser@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.1.tgz#7f8f296414e6e7c4a33b9e4914fc8c47e4421675"
 
 ms@2.0.0:
   version "2.0.0"
@@ -64,11 +64,11 @@ request-light@^0.2.2:
     https-proxy-agent "2.1.1"
     vscode-nls "^2.0.2"
 
-vscode-json-languageservice@^3.0.4:
-  version "3.0.4"
-  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.0.4.tgz#293970ef3179d7793ffd25887acf158d93ff8733"
+vscode-json-languageservice@^3.0.6:
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.0.6.tgz#21ea07cfc5cd0748bb1a9f54f8011d3c54667dc7"
   dependencies:
-    jsonc-parser "^1.0.0"
+    jsonc-parser "^1.0.1"
     vscode-languageserver-types "^3.5.0"
     vscode-nls "^2.0.2"
     vscode-uri "^1.0.1"
