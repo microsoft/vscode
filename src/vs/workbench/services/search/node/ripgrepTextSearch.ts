@@ -160,6 +160,11 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 	}
 
+	if (strings.startsWith(firstLine, 'Literal ')) {
+		// e.g. "Literal \n not allowed"
+		return firstLine;
+	}
+
 	return undefined;
 }
 
