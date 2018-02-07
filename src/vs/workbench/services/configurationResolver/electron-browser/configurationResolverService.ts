@@ -23,8 +23,6 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 class VariableResolver {
 	static VARIABLE_REGEXP = /\$\{(.*?)\}/g;
-	static ENV_PREFIX = 'env:';
-	static CONFIG_PREFIX = 'config:';
 	private envVariables: IProcessEnvironment;
 
 	constructor(
