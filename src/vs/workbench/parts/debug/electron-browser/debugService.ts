@@ -757,7 +757,9 @@ export class DebugService implements debug.IDebugService {
 								return this.createProcess(root, config, sessionId);
 							}
 
-							return undefined;
+							if (launch) {
+								return launch.openConfigFile(false, type).done(undefined, errors.onUnexpectedError);
+							}
 						})
 					).then(() => wrapUpState(), err => {
 						wrapUpState();
