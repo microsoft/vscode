@@ -41,7 +41,7 @@ export class Logger {
 		if (this.trace === Trace.Verbose) {
 			this.output.appendLine(`[Log - ${(new Date().toLocaleTimeString())}] ${message}`);
 			if (data) {
-				this.output.appendLine(this.data2String(data));
+				this.output.appendLine(Logger.data2String(data));
 			}
 		}
 	}
@@ -61,7 +61,7 @@ export class Logger {
 		return Trace.fromString(workspace.getConfiguration().get<string>('markdown.trace', 'off'));
 	}
 
-	private data2String(data: any): string {
+	private static data2String(data: any): string {
 		if (data instanceof Error) {
 			if (isString(data.stack)) {
 				return data.stack;
