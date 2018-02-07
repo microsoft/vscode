@@ -104,17 +104,17 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 		this._toDispose.push(textFileService.models.onModelSaved(e => {
 			if (this._shouldHandleFileEvent(e)) {
-				this._proxy.$acceptModelSaved(e.resource.toString());
+				this._proxy.$acceptModelSaved(e.resource);
 			}
 		}));
 		this._toDispose.push(textFileService.models.onModelReverted(e => {
 			if (this._shouldHandleFileEvent(e)) {
-				this._proxy.$acceptDirtyStateChanged(e.resource.toString(), false);
+				this._proxy.$acceptDirtyStateChanged(e.resource, false);
 			}
 		}));
 		this._toDispose.push(textFileService.models.onModelDirty(e => {
 			if (this._shouldHandleFileEvent(e)) {
-				this._proxy.$acceptDirtyStateChanged(e.resource.toString(), true);
+				this._proxy.$acceptDirtyStateChanged(e.resource, true);
 			}
 		}));
 
@@ -143,7 +143,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
 		this._modelToDisposeMap[modelUrl.toString()] = model.onDidChangeContent((e) => {
-			this._proxy.$acceptModelChanged(modelUrl.toString(), e, this._textFileService.isDirty(modelUrl));
+			this._proxy.$acceptModelChanged(modelUrl, e, this._textFileService.isDirty(modelUrl));
 		});
 	}
 
@@ -153,7 +153,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
-		this._proxy.$acceptModelModeChanged(model.uri.toString(), oldModeId, model.getLanguageIdentifier().language);
+		this._proxy.$acceptModelModeChanged(model.uri, oldModeId, model.getLanguageIdentifier().language);
 	}
 
 	private _onModelRemoved(modelUrl: URI): void {
@@ -227,7 +227,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 				throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);
 			}
 
-			this._proxy.$acceptDirtyStateChanged(resource.toString(), true); // mark as dirty
+			this._proxy.$acceptDirtyStateChanged(resource, true); // mark as dirty
 
 			return resource;
 		});
