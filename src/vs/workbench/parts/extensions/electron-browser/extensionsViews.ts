@@ -243,7 +243,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		}
 
 		if (text) {
-			options = assign(options, { text: text.substr(0, 350), source: 'searchText' });
+			options = assign(options, { text: text.substr(0, 350), source: text === query.value ? 'searchText' : 'file-extension-tags' });
 		} else {
 			options.source = 'viewlet';
 		}
