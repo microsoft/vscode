@@ -58,8 +58,7 @@ function tryLoadPreviewScripts(
 		for (const script of scripts) {
 			try {
 				contentProvider.addScript(resolveExtensionResources(extension, script));
-			}
-			catch (e) {
+			} catch (e) {
 				// noop
 			}
 		}
@@ -76,8 +75,7 @@ function tryLoadPreviewStyles(
 		for (const style of styles) {
 			try {
 				contentProvider.addStyle(resolveExtensionResources(extension, style));
-			}
-			catch (e) {
+			} catch (e) {
 				// noop
 			}
 		}
