@@ -111,7 +111,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^5.8.0",
-    "typescript": "2.6.1",
+    "typescript": "2.7.1",
     "typescript-formatter": "4.0.1",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",
