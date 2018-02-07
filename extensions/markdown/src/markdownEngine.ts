@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { TableOfContentsProvider } from './tableOfContentsProvider';
+import { Slug } from './tableOfContentsProvider';
 import { MarkdownIt, Token } from 'markdown-it';
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
@@ -54,7 +54,7 @@ export class MarkdownEngine {
 					return `<pre class="hljs"><code><div>${this.md.utils.escapeHtml(str)}</div></code></pre>`;
 				}
 			}).use(mdnh, {
-				slugify: (header: string) => TableOfContentsProvider.slugify(header)
+				slugify: (header: string) => Slug.fromHeading(header).value
 			});
 
 			for (const plugin of this.plugins) {

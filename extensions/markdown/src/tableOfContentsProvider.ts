@@ -7,8 +7,29 @@ import * as vscode from 'vscode';
 
 import { MarkdownEngine } from './markdownEngine';
 
+export class Slug {
+	public static fromHeading(heading: string): Slug {
+		const slugifiedHeading = encodeURI(heading.trim()
+			.toLowerCase()
+			.replace(/[\]\[\!\"\#\$\%\&\'\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`]/g, '')
+			.replace(/\s+/g, '-')
+			.replace(/^\-+/, '')
+			.replace(/\-+$/, ''));
+
+		return new Slug(slugifiedHeading);
+	}
+
+	private constructor(
+		public readonly value: string
+	) { }
+
+	public equals(other: Slug): boolean {
+		return this.value === other.value;
+	}
+}
+
 export interface TocEntry {
-	slug: string;
+	slug: Slug;
 	text: string;
 	level: number;
 	line: number;
@@ -35,9 +56,12 @@ export class TableOfContentsProvider {
 	}
 
 	public async lookup(fragment: string): Promise<number | undefined> {
-		const slug = TableOfContentsProvider.slugify(fragment);
+		const slug = Slug.fromHeading(fragment);
+		if (!slug) {
+			return;
+		}
 		for (const entry of await this.getToc()) {
-			if (entry.slug === slug) {
+			if (entry.slug.equals(slug)) {
 				return entry.line;
 			}
 		}
@@ -51,17 +75,13 @@ export class TableOfContentsProvider {
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
-			const href = TableOfContentsProvider.slugify(line.text);
-			const level = TableOfContentsProvider.getHeaderLevel(heading.markup);
-			if (href) {
-				toc.push({
-					slug: href,
-					text: TableOfContentsProvider.getHeaderText(line.text),
-					level: level,
-					line: lineNumber,
-					location: new vscode.Location(document.uri, line.range)
-				});
-			}
+			toc.push({
+				slug: Slug.fromHeading(line.text),
+				text: TableOfContentsProvider.getHeaderText(line.text),
+				level: TableOfContentsProvider.getHeaderLevel(heading.markup),
+				line: lineNumber,
+				location: new vscode.Location(document.uri, line.range)
+			});
 		}
 		return toc;
 	}
@@ -78,15 +98,6 @@ export class TableOfContentsProvider {
 
 	private static getHeaderText(header: string): string {
 		return header.replace(/^\s*#+\s*(.*?)\s*#*$/, (_, word) => word.trim());
-	}
-
-	public static slugify(header: string): string {
-		return encodeURI(header.trim()
-			.toLowerCase()
-			.replace(/[\]\[\!\"\#\$\%\&\'\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`]/g, '')
-			.replace(/\s+/g, '-')
-			.replace(/^\-+/, '')
-			.replace(/\-+$/, ''));
 	}
 }
 
