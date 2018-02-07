@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { OpenDocumentLinkCommand } from '../commands';
+import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 
 function normalizeLink(
 	document: vscode.TextDocument,
