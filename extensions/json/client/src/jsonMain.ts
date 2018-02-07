@@ -8,11 +8,9 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorInformation, Color, ColorPresentation, LanguageConfiguration } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
-import { DocumentColorRequest, DocumentColorParams, ColorPresentationParams, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { hash } from './utils/hash';
 
@@ -96,7 +94,7 @@ export function activate(context: ExtensionContext) {
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), serverOptions, clientOptions);
-	client.registerFeature(new ConfigurationFeature(client));
+	client.registerProposedFeatures();
 
 	let disposable = client.start();
 	toDispose.push(disposable);
@@ -126,37 +124,6 @@ export function activate(context: ExtensionContext) {
 		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
-
-		// register color provider
-		toDispose.push(languages.registerColorProvider(documentSelector, {
-			provideDocumentColors(document: TextDocument): Thenable<ColorInformation[]> {
-				let params: DocumentColorParams = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
-				};
-				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
-					return symbols.map(symbol => {
-						let range = client.protocol2CodeConverter.asRange(symbol.range);
-						let color = new Color(symbol.color.red, symbol.color.green, symbol.color.blue, symbol.color.alpha);
-						return new ColorInformation(range, color);
-					});
-				});
-			},
-			provideColorPresentations(color: Color, context): Thenable<ColorPresentation[]> {
-				let params: ColorPresentationParams = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(context.document),
-					color: color,
-					range: client.code2ProtocolConverter.asRange(context.range)
-				};
-				return client.sendRequest(ColorPresentationRequest.type, params).then(presentations => {
-					return presentations.map(p => {
-						let presentation = new ColorPresentation(p.label);
-						presentation.textEdit = p.textEdit && client.protocol2CodeConverter.asTextEdit(p.textEdit);
-						presentation.additionalTextEdits = p.additionalTextEdits && client.protocol2CodeConverter.asTextEdits(p.additionalTextEdits);
-						return presentation;
-					});
-				});
-			}
-		}));
 	});
 
 	let languageConfiguration: LanguageConfiguration = {
