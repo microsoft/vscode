@@ -944,10 +944,14 @@ export class WindowsManager implements IWindowsMainService {
 					};
 				}
 
-				// Folder
-				return {
-					folderPath: candidate
-				};
+				// Folder (we check for isDirectory() because e.g. paths like /dev/null
+				// are neither file nor folder but some external tools might pass them
+				// over to us)
+				else if (candidateStat.isDirectory()) {
+					return {
+						folderPath: candidate
+					};
+				}
 			}
 		} catch (error) {
 			this.historyMainService.removeFromRecentlyOpened([candidate]); // since file does not seem to exist anymore, remove from recent
