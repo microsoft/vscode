@@ -100,4 +100,3 @@ export class TableOfContentsProvider {
 		return header.replace(/^\s*#+\s*(.*?)\s*#*$/, (_, word) => word.trim());
 	}
 }
-

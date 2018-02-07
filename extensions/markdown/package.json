@@ -6,7 +6,7 @@
 	"publisher": "Microsoft",
 	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
 	"engines": {
-		"vscode": "^1.0.0"
+		"vscode": "^1.20.0"
 	},
 	"main": "./out/extension",
 	"categories": [
@@ -336,6 +336,7 @@
 		"@types/markdown-it": "0.0.2",
 		"@types/node": "7.0.43",
 		"gulp-rename": "^1.2.2",
-		"gulp-replace": "^0.5.4"
+		"gulp-replace": "^0.5.4",
+		"vscode": "^1.1.10"
 	}
 }
