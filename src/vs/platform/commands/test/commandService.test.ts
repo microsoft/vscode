@@ -120,11 +120,11 @@ suite('CommandService', function () {
 
 		let callCounter = 0;
 		let resolveFunc: Function;
-		// let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+		const whenInstalledExtensionsRegistered = new TPromise<boolean>(_resolve => { resolveFunc = _resolve; });
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			whenInstalledExtensionsRegistered() {
-				return new TPromise<boolean>(_resolve => { resolveFunc = _resolve; });
+				return whenInstalledExtensionsRegistered;
 			}
 		}, new NullLogService());
 
