@@ -145,7 +145,7 @@ export class TextMateService implements ITextMateService {
 		let defaultBackground: Color = Color.transparent;
 		for (let i = 0, len = colorTheme.tokenColors.length; i < len; i++) {
 			let rule = colorTheme.tokenColors[i];
-			if (!rule.scope) {
+			if (!rule.scope && rule.settings) {
 				if (rule.settings.foreground) {
 					defaultForeground = Color.fromHex(rule.settings.foreground);
 				}
