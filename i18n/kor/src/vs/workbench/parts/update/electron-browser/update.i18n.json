@@ -20,6 +20,9 @@
 	"noUpdatesAvailable": "현재 사용 가능한 업데이트가 없습니다.",
 	"download now": "지금 다운로드",
 	"thereIsUpdateAvailable": "사용 가능한 업데이트가 있습니다.",
+	"installUpdate": "업데이트 설치",
+	"updateAvailable": "사용 가능한 업데이트가 있습니다. {0} {1}",
+	"updateInstalling": "{0} {1}이(가) 백그라운드로 설치되고 있습니다. 완료되면 알려드리겠습니다.",
 	"updateNow": "지금 업데이트",
 	"updateAvailableAfterRestart": "다시 시작하면 {0}이(가) 업데이트됩니다.",
 	"commandPalette": "명령 팔레트...",
@@ -31,6 +34,7 @@
 	"checkForUpdates": "업데이트 확인...",
 	"checkingForUpdates": "업데이트를 확인하는 중...",
 	"DownloadingUpdate": "업데이트를 다운로드하는 중...",
+	"installUpdate...": "업데이트 설치...",
 	"installingUpdate": "업데이트를 설치하는 중...",
 	"restartToUpdate": "업데이트하기 위해 다시 시작..."
 }

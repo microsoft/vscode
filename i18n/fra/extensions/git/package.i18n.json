@@ -73,6 +73,8 @@
 	"config.decorations.enabled": "Contrôle si Git contribue aux couleurs et aux badges de l’Explorateur et à l'affichage des éditeurs ouverts.",
 	"config.promptToSaveFilesBeforeCommit": "Contrôle si Git doit vérifier les fichiers non sauvegardés avant d'effectuer le commit.",
 	"config.showInlineOpenFileAction": "Contrôle s’il faut afficher une action Ouvrir le fichier dans l’affichage des modifications de Git.",
+	"config.inputValidation": "Contrôle quand afficher la validation du compteur de saisie.",
+	"config.detectSubmodules": "Contrôle s’il faut détecter automatiquement les sous-modules git.",
 	"colors.modified": "Couleur pour les ressources modifiées.",
 	"colors.deleted": "Couleur pour les ressources supprimées.",
 	"colors.untracked": "Couleur pour les ressources non tracées.",

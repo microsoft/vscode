@@ -21,6 +21,7 @@
 	"workspaceConfig.name.description": "폴더에 대한 선택적 이름입니다.",
 	"workspaceConfig.uri.description": "폴더 URI",
 	"workspaceConfig.settings.description": "작업 영역 설정",
+	"workspaceConfig.launch.description": "작업 영역 시작 구성",
 	"workspaceConfig.extensions.description": "작업 영역 확장",
 	"unknownWorkspaceProperty": "알 수 없는 작업 영역 구성 속성"
 }

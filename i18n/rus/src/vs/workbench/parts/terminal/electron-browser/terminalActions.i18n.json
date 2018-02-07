@@ -16,6 +16,8 @@
 	"workbench.action.terminal.deleteWordRight": "Удалить слово справа",
 	"workbench.action.terminal.new": "Создание нового интегрированного терминала",
 	"workbench.action.terminal.new.short": "Новый терминал",
+	"workbench.action.terminal.newWorkspacePlaceholder": "Выбрать текущий рабочий каталог для нового терминала",
+	"workbench.action.terminal.newInActiveWorkspace": "Создать новый интегрированный терминал (в активной рабочей области)",
 	"workbench.action.terminal.focus": "Фокус на терминале",
 	"workbench.action.terminal.focusNext": "Фокус на следующем терминале",
 	"workbench.action.terminal.focusPrevious": "Фокус на предыдущем терминале",

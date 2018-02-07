@@ -33,6 +33,8 @@
 	"view id": "識別碼",
 	"view name": "名稱",
 	"view location": "位置",
+	"localizations": "當地語系化 ({0})",
+	"localizations language id": "語言識別碼",
 	"localizations language name": "語言名稱",
 	"localizations localized language name": "語言名稱 (在地化)",
 	"colorThemes": "色彩佈景主題 ({0})",

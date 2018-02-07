@@ -8,6 +8,7 @@
 	],
 	"looking": "Suchen nach Git in: {0}",
 	"using git": "Verwenden von Git {0} von {1}",
+	"downloadgit": "Git herunterladen",
 	"neverShowAgain": "Nicht mehr anzeigen",
 	"notfound": "Git nicht gefunden. Installieren Sie es, oder konfigurieren Sie es mithilfe der Einstellung \"git.path\".",
 	"updateGit": "Git aktualisieren",

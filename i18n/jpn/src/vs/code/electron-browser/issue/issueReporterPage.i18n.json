@@ -20,6 +20,8 @@
 	"processes": "現在実行中のプロセス",
 	"workspaceStats": "私のワークスペースのステータス",
 	"extensions": "私の拡張機能",
+	"tryDisablingExtensions": "拡張機能が無効になっている場合、問題を再現できません",
+	"disableExtensions": "すべての拡張機能を無効にしてウィンドウを再読みする",
 	"showRunningExtensions": "すべての実行中の拡張機能を確認する",
 	"githubMarkdown": "GitHub-flavored Markdown に対応しています。GitHub 上で確認するときに問題を編集してスクリーンショットを追加できます。",
 	"issueDescriptionRequired": "説明を入力してください。",

@@ -73,6 +73,8 @@
 	"config.decorations.enabled": "控制 Git 是否提供色彩及徽章給總管及開啟編輯器視窗。",
 	"config.promptToSaveFilesBeforeCommit": "控制Git是否應該在提交之前檢查未儲存的檔案。",
 	"config.showInlineOpenFileAction": "控制是否在Git變更列表中的檔名旁顯示“開啟檔案”的動作按鈕。",
+	"config.inputValidation": "控制顯示輸入驗證輸入計數器的時機。",
+	"config.detectSubmodules": "控制是否自動偵測 Git 子模組。",
 	"colors.modified": "修改資源的顏色。",
 	"colors.deleted": "刪除資源的顏色",
 	"colors.untracked": "未追蹤資源的顏色。",

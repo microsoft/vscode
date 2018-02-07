@@ -20,6 +20,9 @@
 	"noUpdatesAvailable": "Al momento non sono disponibili aggiornamenti.",
 	"download now": "Scarica ora",
 	"thereIsUpdateAvailable": "È disponibile un aggiornamento.",
+	"installUpdate": "Installa aggiornamento",
+	"updateAvailable": "È disponibile un aggiornamento: {0} {1}",
+	"updateInstalling": "{0} {1} verrà installato in background. Al termine, verrà visualizzato un messaggio.",
 	"updateNow": "Aggiorna adesso",
 	"updateAvailableAfterRestart": "{0} verrà aggiornato dopo il riavvio.",
 	"commandPalette": "Riquadro comandi...",
@@ -31,6 +34,7 @@
 	"checkForUpdates": "Verifica disponibilità aggiornamenti...",
 	"checkingForUpdates": "Verifica della disponibilità di aggiornamenti...",
 	"DownloadingUpdate": "Download dell'aggiornamento...",
+	"installUpdate...": "Installa aggiornamento...",
 	"installingUpdate": "Installazione dell'aggiornamento...",
 	"restartToUpdate": "Riavvia per aggiornare..."
 }

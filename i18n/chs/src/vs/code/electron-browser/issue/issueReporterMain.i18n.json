@@ -9,6 +9,7 @@
 	"previewOnGitHub": "在 GitHub 中预览",
 	"similarIssues": "类似的问题",
 	"noResults": "未找到结果",
+	"rateLimited": "已超出 API 速率限制",
 	"stepsToReproduce": "重现步骤",
 	"bugDescription": "您是怎么遇到这个问题的? 您需要执行哪些步骤来稳定重现此问题? 您期望发生什么，实际上发生了什么?",
 	"performanceIssueDesciption": "这个性能问题是在什么时候发生的? 比如，它在启动时还是在一系列特定的操作之后发生的? 您提供的任何细节都能帮助我们进行调查。",
