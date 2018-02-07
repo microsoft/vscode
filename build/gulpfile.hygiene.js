@@ -225,14 +225,16 @@ const hygiene = exports.hygiene = (some, options) => {
 		});
 	}
 
-	const program = tslint.Linter.createProgram("src/tsconfig.json");
+	const program = tslint.Linter.createProgram('src/tsconfig.json');
 	const configuration = tslint.Configuration.findConfiguration('tslint-hygiene.json', '.');
 	const tslintOptions = { fix: false, formatter: 'json' };
 	const linter = new tslint.Linter(tslintOptions, program);
 
 	const tsl = es.through(function (file) {
 		const contents = file.contents.toString('utf8');
-		linter.lint(file.relative, contents, configuration.results);
+		if (file.relative.startsWith('src/')) {  // only lint files in src program
+			linter.lint(file.relative, contents, configuration.results);
+		}
 		this.emit('data', file);
 	});
 
