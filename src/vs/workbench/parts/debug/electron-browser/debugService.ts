@@ -757,7 +757,7 @@ export class DebugService implements debug.IDebugService {
 								return this.createProcess(root, config, sessionId);
 							}
 
-							return undefined;
+							return TPromise.wrapError(new Error(nls.localize('invalidConfig', "Launch configuration provided does not have the mandatory `type` field.")));
 						})
 					).then(() => wrapUpState(), err => {
 						wrapUpState();
