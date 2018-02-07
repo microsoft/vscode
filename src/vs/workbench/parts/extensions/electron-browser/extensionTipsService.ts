@@ -679,7 +679,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			this._dynamicWorkspaceRecommendations = storedRecommendationsJson['recommendations'];
 			/* __GDPR__
 				"dynamicWorkspaceRecommendations" : {
-					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
@@ -722,7 +722,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 										}), StorageScope.WORKSPACE);
 										/* __GDPR__
 											"dynamicWorkspaceRecommendations" : {
-												"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+												"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 												"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 											}
 										*/
