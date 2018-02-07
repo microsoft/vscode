@@ -37,7 +37,7 @@ export interface TocEntry {
 }
 
 export class TableOfContentsProvider {
-	private toc: TocEntry[];
+	private toc?: TocEntry[];
 
 	public constructor(
 		private engine: MarkdownEngine,
