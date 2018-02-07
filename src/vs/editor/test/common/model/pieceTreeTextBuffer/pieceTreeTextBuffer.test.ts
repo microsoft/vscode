@@ -1441,7 +1441,8 @@ suite('centralized lineStarts with CRLF', () => {
 });
 
 suite('random is unsupervised', () => {
-	test('random insert delete', () => {
+	test('random insert delete', function () {
+		this.timeout(500000);
 		let str = '';
 		let pieceTable = createTextBuffer([str], false);
 
@@ -1471,7 +1472,8 @@ suite('random is unsupervised', () => {
 		assertTreeInvariants(pieceTable);
 	});
 
-	test('random chunks', () => {
+	test('random chunks', function () {
+		this.timeout(500000);
 		let chunks = [];
 		for (let i = 0; i < 5; i++) {
 			chunks.push(randomStr(1000));
@@ -1497,6 +1499,40 @@ suite('random is unsupervised', () => {
 				pieceTable.delete(pos, length);
 				str = str.substring(0, pos) + str.substring(pos + length);
 			}
+		}
+
+		assert.equal(pieceTable.getLinesRawContent(), str);
+		testLineStarts(str, pieceTable);
+		testLinesContent(str, pieceTable);
+		assertTreeInvariants(pieceTable);
+	});
+
+	test('random chunks 2', function () {
+		this.timeout(500000);
+		let chunks = [];
+		chunks.push(randomStr(1000));
+
+		let pieceTable = createTextBuffer(chunks, false);
+		let str = chunks.join('');
+
+		for (let i = 0; i < 50; i++) {
+			if (Math.random() < 0.6) {
+				// insert
+				let text = randomStr(30);
+				let pos = randomInt(str.length + 1);
+				pieceTable.insert(pos, text);
+				str = str.substring(0, pos) + text + str.substring(pos);
+			} else {
+				// delete
+				let pos = randomInt(str.length);
+				let length = Math.min(
+					str.length - pos,
+					Math.floor(Math.random() * 10)
+				);
+				pieceTable.delete(pos, length);
+				str = str.substring(0, pos) + str.substring(pos + length);
+			}
+			testLinesContent(str, pieceTable);
 		}
 
 		assert.equal(pieceTable.getLinesRawContent(), str);
