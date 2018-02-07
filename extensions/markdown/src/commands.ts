@@ -258,10 +258,10 @@ export class OpenDocumentLinkCommand implements Command {
 		const tryRevealLine = async (editor: vscode.TextEditor) => {
 			if (editor && args.fragment) {
 				const toc = new TableOfContentsProvider(this.engine, editor.document);
-				const line = await toc.lookup(args.fragment);
-				if (typeof line === 'number') {
+				const entry = await toc.lookup(args.fragment);
+				if (entry) {
 					return editor.revealRange(
-						new vscode.Range(line, 0, line, 0),
+						new vscode.Range(entry.line, 0, entry.line, 0),
 						vscode.TextEditorRevealType.AtTop);
 				}
 

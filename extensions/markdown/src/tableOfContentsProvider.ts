@@ -55,14 +55,11 @@ export class TableOfContentsProvider {
 		return this.toc;
 	}
 
-	public async lookup(fragment: string): Promise<number | undefined> {
+	public async lookup(fragment: string): Promise<TocEntry | undefined> {
 		const slug = Slug.fromHeading(fragment);
-		if (!slug) {
-			return;
-		}
 		for (const entry of await this.getToc()) {
 			if (entry.slug.equals(slug)) {
-				return entry.line;
+				return entry;
 			}
 		}
 		return undefined;
