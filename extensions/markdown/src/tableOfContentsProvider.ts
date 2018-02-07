@@ -29,11 +29,11 @@ export class Slug {
 }
 
 export interface TocEntry {
-	slug: Slug;
-	text: string;
-	level: number;
-	line: number;
-	location: vscode.Location;
+	readonly slug: Slug;
+	readonly text: string;
+	readonly level: number;
+	readonly line: number;
+	readonly location: vscode.Location;
 }
 
 export class TableOfContentsProvider {
