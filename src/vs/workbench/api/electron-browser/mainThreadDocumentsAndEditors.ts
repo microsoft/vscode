@@ -23,6 +23,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import URI from 'vs/base/common/uri';
 
 namespace mapset {
 
@@ -289,12 +290,12 @@ export class MainThreadDocumentsAndEditors {
 	private _onTextEditorAdd = new Emitter<MainThreadTextEditor[]>();
 	private _onTextEditorRemove = new Emitter<string[]>();
 	private _onDocumentAdd = new Emitter<ITextModel[]>();
-	private _onDocumentRemove = new Emitter<string[]>();
+	private _onDocumentRemove = new Emitter<URI[]>();
 
 	readonly onTextEditorAdd: Event<MainThreadTextEditor[]> = this._onTextEditorAdd.event;
 	readonly onTextEditorRemove: Event<string[]> = this._onTextEditorRemove.event;
 	readonly onDocumentAdd: Event<ITextModel[]> = this._onDocumentAdd.event;
-	readonly onDocumentRemove: Event<string[]> = this._onDocumentRemove.event;
+	readonly onDocumentRemove: Event<URI[]> = this._onDocumentRemove.event;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -336,12 +337,12 @@ export class MainThreadDocumentsAndEditors {
 
 	private _onDelta(delta: DocumentAndEditorStateDelta): void {
 
-		let removedDocuments: string[];
+		let removedDocuments: URI[];
 		let removedEditors: string[] = [];
 		let addedEditors: MainThreadTextEditor[] = [];
 
 		// removed models
-		removedDocuments = delta.removedDocuments.map(m => m.uri.toString());
+		removedDocuments = delta.removedDocuments.map(m => m.uri);
 
 		// added editors
 		for (const apiEditor of delta.addedEditors) {

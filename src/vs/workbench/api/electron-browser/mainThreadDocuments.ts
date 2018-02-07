@@ -156,14 +156,14 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._proxy.$acceptModelModeChanged(model.uri.toString(), oldModeId, model.getLanguageIdentifier().language);
 	}
 
-	private _onModelRemoved(modelUrl: string): void {
-
-		if (!this._modelIsSynced[modelUrl]) {
+	private _onModelRemoved(modelUrl: URI): void {
+		let strModelUrl = modelUrl.toString();
+		if (!this._modelIsSynced[strModelUrl]) {
 			return;
 		}
-		delete this._modelIsSynced[modelUrl];
-		this._modelToDisposeMap[modelUrl].dispose();
-		delete this._modelToDisposeMap[modelUrl];
+		delete this._modelIsSynced[strModelUrl];
+		this._modelToDisposeMap[strModelUrl].dispose();
+		delete this._modelToDisposeMap[strModelUrl];
 	}
 
 	// --- from extension host process
