@@ -1027,7 +1027,7 @@ begin
       Sleep(1000);
     end;
 
-    Exec(ExpandConstant('{app}\inno_updater.exe'), ExpandConstant('_ "{app}\unins000.dat" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+    Exec(ExpandConstant('{app}\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
   end;
 end;
 
