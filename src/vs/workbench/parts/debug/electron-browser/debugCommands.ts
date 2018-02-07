@@ -13,11 +13,16 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export function registerCommands(): void {
 
@@ -166,5 +171,48 @@ export function registerCommands(): void {
 				return undefined;
 			});
 		}
+	});
+
+	const COLUMN_BREAKPOINT_COMMAND_ID = 'editor.debug.action.toggleColumnBreakpoint';
+	CommandsRegistry.registerCommand({
+		id: COLUMN_BREAKPOINT_COMMAND_ID,
+		handler: (accessor) => {
+			const debugService = accessor.get(IDebugService);
+			const editorService = accessor.get(IWorkbenchEditorService);
+			const editor = editorService.getActiveEditor();
+			const control = editor && <ICodeEditor>editor.getControl();
+			if (control) {
+				const position = control.getPosition();
+				const modelUri = control.getModel().uri;
+				const bp = debugService.getModel().getBreakpoints()
+					.filter(bp => bp.lineNumber === position.lineNumber && bp.column === position.column && bp.uri.toString() === modelUri.toString()).pop();
+
+				if (bp) {
+					return TPromise.as(null);
+				}
+				if (debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
+					return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column }]);
+				}
+			}
+
+			return TPromise.as(null);
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: {
+			id: COLUMN_BREAKPOINT_COMMAND_ID,
+			title: nls.localize('columnBreakpoint', "Column Breakpoint"),
+			category: nls.localize('debug', "Debug")
+		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+		command: {
+			id: COLUMN_BREAKPOINT_COMMAND_ID,
+			title: nls.localize('addColumnBreakpoint', "Add Column Breakpoint")
+		},
+		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.writable),
+		group: 'debug',
+		order: 1
 	});
 }
