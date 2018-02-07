@@ -1,4 +1,0 @@
-#!/bin/bash
-
-# @@NAME@@ --snap-update
-echo "refresh hook" | "${SNAP}/bin/electron-launch" "${SNAP}/usr/share/@@NAME@@/bin/@@NAME@@" -
