@@ -14,7 +14,7 @@ export AZURE_DOCUMENTDB_MASTERKEY="$6"
 export LINUX_REPO_PASSWORD="$7"
 VSO_PAT="$8"
 export SNAPCRAFT_MACAROON="$9"
-export SNAPCRAFT_UNBOUND_DISCHARGE="$10"
+export SNAPCRAFT_UNBOUND_DISCHARGE="${10}"
 
 echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
