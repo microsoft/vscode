@@ -23,6 +23,7 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { openBreakpointSource } from 'vs/workbench/parts/debug/electron-browser/breakpointsView';
 
 export function registerCommands(): void {
 
@@ -214,5 +215,25 @@ export function registerCommands(): void {
 		when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.writable),
 		group: 'debug',
 		order: 1
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'debug.openBreakpointToSide',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: CONTEXT_BREAKPOINTS_FOCUSED,
+		primary: KeyMod.CtrlCmd | KeyCode.Enter,
+		secondary: [KeyMod.Alt | KeyCode.Enter],
+		handler: (accessor) => {
+			const listService = accessor.get(IListService);
+			const list = listService.lastFocusedList;
+			if (list instanceof List) {
+				const focus = list.getFocusedElements();
+				if (focus.length && focus[0] instanceof Breakpoint) {
+					return openBreakpointSource(focus[0], true, false, accessor.get(IDebugService), accessor.get(IWorkbenchEditorService));
+				}
+			}
+
+			return TPromise.as(undefined);
+		}
 	});
 }

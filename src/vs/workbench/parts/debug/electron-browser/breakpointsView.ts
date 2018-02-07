@@ -26,7 +26,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDelegate, IListContextMenuEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { IEditorService, IEditor } from 'vs/platform/editor/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -78,17 +78,6 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
-		const handleBreakpointFocus = (preserveFocus: boolean, sideBySide: boolean, selectFunctionBreakpoint: boolean) => {
-			const focused = this.list.getFocusedElements();
-			const element = focused.length ? focused[0] : undefined;
-			if (element instanceof Breakpoint) {
-				openBreakpointSource(element, sideBySide, preserveFocus, this.debugService, this.editorService).done(undefined, onUnexpectedError);
-			}
-			if (selectFunctionBreakpoint && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
-				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
-				this.onBreakpointsChange();
-			}
-		};
 		this.disposables.push(this.list.onOpen(e => {
 			let isSingleClick = false;
 			let isDoubleClick = false;
@@ -101,14 +90,14 @@ export class BreakpointsView extends ViewsViewletPanel {
 				openToSide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
 			}
 
-			handleBreakpointFocus(isSingleClick, openToSide, isDoubleClick);
-		}));
-
-		// TODO@Isidor this should be a command (breakpoints.openToSide)
-		this.disposables.push(this.list.onKeyUp(e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) && (event.ctrlKey || event.metaKey || event.altKey)) {
-				handleBreakpointFocus(false, true, false);
+			const focused = this.list.getFocusedElements();
+			const element = focused.length ? focused[0] : undefined;
+			if (element instanceof Breakpoint) {
+				openBreakpointSource(element, openToSide, isSingleClick, this.debugService, this.editorService).done(undefined, onUnexpectedError);
+			}
+			if (isDoubleClick && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
+				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+				this.onBreakpointsChange();
 			}
 		}));
 
@@ -495,7 +484,7 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 	}
 }
 
-function openBreakpointSource(breakpoint: Breakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): TPromise<IEditor> {
+export function openBreakpointSource(breakpoint: Breakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): TPromise<IEditor> {
 	if (breakpoint.uri.scheme === DEBUG_SCHEME && debugService.state === State.Inactive) {
 		return TPromise.as(null);
 	}
