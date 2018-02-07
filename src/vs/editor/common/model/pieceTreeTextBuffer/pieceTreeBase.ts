@@ -388,8 +388,8 @@ export class PieceTreeBase {
 			return '';
 		}
 
-		let startPosition = this.nodeAt2(new Position(range.startLineNumber, range.startColumn));
-		let endPosition = this.nodeAt2(new Position(range.endLineNumber, range.endColumn));
+		let startPosition = this.nodeAt2(range.startLineNumber, range.startColumn);
+		let endPosition = this.nodeAt2(range.endLineNumber, range.endColumn);
 
 		return this.getValueInRange2(startPosition, endPosition);
 	}
@@ -442,7 +442,7 @@ export class PieceTreeBase {
 	}
 
 	public getLineCharCode(lineNumber: number, index: number): number {
-		let nodePos = this.nodeAt2(new Position(lineNumber, index + 1));
+		let nodePos = this.nodeAt2(lineNumber, index + 1);
 		let buffer = this._buffers[nodePos.node.piece.bufferIndex];
 		let startOffset = this.offsetInBuffer(nodePos.node.piece.bufferIndex, nodePos.node.piece.start);
 		let targetOffset = startOffset + index;
@@ -988,10 +988,8 @@ export class PieceTreeBase {
 		return null;
 	}
 
-	nodeAt2(position: Position): NodePosition {
+	nodeAt2(lineNumber: number, column: number): NodePosition {
 		let x = this.root;
-		let lineNumber = position.lineNumber;
-		let column = position.column;
 		let nodeStartOffset = 0;
 
 		while (x !== SENTINEL) {
