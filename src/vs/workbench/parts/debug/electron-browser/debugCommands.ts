@@ -9,7 +9,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as errors from 'vs/base/common/errors';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -21,21 +20,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export function registerCommands(): void {
-
-	// TODO@Isidor remove in february
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'debug.logToDebugConsole',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		handler: (accessor: ServicesAccessor, value: string) => {
-			if (typeof value === 'string') {
-				const debugService = accessor.get(IDebugService);
-				// Use warning as severity to get the orange color for messages coming from the debug extension
-				debugService.logToRepl(value, severity.Warning);
-			}
-		},
-		when: undefined,
-		primary: undefined
-	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.toggleBreakpoint',
