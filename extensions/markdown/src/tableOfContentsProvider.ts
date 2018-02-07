@@ -34,14 +34,14 @@ export class TableOfContentsProvider {
 		return this.toc;
 	}
 
-	public async lookup(fragment: string): Promise<number> {
+	public async lookup(fragment: string): Promise<number | undefined> {
 		const slug = TableOfContentsProvider.slugify(fragment);
 		for (const entry of await this.getToc()) {
 			if (entry.slug === slug) {
 				return entry.line;
 			}
 		}
-		return NaN;
+		return undefined;
 	}
 
 	private async buildToc(document: vscode.TextDocument): Promise<TocEntry[]> {
