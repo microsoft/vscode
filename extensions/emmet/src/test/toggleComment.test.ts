@@ -9,8 +9,8 @@ import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { toggleComment as toggleCommentImpl } from '../toggleComment';
 
-function toggleComment(...args): Thenable<boolean> {
-	const result = toggleCommentImpl(...args);
+function toggleComment(): Thenable<boolean> {
+	const result = toggleCommentImpl();
 	assert.ok(result);
 	return result!;
 }
