@@ -19,8 +19,9 @@ export interface IIconLabelCreationOptions {
 	supportDescriptionHighlights?: boolean;
 }
 
-export interface IIconLabelOptions {
+export interface IIconLabelValueOptions {
 	title?: string;
+	descriptionTitle?: string;
 	extraClasses?: string[];
 	italic?: boolean;
 	matches?: IMatch[];
@@ -121,7 +122,7 @@ export class IconLabel {
 		]);
 	}
 
-	public setValue(label?: string, description?: string, options?: IIconLabelOptions): void {
+	public setValue(label?: string, description?: string, options?: IIconLabelValueOptions): void {
 		const classes = ['monaco-icon-label'];
 		if (options) {
 			if (options.extraClasses) {
@@ -149,8 +150,14 @@ export class IconLabel {
 
 			if (this.descriptionNode instanceof HighlightedLabel) {
 				this.descriptionNode.set(description || '', options ? options.descriptionMatches : void 0);
+				if (options && options.descriptionTitle) {
+					this.descriptionNode.element.title = options.descriptionTitle;
+				} else {
+					this.descriptionNode.element.removeAttribute('title');
+				}
 			} else {
 				this.descriptionNode.textContent = description || '';
+				this.descriptionNode.title = options && options.descriptionTitle ? options.descriptionTitle : '';
 				this.descriptionNode.empty = !description;
 			}
 		}

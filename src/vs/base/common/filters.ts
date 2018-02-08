@@ -7,7 +7,6 @@
 import strings = require('vs/base/common/strings');
 import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
-import { ltrim } from 'vs/base/common/strings';
 
 export interface IFilter {
 	// Returns null if word doesn't match.
@@ -340,108 +339,6 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 
 	// Default Filter
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
-}
-
-const octiconStartMarker = '$(';
-
-export function matchesFuzzyOcticonAware(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] {
-
-	// Return early if there are no octicon markers in the word to match against
-	const firstOcticonIndex = wordToMatchAgainst.indexOf(octiconStartMarker);
-	if (firstOcticonIndex === -1) {
-		return matchesFuzzy(word, wordToMatchAgainst, enableSeparateSubstringMatching);
-	}
-
-	const octiconOffsets: number[] = [];
-
-	let wordToMatchAgainstWithoutOcticons: string = '';
-
-	function appendChars(chars: string) {
-		if (chars) {
-			wordToMatchAgainstWithoutOcticons += chars;
-
-			for (let i = 0; i < chars.length; i++) {
-				octiconOffsets.push(octiconsOffset); // make sure to fill in octicon offsets
-			}
-		}
-	}
-
-	let currentOcticonStart = -1;
-	let currentOcticonValue: string = '';
-	let octiconsOffset = 0;
-
-	let char: string;
-	let nextChar: string;
-
-	let offset = firstOcticonIndex;
-	const length = wordToMatchAgainst.length;
-
-	// Append all characters until the first octicon
-	appendChars(wordToMatchAgainst.substr(0, firstOcticonIndex));
-
-	// example: $(file-symlink-file) my cool $(other-octicon) entry
-	while (offset < length) {
-		char = wordToMatchAgainst[offset];
-		nextChar = wordToMatchAgainst[offset + 1];
-
-		// beginning of octicon: some value $( <--
-		if (char === octiconStartMarker[0] && nextChar === octiconStartMarker[1]) {
-			currentOcticonStart = offset;
-
-			// if we had a previous potential octicon value without
-			// the closing ')', it was actually not an octicon and
-			// so we have to add it to the actual value
-			appendChars(currentOcticonValue);
-
-			currentOcticonValue = octiconStartMarker;
-
-			offset++; // jump over '('
-		}
-
-		// end of octicon: some value $(some-octicon) <--
-		else if (char === ')' && currentOcticonStart !== -1) {
-			const currentOcticonLength = offset - currentOcticonStart + 1; // +1 to include the closing ')'
-			octiconsOffset += currentOcticonLength;
-			currentOcticonStart = -1;
-			currentOcticonValue = '';
-		}
-
-		// within octicon
-		else if (currentOcticonStart !== -1) {
-			currentOcticonValue += char;
-		}
-
-		// any value outside of octicons
-		else {
-			appendChars(char);
-		}
-
-		offset++;
-	}
-
-	// if we had a previous potential octicon value without
-	// the closing ')', it was actually not an octicon and
-	// so we have to add it to the actual value
-	appendChars(currentOcticonValue);
-
-	// Trim the word to match against because it could have leading
-	// whitespace now if the word started with an octicon
-	const wordToMatchAgainstWithoutOcticonsTrimmed = ltrim(wordToMatchAgainstWithoutOcticons, ' ');
-	const leadingWhitespaceOffset = wordToMatchAgainstWithoutOcticons.length - wordToMatchAgainstWithoutOcticonsTrimmed.length;
-
-	// match on value without octicons
-	const matches = matchesFuzzy(word, wordToMatchAgainstWithoutOcticonsTrimmed, enableSeparateSubstringMatching);
-
-	// Map matches back to offsets with octicons and trimming
-	if (matches) {
-		for (let i = 0; i < matches.length; i++) {
-			const octiconOffset = octiconOffsets[matches[i].start] /* octicon offsets at index */ + leadingWhitespaceOffset /* overall leading whitespace offset */;
-			matches[i].start += octiconOffset;
-			matches[i].end += octiconOffset;
-		}
-	}
-
-	return matches;
 }
 
 export function skipScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {

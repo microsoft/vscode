@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
-import { IconLabel, IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { compareAnything } from 'vs/base/common/comparers';
@@ -84,7 +84,7 @@ export class QuickOpenEntry {
 	/**
 	 * The options for the label to use for this entry
 	 */
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return null;
 	}
 
@@ -120,6 +120,13 @@ export class QuickOpenEntry {
 	 * A tooltip to show when hovering over the entry.
 	 */
 	public getTooltip(): string {
+		return null;
+	}
+
+	/**
+	 * A tooltip to show when hovering over the description portion of the entry.
+	 */
+	public getDescriptionTooltip(): string {
 		return null;
 	}
 
@@ -227,7 +234,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getLabel() : super.getLabel();
 	}
 
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return this.entry ? this.entry.getLabelOptions() : super.getLabelOptions();
 	}
 
@@ -459,9 +466,10 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			data.icon.className = iconClass;
 
 			// Label
-			const options: IIconLabelOptions = entry.getLabelOptions() || Object.create(null);
+			const options: IIconLabelValueOptions = entry.getLabelOptions() || Object.create(null);
 			options.matches = labelHighlights || [];
-			options.title = entry.getTooltip() || void 0;
+			options.title = entry.getTooltip();
+			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription(); // tooltip over description because it could overflow
 			options.descriptionMatches = descriptionHighlights || [];
 			data.label.setValue(entry.getLabel(), entry.getDescription(), options);
 

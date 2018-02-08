@@ -17,7 +17,7 @@ import * as resources from 'vs/base/common/resources';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import types = require('vs/base/common/types');
 import { Action, IAction } from 'vs/base/common/actions';
-import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup, compareEntries, QuickOpenItemAccessorClass } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -54,7 +54,7 @@ import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { matchesFuzzyOcticonAware } from 'vs/base/common/filters';
+import { matchesFuzzyOcticonAware, removeOcticons } from 'vs/base/common/octicon';
 
 const HELP_PREFIX = '?';
 
@@ -1025,6 +1025,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 	private description: string;
 	private detail: string;
 	private tooltip: string;
+	private descriptionTooltip: string;
 	private hasSeparator: boolean;
 	private separatorLabel: string;
 	private alwaysShow: boolean;
@@ -1047,6 +1048,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 		this.description = item.description;
 		this.detail = item.detail;
 		this.tooltip = item.tooltip;
+		this.descriptionTooltip = item.description ? removeOcticons(item.description) : void 0;
 		this.hasSeparator = item.separator && item.separator.border;
 		this.separatorLabel = item.separator && item.separator.label;
 		this.alwaysShow = item.alwaysShow;
@@ -1081,7 +1083,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 		return this._index;
 	}
 
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: this.resource ? getIconClasses(this.modelService, this.modeService, this.resource, this.fileKind) : []
 		};
@@ -1101,6 +1103,10 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 
 	public getTooltip(): string {
 		return this.tooltip;
+	}
+
+	public getDescriptionTooltip(): string {
+		return this.descriptionTooltip;
 	}
 
 	public showBorder(): boolean {
@@ -1282,7 +1288,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return this.label;
 	}
 
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return {
 			extraClasses: getIconClasses(this.modelService, this.modeService, this.resource)
 		};
