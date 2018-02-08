@@ -520,7 +520,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		contextKeyService.createKey('scmProvider', resource.resourceGroup.provider.contextValue);
 		contextKeyService.createKey('scmResourceGroup', getSCMResourceContextKey(resource.resourceGroup));
 
-		const menu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, contextKeyService);
+		const menu = this.menuService.createMenu(MenuId.SCMResourceContext, contextKeyService);
 		disposables.push(menu);
 
 		const updateActions = () => {
