@@ -19,6 +19,7 @@ import { shell } from 'electron';
 import { realpath } from 'vs/base/node/pfs';
 import product from 'vs/platform/node/product';
 import * as path from 'path';
+import { spawn } from 'child_process';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -101,5 +102,15 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		this.setState(State.Idle);
 
 		return TPromise.as(null);
+	}
+
+	protected doQuitAndInstall(): void {
+		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
+
+		// Allow 3 seconds for VS Code to close
+		spawn('bash', ['-c', `'sleep 3; /snap/${product.applicationName}/current &'`], {
+			detached: true,
+			stdio: ['ignore', 'ignore', 'ignore']
+		});
 	}
 }
