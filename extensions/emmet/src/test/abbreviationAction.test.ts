@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { Selection, workspace, CompletionList, CancellationTokenSource } from 'vscode';
+import { Selection, workspace, CompletionList, CancellationTokenSource, ConfigurationTarget } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { expandEmmetAbbreviation } from '../abbreviationActions';
 import { DefaultCompletionItemProvider } from '../defaultCompletionProvider';
@@ -38,7 +38,7 @@ const htmlContents = `
 suite('Tests for Expand Abbreviations (HTML)', () => {
 	teardown(() => {
 		// Reset config and close all editors
-		return workspace.getConfiguration('emmet').update('excludeLanguages', []).then(closeAllEditors);
+		return workspace.getConfiguration('emmet').update('excludeLanguages', [], ConfigurationTarget.Global).then(closeAllEditors);
 	});
 
 	test('Expand snippets (HTML)', () => {
@@ -255,25 +255,25 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	});
 
 	test('No expanding when html is excluded in the settings', () => {
-		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html']).then(() => {
+		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html'], ConfigurationTarget.Global).then(() => {
 			return testExpandAbbreviation('html', new Selection(9, 6, 9, 6), '', '', true).then(() => {
-				return workspace.getConfiguration('emmet').update('excludeLanguages', []);
+				return workspace.getConfiguration('emmet').update('excludeLanguages', [], ConfigurationTarget.Global);
 			});
 		});
 	});
 
 	test('No expanding when html is excluded in the settings in completion list', () => {
-		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html']).then(() => {
+		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html'], ConfigurationTarget.Global).then(() => {
 			return testHtmlCompletionProvider(new Selection(9, 6, 9, 6), '', '', true).then(() => {
-				return workspace.getConfiguration('emmet').update('excludeLanguages', []);
+				return workspace.getConfiguration('emmet').update('excludeLanguages', [], ConfigurationTarget.Global);
 			});
 		});
 	});
 
 	test('No expanding when php (mapped syntax) is excluded in the settings', () => {
-		return workspace.getConfiguration('emmet').update('excludeLanguages', ['php']).then(() => {
+		return workspace.getConfiguration('emmet').update('excludeLanguages', ['php'], ConfigurationTarget.Global).then(() => {
 			return testExpandAbbreviation('php', new Selection(9, 6, 9, 6), '', '', true).then(() => {
-				return workspace.getConfiguration('emmet').update('excludeLanguages', []);
+				return workspace.getConfiguration('emmet').update('excludeLanguages', [], ConfigurationTarget.Global);
 			});
 		});
 	});
