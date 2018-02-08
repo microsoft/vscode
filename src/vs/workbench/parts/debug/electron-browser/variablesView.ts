@@ -39,6 +39,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 	private settings: any;
 	private expandedElements: any[];
 	private needsRefresh: boolean;
+	private treeContainer: HTMLElement;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -135,6 +136,13 @@ export class VariablesView extends TreeViewsViewletPanel {
 				});
 			}).done(null, errors.onUnexpectedError);
 		}));
+	}
+
+	layoutBody(size: number): void {
+		if (this.treeContainer) {
+			this.treeContainer.style.height = size + 'px';
+		}
+		super.layoutBody(size);
 	}
 
 	public setExpanded(expanded: boolean): void {

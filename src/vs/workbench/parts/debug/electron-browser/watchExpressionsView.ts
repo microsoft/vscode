@@ -37,6 +37,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 
 	private static readonly MEMENTO = 'watchexpressionsview.memento';
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
+	private treeContainer: HTMLElement;
 	private settings: any;
 	private needsRefresh: boolean;
 
@@ -116,6 +117,13 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 				});
 			}).done(null, errors.onUnexpectedError);
 		}));
+	}
+
+	layoutBody(size: number): void {
+		if (this.treeContainer) {
+			this.treeContainer.style.height = size + 'px';
+		}
+		super.layoutBody(size);
 	}
 
 	public setExpanded(expanded: boolean): void {

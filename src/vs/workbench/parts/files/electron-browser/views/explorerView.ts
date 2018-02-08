@@ -42,6 +42,7 @@ import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { DelayedDragHandler } from 'vs/base/browser/dnd';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -74,6 +75,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	private autoReveal: boolean;
 	private sortOrder: SortOrder;
 	private settings: object;
+	private treeContainer: HTMLElement;
+	private dragHandler: DelayedDragHandler;
+	private isDisposed: boolean;
 
 	constructor(
 		options: IExplorerViewOptions,
@@ -122,6 +126,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	protected renderHeader(container: HTMLElement): void {
 		super.renderHeader(container);
 
+		// Expand on drag over
+		this.dragHandler = new DelayedDragHandler(container, () => this.setExpanded(true));
+
 		const titleElement = container.querySelector('.title') as HTMLElement;
 		const setHeader = () => {
 			const workspace = this.contextService.getWorkspace();
@@ -151,9 +158,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	}
 
 	public renderBody(container: HTMLElement): void {
-		this.treeContainer = super.renderViewTree(container);
-		DOM.addClass(this.treeContainer, 'explorer-folders-view');
-
+		this.treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
 		this.tree = this.createViewer($(this.treeContainer));
 
 		if (this.toolbar) {
@@ -162,6 +167,13 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.refreshFromEvent(e.added)));
 		this.disposables.push(this.contextService.onDidChangeWorkbenchState(e => this.refreshFromEvent()));
+	}
+
+	layoutBody(size: number): void {
+		if (this.treeContainer) {
+			this.treeContainer.style.height = size + 'px';
+		}
+		super.layoutBody(size);
 	}
 
 	public getActions(): IAction[] {
@@ -381,7 +393,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		return model;
 	}
 
-	public createViewer(container: Builder): WorkbenchTree {
+	private createViewer(container: Builder): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
 		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
 		const controller = this.instantiationService.createInstance(FileController);
@@ -439,6 +451,10 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}));
 
 		return this.explorerViewer;
+	}
+
+	getViewer(): WorkbenchTree {
+		return this.tree;
 	}
 
 	public getOptimalWidth(): number {
@@ -952,6 +968,13 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		});
 	}
 
+	private reveal(element: any, relativeTop?: number): TPromise<void> {
+		if (!this.tree) {
+			return TPromise.as(null); // return early if viewlet has not yet been created
+		}
+		return this.tree.reveal(element, relativeTop);
+	}
+
 	public shutdown(): void {
 
 		// Keep list of expanded folders to restore on next load
@@ -973,5 +996,13 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		super.shutdown();
+	}
+
+	dispose(): void {
+		this.isDisposed = true;
+		if (this.dragHandler) {
+			this.dragHandler.dispose();
+		}
+		super.dispose();
 	}
 }

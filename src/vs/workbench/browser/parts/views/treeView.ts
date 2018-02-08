@@ -37,6 +37,7 @@ export class TreeView extends TreeViewsViewletPanel {
 
 	private menus: Menus;
 	private activated: boolean = false;
+	private treeContainer: HTMLElement;
 	private treeInputPromise: TPromise<void>;
 
 	private dataProviderElementChangeListener: IDisposable;
@@ -61,10 +62,8 @@ export class TreeView extends TreeViewsViewletPanel {
 		}
 	}
 
-	public renderBody(container: HTMLElement): void {
-		this.treeContainer = super.renderViewTree(container);
-		DOM.addClass(this.treeContainer, 'tree-explorer-viewlet-tree-view');
-
+	renderBody(container: HTMLElement): void {
+		this.treeContainer = DOM.append(container, DOM.$('.tree-explorer-viewlet-tree-view'));
 		this.tree = this.createViewer($(this.treeContainer));
 		this.setInput();
 	}
@@ -75,6 +74,13 @@ export class TreeView extends TreeViewsViewletPanel {
 		if (expanded) {
 			this.activate();
 		}
+	}
+
+	layoutBody(size: number): void {
+		if (this.treeContainer) {
+			this.treeContainer.style.height = size + 'px';
+		}
+		super.layoutBody(size);
 	}
 
 	private activate() {

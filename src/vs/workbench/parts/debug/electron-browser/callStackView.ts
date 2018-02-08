@@ -38,6 +38,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	private settings: any;
 	private needsRefresh: boolean;
 	private ignoreSelectionChangedEvent: boolean;
+	private treeContainer: HTMLElement;
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -155,6 +156,13 @@ export class CallStackView extends TreeViewsViewletPanel {
 		if (this.debugService.state === State.Stopped) {
 			this.onCallStackChangeScheduler.schedule();
 		}
+	}
+
+	layoutBody(size: number): void {
+		if (this.treeContainer) {
+			this.treeContainer.style.height = size + 'px';
+		}
+		super.layoutBody(size);
 	}
 
 	private updateTreeSelection(): TPromise<void> {
