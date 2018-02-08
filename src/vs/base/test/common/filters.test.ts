@@ -5,8 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, matchesFuzzy } from 'vs/base/common/filters';
-import { matchesFuzzyOcticonAware } from 'vs/base/common/octicon';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -442,54 +441,5 @@ suite('Filters', () => {
 		assertMatches('cno', 'console', '^c^o^nsole', fuzzyScoreGracefulAggressive);
 		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGraceful);
 		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGracefulAggressive);
-	});
-
-	test('matchesFuzzzyOcticonAware', function () {
-
-		// Camel Case
-
-		filterOk(matchesFuzzy, 'ccr', 'CamelCaseRocks', [
-			{ start: 0, end: 1 },
-			{ start: 5, end: 6 },
-			{ start: 9, end: 10 }
-		]);
-
-		filterOk(matchesFuzzyOcticonAware, 'ccr', '$(octicon)CamelCaseRocks$(octicon)', [
-			{ start: 10, end: 11 },
-			{ start: 15, end: 16 },
-			{ start: 19, end: 20 }
-		]);
-
-		filterOk(matchesFuzzyOcticonAware, 'ccr', '$(octicon) CamelCaseRocks $(octicon)', [
-			{ start: 11, end: 12 },
-			{ start: 16, end: 17 },
-			{ start: 20, end: 21 }
-		]);
-
-		filterOk(matchesFuzzyOcticonAware, 'iut', '$(octicon) Indent $(octico) Using $(octic) Tpaces', [
-			{ start: 11, end: 12 },
-			{ start: 28, end: 29 },
-			{ start: 43, end: 44 },
-		]);
-
-		// Prefix
-
-		filterOk(matchesFuzzy, 'using', 'Indent Using Spaces', [
-			{ start: 7, end: 12 }
-		]);
-
-		filterOk(matchesFuzzyOcticonAware, 'using', '$(octicon) Indent Using Spaces', [
-			{ start: 18, end: 23 },
-		]);
-
-		// Broken Octicon
-
-		filterOk(matchesFuzzyOcticonAware, 'octicon', 'This $(octicon Indent Using Spaces', [
-			{ start: 7, end: 14 },
-		]);
-
-		filterOk(matchesFuzzyOcticonAware, 'indent', 'This $octicon Indent Using Spaces', [
-			{ start: 14, end: 20 },
-		]);
 	});
 });

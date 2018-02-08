@@ -54,7 +54,8 @@ import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { matchesFuzzyOcticonAware, removeOcticons } from 'vs/base/common/octicon';
+import { matchesFuzzyOcticonAware, parseOcticons, IParsedOcticons } from 'vs/base/common/octicon';
+import { IMatch } from 'vs/base/common/filters';
 
 const HELP_PREFIX = '?';
 
@@ -434,9 +435,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 						// Filter by value (since we support octicons, use octicon aware fuzzy matching)
 						else {
 							entries.forEach(entry => {
-								const labelHighlights = matchesFuzzyOcticonAware(value, entry.getLabel());
-								const descriptionHighlights = options.matchOnDescription && matchesFuzzyOcticonAware(value, entry.getDescription());
-								const detailHighlights = options.matchOnDetail && entry.getDetail() && matchesFuzzyOcticonAware(value, entry.getDetail());
+								const { labelHighlights, descriptionHighlights, detailHighlights } = entry.matchesFuzzy(value, options);
 
 								if (entry.shouldAlwaysShow() || labelHighlights || descriptionHighlights || detailHighlights) {
 									entry.setHighlights(labelHighlights, descriptionHighlights, detailHighlights);
@@ -1034,6 +1033,9 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 	private _action: IAction;
 	private removed: boolean;
 	private payload: any;
+	private labelOcticons: IParsedOcticons;
+	private descriptionOcticons: IParsedOcticons;
+	private detailOcticons: IParsedOcticons;
 
 	constructor(
 		item: IPickOpenEntry,
@@ -1048,7 +1050,8 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 		this.description = item.description;
 		this.detail = item.detail;
 		this.tooltip = item.tooltip;
-		this.descriptionTooltip = item.description ? removeOcticons(item.description) : void 0;
+		this.descriptionOcticons = item.description ? parseOcticons(item.description) : void 0;
+		this.descriptionTooltip = this.descriptionOcticons ? this.descriptionOcticons.text : void 0;
 		this.hasSeparator = item.separator && item.separator.border;
 		this.separatorLabel = item.separator && item.separator.label;
 		this.alwaysShow = item.alwaysShow;
@@ -1058,6 +1061,23 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry implements IPickOpenItem {
 		const fileItem = <IFilePickOpenEntry>item;
 		this.resource = fileItem.resource;
 		this.fileKind = fileItem.fileKind;
+	}
+
+	public matchesFuzzy(query: string, options: IInternalPickOptions): { labelHighlights: IMatch[], descriptionHighlights: IMatch[], detailHighlights: IMatch[] } {
+		if (!this.labelOcticons) {
+			this.labelOcticons = parseOcticons(this.getLabel()); // parse on demand
+		}
+
+		const detail = this.getDetail();
+		if (detail && options.matchOnDetail && !this.detailOcticons) {
+			this.detailOcticons = parseOcticons(detail); // parse on demand
+		}
+
+		return {
+			labelHighlights: matchesFuzzyOcticonAware(query, this.labelOcticons),
+			descriptionHighlights: options.matchOnDescription && this.descriptionOcticons ? matchesFuzzyOcticonAware(query, this.descriptionOcticons) : void 0,
+			detailHighlights: options.matchOnDetail && this.detailOcticons ? matchesFuzzyOcticonAware(query, this.detailOcticons) : void 0
+		};
 	}
 
 	public getPayload(): any {

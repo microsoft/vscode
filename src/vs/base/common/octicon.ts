@@ -10,22 +10,27 @@ import { ltrim } from 'vs/base/common/strings';
 
 const octiconStartMarker = '$(';
 
-export function removeOcticons(word: string): string {
-	const firstOcticonIndex = word.indexOf(octiconStartMarker);
-	if (firstOcticonIndex === -1) {
-		return word; // return early if the word does not include an octicon
-	}
-
-	return doParseOcticonAware(word, firstOcticonIndex).wordWithoutOcticons.trim();
+export interface IParsedOcticons {
+	text: string;
+	octiconOffsets?: number[];
 }
 
-function doParseOcticonAware(word: string, firstOcticonIndex: number): { wordWithoutOcticons: string, octiconOffsets: number[] } {
+export function parseOcticons(text: string): IParsedOcticons {
+	const firstOcticonIndex = text.indexOf(octiconStartMarker);
+	if (firstOcticonIndex === -1) {
+		return { text }; // return early if the word does not include an octicon
+	}
+
+	return doParseOcticons(text, firstOcticonIndex);
+}
+
+function doParseOcticons(text: string, firstOcticonIndex: number): IParsedOcticons {
 	const octiconOffsets: number[] = [];
-	let wordWithoutOcticons: string = '';
+	let textWithoutOcticons: string = '';
 
 	function appendChars(chars: string) {
 		if (chars) {
-			wordWithoutOcticons += chars;
+			textWithoutOcticons += chars;
 
 			for (let i = 0; i < chars.length; i++) {
 				octiconOffsets.push(octiconsOffset); // make sure to fill in octicon offsets
@@ -41,15 +46,15 @@ function doParseOcticonAware(word: string, firstOcticonIndex: number): { wordWit
 	let nextChar: string;
 
 	let offset = firstOcticonIndex;
-	const length = word.length;
+	const length = text.length;
 
 	// Append all characters until the first octicon
-	appendChars(word.substr(0, firstOcticonIndex));
+	appendChars(text.substr(0, firstOcticonIndex));
 
 	// example: $(file-symlink-file) my cool $(other-octicon) entry
 	while (offset < length) {
-		char = word[offset];
-		nextChar = word[offset + 1];
+		char = text[offset];
+		nextChar = text[offset + 1];
 
 		// beginning of octicon: some value $( <--
 		if (char === octiconStartMarker[0] && nextChar === octiconStartMarker[1]) {
@@ -91,27 +96,24 @@ function doParseOcticonAware(word: string, firstOcticonIndex: number): { wordWit
 	// so we have to add it to the actual value
 	appendChars(currentOcticonValue);
 
-	return { wordWithoutOcticons, octiconOffsets };
+	return { text: textWithoutOcticons, octiconOffsets };
 }
 
-export function matchesFuzzyOcticonAware(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] {
+export function matchesFuzzyOcticonAware(query: string, target: IParsedOcticons, enableSeparateSubstringMatching = false): IMatch[] {
+	const { text, octiconOffsets } = target;
 
 	// Return early if there are no octicon markers in the word to match against
-	const firstOcticonIndex = wordToMatchAgainst.indexOf(octiconStartMarker);
-	if (firstOcticonIndex === -1) {
-		return matchesFuzzy(word, wordToMatchAgainst, enableSeparateSubstringMatching);
+	if (!octiconOffsets || octiconOffsets.length === 0) {
+		return matchesFuzzy(query, text, enableSeparateSubstringMatching);
 	}
-
-	// Parse
-	const { wordWithoutOcticons, octiconOffsets } = doParseOcticonAware(wordToMatchAgainst, firstOcticonIndex);
 
 	// Trim the word to match against because it could have leading
 	// whitespace now if the word started with an octicon
-	const wordToMatchAgainstWithoutOcticonsTrimmed = ltrim(wordWithoutOcticons, ' ');
-	const leadingWhitespaceOffset = wordWithoutOcticons.length - wordToMatchAgainstWithoutOcticonsTrimmed.length;
+	const wordToMatchAgainstWithoutOcticonsTrimmed = ltrim(text, ' ');
+	const leadingWhitespaceOffset = text.length - wordToMatchAgainstWithoutOcticonsTrimmed.length;
 
 	// match on value without octicons
-	const matches = matchesFuzzy(word, wordToMatchAgainstWithoutOcticonsTrimmed, enableSeparateSubstringMatching);
+	const matches = matchesFuzzy(query, wordToMatchAgainstWithoutOcticonsTrimmed, enableSeparateSubstringMatching);
 
 	// Map matches back to offsets with octicons and trimming
 	if (matches) {
