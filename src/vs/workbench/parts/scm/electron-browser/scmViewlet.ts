@@ -350,6 +350,7 @@ class MainPanel extends ViewletPanel {
 		}
 
 		this.list.setSelection(selection);
+		this.list.setFocus([selection[0]]);
 	}
 }
 
