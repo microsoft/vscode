@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IExpression, IDebugService, IEnablement } from 'vs/workbench/parts/debug/common/debug';
-import { Expression, FunctionBreakpoint, Variable } from 'vs/workbench/parts/debug/common/debugModel';
+import { Expression, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITree, ContextMenuEvent, IActionProvider } from 'vs/base/parts/tree/browser/tree';
@@ -136,7 +136,6 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 	});
 	const styler = attachInputBoxStyler(inputBox, themeService);
 
-	tree.setHighlight();
 	inputBox.value = options.initialValue ? options.initialValue : '';
 	inputBox.focus();
 	inputBox.select();
@@ -149,12 +148,10 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 			disposed = true;
 			if (element instanceof Expression && renamed && inputBox.value) {
 				debugService.renameWatchExpression(element.getId(), inputBox.value);
+				debugService.getViewModel().setSelectedExpression(undefined);
 			} else if (element instanceof Expression && !element.name) {
 				debugService.removeWatchExpressions(element.getId());
-			} else if (element instanceof FunctionBreakpoint && inputBox.value) {
-				debugService.renameFunctionBreakpoint(element.getId(), renamed ? inputBox.value : element.name).done(null, onUnexpectedError);
-			} else if (element instanceof FunctionBreakpoint && !element.name) {
-				debugService.removeFunctionBreakpoints(element.getId()).done(null, onUnexpectedError);
+				debugService.getViewModel().setSelectedExpression(undefined);
 			} else if (element instanceof Variable) {
 				element.errorMessage = null;
 				if (renamed && element.value !== inputBox.value) {
@@ -168,7 +165,6 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 				}
 			}
 
-			tree.clearHighlight();
 			tree.DOMFocus();
 			tree.setFocus(element);
 

@@ -122,7 +122,7 @@ export class DebugService implements debug.IDebugService {
 		this.model = new Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
-		this.viewModel = new ViewModel();
+		this.viewModel = new ViewModel(contextKeyService);
 		this.firstSessionStart = true;
 
 		this.registerListeners();
@@ -642,7 +642,8 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public addWatchExpression(name: string): void {
-		return this.model.addWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name);
+		const we = this.model.addWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name);
+		this.viewModel.setSelectedExpression(we);
 	}
 
 	public renameWatchExpression(id: string, newName: string): void {

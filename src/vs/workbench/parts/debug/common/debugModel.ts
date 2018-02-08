@@ -1048,10 +1048,12 @@ export class Model implements IModel {
 		return this.watchExpressions;
 	}
 
-	public addWatchExpression(process: IProcess, stackFrame: IStackFrame, name: string): void {
+	public addWatchExpression(process: IProcess, stackFrame: IStackFrame, name: string): IExpression {
 		const we = new Expression(name);
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
+
+		return we;
 	}
 
 	public renameWatchExpression(process: IProcess, stackFrame: IStackFrame, id: string, newName: string): void {
