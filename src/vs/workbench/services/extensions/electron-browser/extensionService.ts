@@ -16,7 +16,7 @@ import * as pfs from 'vs/base/node/pfs';
 import URI from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes, IExtensionHostInformation, ProfileSession, USER_MANIFEST_CACHE_FILE, BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions';
+import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes, ProfileSession, USER_MANIFEST_CACHE_FILE, BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
@@ -195,15 +195,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	public get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
 		return this._onDidRegisterExtensions.event;
-	}
-
-	public getExtensionHostInformation(): IExtensionHostInformation {
-		if (!this._extensionHostProcessWorker) {
-			throw errors.illegalState();
-		}
-		return <IExtensionHostInformation>{
-			inspectPort: this._extensionHostProcessWorker.getInspectPort()
-		};
 	}
 
 	public restartExtensionHost(): void {
