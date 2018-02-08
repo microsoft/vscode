@@ -395,7 +395,7 @@ export interface SCMGroupFeatures {
 
 export type SCMRawResource = [
 	number /*handle*/,
-	string /*resourceUri*/,
+	UriComponents /*resourceUri*/,
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
@@ -418,7 +418,7 @@ export type SCMRawResourceSplices = [
 ];
 
 export interface MainThreadSCMShape extends IDisposable {
-	$registerSourceControl(handle: number, id: string, label: string, rootUri: string | undefined): void;
+	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
 	$unregisterSourceControl(handle: number): void;
 
@@ -691,7 +691,7 @@ export interface ExtHostTerminalServiceShape {
 }
 
 export interface ExtHostSCMShape {
-	$provideOriginalResource(sourceControlHandle: number, uri: string): TPromise<string>;
+	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents): TPromise<UriComponents>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void>;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined>;
