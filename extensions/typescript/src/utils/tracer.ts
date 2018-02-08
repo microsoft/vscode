@@ -32,7 +32,7 @@ namespace Trace {
 }
 
 export default class Tracer {
-private trace?: Trace;
+	private trace?: Trace;
 
 	constructor(
 		private readonly logger: Logger
