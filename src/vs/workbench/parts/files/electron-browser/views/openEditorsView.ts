@@ -40,7 +40,7 @@ import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { OpenEditorsGroupContext, DirtyEditorContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { fillResourceDataTransfers, ResourcesDropHandler, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 
 const $ = dom.$;
 
@@ -448,6 +448,8 @@ class OpenEditorsDelegate implements IDelegate<OpenEditor | IEditorGroup> {
 class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplateData> {
 	static readonly ID = 'editorgroup';
 
+	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();
+
 	constructor(
 		private keybindingService: IKeybindingService,
 		private instantiationService: IInstantiationService,
@@ -472,21 +474,24 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 
 		editorGroupTemplate.toDispose = [];
 		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, (e: DragEvent) => {
-			if (OpenEditorRenderer.DRAGGED_OPEN_EDITORS) {
-				dom.addClass(container, 'focused');
-			}
+			dom.addClass(container, 'focused');
 		}));
 		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			dom.removeClass(container, 'focused');
 		}));
-		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, () => {
+		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, e => {
 			dom.removeClass(container, 'focused');
-			if (OpenEditorRenderer.DRAGGED_OPEN_EDITORS) {
-				const model = this.editorGroupService.getStacksModel();
-				const positionOfTargetGroup = model.positionOfGroup(editorGroupTemplate.editorGroup);
-				OpenEditorRenderer.DRAGGED_OPEN_EDITORS.forEach(oe =>
+
+			const model = this.editorGroupService.getStacksModel();
+			const positionOfTargetGroup = model.positionOfGroup(editorGroupTemplate.editorGroup);
+
+			if (this.transfer.hasData(OpenEditor.prototype)) {
+				this.transfer.getData(OpenEditor.prototype).forEach(oe =>
 					this.editorGroupService.moveEditor(oe.editor, model.positionOfGroup(oe.group), positionOfTargetGroup, { preserveFocus: true }));
 				this.editorGroupService.activateGroup(positionOfTargetGroup);
+			} else {
+				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
+				dropHandler.handleDrop(e, () => this.editorGroupService.activateGroup(positionOfTargetGroup), positionOfTargetGroup);
 			}
 		}));
 
@@ -507,7 +512,8 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 
 class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateData> {
 	static readonly ID = 'openeditor';
-	public static DRAGGED_OPEN_EDITORS: OpenEditor[];
+
+	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();
 
 	constructor(
 		private getSelectedElements: () => (OpenEditor | IEditorGroup)[],
@@ -548,34 +554,35 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 			setTimeout(() => document.body.removeChild(dragImage), 0);
 
 			const dragged = <OpenEditor[]>this.getSelectedElements().filter(e => e instanceof OpenEditor && !!e.getResource());
-			OpenEditorRenderer.DRAGGED_OPEN_EDITORS = dragged;
+			this.transfer.setData(dragged, OpenEditor.prototype);
 
 			if (editorTemplate.openEditor && editorTemplate.openEditor.editor) {
 				this.instantiationService.invokeFunction(fillResourceDataTransfers, dragged.map(d => d.getResource()), e);
 			}
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, () => {
-			if (OpenEditorRenderer.DRAGGED_OPEN_EDITORS) {
-				dom.addClass(container, 'focused');
-			}
+			dom.addClass(container, 'focused');
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_LEAVE, () => {
 			dom.removeClass(container, 'focused');
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, (e: DragEvent) => {
 			dom.removeClass(container, 'focused');
-			if (OpenEditorRenderer.DRAGGED_OPEN_EDITORS) {
-				const model = this.editorGroupService.getStacksModel();
-				const positionOfTargetGroup = model.positionOfGroup(editorTemplate.openEditor.group);
-				const index = editorTemplate.openEditor.group.indexOf(editorTemplate.openEditor.editor);
+			const model = this.editorGroupService.getStacksModel();
+			const positionOfTargetGroup = model.positionOfGroup(editorTemplate.openEditor.group);
+			const index = editorTemplate.openEditor.group.indexOf(editorTemplate.openEditor.editor);
 
-				OpenEditorRenderer.DRAGGED_OPEN_EDITORS.forEach(oe =>
+			if (this.transfer.hasData(OpenEditor.prototype)) {
+				this.transfer.getData(OpenEditor.prototype).forEach(oe =>
 					this.editorGroupService.moveEditor(oe.editor, model.positionOfGroup(oe.group), positionOfTargetGroup, { index, preserveFocus: true }));
 				this.editorGroupService.activateGroup(positionOfTargetGroup);
+			} else {
+				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
+				dropHandler.handleDrop(e, () => this.editorGroupService.activateGroup(positionOfTargetGroup), positionOfTargetGroup, index);
 			}
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_END, () => {
-			OpenEditorRenderer.DRAGGED_OPEN_EDITORS = undefined;
+			this.transfer.clearData();
 		}));
 
 		return editorTemplate;

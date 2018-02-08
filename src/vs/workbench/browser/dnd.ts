@@ -32,10 +32,20 @@ import { isWindows } from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { IEditorIdentifier } from 'vs/workbench/common/editor';
 
 export interface IDraggedResource {
 	resource: URI;
 	isExternal: boolean;
+}
+
+export class DraggedEditorIdentifier {
+	constructor(private _identifier: IEditorIdentifier) {
+	}
+
+	public get identifier(): IEditorIdentifier {
+		return this._identifier;
+	}
 }
 
 export interface IDraggedEditor extends IDraggedResource {
@@ -110,13 +120,23 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): (IDragge
 	return resources;
 }
 
+export interface IResourcesDropHandlerOptions {
+
+	/**
+	 * Wether to open the actual workspace when a workspace configuration file is dropped
+	 * or wether to open the configuration file within the editor as normal file.
+	 */
+	allowWorkspaceOpen: boolean;
+}
+
 /**
- * Shared function across some editor components to handle drag & drop of external resources. E.g. of folders and workspace files
+ * Shared function across some components to handle drag & drop of resources. E.g. of folders and workspace files
  * to open them in the window instead of the editor or to handle dirty editors being dropped between instances of Code.
  */
-export class EditorAreaDropHandler {
+export class ResourcesDropHandler {
 
 	constructor(
+		private options: IResourcesDropHandlerOptions,
 		@IFileService private fileService: IFileService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
@@ -177,8 +197,8 @@ export class EditorAreaDropHandler {
 			return TPromise.join(resourcesWithBackups.map(resourceWithBackup => this.handleDirtyEditorDrop(resourceWithBackup))).then(() => false);
 		}
 
-		// Check for workspace file being dropped
-		if (resources.some(r => r.isExternal)) {
+		// Check for workspace file being dropped if we are allowed to do so
+		if (this.options.allowWorkspaceOpen && resources.some(r => r.isExternal)) {
 			return this.handleWorkspaceFileDrop(resources);
 		}
 
@@ -377,4 +397,47 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	});
 
 	event.dataTransfer.setData(CodeDataTransfers.EDITORS, JSON.stringify(draggedEditors));
+}
+
+/**
+ * A singleton to store transfer data during drag & drop operations that are only valid within the application.
+ */
+export class LocalSelectionTransfer<T> {
+
+	private static readonly INSTANCE = new LocalSelectionTransfer();
+
+	private data: T[];
+	private proto: T;
+
+	private constructor() {
+		// protect against external instantiation
+	}
+
+	public static getInstance<T>(): LocalSelectionTransfer<T> {
+		return LocalSelectionTransfer.INSTANCE as LocalSelectionTransfer<T>;
+	}
+
+	public hasData(proto: T): boolean {
+		return proto && proto === this.proto;
+	}
+
+	public clearData(): void {
+		this.proto = void 0;
+		this.data = void 0;
+	}
+
+	public getData(proto: T): T[] {
+		if (this.hasData(proto)) {
+			return this.data;
+		}
+
+		return void 0;
+	}
+
+	public setData(data: T[], proto: T): void {
+		if (proto) {
+			this.data = data;
+			this.proto = proto;
+		}
+	}
 }

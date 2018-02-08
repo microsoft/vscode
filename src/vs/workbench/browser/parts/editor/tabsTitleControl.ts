@@ -41,7 +41,7 @@ import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, 
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Dimension } from 'vs/base/browser/builder';
 import { scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { EditorAreaDropHandler, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, fillResourceDataTransfers, LocalSelectionTransfer, DraggedEditorIdentifier } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 
 interface IEditorInputLabel {
@@ -63,6 +63,7 @@ export class TabsTitleControl extends TitleControl {
 	private blockRevealActiveTab: boolean;
 	private dimension: Dimension;
 	private layoutScheduled: IDisposable;
+	private transfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -166,7 +167,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Drag over
 		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-			const draggedEditor = TabsTitleControl.getDraggedEditor();
+			const draggedEditor = this.transfer.hasData(DraggedEditorIdentifier.prototype) ? this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
 
 			// update the dropEffect, otherwise it would look like a "move" operation. but only if we are
 			// not dragging a tab actually because there we support both moving as well as copying
@@ -743,7 +744,8 @@ export class TabsTitleControl extends TitleControl {
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_START, (e: DragEvent) => {
 			const { group, editor } = this.getGroupPositionAndEditor(index);
 
-			this.onEditorDragStart({ editor, group });
+			this.transfer.setData([new DraggedEditorIdentifier({ editor, group })], DraggedEditorIdentifier.prototype);
+
 			e.dataTransfer.effectAllowed = 'copyMove';
 
 			// Apply some datatransfer types to allow for dragging the element outside of the application
@@ -770,7 +772,7 @@ export class TabsTitleControl extends TitleControl {
 			// Find out if the currently dragged editor is this tab and in that
 			// case we do not want to show any drop feedback
 			let draggedEditorIsTab = false;
-			const draggedEditor = TabsTitleControl.getDraggedEditor();
+			const draggedEditor = this.transfer.hasData(DraggedEditorIdentifier.prototype) ? this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
 			if (draggedEditor) {
 				const { group, editor } = this.getGroupPositionAndEditor(index);
 				if (draggedEditor.editor === editor && draggedEditor.group === group) {
@@ -800,7 +802,7 @@ export class TabsTitleControl extends TitleControl {
 			DOM.removeClass(tab, 'dragged-over');
 			this.updateDropFeedback(tab, false, index);
 
-			this.onEditorDragEnd();
+			this.transfer.clearData();
 		}));
 
 		// Drop
@@ -836,7 +838,7 @@ export class TabsTitleControl extends TitleControl {
 		DOM.removeClass(this.tabsContainer, 'scroll');
 
 		// Local DND
-		const draggedEditor = TabsTitleControl.getDraggedEditor();
+		const draggedEditor = this.transfer.hasData(DraggedEditorIdentifier.prototype) ? this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
 		if (draggedEditor) {
 
 			// Move editor to target position and index
@@ -849,12 +851,12 @@ export class TabsTitleControl extends TitleControl {
 				this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
 			}
 
-			this.onEditorDragEnd();
+			this.transfer.clearData();
 		}
 
 		// External DND
 		else {
-			const dropHandler = this.instantiationService.createInstance(EditorAreaDropHandler);
+			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
 			dropHandler.handleDrop(e, () => this.editorGroupService.focusGroup(targetPosition), targetPosition, targetIndex);
 		}
 	}
