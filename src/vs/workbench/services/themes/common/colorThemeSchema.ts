@@ -133,7 +133,7 @@ export const tokenColorizationSettingSchema: IJSONSchema = {
 			description: nls.localize('schema.token.fontStyle', 'Font style of the rule: \'italic\', \'bold\' or \'underline\' or a combination. The empty string unsets inherited settings.'),
 			pattern: '^(\\s*\\b(italic|bold|underline))*\\s*$',
 			patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be \'italic\', \'bold\' or \'underline\' or a combination or the empty string.'),
-			defaultSnippets: [{ body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic bold' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
+			defaultSnippets: [{ label: nls.localize('schema.token.fontStyle.none', 'None (clear inherited style)'), bodyText: '""' }, { body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic bold' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
 		}
 	},
 	additionalProperties: false,
@@ -176,8 +176,11 @@ export function tokenColorsSchema(description: string): IJSONSchema {
 						}
 					]
 				},
-				settings: tokenColorizationSettingSchema
+				settings: tokenColorizationSettingSchema,
 			},
+			required: [
+				'settings', 'scope'
+			],
 			additionalProperties: false
 		}
 	};
