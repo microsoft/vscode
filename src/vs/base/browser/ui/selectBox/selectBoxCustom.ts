@@ -88,7 +88,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private selectList: List<ISelectOptionItem>;
 	private selectDropDownListContainer: HTMLElement;
 	private widthControlElement: HTMLElement;
-	private _onOriginalSelect: ISelectData;
+	private _onOriginalSelect: number;
 
 	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles) {
 
@@ -358,6 +358,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
 			}
 		});
+		this._onOriginalSelect = this.selected;
 	}
 
 	private hideSelectDropDown(focusSelect: boolean) {
@@ -539,6 +540,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
 	private onEscape(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
+		this.selectElement.selected = this.select(this._onOriginalSelect);
 
 		this.hideSelectDropDown(true);
 
