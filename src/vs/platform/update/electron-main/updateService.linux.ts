@@ -108,7 +108,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		// Allow 3 seconds for VS Code to close
-		spawn('bash', ['-c', `'sleep 10; /snap/${product.applicationName}/current'`], {
+		spawn('bash', ['-c', path.join(process.env.SNAP, `usr/share/${product.applicationName}/snapUpdate.sh`)], {
 			detached: true,
 			stdio: ['ignore', 'ignore', 'ignore']
 		});
