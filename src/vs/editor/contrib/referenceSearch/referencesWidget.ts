@@ -43,6 +43,7 @@ import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Location } from 'vs/editor/common/modes';
+import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 
 class DecorationsManager implements IDisposable {
 
@@ -634,7 +635,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// tree
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
-			var controller = this._instantiationService.createInstance(Controller, {});
+			var controller = this._instantiationService.createInstance(Controller, { clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
 			this._callOnDispose.push(controller);
 
 			var config = <tree.ITreeConfiguration>{
