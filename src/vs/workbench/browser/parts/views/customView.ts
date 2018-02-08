@@ -5,11 +5,12 @@
 
 import 'vs/css!./media/views';
 import Event, { Emitter } from 'vs/base/common/event';
+import * as errors from 'vs/base/common/errors';
 import { IDisposable, dispose, empty as EmptyDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
-import { Builder, $ } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -23,7 +24,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionItem, ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewsRegistry, TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvider, TreeViewItemHandleArg } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IViewletViewOptions, IViewOptions, TreeViewsViewletPanel, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions, IViewOptions, FileIconThemableWorkbenchTree, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
@@ -33,94 +34,85 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export class TreeView extends TreeViewsViewletPanel {
+class TreeViewer extends Disposable {
 
-	private menus: Menus;
+	private isVisible: boolean = false;
 	private activated: boolean = false;
-	private treeContainer: HTMLElement;
-	private treeInputPromise: TPromise<void>;
 
-	private dataProviderElementChangeListener: IDisposable;
+	private tree: ITree;
+	private treeInputPromise: TPromise<void>;
 	private elementsToRefresh: ITreeItem[] = [];
 
+	private dataProviderElementChangeListener: IDisposable;
+
 	constructor(
-		options: IViewletViewOptions,
-		@IMessageService private messageService: IMessageService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IWorkbenchThemeService,
-		@IExtensionService private extensionService: IExtensionService,
-		@ICommandService private commandService: ICommandService
+		private id: string,
+		@IExtensionService private extensionService: IExtensionService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
-		this.menus = this.instantiationService.createInstance(Menus, this.id);
-		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
-		themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
-		if (options.expanded) {
-			this.activate();
-		}
+		super();
 	}
 
-	renderBody(container: HTMLElement): void {
-		this.treeContainer = DOM.append(container, DOM.$('.tree-explorer-viewlet-tree-view'));
-		this.tree = this.createViewer($(this.treeContainer));
+	setTree(tree: ITree): void {
+		this.tree = tree;
 		this.setInput();
 	}
 
-	setExpanded(expanded: boolean): void {
-		super.setExpanded(expanded);
+	setVisibility(isVisible: boolean): void {
+		if (this.isVisible === isVisible) {
+			return;
+		}
 
-		if (expanded) {
+		this.isVisible = isVisible;
+		if (this.isVisible) {
 			this.activate();
+		}
+
+		if (this.tree) {
+			if (this.isVisible) {
+				$(this.tree.getHTMLElement()).show();
+			} else {
+				$(this.tree.getHTMLElement()).hide(); // make sure the tree goes out of the tabindex world by hiding it
+			}
+
+			if (this.isVisible) {
+				this.tree.onVisible();
+			} else {
+				this.tree.onHidden();
+			}
+
+			if (this.isVisible && this.elementsToRefresh.length) {
+				this.doRefresh(this.elementsToRefresh);
+				this.elementsToRefresh = [];
+			}
 		}
 	}
 
-	layoutBody(size: number): void {
-		if (this.treeContainer) {
-			this.treeContainer.style.height = size + 'px';
+	focus(): void {
+		if (this.tree) {
+			// Make sure the current selected element is revealed
+			const selectedElement = this.tree.getSelection()[0];
+			if (selectedElement) {
+				this.tree.reveal(selectedElement, 0.5).done(null, errors.onUnexpectedError);
+			}
+
+			// Pass Focus to Viewer
+			this.tree.DOMFocus();
 		}
-		super.layoutBody(size);
+
+	}
+
+	layout(size: number) {
+		if (this.tree) {
+			this.tree.layout(size);
+		}
 	}
 
 	private activate() {
-		if (!this.activated && this.extensionService) {
+		if (!this.activated) {
 			this.extensionService.activateByEvent(`onView:${this.id}`);
 			this.activated = true;
 			this.setInput();
 		}
-	}
-
-	public createViewer(container: Builder): WorkbenchTree {
-		const actionItemProvider = (action: IAction) => this.getActionItem(action);
-		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.id);
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, this.menus, actionItemProvider);
-		const controller = this.instantiationService.createInstance(TreeController, this.id, this.menus);
-		const tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree,
-			container.getHTMLElement(),
-			{ dataSource, renderer, controller },
-			{}
-		);
-
-		tree.contextKeyService.createKey<boolean>(this.id, true);
-		this.disposables.push(tree.onDidChangeSelection(e => this.onSelection(e)));
-
-		return tree;
-	}
-
-	getActions(): IAction[] {
-		return [...this.menus.getTitleActions()];
-	}
-
-	getSecondaryActions(): IAction[] {
-		return this.menus.getTitleSecondaryActions();
-	}
-
-	getActionItem(action: IAction): IActionItem {
-		if (!(action instanceof MenuItemAction)) {
-			return undefined;
-		}
-		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.messageService, this.contextMenuService);
 	}
 
 	private setInput(): TPromise<void> {
@@ -130,7 +122,7 @@ export class TreeView extends TreeViewsViewletPanel {
 					this.treeInputPromise = this.tree.setInput(new Root());
 				} else {
 					this.treeInputPromise = new TPromise<void>((c, e) => {
-						this.disposables.push(ViewsRegistry.onTreeViewDataProviderRegistered(id => {
+						this._register(ViewsRegistry.onTreeViewDataProviderRegistered(id => {
 							if (this.id === id) {
 								if (this.listenToDataProvider()) {
 									this.tree.setInput(new Root()).then(() => c(null));
@@ -151,7 +143,7 @@ export class TreeView extends TreeViewsViewletPanel {
 			if (this.dataProviderElementChangeListener) {
 				this.dataProviderElementChangeListener.dispose();
 			}
-			this.dataProviderElementChangeListener = dataProvider.onDidChange(element => this.refresh(element));
+			this.dataProviderElementChangeListener = this._register(dataProvider.onDidChange(element => this.refresh(element)));
 			const disposable = dataProvider.onDispose(() => {
 				this.dataProviderElementChangeListener.dispose();
 				this.tree.setInput(new Root());
@@ -162,46 +154,18 @@ export class TreeView extends TreeViewsViewletPanel {
 		return false;
 	}
 
-	public getOptimalWidth(): number {
-		const parentNode = this.tree.getHTMLElement();
-		const childNodes = [].slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
-
-		return DOM.getLargestChildWidth(parentNode, childNodes);
-	}
-
-	private onSelection({ payload }: any): void {
-		const selection: ITreeItem = this.tree.getSelection()[0];
-		if (selection) {
-			if (selection.command) {
-				const originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
-				const isMouseEvent = payload && payload.origin === 'mouse';
-				const isDoubleClick = isMouseEvent && originalEvent && originalEvent.detail === 2;
-
-				if (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick) {
-					this.commandService.executeCommand(selection.command.id, ...(selection.command.arguments || []));
-				}
-			}
-		}
-	}
-
-	protected updateTreeVisibility(tree: WorkbenchTree, isVisible: boolean): void {
-		super.updateTreeVisibility(tree, isVisible);
-		if (isVisible && this.elementsToRefresh.length) {
-			this.doRefresh(this.elementsToRefresh);
-			this.elementsToRefresh = [];
-		}
-	}
-
 	private refresh(elements: ITreeItem[]): void {
-		if (!elements) {
-			const root: ITreeItem = this.tree.getInput();
-			root.children = null; // reset children
-			elements = [root];
-		}
-		if (this.isVisible() && this.isExpanded()) {
-			this.doRefresh(elements);
-		} else {
-			this.elementsToRefresh.push(...elements);
+		if (this.tree) {
+			if (!elements) {
+				const root: ITreeItem = this.tree.getInput();
+				root.children = null; // reset children
+				elements = [root];
+			}
+			if (this.isVisible) {
+				this.doRefresh(elements);
+			} else {
+				this.elementsToRefresh.push(...elements);
+			}
 		}
 	}
 
@@ -210,12 +174,117 @@ export class TreeView extends TreeViewsViewletPanel {
 			this.tree.refresh(element);
 		}
 	}
+}
+
+export class CustomTreeViewPanel extends ViewsViewletPanel {
+
+	private menus: Menus;
+	private treeContainer: HTMLElement;
+	private tree: WorkbenchTree;
+	private treeViewer: TreeViewer;
+
+	constructor(
+		options: IViewletViewOptions,
+		@IMessageService private messageService: IMessageService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IWorkbenchThemeService,
+		@ICommandService private commandService: ICommandService
+	) {
+		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
+		this.menus = this.instantiationService.createInstance(Menus, this.id);
+		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
+		this.treeViewer = this.instantiationService.createInstance(TreeViewer, this.id);
+		this.disposables.push(this.treeViewer);
+		this.updateTreeVisibility();
+	}
+
+	setVisible(visible: boolean): TPromise<void> {
+		return super.setVisible(visible).then(() => this.updateTreeVisibility());
+	}
+
+	focus(): void {
+		super.focus();
+		this.treeViewer.focus();
+	}
+
+	renderBody(container: HTMLElement): void {
+		this.treeContainer = DOM.append(container, DOM.$('.tree-explorer-viewlet-tree-view'));
+		const actionItemProvider = (action: IAction) => this.getActionItem(action);
+		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.id);
+		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, this.menus, actionItemProvider);
+		const controller = this.instantiationService.createInstance(TreeController, this.id, this.menus);
+		this.tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree,
+			this.treeContainer,
+			{ dataSource, renderer, controller },
+			{}
+		);
+
+		this.tree.contextKeyService.createKey<boolean>(this.id, true);
+		this.disposables.push(this.tree);
+		this.disposables.push(this.tree.onDidChangeSelection(e => this.onSelection(e, this.tree)));
+		this.themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
+
+		this.treeViewer.setTree(this.tree);
+	}
+
+	setExpanded(expanded: boolean): void {
+		this.treeViewer.setVisibility(this.isVisible() && expanded);
+		super.setExpanded(expanded);
+	}
+
+	layoutBody(size: number): void {
+		if (this.treeContainer) {
+			this.treeContainer.style.height = size + 'px';
+		}
+		this.treeViewer.layout(size);
+	}
+
+	getActions(): IAction[] {
+		return [...this.menus.getTitleActions()];
+	}
+
+	getSecondaryActions(): IAction[] {
+		return this.menus.getTitleSecondaryActions();
+	}
+
+	getActionItem(action: IAction): IActionItem {
+		if (!(action instanceof MenuItemAction)) {
+			return undefined;
+		}
+		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.messageService, this.contextMenuService);
+	}
+
+	getOptimalWidth(): number {
+		if (this.tree) {
+			const parentNode = this.tree.getHTMLElement();
+			const childNodes = [].slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
+			return DOM.getLargestChildWidth(parentNode, childNodes);
+		}
+		return super.getOptimalWidth();
+	}
+
+	private updateTreeVisibility(): void {
+		this.treeViewer.setVisibility(this.isVisible() && this.isExpanded());
+	}
+
+	private onSelection({ payload }: any, tree: WorkbenchTree): void {
+		const selection: ITreeItem = tree.getSelection()[0];
+		if (selection) {
+			if (selection.command) {
+				const originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
+				const isMouseEvent = payload && payload.origin === 'mouse';
+				const isDoubleClick = isMouseEvent && originalEvent && originalEvent.detail === 2;
+
+				if (!isMouseEvent || tree.openOnSingleClick || isDoubleClick) {
+					this.commandService.executeCommand(selection.command.id, ...(selection.command.arguments || []));
+				}
+			}
+		}
+	}
 
 	dispose(): void {
-		dispose(this.disposables);
-		if (this.dataProviderElementChangeListener) {
-			this.dataProviderElementChangeListener.dispose();
-		}
 		dispose(this.disposables);
 		super.dispose();
 	}
