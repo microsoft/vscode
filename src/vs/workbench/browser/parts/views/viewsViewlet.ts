@@ -129,19 +129,6 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		}
 	}
 
-	protected renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
-
-		// Expand on drag over
-		this.dragHandler = new DelayedDragHandler(container, () => this.setExpanded(true));
-	}
-
-	protected renderViewTree(container: HTMLElement): HTMLElement {
-		const treeContainer = document.createElement('div');
-		container.appendChild(treeContainer);
-		return treeContainer;
-	}
-
 	getViewer(): WorkbenchTree {
 		return this.tree;
 	}
@@ -160,14 +147,6 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		this.focusTree();
 	}
 
-	protected reveal(element: any, relativeTop?: number): TPromise<void> {
-		if (!this.tree) {
-			return TPromise.as(null); // return early if viewlet has not yet been created
-		}
-
-		return this.tree.reveal(element, relativeTop);
-	}
-
 	layoutBody(size: number): void {
 		if (this.tree) {
 			this.treeContainer.style.height = size + 'px';
@@ -175,47 +154,25 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		}
 	}
 
-	getActions(): IAction[] {
-		return [];
+	protected renderHeader(container: HTMLElement): void {
+		super.renderHeader(container);
+
+		// Expand on drag over
+		this.dragHandler = new DelayedDragHandler(container, () => this.setExpanded(true));
 	}
 
-	getSecondaryActions(): IAction[] {
-		return [];
+	protected renderViewTree(container: HTMLElement): HTMLElement {
+		const treeContainer = document.createElement('div');
+		container.appendChild(treeContainer);
+		return treeContainer;
 	}
 
-	getActionItem(action: IAction): IActionItem {
-		return null;
-	}
-
-	getActionsContext(): any {
-		return undefined;
-	}
-
-	getOptimalWidth(): number {
-		return 0;
-	}
-
-	create(): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	shutdown(): void {
-		// Subclass to implement
-	}
-
-	dispose(): void {
-		this.isDisposed = true;
-		this.treeContainer = null;
-
-		if (this.tree) {
-			this.tree.dispose();
+	protected reveal(element: any, relativeTop?: number): TPromise<void> {
+		if (!this.tree) {
+			return TPromise.as(null); // return early if viewlet has not yet been created
 		}
 
-		if (this.dragHandler) {
-			this.dragHandler.dispose();
-		}
-
-		super.dispose();
+		return this.tree.reveal(element, relativeTop);
 	}
 
 	protected updateTreeVisibility(tree: WorkbenchTree, isVisible: boolean): void {
@@ -249,6 +206,21 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 
 		// Pass Focus to Viewer
 		this.tree.DOMFocus();
+	}
+
+	dispose(): void {
+		this.isDisposed = true;
+		this.treeContainer = null;
+
+		if (this.tree) {
+			this.tree.dispose();
+		}
+
+		if (this.dragHandler) {
+			this.dragHandler.dispose();
+		}
+
+		super.dispose();
 	}
 }
 
