@@ -88,6 +88,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private selectList: List<ISelectOptionItem>;
 	private selectDropDownListContainer: HTMLElement;
 	private widthControlElement: HTMLElement;
+	private _onOriginalSelect: ISelectData;
 
 	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles) {
 
