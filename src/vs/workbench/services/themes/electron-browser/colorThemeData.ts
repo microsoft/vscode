@@ -119,7 +119,8 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	private addCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
-		let generalRules: ITokenColorizationRule[] = [];
+		// Put the general customizations such as comments, strings, etc. first so that
+		// they can be overridden by specific customizations like "string.interpolated"
 
 		Object.keys(tokenGroupToScopesMap).forEach(key => {
 			let value = customTokenColors[key];
@@ -127,7 +128,7 @@ export class ColorThemeData implements IColorTheme {
 				let settings = typeof value === 'string' ? { foreground: value } : value;
 				let scopes = tokenGroupToScopesMap[key];
 				for (let scope of scopes) {
-					generalRules.push({
+					this.customTokenColors.push({
 						scope,
 						settings
 					});
@@ -135,11 +136,13 @@ export class ColorThemeData implements IColorTheme {
 			}
 		});
 
-		const textMateRules: ITokenColorizationRule[] = customTokenColors.textMateRules || [];
-
-		// Put the general customizations such as comments, strings, etc. first so that
-		// they can be overridden by specific customizations like "string.interpolated"
-		this.customTokenColors = this.customTokenColors.concat(generalRules, textMateRules);
+		if (Array.isArray(customTokenColors.textMateRules)) {
+			for (let rule of customTokenColors.textMateRules) {
+				if (rule.settings && rule.scope) {
+					this.customTokenColors.push(rule);
+				}
+			}
+		}
 	}
 
 	public ensureLoaded(themeService: WorkbenchThemeService): TPromise<void> {
@@ -160,8 +163,8 @@ export class ColorThemeData implements IColorTheme {
 	private sanitizeTokenColors() {
 		let hasDefaultTokens = false;
 		let updatedTokenColors: ITokenColorizationRule[] = [updateDefaultRuleSettings({ settings: {} }, this)];
-		this.tokenColors.forEach(rule => {
-			if (rule.scope) {
+		this.themeTokenColors.forEach(rule => {
+			if (rule.scope && rule.settings) {
 				if (rule.scope === 'token.info-token') {
 					hasDefaultTokens = true;
 				}
