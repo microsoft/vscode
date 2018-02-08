@@ -102,8 +102,36 @@ export class IssueService implements IIssueService {
 			x: undefined,
 			y: undefined
 		};
-		state.x = displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width / 2);
-		state.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height / 2);
+
+		const displayBounds = displayToUse.bounds;
+		state.x = displayBounds.x + (displayBounds.width / 2) - (state.width / 2);
+		state.y = displayBounds.y + (displayBounds.height / 2) - (state.height / 2);
+
+		if (displayBounds.width > 0 && displayBounds.height > 0 /* Linux X11 sessions sometimes report wrong display bounds */) {
+			if (state.x < displayBounds.x) {
+				state.x = displayBounds.x; // prevent window from falling out of the screen to the left
+			}
+
+			if (state.y < displayBounds.y) {
+				state.y = displayBounds.y; // prevent window from falling out of the screen to the top
+			}
+
+			if (state.x > (displayBounds.x + displayBounds.width)) {
+				state.x = displayBounds.x; // prevent window from falling out of the screen to the right
+			}
+
+			if (state.y > (displayBounds.y + displayBounds.height)) {
+				state.y = displayBounds.y; // prevent window from falling out of the screen to the bottom
+			}
+
+			if (state.width > displayBounds.width) {
+				state.width = displayBounds.width; // prevent window from exceeding display bounds width
+			}
+
+			if (state.height > displayBounds.height) {
+				state.height = displayBounds.height; // prevent window from exceeding display bounds height
+			}
+		}
 
 		return state;
 	}
