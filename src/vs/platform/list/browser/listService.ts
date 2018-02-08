@@ -125,15 +125,18 @@ class MultipleSelectionController<T> implements IMultipleSelectionController<T> 
 	}
 }
 
-class OpenController implements IOpenController {
+class WorkbenchOpenController implements IOpenController {
 
 	constructor(private configurationService: IConfigurationService) { }
 
 	shouldOpen(event: UIEvent): boolean {
 		if (event instanceof MouseEvent) {
 			const isDoubleClick = event.detail === 2;
+			if (!useSingleClickToOpen(this.configurationService) && !isDoubleClick) {
+				return false;
+			}
 
-			return useSingleClickToOpen(this.configurationService) || isDoubleClick;
+			return event.button === 0 /* left mouse button */ || event.button === 1 /* middle mouse button */;
 		}
 
 		return true;
@@ -145,7 +148,7 @@ function handleListControllers<T>(options: IListOptions<T>, configurationService
 		options.multipleSelectionController = new MultipleSelectionController(configurationService);
 	}
 
-	options.openController = new OpenController(configurationService);
+	options.openController = new WorkbenchOpenController(configurationService);
 
 	return options;
 }
