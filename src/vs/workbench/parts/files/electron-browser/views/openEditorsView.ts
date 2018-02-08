@@ -40,9 +40,7 @@ import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { OpenEditorsGroupContext, DirtyEditorContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
-import { MIME_BINARY } from 'vs/base/common/mime';
+import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 
 const $ = dom.$;
 
@@ -553,18 +551,7 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 			OpenEditorRenderer.DRAGGED_OPEN_EDITORS = dragged;
 
 			if (editorTemplate.openEditor && editorTemplate.openEditor.editor) {
-				// enables dropping editor resource path into text controls
-				e.dataTransfer.setData(DataTransfers.TEXT, dragged.map(d => d.getResource()).map(resource => resource.scheme === 'file' ? getPathLabel(resource) : resource.toString()).join('\n'));
-
-				if (dragged.length === 1) {
-					const resource = dragged[0].getResource();
-					e.dataTransfer.setData(DataTransfers.URL, resource.toString()); // enables dropping editor into editor area
-					if (resource.scheme === 'file') {
-						e.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, getBaseLabel(resource), resource.toString()].join(':')); // enables support to drag an editor as file to desktop
-					}
-				} else {
-					e.dataTransfer.setData(DataTransfers.URLS, JSON.stringify(dragged.map(s => s.getResource().toString())));
-				}
+				this.instantiationService.invokeFunction(fillResourceDataTransfers, dragged.map(d => d.getResource()), e);
 			}
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, () => {

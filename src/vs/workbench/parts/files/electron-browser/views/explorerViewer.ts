@@ -10,7 +10,6 @@ import lifecycle = require('vs/base/common/lifecycle');
 import objects = require('vs/base/common/objects');
 import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
-import { MIME_BINARY } from 'vs/base/common/mime';
 import { once } from 'vs/base/common/functional';
 import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
@@ -28,7 +27,7 @@ import { FileOperationError, FileOperationResult, IFileService, FileKind } from 
 import { ResourceMap } from 'vs/base/common/map';
 import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
-import { DesktopDragAndDropData, ExternalElementsDragAndDropData, SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
+import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { FileStat, NewStatPlaceholder, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -51,10 +50,8 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { getPathLabel } from 'vs/base/common/labels';
-import { extractResources } from 'vs/workbench/browser/editor';
+import { extractResources, SimpleFileResourceDragAndDrop, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { relative } from 'path';
-import { DataTransfers } from 'vs/base/browser/dnd';
 import { distinctParents } from 'vs/base/common/resources';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -687,13 +684,13 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
-		super(stat => this.statToResource(stat));
+		super(stat => this.statToResource(stat), instantiationService);
 
 		this.toDispose = [];
 
@@ -730,15 +727,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			});
 
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			originalEvent.dataTransfer.setData(DataTransfers.TEXT, sources.map(fs => fs.resource.scheme === 'file' ? getPathLabel(fs.resource) : fs.resource.toString()).join('\n'));
-			if (sources.length === 1) {
-				if (!sources[0].isDirectory) {
-					originalEvent.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, sources[0].name, sources[0].resource.toString()].join(':'));
-				}
-
-			} else {
-				originalEvent.dataTransfer.setData(DataTransfers.URLS, JSON.stringify(sources.filter(s => !s.isDirectory).map(s => s.resource.toString())));
-			}
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, sources, originalEvent);
 		}
 	}
 

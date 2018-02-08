@@ -55,10 +55,10 @@ import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant }
 import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
-import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
 
 export class SearchViewlet extends Viewlet {
 
@@ -494,7 +494,7 @@ export class SearchViewlet extends Viewlet {
 			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);
 			this.toUnbind.push(renderer);
 
-			let dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof FileMatch ? obj.resource() : void 0);
+			let dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof FileMatch ? obj.resource() : void 0);
 
 			this.tree = this.instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), {
 				dataSource: dataSource,

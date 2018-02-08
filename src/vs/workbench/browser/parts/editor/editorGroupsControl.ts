@@ -35,7 +35,7 @@ import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platf
 import { Themable, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { EditorAreaDropHandler } from 'vs/workbench/browser/parts/editor/editorAreaDropHandler';
+import { EditorAreaDropHandler } from 'vs/workbench/browser/dnd';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export enum Rochade {
