@@ -3,12 +3,12 @@
 . ./scripts/env.sh
 . ./build/tfs/common/common.sh
 
-REPO=`pwd`
+REPO=$(pwd)
 ZIP=$REPO/../VSCode-darwin-selfsigned.zip
 UNSIGNEDZIP=$REPO/../VSCode-darwin-unsigned.zip
 BUILD=$REPO/../VSCode-darwin
-PACKAGEJSON=`ls $BUILD/*.app/Contents/Resources/app/package.json`
-VERSION=`node -p "require(\"$PACKAGEJSON\").version"`
+PACKAGEJSON=$(ls $BUILD/*.app/Contents/Resources/app/package.json)
+VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
 
 rm -rf $UNSIGNEDZIP
 (cd $BUILD && \
