@@ -41,7 +41,7 @@
 			{
 				"language": "markdown",
 				"scopeName": "text.html.markdown",
-				"path": "./syntaxes/markdown.tmLanguage",
+				"path": "./syntaxes/markdown.tmLanguage.json",
 				"embeddedLanguages": {
 					"meta.embedded.block.html": "html",
 					"source.js": "javascript",
@@ -322,7 +322,7 @@
 	},
 	"scripts": {
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown ./tsconfig.json",
-		"update-grammar": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ./syntaxes/gulpfile.js"
+		"update-grammar": "node ../../build/npm/update-grammar.js microsoft/vscode-markdown-tm-grammar syntaxes/markdown.tmLanguage ./syntaxes/markdown.tmLanguage.json"
 	},
 	"dependencies": {
 		"highlight.js": "9.5.0",
@@ -335,8 +335,6 @@
 		"@types/highlight.js": "9.1.10",
 		"@types/markdown-it": "0.0.2",
 		"@types/node": "7.0.43",
-		"gulp-rename": "^1.2.2",
-		"gulp-replace": "^0.5.4",
 		"vscode": "^1.1.10"
 	}
 }
