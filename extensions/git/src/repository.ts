@@ -798,7 +798,7 @@ export class Repository implements Disposable {
 		});
 	}
 
-	lstree(ref: string, filePath: string): Promise<{ mode: number, object: string, size: number }> {
+	lstree(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number }> {
 		return this.run(Operation.LSTree, () => this.repository.lstree(ref, filePath));
 	}
 

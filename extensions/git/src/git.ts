@@ -679,7 +679,7 @@ export class Repository {
 		return stdout;
 	}
 
-	async lstree(treeish: string, path: string): Promise<{ mode: number, object: string, size: number }> {
+	async lstree(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }> {
 		if (!treeish) { // index
 			const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
 
@@ -693,7 +693,7 @@ export class Repository {
 			const catFile = await this.run(['cat-file', '-s', object]);
 			const size = parseInt(catFile.stdout);
 
-			return { mode: parseInt(mode), object, size };
+			return { mode, object, size };
 		}
 
 		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
@@ -705,7 +705,7 @@ export class Repository {
 		}
 
 		const [, mode, , object, size] = match;
-		return { mode: parseInt(mode), object, size: parseInt(size) };
+		return { mode, object, size: parseInt(size) };
 	}
 
 	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
@@ -787,7 +787,16 @@ export class Repository {
 			});
 		}
 
-		await this.run(['update-index', '--cacheinfo', '100644', hash, path]);
+		let mode: string;
+
+		try {
+			const details = await this.lstree('HEAD', path);
+			mode = details.mode;
+		} catch (err) {
+			mode = '100644';
+		}
+
+		await this.run(['update-index', '--cacheinfo', mode, hash, path]);
 	}
 
 	async checkout(treeish: string, paths: string[]): Promise<void> {
