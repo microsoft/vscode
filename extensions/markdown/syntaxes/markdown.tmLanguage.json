@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/cdfdaf47163809791dfcb324472b0830a3153efe",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/1ba9efd21c29c70dd87d8402a92ef64666dcb25e",
 	"fileTypes": [
 		"md",
 		"mdown",
@@ -623,13 +623,13 @@
 					"name": "meta.image.reference.markdown"
 				},
 				"italic": {
-					"begin": "(?x) \\b(\\*|_)(?=\\S)\t\t\t\t\t\t\t\t# Open\n  (?=\n    (\n      <[^>]*+>\t\t\t\t\t\t\t# HTML tags\n      | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                        # Raw\n      | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+\t\t\t# Escapes\n      | \\[\n      (\n          (?<square>\t\t\t\t\t# Named group\n            [^\\[\\]\\\\]\t\t\t\t# Match most chars\n            | \\\\.\t\t\t\t\t\t# Escaped chars\n            | \\[ \\g<square>*+ \\]\t\t# Nested brackets\n          )*+\n        \\]\n        (\n          (\t\t\t\t\t\t\t# Reference Link\n            [ ]?\t\t\t\t\t# Optional space\n            \\[[^\\]]*+\\]\t\t\t\t# Ref name\n          )\n          | (\t\t\t\t\t\t\t# Inline Link\n            \\(\t\t\t\t\t\t# Opening paren\n              [ \\t]*+\t\t\t\t# Optional whtiespace\n              <?(.*?)>?\t\t\t# URL\n              [ \\t]*+\t\t\t\t# Optional whtiespace\n              (\t\t\t\t\t# Optional Title\n                (?<title>['\"])\n                (.*?)\n                \\k<title>\n              )?\n            \\)\n          )\n        )\n      )\n      | \\1\\1\t\t\t\t\t\t\t\t# Must be bold closer\n      | (?!(?<=\\S)\\1).\t\t\t\t\t\t# Everything besides\n                        # style closer\n    )++\n    (?<=\\S)\\1\t\t\t\t\t\t\t\t# Close\n  )\n",
+					"begin": "(?x) (\\*\\b|\\b_)(?=\\S)\t\t\t\t\t\t\t\t# Open\n  (?=\n    (\n      <[^>]*+>\t\t\t\t\t\t\t# HTML tags\n      | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                        # Raw\n      | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+\t\t\t# Escapes\n      | \\[\n      (\n          (?<square>\t\t\t\t\t# Named group\n            [^\\[\\]\\\\]\t\t\t\t# Match most chars\n            | \\\\.\t\t\t\t\t\t# Escaped chars\n            | \\[ \\g<square>*+ \\]\t\t# Nested brackets\n          )*+\n        \\]\n        (\n          (\t\t\t\t\t\t\t# Reference Link\n            [ ]?\t\t\t\t\t# Optional space\n            \\[[^\\]]*+\\]\t\t\t\t# Ref name\n          )\n          | (\t\t\t\t\t\t\t# Inline Link\n            \\(\t\t\t\t\t\t# Opening paren\n              [ \\t]*+\t\t\t\t# Optional whtiespace\n              <?(.*?)>?\t\t\t# URL\n              [ \\t]*+\t\t\t\t# Optional whtiespace\n              (\t\t\t\t\t# Optional Title\n                (?<title>['\"])\n                (.*?)\n                \\k<title>\n              )?\n            \\)\n          )\n        )\n      )\n      | \\1\\1\t\t\t\t\t\t\t\t# Must be bold closer\n      | (?!(?<=\\S)\\1).\t\t\t\t\t\t# Everything besides\n                        # style closer\n    )++\n    (?<=\\S)\\1\t\t\t\t\t\t\t\t# Close\n  )\n",
 					"captures": {
 						"1": {
 							"name": "punctuation.definition.italic.markdown"
 						}
 					},
-					"end": "(?<=\\S)(\\1)((?!\\1)|(?=\\1\\1))\\b",
+					"end": "(?<=\\S)(\\1)((?!\\1)|(?=\\1\\1))",
 					"name": "markup.italic.markdown",
 					"patterns": [
 						{
