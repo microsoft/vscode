@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/code/electron-main/contributions';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
