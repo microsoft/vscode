@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { ViewsRegistry, ITreeViewDataProvider, ITreeItem } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem, ICustomViewsService } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { assign } from 'vs/base/common/objects';
 
@@ -20,26 +20,23 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 
 	constructor(
 		extHostContext: IExtHostContext,
+		@ICustomViewsService private viewsService: ICustomViewsService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
-	$registerView(treeViewId: string): void {
-		ViewsRegistry.registerTreeViewDataProvider(treeViewId, this._register(new TreeViewDataProvider(treeViewId, this._proxy, this.messageService)));
+	$registerTreeViewDataProvider(treeViewId: string): void {
+		const dataProvider = this._register(new TreeViewDataProvider(treeViewId, this._proxy, this.messageService));
+		this.viewsService.registerTreeViewDataProvider(treeViewId, dataProvider);
 	}
 
 	$refresh(treeViewId: string, itemsToRefresh: { [treeItemHandle: string]: ITreeItem }): void {
-		const treeViewDataProvider: TreeViewDataProvider = <TreeViewDataProvider>ViewsRegistry.getTreeViewDataProvider(treeViewId);
-		if (treeViewDataProvider) {
-			treeViewDataProvider.refresh(itemsToRefresh);
+		const treeViewer = this.viewsService.getTreeItemViewer(treeViewId);
+		if (treeViewer && treeViewer.dataProvider) {
+			(<TreeViewDataProvider>treeViewer.dataProvider).refresh(itemsToRefresh);
 		}
-	}
-
-	dispose(): void {
-		ViewsRegistry.deregisterTreeViewDataProviders();
-		super.dispose();
 	}
 }
 
@@ -111,10 +108,6 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		}
 	}
 
-	dispose(): void {
-		this._onDispose.fire();
-	}
-
 	private postGetElements(elements: ITreeItem[]): ITreeItem[] {
 		const result = [];
 		if (elements) {
@@ -138,5 +131,9 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		if (current) {
 			assign(current, treeItem);
 		}
+	}
+
+	dispose(): void {
+		this._onDispose.fire();
 	}
 }

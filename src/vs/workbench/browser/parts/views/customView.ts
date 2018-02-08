@@ -22,8 +22,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionItem, ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ViewsRegistry, TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvider, TreeViewItemHandleArg } from 'vs/workbench/common/views';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { TreeItemCollapsibleState, ITreeItem, TreeViewItemHandleArg, ITreeItemViewer, ICustomViewsService, ITreeViewDataProvider, ViewsRegistry, ICustomViewDescriptor } from 'vs/workbench/common/views';
 import { IViewletViewOptions, IViewOptions, FileIconThemableWorkbenchTree, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
@@ -33,8 +32,48 @@ import { basename } from 'vs/base/common/paths';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
-class TreeViewer extends Disposable {
+export class CustomViewsService implements ICustomViewsService {
+
+	_serviceBrand: any;
+
+	private viewers: Map<string, ITreeItemViewer> = new Map<string, ITreeItemViewer>();
+
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+	}
+
+	getTreeItemViewer(id: string): ITreeItemViewer {
+		let viewer = this.viewers.get(id);
+		if (!viewer) {
+			viewer = this.createViewer(id);
+			if (viewer) {
+				this.viewers.set(id, viewer);
+			}
+		}
+		return viewer;
+	}
+
+	registerTreeViewDataProvider(id: string, dataProvider: ITreeViewDataProvider): void {
+		const treeViewer = this.getTreeItemViewer(id);
+		if (treeViewer) {
+			treeViewer.dataProvider = dataProvider;
+			dataProvider.onDispose(() => treeViewer.dataProvider = null);
+		}
+	}
+
+	private createViewer(id: string): ITreeItemViewer {
+		const viewDeescriptor = <ICustomViewDescriptor>ViewsRegistry.getView(id);
+		if (viewDeescriptor && viewDeescriptor.treeItemView) {
+			return this.instantiationService.createInstance(TreeItemViewer, id);
+		}
+		return null;
+	}
+}
+
+export class TreeItemViewer extends Disposable implements ITreeItemViewer {
 
 	private isVisible: boolean = false;
 	private activated: boolean = false;
@@ -43,6 +82,7 @@ class TreeViewer extends Disposable {
 	private treeInputPromise: TPromise<void>;
 	private elementsToRefresh: ITreeItem[] = [];
 
+	private _dataProvider: ITreeViewDataProvider;
 	private dataProviderElementChangeListener: IDisposable;
 
 	constructor(
@@ -50,6 +90,37 @@ class TreeViewer extends Disposable {
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		super();
+	}
+
+	get dataProvider(): ITreeViewDataProvider {
+		return this._dataProvider;
+	}
+
+	set dataProvider(dataProvider: ITreeViewDataProvider) {
+		this._dataProvider = dataProvider;
+		if (this.dataProviderElementChangeListener) {
+			this.dataProviderElementChangeListener.dispose();
+		}
+		if (this.dataProvider) {
+			this.dataProviderElementChangeListener = this._register(this.dataProvider.onDidChange(element => this.refresh(element)));
+			this.refresh(null);
+		}
+	}
+
+	refresh(elements: ITreeItem[]): TPromise<void> {
+		if (this.tree) {
+			if (!elements) {
+				const root: ITreeItem = this.tree.getInput();
+				root.children = null; // reset children
+				elements = [root];
+			}
+			if (this.isVisible) {
+				return this.doRefresh(elements);
+			} else {
+				this.elementsToRefresh.push(...elements);
+			}
+		}
+		return TPromise.as(null);
 	}
 
 	setTree(tree: ITree): void {
@@ -118,61 +189,15 @@ class TreeViewer extends Disposable {
 	private setInput(): TPromise<void> {
 		if (this.tree) {
 			if (!this.treeInputPromise) {
-				if (this.listenToDataProvider()) {
-					this.treeInputPromise = this.tree.setInput(new Root());
-				} else {
-					this.treeInputPromise = new TPromise<void>((c, e) => {
-						this._register(ViewsRegistry.onTreeViewDataProviderRegistered(id => {
-							if (this.id === id) {
-								if (this.listenToDataProvider()) {
-									this.tree.setInput(new Root()).then(() => c(null));
-								}
-							}
-						}));
-					});
-				}
+				this.treeInputPromise = this.tree.setInput(new Root());
 			}
 			return this.treeInputPromise;
 		}
 		return TPromise.as(null);
 	}
 
-	private listenToDataProvider(): boolean {
-		let dataProvider = ViewsRegistry.getTreeViewDataProvider(this.id);
-		if (dataProvider) {
-			if (this.dataProviderElementChangeListener) {
-				this.dataProviderElementChangeListener.dispose();
-			}
-			this.dataProviderElementChangeListener = this._register(dataProvider.onDidChange(element => this.refresh(element)));
-			const disposable = dataProvider.onDispose(() => {
-				this.dataProviderElementChangeListener.dispose();
-				this.tree.setInput(new Root());
-				disposable.dispose();
-			});
-			return true;
-		}
-		return false;
-	}
-
-	private refresh(elements: ITreeItem[]): void {
-		if (this.tree) {
-			if (!elements) {
-				const root: ITreeItem = this.tree.getInput();
-				root.children = null; // reset children
-				elements = [root];
-			}
-			if (this.isVisible) {
-				this.doRefresh(elements);
-			} else {
-				this.elementsToRefresh.push(...elements);
-			}
-		}
-	}
-
-	private doRefresh(elements: ITreeItem[]): void {
-		for (const element of elements) {
-			this.tree.refresh(element);
-		}
+	private doRefresh(elements: ITreeItem[]): TPromise<void> {
+		return TPromise.join(elements.map(e => this.tree.refresh(e))) as TPromise;
 	}
 }
 
@@ -181,7 +206,7 @@ export class CustomTreeViewPanel extends ViewsViewletPanel {
 	private menus: Menus;
 	private treeContainer: HTMLElement;
 	private tree: WorkbenchTree;
-	private treeViewer: TreeViewer;
+	private treeViewer: TreeItemViewer;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -191,12 +216,13 @@ export class CustomTreeViewPanel extends ViewsViewletPanel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IWorkbenchThemeService,
 		@ICommandService private commandService: ICommandService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@ICustomViewsService customViewsService: ICustomViewsService,
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
-		this.treeViewer = this.instantiationService.createInstance(TreeViewer, this.id);
+		this.treeViewer = <TreeItemViewer>customViewsService.getTreeItemViewer(this.id);
 		this.disposables.push(this.treeViewer);
 		this.updateTreeVisibility();
 	}
@@ -213,7 +239,7 @@ export class CustomTreeViewPanel extends ViewsViewletPanel {
 	renderBody(container: HTMLElement): void {
 		this.treeContainer = DOM.append(container, DOM.$('.tree-explorer-viewlet-tree-view'));
 		const actionItemProvider = (action: IAction) => this.getActionItem(action);
-		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.id);
+		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.treeViewer);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, this.menus, actionItemProvider);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, this.menus);
 		this.tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree,
@@ -301,7 +327,7 @@ class Root implements ITreeItem {
 class TreeDataSource implements IDataSource {
 
 	constructor(
-		private id: string,
+		private treeItemViewer: ITreeItemViewer,
 		@IProgressService private progressService: IProgressService
 	) {
 	}
@@ -311,7 +337,7 @@ class TreeDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, node: ITreeItem): boolean {
-		if (!this.getDataProvider()) {
+		if (!this.treeItemViewer.dataProvider) {
 			return false;
 		}
 		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded;
@@ -322,9 +348,8 @@ class TreeDataSource implements IDataSource {
 			return TPromise.as(node.children);
 		}
 
-		const dataProvider = this.getDataProvider();
-		if (dataProvider) {
-			const promise = node instanceof Root ? dataProvider.getElements() : dataProvider.getChildren(node);
+		if (this.treeItemViewer.dataProvider) {
+			const promise = node instanceof Root ? this.treeItemViewer.dataProvider.getElements() : this.treeItemViewer.dataProvider.getChildren(node);
 			this.progressService.showWhile(promise, 100);
 			return promise.then(children => {
 				node.children = children;
@@ -341,10 +366,6 @@ class TreeDataSource implements IDataSource {
 
 	public getParent(tree: ITree, node: any): TPromise<any> {
 		return TPromise.as(null);
-	}
-
-	private getDataProvider(): ITreeViewDataProvider {
-		return ViewsRegistry.getTreeViewDataProvider(this.id);
 	}
 }
 

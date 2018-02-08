@@ -27,7 +27,7 @@ suite('ExtHostTreeView', function () {
 
 		onRefresh = new Emitter<{ [treeItemHandle: string]: ITreeItem }>();
 
-		$registerView(treeViewId: string): void {
+		$registerTreeViewDataProvider(treeViewId: string): void {
 		}
 
 		$refresh(viewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): void {
