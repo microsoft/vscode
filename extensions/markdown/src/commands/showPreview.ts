@@ -83,8 +83,10 @@ export class ShowPreviewCommand implements Command {
 		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
-	public execute(uri?: vscode.Uri) {
-		showPreview(this.cspArbiter, this.telemetryReporter, uri, false);
+	public execute(mainUri?: vscode.Uri, allUris?: vscode.Uri[]) {
+		for (const uri of (allUris || [mainUri])) {
+			showPreview(this.cspArbiter, this.telemetryReporter, uri, false);
+		}
 	}
 }
 
