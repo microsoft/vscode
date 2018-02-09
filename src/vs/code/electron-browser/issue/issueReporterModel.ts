@@ -207,7 +207,7 @@ Literal matches: ${this._data.filterResultCount}`;
 
 		let tableHeader = `Setting|Extension|Score
 ---|---|---`;
- 	 	const table = this._data.actualSearchResults.map(setting => {
+		const table = this._data.actualSearchResults.map(setting => {
 			return `${setting.key}|${setting.extensionId}|${String(setting.score).slice(0, 5)}`;
 		}).join('\n');
 
