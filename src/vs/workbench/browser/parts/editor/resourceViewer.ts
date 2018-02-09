@@ -91,10 +91,6 @@ export interface IResourceDescriptor {
 	mime: string;
 }
 
-enum ScaleDirection {
-	IN, OUT,
-}
-
 class BinarySize {
 	public static readonly KB = 1024;
 	public static readonly MB = BinarySize.KB * BinarySize.KB;
@@ -391,7 +387,9 @@ class InlineImageView {
 
 		const cacheKey = descriptor.resource.toString();
 
-		let scaleDirection = ScaleDirection.IN;
+		let ctrlPressed = false;
+		let altPressed = false;
+
 		const initialState: ImageState = InlineImageView.imageStateCache.get(cacheKey) || { scale: 'fit', offsetX: 0, offsetY: 0 };
 		let scale = initialState.scale;
 		let img: Builder | null = null;
@@ -455,9 +453,10 @@ class InlineImageView {
 				if (!img) {
 					return;
 				}
+				ctrlPressed = e.ctrlKey;
+				altPressed = e.altKey;
 
-				if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
-					scaleDirection = ScaleDirection.OUT;
+				if (platform.isMacintosh ? altPressed : ctrlPressed) {
 					c.removeClass('zoom-in').addClass('zoom-out');
 				}
 			})
@@ -466,8 +465,10 @@ class InlineImageView {
 					return;
 				}
 
-				if (!(platform.isMacintosh ? e.altKey : e.ctrlKey)) {
-					scaleDirection = ScaleDirection.IN;
+				ctrlPressed = e.ctrlKey;
+				altPressed = e.altKey;
+
+				if (!(platform.isMacintosh ? altPressed : ctrlPressed)) {
 					c.removeClass('zoom-out').addClass('zoom-in');
 				}
 			})
@@ -485,7 +486,7 @@ class InlineImageView {
 					firstZoom();
 				}
 
-				if (scaleDirection === ScaleDirection.IN) {
+				if (!(platform.isMacintosh ? altPressed : ctrlPressed)) { // zoom in
 					let i = 0;
 					for (; i < InlineImageView.zoomLevels.length; ++i) {
 						if (InlineImageView.zoomLevels[i] > scale) {
@@ -507,8 +508,9 @@ class InlineImageView {
 				if (!img) {
 					return;
 				}
-				// pinching is reported as scroll wheel + ctrl
-				if (!e.ctrlKey) {
+
+				const isScrollWhellKeyPressed = platform.isMacintosh ? altPressed : ctrlPressed;
+				if (!isScrollWhellKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
 					return;
 				}
 
@@ -519,8 +521,12 @@ class InlineImageView {
 					firstZoom();
 				}
 
-				// scrolling up, pinching out should increase the scale
-				const delta = e.deltaY < 0 ? 1 : -1;
+				let delta = e.deltaY < 0 ? 1 : -1;
+
+				// Pinching should increase the scale
+				if (e.ctrlKey && !isScrollWhellKeyPressed) {
+					delta *= -1;
+				}
 				updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
 			})
 			.on(DOM.EventType.SCROLL, () => {
