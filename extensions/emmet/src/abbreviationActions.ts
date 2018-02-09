@@ -10,6 +10,12 @@ import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages,
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
 const hexColorRegex = /^#\d+$/;
 
+const inlineElements = ['a', 'abbr', 'acronym', 'applet', 'b', 'basefont', 'bdo',
+	'big', 'br', 'button', 'cite', 'code', 'del', 'dfn', 'em', 'font', 'i',
+	'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'map', 'object', 'q',
+	's', 'samp', 'select', 'small', 'span', 'strike', 'strong', 'sub', 'sup',
+	'textarea', 'tt', 'u', 'var'];
+
 interface ExpandAbbreviationInput {
 	syntax: string;
 	abbreviation: string;
@@ -439,6 +445,17 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 		let expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 
 		if (input.textToWrap) {
+			// Fetch innermost element in the expanded abbreviation
+			let wrappingEnd = expandedText.substring(expandedText.indexOf('$TM_SELECTED_TEXT'));
+			let tagName = wrappingEnd.substring(wrappingEnd.indexOf('/') + 1, wrappingEnd.indexOf('>'));
+
+			// If wrapping with a block element, insert newline and expand again
+			if (inlineElements.indexOf(tagName) === -1 && input.textToWrap.length === 1) {
+				if (expandOptions['text'][0].indexOf('\n') === -1) {
+					expandOptions['text'][0] = '\n\t' + expandOptions['text'][0] + '\n';
+				}
+				expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
+			}
 			// All $anyword would have been escaped by the emmet helper.
 			// Remove the escaping backslash from $TM_SELECTED_TEXT so that VS Code Snippet controller can treat it as a variable
 			expandedText = expandedText.replace('\\$TM_SELECTED_TEXT', '$TM_SELECTED_TEXT');
