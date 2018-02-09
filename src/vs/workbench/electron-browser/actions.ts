@@ -49,6 +49,12 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { domEvent } from 'vs/base/browser/event';
+import { once } from 'vs/base/common/event';
+import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { getDomNodePagePosition, createStyleSheet, createCSSRule } from 'vs/base/browser/dom';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 
 // --- actions
 
@@ -1624,5 +1630,65 @@ export class ShowAboutDialogAction extends Action {
 
 	run(): TPromise<void> {
 		return this.windowsService.openAboutDialog();
+	}
+}
+
+export class InspectContextKeysAction extends Action {
+
+	public static readonly ID = 'workbench.action.inspectContextKeys';
+	public static LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
+
+	constructor(
+		id: string,
+		label: string,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IWindowService private windowService: IWindowService,
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		const disposables: IDisposable[] = [];
+
+		const stylesheet = createStyleSheet();
+		disposables.push(toDisposable(() => stylesheet.parentNode.removeChild(stylesheet)));
+		createCSSRule('*', 'cursor: crosshair !important;', stylesheet);
+
+		const hoverFeedback = document.createElement('div');
+		document.body.appendChild(hoverFeedback);
+		disposables.push(toDisposable(() => document.body.removeChild(hoverFeedback)));
+
+		hoverFeedback.style.position = 'absolute';
+		hoverFeedback.style.pointerEvents = 'none';
+		hoverFeedback.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+		hoverFeedback.style.zIndex = '1000';
+
+		const onMouseMove = domEvent(document.body, 'mousemove', true);
+		disposables.push(onMouseMove(e => {
+			const target = e.target as HTMLElement;
+			const position = getDomNodePagePosition(target);
+
+			hoverFeedback.style.top = `${position.top}px`;
+			hoverFeedback.style.left = `${position.left}px`;
+			hoverFeedback.style.width = `${position.width}px`;
+			hoverFeedback.style.height = `${position.height}px`;
+		}));
+
+		const onMouseDown = once(domEvent(document.body, 'mousedown', true));
+		onMouseDown(e => { e.preventDefault(); e.stopPropagation(); }, null, disposables);
+
+		const onMouseUp = once(domEvent(document.body, 'mouseup', true));
+		onMouseUp(e => {
+			e.preventDefault();
+			e.stopPropagation();
+
+			const context = this.contextKeyService.getContext(e.target as HTMLElement) as Context;
+			console.log(context.collectAllValues());
+			this.windowService.openDevTools();
+
+			dispose(disposables);
+		}, null, disposables);
+
+		return TPromise.as(null);
 	}
 }
