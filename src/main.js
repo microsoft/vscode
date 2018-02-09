@@ -7,6 +7,16 @@
 let perf = require('./vs/base/common/performance');
 perf.mark('main:started');
 
+// Install an uncaught exception handler very early on to prevent
+// the default Electron dialog popping up
+process.on('uncaughtException', error => {
+	console.error('[uncaught exception in main]: ' + error);
+
+	if (error.stack) {
+		console.error(error.stack);
+	}
+});
+
 // Perf measurements
 global.perfStartTime = Date.now();
 
