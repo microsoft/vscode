@@ -5,13 +5,15 @@
 
 'use strict';
 
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
+import product from 'vs/platform/node/product';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { shell, crashReporter, app, Menu } from 'electron';
+import { shell, crashReporter, app, Menu, clipboard } from 'electron';
 import Event, { chain, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
@@ -20,6 +22,8 @@ import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { isWindows } from 'vs/base/common/platform';
 
 export class WindowsService implements IWindowsService, IDisposable {
 
@@ -406,6 +410,41 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 	toggleSharedProcess(): TPromise<void> {
 		this.sharedProcess.toggle();
+		return TPromise.as(null);
+	}
+
+	openAboutDialog(): TPromise<void> {
+		const lastActiveWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+
+		const detail = nls.localize('aboutDetail',
+			"Version {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitecture {6}",
+			app.getVersion(),
+			product.commit || 'Unknown',
+			product.date || 'Unknown',
+			process.versions['electron'],
+			process.versions['chrome'],
+			process.versions['node'],
+			process.arch
+		);
+
+		const buttons = [nls.localize('okButton', "OK")];
+		if (isWindows) {
+			buttons.push(mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"))); // https://github.com/Microsoft/vscode/issues/37608
+		}
+
+		this.windowsMainService.showMessageBox({
+			title: product.nameLong,
+			type: 'info',
+			message: product.nameLong,
+			detail: `\n${detail}`,
+			buttons,
+			noLink: true
+		}, lastActiveWindow).then(result => {
+			if (isWindows && result.button === 1) {
+				clipboard.writeText(detail);
+			}
+		});
+
 		return TPromise.as(null);
 	}
 
