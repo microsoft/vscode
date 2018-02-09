@@ -9,7 +9,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { IIssueService, IssueReporterData } from 'vs/platform/issue/common/issue';
+import { IRawIssueService, IssueReporterData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import { ILaunchService } from 'vs/code/electron-main/launch';
 import { getPerformanceInfo, PerformanceInfo, getSystemInfo, SystemInfo } from 'vs/code/electron-main/diagnostics';
@@ -18,7 +18,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
-export class IssueService implements IIssueService {
+export class RawIssueService implements IRawIssueService {
 	_serviceBrand: any;
 	_issueWindow: BrowserWindow;
 	_parentWindow: BrowserWindow;

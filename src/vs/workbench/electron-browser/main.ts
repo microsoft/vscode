@@ -45,7 +45,7 @@ import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import fs = require('fs');
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
-import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IRawIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -219,7 +219,7 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, configu
 	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, configuration.windowId));
 
 	const issueChannel = mainProcessClient.getChannel('issue');
-	serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, issueChannel));
+	serviceCollection.set(IRawIssueService, new SyncDescriptor(IssueChannelClient, issueChannel));
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));

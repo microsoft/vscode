@@ -9,8 +9,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
-export const ID = 'issueService';
-export const IIssueService = createDecorator<IIssueService>(ID);
+export const IIssueService = createDecorator<IIssueService>('issueService');
+export const IRawIssueService = createDecorator<IRawIssueService>('rawIssueService');
 
 export enum IssueType {
 	Bug,
@@ -57,6 +57,11 @@ export interface ISettingsSearchIssueReporterData extends IssueReporterData {
 }
 
 export interface IIssueService {
+	_serviceBrand: any;
+	openReporter(dataOverrides: Partial<IssueReporterData>): TPromise<void>;
+}
+
+export interface IRawIssueService {
 	_serviceBrand: any;
 	openReporter(data: IssueReporterData): TPromise<void>;
 }

@@ -36,11 +36,8 @@ import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/ed
 import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IIssueService, IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult } from 'vs/platform/issue/common/issue';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult, IIssueService } from 'vs/platform/issue/common/issue';
 import { IExtensionManagementService, IExtensionEnablementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getIssueReporterStyles } from 'vs/workbench/electron-browser/actions';
-import { webFrame } from 'electron';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -582,7 +579,6 @@ export class FeedbackWidgetRenderer extends Disposable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IIssueService private issueService: IIssueService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IThemeService private themeService: IThemeService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
@@ -619,7 +615,6 @@ export class FeedbackWidgetRenderer extends Disposable {
 			const enabledExtensions = extensions
 				.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier))
 				.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration);
-			const theme = this.themeService.getTheme();
 
 			const issueResults = Object.keys(results)
 				.map(key => (<ISettingSearchResult>{
@@ -631,9 +626,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 				}))
 				.slice(0, 20);
 
-			const issueReporterData: ISettingsSearchIssueReporterData = {
-				styles: getIssueReporterStyles(theme),
-				zoomLevel: webFrame.getZoomLevel(),
+			const issueReporterData: Partial<ISettingsSearchIssueReporterData> = {
 				enabledExtensions,
 				issueType: IssueType.SettingsSearchIssue,
 				actualSearchResults: issueResults,

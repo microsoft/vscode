@@ -54,9 +54,9 @@ import { getMachineId } from 'vs/base/node/id';
 import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
-import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IRawIssueService } from 'vs/platform/issue/common/issue';
 import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
-import { IssueService } from 'vs/platform/issue/electron-main/issueService';
+import { RawIssueService } from 'vs/platform/issue/electron-main/rawIssueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
 
 export class CodeApplication {
@@ -321,7 +321,7 @@ export class CodeApplication {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, machineId));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
-		services.set(IIssueService, new SyncDescriptor(IssueService, machineId));
+		services.set(IRawIssueService, new SyncDescriptor(RawIssueService, machineId));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -366,7 +366,7 @@ export class CodeApplication {
 		const urlChannel = appInstantiationService.createInstance(URLChannel, urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
 
-		const issueService = accessor.get(IIssueService);
+		const issueService = accessor.get(IRawIssueService);
 		const issueChannel = new IssueChannel(issueService);
 		this.electronIpcServer.registerChannel('issue', issueChannel);
 

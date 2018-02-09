@@ -44,7 +44,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
-import { IIssueService, IssueReporterData, IssueType, IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import { IRawIssueService, IssueReporterData, IssueType, IssueReporterStyles } from 'vs/platform/issue/common/issue';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -895,7 +895,7 @@ export class OpenIssueReporterAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IIssueService private issueService: IIssueService,
+		@IRawIssueService private issueService: IRawIssueService,
 		@IThemeService private themeService: IThemeService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
@@ -927,7 +927,7 @@ export class ReportPerformanceIssueUsingReporterAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IIssueService private issueService: IIssueService,
+		@IRawIssueService private issueService: IRawIssueService,
 		@IThemeService private themeService: IThemeService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService

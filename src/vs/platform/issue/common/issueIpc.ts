@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IIssueService, IssueReporterData } from './issue';
+import { IRawIssueService, IssueReporterData } from './issue';
 
 export interface IIssueChannel extends IChannel {
 	call(command: 'openIssueReporter', arg: IssueReporterData): TPromise<void>;
@@ -17,7 +17,7 @@ export interface IIssueChannel extends IChannel {
 
 export class IssueChannel implements IIssueChannel {
 
-	constructor(private service: IIssueService) { }
+	constructor(private service: IRawIssueService) { }
 
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
@@ -28,7 +28,7 @@ export class IssueChannel implements IIssueChannel {
 	}
 }
 
-export class IssueChannelClient implements IIssueService {
+export class IssueChannelClient implements IRawIssueService {
 
 	_serviceBrand: any;
 
