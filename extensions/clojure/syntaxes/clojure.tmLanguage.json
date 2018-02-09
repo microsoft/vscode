@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-clojure/commit/71068a45499cace7a69c45e337860ebbc9b7fccc",
+	"version": "https://github.com/atom/language-clojure/commit/ecc790326bc8e14220e4d2d72a392a30876c3219",
 	"scopeName": "source.clojure",
 	"fileTypes": [
 		"boot",
@@ -326,7 +326,7 @@
 							"include": "#dynamic-variables"
 						},
 						{
-							"match": "([\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]+)",
+							"match": "([a-zA-Z\\.\\-\\_\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]*)",
 							"name": "entity.global.clojure"
 						},
 						{
@@ -404,7 +404,7 @@
 		"namespace-symbol": {
 			"patterns": [
 				{
-					"match": "([\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]+)/",
+					"match": "([a-zA-Z\\.\\-\\_\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]*)/",
 					"captures": {
 						"1": {
 							"name": "meta.symbol.namespace.clojure"
@@ -416,7 +416,7 @@
 		"symbol": {
 			"patterns": [
 				{
-					"match": "([\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]+)",
+					"match": "([a-zA-Z\\.\\-\\_\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]*)",
 					"name": "meta.symbol.clojure"
 				}
 			]
