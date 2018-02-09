@@ -4,7 +4,7 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-go grammars/go.cson ./syntaxes/go.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-go grammars/go.cson ./syntaxes/go.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{
@@ -16,7 +16,7 @@
 		"grammars": [{
 			"language": "go",
 			"scopeName": "source.go",
-			"path": "./syntaxes/go.json"
+			"path": "./syntaxes/go.tmLanguage.json"
 		}],
 		"configurationDefaults": {
 			"[go]": {
