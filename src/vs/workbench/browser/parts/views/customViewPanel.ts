@@ -17,6 +17,7 @@ import { fillInActions, ContextAwareMenuItemActionItem } from 'vs/platform/actio
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICustomViewsService, ITreeViewer } from 'vs/workbench/common/views';
 import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class CustomTreeViewPanel extends ViewsViewletPanel {
 
@@ -29,9 +30,10 @@ export class CustomTreeViewPanel extends ViewsViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ICustomViewsService customViewsService: ICustomViewsService,
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
 		this.treeViewer = customViewsService.getTreeViewer(this.id);
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
