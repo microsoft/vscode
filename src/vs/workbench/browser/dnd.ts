@@ -156,20 +156,23 @@ export class ResourcesDropHandler {
 			return;
 		}
 
-		return this.doHandleDrop(resources).then(isWorkspaceOpening => {
-			if (isWorkspaceOpening) {
-				return void 0; // return early if the drop operation resulted in this window changing to a workspace
-			}
+		// Make the window active to handle the drop properly within
+		return this.windowService.focusWindow().then(() => {
 
-			// Add external ones to recently open list unless dropped resource is a workspace
-			const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
-			if (externalResources.length) {
-				this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
-			}
+			// Check for special things being dropped
+			return this.doHandleDrop(resources).then(isWorkspaceOpening => {
+				if (isWorkspaceOpening) {
+					return void 0; // return early if the drop operation resulted in this window changing to a workspace
+				}
 
-			// Open in Editor
-			return this.windowService.focusWindow()
-				.then(() => this.editorService.openEditors(resources.map(r => {
+				// Add external ones to recently open list unless dropped resource is a workspace
+				const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
+				if (externalResources.length) {
+					this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
+				}
+
+				// Open in Editor
+				return this.editorService.openEditors(resources.map(r => {
 					return {
 						input: {
 							resource: r.resource,
@@ -181,11 +184,12 @@ export class ResourcesDropHandler {
 						},
 						position: targetPosition
 					};
-				}))).then(() => {
+				})).then(() => {
 
 					// Finish with provided function
 					afterDrop();
 				});
+			});
 		}).done(null, onUnexpectedError);
 	}
 
