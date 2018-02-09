@@ -501,7 +501,11 @@ class PreferencesRenderersController extends Disposable {
 		filterPs.push(this.searchAllSettingsTargets(query, searchProvider, groupId, groupLabel, groupOrder));
 
 		return TPromise.join(filterPs).then(results => {
-			const [editableFilterResult, defaultFilterResult] = results;
+			let [editableFilterResult, defaultFilterResult] = results;
+
+			if (!defaultFilterResult && editableContentOnly) {
+				defaultFilterResult = this.lastFilterResult;
+			}
 
 			this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
 			if (defaultFilterResult) {
