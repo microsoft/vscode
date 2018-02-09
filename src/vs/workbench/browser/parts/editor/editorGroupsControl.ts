@@ -1116,7 +1116,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 			// Check for URI transfer
 			else {
-				const dropHandler = $this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
+				const dropHandler = $this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
 				dropHandler.handleDrop(e, () => {
 					if (splitEditor && splitTo !== freeGroup) {
 						groupService.moveGroup(freeGroup, splitTo);
