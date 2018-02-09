@@ -1608,3 +1608,21 @@ export class ToggleWindowTabsBar extends Action {
 		return this.windowsService.toggleWindowTabsBar().then(() => true);
 	}
 }
+
+export class ShowAboutDialogAction extends Action {
+
+	public static readonly ID = 'workbench.action.showAboutDialog';
+	public static LABEL = nls.localize('about', "About {0}", product.applicationName);
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		return this.windowsService.openAboutDialog();
+	}
+}

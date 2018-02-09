@@ -16,7 +16,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import product from 'vs/platform/node/product';
-import IPackageConfiguration from 'vs/platform/node/package';
 
 function ignore<T>(code: string, value: T = null): (err: any) => TPromise<T> {
 	return err => err.code === code ? TPromise.as<T>(value) : TPromise.wrapError<T>(err);
@@ -144,30 +143,10 @@ class UninstallAction extends Action {
 	}
 }
 
-class ShowCodeVersion extends Action {
-	public static readonly ID = 'workbench.action.showCodeVersion';
-	public static LABEL = nls.localize('version', "Show version of '{0}' installed", product.applicationName);
-
-	constructor(
-		id: string,
-		label: string,
-		@IMessageService private messageService: IMessageService
-	) {
-		super(id, label);
-	}
-
-
-	run(): TPromise<void> {
-		this.messageService.show(Severity.Info, nls.localize('successFromVersion', "'{0}' version - {1}", product.applicationName, IPackageConfiguration.version));
-		return TPromise.as(null);
-	}
-}
-
 if (process.platform === 'darwin') {
 	const category = nls.localize('shellCommand', "Shell Command");
 
 	const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallAction, InstallAction.ID, InstallAction.LABEL), 'Shell Command: Install \'code\' command in PATH', category);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(UninstallAction, UninstallAction.ID, UninstallAction.LABEL), 'Shell Command: Uninstall \'code\' command from PATH', category);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowCodeVersion, ShowCodeVersion.ID, ShowCodeVersion.LABEL), 'Shell Command: Show \'code\' version', category);
 }
