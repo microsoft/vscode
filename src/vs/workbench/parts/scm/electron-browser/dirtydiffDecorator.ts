@@ -433,6 +433,76 @@ export class ShowNextChangeAction extends EditorAction {
 }
 registerEditorAction(ShowNextChangeAction);
 
+export class MoveToPreviousChangeAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.editor.previousChange',
+			label: nls.localize('move to previous change', "Move to Previous Change"),
+			alias: 'Move to Previous Change',
+			precondition: null,
+			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F5 }
+		});
+	}
+
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+
+		if (!outerEditor) {
+			return;
+		}
+
+		const controller = DirtyDiffController.get(outerEditor);
+
+		if (!controller || !controller.modelRegistry) {
+			return;
+		}
+
+		const lineNumber = outerEditor.getPosition().lineNumber;
+		const model = controller.modelRegistry.getModel(outerEditor.getModel());
+		const index = model.findPreviousClosestChange(lineNumber, false);
+		const change = model.changes[index];
+
+		outerEditor.setPosition(new Position(change.modifiedStartLineNumber, 1));
+	}
+}
+registerEditorAction(MoveToPreviousChangeAction);
+
+export class MoveToNextChangeAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.editor.nextChange',
+			label: nls.localize('move to next change', "Move to Next Change"),
+			alias: 'Move to Next Change',
+			precondition: null,
+			kbOpts: { kbExpr: EditorContextKeys.textFocus, primary: KeyMod.Alt | KeyCode.F5 }
+		});
+	}
+
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+
+		if (!outerEditor) {
+			return;
+		}
+
+		const controller = DirtyDiffController.get(outerEditor);
+
+		if (!controller || !controller.modelRegistry) {
+			return;
+		}
+
+		const lineNumber = outerEditor.getPosition().lineNumber;
+		const model = controller.modelRegistry.getModel(outerEditor.getModel());
+		const index = model.findNextClosestChange(lineNumber, false);
+		const change = model.changes[index];
+
+		outerEditor.setPosition(new Position(change.modifiedStartLineNumber, 1));
+	}
+}
+registerEditorAction(MoveToNextChangeAction);
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeDirtyDiff',
 	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
@@ -504,7 +574,7 @@ export class DirtyDiffController implements IEditorContribution {
 		}
 
 		if (typeof lineNumber === 'number' || this.currentIndex === -1) {
-			this.currentIndex = this.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber);
+			this.currentIndex = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber);
 		} else {
 			this.currentIndex = rot(this.currentIndex + 1, this.model.changes.length);
 		}
@@ -518,7 +588,7 @@ export class DirtyDiffController implements IEditorContribution {
 		}
 
 		if (typeof lineNumber === 'number' || this.currentIndex === -1) {
-			this.currentIndex = this.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber);
+			this.currentIndex = this.model.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber);
 		} else {
 			this.currentIndex = rot(this.currentIndex - 1, this.model.changes.length);
 		}
@@ -676,30 +746,6 @@ export class DirtyDiffController implements IEditorContribution {
 		} else {
 			this.next(lineNumber);
 		}
-	}
-
-	private findNextClosestChange(lineNumber: number): number {
-		for (let i = 0; i < this.model.changes.length; i++) {
-			const change = this.model.changes[i];
-
-			if (lineIntersectsChange(lineNumber, change)) {
-				return i;
-			}
-		}
-
-		return 0;
-	}
-
-	private findPreviousClosestChange(lineNumber: number): number {
-		for (let i = this.model.changes.length - 1; i >= 0; i--) {
-			const change = this.model.changes[i];
-
-			if (change.modifiedStartLineNumber <= lineNumber) {
-				return i;
-			}
-		}
-
-		return 0;
 	}
 
 	dispose(): void {
@@ -979,6 +1025,42 @@ export class DirtyDiffModel {
 		}
 
 		return null;
+	}
+
+	findNextClosestChange(lineNumber: number, inclusive = true): number {
+		for (let i = 0; i < this.changes.length; i++) {
+			const change = this.changes[i];
+
+			if (inclusive) {
+				if (getModifiedEndLineNumber(change) >= lineNumber) {
+					return i;
+				}
+			} else {
+				if (change.modifiedStartLineNumber > lineNumber) {
+					return i;
+				}
+			}
+		}
+
+		return 0;
+	}
+
+	findPreviousClosestChange(lineNumber: number, inclusive = true): number {
+		for (let i = this.changes.length - 1; i >= 0; i--) {
+			const change = this.changes[i];
+
+			if (inclusive) {
+				if (change.modifiedStartLineNumber <= lineNumber) {
+					return i;
+				}
+			} else {
+				if (getModifiedEndLineNumber(change) < lineNumber) {
+					return i;
+				}
+			}
+		}
+
+		return this.changes.length - 1;
 	}
 
 	dispose(): void {
