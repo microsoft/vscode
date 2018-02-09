@@ -235,11 +235,13 @@ class SnippetsService implements ISnippetsService {
 						this._files.delete(filepath);
 					}
 				});
-			}, (code: number, signal: string) => this._logService.error(`Error watching ${userSnippetsFolder} for configuration changes (${code}, ${signal})`));
+			}, (error: string) => this._logService.error(error));
 			this._disposables.push({
 				dispose: () => {
-					watcher.removeAllListeners();
-					watcher.close();
+					if (watcher) {
+						watcher.removeAllListeners();
+						watcher.close();
+					}
 				}
 			});
 

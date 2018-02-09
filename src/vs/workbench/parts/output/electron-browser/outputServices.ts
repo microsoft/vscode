@@ -48,23 +48,21 @@ let callbacks: ((eventType: string, fileName: string) => void)[] = [];
 function watchOutputDirectory(outputDir: string, logService: ILogService, onChange: (eventType: string, fileName: string) => void): IDisposable {
 	callbacks.push(onChange);
 	if (!watchingOutputDir) {
-		try {
-			const watcher = extfs.watch(outputDir, (eventType, fileName) => {
-				for (const callback of callbacks) {
-					callback(eventType, fileName);
-				}
-			}, (code: number, signal: string) => {
-				logService.error(`Error watching ${outputDir}: (${code}, ${signal})`);
-			});
-			watchingOutputDir = true;
-			return toDisposable(() => {
-				callbacks = [];
+		const watcher = extfs.watch(outputDir, (eventType, fileName) => {
+			for (const callback of callbacks) {
+				callback(eventType, fileName);
+			}
+		}, (error: string) => {
+			logService.error(error);
+		});
+		watchingOutputDir = true;
+		return toDisposable(() => {
+			callbacks = [];
+			if (watcher) {
 				watcher.removeAllListeners();
 				watcher.close();
-			});
-		} catch (error) {
-			logService.error(`Error watching ${outputDir}:  (${error.toString()})`);
-		}
+			}
+		});
 	}
 	return toDisposable(() => { });
 }
