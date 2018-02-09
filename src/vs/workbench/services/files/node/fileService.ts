@@ -279,7 +279,7 @@ export class FileService implements IFileService {
 
 		const contentResolverToken = new CancellationTokenSource();
 
-		const onStatError = error => {
+		const onStatError = (error: Error) => {
 
 			// error: stop reading the file the stat and content resolve call
 			// usually race, mostly likely the stat call will win and cancel
@@ -426,7 +426,7 @@ export class FileService implements IFileService {
 					}
 				};
 
-				const handleChunk = (bytesRead) => {
+				const handleChunk = (bytesRead: number) => {
 					if (token.isCancellationRequested) {
 						// cancellation -> finish
 						finish(new Error('cancelled'));
@@ -1141,9 +1141,9 @@ export class StatResolver {
 	private name: string;
 	private etag: string;
 	private size: number;
-	private errorLogger: (msg) => void;
+	private errorLogger: (error: Error | string) => void;
 
-	constructor(resource: uri, isDirectory: boolean, mtime: number, size: number, errorLogger?: (msg) => void) {
+	constructor(resource: uri, isDirectory: boolean, mtime: number, size: number, errorLogger?: (error: Error | string) => void) {
 		assert.ok(resource && resource.scheme === 'file', 'Invalid resource: ' + resource);
 
 		this.resource = resource;

@@ -353,7 +353,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this.cloneElementFont(this.selectElement, this.selectDropDownContainer);
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.selectElement,
-			render: (container: HTMLElement) => { return this.renderSelectDropDown(container); },
+			render: (container: HTMLElement) => this.renderSelectDropDown(container),
 			layout: () => this.layoutSelectDropDown(),
 			onHide: () => {
 				dom.toggleClass(this.selectDropDownContainer, 'visible', false);
@@ -375,7 +375,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this.contextViewProvider.hideContextView();
 	}
 
-	private renderSelectDropDown(container: HTMLElement) {
+	private renderSelectDropDown(container: HTMLElement): IDisposable {
 		dom.append(container, this.selectDropDownContainer);
 		this.layoutSelectDropDown();
 		return null;

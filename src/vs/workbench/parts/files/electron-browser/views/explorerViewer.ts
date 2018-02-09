@@ -459,7 +459,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => {
-				const actions = [];
+				const actions: IAction[] = [];
 				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},

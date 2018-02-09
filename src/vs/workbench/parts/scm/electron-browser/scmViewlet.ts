@@ -167,7 +167,7 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 		// 	arguments: c.arguments
 		// }, MainThreadStatusBarAlignment.LEFT, 10000));
 
-		const actions = [];
+		const actions: IAction[] = [];
 		const disposeActions = () => dispose(actions);
 		disposables.push({ dispose: disposeActions });
 

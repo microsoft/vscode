@@ -722,7 +722,7 @@ export class HistoryService implements IHistoryService {
 
 		const entriesRaw = this.storageService.get(HistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
-			entries = JSON.parse(entriesRaw).filter(entry => !!entry);
+			entries = JSON.parse(entriesRaw).filter((entry: object) => !!entry);
 		}
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);

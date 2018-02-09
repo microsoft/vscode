@@ -618,7 +618,7 @@ export class TabsTitleControl extends TitleControl {
 	private hookTabListeners(tab: HTMLElement, index: number): IDisposable {
 		const disposables: IDisposable[] = [];
 
-		const handleClickOrTouch = (e: MouseEvent | GestureEvent) => {
+		const handleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
 			tab.blur();
 
 			if (e instanceof MouseEvent && e.button !== 0) {

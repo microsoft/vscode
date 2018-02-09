@@ -123,7 +123,7 @@ class BinarySize {
 }
 
 export interface ResourceViewerContext {
-	layout(dimension: Dimension);
+	layout(dimension: Dimension): void;
 }
 
 /**
