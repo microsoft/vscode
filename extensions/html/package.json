@@ -16,7 +16,7 @@
   "scripts": {
     "compile": "gulp compile-extension:html-client && gulp compile-extension:html-server",
     "postinstall": "cd server && yarn install",
-    "update-grammar": "node ../../build/npm/update-grammar.js textmate/html.tmbundle Syntaxes/HTML.plist ./syntaxes/html.json",
+    "update-grammar": "node ../../build/npm/update-grammar.js textmate/html.tmbundle Syntaxes/HTML.plist ./syntaxes/html.tmLanguage.json",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
   "contributes": {
@@ -57,7 +57,7 @@
       {
         "language": "html",
         "scopeName": "text.html.basic",
-        "path": "./syntaxes/html.json",
+        "path": "./syntaxes/html.tmLanguage.json",
         "embeddedLanguages": {
           "text.html": "html",
           "source.css": "css",

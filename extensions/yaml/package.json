@@ -4,7 +4,7 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js textmate/yaml.tmbundle Syntaxes/YAML.tmLanguage ./syntaxes/yaml.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/yaml.tmbundle Syntaxes/YAML.tmLanguage ./syntaxes/yaml.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{
@@ -18,7 +18,7 @@
 		"grammars": [{
 			"language": "yaml",
 			"scopeName": "source.yaml",
-			"path": "./syntaxes/yaml.json"
+			"path": "./syntaxes/yaml.tmLanguage.json"
 		}],
 		"configurationDefaults": {
 			"[yaml]": {

@@ -162,8 +162,8 @@ export class ResourcesDropHandler {
 	}
 
 	public handleDrop(event: DragEvent, afterDrop: () => void, targetPosition: Position, targetIndex?: number): void {
-		const resources = extractResources(event).filter(r => r.resource.scheme === Schemas.file || r.resource.scheme === Schemas.untitled);
-		if (!resources.length) {
+		const untitledOrFileResources = extractResources(event).filter(r => this.fileService.canHandleResource(r.resource) || r.resource.scheme === Schemas.untitled);
+		if (!untitledOrFileResources.length) {
 			return;
 		}
 
@@ -171,26 +171,26 @@ export class ResourcesDropHandler {
 		return this.windowService.focusWindow().then(() => {
 
 			// Check for special things being dropped
-			return this.doHandleDrop(resources).then(isWorkspaceOpening => {
+			return this.doHandleDrop(untitledOrFileResources).then(isWorkspaceOpening => {
 				if (isWorkspaceOpening) {
 					return void 0; // return early if the drop operation resulted in this window changing to a workspace
 				}
 
 				// Add external ones to recently open list unless dropped resource is a workspace
-				const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
-				if (externalResources.length) {
-					this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
+				const resourcesToAddToHistory = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme !== Schemas.untitled).map(d => d.resource);
+				if (resourcesToAddToHistory.length) {
+					this.windowsService.addRecentlyOpened(resourcesToAddToHistory.map(resource => resource.fsPath));
 				}
 
 				// Open in Editor
-				return this.editorService.openEditors(resources.map(r => {
+				return this.editorService.openEditors(untitledOrFileResources.map(untitledOrFileResource => {
 					return {
 						input: {
-							resource: r.resource,
+							resource: untitledOrFileResource.resource,
 							options: {
 								pinned: true,
 								index: targetIndex,
-								viewState: (r as IDraggedEditor).viewState
+								viewState: (untitledOrFileResource as IDraggedEditor).viewState
 							}
 						},
 						position: targetPosition
@@ -204,17 +204,20 @@ export class ResourcesDropHandler {
 		}).done(null, onUnexpectedError);
 	}
 
-	private doHandleDrop(resources: (IDraggedResource | IDraggedEditor)[]): TPromise<boolean> {
+	private doHandleDrop(untitledOrFileResources: (IDraggedResource | IDraggedEditor)[]): TPromise<boolean> {
 
 		// Check for dirty editors being dropped
-		const resourcesWithBackups: IDraggedEditor[] = resources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);
+		const resourcesWithBackups: IDraggedEditor[] = untitledOrFileResources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);
 		if (resourcesWithBackups.length > 0) {
 			return TPromise.join(resourcesWithBackups.map(resourceWithBackup => this.handleDirtyEditorDrop(resourceWithBackup))).then(() => false);
 		}
 
 		// Check for workspace file being dropped if we are allowed to do so
-		if (this.options.allowWorkspaceOpen && resources.some(r => r.isExternal)) {
-			return this.handleWorkspaceFileDrop(resources);
+		if (this.options.allowWorkspaceOpen) {
+			const externalFileOnDiskResources = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => d.resource);
+			if (externalFileOnDiskResources.length > 0) {
+				return this.handleWorkspaceFileDrop(externalFileOnDiskResources);
+			}
 		}
 
 		return TPromise.as(false);
@@ -249,31 +252,29 @@ export class ResourcesDropHandler {
 		return DefaultEndOfLine.LF;
 	}
 
-	private handleWorkspaceFileDrop(resources: (IDraggedResource | IDraggedEditor)[]): TPromise<boolean> {
-		const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
-
-		const externalWorkspaceResources: { workspaces: URI[], folders: URI[] } = {
+	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): TPromise<boolean> {
+		const workspaceResources: { workspaces: URI[], folders: URI[] } = {
 			workspaces: [],
 			folders: []
 		};
 
-		return TPromise.join(externalResources.map(resource => {
+		return TPromise.join(fileOnDiskResources.map(fileOnDiskResource => {
 
 			// Check for Workspace
-			if (extname(resource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
-				externalWorkspaceResources.workspaces.push(resource);
+			if (extname(fileOnDiskResource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
+				workspaceResources.workspaces.push(fileOnDiskResource);
 
 				return void 0;
 			}
 
 			// Check for Folder
-			return this.fileService.resolveFile(resource).then(stat => {
+			return this.fileService.resolveFile(fileOnDiskResource).then(stat => {
 				if (stat.isDirectory) {
-					externalWorkspaceResources.folders.push(stat.resource);
+					workspaceResources.folders.push(stat.resource);
 				}
 			}, error => void 0);
 		})).then(_ => {
-			const { workspaces, folders } = externalWorkspaceResources;
+			const { workspaces, folders } = workspaceResources;
 
 			// Return early if no external resource is a folder or workspace
 			if (workspaces.length === 0 && folders.length === 0) {

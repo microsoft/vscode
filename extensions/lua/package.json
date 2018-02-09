@@ -4,7 +4,7 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js textmate/lua.tmbundle Syntaxes/Lua.plist ./syntaxes/lua.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/lua.tmbundle Syntaxes/Lua.plist ./syntaxes/lua.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{
@@ -16,7 +16,7 @@
 		"grammars": [{
 			"language": "lua",
 			"scopeName": "source.lua",
-			"path": "./syntaxes/lua.json"
+			"path": "./syntaxes/lua.tmLanguage.json"
 		}]
 	}
 }
