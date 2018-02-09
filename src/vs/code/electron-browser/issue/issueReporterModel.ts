@@ -7,7 +7,7 @@
 
 import { assign } from 'vs/base/common/objects';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IssueType } from 'vs/platform/issue/common/issue';
+import { IssueType, ISettingSearchResult } from 'vs/platform/issue/common/issue';
 
 export interface IssueReporterData {
 	issueType?: IssueType;
@@ -22,11 +22,16 @@ export interface IssueReporterData {
 	includeWorkspaceInfo?: boolean;
 	includeProcessInfo?: boolean;
 	includeExtensions?: boolean;
+	includeSearchedExtensions?: boolean;
+	includeSettingsSearchDetails?: boolean;
 
 	numberOfThemeExtesions?: number;
 	enabledNonThemeExtesions?: ILocalExtension[];
 	extensionsDisabled?: boolean;
 	reprosWithoutExtensions?: boolean;
+	actualSearchResults?: ISettingSearchResult[];
+	query?: string;
+	filterResultCount?: number;
 }
 
 export class IssueReporterModel {
@@ -97,6 +102,17 @@ ${this.getInfos()}`;
 			}
 
 			info += this._data.reprosWithoutExtensions ? '\nReproduces without extensions' : '\nReproduces only with extensions';
+		}
+
+		if (this._data.issueType === IssueType.SettingsSearchIssue) {
+			if (this._data.includeSearchedExtensions) {
+				info += this.generateExtensionsMd();
+			}
+
+			if (this._data.includeSettingsSearchDetails) {
+				info += this.generateSettingSearchResultsMd();
+				info += '\n' + this.generateSettingsSearchResultDetailsMd();
+			}
 		}
 
 		return info;
@@ -170,6 +186,35 @@ ${this._data.workspaceInfo};
 ${tableHeader}
 ${table}
 ${themeExclusionStr}
+
+</details>`;
+	}
+
+	private generateSettingsSearchResultDetailsMd(): string {
+		return `
+Query: ${this._data.query}
+Literal matches: ${this._data.filterResultCount}`;
+	}
+
+	private generateSettingSearchResultsMd(): string {
+		if (!this._data.actualSearchResults) {
+			return '';
+		}
+
+		if (!this._data.actualSearchResults.length) {
+			return `No fuzzy results`;
+		}
+
+		let tableHeader = `Setting|Extension|Score
+---|---|---`;
+ 	 	const table = this._data.actualSearchResults.map(setting => {
+			return `${setting.key}|${setting.extensionId}|${String(setting.score).slice(0, 5)}`;
+		}).join('\n');
+
+		return `<details><summary>Results</summary>
+
+${tableHeader}
+${table}
 
 </details>`;
 	}

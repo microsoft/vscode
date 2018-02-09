@@ -7,7 +7,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
-import * as strings from 'vs/base/common/strings';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { IAction } from 'vs/base/common/actions';
@@ -18,7 +17,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IScoredResults, IWorkbenchSettingsConfiguration, IExtensionSetting } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IWorkbenchSettingsConfiguration, IExtensionSetting } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
@@ -26,8 +25,7 @@ import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, D
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Severity } from 'vs/platform/message/common/message';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -38,6 +36,11 @@ import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/ed
 import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import { IIssueService, IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult } from 'vs/platform/issue/common/issue';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IExtensionManagementService, IExtensionEnablementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getIssueReporterStyles } from 'vs/workbench/electron-browser/actions';
+import { webFrame } from 'electron';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -572,23 +575,16 @@ export class HiddenAreasRenderer extends Disposable {
 }
 
 export class FeedbackWidgetRenderer extends Disposable {
-	private static readonly DEFAULT_COMMENT_TEXT = 'Replace this comment with any text feedback.';
-	private static readonly INSTRUCTION_TEXT = [
-		'// Modify the "resultScores" section to contain only your expected results. Assign scores to indicate their relevance.',
-		'// Results present in "resultScores" will be automatically "boosted" for this query, if they are not already at the top of the result set.',
-		'// Add phrase pairs to the "alts" section to have them considered to be synonyms in queries.'
-	].join('\n');
-
 	private _feedbackWidget: FloatingClickWidget;
 	private _currentResult: IFilterResult;
 
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMessageService private messageService: IMessageService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IIssueService private issueService: IIssueService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IThemeService private themeService: IThemeService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super();
 	}
@@ -606,151 +602,54 @@ export class FeedbackWidgetRenderer extends Disposable {
 	private showWidget(): void {
 		if (!this._feedbackWidget) {
 			this._feedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, this.editor, 'Provide feedback', null));
-			this._register(this._feedbackWidget.onClick(() => this.getFeedback()));
+			this._register(this._feedbackWidget.onClick(() => this.showIssueReporter()));
 			this._feedbackWidget.render();
 		}
 	}
 
-	private getFeedback(): void {
-		if (!this.telemetryService.isOptedIn && this.environmentService.appQuality) {
-			this.messageService.show(Severity.Error, 'Can\'t send feedback, user is opted out of telemetry');
-			return;
-		}
+	private showIssueReporter(): void {
+		const filterResultGroup = arrays.first(this._currentResult.filteredGroups, group => group.id === 'filterResult');
+		const filterResultCount = filterResultGroup ?
+			filterResultGroup.sections[0].settings.length :
+			0;
 
-		const result = this._currentResult;
-		const metadata = result.metadata['nlpResult']; // Feedback only on nlpResult set for now
-		const actualResults = metadata ? metadata.scoredResults : {};
-		const actualResultIds = Object.keys(actualResults);
+		const results = this._currentResult.metadata['nlpResult'].scoredResults;
 
-		const feedbackQuery: any = {};
-		feedbackQuery['comment'] = FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT;
-		feedbackQuery['queryString'] = result.query;
-		feedbackQuery['duration'] = metadata ? metadata.duration : -1;
-		feedbackQuery['resultScores'] = [];
-		actualResultIds.forEach(settingId => {
-			feedbackQuery['resultScores'].push({
-				packageID: actualResults[settingId].packageId,
-				key: actualResults[settingId].key,
-				score: 10
-			});
-		});
-		feedbackQuery['alts'] = [];
+		this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+			const enabledExtensions = extensions
+				.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier))
+				.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration);
+			const theme = this.themeService.getTheme();
 
-		const groupCountsText = result.filteredGroups
-			.map(group => `// ${group.id}: ${group.sections[0].settings.length}`)
-			.join('\n');
+			const issueResults = Object.keys(results)
+				.map(key => (<ISettingSearchResult>{
+					key: key.split('##')[1],
+					extensionId: results[key].packageId === 'core' ?
+						'core' :
+						this.getExtensionIdByGuid(enabledExtensions, results[key].packageId),
+					score: results[key].score
+				}))
+				.slice(0, 20);
 
-		const contents = FeedbackWidgetRenderer.INSTRUCTION_TEXT + '\n' +
-			JSON.stringify(feedbackQuery, undefined, '    ') + '\n\n' +
-			this.getScoreText(actualResults) + '\n\n' +
-			groupCountsText + '\n';
-
-		this.editorService.openEditor({ contents, language: 'jsonc' }, /*sideBySide=*/true).then(feedbackEditor => {
-			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
-			sendFeedbackWidget.render();
-
-			this._register(sendFeedbackWidget.onClick(() => {
-				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, actualResults).then(() => {
-					sendFeedbackWidget.dispose();
-					this.messageService.show(Severity.Info, 'Feedback sent successfully');
-				}, err => {
-					this.messageService.show(Severity.Error, 'Error sending feedback: ' + err.message);
-				});
-			}));
-		});
-	}
-
-	private getScoreText(results?: IScoredResults): string {
-		if (!results) {
-			return '';
-		}
-
-		return Object.keys(results)
-			.map(name => {
-				return `// ${results[name].key}: ${results[name].score}`;
-			}).join('\n');
-	}
-
-	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, scoredResults: IScoredResults): TPromise<void> {
-		const model = feedbackEditor.getModel();
-		const expectedQueryLines = model.getLinesContent()
-			.filter(line => !strings.startsWith(line, '//'));
-
-		let expectedQuery: any;
-		try {
-			expectedQuery = JSON.parse(expectedQueryLines.join('\n'));
-		} catch (e) {
-			// invalid JSON
-			return TPromise.wrapError(new Error('Invalid JSON: ' + e.message));
-		}
-
-		const userComment = expectedQuery.comment === FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT ? undefined : expectedQuery.comment;
-
-		// validate alts
-		if (!this.validateAlts(expectedQuery.alts)) {
-			return TPromise.wrapError(new Error('alts must be an array of 2-element string arrays'));
-		}
-
-		const altsAdded = expectedQuery.alts && expectedQuery.alts.length;
-		const alts = altsAdded ? expectedQuery.alts : undefined;
-		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		const autoIngest = workbenchSettings.naturalLanguageSearchAutoIngestFeedback;
-
-		const nlpMetadata = result.metadata && result.metadata['nlpResult'];
-		const duration = nlpMetadata && nlpMetadata.duration;
-		const requestBody = nlpMetadata && nlpMetadata.requestBody;
-
-		const actualResultScores = {};
-		for (let key in scoredResults) {
-			actualResultScores[key] = {
-				score: scoredResults[key].score
+			const issueReporterData: ISettingsSearchIssueReporterData = {
+				styles: getIssueReporterStyles(theme),
+				zoomLevel: webFrame.getZoomLevel(),
+				enabledExtensions,
+				issueType: IssueType.SettingsSearchIssue,
+				actualSearchResults: issueResults,
+				filterResultCount,
+				query: this._currentResult.query
 			};
-		}
 
-		/* __GDPR__
-			"settingsSearchResultFeedback" : {
-				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"requestBody" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"buildNumber" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"alts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"autoIngest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		return this.telemetryService.publicLog('settingsSearchResultFeedback', {
-			query: result.query,
-			requestBody,
-			userComment,
-			actualResults: actualResultScores,
-			expectedResults: expectedQuery.resultScores,
-			duration,
-			buildNumber: this.environmentService.settingsSearchBuildId,
-			alts,
-			autoIngest
+			return this.issueService.openReporter(issueReporterData);
 		});
 	}
 
-	private validateAlts(alts?: string[][]): boolean {
-		if (!alts) {
-			return true;
-		}
+	private getExtensionIdByGuid(extensions: ILocalExtension[], guid: string): string {
+		const match = arrays.first(extensions, ext => ext.identifier.uuid === guid);
 
-		if (!Array.isArray(alts)) {
-			return false;
-		}
-
-		if (!alts.length) {
-			return true;
-		}
-
-		if (!alts.every(altPair => Array.isArray(altPair) && altPair.length === 2 && typeof altPair[0] === 'string' && typeof altPair[1] === 'string')) {
-			return false;
-		}
-
-		return true;
+		// identifier.id includes the version, not needed here
+		return match && `${match.manifest.publisher}.${match.manifest.name}`;
 	}
 
 	private disposeWidget(): void {
@@ -762,7 +661,6 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 	public dispose() {
 		this.disposeWidget();
-
 		super.dispose();
 	}
 }

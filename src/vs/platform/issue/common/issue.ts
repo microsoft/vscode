@@ -15,7 +15,8 @@ export const IIssueService = createDecorator<IIssueService>(ID);
 export enum IssueType {
 	Bug,
 	PerformanceIssue,
-	FeatureRequest
+	FeatureRequest,
+	SettingsSearchIssue
 }
 
 export interface IssueReporterStyles {
@@ -40,6 +41,19 @@ export interface IssueReporterData {
 	zoomLevel: number;
 	enabledExtensions: ILocalExtension[];
 	issueType?: IssueType;
+}
+
+export interface ISettingSearchResult {
+	extensionId: string;
+	key: string;
+	score: number;
+}
+
+export interface ISettingsSearchIssueReporterData extends IssueReporterData {
+	issueType: IssueType.SettingsSearchIssue;
+	actualSearchResults: ISettingSearchResult[];
+	query: string;
+	filterResultCount: number;
 }
 
 export interface IIssueService {
