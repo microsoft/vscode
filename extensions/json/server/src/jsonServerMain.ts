@@ -17,8 +17,8 @@ import fs = require('fs');
 import URI from 'vscode-uri';
 import * as URL from 'url';
 import Strings = require('./utils/strings');
-import { formatError, runSafe } from './utils/errors';
-import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService, DocumentLanguageSettings } from 'vscode-json-languageservice';
+import { formatError, runSafe, runSafeAsync } from './utils/errors';
+import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
 interface ISchemaAssociations {
@@ -40,7 +40,7 @@ namespace SchemaContentChangeNotification {
 // Create a connection for the server
 let connection: IConnection = createConnection();
 
-process.on('unhandledRejection', e => {
+process.on('unhandledRejection', (e: any) => {
 	connection.console.error(formatError(`Unhandled exception`, e));
 });
 
@@ -62,7 +62,7 @@ let clientDynamicRegisterSupport = false;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 	function hasClientCapability(...keys: string[]) {
-		let c = params.capabilities;
+		let c = params.capabilities as any;
 		for (let i = 0; c && i < keys.length; i++) {
 			c = c[keys[i]];
 		}
@@ -146,9 +146,9 @@ interface JSONSchemaSettings {
 	schema?: JSONSchema;
 }
 
-let jsonConfigurationSettings: JSONSchemaSettings[] = void 0;
-let schemaAssociations: ISchemaAssociations = void 0;
-let formatterRegistration: Thenable<Disposable> = null;
+let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = void 0;
+let schemaAssociations: ISchemaAssociations | undefined = void 0;
+let formatterRegistration: Thenable<Disposable> | null = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
@@ -184,10 +184,10 @@ connection.onNotification(SchemaContentChangeNotification.type, uri => {
 });
 
 function updateConfiguration() {
-	let languageSettings: LanguageSettings = {
+	let languageSettings = {
 		validate: true,
 		allowComments: true,
-		schemas: []
+		schemas: new Array<SchemaConfiguration>()
 	};
 	if (schemaAssociations) {
 		for (var pattern in schemaAssociations) {
@@ -292,7 +292,7 @@ function getJSONDocument(document: TextDocument): JSONDocument {
 }
 
 connection.onCompletion(textDocumentPosition => {
-	return runSafe(() => {
+	return runSafeAsync(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
 		let jsonDocument = getJSONDocument(document);
 		return languageService.doComplete(document, textDocumentPosition.position, jsonDocument);
@@ -300,13 +300,13 @@ connection.onCompletion(textDocumentPosition => {
 });
 
 connection.onCompletionResolve(completionItem => {
-	return runSafe(() => {
+	return runSafeAsync(() => {
 		return languageService.doResolve(completionItem);
-	}, null, `Error while resolving completion proposal`);
+	}, completionItem, `Error while resolving completion proposal`);
 });
 
 connection.onHover(textDocumentPositionParams => {
-	return runSafe(() => {
+	return runSafeAsync(() => {
 		let document = documents.get(textDocumentPositionParams.textDocument.uri);
 		let jsonDocument = getJSONDocument(document);
 		return languageService.doHover(document, textDocumentPositionParams.position, jsonDocument);
@@ -329,13 +329,13 @@ connection.onDocumentRangeFormatting(formatParams => {
 });
 
 connection.onRequest(DocumentColorRequest.type, params => {
-	return runSafe(() => {
+	return runSafeAsync(() => {
 		let document = documents.get(params.textDocument.uri);
 		if (document) {
 			let jsonDocument = getJSONDocument(document);
 			return languageService.findDocumentColors(document, jsonDocument);
 		}
-		return [];
+		return Promise.resolve([]);
 	}, [], `Error while computing document colors for ${params.textDocument.uri}`);
 });
 
