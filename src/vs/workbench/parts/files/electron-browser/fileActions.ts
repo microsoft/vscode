@@ -52,6 +52,7 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { distinctParents, basenameOrAuthority } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IEditableData {
 	action: IAction;
@@ -1344,7 +1345,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: Schemas.file /* todo@remote */ });
 		if (fileResource) {
 			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
 		} else {
@@ -1449,6 +1450,7 @@ export class CompareWithClipboardAction extends Action {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextModelService private textModelService: ITextModelService,
+		@IFileService private fileService: IFileService
 	) {
 		super(id, label);
 
@@ -1456,11 +1458,10 @@ export class CompareWithClipboardAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const resource: URI = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-		const provider = this.instantiationService.createInstance(ClipboardContentProvider);
-
-		if (resource) {
+		const resource: URI = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true });
+		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
+				const provider = this.instantiationService.createInstance(ClipboardContentProvider);
 				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(CompareWithClipboardAction.SCHEME, provider);
 			}
 

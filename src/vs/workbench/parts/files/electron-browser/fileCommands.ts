@@ -92,7 +92,7 @@ function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorS
 			let encodingOfSource: string;
 			if (resource.scheme === Schemas.untitled) {
 				encodingOfSource = untitledEditorService.getEncoding(resource);
-			} else if (resource.scheme === 'file') {
+			} else if (fileService.canHandleResource(resource)) {
 				const textModel = textFileService.models.get(resource);
 				encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 			}
@@ -319,7 +319,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		resource = getResourceForCommand(resource, accessor.get(IListService), editorService);
 
-		if (resource && resource.scheme === 'file') {
+		if (resource && resource.scheme === Schemas.file /* only files on disk supported for now */) {
 			const name = paths.basename(resource.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 

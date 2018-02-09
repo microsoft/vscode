@@ -178,9 +178,9 @@ export class ResourcesDropHandler {
 				}
 
 				// Add external ones to recently open list unless dropped resource is a workspace
-				const resourcesToAddToHistory = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => d.resource);
-				if (resourcesToAddToHistory.length) {
-					this.windowsService.addRecentlyOpened(resourcesToAddToHistory.map(resource => resource.fsPath));
+				const filesToAddToHistory = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => d.resource);
+				if (filesToAddToHistory.length) {
+					this.windowsService.addRecentlyOpened(filesToAddToHistory.map(resource => resource.fsPath));
 				}
 
 				// Open in Editor

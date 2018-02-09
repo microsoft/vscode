@@ -94,7 +94,7 @@ export class ResourceLabel extends IconLabel {
 			return; // we need the resource to compare
 		}
 
-		if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) {
+		if (e.model.uri.scheme === Schemas.file && e.oldModeId === PLAINTEXT_MODE_ID) { // todo@remote does this apply?
 			return; // ignore transitions in files from no mode to specific mode because this happens each time a model is created
 		}
 

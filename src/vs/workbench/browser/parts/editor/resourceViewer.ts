@@ -156,7 +156,7 @@ export class ResourceViewer {
 
 	private static getMime(descriptor: IResourceDescriptor): string {
 		let mime = descriptor.mime;
-		if (!mime && descriptor.resource.scheme === Schemas.file) {
+		if (!mime && descriptor.resource.scheme !== Schemas.data) {
 			const ext = paths.extname(descriptor.resource.toString());
 			if (ext) {
 				mime = mapExtToMediaMimes[ext.toLowerCase()];

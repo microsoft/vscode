@@ -10,7 +10,7 @@ import { createDecorator, ServiceIdentifier, IInstantiationService } from 'vs/pl
 import { IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IResourceInput, IResourceDiffInput, IResourceSideBySideInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { basename, dirname } from 'vs/base/common/paths';
+import { basename } from 'vs/base/common/paths';
 import { EditorInput, EditorOptions, TextEditorOptions, Extensions as EditorExtensions, SideBySideEditorInput, IFileEditorInput, IFileInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -318,24 +318,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return this.untitledEditorService.createOrGet(untitledInput.filePath ? URI.file(untitledInput.filePath) : untitledInput.resource, untitledInput.language, untitledInput.contents, untitledInput.encoding);
 		}
 
+		// Resource Editor Support
 		const resourceInput = <IResourceInput>input;
-
-		// Files / Data URI support
-		if (resourceInput.resource instanceof URI && (resourceInput.resource.scheme === Schemas.file || resourceInput.resource.scheme === Schemas.data)) {
-			return this.createOrGet(resourceInput.resource, this.instantiationService, resourceInput.label, resourceInput.description, resourceInput.encoding);
-		}
-
-		// Any other resource
-		else if (resourceInput.resource instanceof URI) {
-			const label = resourceInput.label || basename(resourceInput.resource.fsPath);
-			let description: string;
-			if (typeof resourceInput.description === 'string') {
-				description = resourceInput.description;
-			} else if (resourceInput.resource.scheme === Schemas.file) {
-				description = dirname(resourceInput.resource.fsPath);
-			}
-
-			return this.createOrGet(resourceInput.resource, this.instantiationService, label, description);
+		if (resourceInput.resource instanceof URI) {
+			return this.createOrGet(resourceInput.resource, this.instantiationService, resourceInput.label || basename(resourceInput.resource.fsPath), resourceInput.description, resourceInput.encoding);
 		}
 
 		return null;

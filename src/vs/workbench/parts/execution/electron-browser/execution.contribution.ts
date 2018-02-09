@@ -26,6 +26,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { getResourceForCommand } from 'vs/workbench/parts/files/browser/files';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { Schemas } from 'vs/base/common/network';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);
@@ -111,7 +112,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor) => {
 		const historyService = accessor.get(IHistoryService);
 		const terminalService = accessor.get(ITerminalService);
-		const root = historyService.getLastActiveWorkspaceRoot('file');
+		const root = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		if (root) {
 			terminalService.openTerminal(root.fsPath);
 		}
@@ -135,12 +136,12 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
 	order: 30,
 	command: openConsoleCommand,
-	when: ResourceContextKey.Scheme.isEqualTo('file')
+	when: ResourceContextKey.Scheme.isEqualTo(Schemas.file)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: 'navigation',
 	order: 30,
 	command: openConsoleCommand,
-	when: ResourceContextKey.Scheme.isEqualTo('file')
+	when: ResourceContextKey.Scheme.isEqualTo(Schemas.file)
 });

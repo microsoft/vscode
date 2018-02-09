@@ -231,7 +231,7 @@ export abstract class TextFileService implements ITextFileService {
 		const filesToBackup: ITextFileEditorModel[] = [];
 		const untitledToBackup: URI[] = [];
 		dirtyToBackup.forEach(s => {
-			if (s.scheme === Schemas.file) {
+			if (this.fileService.canHandleResource(s)) {
 				filesToBackup.push(textFileEditorModelManager.get(s));
 			} else if (s.scheme === Schemas.untitled) {
 				untitledToBackup.push(s);
@@ -390,7 +390,7 @@ export abstract class TextFileService implements ITextFileService {
 	public save(resource: URI, options?: ISaveOptions): TPromise<boolean> {
 
 		// Run a forced save if we detect the file is not dirty so that save participants can still run
-		if (options && options.force && resource.scheme === Schemas.file && !this.isDirty(resource)) {
+		if (options && options.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
 			const model = this._models.get(resource);
 			if (model) {
 				model.save({ force: true, reason: SaveReason.EXPLICIT }).then(() => !model.isDirty());
@@ -572,7 +572,7 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Retrieve text model from provided resource if any
 		let modelPromise: TPromise<ITextFileEditorModel | UntitledEditorModel> = TPromise.as(null);
-		if (resource.scheme === Schemas.file) {
+		if (this.fileService.canHandleResource(resource)) {
 			modelPromise = TPromise.as(this._models.get(resource));
 		} else if (resource.scheme === Schemas.untitled && this.untitledEditorService.exists(resource)) {
 			modelPromise = this.untitledEditorService.loadOrCreate({ resource });

@@ -204,7 +204,7 @@ export class LaunchService implements ILaunchService {
 		} else if (window.openedWorkspace) {
 			const rootFolders = this.workspacesMainService.resolveWorkspaceSync(window.openedWorkspace.configPath).folders;
 			rootFolders.forEach(root => {
-				if (root.uri.scheme === Schemas.file) {
+				if (root.uri.scheme === Schemas.file) { // todo@remote signal remote folders?
 					folders.push(root.uri.fsPath);
 				}
 			});

@@ -17,6 +17,7 @@ import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/ed
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -28,7 +29,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IEditorGroupService private groupService: IEditorGroupService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IFileService private fileService: IFileService
 	) {
 		this.restoreBackups();
 	}
@@ -67,7 +69,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 		backups.forEach(backup => {
 			if (stacks.isOpen(backup)) {
-				if (backup.scheme === Schemas.file) {
+				if (this.fileService.canHandleResource(backup)) {
 					restorePromises.push(this.textFileService.models.loadOrCreate(backup).then(null, () => unresolved.push(backup)));
 				} else if (backup.scheme === Schemas.untitled) {
 					restorePromises.push(this.untitledEditorService.loadOrCreate({ resource: backup }).then(null, () => unresolved.push(backup)));
