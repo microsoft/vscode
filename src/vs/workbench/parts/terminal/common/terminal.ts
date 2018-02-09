@@ -147,6 +147,7 @@ export interface ITerminalService {
 	activeTerminalInstanceIndex: number;
 	configHelper: ITerminalConfigHelper;
 	onActiveInstanceChanged: Event<string>;
+	onTabDisposed: Event<ITerminalTab>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstancesChanged: Event<string>;
@@ -176,6 +177,12 @@ export interface ITerminalService {
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
 
+export interface ITerminalTab {
+	terminalInstances: ITerminalInstance[];
+
+	addDisposable(disposable: IDisposable): void;
+}
+
 export interface ITerminalInstance {
 	/**
 	 * The ID of the terminal instance, this is an arbitrary number only used to identify the
@@ -197,6 +204,8 @@ export interface ITerminalInstance {
 	 * An event that fires when the terminal instance is disposed.
 	 */
 	onDisposed: Event<ITerminalInstance>;
+
+	onProcessIdReady: Event<ITerminalInstance>;
 
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
@@ -389,4 +398,6 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
+
+	addDisposable(disposable: IDisposable): void;
 }

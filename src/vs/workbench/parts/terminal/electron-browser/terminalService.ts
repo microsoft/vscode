@@ -16,17 +16,22 @@ import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/qui
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
+import { TerminalTab } from 'vs/workbench/parts/terminal/electron-browser/terminalTab';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
+
+	protected _terminalTabs: TerminalTab[];
+	protected get _terminalInstances(): ITerminalInstance[] {
+		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
+	}
 
 	constructor(
 		@IContextKeyService _contextKeyService: IContextKeyService,
@@ -42,17 +47,21 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	) {
 		super(_contextKeyService, _panelService, _partService, _lifecycleService);
 
+		this._terminalTabs = [];
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 	}
 
 	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
-		let terminalInstance = this._instantiationService.createInstance(TerminalInstance,
+		const terminalTab = this._instantiationService.createInstance(TerminalTab,
 			this._terminalFocusContextKey,
 			this._configHelper,
 			this._terminalContainer,
 			shell);
-		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
+		this._terminalTabs.push(terminalTab);
+		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
+		const terminalInstance = terminalTab.terminalInstances[0];
 		terminalInstance.addDisposable(terminalInstance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
+		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		terminalInstance.addDisposable(terminalInstance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
 		this.terminalInstances.push(terminalInstance);
 		if (this.terminalInstances.length === 1) {

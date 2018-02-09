@@ -9,7 +9,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export abstract class TerminalService implements ITerminalService {
@@ -20,16 +20,19 @@ export abstract class TerminalService implements ITerminalService {
 	protected _findWidgetVisible: IContextKey<boolean>;
 	protected _terminalContainer: HTMLElement;
 	protected _onInstancesChanged: Emitter<string>;
+	protected _onTabDisposed: Emitter<ITerminalTab>;
 	protected _onInstanceDisposed: Emitter<ITerminalInstance>;
 	protected _onInstanceProcessIdReady: Emitter<ITerminalInstance>;
 	protected _onInstanceTitleChanged: Emitter<string>;
-	protected _terminalInstances: ITerminalInstance[];
+	protected _terminalTabs: ITerminalTab[];
+	protected abstract _terminalInstances: ITerminalInstance[];
 
 	private _activeTerminalInstanceIndex: number;
 	private _onActiveInstanceChanged: Emitter<string>;
 
 	public get activeTerminalInstanceIndex(): number { return this._activeTerminalInstanceIndex; }
 	public get onActiveInstanceChanged(): Event<string> { return this._onActiveInstanceChanged.event; }
+	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
@@ -44,11 +47,11 @@ export abstract class TerminalService implements ITerminalService {
 		@IPartService private _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
-		this._terminalInstances = [];
 		this._activeTerminalInstanceIndex = 0;
 		this._isShuttingDown = false;
 
 		this._onActiveInstanceChanged = new Emitter<string>();
+		this._onTabDisposed = new Emitter<ITerminalTab>();
 		this._onInstanceDisposed = new Emitter<ITerminalInstance>();
 		this._onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
 		this._onInstanceTitleChanged = new Emitter<string>();
@@ -58,7 +61,7 @@ export abstract class TerminalService implements ITerminalService {
 		lifecycleService.onShutdown(() => this._onShutdown());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
-		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
+		this.onTabDisposed(tab => this._removeTab(tab));
 	}
 
 	protected abstract _showTerminalCloseConfirmation(): TPromise<boolean>;
@@ -89,44 +92,58 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	private _onShutdown(): void {
-		this.terminalInstances.forEach(instance => {
-			instance.dispose();
-		});
+		this.terminalInstances.forEach(instance => instance.dispose());
 	}
 
 	public getInstanceLabels(): string[] {
-		return this._terminalInstances.map((instance, index) => `${index + 1}: ${instance.title}`);
+		return this._terminalTabs.map((tab, index) => {
+			let title = tab.terminalInstances[0].title;
+			for (let i = 1; i < tab.terminalInstances.length; i++) {
+				title += `, ${tab.terminalInstances[i].title}`;
+			}
+			return `${index + 1}: ${title}`;
+		});
 	}
 
-	private _removeInstance(terminalInstance: ITerminalInstance): void {
-		let index = this.terminalInstances.indexOf(terminalInstance);
-		let wasActiveInstance = terminalInstance === this.getActiveInstance();
+	private _removeTab(tab: ITerminalTab): void {
+		let index = this._terminalTabs.indexOf(tab);
+		let wasActiveInstance = tab === this._getActiveTab();
 		if (index !== -1) {
-			this.terminalInstances.splice(index, 1);
+			this._terminalTabs.splice(index, 1);
 		}
-		if (wasActiveInstance && this.terminalInstances.length > 0) {
-			let newIndex = index < this.terminalInstances.length ? index : this.terminalInstances.length - 1;
+		if (wasActiveInstance && this._terminalTabs.length > 0) {
+			let newIndex = index < this._terminalTabs.length ? index : this._terminalTabs.length - 1;
 			this.setActiveInstanceByIndex(newIndex);
-			if (terminalInstance.hadFocusOnExit) {
+			// TODO: Needs to be made to work with multiple instances in a tab
+			if (tab.terminalInstances[0].hadFocusOnExit) {
 				this.getActiveInstance().focus(true);
 			}
 		}
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
 		// down. When shutting down the panel is locked in place so that it is restored upon next
 		// launch.
-		if (this.terminalInstances.length === 0 && !this._isShuttingDown) {
+		if (this._terminalTabs.length === 0 && !this._isShuttingDown) {
 			this.hidePanel();
 		}
+		// TODO: This should be onTabsChanged?
 		this._onInstancesChanged.fire();
 		if (wasActiveInstance) {
 			this._onActiveInstanceChanged.fire();
 		}
 	}
 
+	private _getActiveTab(): ITerminalTab {
+		// TODO: TerminalService needs to track the active tab
+		// TODO: The tab should track its active instance
+		if (this.activeTerminalInstanceIndex < 0 || this.activeTerminalInstanceIndex >= this._terminalTabs.length) {
+			return null;
+		}
+		return this._terminalTabs[this.activeTerminalInstanceIndex];
+	}
+
 	public getActiveInstance(): ITerminalInstance {
 		if (this.activeTerminalInstanceIndex < 0 || this.activeTerminalInstanceIndex >= this.terminalInstances.length) {
 			return null;
-
 		}
 		return this.terminalInstances[this.activeTerminalInstanceIndex];
 	}
