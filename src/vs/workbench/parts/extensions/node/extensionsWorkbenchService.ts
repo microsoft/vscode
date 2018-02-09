@@ -939,17 +939,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const extensionId = match[1];
 
 		this.queryLocal().then(local => {
-			const foundExtension = local.filter(local => local.id === extensionId);
+			const extension = local.filter(local => local.id === extensionId)[0];
 
-			if (foundExtension.length > 0) {
-				const extension = foundExtension[0];
-
-				return this.windowService.show().then(() => {
-					return this.open(extension).then(() => {
-						const message = nls.localize('extensionExist', "Extension {0} has already been installed", extension.displayName);
-						this.messageService.show(Severity.Info, message);
-					});
-				});
+			if (extension) {
+				return this.windowService.show()
+					.then(() => this.open(extension));
 			}
 
 			return this.queryGallery({ names: [extensionId], source: 'uri' }).then(result => {
