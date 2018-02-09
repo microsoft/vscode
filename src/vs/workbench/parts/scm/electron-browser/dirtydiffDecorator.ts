@@ -217,6 +217,16 @@ class DirtyDiffWidget extends PeekViewWidget {
 		model.onDidChange(this.renderTitle, this, this._disposables);
 	}
 
+	moveToChange(index: number): void {
+		const change = this.model.changes[index];
+		this.index = index;
+		this.change = change;
+
+		const position = new Position(change.modifiedStartLineNumber, 1);
+		this.editor.setPosition(position);
+		this.editor.revealPositionInCenter(position);
+	}
+
 	showChange(index: number): void {
 		const change = this.model.changes[index];
 		this.index = index;
@@ -365,7 +375,31 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 }
 
-export class ShowPreviousChangeAction extends EditorAction {
+export abstract class ChangeAction extends EditorAction {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+
+		if (!outerEditor) {
+			return;
+		}
+
+		const controller = DirtyDiffController.get(outerEditor);
+
+		if (!controller) {
+			return;
+		}
+
+		if (!controller.canNavigate()) {
+			return;
+		}
+
+		this.runChangeAction(controller);
+	}
+
+	abstract runChangeAction(controller: DirtyDiffController): void;
+}
+
+export class ShowPreviousChangeAction extends ChangeAction {
 
 	constructor() {
 		super({
@@ -377,29 +411,13 @@ export class ShowPreviousChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const outerEditor = getOuterEditorFromDiffEditor(accessor);
-
-		if (!outerEditor) {
-			return;
-		}
-
-		const controller = DirtyDiffController.get(outerEditor);
-
-		if (!controller) {
-			return;
-		}
-
-		if (!controller.canNavigate()) {
-			return;
-		}
-
+	runChangeAction(controller: DirtyDiffController): void {
 		controller.previous();
 	}
 }
 registerEditorAction(ShowPreviousChangeAction);
 
-export class ShowNextChangeAction extends EditorAction {
+export class ShowNextChangeAction extends ChangeAction {
 
 	constructor() {
 		super({
@@ -411,27 +429,45 @@ export class ShowNextChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const outerEditor = getOuterEditorFromDiffEditor(accessor);
-
-		if (!outerEditor) {
-			return;
-		}
-
-		const controller = DirtyDiffController.get(outerEditor);
-
-		if (!controller) {
-			return;
-		}
-
-		if (!controller.canNavigate()) {
-			return;
-		}
-
+	runChangeAction(controller: DirtyDiffController): void {
 		controller.next();
 	}
 }
 registerEditorAction(ShowNextChangeAction);
+
+export class MoveToPreviousChangeAction extends ChangeAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.dirtydiff.move.previous',
+			label: nls.localize('move to previous change', "Move To Previous Change"),
+			alias: 'Move To Previous Change',
+			precondition: null
+		});
+	}
+
+	runChangeAction(controller: DirtyDiffController): void {
+		controller.moveToPrevious();
+	}
+}
+registerEditorAction(MoveToPreviousChangeAction);
+
+export class MoveToNextChangeAction extends ChangeAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.dirtydiff.move.next',
+			label: nls.localize('move to next change', "Move To Next Change"),
+			alias: 'Move To Next Change',
+			precondition: null
+		});
+	}
+
+	runChangeAction(controller: DirtyDiffController): void {
+		controller.moveToNext();
+	}
+}
+registerEditorAction(MoveToNextChangeAction);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeDirtyDiff',
@@ -524,6 +560,22 @@ export class DirtyDiffController implements IEditorContribution {
 		}
 
 		this.widget.showChange(this.currentIndex);
+	}
+
+	private moveTo(step: number): void {
+		if (!this.assertWidget()) {
+			return;
+		}
+		this.currentIndex = rot(this.currentIndex + step, this.model.changes.length);
+		this.widget.moveToChange(this.currentIndex);
+	}
+
+	moveToPrevious(): void {
+		this.moveTo(-1);
+	}
+
+	moveToNext(): void {
+		this.moveTo(1);
 	}
 
 	close(): void {
