@@ -45,14 +45,9 @@ export class DelayedDragHandler {
 export const DataTransfers = {
 
 	/**
-	 * Application specific resource transfer type.
+	 * Application specific resource transfer type
 	 */
-	URL: 'URL',
-
-	/**
-	 * Application specific resource transfer type when multiple resources are being dragged.
-	 */
-	URLS: 'URLS',
+	RESOURCES: 'ResourceURLs',
 
 	/**
 	 * Browser specific transfer type to download.

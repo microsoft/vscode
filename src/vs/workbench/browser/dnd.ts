@@ -83,21 +83,16 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): (IDragge
 				}
 			}
 
-			// Data Transfer: URL/URLS
+			// Data Transfer: Resources
 			else {
 				try {
-					const rawURLsData = e.dataTransfer.getData(DataTransfers.URLS);
-					if (rawURLsData) {
-						const uriStrArray: string[] = JSON.parse(rawURLsData);
+					const rawResourcesData = e.dataTransfer.getData(DataTransfers.RESOURCES);
+					if (rawResourcesData) {
+						const uriStrArray: string[] = JSON.parse(rawResourcesData);
 						resources.push(...uriStrArray.map(uriStr => ({ resource: URI.parse(uriStr), isExternal: false })));
-					} else {
-						const rawURLData = e.dataTransfer.getData(DataTransfers.URL);
-						if (rawURLData) {
-							resources.push({ resource: URI.parse(rawURLData), isExternal: false });
-						}
 					}
 				} catch (error) {
-					// Invalid URI
+					// Invalid Resources
 				}
 			}
 		}
@@ -359,15 +354,8 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource.fsPath), firstSource.resource.toString()].join(':'));
 	}
 
-	// URI: allows to drop a single resource to a target in VS Code (not directory)
-	if (sources.length === 1 && !firstSource.isDirectory) {
-		event.dataTransfer.setData(DataTransfers.URL, firstSource.resource.toString());
-	}
-
-	// URLS: allows to drop multiple resources to a target in VS Code (not directories)
-	else {
-		event.dataTransfer.setData(DataTransfers.URLS, JSON.stringify(sources.filter(s => !s.isDirectory).map(s => s.resource.toString())));
-	}
+	// Resource URLs: allows to drop multiple resources to a target in VS Code (not directories)
+	event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(sources.filter(s => !s.isDirectory).map(s => s.resource.toString())));
 
 	// Editors: enables cross window DND of tabs into the editor area
 	const textFileService = accessor.get(ITextFileService);

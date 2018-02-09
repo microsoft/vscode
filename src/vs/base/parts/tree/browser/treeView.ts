@@ -1292,7 +1292,7 @@ export class TreeView extends HeightMap {
 		}
 
 		e.dataTransfer.effectAllowed = 'copyMove';
-		e.dataTransfer.setData(DataTransfers.URL, item.uri);
+		e.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([item.uri]));
 		if (e.dataTransfer.setDragImage) {
 			let label: string;
 
