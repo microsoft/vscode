@@ -939,8 +939,17 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const extensionId = match[1];
 
 		this.queryLocal().then(local => {
-			if (local.some(local => local.id === extensionId)) {
-				return TPromise.as(null);
+			const foundExtension = local.filter(local => local.id === extensionId);
+
+			if (foundExtension.length > 0) {
+				const extension = foundExtension[0];
+
+				return this.windowService.show().then(() => {
+					return this.open(extension).then(() => {
+						const message = nls.localize('extensionExist', "Extension {0} has already been installed", extension.displayName);
+						this.messageService.show(Severity.Info, message);
+					});
+				});
 			}
 
 			return this.queryGallery({ names: [extensionId], source: 'uri' }).then(result => {
