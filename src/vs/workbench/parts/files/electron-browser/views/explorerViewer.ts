@@ -50,11 +50,13 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { extractResources, SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
+import { extractResources, SimpleFileResourceDragAndDrop, CodeDataTransfers } from 'vs/workbench/browser/dnd';
 import { relative } from 'path';
 import { distinctParents } from 'vs/base/common/resources';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { DataTransfers } from 'vs/base/browser/dnd';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -728,6 +730,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			super.onDragStart(tree, data, originalEvent);
+
+			// The only custom data transfer we set from the explorer is a file transfer
+			// to be able to DND between multiple code file explorers across windows
+			const fileResources = sources.filter(s => !s.isDirectory && s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
+			originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
 		}
 	}
 
@@ -741,15 +748,13 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 		// Desktop DND
 		if (fromDesktop) {
-			const dragData = (<DesktopDragAndDropData>data).getData();
-
-			const types = dragData.types;
+			const types: string[] = originalEvent.dataTransfer.types;
 			const typesArray: string[] = [];
 			for (let i = 0; i < types.length; i++) {
-				typesArray.push(types[i]);
+				typesArray.push(types[i].toLowerCase()); // somehow the types are lowercase
 			}
 
-			if (typesArray.length === 0 || !typesArray.some(type => { return type === 'Files'; })) {
+			if (typesArray.indexOf(DataTransfers.FILES.toLowerCase()) === -1 && typesArray.indexOf(CodeDataTransfers.FILES.toLowerCase()) === -1) {
 				return DRAG_OVER_REJECT;
 			}
 		}

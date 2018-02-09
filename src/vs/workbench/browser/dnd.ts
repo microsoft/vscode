@@ -60,7 +60,8 @@ export interface ISerializedDraggedEditor {
 }
 
 export const CodeDataTransfers = {
-	EDITORS: 'CodeEditors'
+	EDITORS: 'CodeEditors',
+	FILES: 'CodeFiles'
 };
 
 export function extractResources(e: DragEvent, externalOnly?: boolean): (IDraggedResource | IDraggedEditor)[] {
@@ -79,7 +80,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): (IDragge
 						resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: URI.parse(draggedEditor.backupResource), viewState: draggedEditor.viewState, isExternal: false });
 					});
 				} catch (error) {
-					// Invalid URI
+					// Invalid transfer
 				}
 			}
 
@@ -92,7 +93,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): (IDragge
 						resources.push(...uriStrArray.map(uriStr => ({ resource: URI.parse(uriStr), isExternal: false })));
 					}
 				} catch (error) {
-					// Invalid Resources
+					// Invalid transfer
 				}
 			}
 		}
@@ -101,13 +102,28 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): (IDragge
 		if (e.dataTransfer && e.dataTransfer.files) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++) {
 				const file = e.dataTransfer.files[i] as { path: string };
-				if (file && file.path) {
+				if (file && file.path && !resources.some(r => r.resource.fsPath === file.path) /* prevent duplicates */) {
 					try {
 						resources.push({ resource: URI.file(file.path), isExternal: true });
 					} catch (error) {
 						// Invalid URI
 					}
 				}
+			}
+		}
+
+		// Check for CodeFiles transfer
+		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
+		if (rawCodeFiles) {
+			try {
+				const codeFiles = JSON.parse(rawCodeFiles) as string[];
+				codeFiles.forEach(codeFile => {
+					if (!resources.some(r => r.resource.fsPath === codeFile) /* prevent duplicates */) {
+						resources.push({ resource: URI.file(codeFile), isExternal: true });
+					}
+				});
+			} catch (error) {
+				// Invalid transfer
 			}
 		}
 	}
