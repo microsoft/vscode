@@ -47,7 +47,19 @@ export class LineContext {
 		}
 		const pos = editor.getPosition();
 		model.tokenizeIfCheap(pos.lineNumber);
-		const word = model.getWordAtPosition(pos);
+
+		// When we are at an embedded language boundary, check the word at the previous character
+		const cursorLang = model.getLanguageIdAtPosition(pos.lineNumber, pos.column);
+		const preLang = model.getLanguageIdAtPosition(pos.lineNumber, pos.column - 1);
+		let posToCheckWordAt = pos;
+		if (cursorLang !== preLang) {
+			const postLang = model.getLanguageIdAtPosition(pos.lineNumber, pos.column + 1);
+			if (postLang === cursorLang) {
+				posToCheckWordAt = new Position(pos.lineNumber, Math.max(pos.column - 1, 1));
+			}
+		}
+
+		const word = model.getWordAtPosition(posToCheckWordAt);
 		if (!word) {
 			return false;
 		}
