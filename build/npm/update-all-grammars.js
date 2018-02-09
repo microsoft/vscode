@@ -44,7 +44,7 @@ const extensions = [
 	'objective-c',
 	'perl',
 	'php',
-	// 'powershell', grammar not ready yet, @daviwil will ping when ready
+	'powershell',
 	'pug',
 	'python',
 	'r',
