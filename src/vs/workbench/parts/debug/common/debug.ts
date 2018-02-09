@@ -335,12 +335,12 @@ export enum State {
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
-	openDebug: string;
+	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	hideActionBar: boolean;
-	showInStatusBar: string;
-	internalConsoleOptions: string;
+	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
+	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 }
 
 export interface IGlobalConfig {
@@ -353,7 +353,7 @@ export interface IEnvConfig {
 	name?: string;
 	type: string;
 	request: string;
-	internalConsoleOptions?: string;
+	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	preLaunchTask?: string;
 	__restart?: any;
 	__sessionId?: string;
