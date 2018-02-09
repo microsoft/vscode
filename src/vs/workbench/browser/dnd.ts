@@ -367,8 +367,8 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
 	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? getPathLabel(source.resource) : source.resource.toString()).join(lineDelimiter));
 
-	// Download URL: enables support to drag a tab as file to desktop (only single file supported, not directories)
-	if (sources.length === 1 && firstSource.resource.scheme === Schemas.file && !firstSource.isDirectory) {
+	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
+	if (firstSource.resource.scheme === Schemas.file) {
 		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource.fsPath), firstSource.resource.toString()].join(':'));
 	}
 
