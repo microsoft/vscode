@@ -1104,8 +1104,18 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		const onDidChangeConfiguration = filterEvent(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
+		const onDidChangeDiffWidthConfiguration = filterEvent(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffGutterWidth'));
+
 		onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
 		this.onDidChangeConfiguration();
+
+		const diffWidthStyle = document.createElement('style');
+		diffWidthStyle.className = 'diff-width-style';
+		diffWidthStyle.type = 'text/css';
+		document.head.appendChild(diffWidthStyle);
+
+		onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this);
+		this.onDidChangeDiffWidthConfiguration();
 	}
 
 	private onDidChangeConfiguration(): void {
@@ -1115,6 +1125,24 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 			this.enable();
 		} else {
 			this.disable();
+		}
+	}
+
+	private onDidChangeDiffWidthConfiguration(): void {
+		let width = this.configurationService.getValue<number>('scm.diffGutterWidth');
+
+		if (isNaN(width) || width <= 0 || width > 5) {
+			width = 3;
+		}
+
+		const diffWidthStyle = document.head.getElementsByClassName('diff-width-style')[0];
+
+		if (diffWidthStyle) {
+			diffWidthStyle.innerHTML = `
+			.monaco-editor .dirty-diff-modified,
+			.monaco-editor .dirty-diff-added {
+				border-left-width: ${width}px;
+			}`;
 		}
 	}
 
