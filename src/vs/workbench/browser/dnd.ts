@@ -77,7 +77,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): (IDragge
 				try {
 					const draggedEditors = JSON.parse(rawEditorsData) as ISerializedDraggedEditor[];
 					draggedEditors.forEach(draggedEditor => {
-						resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: URI.parse(draggedEditor.backupResource), viewState: draggedEditor.viewState, isExternal: false });
+						resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : void 0, viewState: draggedEditor.viewState, isExternal: false });
 					});
 				} catch (error) {
 					// Invalid transfer
@@ -363,10 +363,10 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
-	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === 'file' ? getPathLabel(source.resource) : source.resource.toString()).join(lineDelimiter));
+	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? getPathLabel(source.resource) : source.resource.toString()).join(lineDelimiter));
 
 	// Download URL: enables support to drag a tab as file to desktop (only single file supported, not directories)
-	if (sources.length === 1 && firstSource.resource.scheme === 'file' && !firstSource.isDirectory) {
+	if (sources.length === 1 && firstSource.resource.scheme === Schemas.file && !firstSource.isDirectory) {
 		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource.fsPath), firstSource.resource.toString()].join(':'));
 	}
 

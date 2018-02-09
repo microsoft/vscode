@@ -158,7 +158,7 @@ export class SearchService implements ISearchService {
 				}
 
 				// Support untitled files
-				if (resource.scheme === 'untitled') {
+				if (resource.scheme === Schemas.untitled) {
 					if (!this.untitledEditorService.exists(resource)) {
 						return;
 					}

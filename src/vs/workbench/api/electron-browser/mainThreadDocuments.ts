@@ -18,6 +18,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ITextModel } from 'vs/editor/common/model';
+import { Schemas } from 'vs/base/common/network';
 
 export class BoundModelReferenceCollection {
 
@@ -180,10 +181,10 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 		let promise: TPromise<boolean>;
 		switch (uri.scheme) {
-			case 'untitled':
+			case Schemas.untitled:
 				promise = this._handleUnititledScheme(uri);
 				break;
-			case 'file':
+			case Schemas.file:
 			default:
 				promise = this._handleAsResourceInput(uri);
 				break;
@@ -212,7 +213,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	}
 
 	private _handleUnititledScheme(uri: URI): TPromise<boolean> {
-		let asFileUri = uri.with({ scheme: 'file' });
+		let asFileUri = uri.with({ scheme: Schemas.file });
 		return this._fileService.resolveFile(asFileUri).then(stats => {
 			// don't create a new file ontop of an existing file
 			return TPromise.wrapError<boolean>(new Error('file already exists on disk'));

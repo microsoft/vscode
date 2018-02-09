@@ -24,6 +24,7 @@ import { AutoSaveContext } from 'vs/workbench/services/textfile/common/textfiles
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import URI from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "File");
@@ -228,7 +229,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: SAVE_FILE_AS_COMMAND_ID,
 		title: SAVE_FILE_AS_LABEL
 	},
-	when: ResourceContextKey.Scheme.isEqualTo('untitled')
+	when: ResourceContextKey.Scheme.isEqualTo(Schemas.untitled)
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {

@@ -42,6 +42,7 @@ import { sequence } from 'vs/base/common/async';
 import { getResourceForCommand, getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { Schemas } from 'vs/base/common/network';
 
 // Commands
 
@@ -84,12 +85,12 @@ export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], f
 function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
 	textFileService: ITextFileService, editorGroupService: IEditorGroupService): TPromise<any> {
 
-	if (resource && (fileService.canHandleResource(resource) || resource.scheme === 'untitled')) {
+	if (resource && (fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 
 		// Save As (or Save untitled with associated path)
-		if (isSaveAs || resource.scheme === 'untitled') {
+		if (isSaveAs || resource.scheme === Schemas.untitled) {
 			let encodingOfSource: string;
-			if (resource.scheme === 'untitled') {
+			if (resource.scheme === Schemas.untitled) {
 				encodingOfSource = untitledEditorService.getEncoding(resource);
 			} else if (resource.scheme === 'file') {
 				const textModel = textFileService.models.get(resource);
@@ -101,14 +102,14 @@ function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorS
 			const editor = getCodeEditor(activeEditor);
 			if (editor) {
 				const activeResource = toResource(activeEditor.input, { supportSideBySide: true });
-				if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === 'untitled') && activeResource.toString() === resource.toString()) {
+				if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && activeResource.toString() === resource.toString()) {
 					viewStateOfSource = editor.saveViewState();
 				}
 			}
 
 			// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
 			let savePromise: TPromise<URI>;
-			if (!isSaveAs && resource.scheme === 'untitled' && untitledEditorService.hasAssociatedFilePath(resource)) {
+			if (!isSaveAs && resource.scheme === Schemas.untitled && untitledEditorService.hasAssociatedFilePath(resource)) {
 				savePromise = textFileService.save(resource).then((result) => {
 					if (result) {
 						return URI.file(resource.fsPath);
@@ -199,7 +200,7 @@ function saveAll(saveAllArguments: any, editorService: IWorkbenchEditorService, 
 		const untitledToReopen: { input: IResourceInput, position: Position }[] = [];
 
 		results.results.forEach(result => {
-			if (!result.success || result.source.scheme !== 'untitled') {
+			if (!result.success || result.source.scheme !== Schemas.untitled) {
 				return;
 			}
 
@@ -246,7 +247,7 @@ CommandsRegistry.registerCommand({
 		const messageService = accessor.get(IMessageService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
 
-		if (resource && resource.scheme !== 'untitled') {
+		if (resource && resource.scheme !== Schemas.untitled) {
 			return textFileService.revertAll(resources, { force: true }).then(null, error => {
 				messageService.show(Severity.Error, nls.localize('genericRevertError', "Failed to revert '{0}': {1}", basename(resource.fsPath), toErrorMessage(error, false)));
 			});
@@ -530,7 +531,7 @@ CommandsRegistry.registerCommand({
 				const editorGroup = editorGroupService.getStacksModel().getGroup(context.groupId);
 				editorGroup.getEditors().forEach(editor => {
 					const resource = toResource(editor, { supportSideBySide: true });
-					if (resource && (resource.scheme === 'untitled' || fileService.canHandleResource(resource))) {
+					if (resource && (resource.scheme === Schemas.untitled || fileService.canHandleResource(resource))) {
 						saveAllArg.push(resource);
 					}
 				});

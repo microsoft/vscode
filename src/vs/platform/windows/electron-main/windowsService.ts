@@ -19,6 +19,7 @@ import { IWindowsMainService, ISharedProcess } from 'vs/platform/windows/electro
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { Schemas } from 'vs/base/common/network';
 
 export class WindowsService implements IWindowsService, IDisposable {
 
@@ -40,7 +41,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 	) {
 		// Catch file URLs
 		chain(urlService.onOpenURL)
-			.filter(uri => uri.authority === 'file' && !!uri.path)
+			.filter(uri => uri.authority === Schemas.file && !!uri.path)
 			.map(uri => URI.file(uri.fsPath))
 			.on(this.openFileForURI, this, this.disposables);
 

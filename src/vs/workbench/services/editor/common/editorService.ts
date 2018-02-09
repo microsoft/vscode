@@ -14,7 +14,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { basename, dirname } from 'vs/base/common/paths';
 import { EditorInput, EditorOptions, TextEditorOptions, Extensions as EditorExtensions, SideBySideEditorInput, IFileEditorInput, IFileInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import nls = require('vs/nls');
@@ -24,6 +24,7 @@ import { once } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
+import { Schemas } from 'vs/base/common/network';
 
 export const IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('editorService');
 
@@ -314,7 +315,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Untitled file support
 		const untitledInput = <IUntitledResourceInput>input;
-		if (!untitledInput.resource || typeof untitledInput.filePath === 'string' || (untitledInput.resource instanceof URI && untitledInput.resource.scheme === UNTITLED_SCHEMA)) {
+		if (!untitledInput.resource || typeof untitledInput.filePath === 'string' || (untitledInput.resource instanceof URI && untitledInput.resource.scheme === Schemas.untitled)) {
 			return this.untitledEditorService.createOrGet(untitledInput.filePath ? URI.file(untitledInput.filePath) : untitledInput.resource, untitledInput.language, untitledInput.contents, untitledInput.encoding);
 		}
 
@@ -383,7 +384,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		const res = input.getResource();
 
 		// Do not try to extract any paths from simple untitled editors
-		if (res.scheme === 'untitled' && !this.untitledEditorService.hasAssociatedFilePath(res)) {
+		if (res.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(res)) {
 			return input.getName();
 		}
 

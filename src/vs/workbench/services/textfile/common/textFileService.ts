@@ -22,7 +22,7 @@ import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperatio
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -233,7 +233,7 @@ export abstract class TextFileService implements ITextFileService {
 		dirtyToBackup.forEach(s => {
 			if (s.scheme === Schemas.file) {
 				filesToBackup.push(textFileEditorModelManager.get(s));
-			} else if (s.scheme === UNTITLED_SCHEMA) {
+			} else if (s.scheme === Schemas.untitled) {
 				untitledToBackup.push(s);
 			}
 		});
@@ -416,7 +416,7 @@ export abstract class TextFileService implements ITextFileService {
 		const filesToSave: URI[] = [];
 		const untitledToSave: URI[] = [];
 		toSave.forEach(s => {
-			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && s.scheme === UNTITLED_SCHEMA) {
+			if ((Array.isArray(arg1) || arg1 === true /* includeUntitled */) && s.scheme === Schemas.untitled) {
 				untitledToSave.push(s);
 			} else {
 				filesToSave.push(s);
@@ -540,7 +540,7 @@ export abstract class TextFileService implements ITextFileService {
 			targetPromise = TPromise.wrap(target);
 		} else {
 			let dialogPath = resource.fsPath;
-			if (resource.scheme === UNTITLED_SCHEMA) {
+			if (resource.scheme === Schemas.untitled) {
 				dialogPath = this.suggestFileName(resource);
 			}
 
@@ -574,7 +574,7 @@ export abstract class TextFileService implements ITextFileService {
 		let modelPromise: TPromise<ITextFileEditorModel | UntitledEditorModel> = TPromise.as(null);
 		if (resource.scheme === Schemas.file) {
 			modelPromise = TPromise.as(this._models.get(resource));
-		} else if (resource.scheme === UNTITLED_SCHEMA && this.untitledEditorService.exists(resource)) {
+		} else if (resource.scheme === Schemas.untitled && this.untitledEditorService.exists(resource)) {
 			modelPromise = this.untitledEditorService.loadOrCreate({ resource });
 		}
 

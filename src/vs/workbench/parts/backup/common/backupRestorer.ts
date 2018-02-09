@@ -7,7 +7,7 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -69,7 +69,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 			if (stacks.isOpen(backup)) {
 				if (backup.scheme === Schemas.file) {
 					restorePromises.push(this.textFileService.models.loadOrCreate(backup).then(null, () => unresolved.push(backup)));
-				} else if (backup.scheme === UNTITLED_SCHEMA) {
+				} else if (backup.scheme === Schemas.untitled) {
 					restorePromises.push(this.untitledEditorService.loadOrCreate({ resource: backup }).then(null, () => unresolved.push(backup)));
 				}
 			} else {
@@ -92,7 +92,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledResourceInput {
 		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
 
-		if (resource.scheme === UNTITLED_SCHEMA && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
+		if (resource.scheme === Schemas.untitled && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
 			return { filePath: resource.fsPath, options };
 		}
 
