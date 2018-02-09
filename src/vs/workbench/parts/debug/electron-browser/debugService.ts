@@ -658,7 +658,7 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug = false, topCompoundName?: string): TPromise<any> {
+	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
 
 		// make sure to save all files and that the configuration is up to date
 		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(root).then(() =>
@@ -681,10 +681,6 @@ export class DebugService implements debug.IDebugService {
 					compound = launch.getCompound(configOrName);
 				} else if (typeof configOrName !== 'string') {
 					config = configOrName;
-				}
-				if (launch) {
-					// in the drop down the name of the top most compound takes precedence over the launch config name
-					this.configurationManager.selectConfiguration(launch, topCompoundName || (typeof configOrName === 'string' ? configOrName : undefined), true);
 				}
 
 				if (compound) {
@@ -720,7 +716,7 @@ export class DebugService implements debug.IDebugService {
 							}
 						}
 
-						return this.startDebugging(rootForName, name, noDebug, topCompoundName || compound.name);
+						return this.startDebugging(rootForName, name, noDebug);
 					}));
 				}
 				if (configOrName && !config) {
