@@ -48,14 +48,6 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		};
 	}
 
-	$getElements(treeViewId: string): TPromise<ITreeItem[]> {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			return TPromise.wrapError<ITreeItem[]>(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
-		}
-		return treeView.getChildren();
-	}
-
 	$getChildren(treeViewId: string, treeItemHandle?: string): TPromise<ITreeItem[]> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {

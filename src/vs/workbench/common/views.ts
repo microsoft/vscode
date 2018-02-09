@@ -12,6 +12,7 @@ import { ITreeViewDataProvider } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class ViewLocation {
 
@@ -68,6 +69,8 @@ export interface IViewsRegistry {
 	deregisterViews(ids: string[], location: ViewLocation): void;
 
 	getViews(loc: ViewLocation): IViewDescriptor[];
+
+	getAllViews(): IViewDescriptor[];
 
 	getView(id: string): IViewDescriptor;
 
@@ -128,6 +131,12 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 		return this._views.get(loc) || [];
 	}
 
+	getAllViews(): IViewDescriptor[] {
+		const result: IViewDescriptor[] = [];
+		this._views.forEach(views => result.push(...views));
+		return result;
+	}
+
 	getView(id: string): IViewDescriptor {
 		for (const viewLocation of this._viewLocations) {
 			const viewDescriptor = (this._views.get(viewLocation) || []).filter(v => v.id === id)[0];
@@ -147,17 +156,26 @@ export interface IViewsViewlet extends IViewlet {
 
 // Custom views
 
-export interface ITreeItemViewer {
+export interface ITreeViewer extends IDisposable {
 
-	dataProvider: ITreeViewDataProvider;
+	readonly dataProvider: ITreeViewDataProvider;
 
-	refresh(treeItems: ITreeItem[]): TPromise<void>;
+	refresh(treeItems?: ITreeItem[]): TPromise<void>;
 
+	setVisibility(visible: boolean): void;
+
+	focus(): void;
+
+	layout(height: number): void;
+
+	render(container: HTMLElement);
+
+	getOptimalWidth(): number;
 }
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
 
-	treeItemView?: boolean;
+	treeView?: boolean;
 
 }
 
@@ -166,7 +184,7 @@ export const ICustomViewsService = createDecorator<ICustomViewsService>('customV
 export interface ICustomViewsService {
 	_serviceBrand: any;
 
-	getTreeItemViewer(id: string): ITreeItemViewer;
+	getTreeViewer(id: string): ITreeViewer;
 
 	registerTreeViewDataProvider(id: string, ITreeViewDataProvider): void;
 }
@@ -211,7 +229,5 @@ export interface ITreeViewDataProvider {
 
 	onDispose: Event<void>;
 
-	getElements(): TPromise<ITreeItem[]>;
-
-	getChildren(element: ITreeItem): TPromise<ITreeItem[]>;
+	getChildren(element?: ITreeItem): TPromise<ITreeItem[]>;
 }

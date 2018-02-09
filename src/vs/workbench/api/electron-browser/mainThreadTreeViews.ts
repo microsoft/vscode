@@ -11,12 +11,13 @@ import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainCo
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ITreeViewDataProvider, ITreeItem, ICustomViewsService } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { assign } from 'vs/base/common/objects';
+import { distinct } from 'vs/base/common/arrays';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
 
 	private _proxy: ExtHostTreeViewsShape;
+	private _dataProviders: Map<string, TreeViewDataProvider> = new Map<string, TreeViewDataProvider>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -29,14 +30,20 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 
 	$registerTreeViewDataProvider(treeViewId: string): void {
 		const dataProvider = this._register(new TreeViewDataProvider(treeViewId, this._proxy, this.messageService));
+		this._dataProviders.set(treeViewId, dataProvider);
 		this.viewsService.registerTreeViewDataProvider(treeViewId, dataProvider);
 	}
 
 	$refresh(treeViewId: string, itemsToRefresh: { [treeItemHandle: string]: ITreeItem }): void {
-		const treeViewer = this.viewsService.getTreeItemViewer(treeViewId);
-		if (treeViewer && treeViewer.dataProvider) {
-			(<TreeViewDataProvider>treeViewer.dataProvider).refresh(itemsToRefresh);
+		const dataProvider = this._dataProviders.get(treeViewId);
+		if (dataProvider) {
+			dataProvider.refresh(itemsToRefresh);
 		}
+	}
+
+	dispose(): void {
+		this._dataProviders.clear();
+		super.dispose();
 	}
 }
 
@@ -58,23 +65,13 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	) {
 	}
 
-	getElements(): TPromise<ITreeItem[]> {
-		return this._proxy.$getElements(this.treeViewId)
-			.then(elements => {
-				return this.postGetElements(elements);
-			}, err => {
-				this.messageService.show(Severity.Error, err);
-				return [];
-			});
-	}
-
-	getChildren(treeItem: ITreeItem): TPromise<ITreeItem[]> {
-		if (treeItem.children) {
+	getChildren(treeItem?: ITreeItem): TPromise<ITreeItem[]> {
+		if (treeItem && treeItem.children) {
 			return TPromise.as(treeItem.children);
 		}
-		return this._proxy.$getChildren(this.treeViewId, treeItem.handle)
+		return this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : void 0)
 			.then(children => {
-				return this.postGetElements(children);
+				return this.postGetChildren(children);
 			}, err => {
 				this.messageService.show(Severity.Error, err);
 				return [];
@@ -108,19 +105,12 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		}
 	}
 
-	private postGetElements(elements: ITreeItem[]): ITreeItem[] {
+	private postGetChildren(elements: ITreeItem[]): ITreeItem[] {
 		const result = [];
 		if (elements) {
 			for (const element of elements) {
-				const currentTreeItem = this.itemsMap.get(element.handle);
-				if (currentTreeItem) {
-					// Update the current item with new item
-					this.updateTreeItem(currentTreeItem, element);
-				} else {
-					this.itemsMap.set(element.handle, element);
-				}
-				// Always use the existing items
-				result.push(this.itemsMap.get(element.handle));
+				this.itemsMap.set(element.handle, element);
+				result.push(element);
 			}
 		}
 		return result;
@@ -129,7 +119,10 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	private updateTreeItem(current: ITreeItem, treeItem: ITreeItem): void {
 		treeItem.children = treeItem.children ? treeItem.children : null;
 		if (current) {
-			assign(current, treeItem);
+			const properties = distinct([...Object.keys(current), ...Object.keys(treeItem)]);
+			for (const property of properties) {
+				current[property] = treeItem[property];
+			}
 		}
 	}
 
