@@ -53,8 +53,9 @@ function watchOutputDirectory(outputDir: string, logService: ILogService, onChan
 				for (const callback of callbacks) {
 					callback(eventType, fileName);
 				}
+			}, (code: number, signal: string) => {
+				logService.error(`Error watching ${outputDir}: (${code}, ${signal})`);
 			});
-			watcher.on('error', (code: number, signal: string) => logService.error(`Error watching ${outputDir}: (${code}, ${signal})`));
 			watchingOutputDir = true;
 			return toDisposable(() => {
 				callbacks = [];

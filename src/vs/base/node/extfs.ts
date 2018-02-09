@@ -598,8 +598,9 @@ function normalizePath(path: string): string {
 	return strings.rtrim(paths.normalize(path), paths.sep);
 }
 
-export function watch(path: string, onChange: (type: string, path: string) => void): fs.FSWatcher {
+export function watch(path: string, onChange: (type: string, path: string) => void, onError: (code: number, signal: string) => void): fs.FSWatcher {
 	const watcher = fs.watch(path);
+
 	watcher.on('change', (type, raw) => {
 		let file: string = null;
 		if (raw) { // https://github.com/Microsoft/vscode/issues/38191
@@ -613,6 +614,8 @@ export function watch(path: string, onChange: (type: string, path: string) => vo
 
 		onChange(type, file);
 	});
+
+	watcher.on('error', (code: number, signal: string) => onError(code, signal));
 
 	return watcher;
 }

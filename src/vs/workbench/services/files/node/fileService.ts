@@ -1068,17 +1068,12 @@ export class FileService implements IFileService {
 						type: FileChangeType.UPDATED,
 						path: fsPath
 					});
-				});
+				}, (code: number, signal: string) => this.options.errorLogger(`Error watching ${fsPath} for configuration changes (${code}, ${signal})`));
 			} catch (error) {
 				return; // the path might not exist anymore, ignore this error and return
 			}
 
 			this.activeFileChangesWatchers.set(resource, watcher);
-
-			// Errors
-			watcher.on('error', (error: string) => {
-				this.options.errorLogger(error);
-			});
 		}
 	}
 

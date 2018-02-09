@@ -152,8 +152,10 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 
 		try {
-			const watcher = extfs.watch(path, (type, file) => this.onConfigFileChange(type, file, isParentFolder));
-			watcher.on('error', (code: number, signal: string) => this.options.onError(`Error watching ${path} for configuration changes (${code}, ${signal})`));
+			const watcher = extfs.watch(path,
+				(type, file) => this.onConfigFileChange(type, file, isParentFolder),
+				(code: number, signal: string) => this.options.onError(`Error watching ${path} for configuration changes (${code}, ${signal})`)
+			);
 
 			this.disposables.push(toDisposable(() => {
 				watcher.removeAllListeners();
