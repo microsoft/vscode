@@ -4091,6 +4091,40 @@ declare module 'vscode' {
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 */
 		storagePath: string | undefined;
+
+		/**
+		 * This extension's logger
+		 */
+		logger: Logger;
+	}
+
+	/**
+	 * The severity level of a log message
+	 */
+	export enum LogLevel {
+		Trace = 1,
+		Debug = 2,
+		Info = 3,
+		Warning = 4,
+		Error = 5,
+		Critical = 6,
+		Off = 7
+	}
+
+	/**
+	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
+	 */
+	export interface Logger {
+		readonly onDidChangeLogLevel: Event<LogLevel>;
+		readonly currentLevel: LogLevel;
+		readonly logDirectory: Thenable<string>;
+
+		trace(message: string, ...args: any[]): void;
+		debug(message: string, ...args: any[]): void;
+		info(message: string, ...args: any[]): void;
+		warn(message: string, ...args: any[]): void;
+		error(message: string | Error, ...args: any[]): void;
+		critical(message: string | Error, ...args: any[]): void;
 	}
 
 	/**
