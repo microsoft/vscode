@@ -42,6 +42,7 @@ import { getBaseLabel } from 'vs/base/common/labels';
 import { assign } from 'vs/base/common/objects';
 import { Readable } from 'stream';
 import { IWriteFileOptions } from 'vs/base/node/extfs';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -260,7 +261,7 @@ export class FileService implements IFileService {
 	public resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
 
 		// Guard early against attempts to resolve an invalid file path
-		if (resource.scheme !== 'file' || !resource.fsPath) {
+		if (resource.scheme !== Schemas.file || !resource.fsPath) {
 			return TPromise.wrapError<IStreamContent>(new FileOperationError(
 				nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString(true)),
 				FileOperationResult.FILE_INVALID_PATH,
@@ -881,7 +882,7 @@ export class FileService implements IFileService {
 			resource = (<IFileStat>arg1).resource;
 		}
 
-		assert.ok(resource && resource.scheme === 'file', 'Invalid resource: ' + resource);
+		assert.ok(resource && resource.scheme === Schemas.file, `Invalid resource: ${resource}`);
 
 		return paths.normalize(resource.fsPath);
 	}
@@ -1018,7 +1019,7 @@ export class FileService implements IFileService {
 	}
 
 	public watchFileChanges(resource: uri): void {
-		assert.ok(resource && resource.scheme === 'file', `Invalid resource for watching: ${resource}`);
+		assert.ok(resource && resource.scheme === Schemas.file, `Invalid resource for watching: ${resource}`);
 
 		// Create or get watcher for provided path
 		let watcher = this.activeFileChangesWatchers.get(resource);
@@ -1137,7 +1138,7 @@ export class StatResolver {
 	private errorLogger: (error: Error | string) => void;
 
 	constructor(resource: uri, isDirectory: boolean, mtime: number, size: number, errorLogger?: (error: Error | string) => void) {
-		assert.ok(resource && resource.scheme === 'file', 'Invalid resource: ' + resource);
+		assert.ok(resource && resource.scheme === Schemas.file, `Invalid resource: ${resource}`);
 
 		this.resource = resource;
 		this.isDirectory = isDirectory;

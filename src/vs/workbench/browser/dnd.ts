@@ -33,6 +33,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorIdentifier } from 'vs/workbench/common/editor';
+import { basenameOrAuthority } from 'vs/base/common/resources';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -177,7 +178,7 @@ export class ResourcesDropHandler {
 				}
 
 				// Add external ones to recently open list unless dropped resource is a workspace
-				const resourcesToAddToHistory = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme !== Schemas.untitled).map(d => d.resource);
+				const resourcesToAddToHistory = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => d.resource);
 				if (resourcesToAddToHistory.length) {
 					this.windowsService.addRecentlyOpened(resourcesToAddToHistory.map(resource => resource.fsPath));
 				}
@@ -331,7 +332,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 
 		const resource = this.toResource(elements[0]);
 		if (resource) {
-			return basename(resource.fsPath);
+			return basenameOrAuthority(resource);
 		}
 
 		return void 0;

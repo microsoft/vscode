@@ -422,7 +422,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 function resourcesToClipboard(resources: URI[], clipboardService: IClipboardService, messageService: IMessageService): void {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		const text = resources.map(r => r.scheme === 'file' ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
+		const text = resources.map(r => r.scheme === Schemas.file ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
 		clipboardService.writeText(text);
 	} else {
 		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));

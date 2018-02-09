@@ -26,6 +26,7 @@ import { shell } from 'electron';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileService implements IFileService {
 
@@ -243,7 +244,7 @@ export class FileService implements IFileService {
 			return;
 		}
 
-		if (resource.scheme !== 'file') {
+		if (resource.scheme !== Schemas.file) {
 			return; // only support files
 		}
 

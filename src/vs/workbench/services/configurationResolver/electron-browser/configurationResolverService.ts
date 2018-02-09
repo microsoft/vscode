@@ -20,6 +20,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { relative } from 'path';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { Schemas } from 'vs/base/common/network';
 
 class VariableResolver {
 	static VARIABLE_REGEXP = /\$\{(.*?)\}/g;
@@ -145,7 +146,7 @@ class VariableResolver {
 			input = input.modifiedInput;
 		}
 
-		const fileResource = toResource(input, { filter: 'file' });
+		const fileResource = toResource(input, { filter: Schemas.file });
 		if (!fileResource) {
 			return undefined;
 		}
