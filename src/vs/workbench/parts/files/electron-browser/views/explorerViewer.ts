@@ -391,8 +391,8 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 				tree.setSelection(selection.filter(s => s !== stat));
 			} else {
 				tree.setSelection(selection.concat(stat));
+				tree.setFocus(stat, payload);
 			}
-			tree.setFocus(stat, payload);
 		}
 
 		// Allow to unselect
