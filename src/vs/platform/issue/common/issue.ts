@@ -58,7 +58,7 @@ export interface ISettingsSearchIssueReporterData extends IssueReporterData {
 
 export interface IIssueService {
 	_serviceBrand: any;
-	openReporter(dataOverrides: Partial<IssueReporterData>): TPromise<void>;
+	openReporter(dataOverrides?: Partial<IssueReporterData>): TPromise<void>;
 }
 
 export interface IRawIssueService {

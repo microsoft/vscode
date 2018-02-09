@@ -20,7 +20,6 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementService, LocalExtensionType, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
@@ -44,11 +43,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
-import { IRawIssueService, IssueReporterData, IssueType, IssueReporterStyles } from 'vs/platform/issue/common/issue';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IssueType, IIssueService } from 'vs/platform/issue/common/issue';
 import { domEvent } from 'vs/base/browser/event';
 import { once } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -869,25 +864,6 @@ export class CloseMessagesAction extends Action {
 	}
 }
 
-export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {
-	return {
-		backgroundColor: theme.getColor(SIDE_BAR_BACKGROUND) && theme.getColor(SIDE_BAR_BACKGROUND).toString(),
-		color: theme.getColor(foreground).toString(),
-		textLinkColor: theme.getColor(textLinkForeground) && theme.getColor(textLinkForeground).toString(),
-		inputBackground: theme.getColor(inputBackground) && theme.getColor(inputBackground).toString(),
-		inputForeground: theme.getColor(inputForeground) && theme.getColor(inputForeground).toString(),
-		inputBorder: theme.getColor(inputBorder) && theme.getColor(inputBorder).toString(),
-		inputActiveBorder: theme.getColor(inputActiveOptionBorder) && theme.getColor(inputActiveOptionBorder).toString(),
-		inputErrorBorder: theme.getColor(inputValidationErrorBorder) && theme.getColor(inputValidationErrorBorder).toString(),
-		buttonBackground: theme.getColor(buttonBackground) && theme.getColor(buttonBackground).toString(),
-		buttonForeground: theme.getColor(buttonForeground) && theme.getColor(buttonForeground).toString(),
-		buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString(),
-		sliderActiveColor: theme.getColor(scrollbarSliderActiveBackground) && theme.getColor(scrollbarSliderActiveBackground).toString(),
-		sliderBackgroundColor: theme.getColor(scrollbarSliderBackground) && theme.getColor(scrollbarSliderBackground).toString(),
-		sliderHoverColor: theme.getColor(scrollbarSliderHoverBackground) && theme.getColor(scrollbarSliderHoverBackground).toString()
-	};
-}
-
 export class OpenIssueReporterAction extends Action {
 	public static readonly ID = 'workbench.action.openIssueReporter';
 	public static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
@@ -895,28 +871,14 @@ export class OpenIssueReporterAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IRawIssueService private issueService: IRawIssueService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+		@IIssueService private issueService: IIssueService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<boolean> {
-		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled({ id: getGalleryExtensionIdFromLocal(extension) }));
-			const theme = this.themeService.getTheme();
-			const issueReporterData: IssueReporterData = {
-				styles: getIssueReporterStyles(theme),
-				zoomLevel: webFrame.getZoomLevel(),
-				enabledExtensions
-			};
-
-			return this.issueService.openReporter(issueReporterData).then(() => {
-				return TPromise.as(true);
-			});
-		});
+		return this.issueService.openReporter()
+			.then(() => true);
 	}
 }
 
@@ -927,30 +889,15 @@ export class ReportPerformanceIssueUsingReporterAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IRawIssueService private issueService: IRawIssueService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+		@IIssueService private issueService: IIssueService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<boolean> {
-		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
-			const theme = this.themeService.getTheme();
-			const issueReporterData: IssueReporterData = {
-				styles: getIssueReporterStyles(theme),
-				zoomLevel: webFrame.getZoomLevel(),
-				enabledExtensions,
-				issueType: IssueType.PerformanceIssue
-			};
-
-			// TODO: Reporter should send timings table as well
-			return this.issueService.openReporter(issueReporterData).then(() => {
-				return TPromise.as(true);
-			});
-		});
+		// TODO: Reporter should send timings table as well
+		return this.issueService.openReporter({ issueType: IssueType.PerformanceIssue })
+			.then(() => true);
 	}
 }
 

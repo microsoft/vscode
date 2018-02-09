@@ -26,7 +26,7 @@ export class IssueService implements IIssueService {
 	) {
 	}
 
-	openReporter(dataOverrides: Partial<IssueReporterData>): TPromise<void> {
+	openReporter(dataOverrides: Partial<IssueReporterData> = {}): TPromise<void> {
 		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
 			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled({ id: getGalleryExtensionIdFromLocal(extension) }));
 			const theme = this.themeService.getTheme();
