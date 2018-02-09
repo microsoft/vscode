@@ -4,7 +4,7 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js tgjones/shaders-tmLanguage grammars/hlsl.json ./syntaxes/hlsl.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js tgjones/shaders-tmLanguage grammars/hlsl.json ./syntaxes/hlsl.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{
@@ -15,7 +15,7 @@
 		}],
 		"grammars": [{
 			"language": "hlsl",
-			"path": "./syntaxes/hlsl.json",
+			"path": "./syntaxes/hlsl.tmLanguage.json",
 			"scopeName":"source.hlsl"
 		}]
 	}
