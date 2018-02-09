@@ -544,16 +544,16 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 		editorTemplate.toDispose = [];
 
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_START, (e: DragEvent) => {
+			const dragged = <OpenEditor[]>this.getSelectedElements().filter(e => e instanceof OpenEditor && !!e.getResource());
 
 			const dragImage = document.createElement('div');
 			e.dataTransfer.effectAllowed = 'copyMove';
 			dragImage.className = 'monaco-tree-drag-image';
-			dragImage.textContent = editorTemplate.openEditor.editor.getName();
+			dragImage.textContent = dragged.length === 1 ? editorTemplate.openEditor.editor.getName() : String(dragged.length);
 			document.body.appendChild(dragImage);
 			e.dataTransfer.setDragImage(dragImage, -10, -10);
 			setTimeout(() => document.body.removeChild(dragImage), 0);
 
-			const dragged = <OpenEditor[]>this.getSelectedElements().filter(e => e instanceof OpenEditor && !!e.getResource());
 			this.transfer.setData(dragged, OpenEditor.prototype);
 
 			if (editorTemplate.openEditor && editorTemplate.openEditor.editor) {

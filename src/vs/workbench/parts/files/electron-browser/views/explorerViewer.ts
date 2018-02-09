@@ -50,7 +50,7 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { extractResources, SimpleFileResourceDragAndDrop, CodeDataTransfers } from 'vs/workbench/browser/dnd';
+import { extractResources, SimpleFileResourceDragAndDrop, CodeDataTransfers, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { relative } from 'path';
 import { distinctParents } from 'vs/base/common/resources';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
@@ -729,12 +729,14 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			});
 
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			super.onDragStart(tree, data, originalEvent);
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, sources, originalEvent);
 
 			// The only custom data transfer we set from the explorer is a file transfer
 			// to be able to DND between multiple code file explorers across windows
 			const fileResources = sources.filter(s => !s.isDirectory && s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
-			originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
+			if (fileResources.length) {
+				originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
+			}
 		}
 	}
 

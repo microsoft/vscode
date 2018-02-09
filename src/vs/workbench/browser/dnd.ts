@@ -373,7 +373,10 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	}
 
 	// Resource URLs: allows to drop multiple resources to a target in VS Code (not directories)
-	event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(sources.filter(s => !s.isDirectory).map(s => s.resource.toString())));
+	const files = sources.filter(s => !s.isDirectory);
+	if (files.length) {
+		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(f => f.resource.toString())));
+	}
 
 	// Editors: enables cross window DND of tabs into the editor area
 	const textFileService = accessor.get(ITextFileService);
@@ -381,7 +384,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	const editorService = accessor.get(IWorkbenchEditorService);
 
 	const draggedEditors: ISerializedDraggedEditor[] = [];
-	sources.forEach(source => {
+	files.forEach(file => {
 
 		// Try to find editor view state from the visible editors that match given resource
 		let viewState: IEditorViewState;
@@ -391,7 +394,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 			const codeEditor = getCodeEditor(editor);
 			if (codeEditor) {
 				const model = codeEditor.getModel();
-				if (model && model.uri && model.uri.toString() === source.resource.toString()) {
+				if (model && model.uri && model.uri.toString() === file.resource.toString()) {
 					viewState = codeEditor.saveViewState();
 					break;
 				}
@@ -400,13 +403,15 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 		// Add as dragged editor
 		draggedEditors.push({
-			resource: source.resource.toString(),
-			backupResource: textFileService.isDirty(source.resource) ? backupFileService.toBackupResource(source.resource).toString() : void 0,
+			resource: file.resource.toString(),
+			backupResource: textFileService.isDirty(file.resource) ? backupFileService.toBackupResource(file.resource).toString() : void 0,
 			viewState
 		});
 	});
 
-	event.dataTransfer.setData(CodeDataTransfers.EDITORS, JSON.stringify(draggedEditors));
+	if (draggedEditors.length) {
+		event.dataTransfer.setData(CodeDataTransfers.EDITORS, JSON.stringify(draggedEditors));
+	}
 }
 
 /**
