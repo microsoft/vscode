@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IIssueService, IssueReporterStyles, IRawIssueService, IssueReporterData } from 'vs/platform/issue/common/issue';
+import { IssueReporterStyles, IIssueService, IssueReporterData } from 'vs/platform/issue/common/issue';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -14,12 +14,13 @@ import { IExtensionManagementService, IExtensionEnablementService, LocalExtensio
 import { getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { webFrame } from 'electron';
 import { assign } from 'vs/base/common/objects';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
-export class IssueService implements IIssueService {
+export class WorkbenchIssueService implements IWorkbenchIssueService {
 	_serviceBrand: any;
 
 	constructor(
-		@IRawIssueService private issueService: IRawIssueService,
+		@IIssueService private issueService: IIssueService,
 		@IThemeService private themeService: IThemeService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService

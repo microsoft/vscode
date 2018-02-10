@@ -36,8 +36,9 @@ import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/ed
 import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult, IIssueService } from 'vs/platform/issue/common/issue';
+import { IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult } from 'vs/platform/issue/common/issue';
 import { IExtensionManagementService, IExtensionEnablementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -577,7 +578,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IIssueService private issueService: IIssueService,
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService

@@ -92,8 +92,8 @@ import { stat } from 'fs';
 import { join } from 'path';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/common/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { IIssueService } from 'vs/platform/issue/common/issue';
-import { IssueService } from 'vs/platform/issue/electron-browser/issueService';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-browser/workbenchIssueService';
 
 /**
  * Services that we require for the Shell
@@ -447,7 +447,7 @@ export class WorkbenchShell {
 
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 
-		serviceCollection.set(IIssueService, new SyncDescriptor(IssueService));
+		serviceCollection.set(IWorkbenchIssueService, new SyncDescriptor(WorkbenchIssueService));
 
 		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorServiceImpl));
 

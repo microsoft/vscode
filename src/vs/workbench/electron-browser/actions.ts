@@ -43,13 +43,14 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
-import { IssueType, IIssueService } from 'vs/platform/issue/common/issue';
+import { IssueType } from 'vs/platform/issue/common/issue';
 import { domEvent } from 'vs/base/browser/event';
 import { once } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
 // --- actions
 
@@ -871,7 +872,7 @@ export class OpenIssueReporterAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IIssueService private issueService: IIssueService
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
 	) {
 		super(id, label);
 	}
@@ -889,7 +890,7 @@ export class ReportPerformanceIssueUsingReporterAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IIssueService private issueService: IIssueService
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
 	) {
 		super(id, label);
 	}
