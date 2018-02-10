@@ -158,7 +158,7 @@ export interface ITerminalService {
 	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
-	getInstanceLabels(): string[];
+	getTabLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
@@ -180,6 +180,7 @@ export interface ITerminalService {
 
 export interface ITerminalTab {
 	terminalInstances: ITerminalInstance[];
+	title: string;
 
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;

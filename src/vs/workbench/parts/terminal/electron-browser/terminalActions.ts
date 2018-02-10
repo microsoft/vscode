@@ -490,7 +490,7 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex, contextViewService);
+		super(null, action, terminalService.getTabLabels(), terminalService.activeTerminalInstanceIndex, contextViewService);
 
 		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onActiveInstanceChanged(this._updateItems, this));
@@ -499,7 +499,7 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 	}
 
 	private _updateItems(): void {
-		this.setOptions(this.terminalService.getInstanceLabels(), this.terminalService.activeTerminalInstanceIndex);
+		this.setOptions(this.terminalService.getTabLabels(), this.terminalService.activeTerminalInstanceIndex);
 	}
 }
 

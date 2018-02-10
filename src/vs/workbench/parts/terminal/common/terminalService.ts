@@ -96,14 +96,8 @@ export abstract class TerminalService implements ITerminalService {
 		this.terminalInstances.forEach(instance => instance.dispose());
 	}
 
-	public getInstanceLabels(): string[] {
-		return this._terminalTabs.map((tab, index) => {
-			let title = tab.terminalInstances[0].title;
-			for (let i = 1; i < tab.terminalInstances.length; i++) {
-				title += `, ${tab.terminalInstances[i].title}`;
-			}
-			return `${index + 1}: ${title}`;
-		});
+	public getTabLabels(): string[] {
+		return this._terminalTabs.map((tab, index) => `${index + 1}: ${tab.title}`);
 	}
 
 	private _removeTab(tab: ITerminalTab): void {

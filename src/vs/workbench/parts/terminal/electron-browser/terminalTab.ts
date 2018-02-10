@@ -182,6 +182,14 @@ export class TerminalTab implements ITerminalTab {
 		this._splitPanes.push(this._rootSplitPane);
 	}
 
+	public get title(): string {
+		let title = this.terminalInstances[0].title;
+		for (let i = 1; i < this.terminalInstances.length; i++) {
+			title += `, ${this.terminalInstances[i].title}`;
+		}
+		return title;
+	}
+
 	public setVisible(visible: boolean): void {
 		this._container.style.display = visible ? 'block' : 'none';
 		// TODO: probably don't need to tell terminal instances about visiblility anymore?
