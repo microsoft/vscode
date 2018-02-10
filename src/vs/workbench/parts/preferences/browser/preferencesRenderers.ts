@@ -7,6 +7,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
+import * as strings from 'vs/base/common/strings';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { IAction } from 'vs/base/common/actions';
@@ -17,7 +18,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IExtensionSetting } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel, IWorkbenchSettingsConfiguration, IExtensionSetting, IScoredResults } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
@@ -25,7 +26,7 @@ import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, D
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
-import { Severity } from 'vs/platform/message/common/message';
+import { Severity, IMessageService } from 'vs/platform/message/common/message';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -39,6 +40,7 @@ import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult } from 'vs/platform/issue/common/issue';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -249,6 +251,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private hiddenAreasRenderer: HiddenAreasRenderer;
 	private editSettingActionRenderer: EditSettingRenderer;
 	private issueWidgetRenderer: IssueWidgetRenderer;
+	private feedbackWidgetRenderer: FeedbackWidgetRenderer;
 	private bracesHidingRenderer: BracesHidingRenderer;
 	private extensionCodelensRenderer: ExtensionCodelensRenderer;
 	private filterResult: IFilterResult;
@@ -264,7 +267,8 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
-		@IInstantiationService protected instantiationService: IInstantiationService
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
@@ -273,6 +277,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, this.settingHighlighter));
 		this.issueWidgetRenderer = this._register(instantiationService.createInstance(IssueWidgetRenderer, editor));
+		this.feedbackWidgetRenderer = this._register(instantiationService.createInstance(FeedbackWidgetRenderer, editor));
 		this.bracesHidingRenderer = this._register(instantiationService.createInstance(BracesHidingRenderer, editor, preferencesModel));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, this.bracesHidingRenderer]));
 		this.extensionCodelensRenderer = this._register(instantiationService.createInstance(ExtensionCodelensRenderer, editor));
@@ -295,6 +300,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
 		this.issueWidgetRenderer.render(null);
+		this.feedbackWidgetRenderer.render(null);
 		this.settingHighlighter.clear(true);
 		this.bracesHidingRenderer.render(null, this.preferencesModel.settingsGroups);
 		this.settingsGroupTitleRenderer.showGroup(0);
@@ -307,7 +313,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		if (filterResult) {
 			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.render(null);
-			this.issueWidgetRenderer.render(filterResult);
+			this.renderIssueWidget(filterResult);
 			this.settingsHeaderRenderer.render(filterResult);
 			this.settingHighlighter.clear(true);
 			this.bracesHidingRenderer.render(filterResult, this.preferencesModel.settingsGroups);
@@ -316,7 +322,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		} else {
 			this.settingHighlighter.clear(true);
 			this.filteredMatchesRenderer.render(null, this.preferencesModel.settingsGroups);
-			this.issueWidgetRenderer.render(null);
+			this.renderIssueWidget(null);
 			this.settingsHeaderRenderer.render(null);
 			this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.showGroup(0);
@@ -326,6 +332,17 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		}
 
 		this.hiddenAreasRenderer.render();
+	}
+
+	private renderIssueWidget(filterResult: IFilterResult): void {
+		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
+		if (workbenchSettings.enableNaturalLanguageSearchFeedback) {
+			this.issueWidgetRenderer.render(null);
+			this.feedbackWidgetRenderer.render(filterResult);
+		} else {
+			this.feedbackWidgetRenderer.render(null);
+			this.issueWidgetRenderer.render(filterResult);
+		}
 	}
 
 	public focusPreference(s: ISetting): void {
@@ -568,6 +585,200 @@ export class HiddenAreasRenderer extends Disposable {
 
 	public dispose() {
 		this.editor.setHiddenAreas([]);
+		super.dispose();
+	}
+}
+
+export class FeedbackWidgetRenderer extends Disposable {
+	private static readonly DEFAULT_COMMENT_TEXT = 'Replace this comment with any text feedback.';
+	private static readonly INSTRUCTION_TEXT = [
+		'// Modify the "resultScores" section to contain only your expected results. Assign scores to indicate their relevance.',
+		'// Results present in "resultScores" will be automatically "boosted" for this query, if they are not already at the top of the result set.',
+		'// Add phrase pairs to the "alts" section to have them considered to be synonyms in queries.'
+	].join('\n');
+
+	private _feedbackWidget: FloatingClickWidget;
+	private _currentResult: IFilterResult;
+
+	constructor(private editor: ICodeEditor,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IMessageService private messageService: IMessageService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super();
+	}
+
+	public render(result: IFilterResult): void {
+		this._currentResult = result;
+		if (result && result.metadata) {
+			this.showWidget();
+		} else if (this._feedbackWidget) {
+			this.disposeWidget();
+		}
+	}
+
+	private showWidget(): void {
+		if (!this._feedbackWidget) {
+			this._feedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, this.editor, 'Provide feedback', null));
+			this._register(this._feedbackWidget.onClick(() => this.getFeedback()));
+			this._feedbackWidget.render();
+		}
+	}
+
+	private getFeedback(): void {
+		if (!this.telemetryService.isOptedIn && this.environmentService.appQuality) {
+			this.messageService.show(Severity.Error, 'Can\'t send feedback, user is opted out of telemetry');
+			return;
+		}
+
+		const result = this._currentResult;
+		const metadata = result.metadata['nlpResult']; // Feedback only on nlpResult set for now
+		const actualResults = metadata ? metadata.scoredResults : {};
+		const actualResultIds = Object.keys(actualResults);
+
+		const feedbackQuery: any = {};
+		feedbackQuery['comment'] = FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT;
+		feedbackQuery['queryString'] = result.query;
+		feedbackQuery['duration'] = metadata ? metadata.duration : -1;
+		feedbackQuery['resultScores'] = [];
+		actualResultIds.forEach(settingId => {
+			feedbackQuery['resultScores'].push({
+				packageID: actualResults[settingId].packageId,
+				key: actualResults[settingId].key,
+				score: 10
+			});
+		});
+		feedbackQuery['alts'] = [];
+
+		const groupCountsText = result.filteredGroups
+			.map(group => `// ${group.id}: ${group.sections[0].settings.length}`)
+			.join('\n');
+
+		const contents = FeedbackWidgetRenderer.INSTRUCTION_TEXT + '\n' +
+			JSON.stringify(feedbackQuery, undefined, '    ') + '\n\n' +
+			this.getScoreText(actualResults) + '\n\n' +
+			groupCountsText + '\n';
+
+		this.editorService.openEditor({ contents, language: 'jsonc' }, /*sideBySide=*/true).then(feedbackEditor => {
+			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
+			sendFeedbackWidget.render();
+
+			this._register(sendFeedbackWidget.onClick(() => {
+				this.sendFeedback(feedbackEditor.getControl() as ICodeEditor, result, actualResults).then(() => {
+					sendFeedbackWidget.dispose();
+					this.messageService.show(Severity.Info, 'Feedback sent successfully');
+				}, err => {
+					this.messageService.show(Severity.Error, 'Error sending feedback: ' + err.message);
+				});
+			}));
+		});
+	}
+
+	private getScoreText(results?: IScoredResults): string {
+		if (!results) {
+			return '';
+		}
+
+		return Object.keys(results)
+			.map(name => {
+				return `// ${results[name].key}: ${results[name].score}`;
+			}).join('\n');
+	}
+
+	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, scoredResults: IScoredResults): TPromise<void> {
+		const model = feedbackEditor.getModel();
+		const expectedQueryLines = model.getLinesContent()
+			.filter(line => !strings.startsWith(line, '//'));
+
+		let expectedQuery: any;
+		try {
+			expectedQuery = JSON.parse(expectedQueryLines.join('\n'));
+		} catch (e) {
+			// invalid JSON
+			return TPromise.wrapError(new Error('Invalid JSON: ' + e.message));
+		}
+
+		const userComment = expectedQuery.comment === FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT ? undefined : expectedQuery.comment;
+
+		// validate alts
+		if (!this.validateAlts(expectedQuery.alts)) {
+			return TPromise.wrapError(new Error('alts must be an array of 2-element string arrays'));
+		}
+
+		const altsAdded = expectedQuery.alts && expectedQuery.alts.length;
+		const alts = altsAdded ? expectedQuery.alts : undefined;
+		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
+		const autoIngest = workbenchSettings.naturalLanguageSearchAutoIngestFeedback;
+
+		const nlpMetadata = result.metadata && result.metadata['nlpResult'];
+		const duration = nlpMetadata && nlpMetadata.duration;
+		const requestBody = nlpMetadata && nlpMetadata.requestBody;
+
+		const actualResultScores = {};
+		for (let key in scoredResults) {
+			actualResultScores[key] = {
+				score: scoredResults[key].score
+			};
+		}
+
+		/* __GDPR__
+			"settingsSearchResultFeedback" : {
+				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+				"requestBody" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"buildNumber" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"alts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"autoIngest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		return this.telemetryService.publicLog('settingsSearchResultFeedback', {
+			query: result.query,
+			requestBody,
+			userComment,
+			actualResults: actualResultScores,
+			expectedResults: expectedQuery.resultScores,
+			duration,
+			buildNumber: this.environmentService.settingsSearchBuildId,
+			alts,
+			autoIngest
+		});
+	}
+
+	private validateAlts(alts?: string[][]): boolean {
+		if (!alts) {
+			return true;
+		}
+
+		if (!Array.isArray(alts)) {
+			return false;
+		}
+
+		if (!alts.length) {
+			return true;
+		}
+
+		if (!alts.every(altPair => Array.isArray(altPair) && altPair.length === 2 && typeof altPair[0] === 'string' && typeof altPair[1] === 'string')) {
+			return false;
+		}
+
+		return true;
+	}
+
+	private disposeWidget(): void {
+		if (this._feedbackWidget) {
+			this._feedbackWidget.dispose();
+			this._feedbackWidget = null;
+		}
+	}
+
+	public dispose() {
+		this.disposeWidget();
 		super.dispose();
 	}
 }
