@@ -258,6 +258,19 @@ suite('Keybindings Editor Model test', () => {
 		});
 	});
 
+	test('filter by source: filter', () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: false });
+		prepareKeybindingService(expected);
+
+		return testObject.resolve({}).then(() => {
+			let actual = testObject.fetch('source: user').filter(element => element.keybindingItem.command === command)[0];
+			assert.ok(actual);
+			actual = testObject.fetch('source: default').filter(element => element.keybindingItem.command === command)[0];
+			assert.ok(actual);
+		});
+	});
+
 	test('filter by when context', () => {
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'whenContext1 && whenContext2', isDefault: false });
