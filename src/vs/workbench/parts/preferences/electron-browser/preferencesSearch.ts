@@ -42,8 +42,10 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 
 		// This request goes to the shared process but results won't change during a window's lifetime, so cache the results.
 		this._installedExtensions = this.extensionManagementService.getInstalled(LocalExtensionType.User).then(exts => {
-			// Filter to enabled extensions
-			return exts.filter(ext => this.extensionEnablementService.isEnabled(ext.identifier));
+			// Filter to enabled extensions that have settings
+			return exts
+				.filter(ext => this.extensionEnablementService.isEnabled(ext.identifier))
+				.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration);
 		});
 	}
 
@@ -132,6 +134,7 @@ interface IBingRequestDetails {
 	url: string;
 	body?: string;
 	hasMoreFilters?: boolean;
+	extensions?: ILocalExtension[];
 }
 
 class RemoteSearchProvider implements ISearchProvider {
@@ -280,7 +283,8 @@ class RemoteSearchProvider implements ISearchProvider {
 				duration,
 				timestamp,
 				scoredResults,
-				context: result['@odata.context']
+				context: result['@odata.context'],
+				extensions: details.extensions
 			};
 		});
 	}
@@ -315,9 +319,10 @@ class RemoteSearchProvider implements ISearchProvider {
 			url += `${API_VERSION}&${QUERY_TYPE}`;
 		}
 
+		const extensions = await this.installedExtensions;
 		const filters = this.options.newExtensionsOnly ?
 			[`diminish eq 'latest'`] :
-			await this.getVersionFilters(this.environmentService.settingsSearchBuildId);
+			this.getVersionFilters(extensions, this.environmentService.settingsSearchBuildId);
 
 		const filterStr = filters
 			.slice(filterPage * RemoteSearchProvider.MAX_REQUEST_FILTERS, (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS)
@@ -333,23 +338,22 @@ class RemoteSearchProvider implements ISearchProvider {
 		return {
 			url,
 			body,
-			hasMoreFilters
+			hasMoreFilters,
+			extensions
 		};
 	}
 
-	private getVersionFilters(buildNumber?: number): TPromise<string[]> {
-		return this.installedExtensions.then(exts => {
-			// Only search extensions that contribute settings
-			const filters = exts
-				.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
-				.map(ext => this.getExtensionFilter(ext));
+	private getVersionFilters(exts: ILocalExtension[], buildNumber?: number): string[] {
+		// Only search extensions that contribute settings
+		const filters = exts
+			.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
+			.map(ext => this.getExtensionFilter(ext));
 
-			if (buildNumber) {
-				filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
-			}
+		if (buildNumber) {
+			filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
+		}
 
-			return filters;
-		});
+		return filters;
 	}
 
 	private getExtensionFilter(ext: ILocalExtension): string {

@@ -30,6 +30,14 @@ td {
 	border-top: 1px solid #e9ecef;
 }
 
+.block-settingsSearchResults-details {
+	padding-bottom: .5rem;
+}
+
+.block-settingsSearchResults-details > div {
+	padding: .5rem .75rem;
+}
+
 .section {
 	margin-bottom: 1.5em;
 }

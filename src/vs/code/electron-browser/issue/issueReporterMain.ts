@@ -11,6 +11,7 @@ import { localize } from 'vs/nls';
 import { $ } from 'vs/base/browser/dom';
 import * as collections from 'vs/base/common/collections';
 import * as browser from 'vs/base/browser/browser';
+import { escape } from 'vs/base/common/strings';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as os from 'os';
@@ -30,7 +31,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterData, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
+import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData } from 'vs/platform/issue/common/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { debounce } from 'vs/base/common/decorators';
@@ -67,7 +68,8 @@ export class IssueReporter extends Disposable {
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
-			includeExtensions: true,
+			includeSearchedExtensions: true,
+			includeSettingsSearchDetails: true,
 			versionInfo: {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
 				os: `${os.type()} ${os.arch()} ${os.release()}`
@@ -101,14 +103,18 @@ export class IssueReporter extends Disposable {
 			show(document.getElementById('english'));
 		}
 
+		this.setUpTypes();
 		this.setEventHandlers();
 		this.applyZoom(configuration.data.zoomLevel);
 		this.applyStyles(configuration.data.styles);
 		this.handleExtensionData(configuration.data.enabledExtensions);
+
+		if (configuration.data.issueType === IssueType.SettingsSearchIssue) {
+			this.handleSettingsSearchData(<ISettingsSearchIssueReporterData>configuration.data);
+		}
 	}
 
 	render(): void {
-		(<HTMLSelectElement>document.getElementById('issue-type')).value = this.issueReporterModel.getData().issueType.toString();
 		this.renderBlocks();
 	}
 
@@ -203,6 +209,46 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
+	private handleSettingsSearchData(data: ISettingsSearchIssueReporterData): void {
+		this.issueReporterModel.update({
+			actualSearchResults: data.actualSearchResults,
+			query: data.query,
+			filterResultCount: data.filterResultCount
+		});
+		this.updateSearchedExtensionTable(data.enabledExtensions);
+		this.updateSettingsSearchDetails(data);
+	}
+
+	private updateSettingsSearchDetails(data: ISettingsSearchIssueReporterData): void {
+		const target = document.querySelector('.block-settingsSearchResults .block-info');
+
+		const details = `
+			<div class='block-settingsSearchResults-details'>
+				<div>Query: "${data.query}"</div>
+				<div>Literal match count: ${data.filterResultCount}</div>
+			</div>
+		`;
+
+		let table = `
+			<tr>
+				<th>Setting</th>
+				<th>Extension</th>
+				<th>Score</th>
+			</tr>`;
+
+		data.actualSearchResults
+			.forEach(setting => {
+				table += `
+					<tr>
+						<td>${setting.key}</td>
+						<td>${setting.extensionId}</td>
+						<td>${String(setting.score).slice(0, 5)}</td>
+					</tr>`;
+			});
+
+		target.innerHTML = `${details}<table>${table}</table>`;
+	}
+
 	private initServices(configuration: IWindowConfiguration): void {
 		const serviceCollection = new ServiceCollection();
 		const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
@@ -238,7 +284,7 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions'].forEach(elementId => {
+		['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails'].forEach(elementId => {
 			document.getElementById(elementId).addEventListener('click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
@@ -351,6 +397,10 @@ export class IssueReporter extends Disposable {
 			return true;
 		}
 
+		if (issueType === IssueType.SettingsSearchIssue) {
+			return true;
+		}
+
 		return false;
 	}
 
@@ -425,6 +475,25 @@ export class IssueReporter extends Disposable {
 		this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });
 	}
 
+	private setUpTypes(): void {
+		const makeOption = (issueType: IssueType, description: string) => `<option value="${issueType.valueOf()}">${escape(description)}</option>`;
+
+		const typeSelect = (<HTMLSelectElement>document.getElementById('issue-type'));
+		const { issueType } = this.issueReporterModel.getData();
+		if (issueType === IssueType.SettingsSearchIssue) {
+			typeSelect.innerHTML = makeOption(IssueType.SettingsSearchIssue, localize('settingsSearchIssue', "Settings Search Issue"));
+			typeSelect.disabled = true;
+		} else {
+			typeSelect.innerHTML = [
+				makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
+				makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue")),
+				makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request"))
+			].join('\n');
+		}
+
+		typeSelect.value = issueType.toString();
+	}
+
 	private renderBlocks(): void {
 		// Depending on Issue Type, we render different blocks and text
 		const { issueType } = this.issueReporterModel.getData();
@@ -432,16 +501,24 @@ export class IssueReporter extends Disposable {
 		const processBlock = document.querySelector('.block-process');
 		const workspaceBlock = document.querySelector('.block-workspace');
 		const extensionsBlock = document.querySelector('.block-extensions');
-		const disabledExtensions = document.getElementById('disabledExtensions');
+		const searchedExtensionsBlock = document.querySelector('.block-searchedExtensions');
+		const settingsSearchResultsBlock = document.querySelector('.block-settingsSearchResults');
 
+		const disabledExtensions = document.getElementById('disabledExtensions');
 		const descriptionTitle = document.getElementById('issue-description-label');
 		const descriptionSubtitle = document.getElementById('issue-description-subtitle');
 
+		// Hide all by default
+		hide(systemBlock);
+		hide(processBlock);
+		hide(workspaceBlock);
+		hide(extensionsBlock);
+		hide(searchedExtensionsBlock);
+		hide(settingsSearchResultsBlock);
+		hide(disabledExtensions);
 
 		if (issueType === IssueType.Bug) {
 			show(systemBlock);
-			hide(processBlock);
-			hide(workspaceBlock);
 			show(extensionsBlock);
 			show(disabledExtensions);
 
@@ -456,15 +533,15 @@ export class IssueReporter extends Disposable {
 
 			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
 			descriptionSubtitle.innerHTML = localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
-		} else {
-			hide(systemBlock);
-			hide(processBlock);
-			hide(workspaceBlock);
-			hide(extensionsBlock);
-			hide(disabledExtensions);
-
+		} else if (issueType === IssueType.FeatureRequest) {
 			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
 			descriptionSubtitle.innerHTML = localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+		} else if (issueType === IssueType.SettingsSearchIssue) {
+			show(searchedExtensionsBlock);
+			show(settingsSearchResultsBlock);
+
+			descriptionTitle.innerHTML = `${localize('expectedResults', "Expected Results")} <span class="required-input">*</span>`;
+			descriptionSubtitle.innerHTML = localize('settingsSearchResultsDescription', "Please list the results that you were expecting to see when you searched with this query. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
 		}
 	}
 
@@ -591,6 +668,23 @@ export class IssueReporter extends Disposable {
 			return;
 		}
 
+		const table = this.getExtensionTableHtml(extensions);
+		target.innerHTML = `<table>${table}</table>${themeExclusionStr}`;
+	}
+
+	private updateSearchedExtensionTable(extensions: ILocalExtension[]): void {
+		const target = document.querySelector('.block-searchedExtensions .block-info');
+
+		if (!extensions.length) {
+			target.innerHTML = 'Extensions: none';
+			return;
+		}
+
+		const table = this.getExtensionTableHtml(extensions);
+		target.innerHTML = `<table>${table}</table>`;
+	}
+
+	private getExtensionTableHtml(extensions: ILocalExtension[]): string {
 		let table = `
 			<tr>
 				<th>Extension</th>
@@ -598,16 +692,16 @@ export class IssueReporter extends Disposable {
 				<th>Version</th>
 			</tr>`;
 
-		extensions.forEach(extension => {
-			table += `
+		table += extensions.map(extension => {
+			return `
 				<tr>
 					<td>${extension.manifest.name}</td>
 					<td>${extension.manifest.publisher.substr(0, 3)}</td>
 					<td>${extension.manifest.version}</td>
 				</tr>`;
-		});
+		}).join('');
 
-		target.innerHTML = `<table>${table}</table>${themeExclusionStr}`;
+		return table;
 	}
 }
 

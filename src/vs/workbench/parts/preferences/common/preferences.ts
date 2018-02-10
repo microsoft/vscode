@@ -17,6 +17,7 @@ import { join } from 'vs/base/common/paths';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import Event from 'vs/base/common/event';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -110,6 +111,9 @@ export interface IFilterMetadata {
 	timestamp: number;
 	duration: number;
 	scoredResults: IScoredResults;
+	extensions?: ILocalExtension[];
+
+	/** The number of requests made, since requests are split by number of filters */
 	requestCount?: number;
 
 	/** The name of the server that actually served the request */
