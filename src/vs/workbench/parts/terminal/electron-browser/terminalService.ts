@@ -52,14 +52,23 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	}
 
 	public createInstance(shell: IShellLaunchConfig = {}, wasNewTerminalAction?: boolean): ITerminalInstance {
-		const terminalTab = this._instantiationService.createInstance(TerminalTab,
-			this._terminalFocusContextKey,
-			this._configHelper,
-			this._terminalContainer,
-			shell);
-		this._terminalTabs.push(terminalTab);
+		let terminalTab;
+		let terminalInstance;
+		if (this.terminalTabs.length === 0) {
+			terminalTab = this._instantiationService.createInstance(TerminalTab,
+				this._terminalFocusContextKey,
+				this._configHelper,
+				this._terminalContainer,
+				shell);
+			this._terminalTabs.push(terminalTab);
+			terminalInstance = terminalTab.terminalInstances[0];
+		} else {
+			// Always Split temporarily
+			terminalTab = this.terminalTabs[0];
+			terminalTab.split(this._terminalFocusContextKey, this._configHelper, shell);
+			terminalInstance = terminalTab.terminalInstances[terminalTab.terminalInstances.length - 1];
+		}
 		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
-		const terminalInstance = terminalTab.terminalInstances[0];
 		terminalInstance.addDisposable(terminalInstance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		terminalInstance.addDisposable(terminalInstance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));

@@ -6,7 +6,7 @@
 
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -153,6 +153,7 @@ export interface ITerminalService {
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
+	terminalTabs: ITerminalTab[];
 
 	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
@@ -180,7 +181,10 @@ export interface ITerminalService {
 export interface ITerminalTab {
 	terminalInstances: ITerminalInstance[];
 
+	setVisible(visible: boolean): void;
+	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
+	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): void;
 }
 
 export interface ITerminalInstance {

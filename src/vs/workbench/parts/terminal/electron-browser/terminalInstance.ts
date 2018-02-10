@@ -246,12 +246,12 @@ export class TerminalInstance implements ITerminalInstance {
 
 		const outerContainer = document.querySelector('.terminal-outer-container');
 		const outerContainerStyle = getComputedStyle(outerContainer);
-		const padding = parseInt(outerContainerStyle.paddingLeft.split('px')[0], 10);
+		const marginLeft = parseInt(outerContainerStyle.marginLeft.split('px')[0], 10);
+		const marginRight = parseInt(outerContainerStyle.marginRight.split('px')[0], 10);
 		const paddingBottom = parseInt(outerContainerStyle.paddingBottom.split('px')[0], 10);
 
-		// Use left padding as right padding, right padding is not defined in CSS just in case
-		// xterm.js causes an unexpected overflow.
-		const innerWidth = width - padding * 2;
+		// TODO: Ensure horizontal padding/margin work fine for split panes
+		const innerWidth = width - (marginLeft + marginRight);
 		const innerHeight = height - paddingBottom;
 
 		TerminalInstance._lastKnownDimensions = new Dimension(innerWidth, innerHeight);
@@ -311,6 +311,18 @@ export class TerminalInstance implements ITerminalInstance {
 		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._initialCwd);
 		this._linkHandler.registerLocalLinkHandler();
 		this._instanceDisposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
+	}
+
+	public reattachToElement(container: HTMLElement): void {
+		if (!this._wrapperElement) {
+			throw new Error('The terminal instance has not been attached to a container yet');
+		}
+
+		if (this._wrapperElement.parentNode) {
+			this._wrapperElement.parentNode.removeChild(this._wrapperElement);
+		}
+		this._container = container;
+		this._container.appendChild(this._wrapperElement);
 	}
 
 	public attachToElement(container: HTMLElement): void {
@@ -1052,7 +1064,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public layout(dimension: Dimension): void {
+		console.log('TerminalInstance.layout, dimension', dimension);
 		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
+		console.log('TerminalInstance.layout, terminalWidth', terminalWidth);
 		if (!terminalWidth) {
 			return;
 		}

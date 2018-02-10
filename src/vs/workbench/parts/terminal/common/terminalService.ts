@@ -38,6 +38,7 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
 	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
+	public get terminalTabs(): ITerminalTab[] { return this._terminalTabs; }
 
 	public abstract get configHelper(): ITerminalConfigHelper;
 
@@ -166,9 +167,16 @@ export abstract class TerminalService implements ITerminalService {
 		}
 		const didInstanceChange = this._activeTerminalInstanceIndex !== terminalIndex;
 		this._activeTerminalInstanceIndex = terminalIndex;
-		this._terminalInstances.forEach((terminalInstance, i) => {
-			terminalInstance.setVisible(i === terminalIndex);
+
+		// TODO: Optimize
+		const activeInstance = this.terminalInstances[this.activeTerminalInstanceIndex];
+		this._terminalTabs.forEach(t => {
+			t.setVisible(t.terminalInstances.indexOf(activeInstance) !== -1);
 		});
+
+		// this._terminalInstances.forEach((terminalInstance, i) => {
+		// 	terminalInstance.setVisible(i === terminalIndex);
+		// });
 		// Only fire the event if there was a change
 		if (didInstanceChange) {
 			this._onActiveInstanceChanged.fire();

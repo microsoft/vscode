@@ -15,7 +15,7 @@
 
 .monaco-workbench .panel.integrated-terminal .terminal-outer-container {
 	height: 100%;
-	padding-left: 20px; /*Don't use right padding in case xterm.js misbehaves*/
+	margin: 0 20px;
 	padding-bottom: 2px;
 	width: 100%;
 	box-sizing: border-box;
@@ -56,6 +56,11 @@
 
 .monaco-workbench .panel.integrated-terminal {
 	font-variant-ligatures: none;
+}
+
+.monaco-workbench .panel.integrated-terminal .split-view-view {
+	/* Make relative as terminal absolute positioning needs it deeper in the tree */
+	position: relative;
 }
 
 .monaco-workbench .panel.integrated-terminal.enable-ligatures {

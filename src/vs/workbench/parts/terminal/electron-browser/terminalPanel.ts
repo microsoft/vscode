@@ -92,9 +92,10 @@ export class TerminalPanel extends Panel {
 		if (!dimension) {
 			return;
 		}
-		this._terminalService.terminalInstances.forEach((t) => {
-			t.layout(dimension);
-		});
+		// this._terminalService.terminalInstances.forEach((t) => {
+		// 	t.layout(dimension);
+		// });
+		this._terminalService.terminalTabs.forEach(t => t.layout(dimension.width, dimension.height));
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -169,6 +170,7 @@ export class TerminalPanel extends Panel {
 	}
 
 	public focus(): void {
+		console.log('TerminalPanel.focus');
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance) {
 			activeInstance.focus(true);
@@ -261,6 +263,10 @@ export class TerminalPanel extends Panel {
 
 			const instance = this._terminalService.getActiveInstance();
 			if (instance) {
+
+				// TODO: This and other usages for getActiveInstance().focus() are now invalid,
+				// TerminalService should defer the active instance to the TerminalTab
+				console.log('clicked, focus');
 				this._terminalService.getActiveInstance().focus();
 			}
 		}));
