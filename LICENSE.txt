@@ -1,23 +1,23 @@
-MIT License
+Lisensi MIT
 
-Copyright (c) 2015 - present Microsoft Corporation
+Hak Cipta (c) 2015 - sekarang Microsoft Corporation
 
-All rights reserved.
+Seluruh hak cipta.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Izin dengan ini diberikan, gratis, kepada siapa saja yang mendapatkan salinannya
+dari perangkat lunak ini dan file dokumentasi yang terkait ("Perangkat Lunak"), untuk menangani
+dalam Perangkat Lunak tanpa batasan, termasuk namun tidak terbatas pada hak
+untuk menggunakan, menyalin, memodifikasi, menggabungkan, menerbitkan, mendistribusikan, mensublisensikan, dan / atau menjual
+salinan Perangkat Lunak, dan untuk mengizinkan orang yang menjadi Perangkat Lunak itu
+dilengkapi untuk melakukannya, tunduk pada kondisi berikut:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Pemberitahuan hak cipta di atas dan pemberitahuan izin ini harus disertakan dalam semua
+salinan atau sebagian besar Perangkat Lunak.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+PERANGKAT LUNAK INI DISEDIAKAN "APA ADANYA", TANPA JAMINAN APAPUN, BAIK SECARA BAIK
+TERSIRAT, TERMASUK NAMUN TIDAK TERBATAS PADA JAMINAN KELAYAKAN UNTUK DIPERDAGANGKAN,
+KESESUAIAN UNTUK TUJUAN TERTENTU DAN NONINFRINGEMENT. DALAM HAL APAPUN
+PENULIS ATAU PEMEGANG HAK CIPTA TIDAK BERTANGGUNG JAWAB ATAS KLAIM, KERUGIAN, ATAU LAINNYA
+KEWAJIBAN, BAIK DALAM TINDAKAN KONTRAK, TORT ATAU LAINNYA, YANG TIMBUL DARI,
+KELUAR DARI ATAU BERHUBUNGAN DENGAN PERANGKAT LUNAK ATAU PENGGUNAAN ATAU PENGALAMAN LAIN DI PT
+PERANGKAT LUNAK.
