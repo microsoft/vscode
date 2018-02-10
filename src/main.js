@@ -278,7 +278,7 @@ function getNLSConfiguration(locale) {
 		return Promise.resolve(resolveLocale(locale));
 	} else {
 		perf.mark('nlsGeneration:start');
-		let defaultResult = function () {
+		let defaultResult = function() {
 			perf.mark('nlsGeneration:end');
 			return Promise.resolve({ locale: locale, availableLanguages: {} });
 		};
@@ -320,7 +320,7 @@ function getNLSConfiguration(locale) {
 				return exists(coreLocation).then((fileExists) => {
 					if (fileExists) {
 						// We don't wait for this. No big harm if we can't touch
-						touch(coreLocation).catch(() => { });
+						touch(coreLocation).catch(() => {});
 						perf.mark('nlsGeneration:end');
 						return result;
 					}
@@ -355,7 +355,7 @@ function getNLSConfiguration(locale) {
 								}
 								target[module] = targetStrings;
 							}
-							writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
+							writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g,'!') + '.nls.json'), JSON.stringify(target)));
 						}
 						writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
 						return Promise.all(writes);
