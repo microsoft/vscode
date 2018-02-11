@@ -9,7 +9,7 @@ import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-brows
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import Event, { Emitter, anyEvent } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView } from 'vs/base/browser/ui/splitview/splitview';
 
 class SplitPane implements IView {
@@ -64,6 +64,7 @@ class SplitPane implements IView {
 
 	private addChild(size: number, orthogonalSize: number, instance: ITerminalInstance, index?: number, needsReattach?: boolean): void {
 		const child = new SplitPane(this, orthogonalSize, needsReattach);
+		child.orientation = this.orientation;
 		child.instance = instance;
 		this._splitView.addView(child, size, index);
 
@@ -77,6 +78,9 @@ class SplitPane implements IView {
 	}
 
 	public render(container: HTMLElement): void {
+		if (!container) {
+			return;
+		}
 		this._container = container;
 		console.log('render');
 		// throw new Error("Method not implemented.");
@@ -101,17 +105,18 @@ class SplitPane implements IView {
 		console.log('layout', size, this.orthogonalSize);
 
 		if (this.orientation === Orientation.VERTICAL) {
-			this.instance.layout({ width: this._size, height: this.orthogonalSize });
-		} else {
 			this.instance.layout({ width: this.orthogonalSize, height: this._size });
+		} else {
+			this.instance.layout({ width: this._size, height: this.orthogonalSize });
 		}
 	}
 
 	public orthogonalLayout(size: number): void {
 		this.orthogonalSize = size;
+		console.log('orthogonalLayout', this._size, this.orthogonalSize);
 
 		if (this._splitView) {
-			this._splitView.layout(size);
+			this._splitView.layout(this.orthogonalSize);
 		}
 	}
 }
@@ -146,11 +151,12 @@ class RootSplitPane extends SplitPane {
 	}
 }
 
-export class TerminalTab implements ITerminalTab {
+export class TerminalTab extends Disposable implements ITerminalTab {
 	private _terminalInstances: ITerminalInstance[] = [];
-	private _disposables: IDisposable[] = [];
 	private _rootSplitPane: RootSplitPane;
 	private _splitPanes: SplitPane[] = [];
+
+	// private _activeInstanceIndex: number;
 
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
@@ -164,6 +170,7 @@ export class TerminalTab implements ITerminalTab {
 		shellLaunchConfig: IShellLaunchConfig,
 		@IInstantiationService private _instantiationService: IInstantiationService
 	) {
+		super();
 		this._onDisposed = new Emitter<ITerminalTab>();
 
 		const instance = this._instantiationService.createInstance(TerminalInstance,
@@ -172,6 +179,7 @@ export class TerminalTab implements ITerminalTab {
 			undefined,
 			shellLaunchConfig);
 		this._terminalInstances.push(instance);
+		// this._activeInstanceIndex = 0;
 		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
 
 		this._rootSplitPane = new RootSplitPane();
@@ -180,6 +188,23 @@ export class TerminalTab implements ITerminalTab {
 		this._rootSplitPane.render(this._container);
 		// TODO: Is _splitPanes useful?
 		this._splitPanes.push(this._rootSplitPane);
+	}
+
+	public dispose(): void {
+		super.dispose();
+		this._terminalInstances = [];
+	}
+
+	private _onInstanceDisposed(instance: ITerminalInstance): void {
+
+		// TODO: Listen for disposed on TerminalService and handle appropriately (remove the tab and its instance from the service)
+
+		this._onDisposed.fire(this);
+		this.dispose();
+	}
+
+	public attachToElement(element: HTMLElement): void {
+		this._container = element;
 	}
 
 	public get title(): string {
@@ -191,7 +216,9 @@ export class TerminalTab implements ITerminalTab {
 	}
 
 	public setVisible(visible: boolean): void {
-		this._container.style.display = visible ? 'block' : 'none';
+		if (this._container) {
+			this._container.style.display = visible ? 'block' : 'none';
+		}
 		// TODO: probably don't need to tell terminal instances about visiblility anymore?
 		this.terminalInstances.forEach(i => i.setVisible(visible));
 	}
@@ -211,20 +238,12 @@ export class TerminalTab implements ITerminalTab {
 
 		this._rootSplitPane.orientation = Orientation.HORIZONTAL;
 		this._rootSplitPane.split(instance);
-		const pane2 = new SplitPane();
-		this._splitPanes.push(pane2);
-	}
-
-	private _onInstanceDisposed(instance: ITerminalInstance): void {
-
-		// TODO: Listen for disposed on TerminalService and handle appropriately (remove the tab and its instance from the service)
-
-		this._onDisposed.fire(this);
-		this._terminalInstances = [];
+		// const pane2 = new SplitPane();
+		// this._splitPanes.push(pane2);
 	}
 
 	public addDisposable(disposable: IDisposable): void {
-		this._disposables.push(disposable);
+		this._register(disposable);
 	}
 
 	public layout(width: number, height: number): void {

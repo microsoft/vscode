@@ -202,10 +202,16 @@ export class TerminalInstance implements ITerminalInstance {
 	 * @return The terminal's width if it requires a layout.
 	 */
 	private _evaluateColsAndRows(width: number, height: number): number {
+		// Ignore if dimensions are undefined or 0
+		if (!width || !height) {
+			return null;
+		}
+
 		const dimension = this._getDimension(width, height);
 		if (!dimension) {
 			return null;
 		}
+
 		const font = this._configHelper.getFont();
 
 		// Because xterm.js converts from CSS pixels to actual pixels through

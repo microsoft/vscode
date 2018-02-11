@@ -247,6 +247,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
+		this._terminalTabs.forEach(tab => tab.attachToElement(this._terminalContainer));
 		this._terminalInstances.forEach(terminalInstance => {
 			terminalInstance.attachToElement(this._terminalContainer);
 		});

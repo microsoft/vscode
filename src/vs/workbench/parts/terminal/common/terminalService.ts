@@ -27,11 +27,13 @@ export abstract class TerminalService implements ITerminalService {
 	protected _terminalTabs: ITerminalTab[];
 	protected abstract _terminalInstances: ITerminalInstance[];
 
+	private _activeTabIndex: number;
+	// TODO: Remove _activeTerminalInstanceIndex
 	private _activeTerminalInstanceIndex: number;
-	private _onActiveInstanceChanged: Emitter<string>;
+	private _onActiveTabChanged: Emitter<void>;
 
 	public get activeTerminalInstanceIndex(): number { return this._activeTerminalInstanceIndex; }
-	public get onActiveInstanceChanged(): Event<string> { return this._onActiveInstanceChanged.event; }
+	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
@@ -48,10 +50,11 @@ export abstract class TerminalService implements ITerminalService {
 		@IPartService private _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
+		this._activeTabIndex = 0;
 		this._activeTerminalInstanceIndex = 0;
 		this._isShuttingDown = false;
 
-		this._onActiveInstanceChanged = new Emitter<string>();
+		this._onActiveTabChanged = new Emitter<void>();
 		this._onTabDisposed = new Emitter<ITerminalTab>();
 		this._onInstanceDisposed = new Emitter<ITerminalInstance>();
 		this._onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
@@ -102,11 +105,11 @@ export abstract class TerminalService implements ITerminalService {
 
 	private _removeTab(tab: ITerminalTab): void {
 		let index = this._terminalTabs.indexOf(tab);
-		let wasActiveInstance = tab === this._getActiveTab();
+		let wasActiveTab = tab === this._getActiveTab();
 		if (index !== -1) {
 			this._terminalTabs.splice(index, 1);
 		}
-		if (wasActiveInstance && this._terminalTabs.length > 0) {
+		if (wasActiveTab && this._terminalTabs.length > 0) {
 			let newIndex = index < this._terminalTabs.length ? index : this._terminalTabs.length - 1;
 			this.setActiveInstanceByIndex(newIndex);
 			// TODO: Needs to be made to work with multiple instances in a tab
@@ -122,8 +125,8 @@ export abstract class TerminalService implements ITerminalService {
 		}
 		// TODO: This should be onTabsChanged?
 		this._onInstancesChanged.fire();
-		if (wasActiveInstance) {
-			this._onActiveInstanceChanged.fire();
+		if (wasActiveTab) {
+			this._onActiveTabChanged.fire();
 		}
 	}
 
@@ -155,6 +158,21 @@ export abstract class TerminalService implements ITerminalService {
 		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
 	}
 
+	public setActiveTabByIndex(tabIndex: number): void {
+		if (tabIndex >= this._terminalTabs.length) {
+			return;
+		}
+
+		const didTabChange = this._activeTabIndex !== tabIndex;
+		this._activeTabIndex = tabIndex;
+
+		this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+		if (didTabChange) {
+			this._onActiveTabChanged.fire();
+		}
+	}
+
+	// TODO: Remove setActiveInstanceByIndex?
 	public setActiveInstanceByIndex(terminalIndex: number): void {
 		if (terminalIndex >= this._terminalInstances.length) {
 			return;
@@ -173,7 +191,8 @@ export abstract class TerminalService implements ITerminalService {
 		// });
 		// Only fire the event if there was a change
 		if (didInstanceChange) {
-			this._onActiveInstanceChanged.fire();
+			// TODO: If this method is being kept this should only fire when the tab is actually changed
+			this._onActiveTabChanged.fire();
 		}
 	}
 

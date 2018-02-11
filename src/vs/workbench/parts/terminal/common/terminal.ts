@@ -146,7 +146,7 @@ export interface ITerminalService {
 
 	activeTerminalInstanceIndex: number;
 	configHelper: ITerminalConfigHelper;
-	onActiveInstanceChanged: Event<string>;
+	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
@@ -182,6 +182,7 @@ export interface ITerminalTab {
 	terminalInstances: ITerminalInstance[];
 	title: string;
 
+	attachToElement(element: HTMLElement): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
