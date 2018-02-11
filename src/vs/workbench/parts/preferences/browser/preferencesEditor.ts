@@ -61,6 +61,7 @@ import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -402,7 +403,8 @@ class PreferencesRenderersController extends Disposable {
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@ILogService private logService: ILogService
 	) {
 		super();
 	}
@@ -624,6 +626,7 @@ class PreferencesRenderersController extends Disposable {
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
 						this.telemetryService.publicLog('defaultSettings.searchError', { message, filter });
+						this.logService.info('Setting search error: ' + message);
 					}
 					return null;
 				}
