@@ -57,6 +57,8 @@ import { firstIndex } from 'vs/base/common/arrays';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ThrottledDelayer } from 'vs/base/common/async';
+import { HistoryNavigator } from 'vs/base/common/history';
+import { Scope } from 'vs/workbench/common/memento';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -73,6 +75,10 @@ export interface IViewModel {
 	readonly onDidChangeVisibility: Event<boolean>;
 
 	hide(repository: ISCMRepository): void;
+}
+
+export interface IRepositoryPanelViewModel extends IViewModel {
+	readonly latestCommitMessages: string[];
 }
 
 class ProvidersListDelegate implements IDelegate<ISCMRepository> {
@@ -733,6 +739,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
 	private visibilityDisposables: IDisposable[] = [];
+	private commitMessagesHistory: HistoryNavigator<string>;
 
 	get onDidChangeTitle(): Event<void> {
 		return this.menus.onDidChangeTitle;
@@ -740,7 +747,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 	constructor(
 		readonly repository: ISCMRepository,
-		private viewModel: IViewModel,
+		private viewModel: IRepositoryPanelViewModel,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IThemeService protected themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -756,6 +763,7 @@ export class RepositoryPanel extends ViewletPanel {
 	) {
 		super(repository.provider.label, {}, keybindingService, contextMenuService, configurationService);
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
+		this.commitMessagesHistory = new HistoryNavigator<string>(viewModel.latestCommitMessages);
 	}
 
 	render(container: HTMLElement): void {
@@ -795,6 +803,31 @@ export class RepositoryPanel extends ViewletPanel {
 				run: () => this.viewModel.hide(this.repository)
 			}]),
 		});
+	}
+
+	public getCommitMessagesHistory(): string[] {
+		return this.commitMessagesHistory.getHistory();
+	}
+
+	public showNextCommitMessage() {
+		let next = this.commitMessagesHistory.next();
+		if (next) {
+			this.inputBox.value = next;
+			this.layoutBody();
+		}
+	}
+
+	public showPreviousCommitMessage() {
+		let previous;
+		if (this.inputBox.value.length === 0) {
+			previous = this.commitMessagesHistory.current();
+		} else {
+			this.commitMessagesHistory.addIfNotPresent(this.inputBox.value);
+			previous = this.commitMessagesHistory.previous();
+		}
+		if (previous) {
+			this.inputBox.value = previous;
+		}
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -849,6 +882,16 @@ export class RepositoryPanel extends ViewletPanel {
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
 			.on(this.onDidAcceptInput, this, this.disposables);
+
+		chain(domEvent(this.inputBox.inputElement, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.UpArrow))
+			.on(this.showPreviousCommitMessage, this, this.disposables);
+
+		chain(domEvent(this.inputBox.inputElement, 'keydown'))
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow))
+			.on(this.showNextCommitMessage, this, this.disposables);
 
 		if (this.repository.provider.onDidChangeCommitTemplate) {
 			this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this, this.disposables);
@@ -1022,8 +1065,9 @@ class InstallAdditionalSCMProvidersAction extends Action {
 	}
 }
 
-export class SCMViewlet extends PanelViewlet implements IViewModel {
+export class SCMViewlet extends PanelViewlet implements IRepositoryPanelViewModel {
 
+	public latestCommitMessages: string[] = [];
 	private el: HTMLElement;
 	private menus: SCMMenus;
 	private mainPanel: MainPanel | null = null;
@@ -1033,6 +1077,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	private repositoryPanels: RepositoryPanel[] = [];
 	private singleRepositoryPanelTitleActionsDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
+	private viewletSettings: any;
 
 	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
@@ -1068,6 +1113,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
+		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
+		this.latestCommitMessages = this.viewletSettings['query.commitMessagesHistory'] || [];
 	}
 
 	async create(parent: Builder): TPromise<void> {
@@ -1277,6 +1324,14 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		}
 
 		this.mainPanel.hide(repository);
+	}
+
+	shutdown(): void {
+		const [panel] = this.repositoryPanels;
+		if (panel) {
+			this.viewletSettings['query.commitMessagesHistory'] = panel.getCommitMessagesHistory();
+		}
+		super.shutdown();
 	}
 
 	dispose(): void {
