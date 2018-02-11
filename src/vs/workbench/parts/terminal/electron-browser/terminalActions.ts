@@ -25,6 +25,8 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { isWindows } from 'vs/base/common/platform';
+import { nativeSep } from 'vs/base/common/paths';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -423,7 +425,9 @@ export class RunActiveFileInTerminalAction extends Action {
 			this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 			return TPromise.as(void 0);
 		}
-		instance.sendText(uri.fsPath, true);
+
+		const text = isWindows ? uri.fsPath.replace(/\\/g, nativeSep + nativeSep) : uri.fsPath;
+		instance.sendText(text, true);
 		return this.terminalService.showPanel();
 	}
 }
