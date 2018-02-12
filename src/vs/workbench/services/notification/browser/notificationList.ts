@@ -15,8 +15,8 @@ import { NotificationRenderer, NotificationsDelegate } from 'vs/workbench/servic
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
 import { Themable, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND } from 'vs/workbench/common/theme';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { contrastBorder, widgetShadow, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export class NotificationList extends Themable {
@@ -76,3 +76,10 @@ export class NotificationList extends Themable {
 		this.list.layout();
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const linkColor = theme.getColor(textLinkForeground);
+	if (linkColor) {
+		collector.addRule(`.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-message a { color: ${linkColor}; }`);
+	}
+});

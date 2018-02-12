@@ -9,15 +9,16 @@ import 'vs/css!./media/notificationList';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/services/notification/common/notificationsModel';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
-import { clearNode } from 'vs/base/browser/dom';
+import { clearNode, addClass, removeClass } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Severity } from 'vs/platform/message/common/message';
 
 export class NotificationsDelegate implements IDelegate<INotificationViewItem> {
 
 	public getHeight(element: INotificationViewItem): number {
-		return 22;
+		return 44;
 	}
 
 	public getTemplateId(element: INotificationViewItem): string {
@@ -31,6 +32,7 @@ export class NotificationsDelegate implements IDelegate<INotificationViewItem> {
 
 export interface INotificationTemplateData {
 	container: HTMLElement;
+	icon: HTMLElement;
 	message: HTMLElement;
 }
 
@@ -38,6 +40,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 
 	public static readonly ID = 'notification';
 
+	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
 	private static readonly MARKED_NOOP = (text?: string) => text || '';
 	private static readonly MARKED_NOOP_TARGETS = [
 		'blockquote', 'br', 'code', 'codespan', 'del', 'em', 'heading', 'hr', 'html',
@@ -59,16 +62,41 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 
 		// Container
 		data.container = document.createElement('div');
-		container.appendChild(data.container);
+		addClass(data.container, 'notification-list-item');
+
+		// Icon
+		data.icon = document.createElement('div');
+		addClass(data.icon, 'notification-list-item-icon');
 
 		// Message
-		data.message = document.createElement('span');
-		container.appendChild(data.message);
+		data.message = document.createElement('div');
+		addClass(data.message, 'notification-list-item-message');
+
+		container.appendChild(data.container);
+		data.container.appendChild(data.icon);
+		data.container.appendChild(data.message);
 
 		return data;
 	}
 
+	private toSeverity(severity: 'info' | 'warning' | 'error'): Severity {
+		switch (severity) {
+			case 'info':
+				return Severity.Info;
+			case 'warning':
+				return Severity.Warning;
+			case 'error':
+				return Severity.Error;
+		}
+	}
+
 	public renderElement(element: INotificationViewItem, index: number, data: INotificationTemplateData): void {
+
+		// Icon
+		NotificationRenderer.SEVERITIES.forEach(severity => {
+			const domAction = element.severity === this.toSeverity(severity) ? addClass : removeClass;
+			domAction(data.icon, `icon-${severity}`);
+		});
 
 		// Message (simple markdown with links support)
 		clearNode(data.message);

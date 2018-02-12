@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.notifications-list-container {
+.monaco-workbench > .notifications-list-container {
 	position: absolute;
 	width: 600px;
 	z-index: 1000;
@@ -12,6 +12,63 @@
 	display: none;
 }
 
-.notifications-list-container.visible {
+.monaco-workbench > .notifications-list-container.visible {
 	display: block;
+}
+
+.monaco-workbench > .notifications-list-container .monaco-list-row {
+	border-left: 3px solid grey; /* TODO make themable */
+	border-right: 3px solid grey;
+	border-bottom: 3px solid grey;
+}
+
+.monaco-workbench > .notifications-list-container .monaco-list-row:first {
+	border-top: 3px solid grey;
+}
+
+/** Notification: Container */
+
+.monaco-workbench > .notifications-list-container .notification-list-item {
+	display: flex;
+}
+
+/** Notification: Icon */
+
+.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon {
+	height: 22px;
+	margin-right: 4px;
+	margin-left: 4px;
+	background-position: center;
+	background-repeat: no-repeat;
+	flex: 0 0 16px;
+}
+
+.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon.icon-info {
+	background-image: url('notification-info.svg');
+}
+
+.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon.icon-warning {
+	background-image: url('notification-warning.svg');
+}
+
+.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon.icon-error {
+	background-image: url('notification-error.svg');
+}
+
+.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon.icon-info {
+	background-image: url('notification-info-inverse.svg');
+}
+
+.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon.icon-warning {
+	background-image: url('notification-warning-inverse.svg');
+}
+
+.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon.icon-error {
+	background-image: url('notification-error-inverse.svg');
+}
+
+/** Notification: Message */
+
+.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-message {
+
 }

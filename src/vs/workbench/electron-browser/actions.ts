@@ -1578,7 +1578,9 @@ export class ShowAboutDialogAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		this.notificationService.notify(Severity.Info, 'This is a message with a [link](https://code.visualstudio.com).');
+		this.notificationService.notify(Severity.Info, 'This is a info message with a [link](https://code.visualstudio.com).');
+		this.notificationService.notify(Severity.Warning, 'This is a warning message with a [link](https://code.visualstudio.com).');
+		this.notificationService.notify(Severity.Error, 'This is a error message with a [link](https://code.visualstudio.com).');
 
 		return TPromise.as(undefined);
 	}
