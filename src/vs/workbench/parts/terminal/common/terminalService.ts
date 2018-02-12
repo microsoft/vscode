@@ -28,12 +28,9 @@ export abstract class TerminalService implements ITerminalService {
 	protected abstract _terminalInstances: ITerminalInstance[];
 
 	private _activeTabIndex: number;
-	// TODO: Remove _activeTerminalInstanceIndex, this is owned by tab now
-	private _activeTerminalInstanceIndex: number;
 	private _onActiveTabChanged: Emitter<void>;
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
-	public get activeTerminalInstanceIndex(): number { return this._activeTerminalInstanceIndex; }
 	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
@@ -52,7 +49,6 @@ export abstract class TerminalService implements ITerminalService {
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this._activeTabIndex = 0;
-		this._activeTerminalInstanceIndex = 0;
 		this._isShuttingDown = false;
 
 		this._onActiveTabChanged = new Emitter<void>();
@@ -137,12 +133,10 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	private _getActiveTab(): ITerminalTab {
-		// TODO: TerminalService needs to track the active tab
-		// TODO: The tab should track its active instance
-		if (this.activeTerminalInstanceIndex < 0 || this.activeTerminalInstanceIndex >= this._terminalTabs.length) {
+		if (this._activeTabIndex < 0 || this._activeTabIndex >= this._terminalTabs.length) {
 			return null;
 		}
-		return this._terminalTabs[this.activeTerminalInstanceIndex];
+		return this._terminalTabs[this._activeTabIndex];
 	}
 
 	public getActiveInstance(): ITerminalInstance {
@@ -169,6 +163,7 @@ export abstract class TerminalService implements ITerminalService {
 		if (tabIndex >= this._terminalTabs.length) {
 			return;
 		}
+		console.log('setActiveTabByIndex', tabIndex);
 
 		const didTabChange = this._activeTabIndex !== tabIndex;
 		this._activeTabIndex = tabIndex;
@@ -179,61 +174,80 @@ export abstract class TerminalService implements ITerminalService {
 		}
 	}
 
+	private _getInstanceFromGlobalInstanceIndex(index: number): { tab: ITerminalTab, tabIndex: number, instance: ITerminalInstance, localInstanceIndex: number } {
+		let currentTabIndex = 0;
+		while (index >= 0 && currentTabIndex < this._terminalTabs.length) {
+			const tab = this._terminalTabs[currentTabIndex];
+			const count = tab.terminalInstances.length;
+			if (index < count) {
+				return {
+					tab,
+					tabIndex: currentTabIndex,
+					instance: tab.terminalInstances[index],
+					localInstanceIndex: index
+				};
+			}
+			index -= count;
+			currentTabIndex++;
+		}
+		return null;
+	}
+
 	// TODO: Remove setActiveInstanceByIndex?
 	public setActiveInstanceByIndex(terminalIndex: number): void {
-		if (terminalIndex >= this._terminalInstances.length) {
+		const query = this._getInstanceFromGlobalInstanceIndex(terminalIndex);
+		if (!query) {
 			return;
 		}
-		const didInstanceChange = this._activeTerminalInstanceIndex !== terminalIndex;
-		this._activeTerminalInstanceIndex = terminalIndex;
 
-		// TODO: Optimize
-		const activeInstance = this.terminalInstances[this.activeTerminalInstanceIndex];
-		this._terminalTabs.forEach((t, i) => {
-			const isTabActive = t.terminalInstances.indexOf(activeInstance) !== -1;
-			t.setVisible(isTabActive);
-			if (isTabActive) {
-				this._activeTabIndex = i;
-			}
-		});
+		console.log('setActiveInstanceByIndex', terminalIndex, query);
+		const didInstanceChange = query.tab.setActiveInstanceByIndex(query.localInstanceIndex);
+		const didTabChange = this._activeTabIndex !== query.tabIndex;
+		this._activeTabIndex = query.tabIndex;
+		this._terminalTabs.forEach((t, i) => t.setVisible(i === query.tabIndex));
 
-		// this._terminalInstances.forEach((terminalInstance, i) => {
-		// 	terminalInstance.setVisible(i === terminalIndex);
-		// });
+		// TOOD: Should this live in TerminalTab now?
 		// Only fire the event if there was a change
-		if (didInstanceChange) {
-			// TODO: If this method is being kept this should only fire when the tab is actually changed
+		if (didInstanceChange || didTabChange) {
+			// TODO: If this method is being kept this should only fire when the _tab_ is actually changed
 			this._onActiveTabChanged.fire();
 		}
 	}
 
-	public setActiveInstanceToNext(): void {
-		if (this.terminalInstances.length <= 1) {
+	public setActiveTabToNext(): void {
+		if (this._terminalTabs.length <= 1) {
 			return;
 		}
-		let newIndex = this._activeTerminalInstanceIndex + 1;
-		if (newIndex >= this.terminalInstances.length) {
+		let newIndex = this._activeTabIndex + 1;
+		if (newIndex >= this._terminalTabs.length) {
 			newIndex = 0;
 		}
-		this.setActiveInstanceByIndex(newIndex);
+		this.setActiveTabByIndex(newIndex);
 	}
 
-	public setActiveInstanceToPrevious(): void {
-		if (this.terminalInstances.length <= 1) {
+	public setActiveTabToPrevious(): void {
+		if (this._terminalTabs.length <= 1) {
 			return;
 		}
-		let newIndex = this._activeTerminalInstanceIndex - 1;
+		let newIndex = this._activeTabIndex - 1;
 		if (newIndex < 0) {
-			newIndex = this.terminalInstances.length - 1;
+			newIndex = this._terminalTabs.length - 1;
 		}
-		this.setActiveInstanceByIndex(newIndex);
+		this.setActiveTabByIndex(newIndex);
 	}
 
 	public splitInstanceVertically(instanceToSplit: ITerminalInstance): void {
+		console.log('splitting instance', instanceToSplit);
 		const tab = this._getTabForInstance(instanceToSplit);
 		if (!tab) {
 			return;
 		}
+
+		if (tab.terminalInstances.length === 2) {
+			console.warn('Only a single split in the terminal is supported currently');
+			return;
+		}
+
 		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, {});
 		// TOOD: The below should be shared with ITerminalService.createInstance
 		tab.addDisposable(tab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
@@ -242,20 +256,15 @@ export abstract class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
 		this._onInstancesChanged.fire();
 
-		// TODO: This shouldn't be needed
-		tab.setVisible(true);
+		this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
 	}
 
 	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab {
-		let instanceIndex = this._activeTabIndex;
-		let currentTabIndex = 0;
-		while (instanceIndex >= 0 && currentTabIndex < this._terminalTabs.length) {
-			const tab = this._terminalTabs[currentTabIndex];
-			const count = tab.terminalInstances.length;
-			if (instanceIndex < count) {
+		for (let i = 0; i < this._terminalTabs.length; i++) {
+			const tab = this._terminalTabs[i];
+			if (tab.terminalInstances.indexOf(instance) !== -1) {
 				return tab;
 			}
-			instanceIndex -= count;
 		}
 		return null;
 	}

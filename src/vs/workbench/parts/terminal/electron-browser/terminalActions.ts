@@ -99,9 +99,9 @@ export class QuickKillTerminalAction extends Action {
 		if (terminal) {
 			terminal.dispose();
 		}
-		if (this.terminalService.terminalInstances.length > 0 && this.terminalService.activeTerminalInstanceIndex !== terminalIndex) {
-			this.terminalService.setActiveInstanceByIndex(Math.min(terminalIndex, this.terminalService.terminalInstances.length - 1));
-		}
+		// if (this.terminalService.terminalInstances.length > 0 && this.terminalService.activeTerminalInstanceIndex !== terminalIndex) {
+		// 	this.terminalService.setActiveInstanceByIndex(Math.min(terminalIndex, this.terminalService.terminalInstances.length - 1));
+		// }
 		return TPromise.timeout(50).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
 }
@@ -352,7 +352,7 @@ export class FocusNextTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		this.terminalService.setActiveInstanceToNext();
+		this.terminalService.setActiveTabToNext();
 		return this.terminalService.showPanel(true);
 	}
 }
@@ -370,7 +370,7 @@ export class FocusPreviousTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		this.terminalService.setActiveInstanceToPrevious();
+		this.terminalService.setActiveTabToPrevious();
 		return this.terminalService.showPanel(true);
 	}
 }
@@ -481,6 +481,7 @@ export class RunActiveFileInTerminalAction extends Action {
 	}
 }
 
+// TODO: Change name to tab
 export class SwitchTerminalInstanceAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.switchTerminalInstance';
@@ -498,8 +499,8 @@ export class SwitchTerminalInstanceAction extends Action {
 		if (!item || !item.split) {
 			return TPromise.as(null);
 		}
-		const selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
-		this.terminalService.setActiveInstanceByIndex(selectedTerminalIndex);
+		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
+		this.terminalService.setActiveTabByIndex(selectedTabIndex);
 		return this.terminalService.showPanel(true);
 	}
 }

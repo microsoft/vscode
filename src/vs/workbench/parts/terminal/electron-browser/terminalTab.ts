@@ -40,9 +40,7 @@ class SplitPane implements IView {
 
 	protected branch(container: HTMLElement, orientation: Orientation, instance: ITerminalInstance): void {
 		this.orientation = orientation;
-		while (container.children.length > 0) {
-			container.removeChild(container.firstChild);
-		}
+		container.removeChild((<any>this.instance)._wrapperElement);
 
 		this._splitView = new SplitView(container, { orientation });
 		this.layout(this._size);
@@ -172,6 +170,7 @@ class RootSplitPane extends SplitPane {
 export class TerminalTab extends Disposable implements ITerminalTab {
 	private _terminalInstances: ITerminalInstance[] = [];
 	private _rootSplitPane: RootSplitPane;
+	private _tabElement: HTMLElement;
 
 	private _activeInstanceIndex: number;
 
@@ -201,8 +200,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 		this._rootSplitPane = new RootSplitPane();
 		this._rootSplitPane.instance = instance;
-		// TODO: Only render if it's visible?
-		this._rootSplitPane.render(this._container);
+
+		if (this._container) {
+			this.attachToElement(this._container);
+		}
 
 		// TODO: Listen to instance focus and update activeInstanceIndex accordingly
 	}
@@ -230,7 +231,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		// Adjust focus if the instance was active
 		if (wasActiveInstance && this._terminalInstances.length > 0) {
 			let newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
-			this._setActiveInstanceByIndex(newIndex);
+			this.setActiveInstanceByIndex(newIndex);
 			if (instance.hadFocusOnExit) {
 				this.activeInstance.focus(true);
 			}
@@ -262,13 +263,26 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		return null;
 	}
 
-	private _setActiveInstanceByIndex(index: number): void {
+	public setActiveInstanceByIndex(index: number): boolean {
+		// Check for invalid value
+		if (index >= this._terminalInstances.length) {
+			return false;
+		}
+
+		const didInstanceChange = this._activeInstanceIndex !== index;
 		this._activeInstanceIndex = index;
+
 		// TODO: Fire events like in TerminalService.setActiveInstanceByIndex?
+
+		return didInstanceChange;
 	}
 
 	public attachToElement(element: HTMLElement): void {
 		this._container = element;
+		this._tabElement = document.createElement('div');
+		this._tabElement.classList.add('terminal-tab');
+		this._container.appendChild(this._tabElement);
+		this._rootSplitPane.render(this._tabElement);
 	}
 
 	public get title(): string {
@@ -280,8 +294,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public setVisible(visible: boolean): void {
-		if (this._container) {
-			this._container.style.display = visible ? 'block' : 'none';
+		if (this._tabElement) {
+			this._tabElement.style.display = visible ? '' : 'none';
 		}
 		// TODO: probably don't need to tell terminal instances about visiblility anymore?
 		this.terminalInstances.forEach(i => i.setVisible(visible));
@@ -302,6 +316,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 		this._rootSplitPane.orientation = Orientation.HORIZONTAL;
 		this._rootSplitPane.split(instance);
+		if (this._tabElement) {
+			this._rootSplitPane.render(this._tabElement);
+		}
 		// TOOD: Set this correctly
 		this._activeInstanceIndex = 1;
 

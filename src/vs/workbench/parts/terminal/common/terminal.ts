@@ -145,7 +145,6 @@ export interface ITerminalService {
 	_serviceBrand: any;
 
 	activeTabIndex: number;
-	activeTerminalInstanceIndex: number;
 	configHelper: ITerminalConfigHelper;
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
@@ -163,10 +162,12 @@ export interface ITerminalService {
 	getActiveInstance(): ITerminalInstance;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
-	setActiveInstanceToNext(): void;
-	setActiveInstanceToPrevious(): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	splitInstanceVertically(instance: ITerminalInstance): void;
+
+	setActiveTabToNext(): void;
+	setActiveTabToPrevious(): void;
+	setActiveTabByIndex(tabIndex: number): void;
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
@@ -186,6 +187,7 @@ export interface ITerminalTab {
 	title: string;
 	onDisposed: Event<ITerminalTab>;
 
+	setActiveInstanceByIndex(index: number): void;
 	attachToElement(element: HTMLElement): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
