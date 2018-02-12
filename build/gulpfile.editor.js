@@ -22,14 +22,14 @@ var editorEntryPoints = [
 	{
 		name: 'vs/editor/editor.main',
 		include: [],
-		exclude: [ 'vs/css', 'vs/nls' ],
-		prepend: [ 'out-build/vs/css.js', 'out-build/vs/nls.js' ],
+		exclude: ['vs/css', 'vs/nls'],
+		prepend: ['out-build/vs/css.js', 'out-build/vs/nls.js'],
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
-		include: [ 'vs/editor/common/services/editorSimpleWorker' ],
-		prepend: [ 'vs/loader.js' ],
-		append: [ 'vs/base/worker/workerMain' ],
+		include: ['vs/editor/common/services/editorSimpleWorker'],
+		prepend: ['vs/loader.js'],
+		append: ['vs/base/worker/workerMain'],
 		dest: 'vs/base/worker/workerMain.js'
 	}
 ];
@@ -88,7 +88,7 @@ gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
 
 gulp.task('clean-editor-distro', util.rimraf('out-monaco-editor-core'));
-gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-editor'], function() {
+gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-editor'], function () {
 	return es.merge(
 		// other assets
 		es.merge(
@@ -99,7 +99,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 
 		// package.json
 		gulp.src('build/monaco/package.json')
-			.pipe(es.through(function(data) {
+			.pipe(es.through(function (data) {
 				var json = JSON.parse(data.contents.toString());
 				json.private = false;
 				data.contents = new Buffer(JSON.stringify(json, null, '  '));
@@ -109,7 +109,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 
 		// README.md
 		gulp.src('build/monaco/README-npm.md')
-			.pipe(es.through(function(data) {
+			.pipe(es.through(function (data) {
 				this.emit('data', new File({
 					path: data.path.replace(/README-npm\.md/, 'README.md'),
 					base: data.base,
@@ -126,10 +126,10 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 		// min folder
 		es.merge(
 			gulp.src('out-editor-min/**/*')
-		).pipe(filterStream(function(path) {
+		).pipe(filterStream(function (path) {
 			// no map files
 			return !/(\.js\.map$)|(nls\.metadata\.json$)|(bundleInfo\.json$)/.test(path);
-		})).pipe(es.through(function(data) {
+		})).pipe(es.through(function (data) {
 			// tweak the sourceMappingURL
 			if (!/\.js$/.test(data.path)) {
 				this.emit('data', data);
@@ -149,43 +149,43 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 		// min-maps folder
 		es.merge(
 			gulp.src('out-editor-min/**/*')
-		).pipe(filterStream(function(path) {
+		).pipe(filterStream(function (path) {
 			// no map files
 			return /\.js\.map$/.test(path);
 		})).pipe(gulp.dest('out-monaco-editor-core/min-maps'))
 	);
 });
 
-gulp.task('analyze-editor-distro', function() {
+gulp.task('analyze-editor-distro', function () {
 	// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 	var bundleInfo = require('../out-editor/bundleInfo.json');
 	var graph = bundleInfo.graph;
 	var bundles = bundleInfo.bundles;
 
 	var inverseGraph = {};
-	Object.keys(graph).forEach(function(module) {
+	Object.keys(graph).forEach(function (module) {
 		var dependencies = graph[module];
-		dependencies.forEach(function(dep) {
+		dependencies.forEach(function (dep) {
 			inverseGraph[dep] = inverseGraph[dep] || [];
 			inverseGraph[dep].push(module);
 		});
 	});
 
 	var detailed = {};
-	Object.keys(bundles).forEach(function(entryPoint) {
+	Object.keys(bundles).forEach(function (entryPoint) {
 		var included = bundles[entryPoint];
 		var includedMap = {};
-		included.forEach(function(included) {
+		included.forEach(function (included) {
 			includedMap[included] = true;
 		});
 
 		var explanation = [];
-		included.map(function(included) {
+		included.map(function (included) {
 			if (included.indexOf('!') >= 0) {
 				return;
 			}
 
-			var reason = (inverseGraph[included]||[]).filter(function(mod) {
+			var reason = (inverseGraph[included] || []).filter(function (mod) {
 				return !!includedMap[mod];
 			});
 			explanation.push({
@@ -201,7 +201,7 @@ gulp.task('analyze-editor-distro', function() {
 });
 
 function filterStream(testFunc) {
-	return es.through(function(data) {
+	return es.through(function (data) {
 		if (!testFunc(data.relative)) {
 			return;
 		}

@@ -24,7 +24,7 @@ function watch(root) {
 	var result = es.through();
 	var child = cp.spawn(watcherPath, [root]);
 
-	child.stdout.on('data', function(data) {
+	child.stdout.on('data', function (data) {
 		//@ts-ignore review
 		var lines = data.toString('utf8').split('\n');
 		for (var i = 0; i < lines.length; i++) {
@@ -53,11 +53,11 @@ function watch(root) {
 		}
 	});
 
-	child.stderr.on('data', function(data) {
+	child.stderr.on('data', function (data) {
 		result.emit('error', data);
 	});
 
-	child.on('exit', function(code) {
+	child.on('exit', function (code) {
 		result.emit('error', 'Watcher died with code ' + code);
 		child = null;
 	});
@@ -71,7 +71,7 @@ function watch(root) {
 
 var cache = Object.create(null);
 
-module.exports = function(pattern, options) {
+module.exports = function (pattern, options) {
 	options = options || {};
 
 	var cwd = path.normalize(options.cwd || process.cwd());
