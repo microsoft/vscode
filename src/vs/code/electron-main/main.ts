@@ -49,6 +49,7 @@ import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -290,8 +291,12 @@ function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void 
 }
 
 function main() {
-	let args: ParsedArgs;
 
+	// Set the error handler early enough so that we are not getting the
+	// default electron error dialog popping up
+	setUnexpectedErrorHandler(err => console.error(err));
+
+	let args: ParsedArgs;
 	try {
 		args = parseMainProcessArgv(process.argv);
 		args = validatePaths(args);
