@@ -31,7 +31,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
-import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData } from 'vs/platform/issue/common/issue';
+import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures } from 'vs/platform/issue/common/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { debounce } from 'vs/base/common/decorators';
@@ -39,8 +39,14 @@ import * as platform from 'vs/base/common/platform';
 
 const MAX_URL_LENGTH = 5400;
 
+interface SearchResult {
+	html_url: string;
+	title: string;
+}
+
 export interface IssueReporterConfiguration extends IWindowConfiguration {
 	data: IssueReporterData;
+	features: IssueReporterFeatures;
 }
 
 export function startup(configuration: IssueReporterConfiguration) {
@@ -55,6 +61,7 @@ export class IssueReporter extends Disposable {
 	private telemetryService: ITelemetryService;
 	private issueReporterModel: IssueReporterModel;
 	private shouldQueueSearch = true;
+	private features: IssueReporterFeatures;
 	private receivedSystemInfo = false;
 	private receivedPerformanceInfo = false;
 
@@ -77,6 +84,8 @@ export class IssueReporter extends Disposable {
 			extensionsDisabled: this.environmentService.disableExtensions,
 			reprosWithoutExtensions: false
 		});
+
+		this.features = configuration.features;
 
 		ipcRenderer.on('issuePerformanceInfoResponse', (event, info) => {
 			this.issueReporterModel.update(info);
@@ -175,15 +184,15 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.sliderBackgroundColor) {
-			content.push(`body::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
+			content.push(`.issues-container::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
 		}
 
 		if (styles.sliderActiveColor) {
-			content.push(`body::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
+			content.push(`.issues-container::-webkit-scrollbar-thumb:active, body::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
 		}
 
 		if (styles.sliderHoverColor) {
-			content.push(`body::-webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
+			content.push(`.issues-container::-webkit-scrollbar-thumb:hover, body::-webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');
@@ -321,7 +330,7 @@ export class IssueReporter extends Disposable {
 			this.issueReporterModel.update({ issueDescription: (<HTMLInputElement>event.target).value });
 		});
 
-		document.getElementById('issue-title').addEventListener('input', (e) => { this.searchGitHub(e); });
+		document.getElementById('issue-title').addEventListener('input', (e) => { this.searchIssues(e); });
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
 
@@ -405,62 +414,120 @@ export class IssueReporter extends Disposable {
 	}
 
 	@debounce(300)
-	private searchGitHub(event: Event): void {
+	private searchIssues(event: Event): void {
 		const title = (<HTMLInputElement>event.target).value;
-		const similarIssues = document.getElementById('similar-issues');
 		if (title) {
-			const query = `is:issue+repo:microsoft/vscode+${title}`;
-			window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
-				response.json().then(result => {
-					similarIssues.innerHTML = '';
-					if (result && result.items && result.items.length) {
-						const issues = $('ul');
-						const issuesText = $('div.list-title');
-						issuesText.textContent = localize('similarIssues', "Similar issues");
+			if (this.features.useDuplicateSearch) {
+				this.searchDuplicates(title);
+			} else {
+				this.searchGitHub(title);
+			}
+		} else {
+			this.clearSearchResults();
+		}
+	}
 
-						const { items } = result;
-						const numResultsToDisplay = items.length < 5 ? items.length : 5;
-						for (let i = 0; i < numResultsToDisplay; i++) {
-							const link = $('a', { href: items[i].html_url });
-							link.textContent = items[i].title;
-							link.addEventListener('click', openLink);
-							link.addEventListener('auxclick', openLink);
+	private clearSearchResults(): void {
+		const similarIssues = document.getElementById('similar-issues');
+		similarIssues.innerHTML = '';
+	}
 
-							const item = $('li', {}, link);
-							issues.appendChild(item);
-						}
+	private searchDuplicates(title: string): void {
+		// TODO: Change to HTTPS
+		const url = 'http://vscode-probot.westus.cloudapp.azure.com:5010/duplicate_candidates';
+		const init = {
+			method: 'POST',
+			body: JSON.stringify({
+				title
+			}),
+			headers: new Headers({
+				'Content-Type': 'application/json'
+			})
+		};
 
-						similarIssues.appendChild(issuesText);
-						similarIssues.appendChild(issues);
-					} else if (result && result.items) {
-						const message = $('div.list-title');
-						message.textContent = localize('noResults', "No results found");
-						similarIssues.appendChild(message);
-					} else {
-						const message = $('div.list-title');
-						message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
-						similarIssues.appendChild(message);
+		window.fetch(url, init).then((response) => {
+			response.json().then(result => {
+				this.clearSearchResults();
 
-						const resetTime = response.headers.get('X-RateLimit-Reset');
-						const timeToWait = parseInt(resetTime) - Math.floor(Date.now() / 1000);
-						if (this.shouldQueueSearch) {
-							this.shouldQueueSearch = false;
-							setTimeout(() => {
-								this.searchGitHub(event);
-								this.shouldQueueSearch = true;
-							}, timeToWait * 1000);
-						}
+				if (result && result.candidates) {
+					const normalizedResults = result.candidates.map(result => {
+						return {
+							html_url: `https://github.com/Microsoft/vscode/issues/${result.number}`,
+							title: result.title
+						};
+					});
 
-						throw new Error(result.message);
-					}
-				}).catch((error) => {
-					this.logSearchError(error);
-				});
+					this.displaySearchResults(normalizedResults);
+				} else {
+					throw new Error();
+				}
 			}).catch((error) => {
 				this.logSearchError(error);
 			});
+		}).catch((error) => {
+			this.logSearchError(error);
+		});
+	}
+
+	private searchGitHub(title: string): void {
+		const query = `is:issue+repo:microsoft/vscode+${title}`;
+		const similarIssues = document.getElementById('similar-issues');
+
+		window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
+			response.json().then(result => {
+				similarIssues.innerHTML = '';
+				if (result && result.items) {
+					this.displaySearchResults(result.items);
+				} else {
+					// If the items property isn't present, the rate limit has been hit
+					const message = $('div.list-title');
+					message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
+					similarIssues.appendChild(message);
+
+					const resetTime = response.headers.get('X-RateLimit-Reset');
+					const timeToWait = parseInt(resetTime) - Math.floor(Date.now() / 1000);
+					if (this.shouldQueueSearch) {
+						this.shouldQueueSearch = false;
+						setTimeout(() => {
+							this.searchGitHub(title);
+							this.shouldQueueSearch = true;
+						}, timeToWait * 1000);
+					}
+
+					throw new Error(result.message);
+				}
+			}).catch((error) => {
+				this.logSearchError(error);
+			});
+		}).catch((error) => {
+			this.logSearchError(error);
+		});
+	}
+
+	private displaySearchResults(results: SearchResult[]) {
+		const similarIssues = document.getElementById('similar-issues');
+		if (results.length) {
+			const issues = $('ul.issues-container');
+			const issuesText = $('div.list-title');
+			issuesText.textContent = localize('similarIssues', "Similar issues");
+
+			const numResultsToDisplay = results.length < 5 ? results.length : 5;
+			for (let i = 0; i < numResultsToDisplay; i++) {
+				const link = $('a', { href: results[i].html_url });
+				link.textContent = results[i].title;
+				link.addEventListener('click', (e) => this.openLink(e));
+				link.addEventListener('auxclick', (e) => this.openLink(<MouseEvent>e));
+
+				const item = $('li.issue', {}, link);
+				issues.appendChild(item);
+			}
+
+			similarIssues.appendChild(issuesText);
+			similarIssues.appendChild(issues);
 		} else {
-			similarIssues.innerHTML = '';
+			const message = $('div.list-title');
+			message.textContent = localize('noResults', "No results found");
+			similarIssues.appendChild(message);
 		}
 	}
 
@@ -703,6 +770,22 @@ export class IssueReporter extends Disposable {
 
 		return table;
 	}
+
+	private openLink(event: MouseEvent): void {
+		event.preventDefault();
+		event.stopPropagation();
+		// Exclude right click
+		if (event.which < 3) {
+			shell.openExternal((<HTMLAnchorElement>event.target).href);
+
+			/* __GDPR__
+				"issueReporterViewSimilarIssue" : {
+					"usingDuplicatesAPI" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('issueReporterViewSimilarIssue', { usingDuplicatesAPI: this.features.useDuplicateSearch });
+		}
+	}
 }
 
 // helper functions
@@ -712,13 +795,4 @@ function hide(el) {
 }
 function show(el) {
 	el.classList.remove('hidden');
-}
-
-function openLink(event: MouseEvent) {
-	event.preventDefault();
-	event.stopPropagation();
-	// Exclude right click
-	if (event.which < 3) {
-		shell.openExternal((<HTMLAnchorElement>event.target).href);
-	}
 }
