@@ -94,6 +94,8 @@ import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/l
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-browser/workbenchIssueService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { NotificationService } from 'vs/workbench/services/notification/browser/notificationService';
 
 /**
  * Services that we require for the Shell
@@ -400,6 +402,8 @@ export class WorkbenchShell {
 		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);
 		serviceCollection.set(IChoiceService, this.messageService);
+
+		serviceCollection.set(INotificationService, new SyncDescriptor(NotificationService, container));
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(reason => this.dispose(reason)));

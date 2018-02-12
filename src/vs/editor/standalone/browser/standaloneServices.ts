@@ -33,7 +33,7 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {
 	SimpleConfigurationService, SimpleResourceConfigurationService, SimpleMenuService, SimpleMessageService,
-	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService,
+	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService, SimpleNotificationService,
 	StandaloneTelemetryService, SimpleWorkspaceContextService
 } from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -41,6 +41,7 @@ import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -126,6 +127,8 @@ export module StaticServices {
 	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
 
 	export const messageService = define(IMessageService, () => new SimpleMessageService());
+
+	export const notificationService = define(INotificationService, () => new SimpleNotificationService());
 
 	export const markerService = define(IMarkerService, () => new MarkerService());
 

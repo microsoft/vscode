@@ -51,6 +51,7 @@ import { getDomNodePagePosition, createStyleSheet, createCSSRule } from 'vs/base
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 // --- actions
 
@@ -1571,13 +1572,15 @@ export class ShowAboutDialogAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<void> {
-		return this.windowsService.openAboutDialog();
+		this.notificationService.notify(Severity.Info, 'This is a message with a [link](https://code.visualstudio.com).');
+
+		return TPromise.as(undefined);
 	}
 }
 

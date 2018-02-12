@@ -39,6 +39,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
+import { INotificationService, INotification } from 'vs/platform/notification/common/notification';
 
 export class SimpleEditor implements IEditor {
 
@@ -277,6 +278,30 @@ export class SimpleMessageService implements IMessageService {
 				checkboxChecked: false // unsupported
 			} as IConfirmationResult;
 		});
+	}
+}
+
+export class SimpleNotificationService implements INotificationService {
+
+	public _serviceBrand: any;
+
+	private static readonly Empty: INotification = { dispose: () => undefined };
+
+	public notify(sev: Severity, message: string): INotification {
+
+		switch (sev) {
+			case Severity.Error:
+				console.error(message);
+				break;
+			case Severity.Warning:
+				console.warn(message);
+				break;
+			default:
+				console.log(message);
+				break;
+		}
+
+		return SimpleNotificationService.Empty;
 	}
 }
 
