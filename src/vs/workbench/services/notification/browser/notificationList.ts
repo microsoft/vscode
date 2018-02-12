@@ -64,6 +64,20 @@ export class NotificationList extends Themable {
 			{ ariaLabel: localize('notificationsList', "Notifications List") } as IListOptions<INotificationViewItem>
 		);
 
+		this.list.onOpen(notifications => {
+			const notification = notifications.elements[0];
+			const index = notifications.indexes[0];
+
+			if (notification.expanded) {
+				notification.collapse();
+			} else {
+				notification.expand();
+			}
+
+			this.list.splice(index, 1, [notification]);
+			this.list.layout();
+		});
+
 		this.container.appendChild(this.listContainer);
 
 		this.updateStyles();

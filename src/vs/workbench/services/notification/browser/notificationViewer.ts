@@ -18,7 +18,7 @@ import { Severity } from 'vs/platform/message/common/message';
 export class NotificationsDelegate implements IDelegate<INotificationViewItem> {
 
 	public getHeight(element: INotificationViewItem): number {
-		return 44;
+		return element.expanded ? 70 : 35;
 	}
 
 	public getTemplateId(element: INotificationViewItem): string {

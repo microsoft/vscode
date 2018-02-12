@@ -109,7 +109,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 			return text;
 
 		} else {
-			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
+			return `<a href="#" data-href="${href}" title="${title || href}">${text}</a>`;
 		}
 	};
 	renderer.paragraph = (text): string => {

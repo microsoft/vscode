@@ -17,19 +17,20 @@
 }
 
 .monaco-workbench > .notifications-list-container .monaco-list-row {
-	border-left: 3px solid grey; /* TODO make themable */
-	border-right: 3px solid grey;
-	border-bottom: 3px solid grey;
+	border-left: 2px solid grey; /* TODO make themable */
+	border-right: 2px solid grey;
+	border-bottom: 2px solid grey;
 }
 
 .monaco-workbench > .notifications-list-container .monaco-list-row:first {
-	border-top: 3px solid grey;
+	border-top: 2px solid grey;
 }
 
 /** Notification: Container */
 
 .monaco-workbench > .notifications-list-container .notification-list-item {
 	display: flex;
+	padding: 5px;
 }
 
 /** Notification: Icon */
@@ -40,6 +41,7 @@
 	margin-left: 4px;
 	background-position: center;
 	background-repeat: no-repeat;
+	background-size: cover;
 	flex: 0 0 16px;
 }
 
@@ -70,5 +72,6 @@
 /** Notification: Message */
 
 .monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-message {
-
+	white-space: normal;
+	line-height: 22px;
 }
