@@ -9,7 +9,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
 import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
-import { marked } from 'vs/base/common/marked/marked';
+import { marked, MarkedRenderer } from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface RenderOptions {
@@ -18,6 +18,7 @@ export interface RenderOptions {
 	actionCallback?: (content: string, event?: IMouseEvent) => void;
 	codeBlockRenderer?: (modeId: string, value: string) => Thenable<string>;
 	codeBlockRenderCallback?: () => void;
+	joinRendererConfiguration?: (renderer: MarkedRenderer) => void;
 }
 
 function createElement(options: RenderOptions): HTMLElement {
@@ -154,6 +155,10 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 				options.actionCallback(href, event);
 			}
 		});
+	}
+
+	if (options.joinRendererConfiguration) {
+		options.joinRendererConfiguration(renderer);
 	}
 
 	element.innerHTML = marked(markdown.value, {

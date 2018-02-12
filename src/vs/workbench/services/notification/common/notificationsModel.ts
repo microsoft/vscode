@@ -6,6 +6,7 @@
 'use strict';
 
 import { Severity } from 'vs/platform/message/common/message';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export class INotificationsModel {
 
@@ -17,12 +18,12 @@ export class NotificationsModel implements INotificationsModel {
 
 export class INotificationViewItem {
 	readonly severity: Severity;
-	readonly message: string;
+	readonly message: IMarkdownString;
 }
 
 export class NotificationViewItem implements INotificationViewItem {
 
-	constructor(private _severity: Severity, private _message: string) {
+	constructor(private _severity: Severity, private _message: IMarkdownString) {
 
 	}
 
@@ -30,7 +31,7 @@ export class NotificationViewItem implements INotificationViewItem {
 		return this._severity;
 	}
 
-	public get message(): string {
+	public get message(): IMarkdownString {
 		return this._message;
 	}
 }
