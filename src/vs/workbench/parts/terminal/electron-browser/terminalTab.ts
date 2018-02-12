@@ -238,8 +238,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 		this._rootSplitPane.orientation = Orientation.HORIZONTAL;
 		this._rootSplitPane.split(instance);
-		// const pane2 = new SplitPane();
-		// this._splitPanes.push(pane2);
 	}
 
 	public addDisposable(disposable: IDisposable): void {
