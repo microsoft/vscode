@@ -7,6 +7,7 @@
 
 import { Severity } from 'vs/platform/message/common/message';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IAction } from 'vs/base/common/actions';
 
 export class INotificationsModel {
 
@@ -20,15 +21,17 @@ export interface INotificationViewItem {
 	readonly severity: Severity;
 	readonly message: IMarkdownString;
 	readonly expanded: boolean;
+	readonly source: string;
+	readonly actions: IAction[];
 
 	expand(): void;
 	collapse(): void;
 }
 
 export class NotificationViewItem implements INotificationViewItem {
-	private _expanded: boolean;
+	private _expanded: boolean = false;
 
-	constructor(private _severity: Severity, private _message: IMarkdownString) {
+	constructor(private _severity: Severity, private _message: IMarkdownString, private _source: string, private _actions: IAction[]) {
 	}
 
 	public get expanded(): boolean {
@@ -41,6 +44,14 @@ export class NotificationViewItem implements INotificationViewItem {
 
 	public get message(): IMarkdownString {
 		return this._message;
+	}
+
+	public get source(): string {
+		return this._source;
+	}
+
+	public get actions(): IAction[] {
+		return this._actions;
 	}
 
 	public expand(): void {

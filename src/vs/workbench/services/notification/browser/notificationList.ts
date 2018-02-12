@@ -18,6 +18,7 @@ import { Themable, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND } from 'vs
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, widgetShadow, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { Action } from 'vs/base/common/actions';
 
 export class NotificationList extends Themable {
 	private listContainer: HTMLElement;
@@ -86,7 +87,17 @@ export class NotificationList extends Themable {
 	public show(severity: Severity, notification: string): void {
 		addClass(this.listContainer, 'visible');
 
-		this.list.splice(0, 0, [new NotificationViewItem(severity, { value: notification, isTrusted: true } as IMarkdownString)]);
+		this.list.splice(0, 0, [
+			new NotificationViewItem(
+				severity,
+				{ value: notification, isTrusted: true } as IMarkdownString,
+				'VS Code Core',
+				[
+					new Action('id.reload', 'Reload Window', null, true, () => { console.log('Reload Window'); return void 0; }),
+					new Action('id.cancel', 'Cancel', null, true, () => { console.log('Cancel'); return void 0; })
+				]
+			)
+		]);
 		this.list.layout();
 	}
 }
@@ -94,6 +105,6 @@ export class NotificationList extends Themable {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const linkColor = theme.getColor(textLinkForeground);
 	if (linkColor) {
-		collector.addRule(`.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-message a { color: ${linkColor}; }`);
+		collector.addRule(`.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-message a { color: ${linkColor}; }`);
 	}
 });

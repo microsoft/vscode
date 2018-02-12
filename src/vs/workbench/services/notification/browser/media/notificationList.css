@@ -29,13 +29,18 @@
 /** Notification: Container */
 
 .monaco-workbench > .notifications-list-container .notification-list-item {
-	display: flex;
 	padding: 5px;
+}
+
+/** Notification: Main Row */
+
+.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-main-row {
+	display: flex;
 }
 
 /** Notification: Icon */
 
-.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon {
+.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon {
 	height: 22px;
 	margin-right: 4px;
 	margin-left: 4px;
@@ -45,33 +50,64 @@
 	flex: 0 0 16px;
 }
 
-.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon.icon-info {
+.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
 	background-image: url('notification-info.svg');
 }
 
-.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon.icon-warning {
+.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning {
 	background-image: url('notification-warning.svg');
 }
 
-.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon.icon-error {
+.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error {
 	background-image: url('notification-error.svg');
 }
 
-.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon.icon-info {
+.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
 	background-image: url('notification-info-inverse.svg');
 }
 
-.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon.icon-warning {
+.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning {
 	background-image: url('notification-warning-inverse.svg');
 }
 
-.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-icon.icon-error {
+.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error {
 	background-image: url('notification-error-inverse.svg');
 }
 
 /** Notification: Message */
 
-.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-message {
-	white-space: normal;
+.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-message {
 	line-height: 22px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-workbench > .notifications-list-container .notification-list-item.expanded > .notification-list-item-message {
+	white-space: normal;
+}
+
+/** Notification: Details Row */
+
+.monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-details-row {
+	display: flex;
+	align-items: center;
+}
+
+/** Notification: Source */
+
+.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-source {
+	opacity: 0.7;
+	flex: 1;
+	font-size: 12px;
+}
+
+/** Notification: Actions */
+
+.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-actions-container .monaco-button {
+	max-width: fit-content;
+	padding: 5px;
+}
+
+.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-actions-container .monaco-button:not(:first-of-type) {
+	margin-left: 5px;
 }
