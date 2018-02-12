@@ -1039,9 +1039,13 @@ export class RepositoryPanel extends ViewletPanel {
 
 		const id = this.repository.provider.acceptInputCommand.id;
 		const args = this.repository.provider.acceptInputCommand.arguments;
+		const commitMessage = this.inputBox.value;
+		const onCommited = () => {
+			this.commitMessagesHistory.add(commitMessage);
+		};
 
 		this.commandService.executeCommand(id, ...args)
-			.done(undefined, onUnexpectedError);
+			.done(onCommited, onUnexpectedError);
 	}
 
 	dispose(): void {
