@@ -89,10 +89,13 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 }
 
 export class LocalSearchProvider implements ISearchProvider {
-	private _filter: string;
-
-	constructor(filter: string) {
-		this._filter = filter;
+	constructor(private _filter: string) {
+		// Remove " and : which are likely to be copypasted as part of a setting name.
+		// Leave other special characters which the user might want to search for.
+		this._filter = this._filter
+			.replace(/[":]/g, ' ')
+			.replace(/  /g, ' ')
+			.trim();
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
