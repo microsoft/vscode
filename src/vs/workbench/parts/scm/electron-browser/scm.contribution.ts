@@ -80,7 +80,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 'all',
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},
-		'scm.diffGutterWidth': {
+		'scm.diffDecorationsGutterWidth': {
 			type: 'number',
 			enum: [1, 2, 3, 4, 5],
 			default: 3,
