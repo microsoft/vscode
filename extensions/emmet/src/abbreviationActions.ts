@@ -253,12 +253,14 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			if (propertyNode.terminatorToken
 				&& propertyNode.separator
 				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
-				&& position.isBeforeOrEqual(propertyNode.terminatorToken.start)) {
+				&& position.isBeforeOrEqual(propertyNode.terminatorToken.start)
+				&& abbreviation.indexOf(':') === -1) {
 				return hexColorRegex.test(abbreviation);
 			}
 			if (!propertyNode.terminatorToken
 				&& propertyNode.separator
-				&& position.isAfterOrEqual(propertyNode.separatorToken.end)) {
+				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
+				&& abbreviation.indexOf(':') === -1) {
 				return hexColorRegex.test(abbreviation);
 			}
 		}
