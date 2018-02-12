@@ -1525,27 +1525,42 @@ function getContext(listWidget: ListWidget, viewletService: IViewletService): IE
 
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
 // It should be the other way around, that actions call into commands.
+function openExplorerAndRunAction(accessor: ServicesAccessor, isFolderAction: boolean): TPromise<any> {
+	const instantationService = accessor.get(IInstantiationService);
+	const listService = accessor.get(IListService);
+	const viewletService = accessor.get(IViewletService);
+	const activeViewlet = viewletService.getActiveViewlet();
+	let explorerPromise = TPromise.as(activeViewlet);
+	if (!activeViewlet || activeViewlet.getId() !== VIEWLET_ID) {
+		explorerPromise = viewletService.openViewlet(VIEWLET_ID, true);
+	}
+
+	return explorerPromise.then((explorer: ExplorerViewlet) => {
+		const explorerView = explorer.getExplorerView();
+		if (explorerView && explorerView.isVisible() && explorerView.isExpanded()) {
+			explorerView.focus();
+			const explorerContext = getContext(listService.lastFocusedList, viewletService);
+			const constructor = isFolderAction ? NewFolderAction : NewFileAction;
+			const action = instantationService.createInstance(constructor, listService.lastFocusedList, explorerContext.stat);
+
+			return action.run(explorerContext);
+		}
+
+		return undefined;
+	});
+}
+
 CommandsRegistry.registerCommand({
 	id: NEW_FILE_COMMAND_ID,
 	handler: (accessor) => {
-		const instantationService = accessor.get(IInstantiationService);
-		const listService = accessor.get(IListService);
-		const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-		const newFileAction = instantationService.createInstance(NewFileAction, listService.lastFocusedList, explorerContext.stat);
-
-		return newFileAction.run(explorerContext);
+		return openExplorerAndRunAction(accessor, false);
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: NEW_FOLDER_COMMAND_ID,
 	handler: (accessor) => {
-		const instantationService = accessor.get(IInstantiationService);
-		const listService = accessor.get(IListService);
-		const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-		const newFolderAction = instantationService.createInstance(NewFolderAction, listService.lastFocusedList, explorerContext.stat);
-
-		return newFolderAction.run(explorerContext);
+		return openExplorerAndRunAction(accessor, true);
 	}
 });
 
