@@ -158,7 +158,7 @@ export class StartDebugActionItem implements IActionItem {
 		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		manager.getLaunches().forEach(launch =>
 			launch.getConfigurationNames().forEach(name => {
-				if (name === manager.selectedName && launch === manager.selectedLaunch) {
+				if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
 					this.selected = this.options.length;
 				}
 				const label = inWorkspace ? `${name} (${launch.name})` : name;

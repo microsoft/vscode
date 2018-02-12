@@ -11,6 +11,7 @@ import * as resources from 'vs/base/common/resources';
 import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 import { IRange } from 'vs/editor/common/core/range';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Schemas } from 'vs/base/common/network';
 
 const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
@@ -76,7 +77,7 @@ export class Source {
 		let processId: string;
 
 		switch (modelUri.scheme) {
-			case 'file':
+			case Schemas.file:
 				path = paths.normalize(modelUri.fsPath, true);
 				break;
 			case DEBUG_SCHEME:

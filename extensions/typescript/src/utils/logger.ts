@@ -10,7 +10,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 export default class Logger {
-	private _output: OutputChannel;
+	private _output?: OutputChannel;
 
 	private get output(): OutputChannel {
 		if (!this._output) {

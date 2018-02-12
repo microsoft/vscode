@@ -26,7 +26,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
-import { TitleControl, ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
@@ -35,7 +35,7 @@ import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platf
 import { Themable, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { EditorAreaDropHandler } from 'vs/workbench/browser/parts/editor/editorAreaDropHandler';
+import { ResourcesDropHandler, LocalSelectionTransfer, DraggedEditorIdentifier } from 'vs/workbench/browser/dnd';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export enum Rochade {
@@ -136,6 +136,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	private onStacksChangeScheduler: RunOnceScheduler;
 	private stacksChangedBuffer: IStacksModelChangeEvent[];
+
+	private transfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
 	constructor(
 		parent: Builder,
@@ -1064,7 +1066,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		}
 
 		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
-			$this.updateFromDropping(node, false);
+			$this.updateFromDragAndDrop(node, false);
 			cleanUp();
 
 			const editorService = $this.editorService;
@@ -1074,8 +1076,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			const freeGroup = (stacks.groups.length === 1) ? Position.TWO : Position.THREE;
 
 			// Check for transfer from title control
-			const draggedEditor = TitleControl.getDraggedEditor();
-			if (draggedEditor) {
+			if ($this.transfer.hasData(DraggedEditorIdentifier.prototype)) {
+				const draggedEditor = $this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
 				const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
 				// Copy editor to new location
@@ -1114,7 +1116,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 			// Check for URI transfer
 			else {
-				const dropHandler = $this.instantiationService.createInstance(EditorAreaDropHandler);
+				const dropHandler = $this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
 				dropHandler.handleDrop(e, () => {
 					if (splitEditor && splitTo !== freeGroup) {
 						groupService.moveGroup(freeGroup, splitTo);
@@ -1129,7 +1131,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			const target = <HTMLElement>e.target;
 			const overlayIsSplit = typeof overlay.getProperty(splitToPropertyKey) === 'number';
 			const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
-			const draggedEditor = TitleControl.getDraggedEditor();
+			const draggedEditor = $this.transfer.hasData(DraggedEditorIdentifier.prototype) ? $this.transfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
 
 			const overlaySize = $this.layoutVertically ? target.clientWidth : target.clientHeight;
 			const splitThreshold = overlayIsSplit ? overlaySize / 5 : overlaySize / 10;
@@ -1234,7 +1236,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 							// update the dropEffect, otherwise it would look like a "move" operation. but only if we are
 							// not dragging a tab actually because there we support both moving as well as copying
-							if (!TabsTitleControl.getDraggedEditor()) {
+							if (!$this.transfer.hasData(DraggedEditorIdentifier.prototype)) {
 								e.dataTransfer.dropEffect = 'copy';
 							}
 
@@ -1268,14 +1270,14 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				DOM.EventHelper.stop(e, true);
 				onDrop(e, Position.ONE);
 			} else {
-				this.updateFromDropping(node, false);
+				this.updateFromDragAndDrop(node, false);
 			}
 		}));
 
 		// Drag enter
 		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
 		this.toUnbind.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
-			if (!TitleControl.getDraggedEditor()) {
+			if (!$this.transfer.hasData(DraggedEditorIdentifier.prototype)) {
 				// we used to check for the dragged resources here (via dnd.extractResources()) but this
 				// seems to be not possible on Linux and Windows where during DRAG_ENTER the resources
 				// are always undefined up until they are dropped when dragged from the tree. The workaround
@@ -1286,7 +1288,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			}
 
 			counter++;
-			this.updateFromDropping(node, true);
+			this.updateFromDragAndDrop(node, true);
 
 			const target = <HTMLElement>e.target;
 			if (target) {
@@ -1296,7 +1298,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				createOverlay(target);
 
 				if (overlay) {
-					this.updateFromDropping(node, false); // if we show an overlay, we can remove the drop feedback from the editor background
+					this.updateFromDragAndDrop(node, false); // if we show an overlay, we can remove the drop feedback from the editor background
 				}
 			}
 		}));
@@ -1305,7 +1307,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.toUnbind.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			counter--;
 			if (counter === 0) {
-				this.updateFromDropping(node, false);
+				this.updateFromDragAndDrop(node, false);
 			}
 		}));
 
@@ -1313,7 +1315,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		[node, window].forEach(container => {
 			this.toUnbind.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_END, (e: DragEvent) => {
 				counter = 0;
-				this.updateFromDropping(node, false);
+				this.updateFromDragAndDrop(node, false);
 				cleanUp();
 			}));
 		});
@@ -1571,16 +1573,18 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		}
 	}
 
-	private updateFromDropping(element: HTMLElement, isDropping: boolean): void {
+	private updateFromDragAndDrop(element: HTMLElement, isDraggedOver: boolean): void {
 		const groupCount = this.stacks.groups.length;
-		const background = this.getColor(isDropping ? EDITOR_DRAG_AND_DROP_BACKGROUND : groupCount > 0 ? EDITOR_GROUP_BACKGROUND : null);
+		const background = this.getColor(isDraggedOver ? EDITOR_DRAG_AND_DROP_BACKGROUND : groupCount > 0 ? EDITOR_GROUP_BACKGROUND : null);
 		element.style.backgroundColor = background;
 
 		const activeContrastBorderColor = this.getColor(activeContrastBorder);
-		element.style.outlineColor = isDropping ? activeContrastBorderColor : null;
-		element.style.outlineStyle = isDropping && activeContrastBorderColor ? 'dashed' : null;
-		element.style.outlineWidth = isDropping && activeContrastBorderColor ? '2px' : null;
-		element.style.outlineOffset = isDropping && activeContrastBorderColor ? '-2px' : null;
+		element.style.outlineColor = isDraggedOver ? activeContrastBorderColor : null;
+		element.style.outlineStyle = isDraggedOver && activeContrastBorderColor ? 'dashed' : null;
+		element.style.outlineWidth = isDraggedOver && activeContrastBorderColor ? '2px' : null;
+		element.style.outlineOffset = isDraggedOver && activeContrastBorderColor ? '-2px' : null;
+
+		DOM.toggleClass(element, 'dragged-over', isDraggedOver);
 	}
 
 	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number, borderLeftTopWidth?: string | number): void {

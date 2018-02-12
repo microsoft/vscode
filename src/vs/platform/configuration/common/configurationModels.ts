@@ -397,14 +397,6 @@ export class Configuration {
 		return this._folderConfigurations;
 	}
 
-	private get memory(): ConfigurationModel {
-		return this._memoryConfiguration;
-	}
-
-	private get memoryByResource(): StrictResourceMap<ConfigurationModel> {
-		return this._memoryConfigurationByResource;
-	}
-
 	private getConsolidateConfigurationModel(overrides: IConfigurationOverrides, workspace: Workspace): ConfigurationModel {
 		let configurationModel = this.getConsolidatedConfigurationModelForResource(overrides, workspace);
 		return overrides.overrideIdentifier ? configurationModel.override(overrides.overrideIdentifier) : configurationModel;

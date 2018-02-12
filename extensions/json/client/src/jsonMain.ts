@@ -8,11 +8,9 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorInformation, Color, ColorPresentation, LanguageConfiguration } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, LanguageConfiguration } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
-import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
-import { DocumentColorRequest, DocumentColorParams, ColorPresentationParams, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { hash } from './utils/hash';
 
@@ -44,8 +42,8 @@ interface Settings {
 		format?: { enable: boolean; };
 	};
 	http?: {
-		proxy: string;
-		proxyStrictSSL: boolean;
+		proxy?: string;
+		proxyStrictSSL?: boolean;
 	};
 }
 
@@ -55,13 +53,14 @@ interface JSONSchemaSettings {
 	schema?: any;
 }
 
+let telemetryReporter: TelemetryReporter | undefined;
+
 export function activate(context: ExtensionContext) {
 
 	let toDispose = context.subscriptions;
 
 	let packageInfo = getPackageInfo(context);
-	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
-	toDispose.push(telemetryReporter);
+	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
@@ -95,7 +94,7 @@ export function activate(context: ExtensionContext) {
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('json', localize('jsonserver.name', 'JSON Language Server'), serverOptions, clientOptions);
-	client.registerFeature(new ConfigurationFeature(client));
+	client.registerProposedFeatures();
 
 	let disposable = client.start();
 	toDispose.push(disposable);
@@ -125,37 +124,6 @@ export function activate(context: ExtensionContext) {
 		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
-
-		// register color provider
-		toDispose.push(languages.registerColorProvider(documentSelector, {
-			provideDocumentColors(document: TextDocument): Thenable<ColorInformation[]> {
-				let params: DocumentColorParams = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
-				};
-				return client.sendRequest(DocumentColorRequest.type, params).then(symbols => {
-					return symbols.map(symbol => {
-						let range = client.protocol2CodeConverter.asRange(symbol.range);
-						let color = new Color(symbol.color.red, symbol.color.green, symbol.color.blue, symbol.color.alpha);
-						return new ColorInformation(range, color);
-					});
-				});
-			},
-			provideColorPresentations(color: Color, context): Thenable<ColorPresentation[]> {
-				let params: ColorPresentationParams = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(context.document),
-					color: color,
-					range: client.code2ProtocolConverter.asRange(context.range)
-				};
-				return client.sendRequest(ColorPresentationRequest.type, params).then(presentations => {
-					return presentations.map(p => {
-						let presentation = new ColorPresentation(p.label);
-						presentation.textEdit = p.textEdit && client.protocol2CodeConverter.asTextEdit(p.textEdit);
-						presentation.additionalTextEdits = p.additionalTextEdits && client.protocol2CodeConverter.asTextEdits(p.additionalTextEdits);
-						return presentation;
-					});
-				});
-			}
-		}));
 	});
 
 	let languageConfiguration: LanguageConfiguration = {
@@ -167,6 +135,10 @@ export function activate(context: ExtensionContext) {
 	};
 	languages.setLanguageConfiguration('json', languageConfiguration);
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
+}
+
+export function deactivate(): Promise<any> {
+	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }
 
 function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
@@ -225,14 +197,14 @@ function getSettings(): Settings {
 			let schemaSetting = schemaSettingsById[url];
 			if (!schemaSetting) {
 				schemaSetting = schemaSettingsById[url] = { url, fileMatch: [] };
-				settings.json.schemas.push(schemaSetting);
+				settings.json!.schemas!.push(schemaSetting);
 			}
 			let fileMatches = setting.fileMatch;
 			if (Array.isArray(fileMatches)) {
 				if (fileMatchPrefix) {
 					fileMatches = fileMatches.map(m => fileMatchPrefix + m);
 				}
-				schemaSetting.fileMatch.push(...fileMatches);
+				schemaSetting.fileMatch!.push(...fileMatches);
 			}
 			if (setting.schema) {
 				schemaSetting.schema = setting.schema;
@@ -250,7 +222,7 @@ function getSettings(): Settings {
 		for (let folder of folders) {
 			let folderUri = folder.uri;
 			let schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
-			let folderSchemas = schemaConfigInfo.workspaceFolderValue;
+			let folderSchemas = schemaConfigInfo!.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
 				let folderPath = folderUri.toString();
 				if (folderPath[folderPath.length - 1] !== '/') {
@@ -275,7 +247,7 @@ function getSchemaId(schema: JSONSchemaSettings, rootPath?: string) {
 	return url;
 }
 
-function getPackageInfo(context: ExtensionContext): IPackageInfo {
+function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
 	let extensionPackage = require(context.asAbsolutePath('./package.json'));
 	if (extensionPackage) {
 		return {
@@ -284,5 +256,5 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo {
 			aiKey: extensionPackage.aiKey
 		};
 	}
-	return null;
+	return void 0;
 }

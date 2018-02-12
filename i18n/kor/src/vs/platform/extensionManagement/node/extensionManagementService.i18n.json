@@ -13,6 +13,7 @@
 	"cancel": "취소",
 	"errorInstallingDependencies": "의존성 설치 중 오류가 발생했습니다. {0}",
 	"notFoundCompatible": "'{0}'을(를) 설치할 수 없습니다; VS Code '{1}'과 호환되는 버전이 없습니다.",
+	"malicious extension": "문제가 있다고 보고되었으므로 확장을 설치할 수 없습니다.",
 	"notFoundCompatibleDependency": "VS Code의 현재 버전 '{1}'과(와) 호환되는 종속된 확장 '{0}'을(를) 찾을 수 없으므로 설치할 수 없습니다.",
 	"quitCode": "확장을 설치할 수 없습니다. 다시 설치하기 위해 VS Code를 종료하고 다시 시작하십시오.",
 	"exitCode": "확장을 설치할 수 없습니다. 다시 설치하기 전에 VS 코드를 종료한 후 다시 시작하십시오. ",

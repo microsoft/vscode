@@ -225,8 +225,8 @@ export class ConfigurationManager implements IConfigurationManager {
 	private adapters: Adapter[];
 	private breakpointModeIdsSet = new Set<string>();
 	private launches: ILaunch[];
-	private _selectedName: string;
-	private _selectedLaunch: ILaunch;
+	private selectedName: string;
+	private selectedLaunch: ILaunch;
 	private toDispose: IDisposable[];
 	private _onDidSelectConfigurationName = new Emitter<void>();
 	private providers: IDebugConfigurationProvider[];
@@ -368,8 +368,8 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.launches.push(this.instantiationService.createInstance(WorkspaceLaunch, this));
 		}
 
-		if (this.launches.indexOf(this._selectedLaunch) === -1) {
-			this._selectedLaunch = undefined;
+		if (this.launches.indexOf(this.selectedLaunch) === -1) {
+			this.selectedLaunch = undefined;
 		}
 	}
 
@@ -390,12 +390,11 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.launches;
 	}
 
-	public get selectedLaunch(): ILaunch {
-		return this._selectedLaunch;
-	}
-
-	public get selectedName(): string {
-		return this._selectedName;
+	public get selectedConfiguration(): { launch: ILaunch, name: string } {
+		return {
+			launch: this.selectedLaunch,
+			name: this.selectedName
+		};
 	}
 
 	public get onDidSelectConfiguration(): Event<void> {
@@ -411,20 +410,20 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public selectConfiguration(launch?: ILaunch, name?: string, debugStarted?: boolean): void {
-		const previousLaunch = this._selectedLaunch;
-		const previousName = this._selectedName;
+		const previousLaunch = this.selectedLaunch;
+		const previousName = this.selectedName;
 
 		if (!launch) {
 			launch = this.selectedLaunch && this.selectedLaunch.getConfigurationNames().length ? this.selectedLaunch : first(this.launches, l => !!l.getConfigurationNames().length, this.launches.length ? this.launches[0] : undefined);
 		}
 
-		this._selectedLaunch = launch;
+		this.selectedLaunch = launch;
 		const names = launch ? launch.getConfigurationNames() : [];
 		if (name && names.indexOf(name) >= 0) {
-			this._selectedName = name;
+			this.selectedName = name;
 		}
 		if (names.indexOf(this.selectedName) === -1) {
-			this._selectedName = names.length ? names[0] : undefined;
+			this.selectedName = names.length ? names[0] : undefined;
 		}
 
 		if (this.selectedLaunch !== previousLaunch || this.selectedName !== previousName) {
@@ -491,8 +490,8 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	private store(): void {
 		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.selectedName, StorageScope.WORKSPACE);
-		if (this._selectedLaunch) {
-			this.storageService.store(DEBUG_SELECTED_ROOT, this._selectedLaunch.uri.toString(), StorageScope.WORKSPACE);
+		if (this.selectedLaunch) {
+			this.storageService.store(DEBUG_SELECTED_ROOT, this.selectedLaunch.uri.toString(), StorageScope.WORKSPACE);
 		}
 	}
 
@@ -621,7 +620,7 @@ class Launch implements ILaunch {
 			if (!content) {
 				return undefined;
 			}
-			const index = content.indexOf(`"${this.configurationManager.selectedName}"`);
+			const index = content.indexOf(`"${this.configurationManager.selectedConfiguration.name}"`);
 			let startLineNumber = 1;
 			for (let i = 0; i < index; i++) {
 				if (content.charAt(i) === '\n') {

@@ -24,5 +24,6 @@
 	"useIgnoreFiles": "Controla se utiliza arquivos .gitignore e .ignore por padrão ao fazer pesquisas de arquivos.",
 	"search.quickOpen.includeSymbols": "Configurar para incluir resultados de uma pesquisa símbolo global nos resultados do arquivo para Abertura Rápida.",
 	"search.followSymlinks": "Controla quando seguir symlinks ao realizar uma busca.",
-	"search.smartCase": "Faz pesquisas do tipo case-insensitive se o termo for totalmente minúsculo, caso contrário, faz pesquisas do tipo case-sensitive."
+	"search.smartCase": "Faz pesquisas do tipo case-insensitive se o termo for totalmente minúsculo, caso contrário, faz pesquisas do tipo case-sensitive.",
+	"search.globalFindClipboard": "Controla se a ferramenta Pesquisa deve ler ou modificar a área de transferência de localização compartilhada no macOS"
 }

@@ -52,6 +52,8 @@
 	"configureWorkspaceRecommendedExtensions": "Ajánlott kiegészítők konfigurálása (munkaterületre vonatkozóan)",
 	"configureWorkspaceFolderRecommendedExtensions": "Ajánlott kiegészítők konfigurálása (munkaterület-mappára vonatkozóan)",
 	"builtin": "Beépített",
+	"malicious tooltip": "A kiegészítőt korábban problémásnak jelezték.",
+	"malicious": "Rosszindulatú",
 	"disableAll": "Összes telepített kiegészítő letiltása",
 	"disableAllWorkspace": "Összes telepített kiegészítő letiltása a munkaterületre vonatkozóan",
 	"enableAll": "Összes telepített kiegészítő engedélyezése",

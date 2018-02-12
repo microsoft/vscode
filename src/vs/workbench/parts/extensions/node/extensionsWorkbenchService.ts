@@ -645,7 +645,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private promptForDependenciesAndEnable(extension: IExtension, dependencies: IExtension[], enablementState: EnablementState, enable: boolean): TPromise<any> {
-		const message = nls.localize('enableDependeciesConfirmation', "Enabling '{0}' also enable its dependencies. Would you like to continue?", extension.displayName);
+		const message = nls.localize('enableDependeciesConfirmation', "Enabling '{0}' also enables its dependencies. Would you like to continue?", extension.displayName);
 		const options = [
 			nls.localize('enable', "Yes"),
 			nls.localize('doNotEnable', "No")
@@ -939,8 +939,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const extensionId = match[1];
 
 		this.queryLocal().then(local => {
-			if (local.some(local => local.id === extensionId)) {
-				return TPromise.as(null);
+			const extension = local.filter(local => local.id === extensionId)[0];
+
+			if (extension) {
+				return this.windowService.show()
+					.then(() => this.open(extension));
 			}
 
 			return this.queryGallery({ names: [extensionId], source: 'uri' }).then(result => {

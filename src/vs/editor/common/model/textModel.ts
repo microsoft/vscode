@@ -44,7 +44,7 @@ export enum TextBufferType {
 }
 // Here is the master switch for the text buffer implementation:
 export const OPTIONS = {
-	TEXT_BUFFER_IMPLEMENTATION: TextBufferType.LinesArray
+	TEXT_BUFFER_IMPLEMENTATION: TextBufferType.PieceTree
 };
 
 function createTextBufferBuilder() {

@@ -14,6 +14,7 @@
 	"reuseWindow": "强制打开上一个活动窗口中的文件或文件夹。",
 	"wait": "等文件关闭后再返回。",
 	"locale": "要使用的区域设置(例如 en-US 或 zh-TW)。",
+	"userDataDir": "指定保存用户数据的目录。可用于打开多个不同的 Code 实例。",
 	"version": "打印版本。",
 	"help": "打印使用情况。",
 	"extensionHomePath": "设置扩展的根路径。",

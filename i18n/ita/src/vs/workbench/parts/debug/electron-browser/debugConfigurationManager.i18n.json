@@ -32,8 +32,12 @@
 	"app.launch.json.configurations": "Elenco delle configurazioni. Aggiungere nuove configurazioni o modificare quelle esistenti con IntelliSense.",
 	"app.launch.json.compounds": "Elenco degli elementi compounds. Ogni elemento compounds fa riferimento a più configurazioni che verranno avviate insieme.",
 	"app.launch.json.compound.name": "Nome dell'elemento compounds. Viene visualizzato nel menu a discesa della configurazione di avvio.",
+	"useUniqueNames": "Usare nomi di configurazione univoci.",
+	"app.launch.json.compound.folder": "Nome della cartella in cui si trova l'elemento compounds.",
 	"app.launch.json.compounds.configurations": "Nomi delle configurazioni che verranno avviate per questo elemento compounds.",
 	"debugNoType": "L'adattatore di debug 'type' non può essere omesso e deve essere di tipo 'string'.",
 	"selectDebug": "Seleziona ambiente",
-	"DebugConfig.failed": "Non è possibile creare il file 'launch.json' all'interno della cartella '.vscode' ({0})."
+	"DebugConfig.failed": "Non è possibile creare il file 'launch.json' all'interno della cartella '.vscode' ({0}).",
+	"workspace": "area di lavoro",
+	"user settings": "impostazioni utente"
 }

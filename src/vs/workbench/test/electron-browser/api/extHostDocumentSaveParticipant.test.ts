@@ -298,7 +298,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 
 			// concurrent change from somewhere
-			documents.$acceptModelChanged(resource.toString(), {
+			documents.$acceptModelChanged(resource, {
 				changes: [{
 					range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 					rangeLength: undefined,
@@ -332,7 +332,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 					const { resource, edits } = edit;
 					const uri = URI.revive(resource);
 					for (const { text, range } of edits) {
-						documents.$acceptModelChanged(uri.toString(), {
+						documents.$acceptModelChanged(uri, {
 							changes: [{
 								range,
 								text,

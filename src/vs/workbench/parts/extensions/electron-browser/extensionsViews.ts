@@ -12,7 +12,7 @@ import { assign } from 'vs/base/common/objects';
 import { chain } from 'vs/base/common/event';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
-import { PagedModel, IPagedModel, mergePagers, IPager } from 'vs/base/common/paging';
+import { PagedModel, IPagedModel, IPager } from 'vs/base/common/paging';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -36,6 +36,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ExtensionsListView extends ViewsViewletPanel {
 
@@ -58,9 +59,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@IEditorGroupService private editorInputService: IEditorGroupService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IModeService private modeService: IModeService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
+		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
 	}
 
 	renderHeader(container: HTMLElement): void {
@@ -79,7 +81,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = this.instantiationService.createInstance(WorkbenchPagedList, this.extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions")
-		});
+		}) as WorkbenchPagedList<IExtension>;
 
 		chain(this.list.onOpen)
 			.map(e => e.elements[0])
@@ -214,15 +216,11 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			return this.getRecommendationsModel(query, options);
 		}
 
-		const pagerPromises: TPromise<IPager<IExtension>>[] = [];
 		let text = query.value;
 		const extensionRegex = /\bext:([^\s]+)\b/g;
 
 		if (extensionRegex.test(query.value)) {
-			let names: string[] = [];
-
 			text = query.value.replace(extensionRegex, (m, ext) => {
-				names.push(...this.tipsService.getRecommendationsForExtension(ext));
 
 				// Get curated keywords
 				const keywords = this.tipsService.getKeywordsForExtension(ext);
@@ -236,9 +234,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 				return `tag:"__ext_${ext}" tag:"__ext_.${ext}" ${keywords.map(tag => `tag:"${tag}"`).join(' ')}${languageTag} tag:"${ext}"`;
 			});
 
-			if (names.length) {
-				const namesOptions = assign({}, options, { names, source: 'extRegex' });
-				pagerPromises.push(this.extensionsWorkbenchService.queryGallery(namesOptions));
+			if (text !== query.value) {
+				options = assign(options, { text: text.substr(0, 350), source: 'file-extension-tags' });
+				const pager = await this.extensionsWorkbenchService.queryGallery(options);
+				return new PagedModel(pager);
 			}
 		}
 
@@ -248,11 +247,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			options.source = 'viewlet';
 		}
 
-		pagerPromises.push(this.extensionsWorkbenchService.queryGallery(options));
-
-		const pagers = await TPromise.join(pagerPromises);
-		const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
-
+		const pager = await this.extensionsWorkbenchService.queryGallery(options);
 		return new PagedModel(pager);
 	}
 

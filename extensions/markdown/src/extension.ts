@@ -9,7 +9,7 @@ import { MarkdownEngine } from './markdownEngine';
 import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
 import { Logger } from './logger';
 import { CommandManager } from './commandManager';
-import * as commands from './commands';
+import * as commands from './commands/index';
 import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { loadMarkdownExtensions } from './markdownExtensions';
 import LinkProvider from './features/documentLinkProvider';

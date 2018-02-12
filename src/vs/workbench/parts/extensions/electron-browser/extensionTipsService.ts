@@ -43,7 +43,7 @@ interface IExtensionsContent {
 
 const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
-const choiceNever = localize('neverShowAgain', "Don't show again");
+const choiceNever = localize('neverShowAgain', "Don't Show Again");
 const choiceClose = localize('close', "Close");
 
 interface IDynamicWorkspaceRecommendations {
@@ -277,7 +277,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			}
 		});
 
-		const allRecommendations = [];
+		const allRecommendations: string[] = [];
 		forEach(this._availableRecommendations, ({ value: ids }) => {
 			allRecommendations.push(...ids);
 		});
@@ -613,7 +613,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const homeDir = os.homedir();
 		let foundExecutables: Set<string> = new Set<string>();
 
-		let findExecutable = (exeName, path) => {
+		let findExecutable = (exeName: string, path: string) => {
 			return pfs.fileExists(path).then(exists => {
 				if (exists && !foundExecutables.has(exeName)) {
 					foundExecutables.add(exeName);
@@ -679,7 +679,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			this._dynamicWorkspaceRecommendations = storedRecommendationsJson['recommendations'];
 			/* __GDPR__
 				"dynamicWorkspaceRecommendations" : {
-					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
@@ -722,7 +722,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 										}), StorageScope.WORKSPACE);
 										/* __GDPR__
 											"dynamicWorkspaceRecommendations" : {
-												"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+												"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 												"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 											}
 										*/

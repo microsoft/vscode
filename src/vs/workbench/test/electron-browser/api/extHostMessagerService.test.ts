@@ -11,6 +11,30 @@ import { MainThreadMessageService } from 'vs/workbench/api/electron-browser/main
 import { TPromise as Promise } from 'vs/base/common/winjs.base';
 import { IMessageService, IChoiceService } from 'vs/platform/message/common/message';
 
+const emptyChoiceService = new class implements IChoiceService {
+	_serviceBrand: 'choiceService';
+	choose(severity, message, options, modal): never {
+		throw new Error('not implemented');
+	}
+};
+
+
+const emptyMesssageService = new class implements IMessageService {
+	_serviceBrand: 'messageService';
+	show(...args: any[]): never {
+		throw new Error('not implemented');
+	}
+	hideAll(): void {
+		throw new Error('not implemented.');
+	}
+	confirm(confirmation): never {
+		throw new Error('not implemented.');
+	}
+	confirmWithCheckbox(confirmation): never {
+		throw new Error('not implemented.');
+	}
+};
+
 suite('ExtHostMessageService', function () {
 
 	test('propagte handle on select', function () {
@@ -21,11 +45,7 @@ suite('ExtHostMessageService', function () {
 				setImmediate(() => m.actions[0].run());
 				return () => { };
 			}
-		} as IMessageService, {
-			choose(severity, message, options, modal) {
-				throw new Error('not implemented');
-			}
-		} as IChoiceService);
+		} as IMessageService, emptyChoiceService);
 
 		return service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]).then(handle => {
 			assert.equal(handle, 42);
@@ -39,11 +59,7 @@ suite('ExtHostMessageService', function () {
 			show(sev: number, m: { actions: Action[] }) {
 				actions = m.actions;
 			}
-		} as IMessageService, {
-			choose(severity, message, options, modal) {
-				throw new Error('not implemented');
-			}
-		} as IChoiceService);
+		} as IMessageService, emptyChoiceService);
 
 		// default close action
 		service.$showMessage(1, '', {}, [{ title: 'a thing', isCloseAffordance: false, handle: 0 }]);
@@ -71,11 +87,7 @@ suite('ExtHostMessageService', function () {
 					c += 1;
 				};
 			}
-		} as IMessageService, {
-			choose(severity, message, options, modal) {
-				throw new Error('not implemented');
-			}
-		} as IChoiceService);
+		} as IMessageService, emptyChoiceService);
 
 		service.$showMessage(1, '', {}, [{ title: 'a thing', isCloseAffordance: true, handle: 0 }]);
 		assert.equal(actions.length, 1);
@@ -86,11 +98,7 @@ suite('ExtHostMessageService', function () {
 
 	suite('modal', () => {
 		test('calls choice service', () => {
-			const service = new MainThreadMessageService(null, {
-				show(sev: number, m: { actions: Action[] }) {
-					throw new Error('not implemented');
-				}
-			} as IMessageService, {
+			const service = new MainThreadMessageService(null, emptyMesssageService, {
 				choose(severity, message, options, modal) {
 					assert.equal(severity, 1);
 					assert.equal(message, 'h');
@@ -106,11 +114,7 @@ suite('ExtHostMessageService', function () {
 		});
 
 		test('returns undefined when cancelled', () => {
-			const service = new MainThreadMessageService(null, {
-				show(sev: number, m: { actions: Action[] }) {
-					throw new Error('not implemented');
-				}
-			} as IMessageService, {
+			const service = new MainThreadMessageService(null, emptyMesssageService, {
 				choose(severity, message, options, modal) {
 					return Promise.as(1);
 				}
@@ -122,11 +126,7 @@ suite('ExtHostMessageService', function () {
 		});
 
 		test('hides Cancel button when not needed', () => {
-			const service = new MainThreadMessageService(null, {
-				show(sev: number, m: { actions: Action[] }) {
-					throw new Error('not implemented');
-				}
-			} as IMessageService, {
+			const service = new MainThreadMessageService(null, emptyMesssageService, {
 				choose(severity, message, options, modal) {
 					assert.equal(options.length, 1);
 					return Promise.as(0);

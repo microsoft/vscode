@@ -58,6 +58,7 @@ import { IIssueService } from 'vs/platform/issue/common/issue';
 import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 
 export class CodeApplication {
 
@@ -90,26 +91,8 @@ export class CodeApplication {
 	private registerListeners(): void {
 
 		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
-		process.on('uncaughtException', (err: any) => {
-			if (err) {
-
-				// take only the message and stack property
-				const friendlyError = {
-					message: err.message,
-					stack: err.stack
-				};
-
-				// handle on client side
-				if (this.windowsMainService) {
-					this.windowsMainService.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
-				}
-			}
-
-			this.logService.error(`[uncaught exception in main]: ${err}`);
-			if (err.stack) {
-				this.logService.error(err.stack);
-			}
-		});
+		setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
+		process.on('uncaughtException', err => this.onUnexpectedError(err));
 
 		app.on('will-quit', () => {
 			this.logService.trace('App#will-quit: disposing resources');
@@ -238,6 +221,27 @@ export class CodeApplication {
 				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
 			}
 		});
+	}
+
+	private onUnexpectedError(err: Error): void {
+		if (err) {
+
+			// take only the message and stack property
+			const friendlyError = {
+				message: err.message,
+				stack: err.stack
+			};
+
+			// handle on client side
+			if (this.windowsMainService) {
+				this.windowsMainService.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
+			}
+		}
+
+		this.logService.error(`[uncaught exception in main]: ${err}`);
+		if (err.stack) {
+			this.logService.error(err.stack);
+		}
 	}
 
 	private onBroadcast(event: string, payload: any): void {

@@ -8,6 +8,7 @@ import URI from 'vs/base/common/uri';
 import platform = require('vs/base/common/platform');
 import { nativeSep, normalize, isEqualOrParent, isEqual, basename as pathsBasename, join } from 'vs/base/common/paths';
 import { endsWith, ltrim } from 'vs/base/common/strings';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): { uri: URI };
@@ -29,7 +30,7 @@ export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFo
 		resource = URI.file(resource);
 	}
 
-	if (resource.scheme !== 'file' && resource.scheme !== 'untitled') {
+	if (resource.scheme !== Schemas.file && resource.scheme !== Schemas.untitled) {
 		return resource.with({ query: null, fragment: null }).toString(true);
 	}
 

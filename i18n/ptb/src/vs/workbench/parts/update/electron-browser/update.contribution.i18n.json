@@ -8,5 +8,6 @@
 	],
 	"release notes": "Notas da versão",
 	"updateConfigurationTitle": "Atualizar",
-	"updateChannel": "Configurar se você recebe atualizações automáticas de um canal de atualização. Requer uma reinicialização depois da mudança."
+	"updateChannel": "Configurar se você recebe atualizações automáticas de um canal de atualização. Requer uma reinicialização depois da mudança.",
+	"enableWindowsBackgroundUpdates": "Ativa as atualizações no plano de fundo no Windows."
 }

@@ -12,6 +12,7 @@
 	"dropFolder": "작업 영역에 폴더를 추가하시겠습니까?",
 	"addFolders": "폴더 추가(&&A)",
 	"addFolder": "폴더 추가(&&A)",
+	"confirmMultiMove": "다음 {0}개 파일을 이동하시겠습니까?",
 	"confirmMove": "'{0}'을(를) 이동하시겠습니까?",
 	"doNotAskAgain": "이 메시지를 다시 표시 안 함",
 	"moveButtonLabel": "이동(&&M)",

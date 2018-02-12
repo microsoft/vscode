@@ -39,11 +39,11 @@ export class MockDebugService implements debug.IDebugService {
 	public focusStackFrame(focusedStackFrame: debug.IStackFrame): void {
 	}
 
-	public addBreakpoints(uri: uri, rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
+	public addBreakpoints(uri: uri, rawBreakpoints: debug.IBreakpointData[]): TPromise<void> {
 		return TPromise.as(null);
 	}
 
-	public updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): void { }
+	public updateBreakpoints(uri: uri, data: { [id: string]: debug.IBreakpointUpdateData }): void { }
 
 	public enableOrDisableBreakpoints(enabled: boolean): TPromise<void> {
 		return TPromise.as(null);

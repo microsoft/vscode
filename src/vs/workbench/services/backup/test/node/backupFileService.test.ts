@@ -22,6 +22,7 @@ import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/work
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { snapshotToString } from 'vs/platform/files/common/files';
+import { Schemas } from 'vs/base/common/network';
 
 const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(parentDir, 'Backups');
@@ -31,7 +32,7 @@ const workspaceResource = Uri.file(platform.isWindows ? 'c:\\workspace' : '/work
 const workspaceBackupPath = path.join(backupHome, crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex'));
 const fooFile = Uri.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
 const barFile = Uri.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
-const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
+const untitledFile = Uri.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
 const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
 const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
@@ -80,7 +81,7 @@ suite('BackupFileService', () => {
 
 		test('should get the correct backup path for untitled files', () => {
 			// Format should be: <backupHome>/<workspaceHash>/<scheme>/<filePath>
-			const backupResource = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
+			const backupResource = Uri.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;

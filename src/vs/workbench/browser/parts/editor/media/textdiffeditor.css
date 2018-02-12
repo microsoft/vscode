@@ -22,17 +22,19 @@
 }
 
 .vs .monaco-workbench .textdiff-editor-action.toggleIgnoreTrimWhitespace {
-	background: url('IgnoreTrimWhiteSpace_16x.svg') center center no-repeat;
+	opacity: 1;
+	background: url('Paragraph_16x_nohalo.svg') center center no-repeat;
 }
 .vs-dark .monaco-workbench .textdiff-editor-action.toggleIgnoreTrimWhitespace,
 .hc-black .monaco-workbench .textdiff-editor-action.toggleIgnoreTrimWhitespace {
-	background: url('IgnoreTrimWhiteSpace_16x_inverse.svg	') center center no-repeat;
+	opacity: 1;
+	background: url('Paragraph_16x_nohalo_inversep.svg') center center no-repeat;
 }
 
 .vs .monaco-workbench .textdiff-editor-action.toggleIgnoreTrimWhitespace.is-checked {
-	background: url('IgnoreTrimWhiteSpaceChecked_16x.svg') center center no-repeat;
+	opacity: 0.5;
 }
 .vs-dark .monaco-workbench .textdiff-editor-action.toggleIgnoreTrimWhitespace.is-checked,
 .hc-black .monaco-workbench .textdiff-editor-action.toggleIgnoreTrimWhitespace.is-checked {
-	background: url('IgnoreTrimWhiteSpaceChecked_16x_inverse.svg	') center center no-repeat;
+	opacity: 0.5;
 }

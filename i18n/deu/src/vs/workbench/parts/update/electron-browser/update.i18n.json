@@ -20,6 +20,9 @@
 	"noUpdatesAvailable": "Zurzeit sind keine Updates verfügbar.",
 	"download now": "Jetzt herunterladen",
 	"thereIsUpdateAvailable": "Ein Update ist verfügbar.",
+	"installUpdate": "Update installieren",
+	"updateAvailable": "Ein Update ist verfügbar: {0} {1}",
+	"updateInstalling": "{0} {1} wird im Hintergrund installiert. Wir informieren Sie, wenn dies abgeschlossen ist.",
 	"updateNow": "Jetzt aktualisieren",
 	"updateAvailableAfterRestart": "{0} wird nach dem Neustart aktualisiert.",
 	"commandPalette": "Befehlspalette...",
@@ -31,6 +34,7 @@
 	"checkForUpdates": "Nach Aktualisierungen suchen...",
 	"checkingForUpdates": "Überprüfen auf Updates...",
 	"DownloadingUpdate": "Das Update wird heruntergeladen...",
+	"installUpdate...": "Update installieren …",
 	"installingUpdate": "Update wird installiert...",
 	"restartToUpdate": "Für Update neu starten..."
 }

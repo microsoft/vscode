@@ -6,7 +6,7 @@
 		"vscode": "*"
 	},
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js tgjones/shaders-tmLanguage grammars/shaderlab.json ./syntaxes/shaderlab.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js tgjones/shaders-tmLanguage grammars/shaderlab.json ./syntaxes/shaderlab.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [
@@ -25,7 +25,7 @@
 		"grammars": [
 			{
 				"language": "shaderlab",
-				"path": "./syntaxes/shaderlab.json",
+				"path": "./syntaxes/shaderlab.tmLanguage.json",
 				"scopeName": "source.shaderlab"
 			}
 		]

@@ -125,15 +125,18 @@ class MultipleSelectionController<T> implements IMultipleSelectionController<T> 
 	}
 }
 
-class OpenController implements IOpenController {
+class WorkbenchOpenController implements IOpenController {
 
 	constructor(private configurationService: IConfigurationService) { }
 
 	shouldOpen(event: UIEvent): boolean {
 		if (event instanceof MouseEvent) {
 			const isDoubleClick = event.detail === 2;
+			if (!useSingleClickToOpen(this.configurationService) && !isDoubleClick) {
+				return false;
+			}
 
-			return useSingleClickToOpen(this.configurationService) || isDoubleClick;
+			return event.button === 0 /* left mouse button */ || event.button === 1 /* middle mouse button */;
 		}
 
 		return true;
@@ -145,14 +148,14 @@ function handleListControllers<T>(options: IListOptions<T>, configurationService
 		options.multipleSelectionController = new MultipleSelectionController(configurationService);
 	}
 
-	options.openController = new OpenController(configurationService);
+	options.openController = new WorkbenchOpenController(configurationService);
 
 	return options;
 }
 
 function handleTreeController(configuration: ITreeConfiguration, instantiationService: IInstantiationService): ITreeConfiguration {
 	if (!configuration.controller) {
-		configuration.controller = instantiationService.createInstance(WorkbenchTreeController, { clickBehavior: ClickBehavior.ON_MOUSE_UP });
+		configuration.controller = instantiationService.createInstance(WorkbenchTreeController, {});
 	}
 
 	return configuration;
@@ -176,7 +179,7 @@ export class WorkbenchList<T> extends List<T> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false } as IListOptions<any>, false));
+		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false, selectOnMouseDown: true } as IListOptions<any>, false));
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
@@ -224,7 +227,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false } as IListOptions<any>, false));
+		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false, selectOnMouseDown: true } as IListOptions<any>, false));
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
@@ -324,6 +327,18 @@ export class WorkbenchTree extends Tree {
 	}
 }
 
+function massageControllerOptions(options: IControllerOptions): IControllerOptions {
+	if (typeof options.keyboardSupport !== 'boolean') {
+		options.keyboardSupport = false;
+	}
+
+	if (typeof options.clickBehavior !== 'number') {
+		options.clickBehavior = ClickBehavior.ON_MOUSE_DOWN;
+	}
+
+	return options;
+}
+
 export class WorkbenchTreeController extends DefaultController {
 
 	protected disposables: IDisposable[] = [];
@@ -332,7 +347,7 @@ export class WorkbenchTreeController extends DefaultController {
 		options: IControllerOptions,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(options);
+		super(massageControllerOptions(options));
 
 		// if the open mode is not set, we configure it based on settings
 		if (isUndefinedOrNull(options.openMode)) {

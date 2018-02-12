@@ -63,6 +63,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'showItemInFolder', arg: string): TPromise<void>;
 	call(command: 'openExternal', arg: string): TPromise<boolean>;
 	call(command: 'startCrashReporter', arg: CrashReporterStartOptions): TPromise<void>;
+	call(command: 'openAboutDialog'): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -142,6 +143,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'showItemInFolder': return this.service.showItemInFolder(arg);
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
+			case 'openAboutDialog': return this.service.openAboutDialog();
 		}
 		return undefined;
 	}
@@ -344,5 +346,9 @@ export class WindowsChannelClient implements IWindowsService {
 
 	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void> {
 		return this.channel.call('updateTouchBar', [windowId, items]);
+	}
+
+	openAboutDialog(): TPromise<void> {
+		return this.channel.call('openAboutDialog');
 	}
 }

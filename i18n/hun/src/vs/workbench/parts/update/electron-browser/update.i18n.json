@@ -20,6 +20,9 @@
 	"noUpdatesAvailable": "Jelenleg nincs elérhető frissítés.",
 	"download now": "Letöltés most",
 	"thereIsUpdateAvailable": "Van elérhető frissítés.",
+	"installUpdate": "Frissítés telepítése",
+	"updateAvailable": "Frissítés érhető el: {0} {1}",
+	"updateInstalling": "{0} {1} a háttérben települ. Jelzünk, ha elkészült.",
 	"updateNow": "Frissítés most",
 	"updateAvailableAfterRestart": "A {0} frissül az újraindítás után.",
 	"commandPalette": "Parancskatalógus...",
@@ -31,6 +34,7 @@
 	"checkForUpdates": "Frissítések keresése...",
 	"checkingForUpdates": "Frissítések keresése...",
 	"DownloadingUpdate": "Frissítés letöltése...",
+	"installUpdate...": "Frissítés telepítése...",
 	"installingUpdate": "Frissítés telepítése...",
 	"restartToUpdate": "Újraindítás a frissítéshez..."
 }

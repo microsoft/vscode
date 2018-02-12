@@ -14,6 +14,7 @@
 	"reuseWindow": "Forza l'apertura di un file o di una cartella nell'ultima finestra attiva.",
 	"wait": "Attendere la chiusura dei file prima della restituzione.",
 	"locale": "Impostazioni locali da usare, ad esempio en-US o it-IT.",
+	"userDataDir": "Consente di specificare la directory in cui si trovano i dati utente. Può essere usata per aprire più istanze diverse di Code.",
 	"version": "Visualizza la versione.",
 	"help": "Visualizza la sintassi.",
 	"extensionHomePath": "Impostare il percorso radice per le estensioni.",

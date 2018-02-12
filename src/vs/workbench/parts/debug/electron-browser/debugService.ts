@@ -122,7 +122,7 @@ export class DebugService implements debug.IDebugService {
 		this.model = new Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
-		this.viewModel = new ViewModel();
+		this.viewModel = new ViewModel(contextKeyService);
 		this.firstSessionStart = true;
 
 		this.registerListeners();
@@ -580,7 +580,7 @@ export class DebugService implements debug.IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	public addBreakpoints(uri: uri, rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
+	public addBreakpoints(uri: uri, rawBreakpoints: debug.IBreakpointData[]): TPromise<void> {
 		this.model.addBreakpoints(uri, rawBreakpoints);
 		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, uri.fsPath)));
 
@@ -642,7 +642,8 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public addWatchExpression(name: string): void {
-		return this.model.addWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name);
+		const we = this.model.addWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name);
+		this.viewModel.setSelectedExpression(we);
 	}
 
 	public renameWatchExpression(id: string, newName: string): void {
@@ -657,7 +658,7 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug = false, topCompoundName?: string): TPromise<any> {
+	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
 
 		// make sure to save all files and that the configuration is up to date
 		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(root).then(() =>
@@ -673,17 +674,13 @@ export class DebugService implements debug.IDebugService {
 
 				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {
-					configOrName = this.configurationManager.selectedName;
+					configOrName = this.configurationManager.selectedConfiguration.name;
 				}
 				if (typeof configOrName === 'string' && launch) {
 					config = launch.getConfiguration(configOrName);
 					compound = launch.getCompound(configOrName);
 				} else if (typeof configOrName !== 'string') {
 					config = configOrName;
-				}
-				if (launch) {
-					// in the drop down the name of the top most compound takes precedence over the launch config name
-					this.configurationManager.selectConfiguration(launch, topCompoundName || (typeof configOrName === 'string' ? configOrName : undefined), true);
 				}
 
 				if (compound) {
@@ -708,7 +705,7 @@ export class DebugService implements debug.IDebugService {
 								rootForName = launch.workspace;
 							} else {
 								return TPromise.wrapError(new Error(launchesContainingName.length === 0 ? nls.localize('noConfigurationNameInWorkspace', "Could not find launch configuration '{0}' in the workspace.", name)
-									: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurates `{0}` in the workspace. Use folder name to qualify the configuration.", name)));
+									: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurations `{0}` in the workspace. Use folder name to qualify the configuration.", name)));
 							}
 						} else if (configData.folder) {
 							const root = this.contextService.getWorkspace().folders.filter(f => f.name === configData.folder).pop();
@@ -719,7 +716,7 @@ export class DebugService implements debug.IDebugService {
 							}
 						}
 
-						return this.startDebugging(rootForName, name, noDebug, topCompoundName || compound.name);
+						return this.startDebugging(rootForName, name, noDebug);
 					}));
 				}
 				if (configOrName && !config) {
@@ -757,7 +754,9 @@ export class DebugService implements debug.IDebugService {
 								return this.createProcess(root, config, sessionId);
 							}
 
-							return undefined;
+							if (launch) {
+								return launch.openConfigFile(false, type).done(undefined, errors.onUnexpectedError);
+							}
 						})
 					).then(() => wrapUpState(), err => {
 						wrapUpState();
@@ -768,7 +767,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId: string): TPromise<void> {
-		const launch = root ? this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === root.uri.toString()).pop() : this.configurationManager.selectedLaunch;
+		const launch = root ? this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === root.uri.toString()).pop() : undefined;
 		return this.textFileService.saveAll().then(() =>
 			(launch ? launch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
@@ -1063,9 +1062,11 @@ export class DebugService implements debug.IDebugService {
 					setTimeout(() => {
 						// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
 						let config = process.configuration;
-						if (this.launchJsonChanged && this.configurationManager.selectedLaunch) {
+
+						const launch = this.configurationManager.getLaunches().filter(l => l.workspace && process.session.root && l.workspace.uri.toString() === process.session.root.uri.toString()).pop();
+						if (this.launchJsonChanged && launch) {
 							this.launchJsonChanged = false;
-							config = this.configurationManager.selectedLaunch.getConfiguration(process.configuration.name) || config;
+							config = launch.getConfiguration(process.configuration.name) || config;
 							// Take the type from the process since the debug extension might overwrite it #21316
 							config.type = process.configuration.type;
 							config.noDebug = process.configuration.noDebug;

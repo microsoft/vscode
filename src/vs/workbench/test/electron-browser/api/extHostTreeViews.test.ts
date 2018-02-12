@@ -27,7 +27,7 @@ suite('ExtHostTreeView', function () {
 
 		onRefresh = new Emitter<{ [treeItemHandle: string]: ITreeItem }>();
 
-		$registerView(treeViewId: string): void {
+		$registerTreeViewDataProvider(treeViewId: string): void {
 		}
 
 		$refresh(viewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): void {
@@ -72,7 +72,7 @@ suite('ExtHostTreeView', function () {
 		testObject.registerTreeDataProvider('testNodeTreeProvider', aNodeTreeDataProvider());
 		testObject.registerTreeDataProvider('testNodeWithIdTreeProvider', aNodeWithIdTreeDataProvider());
 
-		testObject.$getElements('testNodeTreeProvider').then(elements => {
+		testObject.$getChildren('testNodeTreeProvider').then(elements => {
 			for (const element of elements) {
 				testObject.$getChildren('testNodeTreeProvider', element.handle);
 			}
@@ -80,7 +80,7 @@ suite('ExtHostTreeView', function () {
 	});
 
 	test('construct node tree', () => {
-		return testObject.$getElements('testNodeTreeProvider')
+		return testObject.$getChildren('testNodeTreeProvider')
 			.then(elements => {
 				const actuals = elements.map(e => e.handle);
 				assert.deepEqual(actuals, ['0/0:a', '0/0:b']);
@@ -108,7 +108,7 @@ suite('ExtHostTreeView', function () {
 	});
 
 	test('construct id tree', () => {
-		return testObject.$getElements('testNodeWithIdTreeProvider')
+		return testObject.$getChildren('testNodeWithIdTreeProvider')
 			.then(elements => {
 				const actuals = elements.map(e => e.handle);
 				assert.deepEqual(actuals, ['1/a', '1/b']);
@@ -139,7 +139,7 @@ suite('ExtHostTreeView', function () {
 		tree['a'] = {
 			'a': {}
 		};
-		return testObject.$getElements('testNodeWithIdTreeProvider')
+		return testObject.$getChildren('testNodeWithIdTreeProvider')
 			.then(elements => {
 				const actuals = elements.map(e => e.handle);
 				assert.deepEqual(actuals, ['1/a', '1/b']);
@@ -300,7 +300,7 @@ suite('ExtHostTreeView', function () {
 
 		onDidChangeTreeNode.fire();
 
-		return testObject.$getElements('testNodeTreeProvider')
+		return testObject.$getChildren('testNodeTreeProvider')
 			.then(elements => {
 				assert.deepEqual(elements.map(e => e.handle), ['0/0:a//0:b']);
 			});
@@ -338,7 +338,7 @@ suite('ExtHostTreeView', function () {
 		tree['f'] = {};
 		tree[dupItems['adup2']] = {};
 
-		return testObject.$getElements('testNodeTreeProvider')
+		return testObject.$getChildren('testNodeTreeProvider')
 			.then(elements => {
 				const actuals = elements.map(e => e.handle);
 				assert.deepEqual(actuals, ['0/0:a', '0/0:b', '0/1:a', '0/0:d', '0/1:b', '0/0:f', '0/2:a']);

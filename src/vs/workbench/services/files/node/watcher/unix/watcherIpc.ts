@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWatcherRequest, IWatcherService } from './watcher';
+import { IWatcherRequest, IWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 
 export interface IWatcherChannel extends IChannel {
 	call(command: 'watch', request: IWatcherRequest): TPromise<void>;

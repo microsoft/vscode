@@ -8,9 +8,15 @@
 	],
 	"openLogsFolder": "Protokollordner öffnen",
 	"showLogs": "Protokolle anzeigen...",
+	"rendererProcess": "Fenster ({0})",
 	"emptyWindow": "Fenster",
 	"extensionHost": "Erweiterungshost",
+	"sharedProcess": "Freigegeben",
+	"mainProcess": "Haupt",
+	"selectProcess": "Protokoll für Prozess auswählen",
+	"openLogFile": "Protokolldatei öffnen …",
 	"setLogLevel": "Protokollstufe festlegen",
+	"trace": "Nachverfolgen",
 	"debug": "Debuggen",
 	"info": "Info",
 	"warn": "Warnung",
@@ -18,5 +24,7 @@
 	"critical": "Kritisch",
 	"off": "Aus",
 	"selectLogLevel": "Protokollstufe auswählen",
-	"default": "Standard"
+	"default and current": "Standard und aktuell",
+	"default": "Standard",
+	"current": "Aktuell"
 }

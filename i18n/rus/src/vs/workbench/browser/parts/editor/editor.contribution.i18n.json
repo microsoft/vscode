@@ -22,6 +22,7 @@
 	"closeAllUnmodified": "Закрыть без изменений",
 	"closeAll": "Закрыть все",
 	"keepOpen": "Оставить открытым",
+	"toggleInlineView": "Переключить интерактивное представление",
 	"showOpenedEditors": "Показать открытые редакторы",
 	"keepEditor": "Сохранить редактор",
 	"closeEditorsInGroup": "Закрыть все редакторы в группе",

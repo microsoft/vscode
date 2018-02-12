@@ -73,6 +73,8 @@ export class ProgressService2 implements IProgressService2 {
 		switch (location) {
 			case ProgressLocation.Window:
 				return this._withWindowProgress(options, task);
+			case ProgressLocation.Explorer:
+				return this._withViewletProgress('workbench.view.explorer', task);
 			case ProgressLocation.Scm:
 				return this._withViewletProgress('workbench.view.scm', task);
 			case ProgressLocation.Extensions:

@@ -1220,6 +1220,10 @@ export class TestWindowsService implements IWindowsService {
 	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
 		return TPromise.as(void 0);
 	}
+
+	openAboutDialog(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
 }
 
 export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {

@@ -61,6 +61,7 @@ import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -402,7 +403,8 @@ class PreferencesRenderersController extends Disposable {
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@ILogService private logService: ILogService
 	) {
 		super();
 	}
@@ -501,7 +503,11 @@ class PreferencesRenderersController extends Disposable {
 		filterPs.push(this.searchAllSettingsTargets(query, searchProvider, groupId, groupLabel, groupOrder));
 
 		return TPromise.join(filterPs).then(results => {
-			const [editableFilterResult, defaultFilterResult] = results;
+			let [editableFilterResult, defaultFilterResult] = results;
+
+			if (!defaultFilterResult && editableContentOnly) {
+				defaultFilterResult = this.lastFilterResult;
+			}
 
 			this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
 			if (defaultFilterResult) {
@@ -617,9 +623,10 @@ class PreferencesRenderersController extends Disposable {
 						}
 					*/
 					const message = getErrorMessage(err).trim();
-					if (message) {
-						// Empty message = any generic network error
+					if (message && message !== 'Error') {
+						// "Error" = any generic network error
 						this.telemetryService.publicLog('defaultSettings.searchError', { message, filter });
+						this.logService.info('Setting search error: ' + message);
 					}
 					return null;
 				}

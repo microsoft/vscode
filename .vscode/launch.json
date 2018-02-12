@@ -1,7 +1,6 @@
 {
 	"version": "0.1.0",
 	"configurations": [
-
 		{
 			"type": "node",
 			"request": "launch",
@@ -158,6 +157,20 @@
 			"cwd": "${workspaceFolder}/extensions/git",
 			"outFiles": [
 				"${workspaceFolder}/extensions/git/out/**/*.js"
+			]
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Markdown Extension Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/markdown/test-fixtures",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/markdown",
+				"--extensionTestsPath=${workspaceFolder}/extensions/markdown/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/markdown/out/**/*.js"
 			]
 		},
 		{

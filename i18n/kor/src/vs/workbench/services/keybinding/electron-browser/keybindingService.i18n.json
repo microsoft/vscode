@@ -24,5 +24,6 @@
 	"keybindings.json.when": "키가 활성화되는 조건입니다.",
 	"keybindings.json.args": "실행할 명령에 전달할 인수입니다.",
 	"keyboardConfigurationTitle": "키보드",
-	"dispatch": "`code`(권장) 또는 `keyCode`를 사용하는 키 누름에 대한 디스패치 논리를 제어합니다."
+	"dispatch": "`code`(권장) 또는 `keyCode`를 사용하는 키 누름에 대한 디스패치 논리를 제어합니다.",
+	"touchbar.enabled": "사용 가능한 경우 키보드의 macOS Touch Bar 단추를 사용하도록 설정합니다."
 }

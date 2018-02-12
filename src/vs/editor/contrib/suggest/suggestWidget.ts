@@ -633,8 +633,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		switch (state) {
 			case State.Hidden:
-				hide(this.messageElement, this.details.element);
-				show(this.listElement);
+				hide(this.messageElement, this.details.element, this.listElement);
 				this.hide();
 				if (stateChanged) {
 					this.list.splice(0, this.list.length);
@@ -679,7 +678,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				break;
 		}
 
-		if (stateChanged) {
+		if (stateChanged && this.state !== State.Hidden) {
 			this.editor.layoutContentWidget(this);
 		}
 	}

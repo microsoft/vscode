@@ -207,7 +207,7 @@ export class TerminalPanel extends Panel {
 				// occurs on the selection itself.
 				this._terminalService.getActiveInstance().focus();
 			} else if (event.which === 3) {
-				if (this._terminalService.configHelper.config.rightClickCopyPaste) {
+				if (this._terminalService.configHelper.config.rightClickBehavior === 'copyPaste') {
 					let terminal = this._terminalService.getActiveInstance();
 					if (terminal.hasSelection()) {
 						terminal.copySelection();
@@ -276,21 +276,22 @@ export class TerminalPanel extends Panel {
 					return;
 				}
 
-				// Check if the file was dragged from the tree explorer
-				let uri = e.dataTransfer.getData(DataTransfers.URL);
-				if (uri) {
-					uri = URI.parse(uri).path;
+				// Check if files were dragged from the tree explorer
+				let path: string;
+				let resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
+				if (resources) {
+					path = URI.parse(JSON.parse(resources)[0]).path;
 				} else if (e.dataTransfer.files.length > 0) {
 					// Check if the file was dragged from the filesystem
-					uri = URI.file(e.dataTransfer.files[0].path).fsPath;
+					path = URI.file(e.dataTransfer.files[0].path).fsPath;
 				}
 
-				if (!uri) {
+				if (!path) {
 					return;
 				}
 
 				const terminal = this._terminalService.getActiveInstance();
-				terminal.sendText(TerminalPanel.preparePathForTerminal(uri), false);
+				terminal.sendText(TerminalPanel.preparePathForTerminal(path), false);
 			}
 		}));
 	}

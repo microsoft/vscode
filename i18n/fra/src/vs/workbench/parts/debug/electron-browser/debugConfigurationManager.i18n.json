@@ -32,8 +32,12 @@
 	"app.launch.json.configurations": "Liste des configurations. Ajoutez de nouvelles configurations, ou modifiez celles qui existent déjà à l'aide d'IntelliSense.",
 	"app.launch.json.compounds": "Liste des composés. Chaque composé référence plusieurs configurations qui sont lancées ensemble.",
 	"app.launch.json.compound.name": "Nom du composé. Apparaît dans le menu déroulant de la configuration de lancement.",
+	"useUniqueNames": "Veuillez utiliser des noms de configuration uniques.",
+	"app.launch.json.compound.folder": "Nom du dossier dans lequel le composé se trouve.",
 	"app.launch.json.compounds.configurations": "Noms des configurations qui sont lancées dans le cadre de ce composé.",
 	"debugNoType": "Le 'type' de l'adaptateur de débogage ne peut pas être omis. Il doit s'agir du type 'string'.",
 	"selectDebug": "Sélectionner l'environnement",
-	"DebugConfig.failed": "Impossible de créer le fichier 'launch.json' dans le dossier '.vscode' ({0})."
+	"DebugConfig.failed": "Impossible de créer le fichier 'launch.json' dans le dossier '.vscode' ({0}).",
+	"workspace": "espace de travail",
+	"user settings": "paramètres utilisateur"
 }

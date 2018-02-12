@@ -20,6 +20,9 @@
 	"noUpdatesAvailable": "Aucune mise à jour n'est disponible actuellement.",
 	"download now": "Télécharger maintenant",
 	"thereIsUpdateAvailable": "Une mise à jour est disponible.",
+	"installUpdate": "Installer la mise à jour",
+	"updateAvailable": "Il y a une mise à jour disponible : {0} {1}",
+	"updateInstalling": "{0} {1} est en train d'être installé en arrière-plan, nous vous ferons savoir quand c’est fini.",
 	"updateNow": "Mettre à jour maintenant",
 	"updateAvailableAfterRestart": "{0} sera mis à jour après avoir redémarré.",
 	"commandPalette": "Palette de commandes...",
@@ -31,6 +34,7 @@
 	"checkForUpdates": "Rechercher les mises à jour...",
 	"checkingForUpdates": "Recherche des mises à jour...",
 	"DownloadingUpdate": "Téléchargement de la mise à jour...",
+	"installUpdate...": "Installation de la mise à jour...",
 	"installingUpdate": "Installation de la mise à jour...",
 	"restartToUpdate": "Redémarrer pour mettre à jour..."
 }
