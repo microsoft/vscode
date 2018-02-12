@@ -28,10 +28,11 @@ export abstract class TerminalService implements ITerminalService {
 	protected abstract _terminalInstances: ITerminalInstance[];
 
 	private _activeTabIndex: number;
-	// TODO: Remove _activeTerminalInstanceIndex
+	// TODO: Remove _activeTerminalInstanceIndex, this is owned by tab now
 	private _activeTerminalInstanceIndex: number;
 	private _onActiveTabChanged: Emitter<void>;
 
+	public get activeTabIndex(): number { return this._activeTabIndex; }
 	public get activeTerminalInstanceIndex(): number { return this._activeTerminalInstanceIndex; }
 	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
@@ -100,10 +101,12 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public getTabLabels(): string[] {
+		console.log('tabs', this._terminalTabs);
 		return this._terminalTabs.map((tab, index) => `${index + 1}: ${tab.title}`);
 	}
 
 	private _removeTab(tab: ITerminalTab): void {
+		console.log('_removeTab');
 		// Get the index of the tab and remove it from the list
 		const index = this._terminalTabs.indexOf(tab);
 		const wasActiveTab = tab === this._getActiveTab();
@@ -143,10 +146,11 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public getActiveInstance(): ITerminalInstance {
-		if (this.activeTerminalInstanceIndex < 0 || this.activeTerminalInstanceIndex >= this.terminalInstances.length) {
+		const tab = this._getActiveTab();
+		if (!tab) {
 			return null;
 		}
-		return this.terminalInstances[this.activeTerminalInstanceIndex];
+		return tab.activeInstance;
 	}
 
 	public getInstanceFromId(terminalId: number): ITerminalInstance {
@@ -185,8 +189,12 @@ export abstract class TerminalService implements ITerminalService {
 
 		// TODO: Optimize
 		const activeInstance = this.terminalInstances[this.activeTerminalInstanceIndex];
-		this._terminalTabs.forEach(t => {
-			t.setVisible(t.terminalInstances.indexOf(activeInstance) !== -1);
+		this._terminalTabs.forEach((t, i) => {
+			const isTabActive = t.terminalInstances.indexOf(activeInstance) !== -1;
+			t.setVisible(isTabActive);
+			if (isTabActive) {
+				this._activeTabIndex = i;
+			}
 		});
 
 		// this._terminalInstances.forEach((terminalInstance, i) => {
@@ -247,9 +255,7 @@ export abstract class TerminalService implements ITerminalService {
 			if (instanceIndex < count) {
 				return tab;
 			}
-			if (instanceIndex > count) {
-				instanceIndex -= count;
-			}
+			instanceIndex -= count;
 		}
 		return null;
 	}

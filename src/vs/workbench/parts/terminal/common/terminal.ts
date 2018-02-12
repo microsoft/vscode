@@ -144,6 +144,7 @@ export interface IShellLaunchConfig {
 export interface ITerminalService {
 	_serviceBrand: any;
 
+	activeTabIndex: number;
 	activeTerminalInstanceIndex: number;
 	configHelper: ITerminalConfigHelper;
 	onActiveTabChanged: Event<void>;
@@ -180,6 +181,7 @@ export interface ITerminalService {
 }
 
 export interface ITerminalTab {
+	activeInstance: ITerminalInstance;
 	terminalInstances: ITerminalInstance[];
 	title: string;
 	onDisposed: Event<ITerminalTab>;
