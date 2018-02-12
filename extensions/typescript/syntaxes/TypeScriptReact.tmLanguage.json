@@ -4,13 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/24c7fb5254f50dad85eae03836b1b9ff92ecf273",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/77d21fd8d3f750fcf67bdf7436f4e46565cba350",
 	"name": "TypeScriptReact",
 	"scopeName": "source.tsx",
-	"fileTypes": [
-		"tsx"
-	],
-	"uuid": "805375ec-d614-41f5-8993-5843fe63ea82",
 	"patterns": [
 		{
 			"include": "#directives"
@@ -3154,6 +3150,10 @@
 				{
 					"name": "keyword.operator.ternary.tsx",
 					"match": "(\\?|\\:)"
+				},
+				{
+					"name": "keyword.operator.expression.infer.tsx",
+					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))infer(?=\\s+[_$[:alpha:]])"
 				}
 			]
 		},

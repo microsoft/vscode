@@ -5,14 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/atom/language-c/commit/9c0c5f202741a5647025db8d5df5fefba47b036c",
-	"scopeName": "source.c",
-	"fileTypes": [
-		"c",
-		"h.in",
-		"xpm"
-	],
-	"firstLineMatch": "(?i)-\\*-[^*]*(Mode:\\s*)?C(\\s*;.*?)?\\s*-\\*-",
 	"name": "C",
+	"scopeName": "source.c",
 	"patterns": [
 		{
 			"include": "#preprocessor-rule-enabled"

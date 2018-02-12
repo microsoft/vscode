@@ -46,7 +46,7 @@ function download(url, redirectCount) {
 					let location = response.headers['location'];
 					if (location) {
 						console.log("Redirected " + url + " to " + location);
-						download(location, count+1).then(c, e);
+						download(location, count + 1).then(c, e);
 						return;
 					}
 				}
@@ -86,7 +86,7 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'mas
 		} else if (ext === '.json') {
 			grammar = JSON.parse(content);
 		} else {
-			return Promise.reject(new Error(('Unknown file extension: ' + ext)));
+			return Promise.reject(new Error('Unknown file extension: ' + ext));
 		}
 		if (modifyGrammar) {
 			modifyGrammar(grammar);
@@ -103,8 +103,10 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'mas
 			if (info) {
 				result.version = 'https://github.com/' + repoId + '/commit/' + info.commitSha;
 			}
-			for (let key in grammar) {
-				if (!result.hasOwnProperty(key)) {
+
+			let keys = ['name', 'scopeName', 'comment', 'injections', 'patterns', 'repository'];
+			for (let key of keys) {
+				if (grammar.hasOwnProperty(key)) {
 					result[key] = grammar[key];
 				}
 			}

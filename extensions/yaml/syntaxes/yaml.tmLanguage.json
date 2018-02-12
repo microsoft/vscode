@@ -5,19 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/textmate/yaml.tmbundle/commit/efc96efafe5e48480cf55a2ed124b388cbea4440",
-	"fileTypes": [
-		"yaml",
-		"yml",
-		"rviz",
-		"reek",
-		"clang-format",
-		"yaml-tmlanguage",
-		"syntax",
-		"sublime-syntax"
-	],
-	"firstLineMatch": "^%YAML( ?1.\\d+)?",
-	"keyEquivalent": "^~Y",
 	"name": "YAML",
+	"scopeName": "source.yaml",
 	"patterns": [
 		{
 			"include": "#comment"
@@ -628,7 +617,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.yaml",
-	"uuid": "686AD6AE-33F3-4493-9512-9E9FC1D5417F"
+	}
 }
