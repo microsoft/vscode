@@ -61,6 +61,17 @@
 .monaco-workbench .panel.integrated-terminal .split-view-view {
 	/* Make relative as terminal absolute positioning needs it deeper in the tree */
 	position: relative;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) {
+	border-left: 1px solid rgba(0, 0, 0, 0.3);
+}
+.vs-dark .monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) {
+	border-left: 1px solid rgba(255, 255, 255, 0.3);
+}
+.hc-black .monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) {
+	border-left: 1px solid rgba(255, 255, 255, 0.5);
 }
 
 .monaco-workbench .panel.integrated-terminal.enable-ligatures {
@@ -110,8 +121,6 @@
 	/* Override the general vscode style applies `opacity:1!important` to textareas */
 	opacity: 0 !important;
 }
-
-/* Terminal actions */
 
 /* Light theme */
 .monaco-workbench .terminal-action.kill { background: url('kill.svg') center center no-repeat; }
