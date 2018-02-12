@@ -6,7 +6,7 @@
 import 'vs/css!./media/views';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
@@ -50,14 +50,6 @@ export class CustomViewsService extends Disposable implements ICustomViewsServic
 
 	getTreeViewer(id: string): ITreeViewer {
 		return this.viewers.get(id);
-	}
-
-	registerTreeViewDataProvider(id: string, dataProvider: ITreeViewDataProvider): void {
-		const treeViewer = <CustomTreeViewer>this.getTreeViewer(id);
-		if (treeViewer) {
-			treeViewer.setDataProvider(dataProvider);
-			dataProvider.onDispose(() => treeViewer.setDataProvider(null));
-		}
 	}
 
 	private createViewers(viewDescriptors: IViewDescriptor[]): void {
@@ -104,7 +96,7 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private refreshing = 0;
 
 	private _dataProvider: ITreeViewDataProvider;
-	private dataProviderElementChangeListener: IDisposable;
+	private dataProviderDisposables: IDisposable[] = [];
 
 	constructor(
 		private id: string,
@@ -123,10 +115,8 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return this._dataProvider;
 	}
 
-	setDataProvider(dataProvider: ITreeViewDataProvider) {
-		if (this.dataProviderElementChangeListener) {
-			this.dataProviderElementChangeListener.dispose();
-		}
+	set dataProvider(dataProvider: ITreeViewDataProvider) {
+		dispose(this.dataProviderDisposables);
 		if (dataProvider) {
 			const customTreeView: CustomTreeViewer = this;
 			this._dataProvider = new class implements ITreeViewDataProvider {
@@ -146,7 +136,8 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 					});
 				}
 			};
-			this.dataProviderElementChangeListener = this._register(dataProvider.onDidChange(elements => this.refresh(elements)));
+			this._register(dataProvider.onDidChange(elements => this.refresh(elements), this, this.dataProviderDisposables));
+			this._register(dataProvider.onDispose(() => this.dataProvider = null, this, this.dataProviderDisposables));
 		} else {
 			this._dataProvider = null;
 		}
