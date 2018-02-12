@@ -5,23 +5,29 @@
 'use strict';
 
 import {
-	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities
+	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, CompletionTriggerKind
 } from 'vscode-languageserver';
 
-import { TextDocument } from 'vscode-languageserver-types';
+import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 
 import { ConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
-import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
+import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, ICompletionParticipant } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { formatError, runSafe } from './utils/errors';
+import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath } from 'vscode-emmet-helper';
 
 export interface Settings {
 	css: LanguageSettings;
 	less: LanguageSettings;
 	scss: LanguageSettings;
+	emmet: { [key: string]: any };
 }
+
+let emmetSettings = {};
+let currentEmmetExtensionsPath: string;
+const emmetTriggerCharacters = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 // Create a connection for the server.
 let connection: IConnection = createConnection();
@@ -49,6 +55,7 @@ connection.onShutdown(() => {
 });
 
 let scopedSettingsSupport = false;
+
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
@@ -65,7 +72,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let capabilities: ServerCapabilities & CPServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: snippetSupport ? { resolveProvider: false } : undefined,
+		completionProvider: snippetSupport ? { resolveProvider: false, triggerCharacters: emmetTriggerCharacters } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		referencesProvider: true,
@@ -124,6 +131,12 @@ function updateConfiguration(settings: Settings) {
 	documentSettings = {};
 	// Revalidate any open text documents
 	documents.all().forEach(triggerValidation);
+
+	emmetSettings = settings.emmet;
+	if (currentEmmetExtensionsPath !== emmetSettings['extensionsPath']) {
+		currentEmmetExtensionsPath = emmetSettings['extensionsPath'];
+		updateEmmetExtensionsPath(currentEmmetExtensionsPath);
+	}
 }
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
@@ -169,11 +182,46 @@ function validateTextDocument(textDocument: TextDocument): void {
 	});
 }
 
+const hexColorRegex = /^#[\d,a-f,A-F]+$/;
+let cachedCompletionList: CompletionList;
 connection.onCompletion(textDocumentPosition => {
 	return runSafe(() => {
-		let document = documents.get(textDocumentPosition.textDocument.uri);
-		let stylesheet = stylesheets.get(document);
-		return getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheet)!; /* TODO: remove ! once LS has null annotations */
+		const document = documents.get(textDocumentPosition.textDocument.uri);
+		const triggerForIncompleteCompletions = textDocumentPosition.context && textDocumentPosition.context.triggerKind === CompletionTriggerKind.TriggerForIncompleteCompletions;
+		if (triggerForIncompleteCompletions && cachedCompletionList && !cachedCompletionList.isIncomplete) {
+			let result: CompletionList = emmetDoComplete(document, textDocumentPosition.position, document.languageId, emmetSettings);
+			if (result && result.items && result.items.length) {
+				result.items.push(...cachedCompletionList.items);
+			} else {
+				result = cachedCompletionList;
+				cachedCompletionList = null;
+			}
+			return result;
+		}
+
+		cachedCompletionList = null;
+		let emmetCompletionList: CompletionList;
+		const emmetCompletionParticipant: ICompletionParticipant = {
+			onCssProperty: (context) => {
+				if (context && context.propertyName) {
+					emmetCompletionList = emmetDoComplete(document, textDocumentPosition.position, document.languageId, emmetSettings);
+				}
+			},
+			onCssPropertyValue: (context) => {
+				if (context && hexColorRegex.test(context.propertyValue)) {
+					emmetCompletionList = emmetDoComplete(document, textDocumentPosition.position, document.languageId, emmetSettings);
+				}
+			}
+		};
+		getLanguageService(document).setCompletionParticipants([emmetCompletionParticipant]);
+
+		const result = getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
+		if (emmetCompletionList && emmetCompletionList.items && emmetCompletionList.items.length) {
+			cachedCompletionList = { isIncomplete: result.isIncomplete, items: [...result.items] };
+			result.items.push(...emmetCompletionList.items);
+			result.isIncomplete = true;
+		}
+		return result;
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
 });
 

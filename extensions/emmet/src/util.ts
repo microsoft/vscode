@@ -63,7 +63,6 @@ const emmetModes = ['html', 'pug', 'slim', 'haml', 'xml', 'xsl', 'jsx', 'css', '
 // For other languages, users will have to use `emmet.includeLanguages` or
 // language specific extensions can provide emmet completion support
 export const MAPPED_MODES: Object = {
-	'handlebars': 'html',
 	'php': 'html'
 };
 
