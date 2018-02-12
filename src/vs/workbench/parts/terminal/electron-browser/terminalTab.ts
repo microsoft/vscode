@@ -291,7 +291,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		terminalFocusContextKey: IContextKey<boolean>,
 		configHelper: TerminalConfigHelper,
 		shellLaunchConfig: IShellLaunchConfig
-	): void {
+	): ITerminalInstance {
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			terminalFocusContextKey,
 			configHelper,
@@ -304,6 +304,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._rootSplitPane.split(instance);
 		// TOOD: Set this correctly
 		this._activeInstanceIndex = 1;
+
+		return instance;
 	}
 
 	public addDisposable(disposable: IDisposable): void {

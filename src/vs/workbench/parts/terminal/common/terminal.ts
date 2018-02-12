@@ -165,6 +165,7 @@ export interface ITerminalService {
 	setActiveInstanceToNext(): void;
 	setActiveInstanceToPrevious(): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
+	splitInstanceVertically(instance: ITerminalInstance): void;
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
@@ -181,12 +182,13 @@ export interface ITerminalService {
 export interface ITerminalTab {
 	terminalInstances: ITerminalInstance[];
 	title: string;
+	onDisposed: Event<ITerminalTab>;
 
 	attachToElement(element: HTMLElement): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
-	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): void;
+	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 }
 
 export interface ITerminalInstance {

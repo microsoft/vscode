@@ -296,6 +296,27 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 	}
 }
 
+export class SplitVerticalTerminalAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.splitVertical';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.splitVertical', "Split the terminal vertically");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const instance = this._terminalService.getActiveInstance();
+		if (!instance) {
+			return TPromise.as(void 0);
+		}
+		this._terminalService.splitInstanceVertically(instance);
+		return this._terminalService.showPanel(true);
+	}
+}
+
 export class FocusActiveTerminalAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.focus';

@@ -221,6 +221,39 @@ export abstract class TerminalService implements ITerminalService {
 		this.setActiveInstanceByIndex(newIndex);
 	}
 
+	public splitInstanceVertically(instanceToSplit: ITerminalInstance): void {
+		const tab = this._getTabForInstance(instanceToSplit);
+		if (!tab) {
+			return;
+		}
+		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, {});
+		// TOOD: The below should be shared with ITerminalService.createInstance
+		tab.addDisposable(tab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
+		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
+		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
+		instance.addDisposable(instance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
+		this._onInstancesChanged.fire();
+
+		// TODO: This shouldn't be needed
+		tab.setVisible(true);
+	}
+
+	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab {
+		let instanceIndex = this._activeTabIndex;
+		let currentTabIndex = 0;
+		while (instanceIndex >= 0 && currentTabIndex < this._terminalTabs.length) {
+			const tab = this._terminalTabs[currentTabIndex];
+			const count = tab.terminalInstances.length;
+			if (instanceIndex < count) {
+				return tab;
+			}
+			if (instanceIndex > count) {
+				instanceIndex -= count;
+			}
+		}
+		return null;
+	}
+
 	public showPanel(focus?: boolean): TPromise<void> {
 		return new TPromise<void>((complete) => {
 			let panel = this._panelService.getActivePanel();
