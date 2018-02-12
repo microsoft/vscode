@@ -95,6 +95,7 @@ export class TerminalPanel extends Panel {
 		// this._terminalService.terminalInstances.forEach((t) => {
 		// 	t.layout(dimension);
 		// });
+		console.log('panel layout!', dimension);
 		this._terminalService.terminalTabs.forEach(t => t.layout(dimension.width, dimension.height));
 	}
 

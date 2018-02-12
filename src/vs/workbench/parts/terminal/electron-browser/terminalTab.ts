@@ -97,14 +97,11 @@ class SplitPane implements IView {
 			return;
 		}
 		this._container = container;
-		console.log('render');
 		// throw new Error("Method not implemented.");
 		if (!this._isContainerSet && this.instance) {
 			if (this._needsReattach) {
-				console.log('reattachToElement');
 				(<any>this.instance).reattachToElement(container);
 			} else {
-				console.log('attachToElement');
 				this.instance.attachToElement(container);
 			}
 			this._isContainerSet = true;
@@ -112,24 +109,29 @@ class SplitPane implements IView {
 	}
 
 	public layout(size: number): void {
-		// Only layout when both sizes are known and the SplitPane owns an instance
+		// Only layout when both sizes are known
 		this._size = size;
-		if (!this._size || !this.orthogonalSize || !this.instance) {
+		if (!this._size || !this.orthogonalSize) {
+			console.log('SplitPane.layout', this._size, this.orthogonalSize, this.instance);
 			return;
 		}
 
-		console.log('layout', size, this.orthogonalSize);
+		if (this.instance) {
+			if (this.orientation === Orientation.VERTICAL) {
+				this.instance.layout({ width: this.orthogonalSize, height: this._size });
+			} else {
+				this.instance.layout({ width: this._size, height: this.orthogonalSize });
+			}
+			return;
+		}
 
-		if (this.orientation === Orientation.VERTICAL) {
-			this.instance.layout({ width: this.orthogonalSize, height: this._size });
-		} else {
-			this.instance.layout({ width: this._size, height: this.orthogonalSize });
+		for (const child of this.children) {
+			child.orthogonalLayout(this._size);
 		}
 	}
 
 	public orthogonalLayout(size: number): void {
 		this.orthogonalSize = size;
-		console.log('orthogonalLayout', this._size, this.orthogonalSize);
 
 		if (this._splitView) {
 			this._splitView.layout(this.orthogonalSize);
@@ -154,6 +156,7 @@ class RootSplitPane extends SplitPane {
 	}
 
 	public layoutBox(width: number, height: number): void {
+		console.log('layoutBox', width, height);
 		if (this.orientation === Orientation.VERTICAL) {
 			this.layout(width);
 			this.orthogonalLayout(height);
@@ -163,6 +166,7 @@ class RootSplitPane extends SplitPane {
 		} else {
 			this._width = width;
 			this._height = height;
+			this.instance.layout({ width, height });
 		}
 	}
 }
@@ -200,6 +204,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 		this._rootSplitPane = new RootSplitPane();
 		this._rootSplitPane.instance = instance;
+		this._rootSplitPane.onDidChange(e => {
+			console.log('onDidChange', e);
+		});
 
 		if (this._container) {
 			this.attachToElement(this._container);
@@ -330,6 +337,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public layout(width: number, height: number): void {
+		console.log('TerminalTab.layout', width, height);
 		this._rootSplitPane.layoutBox(width, height);
 	}
 }
