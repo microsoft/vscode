@@ -10,6 +10,9 @@ import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/services/notification/common/notificationsModel';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { clearNode } from 'vs/base/browser/dom';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import URI from 'vs/base/common/uri';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class NotificationsDelegate implements IDelegate<INotificationViewItem> {
 
@@ -42,6 +45,11 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		'tablerow'
 	];
 
+	constructor(
+		@IOpenerService private openerService: IOpenerService
+	) {
+	}
+
 	public get templateId() {
 		return NotificationRenderer.ID;
 	}
@@ -66,7 +74,8 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		clearNode(data.message);
 		data.message.appendChild(renderMarkdown(element.message, {
 			inline: true,
-			joinRendererConfiguration: renderer => NotificationRenderer.MARKED_NOOP_TARGETS.forEach(fn => renderer[fn] = NotificationRenderer.MARKED_NOOP)
+			joinRendererConfiguration: renderer => NotificationRenderer.MARKED_NOOP_TARGETS.forEach(fn => renderer[fn] = NotificationRenderer.MARKED_NOOP),
+			actionCallback: (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)
 		}));
 	}
 
