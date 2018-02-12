@@ -353,6 +353,7 @@ export class FocusPreviousTerminalAction extends Action {
 		return this.terminalService.showPanel(true);
 	}
 }
+
 export class TerminalPasteAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.paste';

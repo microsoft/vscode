@@ -104,11 +104,14 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	private _removeTab(tab: ITerminalTab): void {
-		let index = this._terminalTabs.indexOf(tab);
-		let wasActiveTab = tab === this._getActiveTab();
+		// Get the index of the tab and remove it from the list
+		const index = this._terminalTabs.indexOf(tab);
+		const wasActiveTab = tab === this._getActiveTab();
 		if (index !== -1) {
 			this._terminalTabs.splice(index, 1);
 		}
+
+		// Adjust focus if the tab was active
 		if (wasActiveTab && this._terminalTabs.length > 0) {
 			let newIndex = index < this._terminalTabs.length ? index : this._terminalTabs.length - 1;
 			this.setActiveInstanceByIndex(newIndex);

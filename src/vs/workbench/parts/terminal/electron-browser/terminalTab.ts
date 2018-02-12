@@ -16,20 +16,20 @@ class SplitPane implements IView {
 	// TODO: What's a good number for the min?
 	public minimumSize: number = 10;
 	public maximumSize: number = Number.MAX_VALUE;
+
+	public instance: ITerminalInstance;
+	public orientation: Orientation | undefined;
+
 	protected _size: number;
 
-	public orientation: Orientation | undefined;
 	private _splitView: SplitView | undefined;
 	private _children: SplitPane[] = [];
 	private _container: HTMLElement;
-
-	public instance: ITerminalInstance;
 	private _isContainerSet: boolean = false;
-
 	private _onDidChange: Event<number | undefined> = Event.None;
-	public get onDidChange(): Event<number | undefined> {
-		return this._onDidChange;
-	}
+
+	public get children(): SplitPane[] { return this._children; }
+	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
 
 	constructor(
 		private _parent?: SplitPane,
@@ -50,6 +50,9 @@ class SplitPane implements IView {
 
 		this.addChild(this.orthogonalSize / 2, this._size, this.instance, 0, this._isContainerSet);
 		this.addChild(this.orthogonalSize / 2, this._size, instance);
+
+		// Instance is now owned by the first child
+		this.instance = null;
 	}
 
 	public split(instance: ITerminalInstance): void {
@@ -77,6 +80,20 @@ class SplitPane implements IView {
 		this._onDidChange = anyEvent(...this._children.map(c => c.onDidChange));
 	}
 
+	public remove(): void {
+		if (!this._parent) {
+			return;
+		}
+
+		this._parent.removeChild(this);
+	}
+
+	public removeChild(child: SplitPane): void {
+		const index = this._children.indexOf(child);
+		this._children.splice(index, 1);
+		this._splitView.removeView(index);
+	}
+
 	public render(container: HTMLElement): void {
 		if (!container) {
 			return;
@@ -97,8 +114,9 @@ class SplitPane implements IView {
 	}
 
 	public layout(size: number): void {
+		// Only layout when both sizes are known and the SplitPane owns an instance
 		this._size = size;
-		if (!this._size || !this.orthogonalSize) {
+		if (!this._size || !this.orthogonalSize || !this.instance) {
 			return;
 		}
 
@@ -154,9 +172,8 @@ class RootSplitPane extends SplitPane {
 export class TerminalTab extends Disposable implements ITerminalTab {
 	private _terminalInstances: ITerminalInstance[] = [];
 	private _rootSplitPane: RootSplitPane;
-	private _splitPanes: SplitPane[] = [];
 
-	// private _activeInstanceIndex: number;
+	private _activeInstanceIndex: number;
 
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
@@ -179,15 +196,15 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			undefined,
 			shellLaunchConfig);
 		this._terminalInstances.push(instance);
-		// this._activeInstanceIndex = 0;
+		this._activeInstanceIndex = 0;
 		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
 
 		this._rootSplitPane = new RootSplitPane();
 		this._rootSplitPane.instance = instance;
 		// TODO: Only render if it's visible?
 		this._rootSplitPane.render(this._container);
-		// TODO: Is _splitPanes useful?
-		this._splitPanes.push(this._rootSplitPane);
+
+		// TODO: Listen to instance focus and update activeInstanceIndex accordingly
 	}
 
 	public dispose(): void {
@@ -195,12 +212,59 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._terminalInstances = [];
 	}
 
+	public get activeInstance(): ITerminalInstance {
+		if (this._terminalInstances.length === 0) {
+			return null;
+		}
+		return this._terminalInstances[this._activeInstanceIndex];
+	}
+
 	private _onInstanceDisposed(instance: ITerminalInstance): void {
+		// Get the index of the instance and remove it from the list
+		const index = this._terminalInstances.indexOf(instance);
+		const wasActiveInstance = instance === this.activeInstance;
+		if (index !== -1) {
+			this._terminalInstances.splice(index, 1);
+		}
 
-		// TODO: Listen for disposed on TerminalService and handle appropriately (remove the tab and its instance from the service)
+		// Adjust focus if the instance was active
+		if (wasActiveInstance && this._terminalInstances.length > 0) {
+			let newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
+			this._setActiveInstanceByIndex(newIndex);
+			if (instance.hadFocusOnExit) {
+				this.activeInstance.focus(true);
+			}
+		}
 
-		this._onDisposed.fire(this);
-		this.dispose();
+		// TODO: Find instance's SplitPane and unsplit it
+		this._findSplitPane(instance).remove();
+
+		// console.log('splitPane: ', splitPane);
+
+
+		// Dispose the tab if it was the last instance
+		if (this._terminalInstances.length === 0) {
+			console.log('Disposed terminal tab!');
+			this._onDisposed.fire(this);
+			this.dispose();
+		}
+	}
+
+	private _findSplitPane(instance: ITerminalInstance): SplitPane {
+		const openList: SplitPane[] = [this._rootSplitPane];
+		while (openList.length > 0) {
+			const current = openList.shift();
+			if (current.instance === instance) {
+				return current;
+			}
+			openList.push.apply(openList, current.children);
+		}
+		return null;
+	}
+
+	private _setActiveInstanceByIndex(index: number): void {
+		this._activeInstanceIndex = index;
+		// TODO: Fire events like in TerminalService.setActiveInstanceByIndex?
 	}
 
 	public attachToElement(element: HTMLElement): void {
@@ -238,6 +302,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 		this._rootSplitPane.orientation = Orientation.HORIZONTAL;
 		this._rootSplitPane.split(instance);
+		// TOOD: Set this correctly
+		this._activeInstanceIndex = 1;
 	}
 
 	public addDisposable(disposable: IDisposable): void {
