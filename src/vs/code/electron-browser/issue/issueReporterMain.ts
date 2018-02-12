@@ -15,6 +15,8 @@ import { escape } from 'vs/base/common/strings';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as os from 'os';
+import { debounce } from 'vs/base/common/decorators';
+import * as platform from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -34,8 +36,9 @@ import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporter
 import { IssueReporterData, IssueReporterStyles, IssueType, ISettingsSearchIssueReporterData, IssueReporterFeatures } from 'vs/platform/issue/common/issue';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { debounce } from 'vs/base/common/decorators';
-import * as platform from 'vs/base/common/platform';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 
 const MAX_URL_LENGTH = 5400;
 
@@ -59,6 +62,7 @@ export function startup(configuration: IssueReporterConfiguration) {
 export class IssueReporter extends Disposable {
 	private environmentService: IEnvironmentService;
 	private telemetryService: ITelemetryService;
+	private logService: ILogService;
 	private issueReporterModel: IssueReporterModel;
 	private shouldQueueSearch = true;
 	private features: IssueReporterFeatures;
@@ -88,6 +92,7 @@ export class IssueReporter extends Disposable {
 		this.features = configuration.features;
 
 		ipcRenderer.on('issuePerformanceInfoResponse', (event, info) => {
+			this.logService.trace('issueReporter: Received performance data');
 			this.issueReporterModel.update(info);
 			this.receivedPerformanceInfo = true;
 
@@ -98,6 +103,7 @@ export class IssueReporter extends Disposable {
 		});
 
 		ipcRenderer.on('issueSystemInfoResponse', (event, info) => {
+			this.logService.trace('issueReporter: Received system data');
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
 
@@ -107,6 +113,7 @@ export class IssueReporter extends Disposable {
 
 		ipcRenderer.send('issueSystemInfoRequest');
 		ipcRenderer.send('issuePerformanceInfoRequest');
+		this.logService.trace('issueReporter: Sent data requests');
 
 		if (window.document.documentElement.lang !== 'en') {
 			show(document.getElementById('english'));
@@ -265,6 +272,10 @@ export class IssueReporter extends Disposable {
 		const windowsChannel = mainProcessClient.getChannel('windows');
 		serviceCollection.set(IWindowsService, new WindowsChannelClient(windowsChannel));
 		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
+
+		const logService = createSpdLogService(`issuereporter${configuration.windowId}`, getLogLevel(this.environmentService), this.environmentService.logsPath);
+		const logLevelClient = new LogLevelSetterChannelClient(mainProcessClient.getChannel('loglevel'));
+		this.logService = new FollowerLogService(logLevelClient, logService);
 
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${configuration.windowId}`));
@@ -532,8 +543,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private logSearchError(error: Error) {
-		// TODO: Use LogService here.
-		console.log(error);
+		this.logService.warn('issueReporter#search ', error.message);
 		/* __GDPR__
 		"issueReporterSearchError" : {
 				"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }

@@ -15,7 +15,8 @@ import { ILaunchService } from 'vs/code/electron-main/launch';
 import { getPerformanceInfo, PerformanceInfo, getSystemInfo, SystemInfo } from 'vs/code/electron-main/diagnostics';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh } from 'vs/base/common/platform';
-import { IConfigurationService } from '../../configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -28,7 +29,8 @@ export class IssueService implements IIssueService {
 		private machineId: string,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILaunchService private launchService: ILaunchService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ILogService private logService: ILogService
 	) { }
 
 	openReporter(data: IssueReporterData): TPromise<void> {
@@ -67,6 +69,7 @@ export class IssueService implements IIssueService {
 			useDuplicateSearch: this.configurationService.getValue<boolean>('issueReporter.searchDuplicates')
 		};
 
+		this.logService.trace('issueService#openReporter: opening issue reporter');
 		this._issueWindow.loadURL(this.getIssueReporterPath(data, features));
 
 		return TPromise.as(null);
@@ -158,6 +161,7 @@ export class IssueService implements IIssueService {
 						resolve(diagnosticInfo);
 					})
 					.catch(err => {
+						this.logService.warn('issueService#getPerformanceInfo ', err.message);
 						reject(err);
 					});
 			});
