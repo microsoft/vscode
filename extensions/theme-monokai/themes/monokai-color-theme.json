@@ -36,6 +36,7 @@
 		"badge.background": "#75715E",
 		"badge.foreground": "#f8f8f2",
 		"editorLineNumber.foreground": "#90908a",
+		"editorActiveLineNumber.foreground": "#c2c2bf",
 		"panelTitle.activeForeground": "#f8f8f2",
 		"panelTitle.activeBorder": "#75715E",
 		"panelTitle.inactiveForeground": "#75715E",

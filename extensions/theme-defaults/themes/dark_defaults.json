@@ -5,6 +5,7 @@
 		"editor.background": "#1E1E1E",
 		"editor.foreground": "#D4D4D4",
 		"editor.inactiveSelectionBackground": "#3A3D41",
+		"editorActiveLineNumber.foreground": "#8a8a8a",
 		"editorIndentGuide.background": "#404040",
 		"editor.selectionHighlightBackground": "#ADD6FF26",
 		"list.dropBackground": "#383B3D",
