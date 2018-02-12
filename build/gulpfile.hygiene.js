@@ -119,8 +119,8 @@ const eslintFilter = [
 
 const tslintFilter = [
 	'src/**/*.ts',
-	//'test/**/*.ts',
-	//'extensions/**/*.ts',
+	'test/**/*.ts',
+	'extensions/**/*.ts',
 	'!**/fixtures/**',
 	'!**/typings/**',
 	'!**/node_modules/**',
@@ -214,17 +214,6 @@ const hygiene = exports.hygiene = (some, options) => {
 		});
 	});
 
-	function reportFailures(failures) {
-		failures.forEach(failure => {
-			const name = failure.name || failure.fileName;
-			const position = failure.startPosition;
-			const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
-			const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
-
-			console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
-		});
-	}
-
 	const program = tslint.Linter.createProgram('src/tsconfig.json');
 	const configuration = tslint.Configuration.findConfiguration('tslint-hygiene.json', '.');
 	const tslintOptions = { fix: false, formatter: 'json' };
@@ -271,7 +260,15 @@ const hygiene = exports.hygiene = (some, options) => {
 
 			const tslintResult = linter.getResult();
 			if (tslintResult.failures.length > 0) {
-				reportFailures(tslintResult.failures);
+				for (const failure of tslintResult.failures) {
+					const name = failure.name || failure.fileName;
+					const position = failure.startPosition;
+					const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
+					const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
+
+					console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
+				}
+
 				errorCount += tslintResult.failures.length;
 			}
 
