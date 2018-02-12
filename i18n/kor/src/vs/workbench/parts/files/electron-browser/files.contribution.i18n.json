@@ -38,6 +38,7 @@
 	"editorConfigurationTitle": "편집기",
 	"formatOnSave": "파일 저장 시 서식을 지정합니다. 포맷터를 사용할 수 있어야 하며, 파일이 자동으로 저장되지 않아야 하고, 편집기가 종료되지 않아야 합니다.",
 	"explorerConfigurationTitle": "파일 탐색기",
+	"openEditorsVisible": "열려 있는 편집기 창에 표시되는 편집기 수입니다.",
 	"autoReveal": "탐색기에서 파일을 열 때 자동으로 표시하고 선택할지를 제어합니다.",
 	"enableDragAndDrop": "탐색기에서 끌어서 놓기를 통한 파일 및 폴더 이동을 허용하는지를 제어합니다.",
 	"confirmDragAndDrop": "끌어서 놓기를 사용하여 파일 및 폴더를 이동하기 위해 탐색기에서 확인을 요청해야 하는지 제어합니다.",

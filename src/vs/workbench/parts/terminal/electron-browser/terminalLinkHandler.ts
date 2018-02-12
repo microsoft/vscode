@@ -91,7 +91,7 @@ export class TerminalLinkHandler {
 		return this._xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
 			matchIndex,
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => validationCallback(uri, callback),
-			tooltipCallback: (e: MouseEvent, u) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
+			tooltipCallback: (e: MouseEvent) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: CUSTOM_LINK_PRIORITY
@@ -105,7 +105,7 @@ export class TerminalLinkHandler {
 
 		return this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
-			tooltipCallback: (e: MouseEvent, u) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
+			tooltipCallback: (e: MouseEvent) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY

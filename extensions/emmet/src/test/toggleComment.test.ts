@@ -9,8 +9,8 @@ import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { toggleComment as toggleCommentImpl } from '../toggleComment';
 
-function toggleComment(...args): Thenable<boolean> {
-	const result = toggleCommentImpl(...args);
+function toggleComment(): Thenable<boolean> {
+	const result = toggleCommentImpl();
 	assert.ok(result);
 	return result!;
 }
@@ -197,6 +197,52 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 
 			return toggleComment().then(() => {
 				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('toggle comment with multiple cursors selecting parent and child nodes', () => {
+		const expectedContents = `
+	<div class="hello">
+		<ul>
+			<li><!--<span>Hello</span>--></li>
+			<!--<li><span>There</span></li>-->
+			<div><li><span>Bye</span></li></div>
+		</ul>
+		<!--<ul>
+			<li>Previously Commented Node</li>
+			<li>Another Node</li>
+		</ul>-->
+		<span/>
+		<!--<style>
+			.boo {
+				margin: 10px;
+				padding: 20px;
+			}
+			.hoo {
+				margin: 10px;
+				padding: 20px;
+			}
+		</style>-->
+	</div>
+	`;
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(3, 17, 3, 17), // cursor inside the inner span element
+				new Selection(4, 5, 4, 5), // two cursors: one inside opening tag
+				new Selection(4, 17, 4, 17), // 		and the second inside the inner span element
+				new Selection(7, 3, 7, 3), // two cursors: one inside open tag of <ul> one of of whose children is already commented
+				new Selection(9, 10, 9, 10), // 	and the second inside inner li element, whose parent is selected
+				new Selection(12, 3, 12, 3), // four nested cursors: one inside the style open tag
+				new Selection(14, 8, 14, 8), // 	the second inside the css property inside the style tag
+				new Selection(18, 3, 18, 3), // 	the third inside the css rule inside the style tag
+				new Selection(19, 8, 19, 8) // 		and the fourth inside the css property inside the style tag
+			];
+
+			return toggleComment().then(() => {
+				assert.equal(doc.getText(), expectedContents);
+
 				return Promise.resolve();
 			});
 		});
@@ -469,6 +515,68 @@ suite('Tests for Toggle Comment action from Emmet in nested css (SCSS)', () => {
 			padding: 10px;
 		}
 	}`;
+
+	test('toggle comment with multiple cursors selecting nested nodes (SCSS)', () => {
+		const expectedContents = `
+	.one {
+		/*height: 42px;*/
+
+		/*.two {
+			width: 42px;
+		}*/
+
+		.three {
+			/*padding: 10px;*/
+		}
+	}`;
+		return withRandomFileEditor(contents, 'css', (editor, doc) => {
+			editor.selections = [
+				new Selection(2, 5, 2, 5), // cursor inside a property
+				new Selection(4, 4, 4, 4), // two cursors: one inside a nested rule
+				new Selection(5, 5, 5, 5), // 		and the second one inside a nested property
+				new Selection(9, 5, 9, 5) // cursor inside a property inside a nested rule
+			];
+
+			return toggleComment().then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return toggleComment().then(() => {
+					assert.equal(doc.getText(), contents);
+				return Promise.resolve();
+				});
+			});
+		});
+	});
+	test('toggle comment with multiple cursors selecting several nested nodes (SCSS)', () => {
+		const expectedContents = `
+	/*.one {
+		height: 42px;
+
+		.two {
+			width: 42px;
+		}
+
+		.three {
+			padding: 10px;
+		}
+	}*/`;
+		return withRandomFileEditor(contents, 'css', (editor, doc) => {
+			editor.selections = [
+				new Selection(1, 3, 1, 3), // cursor in the outside rule. And several cursors inside:
+				new Selection(2, 5, 2, 5), // cursor inside a property
+				new Selection(4, 4, 4, 4), // two cursors: one inside a nested rule
+				new Selection(5, 5, 5, 5), // 		and the second one inside a nested property
+				new Selection(9, 5, 9, 5) // cursor inside a property inside a nested rule
+			];
+
+			return toggleComment().then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return toggleComment().then(() => {
+					assert.equal(doc.getText(), contents);
+					return Promise.resolve();
+				});
+			});
+		});
+	});
 
 	test('toggle comment with multiple cursors, but no selection (SCSS)', () => {
 		const expectedContents = `

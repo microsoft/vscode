@@ -11,6 +11,7 @@
 	"workspaceRecommendation": "Ez a kiegészítő az aktuális munkaterület felhasználói által ajánlott.",
 	"fileBasedRecommendation": "Ez a kiegészítő a közelmúltban megnyitott fájlok alapján ajánlott.",
 	"exeBasedRecommendation": "Ez a kiegészítő azért ajánlott, mert a következő telepítve van: {0}.",
+	"dynamicWorkspaceRecommendation": "Ez a kiegészítő lehet, hogy érdekelni fogja, mert az aktuális munkaterület felhasználói közül sokan használják.",
 	"reallyRecommended2": "Ehhez a fájltípushoz a(z) '{0}' kiegészítő ajánlott.",
 	"reallyRecommendedExtensionPack": "Ehhez a fájltípushoz a(z) '{0}' kiegészítőcsomag ajánlott.",
 	"showRecommendations": "Ajánlatok megjelenítése",

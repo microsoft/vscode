@@ -28,7 +28,8 @@ const options: minimist.Opts = {
 		'debugBrkSearch',
 		'enable-proposed-api',
 		'export-default-configuration',
-		'install-source'
+		'install-source',
+		'upload-logs'
 	],
 	boolean: [
 		'help',
@@ -60,8 +61,7 @@ const options: minimist.Opts = {
 		'skip-add-to-recently-opened',
 		'status',
 		'file-write',
-		'file-chmod',
-		'upload-logs'
+		'file-chmod'
 	],
 	alias: {
 		add: 'a',

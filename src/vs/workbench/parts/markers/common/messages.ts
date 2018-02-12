@@ -40,7 +40,7 @@ export default class Messages {
 
 	public static readonly MARKERS_PANEL_AT_LINE_COL_NUMBER = (ln: number, col: number): string => { return nls.localize('markers.panel.at.ln.col.number', "({0}, {1})", '' + ln, '' + col); };
 
-	public static readonly MARKERS_TREE_ARIA_LABEL_RESOURCE = (fileName, noOfProblems): string => { return nls.localize('problems.tree.aria.label.resource', "{0} with {1} problems", fileName, noOfProblems); };
+	public static readonly MARKERS_TREE_ARIA_LABEL_RESOURCE = (fileName: string, noOfProblems: number): string => { return nls.localize('problems.tree.aria.label.resource', "{0} with {1} problems", fileName, noOfProblems); };
 	public static readonly MARKERS_TREE_ARIA_LABEL_MARKER = (marker: IMarker): string => {
 		switch (marker.severity) {
 			case Severity.Error:

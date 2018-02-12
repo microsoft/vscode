@@ -78,7 +78,6 @@ export class TerminalInstance implements ITerminalInstance {
 	private _processReady: TPromise<void>;
 	private _isDisposed: boolean;
 	private _onDisposed: Emitter<ITerminalInstance>;
-	private _onDataForApi: Emitter<{ instance: ITerminalInstance, data: string }>;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
 	private _process: cp.ChildProcess;
@@ -106,7 +105,6 @@ export class TerminalInstance implements ITerminalInstance {
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
-	public get onDataForApi(): Event<{ instance: ITerminalInstance, data: string }> { return this._onDataForApi.event; }
 	public get onProcessIdReady(): Event<TerminalInstance> { return this._onProcessIdReady.event; }
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	public get title(): string { return this._title; }
@@ -144,7 +142,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._preLaunchInputQueue = '';
 
 		this._onDisposed = new Emitter<TerminalInstance>();
-		this._onDataForApi = new Emitter<{ instance: ITerminalInstance, data: string }>();
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
@@ -274,7 +271,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// Localize strings
 			Terminal.strings.blankLine = nls.localize('terminal.integrated.a11yBlankLine', 'Blank line');
 			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
-			Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce,navigate to rows manually to read');
+			Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
 		}
 		const accessibilitySupport = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		const font = this._configHelper.getFont(true);
@@ -288,7 +285,8 @@ export class TerminalInstance implements ITerminalInstance {
 			lineHeight: font.lineHeight,
 			bellStyle: this._configHelper.config.enableBell ? 'sound' : 'none',
 			screenReaderMode: accessibilitySupport === 'on',
-			macOptionIsMeta: this._configHelper.config.macOptionIsMeta
+			macOptionIsMeta: this._configHelper.config.macOptionIsMeta,
+			rightClickSelectsWord: this._configHelper.config.rightClickBehavior === 'selectWord'
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -783,6 +781,12 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _attachPressAnyKeyToCloseListener() {
 		this._processDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'keydown', (event: KeyboardEvent) => {
+			switch (event.key) {
+				case 'Meta':
+				case 'Shift':
+				case 'Alt':
+				case 'Control': return;
+			}
 			this.dispose();
 			event.preventDefault();
 		}));
@@ -988,6 +992,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._setScrollback(this._configHelper.config.scrollback);
 		this._setEnableBell(this._configHelper.config.enableBell);
 		this._setMacOptionIsMeta(this._configHelper.config.macOptionIsMeta);
+		this._setRightClickSelectsWord(this._configHelper.config.rightClickBehavior === 'selectWord');
 	}
 
 	public updateAccessibilitySupport(): void {
@@ -1023,6 +1028,12 @@ export class TerminalInstance implements ITerminalInstance {
 	private _setMacOptionIsMeta(value: boolean): void {
 		if (this._xterm && this._xterm.getOption('macOptionIsMeta') !== value) {
 			this._xterm.setOption('macOptionIsMeta', value);
+		}
+	}
+
+	private _setRightClickSelectsWord(value: boolean): void {
+		if (this._xterm && this._xterm.getOption('rightClickSelectsWord') !== value) {
+			this._xterm.setOption('rightClickSelectsWord', value);
 		}
 	}
 

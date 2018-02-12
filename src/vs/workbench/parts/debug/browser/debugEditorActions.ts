@@ -49,63 +49,6 @@ class ToggleBreakpointAction extends EditorAction {
 	}
 }
 
-function addColumnBreakpoint(accessor: ServicesAccessor, editor: ICodeEditor, remove: boolean): TPromise<any> {
-	const debugService = accessor.get(IDebugService);
-
-	const position = editor.getPosition();
-	const modelUri = editor.getModel().uri;
-	const bp = debugService.getModel().getBreakpoints()
-		.filter(bp => bp.lineNumber === position.lineNumber && bp.column === position.column && bp.uri.toString() === modelUri.toString()).pop();
-
-	if (bp) {
-		return remove ? debugService.removeBreakpoints(bp.getId()) : TPromise.as(null);
-	}
-	if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-		return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column }]);
-	}
-
-	return TPromise.as(null);
-}
-
-class ToggleColumnBreakpointAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.debug.action.toggleColumnBreakpoint',
-			label: nls.localize('columnBreakpointAction', "Debug: Column Breakpoint"),
-			alias: 'Debug: Column Breakpoint',
-			precondition: null,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.Shift | KeyCode.F9
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<any> {
-		return addColumnBreakpoint(accessor, editor, true);
-	}
-}
-
-// TODO@Isidor merge two column breakpoints actions together
-class ToggleColumnBreakpointContextMenuAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.debug.action.toggleColumnBreakpointContextMenu',
-			label: nls.localize('columnBreakpoint', "Add Column Breakpoint"),
-			alias: 'Toggle Column Breakpoint',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.writable),
-			menuOpts: {
-				group: 'debug',
-				order: 1
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<any> {
-		return addColumnBreakpoint(accessor, editor, false);
-	}
-}
-
 class ConditionalBreakpointAction extends EditorAction {
 
 	constructor() {
@@ -268,12 +211,9 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 }
 
 registerEditorAction(ToggleBreakpointAction);
-registerEditorAction(ToggleColumnBreakpointAction);
-registerEditorAction(ToggleColumnBreakpointContextMenuAction);
 registerEditorAction(ConditionalBreakpointAction);
 registerEditorAction(RunToCursorAction);
 registerEditorAction(SelectionToReplAction);
 registerEditorAction(SelectionToWatchExpressionsAction);
 registerEditorAction(ShowDebugHoverAction);
-
 registerEditorCommand(new CloseBreakpointWidgetCommand());

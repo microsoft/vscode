@@ -32,8 +32,12 @@
 	"app.launch.json.configurations": "Lista de configurações. Adicionar novas configurações ou editar as existentes usando o IntelliSense.",
 	"app.launch.json.compounds": "Lista de compostos. Cada composto faz referência a várias configurações que vão ser executadas juntas.",
 	"app.launch.json.compound.name": "Nome do composto. Aparece no menu drop-down da configuração de execução.",
+	"useUniqueNames": "Por favor, use nomes únicos de configuração.",
+	"app.launch.json.compound.folder": "Nome da pasta em que o composto se encontra.",
 	"app.launch.json.compounds.configurations": "Nomes das configurações que serão iniciadas como parte deste composto.",
 	"debugNoType": "'type' do adaptador de depuração não pode ser omitido e deve ser do tipo 'string'.",
 	"selectDebug": "Selecione o ambiente",
-	"DebugConfig.failed": "Não é possível criar o arquivo 'launch.json' dentro da pasta '.vscode' ({0})."
+	"DebugConfig.failed": "Não é possível criar o arquivo 'launch.json' dentro da pasta '.vscode' ({0}).",
+	"workspace": "espaço de trabalho",
+	"user settings": "configurações de usuário"
 }

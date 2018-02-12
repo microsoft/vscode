@@ -11,9 +11,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { isArray } from 'vs/base/common/types';
-import URI from 'vs/base/common/uri';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 export interface IEditorDescriptor {
 	instantiate(instantiationService: IInstantiationService): BaseEditor;
@@ -200,78 +197,3 @@ export const Extensions = {
 };
 
 Registry.add(Extensions.Editors, new EditorRegistry());
-
-export interface IDraggedResource {
-	resource: URI;
-	isExternal: boolean;
-}
-
-export interface IDraggedEditor extends IDraggedResource {
-	backupResource?: URI;
-	viewState?: IEditorViewState;
-}
-
-export interface ISerializedDraggedEditor {
-	resource: string;
-	backupResource: string;
-	viewState: IEditorViewState;
-}
-
-export const CodeDataTransfers = {
-	EDITOR: 'CodeEditor'
-};
-
-export function extractResources(e: DragEvent, externalOnly?: boolean): (IDraggedResource | IDraggedEditor)[] {
-	const resources: (IDraggedResource | IDraggedEditor)[] = [];
-	if (e.dataTransfer.types.length > 0) {
-
-		// Check for window-to-window DND
-		if (!externalOnly) {
-
-			// Data Transfer: Code Editor
-			const rawEditorData = e.dataTransfer.getData(CodeDataTransfers.EDITOR);
-			if (rawEditorData) {
-				try {
-					const draggedEditor = JSON.parse(rawEditorData) as ISerializedDraggedEditor;
-					resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: URI.parse(draggedEditor.backupResource), viewState: draggedEditor.viewState, isExternal: false });
-				} catch (error) {
-					// Invalid URI
-				}
-			}
-
-			// Data Transfer: URL
-			else {
-				try {
-					const rawURLsData = e.dataTransfer.getData(DataTransfers.URLS);
-					if (rawURLsData) {
-						const uriStrArray: string[] = JSON.parse(rawURLsData);
-						resources.push(...uriStrArray.map(uriStr => ({ resource: URI.parse(uriStr), isExternal: false })));
-					} else {
-						const rawURLData = e.dataTransfer.getData(DataTransfers.URL);
-						if (rawURLData) {
-							resources.push({ resource: URI.parse(rawURLData), isExternal: false });
-						}
-					}
-				} catch (error) {
-					// Invalid URI
-				}
-			}
-		}
-
-		// Check for native file transfer
-		if (e.dataTransfer && e.dataTransfer.files) {
-			for (let i = 0; i < e.dataTransfer.files.length; i++) {
-				const file = e.dataTransfer.files[i] as { path: string };
-				if (file && file.path) {
-					try {
-						resources.push({ resource: URI.file(file.path), isExternal: true });
-					} catch (error) {
-						// Invalid URI
-					}
-				}
-			}
-		}
-	}
-
-	return resources;
-}

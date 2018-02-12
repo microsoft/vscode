@@ -51,6 +51,8 @@ Type: filesandordirs; Name: "{app}\resources\app\out"; Check: IsNotUpdate
 Type: filesandordirs; Name: "{app}\resources\app\plugins"; Check: IsNotUpdate
 Type: filesandordirs; Name: "{app}\resources\app\extensions"; Check: IsNotUpdate
 Type: filesandordirs; Name: "{app}\resources\app\node_modules"; Check: IsNotUpdate
+Type: filesandordirs; Name: "{app}\resources\app\node_modules.asar.unpacked"; Check: IsNotUpdate
+Type: files; Name: "{app}\resources\app\node_modules.asar"; Check: IsNotUpdate
 Type: files; Name: "{app}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotUpdate
 
 [UninstallDelete]
@@ -1003,7 +1005,7 @@ begin
     Result := ExpandConstant('{app}');
 end;
 
-function BoolToStr(Value: Boolean): String; 
+function BoolToStr(Value: Boolean): String;
 begin
   if Value then
     Result := 'true'
@@ -1025,7 +1027,7 @@ begin
       Sleep(1000);
     end;
 
-    Exec(ExpandConstant('{app}\inno_updater.exe'), ExpandConstant('_ "{app}\unins000.dat" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+    Exec(ExpandConstant('{app}\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
   end;
 end;
 

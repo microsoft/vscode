@@ -103,7 +103,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 			launch.getConfigurationNames().map(config => ({ config: config, highlights: Filters.matchesContiguousSubString(input, config) }))
 				.filter(({ highlights }) => !!highlights)
 				.forEach(({ config, highlights }) => {
-					if (launch === configManager.selectedLaunch && config === configManager.selectedName) {
+					if (launch === configManager.selectedConfiguration.launch && config === configManager.selectedConfiguration.name) {
 						this.autoFocusIndex = configurations.length;
 					}
 					configurations.push(new StartDebugEntry(this.debugService, this.contextService, this.messageService, launch, config, highlights));

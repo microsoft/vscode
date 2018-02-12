@@ -80,14 +80,14 @@
 		"grammars": [{
 			"language": "xml",
 			"scopeName": "text.xml",
-			"path": "./syntaxes/xml.json"
+			"path": "./syntaxes/xml.tmLanguage.json"
 		}, {
 			"language": "xsl",
 			"scopeName": "text.xml.xsl",
-			"path": "./syntaxes/xsl.json"
+			"path": "./syntaxes/xsl.tmLanguage.json"
 		}]
 	},
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-xml grammars/xml.cson ./syntaxes/xml.json grammars/xsl.cson ./syntaxes/xsl.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-xml grammars/xml.cson ./syntaxes/xml.tmLanguage.json grammars/xsl.cson ./syntaxes/xsl.tmLanguage.json"
 	}
 }

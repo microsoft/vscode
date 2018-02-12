@@ -468,16 +468,16 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
-		'editor.selectSuggestions': {
+		'editor.suggestSelection': {
 			'type': 'string',
-			'enum': ['never', 'byRecency', 'byPrefix'],
+			'enum': ['first', 'recentlyUsed', 'recentlyUsedByPrefix'],
 			'enumDescriptions': [
-				nls.localize('selectSuggestions.never', "Do not remember suggestions and always select the first."),
-				nls.localize('selectSuggestions.byRecency', "Select recent suggestions unless further typing selects one, e.g. `console.| -> console.log`"),
-				nls.localize('selectSuggestions.byPrefix', "Select suggestions based on previous prefixes that have completed those suggestions, e.g. `co -> console` and `con -> const`"),
+				nls.localize('suggestSelection.first', "Always select the first suggestion."),
+				nls.localize('suggestSelection.recentlyUsed', "Select recent suggestions unless further typing selects one, e.g. `console.| -> console.log` because `log` has been completed recently."),
+				nls.localize('suggestSelection.recentlyUsedByPrefix', "Select suggestions based on previous prefixes that have completed those suggestions, e.g. `co -> console` and `con -> const`."),
 			],
-			'default': 'byRecency',
-			'description': nls.localize('selectSuggestions', "Controls if accepting suggestions changes how future suggestions are pre-selected.")
+			'default': 'recentlyUsed',
+			'description': nls.localize('suggestSelection', "Controls how suggestions are pre-selected when showing the suggest list.")
 		},
 		'editor.suggestFontSize': {
 			'type': 'integer',

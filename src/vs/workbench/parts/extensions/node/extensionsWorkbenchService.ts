@@ -20,7 +20,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionTipsService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -349,7 +349,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IWindowService private windowService: IWindowService,
 		@ILogService private logService: ILogService,
-		@IProgressService2 private progressService: IProgressService2
+		@IProgressService2 private progressService: IProgressService2,
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -644,7 +645,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private promptForDependenciesAndEnable(extension: IExtension, dependencies: IExtension[], enablementState: EnablementState, enable: boolean): TPromise<any> {
-		const message = nls.localize('enableDependeciesConfirmation', "Enabling '{0}' also enable its dependencies. Would you like to continue?", extension.displayName);
+		const message = nls.localize('enableDependeciesConfirmation', "Enabling '{0}' also enables its dependencies. Would you like to continue?", extension.displayName);
 		const options = [
 			nls.localize('enable', "Yes"),
 			nls.localize('doNotEnable', "No")
@@ -876,12 +877,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const data = active.extension.telemetryData;
 		const duration = new Date().getTime() - active.start.getTime();
 		const eventName = toTelemetryEventName(active.operation);
-
+		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason() || {};
+		const recommendationsData = extRecommendations[active.extension.id.toLowerCase()] ? { recommendationReason: extRecommendations[active.extension.id.toLowerCase()].reasonId } : {};
 		/* __GDPR__
 			"extensionGallery:install" : {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
@@ -892,6 +895,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
@@ -902,12 +906,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"errorcode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
 			}
 		*/
-		this.telemetryService.publicLog(eventName, assign(data, { success: !errorcode, duration, errorcode }));
+		this.telemetryService.publicLog(eventName, assign(data, { success: !errorcode, duration, errorcode }, recommendationsData));
 	}
 
 	private onError(err: any): void {
@@ -934,8 +939,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const extensionId = match[1];
 
 		this.queryLocal().then(local => {
-			if (local.some(local => local.id === extensionId)) {
-				return TPromise.as(null);
+			const extension = local.filter(local => local.id === extensionId)[0];
+
+			if (extension) {
+				return this.windowService.show()
+					.then(() => this.open(extension));
 			}
 
 			return this.queryGallery({ names: [extensionId], source: 'uri' }).then(result => {

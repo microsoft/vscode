@@ -8,11 +8,12 @@
 	],
 	"openLogsFolder": "Apri cartella dei log",
 	"showLogs": "Mostra log...",
-	"mainProcess": "Principale",
-	"sharedProcess": "Condiviso",
-	"rendererProcess": "Finestra",
+	"rendererProcess": "Finestra ({0})",
+	"emptyWindow": "Finestra",
 	"extensionHost": "Host dell'estensione",
-	"selectProcess": "Seleziona il processo",
+	"sharedProcess": "Condiviso",
+	"mainProcess": "Principale",
+	"selectProcess": "Seleziona log per il processo",
 	"openLogFile": "Apri file di Log...",
 	"setLogLevel": "Imposta livello log",
 	"trace": "Analisi",
@@ -22,5 +23,8 @@
 	"err": "Errore",
 	"critical": "Errori critici",
 	"off": "Disattivato",
-	"selectLogLevel": "Seleziona il livello log"
+	"selectLogLevel": "Seleziona il livello log",
+	"default and current": "Predefinito e corrente",
+	"default": "Impostazione predefinita",
+	"current": "Corrente"
 }

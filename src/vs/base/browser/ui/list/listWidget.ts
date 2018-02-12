@@ -364,8 +364,14 @@ const DefaultMultipleSelectionContoller = {
 };
 
 const DefaultOpenController = {
-	shouldOpen: (event: UIEvent) => true
-};
+	shouldOpen: (event: UIEvent) => {
+		if (event instanceof MouseEvent) {
+			return event.button === 0 /* left mouse button */ || event.button === 1 /* middle mouse button */;
+		}
+
+		return true;
+	}
+} as IOpenController;
 
 class MouseController<T> implements IDisposable {
 

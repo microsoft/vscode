@@ -48,14 +48,6 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		};
 	}
 
-	$getElements(treeViewId: string): TPromise<ITreeItem[]> {
-		const treeView = this.treeViews.get(treeViewId);
-		if (!treeView) {
-			return TPromise.wrapError<ITreeItem[]>(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
-		}
-		return treeView.getChildren();
-	}
-
 	$getChildren(treeViewId: string, treeItemHandle?: string): TPromise<ITreeItem[]> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
@@ -87,7 +79,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter) {
 		super();
-		this.proxy.$registerView(viewId);
+		this.proxy.$registerTreeViewDataProvider(viewId);
 		if (dataProvider.onDidChangeTreeData) {
 			this._register(debounceEvent<T, T[]>(dataProvider.onDidChangeTreeData, (last, current) => last ? [...last, current] : [current], 200)(elements => this.refresh(elements)));
 		}

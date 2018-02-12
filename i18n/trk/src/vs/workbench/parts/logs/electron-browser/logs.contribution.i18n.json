@@ -9,5 +9,6 @@
 	"mainLog": "Günlük (Temel)",
 	"sharedLog": "Günlük (Ortak)",
 	"rendererLog": "Günlük (Pencere)",
+	"extensionsLog": "Günlük (Eklenti Sunucusu)",
 	"developer": "Geliştirici"
 }

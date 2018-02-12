@@ -598,21 +598,34 @@ function normalizePath(path: string): string {
 	return strings.rtrim(paths.normalize(path), paths.sep);
 }
 
-export function watch(path: string, onChange: (type: string, path: string) => void): fs.FSWatcher {
-	const watcher = fs.watch(path);
-	watcher.on('change', (type, raw) => {
-		let file: string = null;
-		if (raw) { // https://github.com/Microsoft/vscode/issues/38191
-			file = raw.toString();
-			if (platform.isMacintosh) {
-				// Mac: uses NFD unicode form on disk, but we want NFC
-				// See also https://github.com/nodejs/node/issues/2165
-				file = strings.normalizeNFC(file);
+export function watch(path: string, onChange: (type: string, path: string) => void, onError: (error: string) => void): fs.FSWatcher {
+	try {
+		const watcher = fs.watch(path);
+
+		watcher.on('change', (type, raw) => {
+			let file: string = null;
+			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
+				file = raw.toString();
+				if (platform.isMacintosh) {
+					// Mac: uses NFD unicode form on disk, but we want NFC
+					// See also https://github.com/nodejs/node/issues/2165
+					file = strings.normalizeNFC(file);
+				}
 			}
-		}
 
-		onChange(type, file);
-	});
+			onChange(type, file);
+		});
 
-	return watcher;
+		watcher.on('error', (code: number, signal: string) => onError(`Failed to watch ${path} for changes (${code}, ${signal})`));
+
+		return watcher;
+	} catch (error) {
+		fs.exists(path, exists => {
+			if (exists) {
+				onError(`Failed to watch ${path} for changes (${error.toString()})`);
+			}
+		});
+	}
+
+	return void 0;
 }

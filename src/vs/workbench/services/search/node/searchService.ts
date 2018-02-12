@@ -158,7 +158,7 @@ export class SearchService implements ISearchService {
 				}
 
 				// Support untitled files
-				if (resource.scheme === 'untitled') {
+				if (resource.scheme === Schemas.untitled) {
 					if (!this.untitledEditorService.exists(resource)) {
 						return;
 					}
@@ -168,7 +168,7 @@ export class SearchService implements ISearchService {
 				// todo@remote
 				// why is that? we should search for resources from other
 				// schemes
-				else if (resource.scheme !== 'file') {
+				else if (resource.scheme !== Schemas.file) {
 					return;
 				}
 
@@ -197,7 +197,7 @@ export class SearchService implements ISearchService {
 	private matches(resource: uri, query: ISearchQuery): boolean {
 		// file pattern
 		if (query.filePattern) {
-			if (resource.scheme !== 'file') {
+			if (resource.scheme !== Schemas.file) {
 				return false; // if we match on file pattern, we have to ignore non file resources
 			}
 
@@ -208,7 +208,7 @@ export class SearchService implements ISearchService {
 
 		// includes
 		if (query.includePattern) {
-			if (resource.scheme !== 'file') {
+			if (resource.scheme !== Schemas.file) {
 				return false; // if we match on file patterns, we have to ignore non file resources
 			}
 		}

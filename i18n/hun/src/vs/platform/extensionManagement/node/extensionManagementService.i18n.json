@@ -13,6 +13,7 @@
 	"cancel": "Mégse",
 	"errorInstallingDependencies": "Hiba a függőségek telepítése közben. {0}",
 	"notFoundCompatible": "A(z) '{0}' nem telepíthető: nincs a VS Code '{1}' verziójával kompatibilis változat.",
+	"malicious extension": "A kiegészítő nem telepíthető, mert jelentették, hogy problémás.",
 	"notFoundCompatibleDependency": "A telepítés nem sikerült, mert a(z) '{0}' kiegészítő függőség VS Code '{1}' verziójával kompatibilis változata nem található. ",
 	"quitCode": "A kiegészítő telepítése nem sikerült. Lépjen ki és indítsa el a VS Code-ot az újratelepítés előtt!",
 	"exitCode": "A kiegészítő telepítése nem sikerült. Lépjen ki és indítsa el a VS Code-ot az újratelepítés előtt!",

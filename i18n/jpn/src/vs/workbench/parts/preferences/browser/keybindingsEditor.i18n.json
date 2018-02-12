@@ -17,7 +17,7 @@
 	"addLabel": "キー バインドの追加",
 	"removeLabel": "キー バインドの削除",
 	"resetLabel": "キー バインドのリセット",
-	"showConflictsLabel": "競合の表示",
+	"showSameKeybindings": "同じキーバインドを表示",
 	"copyLabel": "コピー",
 	"copyCommandLabel": "コピー コマンド",
 	"error": "キー バインドの編集中にエラー '{0}' が発生しました。'keybindings.json' ファイルを開いてご確認ください。",

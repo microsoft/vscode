@@ -21,6 +21,7 @@
 	"workspaceConfig.name.description": "Un nom facultatif pour le dossier. ",
 	"workspaceConfig.uri.description": "URI du dossier",
 	"workspaceConfig.settings.description": "Paramètres de l’espace de travail",
+	"workspaceConfig.launch.description": "Configurations de lancement de l’espace de travail",
 	"workspaceConfig.extensions.description": "Extensions de l’espace de travail",
 	"unknownWorkspaceProperty": "Propriété de configuration d’espace de travail inconnue"
 }

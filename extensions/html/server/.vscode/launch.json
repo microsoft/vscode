@@ -6,9 +6,9 @@
 			"name": "Attach",
 			"type": "node",
 			"request": "attach",
-			"port": 6004,
+			"port": 6045,
 			"sourceMaps": true,
-			"outDir": "${workspaceFolder}/out"
+			"outFiles": ["${workspaceFolder}/out/**/*.js"]
 		},
 		{
 			"name": "Unit Tests",
@@ -26,7 +26,7 @@
 			"runtimeArgs": [],
 			"env": {},
 			"sourceMaps": true,
-			"outDir": "${workspaceFolder}/out"
+			"outFiles": ["${workspaceFolder}/out/**/*.js"]
 		}
 	]
 }

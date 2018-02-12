@@ -8,5 +8,6 @@
 	],
 	"quickFixWithKb": "Mostra correzioni ({0})",
 	"quickFix": "Mostra correzioni",
-	"quickfix.trigger.label": "Correzione rapida"
+	"quickfix.trigger.label": "Correzione rapida",
+	"refactor.label": "Esegui il refactoring"
 }

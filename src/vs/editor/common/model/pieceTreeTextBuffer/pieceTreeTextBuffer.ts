@@ -15,18 +15,14 @@ import { ITextSnapshot } from 'vs/platform/files/common/files';
 export class PieceTreeTextBuffer implements ITextBuffer {
 	private _pieceTree: PieceTreeBase;
 	private _BOM: string;
-	private _EOL: string;
-	private _EOLLength: number;
 	private _mightContainRTL: boolean;
 	private _mightContainNonBasicASCII: boolean;
 
-	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, isBasicASCII: boolean) {
+	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, isBasicASCII: boolean, eolNormalized: boolean) {
 		this._BOM = BOM;
-		this._EOL = eol;
-		this._EOLLength = this._EOL.length;
 		this._mightContainNonBasicASCII = !isBasicASCII;
 		this._mightContainRTL = containsRTL;
-		this._pieceTree = new PieceTreeBase(chunks);
+		this._pieceTree = new PieceTreeBase(chunks, eol, eolNormalized);
 	}
 
 	// #region TextBuffer
@@ -37,7 +33,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		if (this._BOM !== other._BOM) {
 			return false;
 		}
-		if (this._EOL !== other._EOL) {
+		if (this.getEOL() !== other.getEOL()) {
 			return false;
 		}
 		return this._pieceTree.equal(other._pieceTree);
@@ -52,7 +48,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		return this._BOM;
 	}
 	public getEOL(): string {
-		return this._EOL;
+		return this._pieceTree.getEOL();
 	}
 
 	public createSnapshot(preserveBOM: boolean): ITextSnapshot {
@@ -119,11 +115,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	}
 
 	public getLineLength(lineNumber: number): number {
-		if (lineNumber === this.getLineCount()) {
-			let startOffset = this.getOffsetAt(lineNumber, 1);
-			return this.getLength() - startOffset;
-		}
-		return this.getOffsetAt(lineNumber + 1, 1) - this.getOffsetAt(lineNumber, 1) - this._EOLLength;
+		return this._pieceTree.getLineLength(lineNumber);
 	}
 
 	public getLineMinColumn(lineNumber: number): number {
@@ -163,9 +155,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	}
 
 	public setEOL(newEOL: '\r\n' | '\n'): void {
-		this._EOL = newEOL;
-		this._EOLLength = this._EOL.length;
-		this._pieceTree.normalizeEOL(newEOL);
+		this._pieceTree.setEOL(newEOL);
 	}
 
 	public applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult {
@@ -392,7 +382,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 			if (text) {
 				// replacement
 				this._pieceTree.delete(op.rangeOffset, op.rangeLength);
-				this._pieceTree.insert(op.rangeOffset, text);
+				this._pieceTree.insert(op.rangeOffset, text, true);
 
 			} else {
 				// deletion

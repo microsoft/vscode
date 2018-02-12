@@ -20,10 +20,9 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementService, LocalExtensionType, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
-import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
@@ -40,15 +39,18 @@ import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { FileKind, IFileService } from 'vs/platform/files/common/files';
+import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
-import { IEditor } from 'vs/platform/editor/common/editor';
-import { IIssueService, IssueReporterData, IssueType, IssueReporterStyles } from 'vs/platform/issue/common/issue';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { IssueType } from 'vs/platform/issue/common/issue';
+import { domEvent } from 'vs/base/browser/event';
+import { once } from 'vs/base/common/event';
+import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { getDomNodePagePosition, createStyleSheet, createCSSRule } from 'vs/base/browser/dom';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
 // --- actions
 
@@ -863,22 +865,6 @@ export class CloseMessagesAction extends Action {
 	}
 }
 
-export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {
-	return {
-		backgroundColor: theme.getColor(SIDE_BAR_BACKGROUND) && theme.getColor(SIDE_BAR_BACKGROUND).toString(),
-		color: theme.getColor(foreground).toString(),
-		textLinkColor: theme.getColor(textLinkForeground) && theme.getColor(textLinkForeground).toString(),
-		inputBackground: theme.getColor(inputBackground) && theme.getColor(inputBackground).toString(),
-		inputForeground: theme.getColor(inputForeground) && theme.getColor(inputForeground).toString(),
-		inputBorder: theme.getColor(inputBorder) && theme.getColor(inputBorder).toString(),
-		inputActiveBorder: theme.getColor(inputActiveOptionBorder) && theme.getColor(inputActiveOptionBorder).toString(),
-		inputErrorBorder: theme.getColor(inputValidationErrorBorder) && theme.getColor(inputValidationErrorBorder).toString(),
-		buttonBackground: theme.getColor(buttonBackground) && theme.getColor(buttonBackground).toString(),
-		buttonForeground: theme.getColor(buttonForeground) && theme.getColor(buttonForeground).toString(),
-		buttonHoverBackground: theme.getColor(buttonHoverBackground) && theme.getColor(buttonHoverBackground).toString()
-	};
-}
-
 export class OpenIssueReporterAction extends Action {
 	public static readonly ID = 'workbench.action.openIssueReporter';
 	public static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
@@ -886,28 +872,14 @@ export class OpenIssueReporterAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IIssueService private issueService: IIssueService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<boolean> {
-		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
-			const theme = this.themeService.getTheme();
-			const issueReporterData: IssueReporterData = {
-				styles: getIssueReporterStyles(theme),
-				zoomLevel: webFrame.getZoomLevel(),
-				enabledExtensions
-			};
-
-			return this.issueService.openReporter(issueReporterData).then(() => {
-				return TPromise.as(true);
-			});
-		});
+		return this.issueService.openReporter()
+			.then(() => true);
 	}
 }
 
@@ -918,30 +890,15 @@ export class ReportPerformanceIssueUsingReporterAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IIssueService private issueService: IIssueService,
-		@IThemeService private themeService: IThemeService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<boolean> {
-		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
-			const theme = this.themeService.getTheme();
-			const issueReporterData: IssueReporterData = {
-				styles: getIssueReporterStyles(theme),
-				zoomLevel: webFrame.getZoomLevel(),
-				enabledExtensions,
-				issueType: IssueType.PerformanceIssue
-			};
-
-			// TODO: Reporter should send timings table as well
-			return this.issueService.openReporter(issueReporterData).then(() => {
-				return TPromise.as(true);
-			});
-		});
+		// TODO: Reporter should send timings table as well
+		return this.issueService.openReporter({ issueType: IssueType.PerformanceIssue })
+			.then(() => true);
 	}
 }
 
@@ -1606,44 +1563,80 @@ export class ToggleWindowTabsBar extends Action {
 	}
 }
 
-export class ConfigureLocaleAction extends Action {
-	public static readonly ID = 'workbench.action.configureLocale';
-	public static readonly LABEL = nls.localize('configureLocale', "Configure Language");
+export class ShowAboutDialogAction extends Action {
 
-	private static DEFAULT_CONTENT: string = [
-		'{',
-		`\t// ${nls.localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
-		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
-		`\t// ${nls.localize('restart', 'Changing the value requires restarting VSCode.')}`,
-		`\t"locale":"${language}"`,
-		'}'
-	].join('\n');
+	public static readonly ID = 'workbench.action.showAboutDialog';
+	public static LABEL = nls.localize('about', "About {0}", product.applicationName);
 
-	constructor(id: string, label: string,
-		@IFileService private fileService: IFileService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<IEditor> {
-		const file = URI.file(paths.join(this.environmentService.appSettingsHome, 'locale.json'));
-		return this.fileService.resolveFile(file).then(null, (error) => {
-			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
-		}).then((stat) => {
-			if (!stat) {
-				return undefined;
-			}
-			return this.editorService.openEditor({
-				resource: stat.resource,
-				options: {
-					forceOpen: true
-				}
-			});
-		}, (error) => {
-			throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.contextService), error));
-		});
+	run(): TPromise<void> {
+		return this.windowsService.openAboutDialog();
+	}
+}
+
+export class InspectContextKeysAction extends Action {
+
+	public static readonly ID = 'workbench.action.inspectContextKeys';
+	public static LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
+
+	constructor(
+		id: string,
+		label: string,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IWindowService private windowService: IWindowService,
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		const disposables: IDisposable[] = [];
+
+		const stylesheet = createStyleSheet();
+		disposables.push(toDisposable(() => stylesheet.parentNode.removeChild(stylesheet)));
+		createCSSRule('*', 'cursor: crosshair !important;', stylesheet);
+
+		const hoverFeedback = document.createElement('div');
+		document.body.appendChild(hoverFeedback);
+		disposables.push(toDisposable(() => document.body.removeChild(hoverFeedback)));
+
+		hoverFeedback.style.position = 'absolute';
+		hoverFeedback.style.pointerEvents = 'none';
+		hoverFeedback.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+		hoverFeedback.style.zIndex = '1000';
+
+		const onMouseMove = domEvent(document.body, 'mousemove', true);
+		disposables.push(onMouseMove(e => {
+			const target = e.target as HTMLElement;
+			const position = getDomNodePagePosition(target);
+
+			hoverFeedback.style.top = `${position.top}px`;
+			hoverFeedback.style.left = `${position.left}px`;
+			hoverFeedback.style.width = `${position.width}px`;
+			hoverFeedback.style.height = `${position.height}px`;
+		}));
+
+		const onMouseDown = once(domEvent(document.body, 'mousedown', true));
+		onMouseDown(e => { e.preventDefault(); e.stopPropagation(); }, null, disposables);
+
+		const onMouseUp = once(domEvent(document.body, 'mouseup', true));
+		onMouseUp(e => {
+			e.preventDefault();
+			e.stopPropagation();
+
+			const context = this.contextKeyService.getContext(e.target as HTMLElement) as Context;
+			console.log(context.collectAllValues());
+			this.windowService.openDevTools();
+
+			dispose(disposables);
+		}, null, disposables);
+
+		return TPromise.as(null);
 	}
 }

@@ -8,8 +8,6 @@
 	],
 	"scm providers": "Поставщики систем управления версиями",
 	"hideRepository": "Скрыть",
-	"commitMessageInfo": "{0} знаков в текущей строке",
-	"commitMessageCountdown": "Осталось {0} знаков в текущей строке",
 	"installAdditionalSCMProviders": "Установить дополнительных поставщиков SCM...",
 	"no open repo": "Отсутствуют активные поставщики систем управления версиями.",
 	"source control": "Система управления версиями",

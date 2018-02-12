@@ -32,8 +32,12 @@
 	"app.launch.json.configurations": "組態清單。請使用 IntelliSense 新增新的組態或編輯現有的組態。",
 	"app.launch.json.compounds": "複合的清單。每個複合都參考將會同時啟動的多重組態。",
 	"app.launch.json.compound.name": "複合的名稱。顯示於啟動組態下拉式功能表。",
+	"useUniqueNames": "請使用唯一的組態名稱。",
+	"app.launch.json.compound.folder": "複合所在的資料夾名稱。",
 	"app.launch.json.compounds.configurations": "將會作為此複合一部份而啟動之組態的名稱。",
 	"debugNoType": "偵錯配接器 'type' 不能省略且必須屬於 'string' 類型。",
 	"selectDebug": "選取環境",
-	"DebugConfig.failed": "無法在 '.vscode' 資料夾 ({0}) 中建立 'launch.json' 檔案。"
+	"DebugConfig.failed": "無法在 '.vscode' 資料夾 ({0}) 中建立 'launch.json' 檔案。",
+	"workspace": "工作區",
+	"user settings": "使用者設定"
 }

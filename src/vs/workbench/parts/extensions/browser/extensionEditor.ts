@@ -53,6 +53,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { Color } from 'vs/base/common/color';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { assign } from 'vs/base/common/objects';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -273,15 +274,6 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.transientDisposables = dispose(this.transientDisposables);
 
-		/* __GDPR__
-			"extensionGallery:openExtension" : {
-				"${include}": [
-					"${GalleryExtensionTelemetryData}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('extensionGallery:openExtension', extension.telemetryData);
-
 		this.extensionReadme = new Cache(() => extension.getReadme());
 		this.extensionChangelog = new Cache(() => extension.getChangelog());
 		this.extensionManifest = new Cache(() => extension.getManifest());
@@ -303,12 +295,25 @@ export class ExtensionEditor extends BaseEditor {
 		this.description.textContent = extension.description;
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-		this.recommendation.textContent = extRecommendations[extension.id.toLowerCase()];
+		let recommendationsData = {};
 		if (extRecommendations[extension.id.toLowerCase()]) {
 			addClass(this.header, 'recommended');
+			this.recommendation.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+			recommendationsData = { recommendationReason: extRecommendations[extension.id.toLowerCase()].reasonId };
 		} else {
 			removeClass(this.header, 'recommended');
+			this.recommendation.textContent = '';
 		}
+
+		/* __GDPR__
+			"extensionGallery:openExtension" : {
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
+		this.telemetryService.publicLog('extensionGallery:openExtension', assign(extension.telemetryData, recommendationsData));
 
 		if (extension.url) {
 			this.name.onclick = finalHandler(() => window.open(extension.url));

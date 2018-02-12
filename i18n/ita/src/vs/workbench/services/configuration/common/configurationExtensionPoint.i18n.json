@@ -21,6 +21,7 @@
 	"workspaceConfig.name.description": "Nome facoltativo per la cartella. ",
 	"workspaceConfig.uri.description": "URI della cartella",
 	"workspaceConfig.settings.description": "Impostazioni area di lavoro",
+	"workspaceConfig.launch.description": "Configurazioni di avvio dell'area di lavoro",
 	"workspaceConfig.extensions.description": "Estensioni dell'area di lavoro",
 	"unknownWorkspaceProperty": "La proprietà di configurazione dell'area di lavoro è sconosciuta"
 }

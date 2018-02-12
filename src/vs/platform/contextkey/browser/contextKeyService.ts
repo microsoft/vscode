@@ -51,6 +51,13 @@ export class Context implements IContext {
 		}
 		return ret;
 	}
+
+	collectAllValues(): { [key: string]: any; } {
+		let result = this._parent ? this._parent.collectAllValues() : Object.create(null);
+		result = { ...result, ...this._value };
+		delete result['_contextId'];
+		return result;
+	}
 }
 
 class ConfigAwareContextValuesContainer extends Context {

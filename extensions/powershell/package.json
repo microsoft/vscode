@@ -13,7 +13,7 @@
 		"grammars": [{
 			"language": "powershell",
 			"scopeName": "source.powershell",
-			"path": "./syntaxes/PowershellSyntax.tmLanguage"
+			"path": "./syntaxes/powershell.tmLanguage.json"
 		}],
 		"snippets": [{
 			"language": "powershell",
@@ -21,6 +21,6 @@
 		}]
 	},
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js SublimeText/PowerShell Support/PowershellSyntax.tmLanguage ./syntaxes/powershell.tmLanguage.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js PowerShell/EditorSyntax PowerShellSyntax.tmLanguage ./syntaxes/powershell.tmLanguage.json"
 	}
 }

@@ -14,7 +14,6 @@
 	"workbench.action.terminal.selectAll": "全选",
 	"workbench.action.terminal.deleteWordLeft": "删除左侧的字符",
 	"workbench.action.terminal.deleteWordRight": "删除右侧的字符",
-	"workbench.action.terminal.enterLineNavigationMode": "进入屏幕阅读器导航模式",
 	"workbench.action.terminal.new": "新建集成终端",
 	"workbench.action.terminal.new.short": "新的终端",
 	"workbench.action.terminal.newWorkspacePlaceholder": "选择当前工作目录新建终端",

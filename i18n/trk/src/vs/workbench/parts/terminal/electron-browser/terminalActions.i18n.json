@@ -16,6 +16,8 @@
 	"workbench.action.terminal.deleteWordRight": "Sağdaki Sözcüğü Sil",
 	"workbench.action.terminal.new": "Yeni Entegre Terminal Oluştur",
 	"workbench.action.terminal.new.short": "Yeni Terminal",
+	"workbench.action.terminal.newWorkspacePlaceholder": "Yeni terminal için geçerli çalışma dizinini seçin",
+	"workbench.action.terminal.newInActiveWorkspace": "(Aktif Çalışma Alanında) Yeni Entegre Terminal Oluştur",
 	"workbench.action.terminal.focus": "Terminale Odakla",
 	"workbench.action.terminal.focusNext": "Sonraki Terminale Odakla",
 	"workbench.action.terminal.focusPrevious": "Önceki Terminale Odakla",

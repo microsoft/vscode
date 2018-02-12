@@ -18,7 +18,7 @@ import strings = require('vs/base/common/strings');
 import { realcaseSync } from 'vs/base/node/extfs';
 import { isMacintosh } from 'vs/base/common/platform';
 import watcher = require('vs/workbench/services/files/node/watcher/common');
-import { IWatcherRequest, IWatcherService } from './watcher';
+import { IWatcherRequest, IWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 
 export class ChokidarWatcherService implements IWatcherService {
 
@@ -27,6 +27,7 @@ export class ChokidarWatcherService implements IWatcherService {
 
 	private spamCheckStartTime: number;
 	private spamWarningLogged: boolean;
+	private enospcErrorLogged: boolean;
 
 	public watch(request: IWatcherRequest): TPromise<void> {
 		const watcherOpts: chokidar.IOptions = {
@@ -138,7 +139,20 @@ export class ChokidarWatcherService implements IWatcherService {
 
 			chokidarWatcher.on('error', (error: Error) => {
 				if (error) {
-					console.error(error.toString());
+
+					// Specially handle ENOSPC errors that can happen when
+					// the watcher consumes so many file descriptors that
+					// we are running into a limit. We only want to warn
+					// once in this case to avoid log spam.
+					// See https://github.com/Microsoft/vscode/issues/7950
+					if ((<any>error).code === 'ENOSPC') {
+						if (!this.enospcErrorLogged) {
+							this.enospcErrorLogged = true;
+							e(new Error('Inotify limit reached (ENOSPC)'));
+						}
+					} else {
+						console.error(error.toString());
+					}
 				}
 			});
 		}, () => {

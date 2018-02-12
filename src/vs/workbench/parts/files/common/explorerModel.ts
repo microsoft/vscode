@@ -16,6 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
+import { Schemas } from 'vs/base/common/network';
 
 export class Model {
 
@@ -153,7 +154,7 @@ export class FileStat implements IFileStat {
 	 * exists locally.
 	 */
 	public static mergeLocalWithDisk(disk: FileStat, local: FileStat): void {
-		if (!disk || !local || disk.resource.toString() !== local.resource.toString()) {
+		if (disk.resource.toString() !== local.resource.toString()) {
 			return; // Merging only supported for stats with the same resource
 		}
 
@@ -397,7 +398,7 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	public isUntitled(): boolean {
-		return !!toResource(this.editor, { supportSideBySide: true, filter: 'untitled' });
+		return !!toResource(this.editor, { supportSideBySide: true, filter: Schemas.untitled });
 	}
 
 	public isDirty(): boolean {

@@ -10,7 +10,7 @@ import { forEach } from 'vs/base/common/collections';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -27,7 +27,7 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as pfs from 'vs/base/node/pfs';
 import * as os from 'os';
-import { flatten, distinct } from 'vs/base/common/arrays';
+import { flatten, distinct, shuffle } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { ShowLanguageExtensionsAction } from 'vs/workbench/browser/parts/editor/editorStatus';
@@ -43,7 +43,7 @@ interface IExtensionsContent {
 
 const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
-const choiceNever = localize('neverShowAgain', "Don't show again");
+const choiceNever = localize('neverShowAgain', "Don't Show Again");
 const choiceClose = localize('close', "Close");
 
 interface IDynamicWorkspaceRecommendations {
@@ -104,12 +104,32 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return this._galleryService.isEnabled() && !this.environmentService.extensionDevelopmentPath;
 	}
 
-	getAllRecommendationsWithReason(): { [id: string]: string; } {
-		let output: { [id: string]: string; } = Object.create(null);
-		this._allWorkspaceRecommendedExtensions.forEach(x => output[x.toLowerCase()] = localize('workspaceRecommendation', "This extension is recommended by users of the current workspace."));
-		Object.keys(this._fileBasedRecommendations).forEach(x => output[x.toLowerCase()] = output[x.toLowerCase()] || localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened."));
-		forEach(this._exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = output[entry.key.toLowerCase()] || localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", entry.value));
-		this._dynamicWorkspaceRecommendations.forEach(x => output[x.toLowerCase()] = output[x.toLowerCase()] || localize('dynamicWorkspaceRecommendation', "This extension might interest you because many other users of the current workspace use it."));
+	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
+		let output: { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } = Object.create(null);
+
+		if (this.contextService.getWorkspace().folders && this.contextService.getWorkspace().folders.length === 1) {
+			const currentRepo = this.contextService.getWorkspace().folders[0].name;
+			this._dynamicWorkspaceRecommendations.forEach(x => output[x.toLowerCase()] = {
+				reasonId: ExtensionRecommendationReason.DynamicWorkspace,
+				reasonText: localize('dynamicWorkspaceRecommendation', "This extension may interest you because it's popular among users of the {0} repository.", currentRepo)
+			});
+		}
+
+		forEach(this._exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = {
+			reasonId: ExtensionRecommendationReason.Executable,
+			reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", entry.value)
+		});
+
+		Object.keys(this._fileBasedRecommendations).forEach(x => output[x.toLowerCase()] = {
+			reasonId: ExtensionRecommendationReason.File,
+			reasonText: localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened.")
+		});
+
+		this._allWorkspaceRecommendedExtensions.forEach(x => output[x.toLowerCase()] = {
+			reasonId: ExtensionRecommendationReason.Workspace,
+			reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
+		});
+
 		return output;
 	}
 
@@ -199,6 +219,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					}
 				});
 		}
+		this._dynamicWorkspaceRecommendations = [];
 	}
 
 	getFileBasedRecommendations(): string[] {
@@ -218,13 +239,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	getOtherRecommendations(): string[] {
-		if (!this._dynamicWorkspaceRecommendations || !this._dynamicWorkspaceRecommendations.length) {
-			return Object.keys(this._exeBasedRecommendations);
-		}
-		const coinToss = Math.round(Math.random());
-		return distinct(coinToss
-			? [...Object.keys(this._exeBasedRecommendations), ...this._dynamicWorkspaceRecommendations]
-			: [...this._dynamicWorkspaceRecommendations, ...Object.keys(this._exeBasedRecommendations)]);
+		const others = distinct([...Object.keys(this._exeBasedRecommendations), ...this._dynamicWorkspaceRecommendations]);
+		shuffle(others);
+		return others;
 	}
 
 	getKeymapRecommendations(): string[] {
@@ -260,7 +277,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			}
 		});
 
-		const allRecommendations = [];
+		const allRecommendations: string[] = [];
 		forEach(this._availableRecommendations, ({ value: ids }) => {
 			allRecommendations.push(...ids);
 		});
@@ -596,7 +613,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const homeDir = os.homedir();
 		let foundExecutables: Set<string> = new Set<string>();
 
-		let findExecutable = (exeName, path) => {
+		let findExecutable = (exeName: string, path: string) => {
 			return pfs.fileExists(path).then(exists => {
 				if (exists && !foundExecutables.has(exeName)) {
 					foundExecutables.add(exeName);
@@ -660,6 +677,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			&& storedRecommendationsJson['timestamp'] > 0
 			&& (Date.now() - storedRecommendationsJson['timestamp']) / milliSecondsInADay < 14) {
 			this._dynamicWorkspaceRecommendations = storedRecommendationsJson['recommendations'];
+			/* __GDPR__
+				"dynamicWorkspaceRecommendations" : {
+					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 1 });
 			return TPromise.as(null);
 		}
 
@@ -667,8 +691,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return TPromise.as(null);
 		}
 
-		return getHashedRemotesFromUri(this.contextService.getWorkspace().folders[0].uri, this.fileService).then(hashedRemotes => {
-			if (!hashedRemotes || !hashedRemotes.length) {
+		const workspaceUri = this.contextService.getWorkspace().folders[0].uri;
+		return TPromise.join([getHashedRemotesFromUri(workspaceUri, this.fileService, false), getHashedRemotesFromUri(workspaceUri, this.fileService, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
+			const hashedRemotes = (hashedRemotes1 || []).concat(hashedRemotes2 || []);
+			if (!hashedRemotes.length) {
 				return null;
 			}
 
@@ -694,6 +720,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 											recommendations: this._dynamicWorkspaceRecommendations,
 											timestamp: Date.now()
 										}), StorageScope.WORKSPACE);
+										/* __GDPR__
+											"dynamicWorkspaceRecommendations" : {
+												"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+												"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+											}
+										*/
+										this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 0 });
 									}
 								}
 							}

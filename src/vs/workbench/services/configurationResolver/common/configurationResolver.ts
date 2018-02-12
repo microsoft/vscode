@@ -13,7 +13,6 @@ export const IConfigurationResolverService = createDecorator<IConfigurationResol
 export interface IConfigurationResolverService {
 	_serviceBrand: any;
 
-	// TODO@Isidor improve this API
 	resolve(root: IWorkspaceFolder, value: string): string;
 	resolve(root: IWorkspaceFolder, value: string[]): string[];
 	resolve(root: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;

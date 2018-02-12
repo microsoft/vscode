@@ -13,6 +13,7 @@
 	"cancel": "Cancelar",
 	"errorInstallingDependencies": "Error instalando dependencias. {0}",
 	"notFoundCompatible": "No se pueden instalar '{0}'; no hay ninguna versión disponible compatible con VS Code '{1}'. ",
+	"malicious extension": "No se puede instalar la extensión ya que se informó que era problemático.",
 	"notFoundCompatibleDependency": "No se puede instalar porque no se encuentra la extensión dependiente '{0}' compatible con la versión actual '{1}' del VS Code.",
 	"quitCode": "No se puede instalar la extensión. Por favor, salga e inicie VS Code antes de reinstalarlo. ",
 	"exitCode": "No se puede instalar la extensión. Por favor, salga e inicie VS Code antes de reinstalarlo. ",

@@ -95,7 +95,7 @@ export class SuggestController implements IEditorContribution {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 	) {
 		this._model = new SuggestModel(this._editor);
-		this._memory = _instantiationService.createInstance(SuggestMemories, this._editor.getConfiguration().contribInfo.selectSuggestions);
+		this._memory = _instantiationService.createInstance(SuggestMemories, this._editor.getConfiguration().contribInfo.suggestSelection);
 
 		this._toDispose.push(this._model.onDidTrigger(e => {
 			if (!this._widget) {
@@ -116,9 +116,9 @@ export class SuggestController implements IEditorContribution {
 		// Manage the acceptSuggestionsOnEnter context key
 		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
 		let updateFromConfig = () => {
-			const { acceptSuggestionOnEnter, selectSuggestions } = this._editor.getConfiguration().contribInfo;
+			const { acceptSuggestionOnEnter, suggestSelection } = this._editor.getConfiguration().contribInfo;
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
-			this._memory.setMode(selectSuggestions);
+			this._memory.setMode(suggestSelection);
 		};
 		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => updateFromConfig()));
 		updateFromConfig();

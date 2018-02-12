@@ -86,6 +86,7 @@ function getCommit() {
 	} catch (exp) {
 		_commit = null;
 	}
+	return _commit || undefined;
 }
 
 function mkdirp(dir) {
@@ -483,7 +484,7 @@ app.once('ready', function () {
 					boot({ locale: 'en', availableLanguages: {} });
 				} else {
 					// See above the comment about the loader and case sensitiviness
-					appLocale.toLowerCase();
+					appLocale = appLocale.toLowerCase();
 					getNLSConfiguration(appLocale).then((nlsConfig) => {
 						if (!nlsConfig) {
 							nlsConfig = { locale: appLocale, availableLanguages: {} };

@@ -67,6 +67,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/localizations",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/logs",
 			"project": "vscode-workbench"
 		},

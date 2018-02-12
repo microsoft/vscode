@@ -8,5 +8,6 @@
 	],
 	"release notes": "Sürüm notları",
 	"updateConfigurationTitle": "Güncelle",
-	"updateChannel": "Güncelleştirme kanalından otomatik güncelleştirmeler alıp almayacağınızı ayarlayın. Değişiklikten sonra yeniden başlatma gerektirir."
+	"updateChannel": "Güncelleştirme kanalından otomatik güncelleştirmeler alıp almayacağınızı ayarlayın. Değişiklikten sonra yeniden başlatma gerektirir.",
+	"enableWindowsBackgroundUpdates": "Windows arka plan güncelleştirmelerini etkinleştirir."
 }

@@ -130,9 +130,10 @@ async function createGlobalSnippetFile(envService: IEnvironmentService, windowSe
 	}
 	await writeFile(path, [
 		'{',
-		'\t// Each snippet is defined under a snippet name and has a scope, prefix, body and ',
-		'\t// description. The scope defines in watch languages the snippet is applicable. The prefix is what is ',
-		'\t// used to trigger the snippet and the body will be expanded and inserted.Possible variables are: ',
+		'\t// Place your global snippets here. Each snippet is defined under a snippet name and has a scope, prefix, body and ',
+		'\t// description. Add comma separated ids of the languages where the snippet is applicable in the scope field. If scope ',
+		'\t// is left empty or omitted, the snippet gets applied to all languages. The prefix is what is ',
+		'\t// used to trigger the snippet and the body will be expanded and inserted. Possible variables are: ',
 		'\t// $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. ',
 		'\t// Placeholders with the same ids are connected.',
 		'\t// Example:',

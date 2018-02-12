@@ -52,6 +52,8 @@
 	"configureWorkspaceRecommendedExtensions": "推奨事項の拡張機能を構成 (ワークスペース)",
 	"configureWorkspaceFolderRecommendedExtensions": "推奨事項の拡張機能を構成 (ワークスペース フォルダー)",
 	"builtin": "ビルトイン",
+	"malicious tooltip": "この拡張機能は問題ありと報告されました。",
+	"malicious": "悪意がある",
 	"disableAll": "インストール済みのすべての拡張機能を無効にする",
 	"disableAllWorkspace": "このワークスペースのインストール済みの拡張機能をすべて無効にする",
 	"enableAll": "インストール済みの拡張機能をすべて有効にする",

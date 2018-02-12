@@ -10,6 +10,7 @@
 		"dropdown.background": "#414339",
 		"list.activeSelectionBackground": "#75715E",
 		"list.focusBackground": "#414339",
+		"dropdown.listBackground": "#1e1f1c",
 		"list.inactiveSelectionBackground": "#414339",
 		"list.hoverBackground": "#272822",
 		"list.dropBackground": "#414339",

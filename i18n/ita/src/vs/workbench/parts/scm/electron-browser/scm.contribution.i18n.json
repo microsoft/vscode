@@ -12,6 +12,5 @@
 	"view": "Visualizza",
 	"scmConfigurationTitle": "Gestione controllo servizi",
 	"alwaysShowProviders": "Mostrare sempre la sezione Provider di controllo del codice sorgente.",
-	"diffDecorations": "Controlla decorazioni diff nell'editor",
-	"inputCounter": "Controlla quando mostrare il contatore di input."
+	"diffDecorations": "Controlla decorazioni diff nell'editor"
 }

@@ -27,6 +27,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { memoize } from 'vs/base/common/decorators';
+import * as platform from 'vs/base/common/platform';
 
 interface MapExtToMediaMimes {
 	[index: string]: string;
@@ -90,10 +91,6 @@ export interface IResourceDescriptor {
 	mime: string;
 }
 
-enum ScaleDirection {
-	IN, OUT,
-}
-
 class BinarySize {
 	public static readonly KB = 1024;
 	public static readonly MB = BinarySize.KB * BinarySize.KB;
@@ -122,7 +119,7 @@ class BinarySize {
 }
 
 export interface ResourceViewerContext {
-	layout(dimension: Dimension);
+	layout(dimension: Dimension): void;
 }
 
 /**
@@ -155,7 +152,7 @@ export class ResourceViewer {
 
 	private static getMime(descriptor: IResourceDescriptor): string {
 		let mime = descriptor.mime;
-		if (!mime && descriptor.resource.scheme === Schemas.file) {
+		if (!mime && descriptor.resource.scheme !== Schemas.data) {
 			const ext = paths.extname(descriptor.resource.toString());
 			if (ext) {
 				mime = mapExtToMediaMimes[ext.toLowerCase()];
@@ -390,7 +387,9 @@ class InlineImageView {
 
 		const cacheKey = descriptor.resource.toString();
 
-		let scaleDirection = ScaleDirection.IN;
+		let ctrlPressed = false;
+		let altPressed = false;
+
 		const initialState: ImageState = InlineImageView.imageStateCache.get(cacheKey) || { scale: 'fit', offsetX: 0, offsetY: 0 };
 		let scale = initialState.scale;
 		let img: Builder | null = null;
@@ -454,9 +453,10 @@ class InlineImageView {
 				if (!img) {
 					return;
 				}
+				ctrlPressed = e.ctrlKey;
+				altPressed = e.altKey;
 
-				if (e.altKey) {
-					scaleDirection = ScaleDirection.OUT;
+				if (platform.isMacintosh ? altPressed : ctrlPressed) {
 					c.removeClass('zoom-in').addClass('zoom-out');
 				}
 			})
@@ -465,8 +465,10 @@ class InlineImageView {
 					return;
 				}
 
-				if (!e.altKey) {
-					scaleDirection = ScaleDirection.IN;
+				ctrlPressed = e.ctrlKey;
+				altPressed = e.altKey;
+
+				if (!(platform.isMacintosh ? altPressed : ctrlPressed)) {
 					c.removeClass('zoom-out').addClass('zoom-in');
 				}
 			})
@@ -484,7 +486,7 @@ class InlineImageView {
 					firstZoom();
 				}
 
-				if (scaleDirection === ScaleDirection.IN) {
+				if (!(platform.isMacintosh ? altPressed : ctrlPressed)) { // zoom in
 					let i = 0;
 					for (; i < InlineImageView.zoomLevels.length; ++i) {
 						if (InlineImageView.zoomLevels[i] > scale) {
@@ -506,8 +508,9 @@ class InlineImageView {
 				if (!img) {
 					return;
 				}
-				// pinching is reported as scroll wheel + ctrl
-				if (!e.ctrlKey) {
+
+				const isScrollWhellKeyPressed = platform.isMacintosh ? altPressed : ctrlPressed;
+				if (!isScrollWhellKeyPressed && !e.ctrlKey) { // pinching is reported as scroll wheel + ctrl
 					return;
 				}
 
@@ -518,8 +521,12 @@ class InlineImageView {
 					firstZoom();
 				}
 
-				// scrolling up, pinching out should increase the scale
-				const delta = e.deltaY < 0 ? 1 : -1;
+				let delta = e.deltaY < 0 ? 1 : -1;
+
+				// Pinching should increase the scale
+				if (e.ctrlKey && !isScrollWhellKeyPressed) {
+					delta *= -1;
+				}
 				updateScale(scale as number * (1 - delta * InlineImageView.SCALE_PINCH_FACTOR));
 			})
 			.on(DOM.EventType.SCROLL, () => {

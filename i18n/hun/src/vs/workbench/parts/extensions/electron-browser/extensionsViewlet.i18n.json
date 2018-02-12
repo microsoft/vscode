@@ -18,5 +18,7 @@
 	"sort by name": "Rendezés név szerint",
 	"suggestProxyError": "A piactér 'ECONNREFUSED' hibával tért vissza. Ellenőrizze a 'http.proxy' beállítást!",
 	"extensions": "Kiegészítők",
-	"outdatedExtensions": "{0} elavult kiegészítő"
+	"outdatedExtensions": "{0} elavult kiegészítő",
+	"malicious warning": "Eltávolítottuk a(z) '{0}' kiegészítőt, mert jelezték, hogy problémás.",
+	"reloadNow": "Újratöltés most"
 }
