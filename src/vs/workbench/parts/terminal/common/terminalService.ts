@@ -162,7 +162,6 @@ export abstract class TerminalService implements ITerminalService {
 		if (tabIndex >= this._terminalTabs.length) {
 			return;
 		}
-		console.log('setActiveTabByIndex', tabIndex);
 
 		const didTabChange = this._activeTabIndex !== tabIndex;
 		this._activeTabIndex = tabIndex;
@@ -232,7 +231,6 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public splitInstanceVertically(instanceToSplit: ITerminalInstance): void {
-		console.log('splitting instance', instanceToSplit);
 		const tab = this._getTabForInstance(instanceToSplit);
 		if (!tab) {
 			return;

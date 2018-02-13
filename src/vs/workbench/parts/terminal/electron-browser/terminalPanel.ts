@@ -167,7 +167,6 @@ export class TerminalPanel extends Panel {
 	}
 
 	public focus(): void {
-		console.log('TerminalPanel.focus');
 		const activeInstance = this._terminalService.getActiveInstance();
 		if (activeInstance) {
 			activeInstance.focus(true);

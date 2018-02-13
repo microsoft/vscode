@@ -1070,9 +1070,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public layout(dimension: Dimension): void {
-		console.log('TerminalInstance.layout, dimension', dimension);
 		const terminalWidth = this._evaluateColsAndRows(dimension.width, dimension.height);
-		console.log('TerminalInstance.layout, terminalWidth', terminalWidth);
 		if (!terminalWidth) {
 			return;
 		}

@@ -110,7 +110,6 @@ class SplitPane implements IView {
 		// Only layout when both sizes are known
 		this._size = size;
 		if (!this._size || !this.orthogonalSize) {
-			console.log('SplitPane.layout', this._size, this.orthogonalSize, this.instance);
 			return;
 		}
 
@@ -159,7 +158,6 @@ class RootSplitPane extends SplitPane {
 	public layoutBox(width: number, height: number): void {
 		RootSplitPane._lastKnownWidth = width;
 		RootSplitPane._lastKnownHeight = height;
-		console.log('layoutBox', width, height);
 		if (this.orientation === Orientation.VERTICAL) {
 			this.layout(width);
 			this.orthogonalLayout(height);
@@ -211,9 +209,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 		this._rootSplitPane = new RootSplitPane();
 		this._rootSplitPane.instance = instance;
-		this._rootSplitPane.onDidChange(e => {
-			console.log('onDidChange', e);
-		});
 
 		if (this._container) {
 			this.attachToElement(this._container);
@@ -349,7 +344,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (this._rootSplitPane.instance) {
 			this._rootSplitPane.orientation = Orientation.HORIZONTAL;
 			this._rootSplitPane.split(instance);
-			console.log('TerminalTab.split', this._tabElement);
 		} else {
 			// The original branch has already occured, find the inner SplitPane and split it
 			this._rootSplitPane.children[0].orientation = Orientation.HORIZONTAL;
@@ -368,7 +362,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public layout(width: number, height: number): void {
-		console.log('TerminalTab.layout', width, height);
 		this._rootSplitPane.layoutBox(width, height);
 	}
 
