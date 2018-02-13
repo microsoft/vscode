@@ -38,15 +38,15 @@ vscode-jsonrpc@^3.6.0-next.1:
   version "3.6.0-next.1"
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.0-next.1.tgz#3cb463dffe5842d6aec16718ca9252708cd6aabe"
 
-vscode-languageclient@^4.0.0-next.7:
-  version "4.0.0-next.7"
-  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-4.0.0-next.7.tgz#d4d22937a46ad6c0884a678158c4d4a2269a747e"
+vscode-languageclient@^4.0.0-next.9:
+  version "4.0.0-next.9"
+  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-4.0.0-next.9.tgz#2a06568f46ee9de3490f85e227d3740a21a03d3a"
   dependencies:
-    vscode-languageserver-protocol "^3.6.0-next.4"
+    vscode-languageserver-protocol "^3.6.0-next.5"
 
-vscode-languageserver-protocol@^3.6.0-next.4:
-  version "3.6.0-next.4"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.6.0-next.4.tgz#5b9940e4d6afafd5b63f9731dbd3a9bcc65b3719"
+vscode-languageserver-protocol@^3.6.0-next.5:
+  version "3.6.0-next.5"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.6.0-next.5.tgz#ed2ec2db759826f753c0a13977dfb2bedc4d31b3"
   dependencies:
     vscode-jsonrpc "^3.6.0-next.1"
     vscode-languageserver-types "^3.6.0-next.1"

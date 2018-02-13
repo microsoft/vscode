@@ -87,10 +87,10 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 			const leftIndex = currentIndex - 1;
 			const diagIndex = (queryIndex - 1) * targetLength + targetIndex - 1;
 
-			const leftScore = targetIndex > 0 ? scores[leftIndex] : 0;
-			const diagScore = queryIndex > 0 && targetIndex > 0 ? scores[diagIndex] : 0;
+			const leftScore: number = targetIndex > 0 ? scores[leftIndex] : 0;
+			const diagScore: number = queryIndex > 0 && targetIndex > 0 ? scores[diagIndex] : 0;
 
-			const matchesSequenceLength = queryIndex > 0 && targetIndex > 0 ? matches[diagIndex] : 0;
+			const matchesSequenceLength: number = queryIndex > 0 && targetIndex > 0 ? matches[diagIndex] : 0;
 
 			// If we are not matching on the first query character any more, we only produce a
 			// score if we had a score previously for the last query index (by looking at the diagScore).

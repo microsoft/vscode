@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities, Position } from 'vscode-languageserver';
-import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
+import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities, Position, CompletionTriggerKind } from 'vscode-languageserver';
+import { TextDocument, Diagnostic, DocumentLink, SymbolInformation, CompletionList } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
 
 import { ConfigurationRequest, ConfigurationParams } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
@@ -17,6 +17,7 @@ import { pushAll } from './utils/arrays';
 import { getDocumentContext } from './utils/documentContext';
 import uri from 'vscode-uri';
 import { formatError, runSafe } from './utils/errors';
+import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
@@ -69,6 +70,10 @@ function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: 
 	return Promise.resolve(void 0);
 }
 
+let emmetSettings = {};
+let currentEmmetExtensionsPath: string;
+const emmetTriggerCharacters = ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites
 connection.onInitialize((params: InitializeParams): InitializeResult => {
@@ -105,7 +110,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let capabilities: ServerCapabilities & CPServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : undefined,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: [...emmetTriggerCharacters, '.', ':', '<', '"', '=', '/'] } : undefined,
 		hoverProvider: true,
 		documentHighlightProvider: true,
 		documentRangeFormattingProvider: false,
@@ -167,6 +172,12 @@ connection.onDidChangeConfiguration((change) => {
 		}
 	}
 
+	emmetSettings = globalSettings.emmet;
+	if (currentEmmetExtensionsPath !== emmetSettings['extensionsPath']) {
+		currentEmmetExtensionsPath = emmetSettings['extensionsPath'];
+		const workspaceUri = (workspaceFolders && workspaceFolders.length === 1) ? uri.parse(workspaceFolders[0].uri) : null;
+		updateEmmetExtensionsPath(currentEmmetExtensionsPath, workspaceUri ? workspaceUri.fsPath : null);
+	}
 });
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
@@ -226,19 +237,52 @@ async function validateTextDocument(textDocument: TextDocument) {
 	}
 }
 
+let cachedCompletionList: CompletionList;
 connection.onCompletion(async textDocumentPosition => {
 	return runSafe(async () => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
 		let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
-		if (mode && mode.doComplete) {
-			let doComplete = mode.doComplete;
-			if (mode.getId() !== 'html') {
-				connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
-			}
-			let settings = await getDocumentSettings(document, () => doComplete.length > 2);
-			return doComplete(document, textDocumentPosition.position, settings);
+		if (!mode || !mode.doComplete) {
+			return { isIncomplete: true, items: [] };
 		}
-		return { isIncomplete: true, items: [] };
+
+		if (cachedCompletionList
+			&& !cachedCompletionList.isIncomplete
+			&& (mode.getId() === 'html' || mode.getId() === 'css')
+			&& textDocumentPosition.context
+			&& textDocumentPosition.context.triggerKind === CompletionTriggerKind.TriggerForIncompleteCompletions
+		) {
+			let result: CompletionList = emmetDoComplete(document, textDocumentPosition.position, mode.getId(), emmetSettings);
+			if (result && result.items) {
+				result.items.push(...cachedCompletionList.items);
+			} else {
+				result = cachedCompletionList;
+				cachedCompletionList = null;
+			}
+			return result;
+		}
+
+		if (mode.getId() !== 'html') {
+			connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
+		}
+
+		cachedCompletionList = null;
+		let emmetCompletionList: CompletionList = {
+			isIncomplete: true,
+			items: undefined
+		};
+		if (mode.setCompletionParticipants) {
+			const emmetCompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, mode.getId(), emmetSettings, emmetCompletionList);
+			mode.setCompletionParticipants([emmetCompletionParticipant]);
+		}
+
+		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
+		let result = mode.doComplete(document, textDocumentPosition.position, settings);
+		if (emmetCompletionList && emmetCompletionList.items) {
+			cachedCompletionList = result;
+			return { isIncomplete: true, items: [...emmetCompletionList.items, ...result.items] };
+		}
+		return result;
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
 });
 

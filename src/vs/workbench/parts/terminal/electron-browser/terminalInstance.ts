@@ -798,13 +798,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _attachPressAnyKeyToCloseListener() {
-		this._processDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'keydown', (event: KeyboardEvent) => {
-			switch (event.key) {
-				case 'Meta':
-				case 'Shift':
-				case 'Alt':
-				case 'Control': return;
-			}
+		this._processDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
 			this.dispose();
 			event.preventDefault();
 		}));

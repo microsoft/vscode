@@ -15,9 +15,7 @@ export default (): string => `
 		<div class="input-group">
 			<label id="issue-type-label" class="inline-form-control" for="issue-type">${escape(localize('issueTypeLabel', "This is a"))}</label>
 			<select id="issue-type" class="inline-form-control">
-				<option value="0">${escape(localize('bugReporter', "Bug Report"))}</option>
-				<option value="1">${escape(localize('performanceIssue', "Performance Issue"))}</option>
-				<option value="2">${escape(localize('featureRequest', "Feature Request"))}</option>
+				<!-- To be dynamically filled -->
 			</select>
 		</div>
 
@@ -79,6 +77,32 @@ export default (): string => `
 						<div class="include-data">
 							<input class="sendData"  type="checkbox" id="includeExtensions" checked/>
 							<label class="caption" for="includeExtensions">${escape(localize('sendData', "Send my data"))}</label>
+						</div>
+					</summary>
+					<div class="block-info">
+						<!-- To be dynamically filled -->
+					</div>
+				</details>
+			</div>
+			<div class="block block-searchedExtensions">
+				<details>
+					<summary>${escape(localize('searchedExtensions', "Searched Extensions"))}
+						<div class="include-data">
+							<input class="sendData"  type="checkbox" id="includeSearchedExtensions" checked/>
+							<label class="caption" for="includeSearchedExtensions">${escape(localize('sendData', "Send my data"))}</label>
+						</div>
+					</summary>
+					<div class="block-info">
+						<!-- To be dynamically filled -->
+					</div>
+				</details>
+			</div>
+			<div class="block block-settingsSearchResults">
+				<details>
+					<summary>${escape(localize('settingsSearchDetails', "Settings Search Details"))}
+						<div class="include-data">
+							<input class="sendData"  type="checkbox" id="includeSettingsSearchDetails" checked/>
+							<label class="caption" for="includeSettingsSearchDetails">${escape(localize('sendData', "Send my data"))}</label>
 						</div>
 					</summary>
 					<div class="block-info">

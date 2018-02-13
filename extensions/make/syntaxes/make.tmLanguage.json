@@ -5,13 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/fadeevab/make.tmbundle/commit/43e1a67476dea3ddefbb4f0ee7901834b31b8bee",
-	"fileTypes": [
-		"Makefile",
-		"makefile",
-		"GNUmakefile",
-		"OCamlMakefile"
-	],
 	"name": "Makefile",
+	"scopeName": "source.makefile",
 	"patterns": [
 		{
 			"include": "#comment"
@@ -500,7 +495,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.makefile",
-	"uuid": "FF1825E8-6B1C-11D9-B883-000D93589AF6"
+	}
 }

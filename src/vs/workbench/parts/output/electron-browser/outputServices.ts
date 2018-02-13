@@ -44,26 +44,25 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
 let watchingOutputDir = false;
-let callbacks = [];
+let callbacks: ((eventType: string, fileName: string) => void)[] = [];
 function watchOutputDirectory(outputDir: string, logService: ILogService, onChange: (eventType: string, fileName: string) => void): IDisposable {
 	callbacks.push(onChange);
 	if (!watchingOutputDir) {
-		try {
-			const watcher = extfs.watch(outputDir, (eventType, fileName) => {
-				for (const callback of callbacks) {
-					callback(eventType, fileName);
-				}
-			});
-			watcher.on('error', (code: number, signal: string) => logService.error(`Error watching ${outputDir}: (${code}, ${signal})`));
-			watchingOutputDir = true;
-			return toDisposable(() => {
-				callbacks = [];
+		const watcher = extfs.watch(outputDir, (eventType, fileName) => {
+			for (const callback of callbacks) {
+				callback(eventType, fileName);
+			}
+		}, (error: string) => {
+			logService.error(error);
+		});
+		watchingOutputDir = true;
+		return toDisposable(() => {
+			callbacks = [];
+			if (watcher) {
 				watcher.removeAllListeners();
 				watcher.close();
-			});
-		} catch (error) {
-			logService.error(`Error watching ${outputDir}:  (${error.toString()})`);
-		}
+			}
+		});
 	}
 	return toDisposable(() => { });
 }
@@ -530,7 +529,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	private createChannel(id: string): OutputChannel {
-		const channelDisposables = [];
+		const channelDisposables: IDisposable[] = [];
 		const channel = this.instantiateChannel(id);
 		channel.onDidAppendedContent(() => {
 			if (!channel.scrollLock) {
@@ -631,7 +630,7 @@ export class LogContentProvider {
 		const id = resource.path;
 		let channel = this.channels.get(id);
 		if (!channel) {
-			const channelDisposables = [];
+			const channelDisposables: IDisposable[] = [];
 			channel = this.instantiationService.createInstance(FileOutputChannel, { id, label: '', file: resource.with({ scheme: Schemas.file }) }, resource);
 			channel.onDispose(() => dispose(channelDisposables), channelDisposables);
 			this.channels.set(id, channel);

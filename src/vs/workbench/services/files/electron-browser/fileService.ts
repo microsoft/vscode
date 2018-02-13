@@ -21,11 +21,11 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import Event, { Emitter } from 'vs/base/common/event';
-
 import { shell } from 'electron';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileService implements IFileService {
 
@@ -34,6 +34,9 @@ export class FileService implements IFileService {
 	// If we run with .NET framework < 4.5, we need to detect this error to inform the user
 	private static readonly NET_VERSION_ERROR = 'System.MissingMethodException';
 	private static readonly NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
+
+	private static readonly ENOSPC_ERROR = 'ENOSPC';
+	private static readonly ENOSPC_ERROR_IGNORE_KEY = 'ignoreEnospcError';
 
 	private raw: NodeFileService;
 
@@ -95,13 +98,17 @@ export class FileService implements IFileService {
 		return this._onAfterOperation.event;
 	}
 
-	private onFileServiceError(msg: string): void {
+	private onFileServiceError(error: string | Error): void {
+		const msg = error ? error.toString() : void 0;
+		if (!msg) {
+			return;
+		}
 
 		// Forward to unexpected error handler
 		errors.onUnexpectedError(msg);
 
 		// Detect if we run < .NET Framework 4.5 (TODO@ben remove with new watcher impl)
-		if (typeof msg === 'string' && msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
+		if (msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
 			this.messageService.show(Severity.Warning, <IMessageWithAction>{
 				message: nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
 				actions: [
@@ -112,6 +119,26 @@ export class FileService implements IFileService {
 					}),
 					new Action('net.error.ignore', nls.localize('neverShowAgain', "Don't Show Again"), '', true, () => {
 						this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE);
+
+						return TPromise.as(null);
+					}),
+					CloseAction
+				]
+			});
+		}
+
+		// Detect if we run into ENOSPC issues (TODO@ben remove with new watcher impl)
+		if (msg.indexOf(FileService.ENOSPC_ERROR) >= 0 && !this.storageService.getBoolean(FileService.ENOSPC_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
+			this.messageService.show(Severity.Warning, <IMessageWithAction>{
+				message: nls.localize('enospcError', "{0} is running out of file handles. Please follow the instructions link to resolve this issue.", product.nameLong),
+				actions: [
+					new Action('learnMore', nls.localize('learnMore', "Instructions"), null, true, () => {
+						window.open('https://go.microsoft.com/fwlink/?linkid=867693');
+
+						return TPromise.as(true);
+					}),
+					new Action('enospc.error.ignore', nls.localize('neverShowAgain', "Don't Show Again"), '', true, () => {
+						this.storageService.store(FileService.ENOSPC_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE);
 
 						return TPromise.as(null);
 					}),
@@ -243,7 +270,7 @@ export class FileService implements IFileService {
 			return;
 		}
 
-		if (resource.scheme !== 'file') {
+		if (resource.scheme !== Schemas.file) {
 			return; // only support files
 		}
 

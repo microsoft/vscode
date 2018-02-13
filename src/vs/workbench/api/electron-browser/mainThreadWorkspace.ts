@@ -59,7 +59,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return this._workspaceEditingService.updateFolders(index, deleteCount, workspaceFoldersToAdd, true);
 	}
 
-	private getStatusMessage(extensionName, addCount: number, removeCount: number): string {
+	private getStatusMessage(extensionName: string, addCount: number, removeCount: number): string {
 		let message: string;
 
 		const wantsToAdd = addCount > 0;

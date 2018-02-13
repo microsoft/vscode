@@ -33,6 +33,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorIdentifier } from 'vs/workbench/common/editor';
+import { basenameOrAuthority } from 'vs/base/common/resources';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -60,7 +61,8 @@ export interface ISerializedDraggedEditor {
 }
 
 export const CodeDataTransfers = {
-	EDITORS: 'CodeEditors'
+	EDITORS: 'CodeEditors',
+	FILES: 'CodeFiles'
 };
 
 export function extractResources(e: DragEvent, externalOnly?: boolean): (IDraggedResource | IDraggedEditor)[] {
@@ -76,28 +78,23 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): (IDragge
 				try {
 					const draggedEditors = JSON.parse(rawEditorsData) as ISerializedDraggedEditor[];
 					draggedEditors.forEach(draggedEditor => {
-						resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: URI.parse(draggedEditor.backupResource), viewState: draggedEditor.viewState, isExternal: false });
+						resources.push({ resource: URI.parse(draggedEditor.resource), backupResource: draggedEditor.backupResource ? URI.parse(draggedEditor.backupResource) : void 0, viewState: draggedEditor.viewState, isExternal: false });
 					});
 				} catch (error) {
-					// Invalid URI
+					// Invalid transfer
 				}
 			}
 
-			// Data Transfer: URL/URLS
+			// Data Transfer: Resources
 			else {
 				try {
-					const rawURLsData = e.dataTransfer.getData(DataTransfers.URLS);
-					if (rawURLsData) {
-						const uriStrArray: string[] = JSON.parse(rawURLsData);
+					const rawResourcesData = e.dataTransfer.getData(DataTransfers.RESOURCES);
+					if (rawResourcesData) {
+						const uriStrArray: string[] = JSON.parse(rawResourcesData);
 						resources.push(...uriStrArray.map(uriStr => ({ resource: URI.parse(uriStr), isExternal: false })));
-					} else {
-						const rawURLData = e.dataTransfer.getData(DataTransfers.URL);
-						if (rawURLData) {
-							resources.push({ resource: URI.parse(rawURLData), isExternal: false });
-						}
 					}
 				} catch (error) {
-					// Invalid URI
+					// Invalid transfer
 				}
 			}
 		}
@@ -106,13 +103,28 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): (IDragge
 		if (e.dataTransfer && e.dataTransfer.files) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++) {
 				const file = e.dataTransfer.files[i] as { path: string };
-				if (file && file.path) {
+				if (file && file.path && !resources.some(r => r.resource.fsPath === file.path) /* prevent duplicates */) {
 					try {
 						resources.push({ resource: URI.file(file.path), isExternal: true });
 					} catch (error) {
 						// Invalid URI
 					}
 				}
+			}
+		}
+
+		// Check for CodeFiles transfer
+		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
+		if (rawCodeFiles) {
+			try {
+				const codeFiles = JSON.parse(rawCodeFiles) as string[];
+				codeFiles.forEach(codeFile => {
+					if (!resources.some(r => r.resource.fsPath === codeFile) /* prevent duplicates */) {
+						resources.push({ resource: URI.file(codeFile), isExternal: true });
+					}
+				});
+			} catch (error) {
+				// Invalid transfer
 			}
 		}
 	}
@@ -151,55 +163,62 @@ export class ResourcesDropHandler {
 	}
 
 	public handleDrop(event: DragEvent, afterDrop: () => void, targetPosition: Position, targetIndex?: number): void {
-		const resources = extractResources(event).filter(r => r.resource.scheme === Schemas.file || r.resource.scheme === Schemas.untitled);
-		if (!resources.length) {
+		const untitledOrFileResources = extractResources(event).filter(r => this.fileService.canHandleResource(r.resource) || r.resource.scheme === Schemas.untitled);
+		if (!untitledOrFileResources.length) {
 			return;
 		}
 
-		return this.doHandleDrop(resources).then(isWorkspaceOpening => {
-			if (isWorkspaceOpening) {
-				return void 0; // return early if the drop operation resulted in this window changing to a workspace
-			}
+		// Make the window active to handle the drop properly within
+		return this.windowService.focusWindow().then(() => {
 
-			// Add external ones to recently open list unless dropped resource is a workspace
-			const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
-			if (externalResources.length) {
-				this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
-			}
+			// Check for special things being dropped
+			return this.doHandleDrop(untitledOrFileResources).then(isWorkspaceOpening => {
+				if (isWorkspaceOpening) {
+					return void 0; // return early if the drop operation resulted in this window changing to a workspace
+				}
 
-			// Open in Editor
-			return this.windowService.focusWindow()
-				.then(() => this.editorService.openEditors(resources.map(r => {
+				// Add external ones to recently open list unless dropped resource is a workspace
+				const filesToAddToHistory = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => d.resource);
+				if (filesToAddToHistory.length) {
+					this.windowsService.addRecentlyOpened(filesToAddToHistory.map(resource => resource.fsPath));
+				}
+
+				// Open in Editor
+				return this.editorService.openEditors(untitledOrFileResources.map(untitledOrFileResource => {
 					return {
 						input: {
-							resource: r.resource,
+							resource: untitledOrFileResource.resource,
 							options: {
 								pinned: true,
 								index: targetIndex,
-								viewState: (r as IDraggedEditor).viewState
+								viewState: (untitledOrFileResource as IDraggedEditor).viewState
 							}
 						},
 						position: targetPosition
 					};
-				}))).then(() => {
+				})).then(() => {
 
 					// Finish with provided function
 					afterDrop();
 				});
+			});
 		}).done(null, onUnexpectedError);
 	}
 
-	private doHandleDrop(resources: (IDraggedResource | IDraggedEditor)[]): TPromise<boolean> {
+	private doHandleDrop(untitledOrFileResources: (IDraggedResource | IDraggedEditor)[]): TPromise<boolean> {
 
 		// Check for dirty editors being dropped
-		const resourcesWithBackups: IDraggedEditor[] = resources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);
+		const resourcesWithBackups: IDraggedEditor[] = untitledOrFileResources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);
 		if (resourcesWithBackups.length > 0) {
 			return TPromise.join(resourcesWithBackups.map(resourceWithBackup => this.handleDirtyEditorDrop(resourceWithBackup))).then(() => false);
 		}
 
 		// Check for workspace file being dropped if we are allowed to do so
-		if (this.options.allowWorkspaceOpen && resources.some(r => r.isExternal)) {
-			return this.handleWorkspaceFileDrop(resources);
+		if (this.options.allowWorkspaceOpen) {
+			const externalFileOnDiskResources = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => d.resource);
+			if (externalFileOnDiskResources.length > 0) {
+				return this.handleWorkspaceFileDrop(externalFileOnDiskResources);
+			}
 		}
 
 		return TPromise.as(false);
@@ -234,31 +253,29 @@ export class ResourcesDropHandler {
 		return DefaultEndOfLine.LF;
 	}
 
-	private handleWorkspaceFileDrop(resources: (IDraggedResource | IDraggedEditor)[]): TPromise<boolean> {
-		const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
-
-		const externalWorkspaceResources: { workspaces: URI[], folders: URI[] } = {
+	private handleWorkspaceFileDrop(fileOnDiskResources: URI[]): TPromise<boolean> {
+		const workspaceResources: { workspaces: URI[], folders: URI[] } = {
 			workspaces: [],
 			folders: []
 		};
 
-		return TPromise.join(externalResources.map(resource => {
+		return TPromise.join(fileOnDiskResources.map(fileOnDiskResource => {
 
 			// Check for Workspace
-			if (extname(resource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
-				externalWorkspaceResources.workspaces.push(resource);
+			if (extname(fileOnDiskResource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
+				workspaceResources.workspaces.push(fileOnDiskResource);
 
 				return void 0;
 			}
 
 			// Check for Folder
-			return this.fileService.resolveFile(resource).then(stat => {
+			return this.fileService.resolveFile(fileOnDiskResource).then(stat => {
 				if (stat.isDirectory) {
-					externalWorkspaceResources.folders.push(stat.resource);
+					workspaceResources.folders.push(stat.resource);
 				}
 			}, error => void 0);
 		})).then(_ => {
-			const { workspaces, folders } = externalWorkspaceResources;
+			const { workspaces, folders } = workspaceResources;
 
 			// Return early if no external resource is a folder or workspace
 			if (workspaces.length === 0 && folders.length === 0) {
@@ -315,7 +332,7 @@ export class SimpleFileResourceDragAndDrop extends DefaultDragAndDrop {
 
 		const resource = this.toResource(elements[0]);
 		if (resource) {
-			return basename(resource.fsPath);
+			return basenameOrAuthority(resource);
 		}
 
 		return void 0;
@@ -348,21 +365,17 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
-	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === 'file' ? getPathLabel(source.resource) : source.resource.toString()).join(lineDelimiter));
+	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? getPathLabel(source.resource) : source.resource.toString()).join(lineDelimiter));
 
-	// Download URL: enables support to drag a tab as file to desktop (only single file supported, not directories)
-	if (sources.length === 1 && firstSource.resource.scheme === 'file' && !firstSource.isDirectory) {
+	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
+	if (firstSource.resource.scheme === Schemas.file) {
 		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstSource.resource.fsPath), firstSource.resource.toString()].join(':'));
 	}
 
-	// URI: allows to drop a single resource to a target in VS Code (not directory)
-	if (sources.length === 1 && !firstSource.isDirectory) {
-		event.dataTransfer.setData(DataTransfers.URL, firstSource.resource.toString());
-	}
-
-	// URLS: allows to drop multiple resources to a target in VS Code (not directories)
-	else {
-		event.dataTransfer.setData(DataTransfers.URLS, JSON.stringify(sources.filter(s => !s.isDirectory).map(s => s.resource.toString())));
+	// Resource URLs: allows to drop multiple resources to a target in VS Code (not directories)
+	const files = sources.filter(s => !s.isDirectory);
+	if (files.length) {
+		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(f => f.resource.toString())));
 	}
 
 	// Editors: enables cross window DND of tabs into the editor area
@@ -371,7 +384,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	const editorService = accessor.get(IWorkbenchEditorService);
 
 	const draggedEditors: ISerializedDraggedEditor[] = [];
-	sources.forEach(source => {
+	files.forEach(file => {
 
 		// Try to find editor view state from the visible editors that match given resource
 		let viewState: IEditorViewState;
@@ -381,7 +394,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 			const codeEditor = getCodeEditor(editor);
 			if (codeEditor) {
 				const model = codeEditor.getModel();
-				if (model && model.uri && model.uri.toString() === source.resource.toString()) {
+				if (model && model.uri && model.uri.toString() === file.resource.toString()) {
 					viewState = codeEditor.saveViewState();
 					break;
 				}
@@ -390,13 +403,15 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 		// Add as dragged editor
 		draggedEditors.push({
-			resource: source.resource.toString(),
-			backupResource: textFileService.isDirty(source.resource) ? backupFileService.toBackupResource(source.resource).toString() : void 0,
+			resource: file.resource.toString(),
+			backupResource: textFileService.isDirty(file.resource) ? backupFileService.toBackupResource(file.resource).toString() : void 0,
 			viewState
 		});
 	});
 
-	event.dataTransfer.setData(CodeDataTransfers.EDITORS, JSON.stringify(draggedEditors));
+	if (draggedEditors.length) {
+		event.dataTransfer.setData(CodeDataTransfers.EDITORS, JSON.stringify(draggedEditors));
+	}
 }
 
 /**

@@ -17,7 +17,8 @@ const ext = require('./extensions');
 const util = require('gulp-util');
 
 const root = path.dirname(path.dirname(__dirname));
-const builtInExtensions = require('../builtInExtensions');
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
+const builtInExtensions = require('../builtInExtensions.json');
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 
 function getExtensionPath(extension) {
@@ -34,6 +35,7 @@ function isUpToDate(extension) {
 	const packageContents = fs.readFileSync(packagePath);
 
 	try {
+		//@ts-ignore review
 		const diskVersion = JSON.parse(packageContents).version;
 		return (diskVersion === extension.version);
 	} catch (err) {

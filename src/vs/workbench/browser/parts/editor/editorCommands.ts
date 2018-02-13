@@ -524,7 +524,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 	if (list instanceof List && list.isDOMFocused()) {
 		const elementToContext = (element: IEditorIdentifier | EditorGroup) =>
 			element instanceof EditorGroup ? { groupId: element.id, editorIndex: undefined } : { groupId: element.group.id, editorIndex: element.group.indexOf(element.editor) };
-		const onlyEditorGroupAndEditor = (e) => e instanceof EditorGroup || ('editor' in e && 'group' in e);
+		const onlyEditorGroupAndEditor = (e: IEditorIdentifier | EditorGroup) => e instanceof EditorGroup || ('editor' in e && 'group' in e);
 
 		const focusedElements: (IEditorIdentifier | EditorGroup)[] = list.getFocusedElements().filter(onlyEditorGroupAndEditor);
 		// need to take into account when editor context is { group: group }

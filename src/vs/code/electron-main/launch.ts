@@ -16,6 +16,7 @@ import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { Schemas } from 'vs/base/common/network';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -203,7 +204,7 @@ export class LaunchService implements ILaunchService {
 		} else if (window.openedWorkspace) {
 			const rootFolders = this.workspacesMainService.resolveWorkspaceSync(window.openedWorkspace.configPath).folders;
 			rootFolders.forEach(root => {
-				if (root.uri.scheme === 'file') {
+				if (root.uri.scheme === Schemas.file) { // todo@remote signal remote folders?
 					folders.push(root.uri.fsPath);
 				}
 			});

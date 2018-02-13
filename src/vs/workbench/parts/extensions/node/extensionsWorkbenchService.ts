@@ -939,8 +939,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const extensionId = match[1];
 
 		this.queryLocal().then(local => {
-			if (local.some(local => local.id === extensionId)) {
-				return TPromise.as(null);
+			const extension = local.filter(local => local.id === extensionId)[0];
+
+			if (extension) {
+				return this.windowService.show()
+					.then(() => this.open(extension));
 			}
 
 			return this.queryGallery({ names: [extensionId], source: 'uri' }).then(result => {

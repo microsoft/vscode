@@ -167,7 +167,7 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 		// 	arguments: c.arguments
 		// }, MainThreadStatusBarAlignment.LEFT, 10000));
 
-		const actions = [];
+		const actions: IAction[] = [];
 		const disposeActions = () => dispose(actions);
 		disposables.push({ dispose: disposeActions });
 
@@ -212,9 +212,10 @@ class MainPanel extends ViewletPanel {
 		@ISCMService protected scmService: ISCMService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IMenuService private menuService: IMenuService
+		@IMenuService private menuService: IMenuService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(localize('scm providers', "Source Control Providers"), {}, keybindingService, contextMenuService);
+		super(localize('scm providers', "Source Control Providers"), {}, keybindingService, contextMenuService, configurationService);
 		this.updateBodySize();
 	}
 
@@ -753,7 +754,7 @@ export class RepositoryPanel extends ViewletPanel {
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService
 	) {
-		super(repository.provider.label, {}, keybindingService, contextMenuService);
+		super(repository.provider.label, {}, keybindingService, contextMenuService, configurationService);
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
 	}
 

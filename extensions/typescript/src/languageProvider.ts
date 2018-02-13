@@ -30,7 +30,7 @@ export default class LanguageProvider {
 
 	private _validate: boolean = true;
 
-	private _documentSelector: DocumentFilter[];
+	private _documentSelector?: DocumentFilter[];
 
 	private readonly disposables: Disposable[] = [];
 	private readonly versionDependentDisposables: Disposable[] = [];

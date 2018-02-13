@@ -25,6 +25,7 @@ import { applyEdit } from 'vs/base/common/jsonFormatter';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
@@ -152,7 +153,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 				let storedWorkspace: IStoredWorkspaceFolder;
 
 				// File URI
-				if (folderResource.scheme === 'file') {
+				if (folderResource.scheme === Schemas.file) {
 					storedWorkspace = { path: massageFolderPathForWorkspace(folderResource.fsPath, untitledWorkspaceConfigFolder, []) };
 				}
 

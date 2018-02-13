@@ -494,7 +494,7 @@ export class SearchViewlet extends Viewlet {
 			let renderer = this.instantiationService.createInstance(SearchRenderer, this.getActionRunner(), this);
 			this.toUnbind.push(renderer);
 
-			let dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof FileMatch ? obj.resource() : void 0);
+			let dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, (obj: any) => obj instanceof FileMatch ? obj.resource() : void 0);
 
 			this.tree = this.instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), {
 				dataSource: dataSource,
@@ -919,7 +919,7 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public searchInFolders(resources: URI[], pathToRelative: (from: string, to: string) => string): void {
-		const folderPaths = [];
+		const folderPaths: string[] = [];
 		const workspace = this.contextService.getWorkspace();
 
 		if (resources) {

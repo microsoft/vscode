@@ -61,7 +61,7 @@ function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Fu
 	});
 }
 
-function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): TPromise<void> {
+function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number | Function): TPromise<void> {
 	return new TPromise<void>((resolve, reject) => {
 		let engine = new RipgrepEngine(config);
 

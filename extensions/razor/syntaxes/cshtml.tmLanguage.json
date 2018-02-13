@@ -7,10 +7,6 @@
 	"version": "https://github.com/demyte/language-cshtml/commit/cbf0e35971324e861247145e92f4cbbe0bc42d0e",
 	"name": "ASP.NET Razor",
 	"scopeName": "text.html.cshtml",
-	"fileTypes": [
-		"cshtml",
-		"gohtml"
-	],
 	"patterns": [
 		{
 			"name": "section.embedded.source.cshtml",

@@ -335,12 +335,12 @@ export enum State {
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
-	openDebug: string;
+	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	hideActionBar: boolean;
-	showInStatusBar: string;
-	internalConsoleOptions: string;
+	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
+	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 }
 
 export interface IGlobalConfig {
@@ -353,7 +353,7 @@ export interface IEnvConfig {
 	name?: string;
 	type: string;
 	request: string;
-	internalConsoleOptions?: string;
+	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	preLaunchTask?: string;
 	__restart?: any;
 	__sessionId?: string;
@@ -624,7 +624,7 @@ export interface IDebugService {
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and resolveds configurations via DebugConfigurationProviders.
 	 */
-	startDebugging(root: IWorkspaceFolder, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
+	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.

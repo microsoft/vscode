@@ -16,7 +16,7 @@
   "scripts": {
     "compile": "gulp compile-extension:html-client && gulp compile-extension:html-server",
     "postinstall": "cd server && yarn install",
-    "update-grammar": "node ../../build/npm/update-grammar.js textmate/html.tmbundle Syntaxes/HTML.plist ./syntaxes/html.json",
+    "update-grammar": "node ../../build/npm/update-grammar.js textmate/html.tmbundle Syntaxes/HTML.plist ./syntaxes/html.tmLanguage.json",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
   "contributes": {
@@ -57,7 +57,7 @@
       {
         "language": "html",
         "scopeName": "text.html.basic",
-        "path": "./syntaxes/html.json",
+        "path": "./syntaxes/html.tmLanguage.json",
         "embeddedLanguages": {
           "text.html": "html",
           "source.css": "css",
@@ -73,10 +73,12 @@
         "end": "^\\s*<!--\\s*#endregion\\b\\s*(.*?)-->/"
       }
     },
-		"snippets": [{
-			"language": "html",
-			"path": "./snippets/html.snippets.json"
-		}],
+    "snippets": [
+      {
+        "language": "html",
+        "path": "./snippets/html.snippets.json"
+      }
+    ],
     "configuration": {
       "id": "html",
       "order": 20,
@@ -225,7 +227,7 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.0.11",
-    "vscode-languageclient": "^3.5.0",
+    "vscode-languageclient": "^4.0.0-next.9",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
