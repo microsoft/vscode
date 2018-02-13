@@ -16,7 +16,6 @@
 .monaco-workbench .panel.integrated-terminal .terminal-outer-container {
 	height: 100%;
 	margin: 0 20px;
-	padding-bottom: 2px;
 	width: 100%;
 	box-sizing: border-box;
 }
