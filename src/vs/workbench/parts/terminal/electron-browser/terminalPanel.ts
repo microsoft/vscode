@@ -19,7 +19,7 @@ import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from './terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { KillTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -130,7 +130,7 @@ export class TerminalPanel extends Panel {
 	public getActions(): IAction[] {
 		if (!this._actions) {
 			this._actions = [
-				this._instantiationService.createInstance(SwitchTerminalInstanceAction, SwitchTerminalInstanceAction.ID, SwitchTerminalInstanceAction.LABEL),
+				this._instantiationService.createInstance(SwitchTerminalAction, SwitchTerminalAction.ID, SwitchTerminalAction.LABEL),
 				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.PANEL_LABEL),
 				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
 			];
@@ -163,8 +163,8 @@ export class TerminalPanel extends Panel {
 	}
 
 	public getActionItem(action: Action): IActionItem {
-		if (action.id === SwitchTerminalInstanceAction.ID) {
-			return this._instantiationService.createInstance(SwitchTerminalInstanceActionItem, action);
+		if (action.id === SwitchTerminalAction.ID) {
+			return this._instantiationService.createInstance(SwitchTerminalActionItem, action);
 		}
 
 		return super.getActionItem(action);
