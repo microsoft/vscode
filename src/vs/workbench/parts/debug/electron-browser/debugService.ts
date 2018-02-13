@@ -669,9 +669,6 @@ export class DebugService implements debug.IDebugService {
 					this.model.getBreakpoints().forEach(bp => bp.verified = false);
 				}
 				this.launchJsonChanged = false;
-				if (!launch) {
-					launch = this.configurationManager.selectedConfiguration.launch;
-				}
 
 				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {
