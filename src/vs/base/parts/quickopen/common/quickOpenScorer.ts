@@ -309,7 +309,7 @@ export function prepareQuery(value: string): IPreparedQuery {
 	let containsPathSeparator: boolean;
 
 	if (value) {
-		value = stripWildcards(value).replace(/\s/g, ''); // get rid of all wildcards and whitespace
+		value = stripWildcards(value).trim(); // get rid of all wildcards and trailing/leading whitespace
 		if (isWindows) {
 			value = value.replace(/\//g, '\\'); // Help Windows users to search for paths when using slash
 		}
