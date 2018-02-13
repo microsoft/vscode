@@ -253,13 +253,15 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 
-		const outerContainer = document.querySelector('.terminal-outer-container');
-		const outerContainerStyle = getComputedStyle(outerContainer);
-		const marginLeft = parseInt(outerContainerStyle.marginLeft.split('px')[0], 10);
-		const marginRight = parseInt(outerContainerStyle.marginRight.split('px')[0], 10);
-		const paddingBottom = parseInt(outerContainerStyle.paddingBottom.split('px')[0], 10);
+		if (!this._wrapperElement) {
+			return null;
+		}
 
-		// TODO: Ensure horizontal padding/margin work fine for split panes
+		const wrapperElementStyle = getComputedStyle(this._wrapperElement);
+		const marginLeft = parseInt(wrapperElementStyle.marginLeft.split('px')[0], 10);
+		const marginRight = parseInt(wrapperElementStyle.marginRight.split('px')[0], 10);
+		const paddingBottom = parseInt(wrapperElementStyle.paddingBottom.split('px')[0], 10);
+
 		const innerWidth = width - (marginLeft + marginRight);
 		const innerHeight = height - paddingBottom;
 

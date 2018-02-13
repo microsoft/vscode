@@ -15,7 +15,6 @@
 
 .monaco-workbench .panel.integrated-terminal .terminal-outer-container {
 	height: 100%;
-	margin: 0 20px;
 	width: 100%;
 	box-sizing: border-box;
 }
@@ -26,6 +25,13 @@
 
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper {
 	display: none;
+	margin: 0 20px;
+}
+.monaco-workbench .panel.integrated-terminal .split-view-view:not(:last-child) .terminal-wrapper {
+	margin-right: 10px;
+}
+.monaco-workbench .panel.integrated-terminal .split-view-view:not(:last-of-type) .terminal-wrapper {
+	margin-left: 10px;
 }
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper.active {
 	display: block;
@@ -45,6 +51,9 @@
 
 .monaco-workbench .panel.integrated-terminal .xterm-viewport {
 	margin-right: -20px;
+}
+.monaco-workbench .panel.integrated-terminal .split-view-view .xterm-viewport {
+	margin-right: -10px;
 }
 
 .monaco-workbench .panel.integrated-terminal canvas {
