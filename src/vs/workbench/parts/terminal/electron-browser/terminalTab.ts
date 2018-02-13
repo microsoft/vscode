@@ -283,7 +283,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this.setActiveInstanceByIndex(this._getIndexFromId(instance.id));
 	}
 
-	// TODO: This is duplicated in ITerminalService
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {
@@ -331,7 +330,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (this._tabElement) {
 			this._tabElement.style.display = visible ? '' : 'none';
 		}
-		// TODO: probably don't need to tell terminal instances about visiblility anymore?
 		this.terminalInstances.forEach(i => i.setVisible(visible));
 	}
 

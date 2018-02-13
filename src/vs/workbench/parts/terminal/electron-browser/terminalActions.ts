@@ -523,7 +523,6 @@ export class RunActiveFileInTerminalAction extends Action {
 	}
 }
 
-// TODO: Change name to tab
 export class SwitchTerminalAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.switchTerminal';
