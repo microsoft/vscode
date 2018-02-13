@@ -588,11 +588,15 @@ class Launch implements ILaunch {
 
 		// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 		Object.keys(result).forEach(key => {
-			result[key] = this.configurationResolverService.resolveAny(this.workspace, result[key]);
+			result[key] = this.configurationResolverService.resolveAny(this.getWorkspaceForResolving(), result[key]);
 		});
 
 		const adapter = this.configurationManager.getAdapter(result.type);
 		return this.configurationResolverService.resolveInteractiveVariables(result, adapter ? adapter.variables : null);
+	}
+
+	protected getWorkspaceForResolving(): IWorkspaceFolder {
+		return this.workspace;
 	}
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
@@ -690,9 +694,9 @@ class UserLaunch extends Launch implements ILaunch {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
-		super(configurationManager, contextService.getWorkbenchState() === WorkbenchState.FOLDER ? contextService.getWorkspace().folders[0] : undefined, fileService, editorService, configurationService, configurationResolverService);
+		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService);
 	}
 
 	get uri(): uri {
@@ -701,6 +705,10 @@ class UserLaunch extends Launch implements ILaunch {
 
 	get name(): string {
 		return nls.localize('user settings', "user settings");
+	}
+
+	protected getWorkspaceForResolving(): IWorkspaceFolder {
+		return this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders[0] : undefined;
 	}
 
 	public get hidden(): boolean {
