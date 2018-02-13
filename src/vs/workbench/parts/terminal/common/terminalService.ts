@@ -112,10 +112,10 @@ export abstract class TerminalService implements ITerminalService {
 
 		// Adjust focus if the tab was active
 		if (wasActiveTab && this._terminalTabs.length > 0) {
+			const hasFocusOnExit = tab.activeInstance.hadFocusOnExit;
 			let newIndex = index < this._terminalTabs.length ? index : this._terminalTabs.length - 1;
 			this.setActiveInstanceByIndex(newIndex);
-			// TODO: Needs to be made to work with multiple instances in a tab
-			if (tab.terminalInstances[0].hadFocusOnExit) {
+			if (hasFocusOnExit) {
 				this.getActiveInstance().focus(true);
 			}
 		}
