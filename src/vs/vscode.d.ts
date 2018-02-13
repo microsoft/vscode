@@ -4119,11 +4119,34 @@ declare module 'vscode' {
 		readonly currentLevel: LogLevel;
 		readonly logDirectory: Thenable<string>;
 
+		/**
+		 * Log a message with level `Trace`
+		 */
 		trace(message: string, ...args: any[]): void;
+
+		/**
+		 * Log a message with level `Debug`
+		 */
 		debug(message: string, ...args: any[]): void;
+
+		/**
+		 * Log a message with level `Info`
+		 */
 		info(message: string, ...args: any[]): void;
+
+		/**
+		 * Log a message with level `Warn`
+		 */
 		warn(message: string, ...args: any[]): void;
+
+		/**
+		 * Log a message with level `Error`
+		 */
 		error(message: string | Error, ...args: any[]): void;
+
+		/**
+		 * Log a message with level `Critical`
+		 */
 		critical(message: string | Error, ...args: any[]): void;
 	}
 
