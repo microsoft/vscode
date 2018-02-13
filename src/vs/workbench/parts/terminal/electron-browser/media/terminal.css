@@ -27,11 +27,11 @@
 	display: none;
 	margin: 0 20px;
 }
-.monaco-workbench .panel.integrated-terminal .split-view-view:not(:last-child) .terminal-wrapper {
-	margin-right: 10px;
+.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-of-type) .terminal-wrapper {
+	margin-left: 10px;
 }
 .monaco-workbench .panel.integrated-terminal .split-view-view:not(:last-of-type) .terminal-wrapper {
-	margin-left: 10px;
+	margin-right: 10px;
 }
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper.active {
 	display: block;
@@ -52,7 +52,7 @@
 .monaco-workbench .panel.integrated-terminal .xterm-viewport {
 	margin-right: -20px;
 }
-.monaco-workbench .panel.integrated-terminal .split-view-view .xterm-viewport {
+.monaco-workbench .panel.integrated-terminal .split-view-view:not(:only-of-type) .xterm-viewport {
 	margin-right: -10px;
 }
 
