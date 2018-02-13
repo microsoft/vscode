@@ -940,11 +940,11 @@ export class HighlightMatchesRenderer extends Disposable {
 	public render(matches: IRange[]): void {
 		const model = this.editor.getModel();
 		this.editor.changeDecorations(changeAccessor => {
-			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
+			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []) || [];
 		});
 		if (matches.length) {
 			this.editor.changeDecorations(changeAccessor => {
-				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, matches.map(match => this.createDecoration(match, model)));
+				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, matches.map(match => this.createDecoration(match, model))) || [];
 			});
 		}
 	}
@@ -965,7 +965,7 @@ export class HighlightMatchesRenderer extends Disposable {
 		if (this.decorationIds) {
 			this.decorationIds = this.editor.changeDecorations(changeAccessor => {
 				return changeAccessor.deltaDecorations(this.decorationIds, []);
-			});
+			}) || [];
 		}
 		super.dispose();
 	}
