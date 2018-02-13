@@ -18,26 +18,62 @@ import { localize } from 'vs/nls';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export class NotificationsDelegate implements IDelegate<INotificationViewItem> {
 
 	private static readonly ROW_HEIGHT = 32;
+
+	private offsetHelper: HTMLElement;
+
+	constructor(container: HTMLElement) {
+		this.offsetHelper = this.createOffsetHelper(container);
+	}
+
+	private createOffsetHelper(container: HTMLElement): HTMLElement {
+		const offsetHelper = document.createElement('div');
+		offsetHelper.style.opacity = '0';
+		offsetHelper.style.position = 'absolute'; // do not mess with the visual layout
+		offsetHelper.style.width = '100%'; // ensure to fill contauner to measure true width
+		offsetHelper.style.overflow = 'hidden'; // do not overflow
+		offsetHelper.style.whiteSpace = 'nowrap'; // do not wrap to measure true width
+
+		container.appendChild(offsetHelper);
+
+		return offsetHelper;
+	}
 
 	public getHeight(element: INotificationViewItem): number {
 		if (!element.expanded) {
 			return NotificationsDelegate.ROW_HEIGHT;
 		}
 
-		if (element.actions.length === 0) {
-			return NotificationsDelegate.ROW_HEIGHT * 2;
-		}
+		const preferredMessageRows = this.computePreferredRows(element.message);
 
-		return NotificationsDelegate.ROW_HEIGHT * 3;
+		return NotificationsDelegate.ROW_HEIGHT * (preferredMessageRows + 1);
+	}
+
+	private computePreferredRows(message: IMarkdownString): number {
+
+		// Render message markdown into offset helper
+		const renderedMessage = NotificationMarkdownRenderer.render(message);
+		this.offsetHelper.appendChild(renderedMessage);
+
+		// Compute message width taking overflow into account
+		const messageWidth = Math.max(renderedMessage.scrollWidth, renderedMessage.offsetWidth);
+
+		// One row per exceeding the total width of the container
+		const preferredRows = Math.ceil(messageWidth / this.offsetHelper.offsetWidth);
+
+		// Always clear offset helper after use
+		clearNode(this.offsetHelper);
+
+		return preferredRows;
 	}
 
 	public getTemplateId(element: INotificationViewItem): string {
 		if (element instanceof NotificationViewItem) {
-			return NotificationRenderer.ID;
+			return NotificationRenderer.TEMPLATE_ID;
 		}
 
 		return void 0;
@@ -56,17 +92,29 @@ export interface INotificationTemplateData {
 	actionsContainer: HTMLElement;
 }
 
-export class NotificationRenderer implements IRenderer<INotificationViewItem, INotificationTemplateData> {
+class NotificationMarkdownRenderer {
 
-	public static readonly ID = 'notification';
-
-	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
 	private static readonly MARKED_NOOP = (text?: string) => text || '';
 	private static readonly MARKED_NOOP_TARGETS = [
 		'blockquote', 'br', 'code', 'codespan', 'del', 'em', 'heading', 'hr', 'html',
 		'image', 'list', 'listitem', 'paragraph', 'strong', 'table', 'tablecell',
 		'tablerow'
 	];
+
+	public static render(markdown: IMarkdownString, actionCallback?: (content: string) => void): HTMLElement {
+		return renderMarkdown(markdown, {
+			inline: true,
+			joinRendererConfiguration: renderer => NotificationMarkdownRenderer.MARKED_NOOP_TARGETS.forEach(fn => renderer[fn] = NotificationMarkdownRenderer.MARKED_NOOP),
+			actionCallback
+		});
+	}
+}
+
+export class NotificationRenderer implements IRenderer<INotificationViewItem, INotificationTemplateData> {
+
+	public static readonly TEMPLATE_ID = 'notification';
+
+	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
 
 	constructor(
 		@IOpenerService private openerService: IOpenerService,
@@ -75,7 +123,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 	}
 
 	public get templateId() {
-		return NotificationRenderer.ID;
+		return NotificationRenderer.TEMPLATE_ID;
 	}
 
 	public renderTemplate(container: HTMLElement): INotificationTemplateData {
@@ -146,11 +194,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 
 		// Message (simple markdown with links support)
 		clearNode(data.message);
-		data.message.appendChild(renderMarkdown(element.message, {
-			inline: true,
-			joinRendererConfiguration: renderer => NotificationRenderer.MARKED_NOOP_TARGETS.forEach(fn => renderer[fn] = NotificationRenderer.MARKED_NOOP),
-			actionCallback: (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)
-		}));
+		data.message.appendChild(NotificationMarkdownRenderer.render(element.message, (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)));
 
 		// Source
 		if (element.expanded) {

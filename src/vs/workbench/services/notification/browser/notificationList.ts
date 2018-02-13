@@ -55,7 +55,7 @@ export class NotificationList extends Themable {
 		this.list = this.instantiationService.createInstance(
 			WorkbenchList,
 			this.listContainer,
-			new NotificationsDelegate(),
+			new NotificationsDelegate(this.listContainer),
 			[this.instantiationService.createInstance(NotificationRenderer)],
 			{
 				ariaLabel: localize('notificationsList', "Notifications List"),

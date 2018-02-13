@@ -105,6 +105,7 @@
 	opacity: 0.7;
 	flex: 1;
 	font-size: 12px;
+	padding-left: 4px; /* aligns with severity icon */
 }
 
 /** Notification: Actions */
