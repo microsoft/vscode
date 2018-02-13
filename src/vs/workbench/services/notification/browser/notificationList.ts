@@ -79,7 +79,7 @@ export class NotificationList extends Themable {
 			this.list.setSelection([index]);
 			this.list.setFocus([index]);
 
-			setTimeout(() => this.list.domFocus()); // TODO why?
+			setTimeout(() => this.list.domFocus()); // TODO@notification why?
 		});
 
 		this.container.appendChild(this.listContainer);

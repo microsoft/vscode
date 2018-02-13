@@ -21,7 +21,7 @@ export class NotificationService implements INotificationService {
 		container: HTMLElement,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		// TODO remove me
+		// TODO@notification remove me
 		setTimeout(() => {
 			this.notify({ severity: Severity.Info, message: 'This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com).' });
 			this.notify({
@@ -35,7 +35,7 @@ export class NotificationService implements INotificationService {
 	}
 
 	private createHandler(): void {
-		// TODO should this be a setter to pass in from outside?
+		// TODO@notification should this be a setter to pass in from outside?
 		this.handler = this.instantiationService.createInstance(NotificationList, document.getElementById('workbench.main.container'));
 	}
 

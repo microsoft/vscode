@@ -10,7 +10,7 @@
 	left: 50%;
 	margin-left: -300px;
 	display: none;
-	background: #1E1E1E; /* TODO make themable */
+	background: #1E1E1E; /* TODO@notification make themable */
 }
 
 .monaco-workbench > .notifications-list-container.visible {
@@ -18,7 +18,7 @@
 }
 
 .monaco-workbench > .notifications-list-container .monaco-list-row {
-	border-left: 2px solid #323232; /* TODO make themable */
+	border-left: 2px solid #323232; /* TODO@notification make themable */
 	border-right: 2px solid #323232;
 	border-bottom: 2px solid #323232;
 }
@@ -32,7 +32,7 @@
 .monaco-workbench > .notifications-list-container .notification-list-item {
 	display: flex;
 	flex-direction: column;
-	padding: 5px;
+	padding: 10px 5px;
 	height: 100%;
 	box-sizing: border-box;
 }
@@ -47,13 +47,13 @@
 /** Notification: Icon */
 
 .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon {
+	flex: 0 0 16px;
 	height: 22px;
 	margin-right: 4px;
 	margin-left: 4px;
 	background-position: center;
 	background-repeat: no-repeat;
 	background-size: cover;
-	flex: 0 0 16px;
 }
 
 .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
@@ -68,15 +68,18 @@
 	background-image: url('notification-error.svg');
 }
 
-.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
+.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info,
+.hc-black .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
 	background-image: url('notification-info-inverse.svg');
 }
 
-.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning {
+.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning,
+.hc-black .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning {
 	background-image: url('notification-warning-inverse.svg');
 }
 
-.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error {
+.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error,
+.hc-black .mocnaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error {
 	background-image: url('notification-error-inverse.svg');
 }
 
@@ -86,10 +89,41 @@
 	line-height: 22px;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	flex: 1; /* let the message always grow */
 }
 
 .monaco-workbench > .notifications-list-container .notification-list-item.expanded .notification-list-item-message {
 	white-space: normal;
+}
+
+/** Notification: Toolbar Container */
+
+.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-toolbar-container {
+	display: none;
+}
+
+.monaco-workbench > .notifications-list-container .notification-list-item:hover .notification-list-item-toolbar-container,
+.monaco-workbench > .notifications-list-container .notification-list-item.expanded .notification-list-item-toolbar-container {
+	display: block;
+}
+
+.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .action-label {
+	flex: 0 0 16px;
+	width: 16px;
+	height: 22px;
+	margin-right: 4px;
+	margin-left: 4px;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.vs .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .close-notification-action {
+	background-image: url('close.svg');
+}
+
+.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .close-notification-action,
+.hc-black .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .close-notification-action {
+	background-image: url('close-inverse.svg');
 }
 
 /** Notification: Details Row */
@@ -97,6 +131,7 @@
 .monaco-workbench > .notifications-list-container .notification-list-item > .notification-list-item-details-row {
 	display: flex;
 	align-items: center;
+	padding: 0 5px;
 }
 
 /** Notification: Source */
@@ -105,16 +140,15 @@
 	opacity: 0.7;
 	flex: 1;
 	font-size: 12px;
-	padding-left: 4px; /* aligns with severity icon */
 }
 
 /** Notification: Actions */
 
 .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-actions-container .monaco-button {
 	max-width: fit-content;
-	padding: 5px;
+	padding: 5px 10px;
 }
 
 .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-actions-container .monaco-button:not(:first-of-type) {
-	margin-left: 5px;
+	margin-left: 10px;
 }

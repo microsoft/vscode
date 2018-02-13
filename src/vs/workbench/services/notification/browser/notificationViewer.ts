@@ -19,10 +19,16 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action, ActionRunner, IAction } from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class NotificationsDelegate implements IDelegate<INotificationViewItem> {
 
-	private static readonly ROW_HEIGHT = 32;
+	private static readonly DEFAULT_HEIGHT = 42;
+	private static readonly LINE_HEIGHT = 22;
 
 	private offsetHelper: HTMLElement;
 
@@ -45,12 +51,17 @@ export class NotificationsDelegate implements IDelegate<INotificationViewItem> {
 
 	public getHeight(element: INotificationViewItem): number {
 		if (!element.expanded) {
-			return NotificationsDelegate.ROW_HEIGHT;
+			return NotificationsDelegate.DEFAULT_HEIGHT;
 		}
 
-		const preferredMessageRows = this.computePreferredRows(element.message);
+		let expandedHeight = NotificationsDelegate.DEFAULT_HEIGHT * 2 /* make extra room for source/buttons */;
 
-		return NotificationsDelegate.ROW_HEIGHT * (preferredMessageRows + 1);
+		const preferredMessageRows = this.computePreferredRows(element.message);
+		if (preferredMessageRows > 1) {
+			expandedHeight += preferredMessageRows * NotificationsDelegate.LINE_HEIGHT;
+		}
+
+		return expandedHeight;
 	}
 
 	private computePreferredRows(message: IMarkdownString): number {
@@ -82,10 +93,12 @@ export class NotificationsDelegate implements IDelegate<INotificationViewItem> {
 
 export interface INotificationTemplateData {
 	container: HTMLElement;
+	toDispose: IDisposable[];
 
 	mainRow: HTMLElement;
 	icon: HTMLElement;
 	message: HTMLElement;
+	toolbar: ActionBar;
 
 	detailsRow: HTMLElement;
 	source: HTMLElement;
@@ -110,16 +123,48 @@ class NotificationMarkdownRenderer {
 	}
 }
 
+class CloseNotificationAction extends Action {
+
+	public static readonly ID = 'workbench.action.closeNotification';
+	public static readonly LABEL = localize('closeNotification', "Close Notification");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label, 'close-notification-action');
+	}
+
+	public run(context?: any): TPromise<any> {
+		return TPromise.as(void 0); // TODO@notification
+	}
+}
+
+class CloseNotificationActionRunner extends ActionRunner {
+
+	constructor(private context: INotificationViewItem) {
+		super();
+	}
+
+	public run(action: IAction, context?: any): TPromise<void> {
+		return super.run(action, this.context);
+	}
+}
+
 export class NotificationRenderer implements IRenderer<INotificationViewItem, INotificationTemplateData> {
 
 	public static readonly TEMPLATE_ID = 'notification';
 
 	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
 
+	private closeNotificationAction: CloseNotificationAction;
+
 	constructor(
 		@IOpenerService private openerService: IOpenerService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
+		this.closeNotificationAction = instantiationService.createInstance(CloseNotificationAction, CloseNotificationAction.ID, CloseNotificationAction.LABEL);
 	}
 
 	public get templateId() {
@@ -128,6 +173,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 
 	public renderTemplate(container: HTMLElement): INotificationTemplateData {
 		const data: INotificationTemplateData = Object.create(null);
+		data.toDispose = [];
 
 		// Container
 		data.container = document.createElement('div');
@@ -145,6 +191,13 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		data.message = document.createElement('div');
 		addClass(data.message, 'notification-list-item-message');
 
+		// Toolbar
+		const toolbarContainer = document.createElement('div');
+		addClass(toolbarContainer, 'notification-list-item-toolbar-container');
+
+		data.toolbar = new ActionBar(toolbarContainer, { ariaLabel: localize('notificationActions', "Notification actions") });
+		data.toolbar.push(this.closeNotificationAction, { icon: true, label: false });
+
 		// Details Row
 		data.detailsRow = document.createElement('div');
 		addClass(data.detailsRow, 'notification-list-item-details-row');
@@ -153,7 +206,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		data.source = document.createElement('div');
 		addClass(data.source, 'notification-list-item-source');
 
-		// Actions Container
+		// Buttons Container
 		data.actionsContainer = document.createElement('div');
 		addClass(data.actionsContainer, 'notification-list-item-actions-container');
 
@@ -162,6 +215,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		data.container.appendChild(data.mainRow);
 		data.mainRow.appendChild(data.icon);
 		data.mainRow.appendChild(data.message);
+		data.mainRow.appendChild(toolbarContainer);
 
 		data.container.appendChild(data.detailsRow);
 		data.detailsRow.appendChild(data.source);
@@ -196,6 +250,10 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		clearNode(data.message);
 		data.message.appendChild(NotificationMarkdownRenderer.render(element.message, (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)));
 
+		// Toolbar
+		data.toolbar.actionRunner = new CloseNotificationActionRunner(element);
+		data.toDispose.push(data.toolbar.actionRunner);
+
 		// Source
 		if (element.expanded) {
 			data.source.innerText = localize('notificationSource', "Source: {0}", element.source);
@@ -208,7 +266,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		if (element.expanded) {
 			element.actions.forEach(action => {
 				const button = new Button(data.actionsContainer);
-				attachButtonStyler(button, this.themeService); // TODO dispose
+				data.toDispose.push(attachButtonStyler(button, this.themeService));
 
 				button.label = action.label;
 				button.onDidClick(() => action.run());
@@ -217,6 +275,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 	}
 
 	public disposeTemplate(templateData: INotificationTemplateData): void {
-		// Method not implemented
+		templateData.toolbar.dispose();
+		templateData.toDispose = dispose(templateData.toDispose);
 	}
 }
