@@ -150,6 +150,7 @@
 	display: none;
 	align-items: center;
 	padding: 0 5px;
+	overflow: hidden; /* details row should never overflow */
 }
 
 .monaco-workbench > .notifications-list-container .notification-list-item.expanded > .notification-list-item-details-row {
@@ -162,6 +163,7 @@
 	opacity: 0.7;
 	flex: 1;
 	font-size: 12px;
+	overflow: hidden; /* always give away space to actions container */
 }
 
 /** Notification: Actions */
