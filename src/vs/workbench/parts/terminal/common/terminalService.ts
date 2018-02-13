@@ -249,14 +249,16 @@ export abstract class TerminalService implements ITerminalService {
 		}
 
 		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, {});
-		// TOOD: The below should be shared with ITerminalService.createInstance
-		tab.addDisposable(tab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
-		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
-		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
-		instance.addDisposable(instance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
+		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
 
 		this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+	}
+
+	protected _initInstanceListeners(instance: ITerminalInstance): void {
+		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
+		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
+		instance.addDisposable(instance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
 	}
 
 	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab {

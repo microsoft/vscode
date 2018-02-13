@@ -58,19 +58,16 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			this._terminalContainer,
 			shell);
 		this._terminalTabs.push(terminalTab);
-		const terminalInstance = terminalTab.terminalInstances[0];
+		const instance = terminalTab.terminalInstances[0];
 		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
-		terminalInstance.addDisposable(terminalInstance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
-		terminalInstance.addDisposable(terminalInstance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
-		terminalInstance.addDisposable(terminalInstance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
-		this.terminalInstances.push(terminalInstance);
+		this._initInstanceListeners(instance);
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically
 			this.setActiveInstanceByIndex(0);
 		}
 		this._onInstancesChanged.fire();
 		this._suggestShellChange(wasNewTerminalAction);
-		return terminalInstance;
+		return instance;
 	}
 
 	public focusFindWidget(): TPromise<void> {
