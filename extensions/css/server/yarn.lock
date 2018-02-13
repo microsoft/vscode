@@ -18,11 +18,11 @@ jsonc-parser@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.0.tgz#ddcc864ae708e60a7a6dd36daea00172fa8d9272"
 
-vscode-css-languageservice@^3.0.5:
-  version "3.0.5"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.5.tgz#8470989c07bbe740db4fa621423e98384d2c342f"
+vscode-css-languageservice@^3.0.6:
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.6.tgz#0e9230347040ba0161fba941885195215ec9be40"
   dependencies:
-    vscode-languageserver-types "3.5.0"
+    vscode-languageserver-types "^3.6.0-next.1"
     vscode-nls "^2.0.1"
 
 vscode-emmet-helper@1.1.34:
@@ -43,10 +43,6 @@ vscode-languageserver-protocol@^3.6.0-next.5:
   dependencies:
     vscode-jsonrpc "^3.6.0-next.1"
     vscode-languageserver-types "^3.6.0-next.1"
-
-vscode-languageserver-types@3.5.0:
-  version "3.5.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.5.0.tgz#e48d79962f0b8e02de955e3f524908e2b19c0374"
 
 vscode-languageserver-types@^3.6.0-next.1:
   version "3.6.0-next.1"
