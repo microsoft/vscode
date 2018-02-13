@@ -429,6 +429,8 @@ export interface IConfigurationManager {
 
 	getLaunches(): ILaunch[];
 
+	getLaunch(workspaceUri: uri): ILaunch | undefined;
+
 	/**
 	 * Allows to register on change of selected debug configuration.
 	 */
@@ -547,7 +549,7 @@ export interface IDebugService {
 	/**
 	 * Updates the breakpoints.
 	 */
-	updateBreakpoints(uri: uri, data: { [id: string]: IBreakpointUpdateData }): void;
+	updateBreakpoints(uri: uri, data: { [id: string]: IBreakpointUpdateData }, sendOnResourceSaved: boolean): void;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.

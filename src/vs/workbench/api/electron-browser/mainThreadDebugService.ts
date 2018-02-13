@@ -177,8 +177,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 	}
 
 	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
-		const folderUriString = _folderUri ? uri.revive(_folderUri).toString() : undefined;
-		const launch = folderUriString ? this.debugService.getConfigurationManager().getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === folderUriString).pop() : undefined;
+		const folderUri = _folderUri ? uri.revive(_folderUri) : undefined;
+		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
 		return this.debugService.startDebugging(launch, nameOrConfiguration).then(x => {
 			return true;
 		}, err => {

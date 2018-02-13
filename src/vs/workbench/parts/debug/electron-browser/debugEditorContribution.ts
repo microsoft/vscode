@@ -408,12 +408,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	// configuration widget
 	private updateConfigurationWidgetVisibility(): void {
 		const model = this.editor.getModel();
+		if (this.configurationWidget) {
+			this.configurationWidget.dispose();
+		}
 		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString())) {
 			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
 			this.configurationWidget.render();
 			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration().done(undefined, errors.onUnexpectedError)));
-		} else if (this.configurationWidget) {
-			this.configurationWidget.dispose();
 		}
 	}
 

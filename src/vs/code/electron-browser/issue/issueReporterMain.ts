@@ -76,17 +76,11 @@ export class IssueReporter extends Disposable {
 
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
-			includeSystemInfo: true,
-			includeWorkspaceInfo: true,
-			includeProcessInfo: true,
-			includeSearchedExtensions: true,
-			includeSettingsSearchDetails: true,
 			versionInfo: {
 				vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
 				os: `${os.type()} ${os.arch()} ${os.release()}`
 			},
 			extensionsDisabled: this.environmentService.disableExtensions,
-			reprosWithoutExtensions: false
 		});
 
 		this.features = configuration.features;
