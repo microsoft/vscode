@@ -78,7 +78,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _processReady: TPromise<void>;
 	private _isDisposed: boolean;
 	private _onDisposed: Emitter<ITerminalInstance>;
-	private _onProcessIdReady: Emitter<TerminalInstance>;
+	private _onFocused: Emitter<ITerminalInstance>;
+	private _onProcessIdReady: Emitter<ITerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
 	private _process: cp.ChildProcess;
 	private _processId: number;
@@ -105,7 +106,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
-	public get onProcessIdReady(): Event<TerminalInstance> { return this._onProcessIdReady.event; }
+	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
+	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
@@ -142,6 +144,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._preLaunchInputQueue = '';
 
 		this._onDisposed = new Emitter<TerminalInstance>();
+		this._onFocused = new Emitter<TerminalInstance>();
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
@@ -202,10 +205,16 @@ export class TerminalInstance implements ITerminalInstance {
 	 * @return The terminal's width if it requires a layout.
 	 */
 	private _evaluateColsAndRows(width: number, height: number): number {
+		// Ignore if dimensions are undefined or 0
+		if (!width || !height) {
+			return null;
+		}
+
 		const dimension = this._getDimension(width, height);
 		if (!dimension) {
 			return null;
 		}
+
 		const font = this._configHelper.getFont();
 
 		// Because xterm.js converts from CSS pixels to actual pixels through
@@ -244,14 +253,16 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 
-		const outerContainer = document.querySelector('.terminal-outer-container');
-		const outerContainerStyle = getComputedStyle(outerContainer);
-		const padding = parseInt(outerContainerStyle.paddingLeft.split('px')[0], 10);
-		const paddingBottom = parseInt(outerContainerStyle.paddingBottom.split('px')[0], 10);
+		if (!this._wrapperElement) {
+			return null;
+		}
 
-		// Use left padding as right padding, right padding is not defined in CSS just in case
-		// xterm.js causes an unexpected overflow.
-		const innerWidth = width - padding * 2;
+		const wrapperElementStyle = getComputedStyle(this._wrapperElement);
+		const marginLeft = parseInt(wrapperElementStyle.marginLeft.split('px')[0], 10);
+		const marginRight = parseInt(wrapperElementStyle.marginRight.split('px')[0], 10);
+		const paddingBottom = parseInt(wrapperElementStyle.paddingBottom.split('px')[0], 10);
+
+		const innerWidth = width - (marginLeft + marginRight);
 		const innerHeight = height - paddingBottom;
 
 		TerminalInstance._lastKnownDimensions = new Dimension(innerWidth, innerHeight);
@@ -311,6 +322,18 @@ export class TerminalInstance implements ITerminalInstance {
 		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._initialCwd);
 		this._linkHandler.registerLocalLinkHandler();
 		this._instanceDisposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
+	}
+
+	public reattachToElement(container: HTMLElement): void {
+		if (!this._wrapperElement) {
+			throw new Error('The terminal instance has not been attached to a container yet');
+		}
+
+		if (this._wrapperElement.parentNode) {
+			this._wrapperElement.parentNode.removeChild(this._wrapperElement);
+		}
+		this._container = container;
+		this._container.appendChild(this._wrapperElement);
 	}
 
 	public attachToElement(container: HTMLElement): void {
@@ -389,6 +412,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
 				this._terminalFocusContextKey.set(true);
+				this._onFocused.fire(this);
 			}));
 			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
 				this._terminalFocusContextKey.reset();
