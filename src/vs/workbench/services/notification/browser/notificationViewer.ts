@@ -27,7 +27,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
 
-	private static readonly DEFAULT_HEIGHT = 42;
+	private static readonly DEFAULT_HEIGHT = 48;
 	private static readonly LINE_HEIGHT = 22;
 
 	private offsetHelper: HTMLElement;
