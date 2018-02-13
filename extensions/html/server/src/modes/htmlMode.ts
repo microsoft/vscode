@@ -21,8 +21,8 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 			globalSettings = options;
 		},
 		doComplete(document: TextDocument, position: Position, settings: Settings = globalSettings) {
-			const options = settings && settings.html && settings.html.suggest;
-			const doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
+			let options = settings && settings.html && settings.html.suggest;
+			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
 			if (doAutoComplete) {
 				options.hideAutoCompleteProposals = true;
 			}

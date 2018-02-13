@@ -279,7 +279,7 @@ connection.onCompletion(async textDocumentPosition => {
 		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
 		let result = mode.doComplete(document, textDocumentPosition.position, settings);
 		if (emmetCompletionList && emmetCompletionList.items) {
-			cachedCompletionList = { isIncomplete: result.isIncomplete, items: [...result.items] };
+			cachedCompletionList = result;
 			return { isIncomplete: true, items: [...emmetCompletionList.items, ...result.items] };
 		}
 		return result;

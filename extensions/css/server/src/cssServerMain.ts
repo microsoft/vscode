@@ -196,7 +196,7 @@ function validateTextDocument(textDocument: TextDocument): void {
 let cachedCompletionList: CompletionList;
 connection.onCompletion(textDocumentPosition => {
 	return runSafe(() => {
-		const document = documents.get(textDocumentPosition.textDocument.uri);
+		let document = documents.get(textDocumentPosition.textDocument.uri);
 		if (cachedCompletionList
 			&& !cachedCompletionList.isIncomplete
 			&& textDocumentPosition.context
@@ -222,7 +222,7 @@ connection.onCompletion(textDocumentPosition => {
 
 		const result = getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
 		if (emmetCompletionList && emmetCompletionList.items) {
-			cachedCompletionList = { isIncomplete: result.isIncomplete, items: [...result.items] };
+			cachedCompletionList = result;
 			return { isIncomplete: true, items: [...emmetCompletionList.items, ...result.items] };
 		}
 		return result;
