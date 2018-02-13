@@ -25,7 +25,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
-export class NotificationsDelegate implements IDelegate<INotificationViewItem> {
+export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
 
 	private static readonly DEFAULT_HEIGHT = 42;
 	private static readonly LINE_HEIGHT = 22;
@@ -51,14 +51,14 @@ export class NotificationsDelegate implements IDelegate<INotificationViewItem> {
 
 	public getHeight(element: INotificationViewItem): number {
 		if (!element.expanded) {
-			return NotificationsDelegate.DEFAULT_HEIGHT;
+			return NotificationsListDelegate.DEFAULT_HEIGHT;
 		}
 
-		let expandedHeight = NotificationsDelegate.DEFAULT_HEIGHT * 2 /* make extra room for source/buttons */;
+		let expandedHeight = NotificationsListDelegate.DEFAULT_HEIGHT * 2 /* make extra room for source/buttons */;
 
 		const preferredMessageRows = this.computePreferredRows(element.message);
 		if (preferredMessageRows > 1) {
-			expandedHeight += preferredMessageRows * NotificationsDelegate.LINE_HEIGHT;
+			expandedHeight += preferredMessageRows * NotificationsListDelegate.LINE_HEIGHT;
 		}
 
 		return expandedHeight;
@@ -135,7 +135,45 @@ class CloseNotificationAction extends Action {
 		super(id, label, 'close-notification-action');
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context: INotificationViewItem): TPromise<any> {
+		return TPromise.as(void 0); // TODO@notification
+	}
+}
+
+class ExpandNotificationAction extends Action {
+
+	public static readonly ID = 'workbench.action.expandNotification';
+	public static readonly LABEL = localize('expandNotification', "Expand Notification");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label, 'expand-notification-action');
+	}
+
+	public run(context: INotificationViewItem): TPromise<any> {
+		context.expand();
+
+		return TPromise.as(void 0); // TODO@notification
+	}
+}
+
+class CollapseNotificationAction extends Action {
+
+	public static readonly ID = 'workbench.action.collapseNotification';
+	public static readonly LABEL = localize('collapseNotification', "Collapse Notification");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label, 'collapse-notification-action');
+	}
+
+	public run(context: INotificationViewItem): TPromise<any> {
+		context.collapse();
+
 		return TPromise.as(void 0); // TODO@notification
 	}
 }
@@ -158,6 +196,8 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
 
 	private closeNotificationAction: CloseNotificationAction;
+	private expandNotificationAction: ExpandNotificationAction;
+	private collapseNotificationAction: ExpandNotificationAction;
 
 	constructor(
 		@IOpenerService private openerService: IOpenerService,
@@ -165,6 +205,8 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.closeNotificationAction = instantiationService.createInstance(CloseNotificationAction, CloseNotificationAction.ID, CloseNotificationAction.LABEL);
+		this.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
+		this.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
 	}
 
 	public get templateId() {
@@ -196,7 +238,6 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		addClass(toolbarContainer, 'notification-list-item-toolbar-container');
 
 		data.toolbar = new ActionBar(toolbarContainer, { ariaLabel: localize('notificationActions', "Notification actions") });
-		data.toolbar.push(this.closeNotificationAction, { icon: true, label: false });
 
 		// Details Row
 		data.detailsRow = document.createElement('div');
@@ -251,6 +292,15 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		data.message.appendChild(NotificationMarkdownRenderer.render(element.message, (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)));
 
 		// Toolbar
+		data.toolbar.clear();
+
+		const actions: IAction[] = [];
+		if (element.canCollapse) {
+			actions.push(element.expanded ? this.collapseNotificationAction : this.expandNotificationAction);
+		}
+		actions.push(this.closeNotificationAction);
+
+		data.toolbar.push(actions, { icon: true, label: false });
 		data.toolbar.actionRunner = new CloseNotificationActionRunner(element);
 		data.toDispose.push(data.toolbar.actionRunner);
 

@@ -10,7 +10,7 @@ import { addClass } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/services/notification/common/notificationsModel';
-import { NotificationRenderer, NotificationsDelegate } from 'vs/workbench/services/notification/browser/notificationViewer';
+import { NotificationRenderer, NotificationsListDelegate } from 'vs/workbench/services/notification/browser/notificationViewer';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
 import { Themable } from 'vs/workbench/common/theme';
@@ -55,7 +55,7 @@ export class NotificationList extends Themable {
 		this.list = this.instantiationService.createInstance(
 			WorkbenchList,
 			this.listContainer,
-			new NotificationsDelegate(this.listContainer),
+			new NotificationsListDelegate(this.listContainer),
 			[this.instantiationService.createInstance(NotificationRenderer)],
 			{
 				ariaLabel: localize('notificationsList', "Notifications List"),
@@ -68,10 +68,12 @@ export class NotificationList extends Themable {
 			const notification = e.elements[0];
 			const index = e.indexes[0];
 
-			if (notification.expanded) {
-				notification.collapse();
-			} else {
-				notification.expand();
+			if (notification.canCollapse) {
+				if (notification.expanded) {
+					notification.collapse();
+				} else {
+					notification.expand();
+				}
 			}
 
 			this.list.splice(index, 1, [notification]);
@@ -101,6 +103,10 @@ export class NotificationList extends Themable {
 		if (!viewItem) {
 			return NotificationList.NO_OP_NOTIFICATION;
 		}
+
+		viewItem.onDidExpansionChange(() => {
+			// TODO expand/collapse using model index
+		}); // TODO@Notification dispose
 
 		addClass(this.listContainer, 'visible');
 
