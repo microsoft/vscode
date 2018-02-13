@@ -34,12 +34,12 @@ export class CopyValueAction extends Action {
 	}
 }
 
-export class CopyPropertyPathAction extends Action {
-	static readonly ID = 'workbench.debug.viewlet.action.copyPropertyPath';
-	static LABEL = nls.localize('copyPropertyPath', "Copy Property Path");
+export class CopyEvaluatePathAction extends Action {
+	static readonly ID = 'workbench.debug.viewlet.action.copyEvaluatePath';
+	static LABEL = nls.localize('copyPath', "Copy Path");
 
 	constructor(id: string, label: string, private value: any) {
-		super(id, label, 'debug-action copy-property-path');
+		super(id, label);
 	}
 
 	public run(): TPromise<any> {
