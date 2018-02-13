@@ -596,7 +596,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.ignoreFocusEvents = false;
 		}
 
-		this.updateListHeight();
 		this.list.reveal(index);
 
 		this.currentSuggestionDetails = item.resolve()
