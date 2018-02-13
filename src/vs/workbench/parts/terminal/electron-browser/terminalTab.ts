@@ -187,6 +187,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	private _onDisposed: Emitter<ITerminalTab>;
 	public get onDisposed(): Event<ITerminalTab> { return this._onDisposed.event; }
+	private _onInstancesChanged: Emitter<void>;
+	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 
 	constructor(
 		terminalFocusContextKey: IContextKey<boolean>,
@@ -197,6 +199,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	) {
 		super();
 		this._onDisposed = new Emitter<ITerminalTab>();
+		this._onInstancesChanged = new Emitter<void>();
 
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			terminalFocusContextKey,
@@ -223,6 +226,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	public dispose(): void {
 		super.dispose();
 		this._terminalInstances = [];
+		this._onInstancesChanged.fire();
 	}
 
 	public get activeInstance(): ITerminalInstance {
@@ -249,15 +253,12 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			}
 		}
 
-		// TODO: Find instance's SplitPane and unsplit it
+		// Find the instance's SplitPane and unsplit it
 		this._findSplitPane(instance).remove();
 
-		// console.log('splitPane: ', splitPane);
-
-
-		// Dispose the tab if it was the last instance
+		// Fire events and dispose tab if it was the last instance
+		this._onInstancesChanged.fire();
 		if (this._terminalInstances.length === 0) {
-			console.log('Disposed terminal tab!');
 			this._onDisposed.fire(this);
 			this.dispose();
 		}

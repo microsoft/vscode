@@ -150,7 +150,7 @@ export interface ITerminalService {
 	onTabDisposed: Event<ITerminalTab>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
-	onInstancesChanged: Event<string>;
+	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
@@ -187,6 +187,7 @@ export interface ITerminalTab {
 	terminalInstances: ITerminalInstance[];
 	title: string;
 	onDisposed: Event<ITerminalTab>;
+	onInstancesChanged: Event<void>;
 
 	focusLeft(): void;
 	focusRight(): void;

@@ -60,6 +60,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		this._terminalTabs.push(terminalTab);
 		const instance = terminalTab.terminalInstances[0];
 		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
+		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 		this._initInstanceListeners(instance);
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically

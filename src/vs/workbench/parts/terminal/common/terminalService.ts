@@ -19,7 +19,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected _terminalFocusContextKey: IContextKey<boolean>;
 	protected _findWidgetVisible: IContextKey<boolean>;
 	protected _terminalContainer: HTMLElement;
-	protected _onInstancesChanged: Emitter<string>;
+	protected _onInstancesChanged: Emitter<void>;
 	protected _onTabDisposed: Emitter<ITerminalTab>;
 	protected _onInstanceDisposed: Emitter<ITerminalInstance>;
 	protected _onInstanceProcessIdReady: Emitter<ITerminalInstance>;
@@ -36,7 +36,7 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
-	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
+	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 	public get terminalTabs(): ITerminalTab[] { return this._terminalTabs; }
 
@@ -56,7 +56,7 @@ export abstract class TerminalService implements ITerminalService {
 		this._onInstanceDisposed = new Emitter<ITerminalInstance>();
 		this._onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
 		this._onInstanceTitleChanged = new Emitter<string>();
-		this._onInstancesChanged = new Emitter<string>();
+		this._onInstancesChanged = new Emitter<void>();
 
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
 		lifecycleService.onShutdown(() => this._onShutdown());
