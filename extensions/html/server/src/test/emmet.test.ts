@@ -17,28 +17,27 @@ import { getCSSMode } from '../modes/cssMode';
 
 suite('Emmet Support', () => {
 
-	var htmlLanguageService = getLanguageService();
+	const htmlLanguageService = getLanguageService();
 
 	function assertCompletions(syntax: string, value: string, expectedProposal: string, expectedProposalDoc: string): void {
-		let offset = value.indexOf('|');
+		const offset = value.indexOf('|');
 		value = value.substr(0, offset) + value.substr(offset + 1);
 
-		let document = TextDocument.create('test://test/test.' + syntax, syntax, 0, value);
-		let position = document.positionAt(offset);
-
-		let documentRegions = getLanguageModelCache<embeddedSupport.HTMLDocumentRegions>(10, 60, document => embeddedSupport.getDocumentRegions(htmlLanguageService, document));
-		var mode = syntax == 'html' ? getHTMLMode(htmlLanguageService) : getCSSMode(documentRegions);
-		var emmetCompletionList: CompletionList = {
+		const document = TextDocument.create('test://test/test.' + syntax, syntax, 0, value);
+		const position = document.positionAt(offset);
+		const documentRegions = getLanguageModelCache<embeddedSupport.HTMLDocumentRegions>(10, 60, document => embeddedSupport.getDocumentRegions(htmlLanguageService, document));
+		const mode = syntax == 'html' ? getHTMLMode(htmlLanguageService) : getCSSMode(documentRegions);
+		const emmetCompletionList: CompletionList = {
 			isIncomplete: true,
 			items: undefined
 		}
 		mode.setCompletionParticipants([getEmmetCompletionParticipants(document, position, document.languageId, {}, emmetCompletionList)])
 
-		let list = mode.doComplete!(document, position);
+		const list = mode.doComplete!(document, position);
 		assert.ok(list);
 		assert.ok(emmetCompletionList)
 
-		
+
 		if (expectedProposal && expectedProposalDoc) {
 			let actualLabels = emmetCompletionList!.items.map(c => c.label).sort();
 			let actualDocs = emmetCompletionList!.items.map(c => c.documentation).sort();
@@ -47,7 +46,7 @@ suite('Emmet Support', () => {
 		} else {
 			assert.ok(!emmetCompletionList || !emmetCompletionList.items);
 		}
-		
+
 	}
 
 	test('Html Emmet Completions', function (): any {
@@ -66,5 +65,6 @@ suite('Emmet Support', () => {
 		assertCompletions('css', '<style>foo {| display: none; }</style>', null, null);
 		assertCompletions('css', '<style>foo { display: none;| }</style>', null, null);
 		assertCompletions('css', '<style>foo { display: none|; }</style>', null, null);
+		assertCompletions('css', '<style>.foo { display: none; -m-m10| }</style>', 'margin: 10px;', '-moz-margin: 10px;\nmargin: 10px;');
 	});
 });
