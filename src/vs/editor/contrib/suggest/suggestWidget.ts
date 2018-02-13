@@ -976,7 +976,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		return SuggestWidget.ID;
 	}
 
-	private updateListHeight(): number {
+	private updateListHeight(): void {
 		let height = 0;
 
 		if (this.state === State.Empty || this.state === State.Loading) {
@@ -989,10 +989,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
 		this.listElement.style.height = `${height}px`;
 		this.list.layout(height);
-
-		this.editor.layoutContentWidget(this);
-
-		return height;
 	}
 
 	private adjustDocsPosition() {
