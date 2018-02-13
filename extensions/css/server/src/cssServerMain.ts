@@ -17,7 +17,7 @@ import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, Color
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, ICompletionParticipant } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { formatError, runSafe } from './utils/errors';
-import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, extractAbbreviation } from 'vscode-emmet-helper';
+import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 import uri from 'vscode-uri';
 
 export interface Settings {
@@ -193,7 +193,6 @@ function validateTextDocument(textDocument: TextDocument): void {
 	});
 }
 
-const hexColorRegex = /^#[\d,a-f,A-F]+$/;
 let cachedCompletionList: CompletionList;
 connection.onCompletion(textDocumentPosition => {
 	return runSafe(() => {
@@ -214,32 +213,17 @@ connection.onCompletion(textDocumentPosition => {
 		}
 
 		cachedCompletionList = null;
-		let emmetCompletionList: CompletionList;
-		const emmetCompletionParticipant: ICompletionParticipant = {
-			onCssProperty: (context) => {
-				if (context && context.propertyName) {
-					emmetCompletionList = emmetDoComplete(document, textDocumentPosition.position, document.languageId, emmetSettings);
-				}
-			},
-			onCssPropertyValue: (context) => {
-				if (context && context.propertyValue) {
-					const extractedResults = extractAbbreviation(document, textDocumentPosition.position);
-					if (!extractedResults) {
-						return;
-					}
-					if (extractedResults.abbreviation === `${context.propertyName}:${context.propertyValue}` || hexColorRegex.test(extractedResults.abbreviation)) {
-						emmetCompletionList = emmetDoComplete(document, textDocumentPosition.position, document.languageId, emmetSettings);
-					}
-				}
-			}
+		let emmetCompletionList: CompletionList = {
+			isIncomplete: true,
+			items: undefined
 		};
+		const emmetCompletionParticipant: ICompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, document.languageId, emmetSettings, emmetCompletionList);
 		getLanguageService(document).setCompletionParticipants([emmetCompletionParticipant]);
 
 		const result = getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
 		if (emmetCompletionList && emmetCompletionList.items) {
 			cachedCompletionList = { isIncomplete: result.isIncomplete, items: [...result.items] };
-			result.items.push(...emmetCompletionList.items);
-			result.isIncomplete = true;
+			return { isIncomplete: true, items: [...emmetCompletionList.items, ...result.items] };
 		}
 		return result;
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);

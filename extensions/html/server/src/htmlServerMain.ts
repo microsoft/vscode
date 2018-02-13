@@ -17,7 +17,7 @@ import { pushAll } from './utils/arrays';
 import { getDocumentContext } from './utils/documentContext';
 import uri from 'vscode-uri';
 import { formatError, runSafe } from './utils/errors';
-import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, extractAbbreviation } from 'vscode-emmet-helper';
+import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants } from 'vscode-emmet-helper';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
@@ -237,7 +237,6 @@ async function validateTextDocument(textDocument: TextDocument) {
 	}
 }
 
-const hexColorRegex = /^#[\d,a-f,A-F]+$/;
 let cachedCompletionList: CompletionList;
 connection.onCompletion(async textDocumentPosition => {
 	return runSafe(async () => {
@@ -268,29 +267,12 @@ connection.onCompletion(async textDocumentPosition => {
 		}
 
 		cachedCompletionList = null;
-		let emmetCompletionList: CompletionList;
+		let emmetCompletionList: CompletionList = {
+			isIncomplete: true,
+			items: undefined
+		};
 		if (mode.setCompletionParticipants) {
-			const emmetCompletionParticipant = {
-				onCssProperty: (context) => {
-					if (context && context.propertyName) {
-						emmetCompletionList = emmetDoComplete(document, textDocumentPosition.position, mode.getId(), emmetSettings);
-					}
-				},
-				onCssPropertyValue: (context) => {
-					if (context && context.propertyValue) {
-						const extractedResults = extractAbbreviation(document, textDocumentPosition.position);
-						if (!extractedResults) {
-							return;
-						}
-						if (extractedResults.abbreviation === `${context.propertyName}:${context.propertyValue}` || hexColorRegex.test(extractedResults.abbreviation)) {
-							emmetCompletionList = emmetDoComplete(document, textDocumentPosition.position, mode.getId(), emmetSettings);
-						}
-					}
-				},
-				onHtmlContent: () => {
-					emmetCompletionList = emmetDoComplete(document, textDocumentPosition.position, mode.getId(), emmetSettings);
-				}
-			};
+			const emmetCompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, mode.getId(), emmetSettings, emmetCompletionList);
 			mode.setCompletionParticipants([emmetCompletionParticipant]);
 		}
 
@@ -298,8 +280,7 @@ connection.onCompletion(async textDocumentPosition => {
 		let result = mode.doComplete(document, textDocumentPosition.position, settings);
 		if (emmetCompletionList && emmetCompletionList.items) {
 			cachedCompletionList = { isIncomplete: result.isIncomplete, items: [...result.items] };
-			result.items.push(...emmetCompletionList.items);
-			result.isIncomplete = true;
+			return { isIncomplete: true, items: [...emmetCompletionList.items, ...result.items] };
 		}
 		return result;
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
