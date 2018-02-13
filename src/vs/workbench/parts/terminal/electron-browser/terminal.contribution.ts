@@ -412,7 +412,10 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(MoveToLineEndTer
 	primary: null,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line End', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitVerticalTerminalAction, SplitVerticalTerminalAction.ID, SplitVerticalTerminalAction.LABEL), 'Terminal: Split Vertically', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitVerticalTerminalAction, SplitVerticalTerminalAction.ID, SplitVerticalTerminalAction.LABEL, {
+	primary: null,
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_D }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Split Vertically', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalLeftAction, FocusTerminalLeftAction.ID, FocusTerminalLeftAction.LABEL, {
 	primary: KeyMod.Alt | KeyCode.LeftArrow,
 	mac: { primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.LeftArrow }
