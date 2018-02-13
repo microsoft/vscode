@@ -587,9 +587,13 @@ export class DebugService implements debug.IDebugService {
 		return this.sendBreakpoints(uri);
 	}
 
-	public updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): void {
+	public updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }, sendOnResourceSaved: boolean): void {
 		this.model.updateBreakpoints(data);
-		this.breakpointsToSendOnResourceSaved.add(uri.toString());
+		if (sendOnResourceSaved) {
+			this.breakpointsToSendOnResourceSaved.add(uri.toString());
+		} else {
+			this.sendBreakpoints(uri);
+		}
 	}
 
 	public removeBreakpoints(id?: string): TPromise<any> {

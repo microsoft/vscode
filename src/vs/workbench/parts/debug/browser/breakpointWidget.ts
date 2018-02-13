@@ -131,7 +131,7 @@ export class BreakpointWidget extends ZoneWidget {
 								hitCondition,
 								verified: oldBreakpoint.verified
 							}
-						});
+						}, false);
 					} else {
 						this.debugService.addBreakpoints(uri, [{
 							lineNumber: this.lineNumber,

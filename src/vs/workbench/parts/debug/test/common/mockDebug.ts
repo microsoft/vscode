@@ -43,7 +43,7 @@ export class MockDebugService implements IDebugService {
 		return TPromise.as(null);
 	}
 
-	public updateBreakpoints(uri: uri, data: { [id: string]: IBreakpointUpdateData }): void { }
+	public updateBreakpoints(uri: uri, data: { [id: string]: IBreakpointUpdateData }, sendOnResourceSaved: boolean): void { }
 
 	public enableOrDisableBreakpoints(enabled: boolean): TPromise<void> {
 		return TPromise.as(null);
