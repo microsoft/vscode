@@ -24,7 +24,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { getResourceForCommand } from 'vs/workbench/parts/files/browser/files';
+import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 
@@ -85,20 +85,26 @@ CommandsRegistry.registerCommand({
 		const fileService = accessor.get(IFileService);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 		const terminalService = accessor.get(ITerminalService);
-		resource = getResourceForCommand(resource, accessor.get(IListService), editorService);
-
-		return fileService.resolveFile(resource).then(stat => {
-			return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
-		}).then(directoryToOpen => {
-			if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
-				const instance = integratedTerminalService.createInstance({ cwd: directoryToOpen }, true);
-				if (instance) {
-					integratedTerminalService.setActiveInstance(instance);
-					integratedTerminalService.showPanel(true);
+		let resources:uri[] = [];
+		let directoryMap:Map<string, boolean> = new Map();
+		resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+		return resources.map((resource) => {
+			return fileService.resolveFile(resource).then(stat => {
+				return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
+			}).then(directoryToOpen => {
+				if (!directoryMap.has(directoryToOpen)) {
+					directoryMap.set(directoryToOpen, true);
+					if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
+						const instance = integratedTerminalService.createInstance({ cwd: directoryToOpen }, true);
+						if (instance) {
+							integratedTerminalService.setActiveInstance(instance);
+							integratedTerminalService.showPanel(true);
+						}
+					} else {
+						terminalService.openTerminal(directoryToOpen);
+					}
 				}
-			} else {
-				terminalService.openTerminal(directoryToOpen);
-			}
+			});
 		});
 	}
 });
