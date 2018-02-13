@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import { registerColor, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, ColorIdentifier, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 /**
  * The color identifiers for the terminal's ansi colors. The index in the array corresponds to the index
@@ -26,6 +26,11 @@ export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selec
 	dark: '#FFFFFF40',
 	hc: '#FFFFFF80'
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
+export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
+	dark: '#80808033',
+	light: '#80808033',
+	hc: contrastBorder
+}, nls.localize('terminal.border', 'The color of the border that separates multiple terminals.'));
 
 const ansiColorMap = {
 	'terminal.ansiBlack': {

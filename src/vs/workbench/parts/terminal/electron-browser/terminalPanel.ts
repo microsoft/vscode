@@ -24,8 +24,8 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
+import { PANEL_BACKGROUND, PANEL_BORDER } from 'vs/workbench/common/theme';
+import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
@@ -294,6 +294,11 @@ export class TerminalPanel extends Panel {
 
 		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
 		this._terminalContainer.style.backgroundColor = backgroundColor ? backgroundColor.toString() : '';
+
+		const borderColor = theme.getColor(TERMINAL_BORDER_COLOR) || theme.getColor(PANEL_BORDER);
+		if (borderColor) {
+			css += `.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) { border-left-color: ${borderColor.toString()}; }`;
+		}
 
 		// Borrow the editor's hover background for now
 		let hoverBackground = theme.getColor(editorHoverBackground);

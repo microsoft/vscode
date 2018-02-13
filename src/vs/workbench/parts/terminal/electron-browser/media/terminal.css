@@ -77,13 +77,9 @@
 }
 
 .monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) {
-	border-left: 1px solid rgba(0, 0, 0, 0.3);
-}
-.vs-dark .monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) {
-	border-left: 1px solid rgba(255, 255, 255, 0.3);
-}
-.hc-black .monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) {
-	border-left: 1px solid rgba(255, 255, 255, 0.5);
+	/* border-color is set by theme key terminal.border */
+	border-left-width: 1px;
+	border-left-style: solid;
 }
 
 .monaco-workbench .panel.integrated-terminal.enable-ligatures {
