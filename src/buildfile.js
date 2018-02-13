@@ -10,6 +10,7 @@ exports.base = [{
 	append: [ 'vs/base/worker/workerMain' ],
 	dest: 'vs/base/worker/workerMain.js'
 }];
+//@ts-ignore review
 exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.main']);
 exports.code = require('./vs/code/buildfile').collectModules();
 

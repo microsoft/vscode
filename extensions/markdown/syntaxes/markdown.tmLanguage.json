@@ -5,14 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/1ba9efd21c29c70dd87d8402a92ef64666dcb25e",
-	"fileTypes": [
-		"md",
-		"mdown",
-		"markdown",
-		"markdn"
-	],
-	"keyEquivalent": "^~M",
 	"name": "Markdown",
+	"scopeName": "text.html.markdown",
 	"patterns": [
 		{
 			"include": "#frontMatter"
@@ -2272,7 +2266,5 @@
 				}
 			}
 		}
-	},
-	"scopeName": "text.html.markdown",
-	"uuid": "0A1D9874-B448-11D9-BD50-000D93B6E43C"
+	}
 }

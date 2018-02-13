@@ -79,6 +79,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enum: ['all', 'gutter', 'overview', 'none'],
 			default: 'all',
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
+		},
+		'scm.diffDecorationsGutterWidth': {
+			type: 'number',
+			enum: [1, 2, 3, 4, 5],
+			default: 3,
+			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
 		}
 	}
 });

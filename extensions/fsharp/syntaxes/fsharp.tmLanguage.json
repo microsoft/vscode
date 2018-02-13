@@ -7,11 +7,6 @@
 	"version": "https://github.com/ionide/ionide-fsgrammar/commit/9aa4b1055e3173225bc0d4b4e48542c2450beb99",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
-	"fileTypes": [
-		"fs"
-	],
-	"foldingStartMarker": "",
-	"foldingStopMarker": "",
 	"patterns": [
 		{
 			"include": "#comments"

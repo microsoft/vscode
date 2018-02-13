@@ -5,15 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/atom/language-sass/commit/a07688bd078f420f56df6221e9263d80e738869b",
-	"scopeName": "source.css.scss",
 	"name": "SCSS",
-	"fileTypes": [
-		"scss",
-		"css.scss",
-		"css.scss.erb",
-		"scss.erb",
-		"scss.liquid"
-	],
+	"scopeName": "source.css.scss",
 	"patterns": [
 		{
 			"include": "#variable_setting"

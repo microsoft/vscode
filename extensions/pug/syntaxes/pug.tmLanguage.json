@@ -5,10 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/davidrios/jade-tmbundle/commit/f311a516bb29296fcebfdc7da8149b1c79dfb0a1",
-	"fileTypes": [
-		"jade"
-	],
 	"name": "Jade",
+	"scopeName": "text.jade",
 	"patterns": [
 		{
 			"comment": "Doctype declaration.",
@@ -985,7 +983,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "text.jade",
-	"uuid": "eee6ba25-6ac2-4f7e-9c70-cddf2bd3448b"
+	}
 }

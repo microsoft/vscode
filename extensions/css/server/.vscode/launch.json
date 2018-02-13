@@ -9,7 +9,7 @@
 			"port": 6044,
 			"protocol": "inspector",
 			"sourceMaps": true,
-			"outDir": "${workspaceFolder}/out"
+			"outFiles": ["${workspaceFolder}/out/**/*.js"]
 		},
 		{
 			"name": "Unit Tests",
@@ -27,7 +27,7 @@
 			"runtimeArgs": [],
 			"env": {},
 			"sourceMaps": true,
-			"outDir": "${workspaceFolder}/out"
+			"outFiles": ["${workspaceFolder}/out/**/*.js"]
 		}
 	]
 }

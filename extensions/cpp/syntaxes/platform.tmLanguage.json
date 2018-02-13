@@ -5,10 +5,9 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/textmate/c.tmbundle/commit/9aa365882274ca52f01722f3dbb169b9539a20ee",
-	"comment": "This file was generated with clang-C using MacOSX10.12.sdk",
-	"fileTypes": [],
-	"hideFromUser": true,
 	"name": "Platform",
+	"scopeName": "source.c.platform",
+	"comment": "This file was generated with clang-C using MacOSX10.12.sdk",
 	"patterns": [
 		{
 			"match": "\\bkCF(?:CalendarUnitWeek|Gregorian(?:AllUnits|Units(?:Days|Hours|M(?:inutes|onths)|Seconds|Years)))\\b",
@@ -568,7 +567,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.c.platform",
-	"uuid": "3E3CB242-CEBA-4B61-9806-9A97B5783D2A"
+	}
 }

@@ -158,7 +158,7 @@ export interface IViewsViewlet extends IViewlet {
 
 export interface ITreeViewer extends IDisposable {
 
-	readonly dataProvider: ITreeViewDataProvider;
+	dataProvider: ITreeViewDataProvider;
 
 	refresh(treeItems?: ITreeItem[]): TPromise<void>;
 
@@ -185,8 +185,6 @@ export interface ICustomViewsService {
 	_serviceBrand: any;
 
 	getTreeViewer(id: string): ITreeViewer;
-
-	registerTreeViewDataProvider(id: string, ITreeViewDataProvider): void;
 }
 
 export type TreeViewItemHandleArg = {

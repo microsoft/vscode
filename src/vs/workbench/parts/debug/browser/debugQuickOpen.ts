@@ -70,7 +70,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 		}
 		// Run selected debug configuration
 		this.debugService.getConfigurationManager().selectConfiguration(this.launch, this.configurationName);
-		this.debugService.startDebugging(this.launch.workspace).done(undefined, e => this.messageService.show(Severity.Error, e));
+		this.debugService.startDebugging(this.launch).done(undefined, e => this.messageService.show(Severity.Error, e));
 
 		return true;
 	}

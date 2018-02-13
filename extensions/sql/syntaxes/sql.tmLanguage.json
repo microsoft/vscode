@@ -5,13 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/Microsoft/vscode-mssql/commit/c8effddd6a9df117f3ed45b60b487163950a7ea5",
-	"fileTypes": [
-		"sql",
-		"ddl",
-		"dml"
-	],
-	"keyEquivalent": "^~S",
 	"name": "SQL",
+	"scopeName": "source.sql",
 	"patterns": [
 		{
 			"match": "((?<!@)@)\\b(\\w+)\\b",
@@ -520,7 +515,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.sql",
-	"uuid": "C49120AC-6ECC-11D9-ACC8-000D93589AF6"
+	}
 }

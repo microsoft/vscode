@@ -658,10 +658,10 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
+	public startDebugging(launch: debug.ILaunch, configOrName?: debug.IConfig | string, noDebug = false): TPromise<any> {
 
 		// make sure to save all files and that the configuration is up to date
-		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(root).then(() =>
+		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(launch.workspace).then(() =>
 			this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 				if (this.model.getProcesses().length === 0) {
 					this.removeReplExpressions();
@@ -669,8 +669,9 @@ export class DebugService implements debug.IDebugService {
 					this.model.getBreakpoints().forEach(bp => bp.verified = false);
 				}
 				this.launchJsonChanged = false;
-				const launch = root ? this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === root.uri.toString()).pop()
-					: this.configurationManager.getWorkspaceLaunch();
+				if (!launch) {
+					launch = this.configurationManager.selectedConfiguration.launch;
+				}
 
 				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {
@@ -695,28 +696,28 @@ export class DebugService implements debug.IDebugService {
 							return TPromise.as(null);
 						}
 
-						let rootForName: IWorkspaceFolder;
+						let launchForName: debug.ILaunch;
 						if (typeof configData === 'string') {
 							const launchesContainingName = this.configurationManager.getLaunches().filter(l => !!l.getConfiguration(name));
 							if (launchesContainingName.length === 1) {
-								rootForName = launchesContainingName[0].workspace;
+								launchForName = launchesContainingName[0];
 							} else if (launchesContainingName.length > 1 && launchesContainingName.indexOf(launch) >= 0) {
 								// If there are multiple launches containing the configuration give priority to the configuration in the current launch
-								rootForName = launch.workspace;
+								launchForName = launch;
 							} else {
 								return TPromise.wrapError(new Error(launchesContainingName.length === 0 ? nls.localize('noConfigurationNameInWorkspace', "Could not find launch configuration '{0}' in the workspace.", name)
 									: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurations `{0}` in the workspace. Use folder name to qualify the configuration.", name)));
 							}
 						} else if (configData.folder) {
-							const root = this.contextService.getWorkspace().folders.filter(f => f.name === configData.folder).pop();
-							if (root) {
-								rootForName = root;
+							const launchesMatchingConfigData = this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.name === configData.folder && !!l.getConfiguration(configData.name));
+							if (launchesMatchingConfigData.length === 1) {
+								launchForName = launchesMatchingConfigData[0];
 							} else {
 								return TPromise.wrapError(new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound.name)));
 							}
 						}
 
-						return this.startDebugging(rootForName, name, noDebug);
+						return this.startDebugging(launchForName, name, noDebug);
 					}));
 				}
 				if (configOrName && !config) {
@@ -751,7 +752,7 @@ export class DebugService implements debug.IDebugService {
 						this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
 							// a falsy config indicates an aborted launch
 							if (config && config.type) {
-								return this.createProcess(root, config, sessionId);
+								return this.createProcess(launch, config, sessionId);
 							}
 
 							if (launch) {
@@ -766,8 +767,7 @@ export class DebugService implements debug.IDebugService {
 		)));
 	}
 
-	private createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId: string): TPromise<void> {
-		const launch = root ? this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === root.uri.toString()).pop() : undefined;
+	private createProcess(launch: debug.ILaunch, config: debug.IConfig, sessionId: string): TPromise<void> {
 		return this.textFileService.saveAll().then(() =>
 			(launch ? launch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
@@ -791,12 +791,13 @@ export class DebugService implements debug.IDebugService {
 
 				this.toDisposeOnSessionEnd.set(sessionId, []);
 
-				return this.runPreLaunchTask(sessionId, root, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
+				const workspace = launch ? launch.workspace : undefined;
+				return this.runPreLaunchTask(sessionId, workspace, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
 					const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
 					const successExitCode = taskSummary && taskSummary.exitCode === 0;
 					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-						return this.doCreateProcess(root, resolvedConfig, sessionId);
+						return this.doCreateProcess(workspace, resolvedConfig, sessionId);
 					}
 
 					const message = errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
@@ -806,7 +807,7 @@ export class DebugService implements debug.IDebugService {
 					return this.choiceService.choose(severity.Error, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('cancel', "Cancel")], 2, true).then(choice => {
 						switch (choice) {
 							case 0:
-								return this.doCreateProcess(root, resolvedConfig, sessionId);
+								return this.doCreateProcess(workspace, resolvedConfig, sessionId);
 							case 1:
 								return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
 							default:
@@ -817,7 +818,7 @@ export class DebugService implements debug.IDebugService {
 					return this.choiceService.choose(severity.Error, err.message, [nls.localize('debugAnyway', "Debug Anyway"), debugactions.ConfigureAction.LABEL, this.taskService.configureAction().label, nls.localize('cancel', "Cancel")], 3, true).then(choice => {
 						switch (choice) {
 							case 0:
-								return this.doCreateProcess(root, resolvedConfig, sessionId);
+								return this.doCreateProcess(workspace, resolvedConfig, sessionId);
 							case 1:
 								return launch && launch.openConfigFile(false);
 							case 2:
@@ -1072,7 +1073,7 @@ export class DebugService implements debug.IDebugService {
 							config.noDebug = process.configuration.noDebug;
 						}
 						config.__restart = restartData;
-						this.startDebugging(process.session.root, config).then(() => c(null), err => e(err));
+						this.startDebugging(launch, config).then(() => c(null), err => e(err));
 					}, 300);
 				});
 			}).then(() => {

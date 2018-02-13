@@ -5,12 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/PowerShell/EditorSyntax/commit/d605150f48952ba4bd28d7b389e97adc1a5d9b76",
-	"fileTypes": [
-		"ps1",
-		"psm1",
-		"psd1"
-	],
 	"name": "PowerShell",
+	"scopeName": "source.powershell",
 	"patterns": [
 		{
 			"begin": "(--%)",
@@ -1064,7 +1060,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.powershell",
-	"uuid": "f8f5ffb0-503e-11df-9879-0800200c9a66"
+	}
 }

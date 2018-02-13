@@ -8,7 +8,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
 import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto
@@ -25,8 +24,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IDebugService private debugService: IDebugService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IDebugService private debugService: IDebugService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
@@ -180,8 +178,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 
 	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
 		const folderUriString = _folderUri ? uri.revive(_folderUri).toString() : undefined;
-		const folder = folderUriString ? this.contextService.getWorkspace().folders.filter(wf => wf.uri.toString() === folderUriString).pop() : undefined;
-		return this.debugService.startDebugging(folder, nameOrConfiguration).then(x => {
+		const launch = folderUriString ? this.debugService.getConfigurationManager().getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === folderUriString).pop() : undefined;
+		return this.debugService.startDebugging(launch, nameOrConfiguration).then(x => {
 			return true;
 		}, err => {
 			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debugging');
