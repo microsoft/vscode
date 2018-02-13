@@ -223,6 +223,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public dispose(): void {
 		super.dispose();
+		if (this._tabElement) {
+			this._container.removeChild(this._tabElement);
+			this._tabElement = null;
+		}
 		this._terminalInstances = [];
 		this._onInstancesChanged.fire();
 	}
@@ -246,18 +250,20 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (wasActiveInstance && this._terminalInstances.length > 0) {
 			let newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
 			this.setActiveInstanceByIndex(newIndex);
-			if (instance.hadFocusOnExit) {
-				this.activeInstance.focus(true);
-			}
+			// TODO: Only focus the new instance if the tab had focus?
+			this.activeInstance.focus(true);
 		}
 
 		// Find the instance's SplitPane and unsplit it
-		this._findSplitPane(instance).remove();
+		const pane = this._findSplitPane(instance);
+		if (pane) {
+			pane.remove();
+		}
 
 		// Fire events and dispose tab if it was the last instance
-		this._onInstancesChanged.fire();
 		if (this._terminalInstances.length === 0) {
 			this._onDisposed.fire(this);
+			this._onInstancesChanged.fire();
 			this.dispose();
 		}
 	}
@@ -292,18 +298,18 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		return terminalIndex;
 	}
 
-	public setActiveInstanceByIndex(index: number): boolean {
+	public setActiveInstanceByIndex(index: number): void {
 		// Check for invalid value
 		if (index >= this._terminalInstances.length) {
-			return false;
+			return;
 		}
 
 		const didInstanceChange = this._activeInstanceIndex !== index;
 		this._activeInstanceIndex = index;
 
-		// TODO: Fire events like in TerminalService.setActiveInstanceByIndex?
-
-		return didInstanceChange;
+		if (didInstanceChange) {
+			this._onInstancesChanged.fire();
+		}
 	}
 
 	public attachToElement(element: HTMLElement): void {

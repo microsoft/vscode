@@ -97,12 +97,10 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public getTabLabels(): string[] {
-		console.log('tabs', this._terminalTabs);
 		return this._terminalTabs.map((tab, index) => `${index + 1}: ${tab.title}`);
 	}
 
 	private _removeTab(tab: ITerminalTab): void {
-		console.log('_removeTab');
 		// Get the index of the tab and remove it from the list
 		const index = this._terminalTabs.indexOf(tab);
 		const wasActiveTab = tab === this.getActiveTab();
@@ -112,20 +110,21 @@ export abstract class TerminalService implements ITerminalService {
 
 		// Adjust focus if the tab was active
 		if (wasActiveTab && this._terminalTabs.length > 0) {
-			const hasFocusOnExit = tab.activeInstance.hadFocusOnExit;
+			// TODO: Only focus the new tab if the removed tab had focus?
+			// const hasFocusOnExit = tab.activeInstance.hadFocusOnExit;
 			let newIndex = index < this._terminalTabs.length ? index : this._terminalTabs.length - 1;
-			this.setActiveInstanceByIndex(newIndex);
-			if (hasFocusOnExit) {
-				this.getActiveInstance().focus(true);
-			}
+			this.setActiveTabByIndex(newIndex);
+			this.getActiveInstance().focus(true);
 		}
+
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
 		// down. When shutting down the panel is locked in place so that it is restored upon next
 		// launch.
 		if (this._terminalTabs.length === 0 && !this._isShuttingDown) {
 			this.hidePanel();
 		}
-		// TODO: This should be onTabsChanged?
+
+		// Fire events
 		this._onInstancesChanged.fire();
 		if (wasActiveTab) {
 			this._onActiveTabChanged.fire();
@@ -193,23 +192,19 @@ export abstract class TerminalService implements ITerminalService {
 		return null;
 	}
 
-	// TODO: Remove setActiveInstanceByIndex?
 	public setActiveInstanceByIndex(terminalIndex: number): void {
 		const query = this._getInstanceFromGlobalInstanceIndex(terminalIndex);
 		if (!query) {
 			return;
 		}
 
-		console.log('setActiveInstanceByIndex', terminalIndex, query);
-		const didInstanceChange = query.tab.setActiveInstanceByIndex(query.localInstanceIndex);
+		query.tab.setActiveInstanceByIndex(query.localInstanceIndex);
 		const didTabChange = this._activeTabIndex !== query.tabIndex;
 		this._activeTabIndex = query.tabIndex;
 		this._terminalTabs.forEach((t, i) => t.setVisible(i === query.tabIndex));
 
-		// TOOD: Should this live in TerminalTab now?
 		// Only fire the event if there was a change
-		if (didInstanceChange || didTabChange) {
-			// TODO: If this method is being kept this should only fire when the _tab_ is actually changed
+		if (didTabChange) {
 			this._onActiveTabChanged.fire();
 		}
 	}
