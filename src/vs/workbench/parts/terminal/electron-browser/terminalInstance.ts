@@ -78,6 +78,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _processReady: TPromise<void>;
 	private _isDisposed: boolean;
 	private _onDisposed: Emitter<ITerminalInstance>;
+	private _onFocused: Emitter<ITerminalInstance>;
 	private _onProcessIdReady: Emitter<ITerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
 	private _process: cp.ChildProcess;
@@ -105,6 +106,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
+	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	public get title(): string { return this._title; }
@@ -142,6 +144,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._preLaunchInputQueue = '';
 
 		this._onDisposed = new Emitter<TerminalInstance>();
+		this._onFocused = new Emitter<TerminalInstance>();
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
@@ -407,6 +410,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
 				this._terminalFocusContextKey.set(true);
+				this._onFocused.fire(this);
 			}));
 			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
 				this._terminalFocusContextKey.reset();

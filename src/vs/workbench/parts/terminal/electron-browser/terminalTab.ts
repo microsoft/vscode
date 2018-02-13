@@ -208,6 +208,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._terminalInstances.push(instance);
 		this._activeInstanceIndex = 0;
 		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
+		instance.addDisposable(instance.onFocused(instance => this._setActiveInstance(instance)));
 
 		this._rootSplitPane = new RootSplitPane();
 		this._rootSplitPane.instance = instance;
@@ -218,8 +219,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (this._container) {
 			this.attachToElement(this._container);
 		}
-
-		// TODO: Listen to instance focus and update activeInstanceIndex accordingly
 	}
 
 	public dispose(): void {
@@ -273,6 +272,24 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			openList.push.apply(openList, current.children);
 		}
 		return null;
+	}
+
+	private _setActiveInstance(instance: ITerminalInstance): void {
+		this.setActiveInstanceByIndex(this._getIndexFromId(instance.id));
+	}
+
+	// TODO: This is duplicated in ITerminalService
+	private _getIndexFromId(terminalId: number): number {
+		let terminalIndex = -1;
+		this.terminalInstances.forEach((terminalInstance, i) => {
+			if (terminalInstance.id === terminalId) {
+				terminalIndex = i;
+			}
+		});
+		if (terminalIndex === -1) {
+			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
+		}
+		return terminalIndex;
 	}
 
 	public setActiveInstanceByIndex(index: number): boolean {

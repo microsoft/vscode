@@ -221,6 +221,8 @@ export interface ITerminalInstance {
 	 */
 	onDisposed: Event<ITerminalInstance>;
 
+	onFocused: Event<ITerminalInstance>;
+
 	onProcessIdReady: Event<ITerminalInstance>;
 
 	/**
