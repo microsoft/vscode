@@ -1696,6 +1696,13 @@ declare module 'vscode' {
 		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
 		 */
 		validateInput?(value: string): string | undefined | null | Thenable<string | undefined | null>;
+
+		/**
+		 * An optional function that will be called whenever the user changes the input.
+		 *
+		 * @param value the current value thats written in the input box
+		 */
+		inputChanged?(value: string): void;
 	}
 
 	/**

@@ -22,6 +22,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	private _onDidSelectItem: (handle: number) => void;
 	private _validateInput: (input: string) => string | Thenable<string>;
+	private _inputChanged: (input: string) => void;
 
 	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace, commands: ExtHostCommands) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadQuickOpen);
@@ -113,8 +114,9 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 		// global validate fn used in callback below
 		this._validateInput = options && options.validateInput;
+		this._inputChanged = options && options.inputChanged;
 
-		const promise = this._proxy.$input(options, typeof this._validateInput === 'function');
+		const promise = this._proxy.$input(options, typeof this._validateInput === 'function', typeof this._inputChanged === 'function');
 		return wireCancellationToken(token, promise, true);
 	}
 
@@ -123,6 +125,12 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			return asWinJsPromise(_ => this._validateInput(input));
 		}
 		return undefined;
+	}
+
+	$inputChanged(input: string): void {
+		if (this._inputChanged) {
+			this._inputChanged(input);
+		}
 	}
 
 	// ---- workspace folder picker

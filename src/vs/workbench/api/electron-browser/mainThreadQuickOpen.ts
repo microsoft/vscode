@@ -78,7 +78,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	// ---- input
 
-	$input(options: InputBoxOptions, validateInput: boolean): TPromise<string> {
+	$input(options: InputBoxOptions, validateInput: boolean, inputChanged: boolean): TPromise<string> {
 
 		const inputOptions: IInputOptions = Object.create(null);
 
@@ -94,6 +94,12 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		if (validateInput) {
 			inputOptions.validateInput = (value) => {
 				return this._proxy.$validateInput(value);
+			};
+		}
+
+		if (inputChanged) {
+			inputOptions.inputChanged = (value) => {
+				this._proxy.$inputChanged(value);
 			};
 		}
 

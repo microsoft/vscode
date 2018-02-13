@@ -328,7 +328,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 	$show(options: IPickOptions): TPromise<number>;
 	$setItems(items: MyQuickPickItems[]): TPromise<any>;
 	$setError(error: Error): TPromise<any>;
-	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string>;
+	$input(options: vscode.InputBoxOptions, validateInput: boolean, inputChanged: boolean): TPromise<string>;
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
@@ -682,6 +682,7 @@ export interface ExtHostLanguageFeaturesShape {
 export interface ExtHostQuickOpenShape {
 	$onItemSelected(handle: number): void;
 	$validateInput(input: string): TPromise<string>;
+	$inputChanged(input: string): void;
 }
 
 export interface ExtHostTerminalServiceShape {
