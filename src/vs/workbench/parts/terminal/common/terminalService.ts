@@ -105,7 +105,7 @@ export abstract class TerminalService implements ITerminalService {
 		console.log('_removeTab');
 		// Get the index of the tab and remove it from the list
 		const index = this._terminalTabs.indexOf(tab);
-		const wasActiveTab = tab === this._getActiveTab();
+		const wasActiveTab = tab === this.getActiveTab();
 		if (index !== -1) {
 			this._terminalTabs.splice(index, 1);
 		}
@@ -132,7 +132,7 @@ export abstract class TerminalService implements ITerminalService {
 		}
 	}
 
-	private _getActiveTab(): ITerminalTab {
+	public getActiveTab(): ITerminalTab {
 		if (this._activeTabIndex < 0 || this._activeTabIndex >= this._terminalTabs.length) {
 			return null;
 		}
@@ -140,7 +140,7 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public getActiveInstance(): ITerminalInstance {
-		const tab = this._getActiveTab();
+		const tab = this.getActiveTab();
 		if (!tab) {
 			return null;
 		}

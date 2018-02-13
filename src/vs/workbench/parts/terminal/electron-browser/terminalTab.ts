@@ -345,4 +345,14 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		console.log('TerminalTab.layout', width, height);
 		this._rootSplitPane.layoutBox(width, height);
 	}
+
+	public focusLeft(): void {
+		// TODO: Do a proper implementation for > 2 instances
+		this.setActiveInstanceByIndex(0);
+	}
+
+	public focusRight(): void {
+		// TODO: Do a proper implementation for > 2 instances
+		this.setActiveInstanceByIndex(1);
+	}
 }

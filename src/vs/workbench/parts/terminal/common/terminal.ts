@@ -165,6 +165,7 @@ export interface ITerminalService {
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	splitInstanceVertically(instance: ITerminalInstance): void;
 
+	getActiveTab(): ITerminalTab;
 	setActiveTabToNext(): void;
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;
@@ -187,6 +188,8 @@ export interface ITerminalTab {
 	title: string;
 	onDisposed: Event<ITerminalTab>;
 
+	focusLeft(): void;
+	focusRight(): void;
 	setActiveInstanceByIndex(index: number): void;
 	attachToElement(element: HTMLElement): void;
 	setVisible(visible: boolean): void;

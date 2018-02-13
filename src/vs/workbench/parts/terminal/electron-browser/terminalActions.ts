@@ -317,6 +317,48 @@ export class SplitVerticalTerminalAction extends Action {
 	}
 }
 
+export class FocusTerminalLeftAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.focusTerminalLeft';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalLeft', "Focus terminal to the left");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const tab = this._terminalService.getActiveTab();
+		if (!tab) {
+			return TPromise.as(void 0);
+		}
+		tab.focusLeft();
+		return this._terminalService.showPanel(true);
+	}
+}
+
+export class FocusTerminalRightAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.focusTerminalRight';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalRight', "Focus terminal to the right");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const tab = this._terminalService.getActiveTab();
+		if (!tab) {
+			return TPromise.as(void 0);
+		}
+		tab.focusRight();
+		return this._terminalService.showPanel(true);
+	}
+}
+
 export class FocusActiveTerminalAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.focus';
