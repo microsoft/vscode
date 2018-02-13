@@ -23,14 +23,22 @@ export class NotificationService implements INotificationService {
 	) {
 		// TODO@notification remove me
 		setTimeout(() => {
-			this.notify({ severity: Severity.Info, message: 'This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com).' });
 			this.notify({
-				severity: Severity.Warning, message: 'This is a warning message with a [link](https://code.visualstudio.com).', actions: [
+				severity: Severity.Info,
+				message: 'This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com).'
+			});
+			this.notify({
+				severity: Severity.Warning,
+				message: 'This is a warning message with a [link](https://code.visualstudio.com).',
+				actions: [
 					new Action('id.reload', 'Yes OK', null, true, () => { console.log('OK'); return void 0; }),
 					new Action('id.cancel', 'No, not OK!', null, true, () => { console.log('NOT OK'); return void 0; })
 				]
 			});
-			this.notify({ severity: Severity.Error, message: 'This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).' });
+			this.notify({
+				severity: Severity.Error,
+				message: 'This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).'
+			});
 		}, 500);
 	}
 

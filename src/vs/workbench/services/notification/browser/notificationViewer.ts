@@ -27,7 +27,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
 
-	private static readonly DEFAULT_HEIGHT = 48;
+	private static readonly ROW_HEIGHT = 48;
 	private static readonly LINE_HEIGHT = 22;
 
 	private offsetHelper: HTMLElement;
@@ -50,16 +50,29 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 	}
 
 	public getHeight(element: INotificationViewItem): number {
+
+		// First row: message and actions
+		let expandedHeight = NotificationsListDelegate.ROW_HEIGHT;
+
 		if (!element.expanded) {
-			return NotificationsListDelegate.DEFAULT_HEIGHT;
+			return expandedHeight; // return early if there are no more rows to show
 		}
 
-		let expandedHeight = NotificationsListDelegate.DEFAULT_HEIGHT * 2 /* make extra room for source/buttons */;
-
-		const preferredMessageRows = this.computePreferredRows(element.message);
-		if (preferredMessageRows > 1) {
-			expandedHeight += preferredMessageRows * NotificationsListDelegate.LINE_HEIGHT;
+		// Dynamic height: if message overflows
+		const preferredMessageHeight = this.computePreferredRows(element.message) * NotificationsListDelegate.LINE_HEIGHT;
+		const messageOverflows = expandedHeight < preferredMessageHeight;
+		if (messageOverflows) {
+			const overflow = preferredMessageHeight - expandedHeight;
+			expandedHeight += overflow;
 		}
+
+		// Add some padding to separate from actions if any
+		if (messageOverflows && element.actions.length > 0) {
+			expandedHeight += NotificationsListDelegate.LINE_HEIGHT;
+		}
+
+		// Last row: source and actions
+		expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 
 		return expandedHeight;
 	}
@@ -74,7 +87,8 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 		const messageWidth = Math.max(renderedMessage.scrollWidth, renderedMessage.offsetWidth);
 
 		// One row per exceeding the total width of the container
-		const preferredRows = Math.ceil(messageWidth / this.offsetHelper.offsetWidth);
+		const availableWidth = this.offsetHelper.offsetWidth - (20 /* paddings */ + 22 /* severity */ + 48 /* toolbar */);
+		const preferredRows = Math.ceil(messageWidth / availableWidth);
 
 		// Always clear offset helper after use
 		clearNode(this.offsetHelper);
