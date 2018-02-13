@@ -668,9 +668,12 @@ export class DebugService implements debug.IDebugService {
 					this.model.getBreakpoints().forEach(bp => bp.verified = false);
 				}
 				this.launchJsonChanged = false;
-				const launch = root ? this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === root.uri.toString()).pop()
+				let launch = root ? this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.uri.toString() === root.uri.toString()).pop()
 					: this.configurationManager.getWorkspaceLaunch();
 
+				if (!root && !launch) {
+					launch = this.configurationManager.getUserLaunch();
+				}
 				let config: debug.IConfig, compound: debug.ICompound;
 				if (!configOrName) {
 					configOrName = this.configurationManager.selectedName;

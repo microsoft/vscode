@@ -35,6 +35,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { memoize } from 'vs/base/common/decorators';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawAdapter[]>('debuggers', [], {
@@ -363,7 +364,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	private initLaunches(): void {
 		this.launches = this.contextService.getWorkspace().folders.map(folder => this.instantiationService.createInstance(Launch, this, folder));
-		this.launches.push(this.instantiationService.createInstance(UserLaunch, this));
+		this.launches.push(this.getUserLaunch());
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			this.launches.push(this.instantiationService.createInstance(WorkspaceLaunch, this));
 		}
@@ -400,6 +401,11 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	public get onDidSelectConfiguration(): Event<void> {
 		return this._onDidSelectConfigurationName.event;
+	}
+
+	@memoize
+	public getUserLaunch(): ILaunch {
+		return this.instantiationService.createInstance(UserLaunch, this);
 	}
 
 	public getWorkspaceLaunch(): ILaunch {
@@ -683,9 +689,10 @@ class UserLaunch extends Launch implements ILaunch {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		super(configurationManager, undefined, fileService, editorService, configurationService, configurationResolverService);
+		super(configurationManager, contextService.getWorkbenchState() === WorkbenchState.FOLDER ? contextService.getWorkspace().folders[0] : undefined, fileService, editorService, configurationService, configurationResolverService);
 	}
 
 	get uri(): uri {
