@@ -475,7 +475,8 @@ export class FileService implements IFileService {
 							// decoding stream which is then used to drive the string stream.
 							TPromise.as(detectMimeAndEncodingFromBuffer(
 								{ buffer: chunkBuffer, bytesRead },
-								options && options.autoGuessEncoding || this.configuredAutoGuessEncoding(resource)
+								options && options.autoGuessEncoding || this.configuredAutoGuessEncoding(resource),
+								options && options.allowedEncodings || this.configuredAllowedEncodings(resource)
 							)).then(value => {
 
 								if (options && options.acceptTextOnly && value.mimes.indexOf(baseMime.MIME_BINARY) >= 0) {
@@ -937,6 +938,10 @@ export class FileService implements IFileService {
 		}
 
 		return fileEncoding;
+	}
+
+	private configuredAllowedEncodings(resource: uri): Array<string> {
+		return this.textResourceConfigurationService.getValue(resource, 'files.allowedEncodings');
 	}
 
 	private configuredAutoGuessEncoding(resource: uri): boolean {

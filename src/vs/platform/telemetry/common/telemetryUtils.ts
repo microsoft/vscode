@@ -145,6 +145,7 @@ const configurationValueWhitelist = [
 	'workbench.editor.showTabs',
 	'files.encoding',
 	'files.autoGuessEncoding',
+	'files.allowedEncodings',
 	'git.enabled',
 	'http.proxyStrictSSL',
 	'terminal.integrated.fontFamily',
