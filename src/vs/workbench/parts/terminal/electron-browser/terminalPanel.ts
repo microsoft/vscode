@@ -92,10 +92,6 @@ export class TerminalPanel extends Panel {
 		if (!dimension) {
 			return;
 		}
-		// this._terminalService.terminalInstances.forEach((t) => {
-		// 	t.layout(dimension);
-		// });
-		console.log('panel layout!', dimension);
 		this._terminalService.terminalTabs.forEach(t => t.layout(dimension.width, dimension.height));
 	}
 
@@ -257,21 +253,6 @@ export class TerminalPanel extends Panel {
 			}
 			this._cancelContextMenu = false;
 		}));
-		// TODO: Not sure if this is needed anymore?
-		// this._register(dom.addDisposableListener(this._parentDomElement, 'click', (event) => {
-		// 	if (event.which === 3) {
-		// 		return;
-		// 	}
-
-		// 	const instance = this._terminalService.getActiveInstance();
-		// 	if (instance) {
-
-		// 		// TODO: This and other usages for getActiveInstance().focus() are now invalid,
-		// 		// TerminalService should defer the active instance to the TerminalTab
-		// 		console.log('clicked, focus');
-		// 		this._terminalService.getActiveInstance().focus();
-		// 	}
-		// }));
 		this._register(dom.addDisposableListener(this._parentDomElement, 'keyup', (event: KeyboardEvent) => {
 			if (event.keyCode === 27) {
 				// Keep terminal open on escape

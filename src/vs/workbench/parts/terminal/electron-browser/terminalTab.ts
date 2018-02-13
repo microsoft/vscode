@@ -13,8 +13,7 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView } from 'vs/base/browser/ui/splitview/splitview';
 
 class SplitPane implements IView {
-	// TODO: What's a good number for the min?
-	public minimumSize: number = 10;
+	public minimumSize: number = 100;
 	public maximumSize: number = Number.MAX_VALUE;
 
 	public instance: ITerminalInstance;
