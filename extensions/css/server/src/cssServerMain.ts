@@ -17,7 +17,7 @@ import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, Color
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, ICompletionParticipant } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { formatError, runSafe } from './utils/errors';
-import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath } from 'vscode-emmet-helper';
+import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, extractAbbreviation } from 'vscode-emmet-helper';
 import uri from 'vscode-uri';
 
 export interface Settings {
@@ -220,8 +220,14 @@ connection.onCompletion(textDocumentPosition => {
 				}
 			},
 			onCssPropertyValue: (context) => {
-				if (context && hexColorRegex.test(context.propertyValue)) {
-					emmetCompletionList = emmetDoComplete(document, textDocumentPosition.position, document.languageId, emmetSettings);
+				if (context && context.propertyValue) {
+					const extractedResults = extractAbbreviation(document, textDocumentPosition.position);
+					if (!extractedResults) {
+						return;
+					}
+					if (extractedResults.abbreviation === `${context.propertyName}:${context.propertyValue}` || hexColorRegex.test(extractedResults.abbreviation)) {
+						emmetCompletionList = emmetDoComplete(document, textDocumentPosition.position, document.languageId, emmetSettings);
+					}
 				}
 			}
 		};

@@ -17,7 +17,7 @@ import { pushAll } from './utils/arrays';
 import { getDocumentContext } from './utils/documentContext';
 import uri from 'vscode-uri';
 import { formatError, runSafe } from './utils/errors';
-import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath } from 'vscode-emmet-helper';
+import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, extractAbbreviation } from 'vscode-emmet-helper';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
@@ -273,8 +273,14 @@ connection.onCompletion(async textDocumentPosition => {
 					}
 				},
 				onCssPropertyValue: (context) => {
-					if (context && hexColorRegex.test(context.propertyValue)) {
-						emmetCompletionList = emmetDoComplete(document, textDocumentPosition.position, mode.getId(), emmetSettings);
+					if (context && context.propertyValue) {
+						const extractedResults = extractAbbreviation(document, textDocumentPosition.position);
+						if (!extractedResults) {
+							return;
+						}
+						if (extractedResults.abbreviation === `${context.propertyName}:${context.propertyValue}` || hexColorRegex.test(extractedResults.abbreviation)) {
+							emmetCompletionList = emmetDoComplete(document, textDocumentPosition.position, mode.getId(), emmetSettings);
+						}
 					}
 				},
 				onHtmlContent: () => {
