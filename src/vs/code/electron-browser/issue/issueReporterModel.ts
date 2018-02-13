@@ -38,7 +38,17 @@ export class IssueReporterModel {
 	private _data: IssueReporterData;
 
 	constructor(initialData?: IssueReporterData) {
-		this._data = initialData || {};
+		const defaultData = {
+			includeSystemInfo: true,
+			includeWorkspaceInfo: true,
+			includeProcessInfo: true,
+			includeExtensions: true,
+			includeSearchedExtensions: true,
+			includeSettingsSearchDetails: true,
+			reprosWithoutExtensions: false
+		};
+
+		this._data = initialData ? assign(defaultData, initialData) : defaultData;
 	}
 
 	getData(): IssueReporterData {
