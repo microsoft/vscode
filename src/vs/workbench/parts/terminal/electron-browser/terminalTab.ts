@@ -54,11 +54,10 @@ class SplitPane implements IView {
 	}
 
 	public split(instance: ITerminalInstance): void {
-		if (this._parent && this._parent.orientation === orientation) {
+		if (this._parent && this._parent.orientation === this.orientation) {
 			const index = this._parent._children.indexOf(this);
 			this._parent.addChild(this._size / 2, this.orthogonalSize, instance, index + 1);
 		} else {
-			// TODO: Ensure terminal reattach is handled properly
 			this.branch(this._container, this.orientation, instance);
 		}
 	}
@@ -327,9 +326,15 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._terminalInstances.push(instance);
 		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
 
-		this._rootSplitPane.orientation = Orientation.HORIZONTAL;
-		this._rootSplitPane.split(instance);
-		console.log('TerminalTab.split', this._tabElement);
+		if (this._rootSplitPane.instance) {
+			this._rootSplitPane.orientation = Orientation.HORIZONTAL;
+			this._rootSplitPane.split(instance);
+			console.log('TerminalTab.split', this._tabElement);
+		} else {
+			// The original branch has already occured, find the inner SplitPane and split it
+			this._rootSplitPane.children[0].orientation = Orientation.HORIZONTAL;
+			this._rootSplitPane.children[0].split(instance);
+		}
 		if (this._tabElement) {
 			this._rootSplitPane.render(this._tabElement);
 		}
