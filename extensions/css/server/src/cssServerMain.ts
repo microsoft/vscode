@@ -11,12 +11,14 @@ import {
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 
 import { ConfigurationRequest } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
+import { WorkspaceFolder } from 'vscode-languageserver-protocol/lib/protocol.workspaceFolders.proposed';
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, ICompletionParticipant } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { formatError, runSafe } from './utils/errors';
 import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath } from 'vscode-emmet-helper';
+import uri from 'vscode-uri';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -55,10 +57,19 @@ connection.onShutdown(() => {
 });
 
 let scopedSettingsSupport = false;
+let workspaceFolders: WorkspaceFolder[] | undefined;
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
+	workspaceFolders = (<any>params).workspaceFolders;
+	if (!Array.isArray(workspaceFolders)) {
+		workspaceFolders = [];
+		if (params.rootPath) {
+			workspaceFolders.push({ name: '', uri: uri.file(params.rootPath).toString() });
+		}
+	}
+
 	function hasClientCapability(name: string) {
 		let keys = name.split('.');
 		let c: any = params.capabilities;
@@ -135,7 +146,8 @@ function updateConfiguration(settings: Settings) {
 	emmetSettings = settings.emmet;
 	if (currentEmmetExtensionsPath !== emmetSettings['extensionsPath']) {
 		currentEmmetExtensionsPath = emmetSettings['extensionsPath'];
-		updateEmmetExtensionsPath(currentEmmetExtensionsPath);
+		const workspaceUri = (workspaceFolders && workspaceFolders.length === 1) ? uri.parse(workspaceFolders[0].uri) : null;
+		updateEmmetExtensionsPath(currentEmmetExtensionsPath, workspaceUri ? workspaceUri.fsPath : null);
 	}
 }
 
@@ -190,7 +202,7 @@ connection.onCompletion(textDocumentPosition => {
 		const triggerForIncompleteCompletions = textDocumentPosition.context && textDocumentPosition.context.triggerKind === CompletionTriggerKind.TriggerForIncompleteCompletions;
 		if (triggerForIncompleteCompletions && cachedCompletionList && !cachedCompletionList.isIncomplete) {
 			let result: CompletionList = emmetDoComplete(document, textDocumentPosition.position, document.languageId, emmetSettings);
-			if (result && result.items && result.items.length) {
+			if (result && result.items) {
 				result.items.push(...cachedCompletionList.items);
 			} else {
 				result = cachedCompletionList;
@@ -216,7 +228,7 @@ connection.onCompletion(textDocumentPosition => {
 		getLanguageService(document).setCompletionParticipants([emmetCompletionParticipant]);
 
 		const result = getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
-		if (emmetCompletionList && emmetCompletionList.items && emmetCompletionList.items.length) {
+		if (emmetCompletionList && emmetCompletionList.items) {
 			cachedCompletionList = { isIncomplete: result.isIncomplete, items: [...result.items] };
 			result.items.push(...emmetCompletionList.items);
 			result.isIncomplete = true;

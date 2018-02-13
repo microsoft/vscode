@@ -175,7 +175,8 @@ connection.onDidChangeConfiguration((change) => {
 	emmetSettings = globalSettings.emmet;
 	if (currentEmmetExtensionsPath !== emmetSettings['extensionsPath']) {
 		currentEmmetExtensionsPath = emmetSettings['extensionsPath'];
-		updateEmmetExtensionsPath(currentEmmetExtensionsPath);
+		const workspaceUri = (workspaceFolders && workspaceFolders.length === 1) ? uri.parse(workspaceFolders[0].uri) : null;
+		updateEmmetExtensionsPath(currentEmmetExtensionsPath, workspaceUri ? workspaceUri.fsPath : null);
 	}
 });
 
@@ -249,7 +250,7 @@ connection.onCompletion(async textDocumentPosition => {
 		const triggerForIncompleteCompletions = textDocumentPosition.context && textDocumentPosition.context.triggerKind === CompletionTriggerKind.TriggerForIncompleteCompletions;
 		if (triggerForIncompleteCompletions && cachedCompletionList && !cachedCompletionList.isIncomplete && (mode.getId() === 'html' || mode.getId() === 'css')) {
 			let result: CompletionList = emmetDoComplete(document, textDocumentPosition.position, mode.getId(), emmetSettings);
-			if (result && result.items && result.items.length) {
+			if (result && result.items) {
 				result.items.push(...cachedCompletionList.items);
 			} else {
 				result = cachedCompletionList;
@@ -285,7 +286,7 @@ connection.onCompletion(async textDocumentPosition => {
 
 		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
 		let result = mode.doComplete(document, textDocumentPosition.position, settings);
-		if (emmetCompletionList && emmetCompletionList.items && emmetCompletionList.items.length) {
+		if (emmetCompletionList && emmetCompletionList.items) {
 			cachedCompletionList = { isIncomplete: result.isIncomplete, items: [...result.items] };
 			result.items.push(...emmetCompletionList.items);
 			result.isIncomplete = true;
