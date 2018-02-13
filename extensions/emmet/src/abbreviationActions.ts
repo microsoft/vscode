@@ -68,7 +68,7 @@ export function wrapWithAbbreviation(args: any) {
 			const preceedingWhiteSpace = matches ? matches[1].length : 0;
 
 			rangeToReplace = new vscode.Range(rangeToReplace.start.line, rangeToReplace.start.character + preceedingWhiteSpace, rangeToReplace.end.line, rangeToReplace.end.character);
-			let textToWrap = rangeToReplace.end.line === rangeToReplace.start.line ? ['$TM_SELECTED_TEXT'] : ['\n\t$TM_SELECTED_TEXT\n'];
+			let textToWrap = rangeToReplace.isSingleLine ? ['$TM_SELECTED_TEXT'] : ['\n\t$TM_SELECTED_TEXT\n'];
 			expandAbbrList.push({ syntax, abbreviation, rangeToReplace, textToWrap, filter });
 		});
 
@@ -445,16 +445,20 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 		let expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 
 		if (input.textToWrap) {
-			// Fetch innermost element in the expanded abbreviation
-			let wrappingEnd = expandedText.substring(expandedText.indexOf('$TM_SELECTED_TEXT'));
-			let tagName = wrappingEnd.substring(wrappingEnd.indexOf('/') + 1, wrappingEnd.indexOf('>'));
+			if (input.rangeToReplace.isSingleLine) {
 
-			// If wrapping with a block element, insert newline and expand again
-			if (inlineElements.indexOf(tagName) === -1 && input.textToWrap.length === 1) {
-				if (expandOptions['text'][0].indexOf('\n') === -1) {
-					expandOptions['text'][0] = '\n\t' + expandOptions['text'][0] + '\n';
+				// Fetch innermost element in the expanded abbreviation
+				let wrappingEnd = expandedText.substring(expandedText.indexOf('$TM_SELECTED_TEXT'));
+				let tagName = wrappingEnd.substring(wrappingEnd.indexOf('/') + 1, wrappingEnd.indexOf('>'));
+
+				// If wrapping with a block element, insert newline and expand again
+				if (inlineElements.indexOf(tagName) === -1 && input.textToWrap.length === 1) {
+					if (expandOptions['text'][0].indexOf('\n') === -1) {
+						expandOptions['text'][0] = '\n\t' + expandOptions['text'][0] + '\n';
+					}
+					// We need to expand again because emmet module can't know if the text being wrapped is multiline.
+					expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 				}
-				expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 			}
 			// All $anyword would have been escaped by the emmet helper.
 			// Remove the escaping backslash from $TM_SELECTED_TEXT so that VS Code Snippet controller can treat it as a variable
