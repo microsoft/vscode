@@ -140,22 +140,27 @@ class SplitPane implements IView {
 }
 
 class RootSplitPane extends SplitPane {
+	private static _lastKnownWidth: number;
+	private static _lastKnownHeight: number;
+
 	private _width: number;
 	private _height: number;
 
 	protected branch(container: HTMLElement, orientation: Orientation, instance: ITerminalInstance): void {
 		if (orientation === Orientation.VERTICAL) {
-			this._size = this._width;
-			this.orthogonalSize = this._height;
+			this._size = this._width || RootSplitPane._lastKnownWidth;
+			this.orthogonalSize = this._height || RootSplitPane._lastKnownHeight;
 		} else {
-			this._size = this._height;
-			this.orthogonalSize = this._width;
+			this._size = this._height || RootSplitPane._lastKnownHeight;
+			this.orthogonalSize = this._width || RootSplitPane._lastKnownWidth;
 		}
 
 		super.branch(container, orientation, instance);
 	}
 
 	public layoutBox(width: number, height: number): void {
+		RootSplitPane._lastKnownWidth = width;
+		RootSplitPane._lastKnownHeight = height;
 		console.log('layoutBox', width, height);
 		if (this.orientation === Orientation.VERTICAL) {
 			this.layout(width);
@@ -323,11 +328,11 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 		this._rootSplitPane.orientation = Orientation.HORIZONTAL;
 		this._rootSplitPane.split(instance);
+		console.log('TerminalTab.split', this._tabElement);
 		if (this._tabElement) {
 			this._rootSplitPane.render(this._tabElement);
 		}
-		// TOOD: Set this correctly
-		this._activeInstanceIndex = 1;
+		this.setActiveInstanceByIndex(1);
 
 		return instance;
 	}
