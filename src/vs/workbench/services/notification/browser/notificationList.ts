@@ -57,12 +57,16 @@ export class NotificationList extends Themable {
 			this.listContainer,
 			new NotificationsDelegate(),
 			[this.instantiationService.createInstance(NotificationRenderer)],
-			{ ariaLabel: localize('notificationsList', "Notifications List") } as IListOptions<INotificationViewItem>
+			{
+				ariaLabel: localize('notificationsList', "Notifications List"),
+				openController: { shouldOpen: e => this.shouldExpand(e) }
+			} as IListOptions<INotificationViewItem>
 		);
 
-		this.list.onOpen(notifications => {
-			const notification = notifications.elements[0];
-			const index = notifications.indexes[0];
+		// Expand/Collapse
+		this.list.onOpen(e => {
+			const notification = e.elements[0];
+			const index = e.indexes[0];
 
 			if (notification.expanded) {
 				notification.collapse();
@@ -72,11 +76,24 @@ export class NotificationList extends Themable {
 
 			this.list.splice(index, 1, [notification]);
 			this.list.layout();
+			this.list.setSelection([index]);
+			this.list.setFocus([index]);
+
+			setTimeout(() => this.list.domFocus()); // TODO why?
 		});
 
 		this.container.appendChild(this.listContainer);
 
 		this.updateStyles();
+	}
+
+	private shouldExpand(event: UIEvent): boolean {
+		const target = event.target as HTMLElement;
+		if (target.tagName.toLowerCase() === 'a') {
+			return false; // do not overwrite links/buttons
+		}
+
+		return true;
 	}
 
 	public show(notification: INotification): INotificationHandle {

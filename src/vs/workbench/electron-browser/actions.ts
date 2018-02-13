@@ -51,7 +51,6 @@ import { getDomNodePagePosition, createStyleSheet, createCSSRule } from 'vs/base
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 
 // --- actions
 
@@ -1572,22 +1571,13 @@ export class ShowAboutDialogAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INotificationService private notificationService: INotificationService
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<void> {
-		this.notificationService.notify({ severity: Severity.Info, message: 'This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com).' });
-		this.notificationService.notify({
-			severity: Severity.Warning, message: 'This is a warning message with a [link](https://code.visualstudio.com).', actions: [
-				new Action('id.reload', 'Reload Window', null, true, () => { console.log('Reload Window'); return void 0; }),
-				new Action('id.cancel', 'Cancel', null, true, () => { console.log('Cancel'); return void 0; })
-			]
-		});
-		this.notificationService.notify({ severity: Severity.Error, message: 'This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).' });
-
-		return TPromise.as(undefined);
+		return this.windowsService.openAboutDialog();
 	}
 }
 

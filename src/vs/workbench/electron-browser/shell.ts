@@ -403,7 +403,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IMessageService, this.messageService);
 		serviceCollection.set(IChoiceService, this.messageService);
 
-		serviceCollection.set(INotificationService, new SyncDescriptor(NotificationService, container));
+		serviceCollection.set(INotificationService, instantiationService.createInstance(NotificationService, container));
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(reason => this.dispose(reason)));

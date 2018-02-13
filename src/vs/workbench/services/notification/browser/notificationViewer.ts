@@ -21,8 +21,18 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class NotificationsDelegate implements IDelegate<INotificationViewItem> {
 
+	private static readonly ROW_HEIGHT = 32;
+
 	public getHeight(element: INotificationViewItem): number {
-		return element.expanded ? 70 : 32;
+		if (!element.expanded) {
+			return NotificationsDelegate.ROW_HEIGHT;
+		}
+
+		if (element.actions.length === 0) {
+			return NotificationsDelegate.ROW_HEIGHT * 2;
+		}
+
+		return NotificationsDelegate.ROW_HEIGHT * 3;
 	}
 
 	public getTemplateId(element: INotificationViewItem): string {

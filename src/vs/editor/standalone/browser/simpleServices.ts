@@ -39,7 +39,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { INotificationService, INotification } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle } from 'vs/platform/notification/common/notification';
 
 export class SimpleEditor implements IEditor {
 
@@ -285,19 +285,18 @@ export class SimpleNotificationService implements INotificationService {
 
 	public _serviceBrand: any;
 
-	private static readonly Empty: INotification = { dispose: () => undefined };
+	private static readonly Empty: INotificationHandle = { dispose: () => undefined };
 
-	public notify(sev: Severity, message: string): INotification {
-
-		switch (sev) {
+	public notify(notification: INotification): INotificationHandle {
+		switch (notification.severity) {
 			case Severity.Error:
-				console.error(message);
+				console.error(notification.message);
 				break;
 			case Severity.Warning:
-				console.warn(message);
+				console.warn(notification.message);
 				break;
 			default:
-				console.log(message);
+				console.log(notification.message);
 				break;
 		}
 
