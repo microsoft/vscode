@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/d88bcfff33c41e4bd3628e2fa0746ded43cac8f6",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/73687e96144eff4db45a9a00655bfe87c73b023d",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -521,7 +521,7 @@
 									"include": "text.html.basic"
 								},
 								{
-									"include": "text.html.php#language"
+									"include": "source.php"
 								}
 							]
 						}
@@ -1963,6 +1963,9 @@
 						},
 						{
 							"include": "#raw"
+						},
+						{
+							"include": "#bold"
 						},
 						{
 							"include": "#italic"
