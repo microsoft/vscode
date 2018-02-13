@@ -390,6 +390,14 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.launches;
 	}
 
+	public getLaunch(workspaceUri: uri): ILaunch {
+		if (!uri.isUri(workspaceUri)) {
+			return undefined;
+		}
+
+		return this.launches.filter(l => l.workspace && l.workspace.uri.toString() === workspaceUri.toString()).pop();
+	}
+
 	public get selectedConfiguration(): { launch: ILaunch, name: string } {
 		return {
 			launch: this.selectedLaunch,

@@ -1061,7 +1061,7 @@ export class DebugService implements debug.IDebugService {
 						// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
 						let config = process.configuration;
 
-						const launch = this.configurationManager.getLaunches().filter(l => l.workspace && process.session.root && l.workspace.uri.toString() === process.session.root.uri.toString()).pop();
+						const launch = process.session.root ? this.configurationManager.getLaunch(process.session.root.uri) : undefined;
 						if (this.launchJsonChanged && launch) {
 							this.launchJsonChanged = false;
 							config = launch.getConfiguration(process.configuration.name) || config;

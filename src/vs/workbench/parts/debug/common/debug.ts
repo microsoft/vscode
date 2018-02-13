@@ -429,6 +429,8 @@ export interface IConfigurationManager {
 
 	getLaunches(): ILaunch[];
 
+	getLaunch(workspaceUri: uri): ILaunch | undefined;
+
 	/**
 	 * Allows to register on change of selected debug configuration.
 	 */
