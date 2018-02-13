@@ -247,8 +247,12 @@ connection.onCompletion(async textDocumentPosition => {
 			return { isIncomplete: true, items: [] };
 		}
 
-		const triggerForIncompleteCompletions = textDocumentPosition.context && textDocumentPosition.context.triggerKind === CompletionTriggerKind.TriggerForIncompleteCompletions;
-		if (triggerForIncompleteCompletions && cachedCompletionList && !cachedCompletionList.isIncomplete && (mode.getId() === 'html' || mode.getId() === 'css')) {
+		if (cachedCompletionList
+			&& !cachedCompletionList.isIncomplete
+			&& (mode.getId() === 'html' || mode.getId() === 'css')
+			&& textDocumentPosition.context
+			&& textDocumentPosition.context.triggerKind === CompletionTriggerKind.TriggerForIncompleteCompletions
+		) {
 			let result: CompletionList = emmetDoComplete(document, textDocumentPosition.position, mode.getId(), emmetSettings);
 			if (result && result.items) {
 				result.items.push(...cachedCompletionList.items);

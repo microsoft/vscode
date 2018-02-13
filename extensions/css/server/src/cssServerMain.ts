@@ -27,10 +27,6 @@ export interface Settings {
 	emmet: { [key: string]: any };
 }
 
-let emmetSettings = {};
-let currentEmmetExtensionsPath: string;
-const emmetTriggerCharacters = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-
 // Create a connection for the server.
 let connection: IConnection = createConnection();
 
@@ -58,6 +54,9 @@ connection.onShutdown(() => {
 
 let scopedSettingsSupport = false;
 let workspaceFolders: WorkspaceFolder[] | undefined;
+let emmetSettings = {};
+let currentEmmetExtensionsPath: string;
+const emmetTriggerCharacters = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
@@ -199,8 +198,11 @@ let cachedCompletionList: CompletionList;
 connection.onCompletion(textDocumentPosition => {
 	return runSafe(() => {
 		const document = documents.get(textDocumentPosition.textDocument.uri);
-		const triggerForIncompleteCompletions = textDocumentPosition.context && textDocumentPosition.context.triggerKind === CompletionTriggerKind.TriggerForIncompleteCompletions;
-		if (triggerForIncompleteCompletions && cachedCompletionList && !cachedCompletionList.isIncomplete) {
+		if (cachedCompletionList
+			&& !cachedCompletionList.isIncomplete
+			&& textDocumentPosition.context
+			&& textDocumentPosition.context.triggerKind === CompletionTriggerKind.TriggerForIncompleteCompletions
+		) {
 			let result: CompletionList = emmetDoComplete(document, textDocumentPosition.position, document.languageId, emmetSettings);
 			if (result && result.items) {
 				result.items.push(...cachedCompletionList.items);
