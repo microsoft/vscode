@@ -8,21 +8,24 @@
 import { Severity } from 'vs/platform/message/common/message';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IAction } from 'vs/base/common/actions';
 
 export const INotificationService = createDecorator<INotificationService>('notificationService');
 
-export interface INotification extends IDisposable {
+export interface INotification {
+	severity: Severity;
+	message: string | IMarkdownString | Error;
+	source?: string;
+	actions?: IAction[];
+}
 
+export interface INotificationHandle extends IDisposable {
 }
 
 export interface INotificationService {
 
 	_serviceBrand: any;
 
-	notify(sev: Severity, message: string): INotification;
-
-	// notify(sev: Severity, message: Error): () => void;
-	// notify(sev: Severity, message: string[]): () => void;
-	// notify(sev: Severity, message: Error[]): () => void;
-	// notify(sev: Severity, message: IMessageWithAction): () => void;
+	notify(notification: INotification): INotificationHandle;
 }

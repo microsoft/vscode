@@ -5,8 +5,7 @@
 
 'use strict';
 
-import { INotificationService, INotification } from 'vs/platform/notification/common/notification';
-import { Severity } from 'vs/platform/message/common/message';
+import { INotificationService, INotification, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { NotificationList } from 'vs/workbench/services/notification/browser/notificationList';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -27,13 +26,11 @@ export class NotificationService implements INotificationService {
 		this.handler = this.instantiationService.createInstance(NotificationList, document.getElementById('workbench.main.container'));
 	}
 
-	public notify(sev: Severity, message: string): INotification {
+	public notify(notification: INotification): INotificationHandle {
 		if (!this.handler) {
 			this.createHandler();
 		}
 
-		this.handler.show(sev, message);
-
-		return { dispose: () => void 0 };
+		return this.handler.show(notification);
 	}
 }

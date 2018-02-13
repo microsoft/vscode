@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/notificationList';
-import { Severity } from 'vs/platform/message/common/message';
 import { addClass } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -14,13 +13,15 @@ import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/servic
 import { NotificationRenderer, NotificationsDelegate } from 'vs/workbench/services/notification/browser/notificationViewer';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
-import { Themable, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND } from 'vs/workbench/common/theme';
+import { Themable } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, widgetShadow, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Action } from 'vs/base/common/actions';
+import { INotification, INotificationHandle } from 'vs/platform/notification/common/notification';
 
 export class NotificationList extends Themable {
+
+	private static NO_OP_NOTIFICATION: INotificationHandle = { dispose: () => void 0 };
+
 	private listContainer: HTMLElement;
 	private list: WorkbenchList<INotificationViewItem>;
 
@@ -36,12 +37,6 @@ export class NotificationList extends Themable {
 
 	protected updateStyles(): void {
 		if (this.listContainer) {
-			const background = this.getColor(NOTIFICATIONS_BACKGROUND);
-			this.listContainer.style.background = background ? background.toString() : null;
-
-			const foreground = this.getColor(NOTIFICATIONS_FOREGROUND);
-			this.listContainer.style.color = foreground ? foreground.toString() : null;
-
 			const outlineColor = this.getColor(contrastBorder);
 			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : null;
 
@@ -84,21 +79,18 @@ export class NotificationList extends Themable {
 		this.updateStyles();
 	}
 
-	public show(severity: Severity, notification: string): void {
+	public show(notification: INotification): INotificationHandle {
+		const viewItem = NotificationViewItem.create(notification);
+		if (!viewItem) {
+			return NotificationList.NO_OP_NOTIFICATION;
+		}
+
 		addClass(this.listContainer, 'visible');
 
-		this.list.splice(0, 0, [
-			new NotificationViewItem(
-				severity,
-				{ value: notification, isTrusted: true } as IMarkdownString,
-				'VS Code Core',
-				[
-					new Action('id.reload', 'Reload Window', null, true, () => { console.log('Reload Window'); return void 0; }),
-					new Action('id.cancel', 'Cancel', null, true, () => { console.log('Cancel'); return void 0; })
-				]
-			)
-		]);
+		this.list.splice(0, 0, [viewItem]);
 		this.list.layout();
+
+		return { dispose: () => void 0 };
 	}
 }
 

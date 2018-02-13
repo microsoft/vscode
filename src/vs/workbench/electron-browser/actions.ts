@@ -1578,9 +1578,14 @@ export class ShowAboutDialogAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		this.notificationService.notify(Severity.Info, 'This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com).');
-		this.notificationService.notify(Severity.Warning, 'This is a warning message with a [link](https://code.visualstudio.com).');
-		this.notificationService.notify(Severity.Error, 'This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).');
+		this.notificationService.notify({ severity: Severity.Info, message: 'This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com).' });
+		this.notificationService.notify({
+			severity: Severity.Warning, message: 'This is a warning message with a [link](https://code.visualstudio.com).', actions: [
+				new Action('id.reload', 'Reload Window', null, true, () => { console.log('Reload Window'); return void 0; }),
+				new Action('id.cancel', 'Cancel', null, true, () => { console.log('Cancel'); return void 0; })
+			]
+		});
+		this.notificationService.notify({ severity: Severity.Error, message: 'This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).' });
 
 		return TPromise.as(undefined);
 	}

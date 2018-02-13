@@ -8,6 +8,9 @@
 import { Severity } from 'vs/platform/message/common/message';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IAction } from 'vs/base/common/actions';
+import { INotification } from 'vs/platform/notification/common/notification';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { localize } from 'vs/nls';
 
 export class INotificationsModel {
 
@@ -29,9 +32,34 @@ export interface INotificationViewItem {
 }
 
 export class NotificationViewItem implements INotificationViewItem {
-	private _expanded: boolean = false;
+
+	private static DEFAULT_SOURCE = localize('product', "Product");
+
+	private _expanded: boolean;
 
 	constructor(private _severity: Severity, private _message: IMarkdownString, private _source: string, private _actions: IAction[]) {
+		this._expanded = _actions.length > 0;
+	}
+
+	public static create(notification: INotification): INotificationViewItem {
+		if (!notification || !notification.message) {
+			return null; // we need a message to show
+		}
+
+		let message: IMarkdownString;
+		if (notification.message instanceof Error) {
+			message = { value: toErrorMessage(notification.message, false), isTrusted: true };
+		} else if (typeof notification.message === 'string') {
+			message = { value: notification.message, isTrusted: true };
+		} else if (notification.message.value) {
+			message = notification.message;
+		}
+
+		if (!message) {
+			return null; // we need a message to show
+		}
+
+		return new NotificationViewItem(notification.severity, message, notification.source || NotificationViewItem.DEFAULT_SOURCE, notification.actions || []);
 	}
 
 	public get expanded(): boolean {

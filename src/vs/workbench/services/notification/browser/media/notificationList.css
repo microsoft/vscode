@@ -10,6 +10,7 @@
 	left: 50%;
 	margin-left: -300px;
 	display: none;
+	background: #1E1E1E; /* TODO make themable */
 }
 
 .monaco-workbench > .notifications-list-container.visible {
@@ -17,13 +18,13 @@
 }
 
 .monaco-workbench > .notifications-list-container .monaco-list-row {
-	border-left: 2px solid grey; /* TODO make themable */
-	border-right: 2px solid grey;
-	border-bottom: 2px solid grey;
+	border-left: 2px solid #323232; /* TODO make themable */
+	border-right: 2px solid #323232;
+	border-bottom: 2px solid #323232;
 }
 
 .monaco-workbench > .notifications-list-container .monaco-list-row:first {
-	border-top: 2px solid grey;
+	border-top: 2px solid #323232;
 }
 
 /** Notification: Container */
