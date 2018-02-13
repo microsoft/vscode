@@ -274,6 +274,32 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		return null;
 	}
 
+	// TODO: Should this live inside SplitPane?
+	private _findSplitPanePath(instance: ITerminalInstance, path: SplitPane[] = [this._rootSplitPane]): SplitPane[] {
+		// Gets all split panes from the root to the pane containing the instance.
+		const pane = path[path.length - 1];
+
+		// Base case: path found
+		if (pane.instance === instance) {
+			return path;
+		}
+
+		// Rescurse child panes
+		for (let i = 0; i < pane.children.length; i++) {
+			const child = pane.children[i];
+
+			const subPath = path.slice();
+			subPath.push(child);
+			const result = this._findSplitPanePath(instance, subPath);
+			if (result) {
+				return result;
+			}
+		}
+
+		// No children contain instance
+		return null;
+	}
+
 	private _setActiveInstance(instance: ITerminalInstance): void {
 		this.setActiveInstanceByIndex(this._getIndexFromId(instance.id));
 	}
@@ -366,12 +392,48 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public focusLeft(): void {
-		// TODO: Do a proper implementation for > 2 instances
-		this.setActiveInstanceByIndex(0);
+		const activeInstance = this.activeInstance;
+		if (!activeInstance) {
+			return null;
+		}
+
+		// Find the closest horizontal SplitPane ancestor with a child to the left
+		let closestHorizontalPane: SplitPane = null;
+		const panePath = this._findSplitPanePath(activeInstance);
+		let index = panePath.length - 1;
+		let ancestorIndex: number;
+		while (--index >= 0) {
+			const pane = panePath[index];
+			// Continue up the path if not horizontal
+			if (pane.orientation !== Orientation.HORIZONTAL) {
+				continue;
+			}
+
+			// Find index of the panePath pane and break out of loop if it's not the left-most child
+			ancestorIndex = pane.children.indexOf(panePath[index + 1]);
+			if (ancestorIndex > 0) {
+				closestHorizontalPane = pane;
+				break;
+			}
+		}
+
+		// There are no panes to the left
+		if (!closestHorizontalPane) {
+			return;
+		}
+
+		// Find the bottom/right-most instance
+		let current = closestHorizontalPane.children[ancestorIndex - 1];
+		while (current.children && current.children.length > 0) {
+			current = current.children[current.children.length - 1];
+		}
+
+		// Focus the instance to the left
+		current.instance.focus();
 	}
 
 	public focusRight(): void {
-		// TODO: Do a proper implementation for > 2 instances
+		// TODO: Do a proper implementation for > 2 instances, make focusLeft more generic
 		this.setActiveInstanceByIndex(1);
 	}
 }
