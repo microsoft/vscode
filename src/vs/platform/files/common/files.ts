@@ -605,7 +605,7 @@ export enum FileOperationResult {
 	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH,
-	FILE_EXCEED_HEAP
+	FILE_EXCEED_MEMORY_LIMIT
 }
 
 export const AutoSaveConfiguration = {

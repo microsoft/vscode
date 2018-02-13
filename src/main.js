@@ -165,10 +165,10 @@ function touch(file) {
 function resolveJSFlags() {
 	let jsFlags = [];
 	if (args['js-flags']) {
-		jsFlags.push(args['js-flag']);
+		jsFlags.push(args['js-flags']);
 	}
-	if (args['max_old_space_size'] && !/max_old_space_size=(\d+)/g.exec(args['js-flags'])) {
-		jsFlags.push(`--max_old_space_size=${args['max_old_space_size']}`);
+	if (args['max-memory'] && !/max_old_space_size=(\d+)/g.exec(args['js-flags'])) {
+		jsFlags.push(`--max_old_space_size=${args['max-memory']}`);
 	}
 	if (jsFlags.length > 0) {
 		return jsFlags.join(' ');

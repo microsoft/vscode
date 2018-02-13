@@ -319,10 +319,10 @@ export class FileService implements IFileService {
 
 			// Return early if file is too large to load
 			if (typeof stat.size === 'number') {
-				if (stat.size > Math.max(this.environmentService.args['max_old_space_size'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+				if (stat.size > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
 					return onStatError(new FileOperationError(
-						nls.localize('fileTooLargeForHeapError', "File size exceeds V8 heap limit, please try to run code --max_old_space_size=NEWSIZE"),
-						FileOperationResult.FILE_EXCEED_HEAP
+						nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit, please try to run code --max-memory=NEWSIZE"),
+						FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
 					));
 				}
 
@@ -465,10 +465,10 @@ export class FileService implements IFileService {
 							currentPosition += bytesRead;
 						}
 
-						if (totalBytesRead > Math.max(this.environmentService.args['max_old_space_size'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
+						if (totalBytesRead > Math.max(this.environmentService.args['max-memory'] * 1024 * 1024 || 0, MAX_HEAP_SIZE)) {
 							finish(new FileOperationError(
-								nls.localize('fileTooLargeForHeapError', "File size exceeds V8 heap limit, please try to run code --max_old_space_size=NEWSIZE"),
-								FileOperationResult.FILE_EXCEED_HEAP
+								nls.localize('fileTooLargeForHeapError', "File size exceeds window memory limit, please try to run code --max-memory=NEWSIZE"),
+								FileOperationResult.FILE_EXCEED_MEMORY_LIMIT
 							));
 						}
 
