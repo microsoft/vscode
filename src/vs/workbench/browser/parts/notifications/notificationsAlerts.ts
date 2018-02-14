@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
 import { Severity } from 'vs/platform/message/common/message';
 import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export class NotificationsAlerts {
 
@@ -30,7 +31,14 @@ export class NotificationsAlerts {
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
 		if (e.kind === NotificationChangeType.ADD) {
+
+			// ARIA alert for screen readers
 			this.ariaAlert(e.item);
+
+			// Always log errors to console with full details
+			if (e.item.severity === Severity.Error) {
+				console.error(toErrorMessage(e.item.message.value, true));
+			}
 		}
 	}
 

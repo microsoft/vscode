@@ -13,6 +13,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { localize } from 'vs/nls';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export interface INotificationsModel {
 
@@ -139,8 +140,15 @@ export class NotificationViewItem implements INotificationViewItem {
 	private _onDidDispose: Emitter<void>;
 
 	public static create(notification: INotification): INotificationViewItem {
-		if (!notification || !notification.message) {
+		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
 			return null; // we need a message to show
+		}
+
+		let severity: Severity;
+		if (typeof notification.severity === 'number') {
+			severity = notification.severity;
+		} else {
+			severity = Severity.Info;
 		}
 
 		let message: IMarkdownString;
@@ -156,7 +164,7 @@ export class NotificationViewItem implements INotificationViewItem {
 			return null; // we need a message to show
 		}
 
-		return new NotificationViewItem(notification.severity, message, notification.source || NotificationViewItem.DEFAULT_SOURCE, notification.actions || []);
+		return new NotificationViewItem(severity, message, notification.source || NotificationViewItem.DEFAULT_SOURCE, notification.actions || []);
 	}
 
 	private constructor(private _severity: Severity, private _message: IMarkdownString, private _source: string, private _actions: IAction[]) {
