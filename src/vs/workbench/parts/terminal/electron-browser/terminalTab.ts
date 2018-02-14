@@ -95,7 +95,6 @@ class SplitPane implements IView {
 			return;
 		}
 		this._container = container;
-		// throw new Error("Method not implemented.");
 		if (!this._isContainerSet && this.instance) {
 			if (this._needsReattach) {
 				(<any>this.instance).reattachToElement(container);

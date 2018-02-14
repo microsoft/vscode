@@ -356,7 +356,7 @@ export class FocusTerminalRightAction extends BaseFocusDirectionTerminalAction {
 
 export class FocusTerminalUpAction extends BaseFocusDirectionTerminalAction {
 	public static readonly ID = 'workbench.action.terminal.focusTerminalUp';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalUp', "Focus terminal to the up");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalUp', "Focus terminal above");
 
 	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
 		super(id, label, Direction.Up, terminalService);
@@ -365,7 +365,7 @@ export class FocusTerminalUpAction extends BaseFocusDirectionTerminalAction {
 
 export class FocusTerminalDownAction extends BaseFocusDirectionTerminalAction {
 	public static readonly ID = 'workbench.action.terminal.focusTerminalDown';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalDown', "Focus terminal to the down");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalDown', "Focus terminal below");
 
 	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
 		super(id, label, Direction.Down, terminalService);

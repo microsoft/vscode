@@ -427,11 +427,11 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalRig
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalDownAction, FocusTerminalDownAction.ID, FocusTerminalDownAction.LABEL, {
 	primary: KeyMod.Alt | KeyCode.DownArrow,
 	mac: { primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.DownArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Terminal To Down', category);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Terminal Below', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalUpAction, FocusTerminalUpAction.ID, FocusTerminalUpAction.LABEL, {
 	primary: KeyMod.Alt | KeyCode.UpArrow,
 	mac: { primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.UpArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Terminal To Up', category);
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Terminal Above', category);
 
 terminalCommands.setup();
 
