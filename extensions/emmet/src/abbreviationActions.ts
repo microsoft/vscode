@@ -442,25 +442,32 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 
 	try {
 		// Expand the abbreviation
-		let expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
+		let expandedText;
 
 		if (input.textToWrap) {
+			let parsedAbbr = helper.parseAbbreviation(input.abbreviation, expandOptions);
 			if (input.rangeToReplace.isSingleLine) {
 
 				// Fetch innermost element in the expanded abbreviation
-				let tagRegexp = /\$TM_SELECTED_TEXT<\/([a-z,A-Z,:,-]*)>/;
-				let tagName = expandedText.match(tagRegexp)[1];
+				let lastNode = parsedAbbr;
+				let tagName = parsedAbbr.name || '';
+				while (lastNode.children && lastNode.children.length > 0) {
+					lastNode = lastNode.children[lastNode.children.length - 1];
+					tagName = lastNode.name;
+				}
 
 				// If wrapping with a block element, insert newline and expand again
 				// We need to expand again because emmet module can't know if the text being wrapped is multiline.
 				if (inlineElements.indexOf(tagName) === -1 && input.textToWrap.length === 1) {
-					expandOptions['text'][0] = '\n\t' + expandOptions['text'][0] + '\n';
-					expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
+					lastNode.value = '\n\t' + lastNode.value + '\n';
 				}
 			}
+			expandedText = helper.expandAbbreviation(parsedAbbr, expandOptions);
 			// All $anyword would have been escaped by the emmet helper.
 			// Remove the escaping backslash from $TM_SELECTED_TEXT so that VS Code Snippet controller can treat it as a variable
 			expandedText = expandedText.replace('\\$TM_SELECTED_TEXT', '$TM_SELECTED_TEXT');
+		} else {
+			expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 		}
 
 		return expandedText;
