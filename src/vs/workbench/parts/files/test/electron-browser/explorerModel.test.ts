@@ -190,12 +190,21 @@ suite('Files - View Model', () => {
 		const sChild = createStat('/path/to/stat/alles.klar', 'alles.klar', true, true, 8096, d);
 		s.addChild(sChild);
 
+		const platformSpecificSlash = {
+			correct: isWindows ? '\\' : '/',
+			wrong: isWindows ? '/' : '\\',
+		};
+
 		assert(validateFileName(s, null) !== null);
 		assert(validateFileName(s, '') !== null);
 		assert(validateFileName(s, '  ') !== null);
 		assert(validateFileName(s, 'Read Me') === null, 'name containing space');
-		assert(validateFileName(s, 'foo/bar') !== null);
-		assert(validateFileName(s, 'foo\\bar') !== null);
+		assert(validateFileName(s, `'foo${platformSpecificSlash.correct}bar'`) === null);
+		assert(validateFileName(s, `'foo${platformSpecificSlash.wrong}bar'`) !== null);
+		assert(validateFileName(s, `a${platformSpecificSlash.correct}all${platformSpecificSlash.correct}correct${platformSpecificSlash.correct}slashes`) === null);
+		assert(validateFileName(s, `a${platformSpecificSlash.correct}one${platformSpecificSlash.correct}wrong${platformSpecificSlash.wrong}slash`) !== null);
+		assert(validateFileName(s, `${platformSpecificSlash.correct}slashAtBeginning`) !== null);
+
 		if (isWindows) {
 			assert(validateFileName(s, 'foo:bar') !== null);
 			assert(validateFileName(s, 'foo*bar') !== null);
