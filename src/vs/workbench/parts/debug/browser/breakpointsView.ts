@@ -33,6 +33,7 @@ import { ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/par
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const $ = dom.$;
 
@@ -513,4 +514,70 @@ export function openBreakpointSource(breakpoint: Breakpoint, sideBySide: boolean
 			pinned: !preserveFocus
 		}
 	}, sideBySide);
+}
+
+export function getBreakpointMessageAndClassName(debugService: IDebugService, textFileService: ITextFileService, breakpoint: IBreakpoint): { message: string, className: string } {
+	const state = debugService.state;
+	const debugActive = state === State.Running || state === State.Stopped;
+
+	if (!breakpoint.enabled || !debugService.getModel().areBreakpointsActivated()) {
+		return {
+			className: 'debug-breakpoint-disabled-glyph',
+			message: nls.localize('breakpointDisabledHover', "Disabled Breakpoint"),
+		};
+	}
+
+	const appendMessage = (text: string): string => {
+		return breakpoint.message ? text.concat(breakpoint.message) : text;
+	};
+	if (debugActive && !breakpoint.verified) {
+		return {
+			className: 'debug-breakpoint-unverified-glyph',
+			message: appendMessage(nls.localize('breakpointUnverifieddHover', "Unverified Breakpoint")),
+		};
+	}
+
+	if (breakpoint instanceof FunctionBreakpoint) {
+		// TODO@Isidor handle funciton breakpoints take into account if adapter supports function breakpoints
+	}
+
+	if (debugActive && textFileService.isDirty(breakpoint.uri)) {
+		return {
+			className: 'debug-breakpoint-unverified-glyph',
+			message: appendMessage(nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.")),
+		};
+	}
+
+	if (breakpoint.condition || breakpoint.hitCondition) {
+		const process = debugService.getViewModel().focusedProcess;
+		if (process && breakpoint.condition && !process.session.capabilities.supportsConditionalBreakpoints) {
+			return {
+				className: 'debug-breakpoint-unsupported-glyph',
+				message: nls.localize('conditionalBreakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
+			};
+		}
+		if (process && breakpoint.hitCondition && !process.session.capabilities.supportsHitConditionalBreakpoints) {
+			return {
+				className: 'debug-breakpoint-unsupported-glyph',
+				message: nls.localize('hitBreakpointUnsupported', "Hit conditional breakpoints not supported by this debug type"),
+			};
+		}
+
+		if (breakpoint.condition && breakpoint.hitCondition) {
+			return {
+				className: 'debug-breakpoint-conditional-glyph',
+				message: appendMessage(`Expression: ${breakpoint.condition}\nHitCount: ${breakpoint.hitCondition}`)
+			};
+		}
+
+		return {
+			className: 'debug-breakpoint-conditional-glyph',
+			message: appendMessage(breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition)
+		};
+	}
+
+	return {
+		className: 'debug-breakpoint-glyph',
+		message: breakpoint.message
+	};
 }
