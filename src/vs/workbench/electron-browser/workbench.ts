@@ -101,7 +101,7 @@ import { ICustomViewsService } from 'vs/workbench/common/views';
 import { CustomViewsService } from 'vs/workbench/browser/parts/views/customView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
-import { NotificationList } from 'vs/workbench/browser/parts/notifications/notificationList';
+import { NotificationList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
