@@ -29,5 +29,7 @@ export interface INotificationService {
 
 	notify(notification: INotification): INotificationHandle;
 
-	notifyError(error: Error): INotificationHandle;
+	info(message: string): INotificationHandle;
+	warn(message: string): INotificationHandle;
+	error(error: string | Error): INotificationHandle;
 }

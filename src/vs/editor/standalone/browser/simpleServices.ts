@@ -287,7 +287,15 @@ export class SimpleNotificationService implements INotificationService {
 
 	private static readonly Empty: INotificationHandle = { dispose: () => undefined };
 
-	public notifyError(error: Error): INotificationHandle {
+	public info(message: string): INotificationHandle {
+		return this.notify({ severity: Severity.Info, message });
+	}
+
+	public warn(message: string): INotificationHandle {
+		return this.notify({ severity: Severity.Warning, message });
+	}
+
+	public error(error: string | Error): INotificationHandle {
 		return this.notify({ severity: Severity.Error, message: error });
 	}
 

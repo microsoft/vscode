@@ -130,9 +130,16 @@ export class NotificationsCenter extends Themable {
 		this.list.splice(start, deleteCount, items);
 		this.list.layout();
 
-		// Restore focus/selection
-		this.list.setSelection(selection.map(s => this.viewModel.indexOf(s)));
-		this.list.setFocus(focus.map(f => this.viewModel.indexOf(f)));
+		// Hide if no more notifications to show
+		if (this.viewModel.length === 0) {
+			this.hide();
+		}
+
+		// Otherwise restore focus/selection
+		else {
+			this.list.setSelection(selection.map(s => this.viewModel.indexOf(s)));
+			this.list.setFocus(focus.map(f => this.viewModel.indexOf(f)));
+		}
 	}
 
 	private indexToItems(indeces: number[]): INotificationViewItem[] {

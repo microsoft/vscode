@@ -153,9 +153,9 @@ export class NotificationViewItem implements INotificationViewItem {
 
 		let message: IMarkdownString;
 		if (notification.message instanceof Error) {
-			message = { value: toErrorMessage(notification.message, false), isTrusted: true };
+			message = { value: toErrorMessage(notification.message, false), isTrusted: false };
 		} else if (typeof notification.message === 'string') {
-			message = { value: notification.message, isTrusted: true };
+			message = { value: notification.message, isTrusted: false };
 		} else if (notification.message.value) {
 			message = notification.message;
 		}
