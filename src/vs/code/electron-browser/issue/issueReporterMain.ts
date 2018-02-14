@@ -332,7 +332,13 @@ export class IssueReporter extends Disposable {
 		});
 
 		document.getElementById('description').addEventListener('input', (event: Event) => {
-			this.issueReporterModel.update({ issueDescription: (<HTMLInputElement>event.target).value });
+			const issueDescription = (<HTMLInputElement>event.target).value;
+			this.issueReporterModel.update({ issueDescription });
+
+			if (this.features.useDuplicateSearch) {
+				const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
+				this.searchDuplicates(title, issueDescription);
+			}
 		});
 
 		document.getElementById('issue-title').addEventListener('input', (e) => { this.searchIssues(e); });
@@ -423,7 +429,8 @@ export class IssueReporter extends Disposable {
 		const title = (<HTMLInputElement>event.target).value;
 		if (title) {
 			if (this.features.useDuplicateSearch) {
-				this.searchDuplicates(title);
+				const description = this.issueReporterModel.getData().issueDescription;
+				this.searchDuplicates(title, description);
 			} else {
 				this.searchGitHub(title);
 			}
@@ -437,13 +444,14 @@ export class IssueReporter extends Disposable {
 		similarIssues.innerHTML = '';
 	}
 
-	private searchDuplicates(title: string): void {
-		// TODO: Change to HTTPS
-		const url = 'http://vscode-probot.westus.cloudapp.azure.com:5010/duplicate_candidates';
+	@debounce(300)
+	private searchDuplicates(title: string, body: string): void {
+		const url = 'https://vscode-probot.westus.cloudapp.azure.com:7890/duplicate_candidates';
 		const init = {
 			method: 'POST',
 			body: JSON.stringify({
-				title
+				title,
+				body
 			}),
 			headers: new Headers({
 				'Content-Type': 'application/json'
@@ -455,16 +463,9 @@ export class IssueReporter extends Disposable {
 				this.clearSearchResults();
 
 				if (result && result.candidates) {
-					const normalizedResults = result.candidates.map(result => {
-						return {
-							html_url: `https://github.com/Microsoft/vscode/issues/${result.number}`,
-							title: result.title
-						};
-					});
-
-					this.displaySearchResults(normalizedResults);
+					this.displaySearchResults(result.candidates);
 				} else {
-					throw new Error();
+					throw new Error('Unexpected response, no candidates property');
 				}
 			}).catch((error) => {
 				this.logSearchError(error);
