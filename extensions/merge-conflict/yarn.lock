@@ -28,9 +28,9 @@ semver@^5.3.0:
   version "5.5.0"
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.5.0.tgz#dc4bbc7a6ca9d916dee5d43516f0092b58f7b8ab"
 
-vscode-extension-telemetry@0.0.11:
-  version "0.0.11"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.11.tgz#f2dde487f01d2b079f55ab47a0247f5a772c4e06"
+vscode-extension-telemetry@0.0.12:
+  version "0.0.12"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.12.tgz#b3a93b72673bc485524770e0a32fcf493da07d85"
   dependencies:
     applicationinsights "1.0.1"
 
