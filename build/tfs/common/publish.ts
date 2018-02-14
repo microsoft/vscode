@@ -236,9 +236,9 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	};
 
 	// Remove this if we ever need to rollback fast updates for windows
-	if (/win32/.test(platform)) {
-		asset.supportsFastUpdate = true;
-	}
+	// if (/win32/.test(platform)) {
+	// 	asset.supportsFastUpdate = true;
+	// }
 
 	console.log('Asset:', JSON.stringify(asset, null, '  '));
 
