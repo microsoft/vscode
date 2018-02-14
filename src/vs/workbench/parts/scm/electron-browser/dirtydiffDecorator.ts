@@ -53,6 +53,7 @@ import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { createStyleSheet } from '../../../../base/browser/dom';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -1095,6 +1096,7 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 	private models: ITextModel[] = [];
 	private items: { [modelId: string]: DirtyDiffItem; } = Object.create(null);
 	private transientDisposables: IDisposable[] = [];
+	private stylesheet: HTMLStyleElement;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -1103,9 +1105,16 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
+		this.stylesheet = createStyleSheet();
+		this.disposables.push(toDisposable(() => this.stylesheet.parentElement.removeChild(this.stylesheet)));
+
 		const onDidChangeConfiguration = filterEvent(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
 		onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
 		this.onDidChangeConfiguration();
+
+		const onDidChangeDiffWidthConfiguration = filterEvent(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterWidth'));
+		onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this);
+		this.onDidChangeDiffWidthConfiguration();
 	}
 
 	private onDidChangeConfiguration(): void {
@@ -1116,6 +1125,16 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 		} else {
 			this.disable();
 		}
+	}
+
+	private onDidChangeDiffWidthConfiguration(): void {
+		let width = this.configurationService.getValue<number>('scm.diffDecorationsGutterWidth');
+
+		if (isNaN(width) || width <= 0 || width > 5) {
+			width = 3;
+		}
+
+		this.stylesheet.innerHTML = `.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${width}px;}`;
 	}
 
 	private enable(): void {

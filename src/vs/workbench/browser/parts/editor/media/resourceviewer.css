@@ -13,7 +13,7 @@
 }
 
 .monaco-resource-viewer.image {
-	padding: 10px 10px 0 10px;
+	padding: 0;
 	background-position: 0 0, 8px 8px;
 	background-size: 16px 16px;
 	display: flex;
@@ -37,8 +37,8 @@
 }
 
 .monaco-resource-viewer img.scale-to-fit {
-	max-width: 100%;
-	max-height: 100%;
+	max-width: calc(100% - 20px);
+	max-height: calc(100% - 20px);
 	object-fit: contain;
 }
 

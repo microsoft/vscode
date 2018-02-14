@@ -5,12 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/mmims/language-batchfile/commit/3dd105c31484e5975144478dac1aa91d8f51e528",
-	"scopeName": "source.batchfile",
 	"name": "Batch File",
-	"fileTypes": [
-		"bat",
-		"cmd"
-	],
+	"scopeName": "source.batchfile",
 	"patterns": [
 		{
 			"include": "#commands"

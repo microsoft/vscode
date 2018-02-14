@@ -6,7 +6,7 @@
 
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -144,25 +144,31 @@ export interface IShellLaunchConfig {
 export interface ITerminalService {
 	_serviceBrand: any;
 
-	activeTerminalInstanceIndex: number;
+	activeTabIndex: number;
 	configHelper: ITerminalConfigHelper;
-	onActiveInstanceChanged: Event<string>;
+	onActiveTabChanged: Event<void>;
+	onTabDisposed: Event<ITerminalTab>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
-	onInstancesChanged: Event<string>;
+	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
+	terminalTabs: ITerminalTab[];
 
 	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
-	getInstanceLabels(): string[];
+	getTabLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
-	setActiveInstanceToNext(): void;
-	setActiveInstanceToPrevious(): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
+	splitInstanceVertically(instance: ITerminalInstance): void;
+
+	getActiveTab(): ITerminalTab;
+	setActiveTabToNext(): void;
+	setActiveTabToPrevious(): void;
+	setActiveTabByIndex(tabIndex: number): void;
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
@@ -174,6 +180,23 @@ export interface ITerminalService {
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	selectDefaultWindowsShell(): TPromise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
+}
+
+export interface ITerminalTab {
+	activeInstance: ITerminalInstance;
+	terminalInstances: ITerminalInstance[];
+	title: string;
+	onDisposed: Event<ITerminalTab>;
+	onInstancesChanged: Event<void>;
+
+	focusLeft(): void;
+	focusRight(): void;
+	setActiveInstanceByIndex(index: number): void;
+	attachToElement(element: HTMLElement): void;
+	setVisible(visible: boolean): void;
+	layout(width: number, height: number): void;
+	addDisposable(disposable: IDisposable): void;
+	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 }
 
 export interface ITerminalInstance {
@@ -197,6 +220,10 @@ export interface ITerminalInstance {
 	 * An event that fires when the terminal instance is disposed.
 	 */
 	onDisposed: Event<ITerminalInstance>;
+
+	onFocused: Event<ITerminalInstance>;
+
+	onProcessIdReady: Event<ITerminalInstance>;
 
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
@@ -389,4 +416,6 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
+
+	addDisposable(disposable: IDisposable): void;
 }

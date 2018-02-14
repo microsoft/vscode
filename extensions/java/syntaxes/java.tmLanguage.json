@@ -5,12 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/atom/language-java/commit/5c2863da1425d61914d2e04ef31b86f8c5883c5f",
-	"scopeName": "source.java",
 	"name": "Java",
-	"fileTypes": [
-		"java",
-		"bsh"
-	],
+	"scopeName": "source.java",
 	"patterns": [
 		{
 			"begin": "\\b(package)\\b\\s*",

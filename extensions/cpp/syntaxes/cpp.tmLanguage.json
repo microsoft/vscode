@@ -5,28 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/atom/language-c/commit/3a269f88b12e512fb9495dc006a1dabf325d3d7f",
-	"scopeName": "source.cpp",
-	"fileTypes": [
-		"cc",
-		"cpp",
-		"cp",
-		"cxx",
-		"c++",
-		"cu",
-		"cuh",
-		"h",
-		"hh",
-		"hpp",
-		"hxx",
-		"h++",
-		"inl",
-		"ino",
-		"ipp",
-		"tcc",
-		"tpp"
-	],
-	"firstLineMatch": "(?i)-\\*-[^*]*(Mode:\\s*)?C\\+\\+(\\s*;.*?)?\\s*-\\*-",
 	"name": "C++",
+	"scopeName": "source.cpp",
 	"patterns": [
 		{
 			"include": "#special_block"

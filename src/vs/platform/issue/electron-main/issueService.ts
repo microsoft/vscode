@@ -9,12 +9,14 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { IIssueService, IssueReporterData } from 'vs/platform/issue/common/issue';
+import { IIssueService, IssueReporterData, IssueReporterFeatures } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import { ILaunchService } from 'vs/code/electron-main/launch';
 import { getPerformanceInfo, PerformanceInfo, getSystemInfo, SystemInfo } from 'vs/code/electron-main/diagnostics';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -26,7 +28,9 @@ export class IssueService implements IIssueService {
 	constructor(
 		private machineId: string,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILaunchService private launchService: ILaunchService
+		@ILaunchService private launchService: ILaunchService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@ILogService private logService: ILogService
 	) { }
 
 	openReporter(data: IssueReporterData): TPromise<void> {
@@ -61,7 +65,12 @@ export class IssueService implements IIssueService {
 
 		this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
 
-		this._issueWindow.loadURL(this.getIssueReporterPath(data));
+		const features: IssueReporterFeatures = {
+			useDuplicateSearch: this.configurationService.getValue<boolean>('issueReporter.searchDuplicates')
+		};
+
+		this.logService.trace('issueService#openReporter: opening issue reporter');
+		this._issueWindow.loadURL(this.getIssueReporterPath(data, features));
 
 		return TPromise.as(null);
 	}
@@ -152,19 +161,21 @@ export class IssueService implements IIssueService {
 						resolve(diagnosticInfo);
 					})
 					.catch(err => {
+						this.logService.warn('issueService#getPerformanceInfo ', err.message);
 						reject(err);
 					});
 			});
 		});
 	}
 
-	private getIssueReporterPath(data: IssueReporterData) {
+	private getIssueReporterPath(data: IssueReporterData, features: IssueReporterFeatures) {
 		const windowConfiguration = {
 			appRoot: this.environmentService.appRoot,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 			windowId: this._issueWindow.id,
 			machineId: this.machineId,
-			data
+			data,
+			features
 		};
 
 		const environment = parseArgs(process.argv);

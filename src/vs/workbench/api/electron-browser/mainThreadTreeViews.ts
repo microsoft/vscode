@@ -31,7 +31,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	$registerTreeViewDataProvider(treeViewId: string): void {
 		const dataProvider = this._register(new TreeViewDataProvider(treeViewId, this._proxy, this.messageService));
 		this._dataProviders.set(treeViewId, dataProvider);
-		this.viewsService.registerTreeViewDataProvider(treeViewId, dataProvider);
+		this.viewsService.getTreeViewer(treeViewId).dataProvider = dataProvider;
 	}
 
 	$refresh(treeViewId: string, itemsToRefresh: { [treeItemHandle: string]: ITreeItem }): void {

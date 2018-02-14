@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "^0.0.11",
+    "vscode-extension-telemetry": "^0.0.12",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
