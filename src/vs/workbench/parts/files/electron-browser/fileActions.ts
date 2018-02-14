@@ -1325,6 +1325,7 @@ export class CopyPathAction extends Action {
 	}
 }
 
+
 export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false): string {
 
 	// Produce a well formed file name
@@ -1337,6 +1338,7 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 
 	const names: string[] = trimTrailingSlashes(name)	// prevents empty last array element after split
 		.split(/[\\/]/);
+
 
 	// Do not allow to overwrite existing file
 	if (!allowOverwriting) {
@@ -1369,21 +1371,12 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 		}
 	}
 
-	if (containsPlatformInvalidSlashes(name, isWindows)) {
-		return nls.localize('pathContainsInvalidPlatfromSlash', "The name **{0}** contains at least one invalid slash. Please use forward slashes on Linux/Mac and backward slashes on Windows.", trimLongName(name));
-	}
-
 	return null;
 }
 
 function windowsMaxLengthRestrictionReached(name: string, parent: IFileStat): boolean {
 	const fullPathLength = name.length + parent.resource.fsPath.length + 1 /* path segment */;
 	return fullPathLength > 255;
-}
-
-function containsPlatformInvalidSlashes(name: string, isWindows: boolean) {
-	const invalidSlash: string = isWindows ? '/' : '\\';
-	return name.indexOf(invalidSlash) !== -1;
 }
 
 function trimTrailingSlashes(str): string | undefined {
