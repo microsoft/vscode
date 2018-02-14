@@ -1524,6 +1524,7 @@ export class TreeItem {
 	iconPath?: string | URI | { light: string | URI; dark: string | URI };
 	command?: vscode.Command;
 	contextValue?: string;
+	tooltip?: string;
 
 	constructor(label: string, collapsibleState?: vscode.TreeItemCollapsibleState)
 	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState)

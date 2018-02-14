@@ -185,6 +185,7 @@ class ExtHostTreeView<T> extends Disposable {
 			parentHandle,
 			label: extensionTreeItem.label,
 			resourceUri: extensionTreeItem.resourceUri,
+			tooltip: typeof extensionTreeItem.tooltip === 'string' ? extensionTreeItem.tooltip : void 0,
 			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command) : void 0,
 			contextValue: extensionTreeItem.contextValue,
 			icon,
