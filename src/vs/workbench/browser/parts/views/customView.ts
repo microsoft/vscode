@@ -195,24 +195,24 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		}
 	}
 
-	render(container: HTMLElement): void {
-		this.treeContainer = DOM.append(container, DOM.$('.tree-explorer-viewlet-tree-view'));
+	show(container: HTMLElement): void {
+		if (!this.tree) {
+			this.createTree();
+		}
+		DOM.append(container, this.treeContainer);
+	}
 
+	private createTree() {
+		this.treeContainer = DOM.$('.tree-explorer-viewlet-tree-view');
 		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : undefined;
 		const menus = this.instantiationService.createInstance(Menus, this.id);
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, this, menus, actionItemProvider);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, menus);
-		this.tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree,
-			this.treeContainer,
-			{ dataSource, renderer, controller },
-			{}
-		);
-
+		this.tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, this.treeContainer, { dataSource, renderer, controller }, {});
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
 		this._register(this.tree);
 		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
-
 		this.tree.setInput(this.root);
 	}
 

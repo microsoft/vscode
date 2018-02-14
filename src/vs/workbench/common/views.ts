@@ -168,7 +168,7 @@ export interface ITreeViewer extends IDisposable {
 
 	layout(height: number): void;
 
-	render(container: HTMLElement);
+	show(container: HTMLElement);
 
 	getOptimalWidth(): number;
 }
