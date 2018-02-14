@@ -217,6 +217,9 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 								return null;
 							});
 						}
+						if (options.inputChanged) {
+							options.inputChanged(value);
+						}
 					}
 				}
 			}, token).then(resolve, reject);

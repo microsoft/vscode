@@ -119,6 +119,11 @@ export interface IInputOptions {
 	 * an optional function that is used to validate user input.
 	 */
 	validateInput?: (input: string) => TPromise<string>;
+
+	/**
+	* An optional function that will be called whenever the user changes the input.
+	*/
+	inputChanged?: (value: string) => void;
 }
 
 export interface IShowOptions {
