@@ -23,7 +23,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { CloseNotificationAction, ExpandNotificationAction, ConfigureNotificationAction, CollapseNotificationAction, NotificationActionRunner, DoNotShowNotificationAgainAction } from 'vs/workbench/services/notification/browser/notificationActions';
+import { CloseNotificationAction, ExpandNotificationAction, ConfigureNotificationAction, CollapseNotificationAction, DoNotShowNotificationAgainAction } from 'vs/workbench/services/notification/browser/notificationActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
 
@@ -148,6 +148,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 	private closeNotificationAction: CloseNotificationAction;
 	private expandNotificationAction: ExpandNotificationAction;
 	private collapseNotificationAction: CollapseNotificationAction;
+	private doNotShowNotificationAgainAction: DoNotShowNotificationAgainAction;
 
 	constructor(
 		@IOpenerService private openerService: IOpenerService,
@@ -158,6 +159,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		this.closeNotificationAction = instantiationService.createInstance(CloseNotificationAction, CloseNotificationAction.ID, CloseNotificationAction.LABEL);
 		this.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
 		this.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
+		this.doNotShowNotificationAgainAction = this.instantiationService.createInstance(DoNotShowNotificationAgainAction, DoNotShowNotificationAgainAction.ID, DoNotShowNotificationAgainAction.LABEL);
 	}
 
 	public get templateId() {
@@ -259,10 +261,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		// Actions
 		const actions: IAction[] = [];
 
-		const doNotShowNotificationAgainAction = this.instantiationService.createInstance(DoNotShowNotificationAgainAction, DoNotShowNotificationAgainAction.ID, DoNotShowNotificationAgainAction.LABEL, element);
-		data.toDispose.push(doNotShowNotificationAgainAction);
-
-		const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, [doNotShowNotificationAgainAction]);
+		const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, [this.doNotShowNotificationAgainAction]);
 		actions.push(configureNotificationAction);
 		data.toDispose.push(configureNotificationAction);
 
@@ -273,11 +272,8 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		actions.push(this.closeNotificationAction);
 
 		// Toolbar
-		const notificationActionRunner = new NotificationActionRunner(element);
-		data.toDispose.push(notificationActionRunner);
-		data.toolbar.actionRunner = notificationActionRunner;
-
 		data.toolbar.clear();
+		data.toolbar.context = element;
 		data.toolbar.push(actions, { icon: true, label: false });
 
 		// Source

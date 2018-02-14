@@ -8,7 +8,7 @@
 import 'vs/css!./media/notificationActions';
 import { INotificationViewItem } from 'vs/workbench/services/notification/common/notificationsModel';
 import { localize } from 'vs/nls';
-import { Action, ActionRunner, IAction } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export class CloseNotificationAction extends Action {
@@ -91,24 +91,12 @@ export class DoNotShowNotificationAgainAction extends Action {
 
 	constructor(
 		id: string,
-		label: string,
-		notification: INotificationViewItem
+		label: string
 	) {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(context: INotificationViewItem): TPromise<any> {
 		return TPromise.as(void 0); // TODO@notification
-	}
-}
-
-export class NotificationActionRunner extends ActionRunner {
-
-	constructor(private context: INotificationViewItem) {
-		super();
-	}
-
-	public run(action: IAction, context?: any): TPromise<void> {
-		return super.run(action, this.context);
 	}
 }
