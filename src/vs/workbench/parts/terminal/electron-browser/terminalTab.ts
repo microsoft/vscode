@@ -42,6 +42,7 @@ class SplitPane implements IView {
 		container.removeChild((<any>this.instance)._wrapperElement);
 
 		this._splitView = new SplitView(container, { orientation });
+		this._splitView.onDidSashReset(() => this._resetSize());
 		this.layout(this._size);
 		this.orthogonalLayout(this.orthogonalSize);
 
@@ -76,6 +77,17 @@ class SplitPane implements IView {
 		}
 
 		this._onDidChange = anyEvent(...this._children.map(c => c.onDidChange));
+	}
+
+	private _resetSize(): void {
+		let totalSize = 0;
+		for (let i = 0; i < this._splitView.length; i++) {
+			totalSize += this._splitView.getViewSize(i);
+		}
+		const newSize = Math.floor(totalSize / this._splitView.length);
+		for (let i = 0; i < this._splitView.length - 1; i++) {
+			this._splitView.resizeView(i, newSize);
+		}
 	}
 
 	public remove(): void {
