@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalInstance, IShellLaunchConfig, ITerminalTab } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -172,6 +172,13 @@ class RootSplitPane extends SplitPane {
 	}
 }
 
+const directionOrientation: { [direction: number]: Orientation } = {
+	[Direction.Left]: Orientation.HORIZONTAL,
+	[Direction.Right]: Orientation.HORIZONTAL,
+	[Direction.Up]: Orientation.VERTICAL,
+	[Direction.Down]: Orientation.VERTICAL
+};
+
 export class TerminalTab extends Disposable implements ITerminalTab {
 	private _terminalInstances: ITerminalInstance[] = [];
 	private _rootSplitPane: RootSplitPane;
@@ -203,9 +210,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			undefined,
 			shellLaunchConfig);
 		this._terminalInstances.push(instance);
+		this._initInstanceListeners(instance);
 		this._activeInstanceIndex = 0;
-		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
-		instance.addDisposable(instance.onFocused(instance => this._setActiveInstance(instance)));
 
 		this._rootSplitPane = new RootSplitPane();
 		this._rootSplitPane.instance = instance;
@@ -230,6 +236,11 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			return null;
 		}
 		return this._terminalInstances[this._activeInstanceIndex];
+	}
+
+	private _initInstanceListeners(instance: ITerminalInstance): void {
+		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
+		instance.addDisposable(instance.onFocused(instance => this._setActiveInstance(instance)));
 	}
 
 	private _onInstanceDisposed(instance: ITerminalInstance): void {
@@ -365,7 +376,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			undefined,
 			shellLaunchConfig);
 		this._terminalInstances.push(instance);
-		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
+		this._initInstanceListeners(instance);
 
 		if (this._rootSplitPane.instance) {
 			this._rootSplitPane.orientation = Orientation.HORIZONTAL;
@@ -391,11 +402,14 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._rootSplitPane.layoutBox(width, height);
 	}
 
-	public focusLeft(): void {
+	public focusDirection(direction: Direction): void {
 		const activeInstance = this.activeInstance;
 		if (!activeInstance) {
 			return null;
 		}
+
+		const desiredOrientation = directionOrientation[direction];
+		const isUpOrLeft = direction === Direction.Left || direction === Direction.Up;
 
 		// Find the closest horizontal SplitPane ancestor with a child to the left
 		let closestHorizontalPane: SplitPane = null;
@@ -404,16 +418,24 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		let ancestorIndex: number;
 		while (--index >= 0) {
 			const pane = panePath[index];
-			// Continue up the path if not horizontal
-			if (pane.orientation !== Orientation.HORIZONTAL) {
+			// Continue up the path if not the desired orientation
+			if (pane.orientation !== desiredOrientation) {
 				continue;
 			}
 
 			// Find index of the panePath pane and break out of loop if it's not the left-most child
 			ancestorIndex = pane.children.indexOf(panePath[index + 1]);
-			if (ancestorIndex > 0) {
-				closestHorizontalPane = pane;
-				break;
+			// Make sure that the pane is not on the boundary
+			if (isUpOrLeft) {
+				if (ancestorIndex > 0) {
+					closestHorizontalPane = pane;
+					break;
+				}
+			} else {
+				if (ancestorIndex < pane.children.length - 1) {
+					closestHorizontalPane = pane;
+					break;
+				}
 			}
 		}
 
@@ -422,18 +444,22 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			return;
 		}
 
-		// Find the bottom/right-most instance
-		let current = closestHorizontalPane.children[ancestorIndex - 1];
-		while (current.children && current.children.length > 0) {
-			current = current.children[current.children.length - 1];
+		let current: SplitPane;
+		if (isUpOrLeft) {
+			// Find the bottom/right-most instance
+			current = closestHorizontalPane.children[ancestorIndex - 1];
+			while (current.children && current.children.length > 0) {
+				current = current.children[current.children.length - 1];
+			}
+		} else {
+			// Find the top/left-most instance
+			current = closestHorizontalPane.children[ancestorIndex + 1];
+			while (current.children && current.children.length > 0) {
+				current = current.children[0];
+			}
 		}
 
 		// Focus the instance to the left
 		current.instance.focus();
-	}
-
-	public focusRight(): void {
-		// TODO: Do a proper implementation for > 2 instances, make focusLeft more generic
-		this.setActiveInstanceByIndex(1);
 	}
 }
