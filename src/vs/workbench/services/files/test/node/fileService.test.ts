@@ -136,6 +136,32 @@ suite('FileService', () => {
 		}, error => onError(error, done));
 	});
 
+	test('createFolder: creating multiple folders at once', function (done: () => void) {
+		let event: FileOperationEvent;
+		const toDispose = service.onAfterOperation(e => {
+			event = e;
+		});
+
+		const multiFolderPaths = 'a/couple/of/folders';
+		service.resolveFile(uri.file(testDir)).done(parent => {
+			const resource = uri.file(path.join(parent.resource.fsPath, multiFolderPaths));
+
+			return service.createFolder(resource).then(f => {
+				// assert.equal(f.name, multiFolderPaths);
+				assert.equal(fs.existsSync(f.resource.fsPath), true);
+
+				assert.ok(event);
+				assert.equal(event.resource.fsPath, resource.fsPath);
+				assert.equal(event.operation, FileOperation.CREATE);
+				assert.equal(event.target.resource.fsPath, resource.fsPath);
+				assert.equal(event.target.isDirectory, true);
+				toDispose.dispose();
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
 	test('touchFile', function (done: () => void) {
 		service.touchFile(uri.file(path.join(testDir, 'test.txt'))).done(s => {
 			assert.equal(s.name, 'test.txt');

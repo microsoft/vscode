@@ -498,7 +498,8 @@ export abstract class BaseCreateAction extends BaseRenameAction {
 			return validateFileName(parent, name, false);
 		}
 
-		return super.validateFileName(parent, name);
+		console.log('The other validateFilename function was called!');
+		return super.validateFileName(parent, name);	// TODO: when is this called?
 	}
 }
 
@@ -1325,31 +1326,42 @@ export class CopyPathAction extends Action {
 	}
 }
 
-export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false): string {
+export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false, isFile: boolean = false): string {	// TODO: param file or folder?
 
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
 
 	// Name not provided
-	if (!name || name.length === 0 || /^\s+$/.test(name)) {
+	if (!name || name.length === 0 || /^\s+$/.test(name)) {	// TODO: replace with strings.isFalsyOrWhitespace?
 		return nls.localize('emptyFileNameError', "A file or folder name must be provided.");
 	}
 
+	// if () --> is file && trailing slash --> return
+	const names: string[] = trimTrailingSlashes(name)	// prevents empty last array element after split
+		.split(/[\\/]/);
+
 	// Do not allow to overwrite existing file
 	if (!allowOverwriting) {
-		if (parent.children && parent.children.some((c) => {
-			if (isLinux) {
-				return c.name === name;
-			}
+		let p = parent;
 
-			return c.name.toLowerCase() === name.toLowerCase();
-		})) {
+		const alreadyExisting = names.every((folderName) => {
+			let { exists, child } = alreadyExists(p, folderName);
+
+			if (!exists) {
+				return false;
+			} else {
+				p = child;
+				return true;
+			}
+		});
+
+		if (alreadyExisting) {
 			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
 		}
 	}
 
 	// Invalid File name
-	if (!paths.isValidBasename(name)) {
+	if (names.some((folderName) => !paths.isValidBasename(folderName))) {
 		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
 	}
 
@@ -1362,6 +1374,34 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 	}
 
 	return null;
+}
+
+function trimTrailingSlashes(str): string | undefined {
+	if (!str) { return str; }
+	return str.replace(/[\\/]*$/, '');
+}
+
+function alreadyExists(parent: IFileStat, name: string): { exists: boolean, child: IFileStat | undefined } {
+	let foundDupChild: IFileStat;
+
+	if (parent.children) {
+		let exists: boolean = parent.children.some((c) => {
+			let found = compareFolderNames(c.name, name);
+			if (found) { foundDupChild = c; }
+			return found;
+		});
+		return { exists, child: foundDupChild };
+	}
+
+	return { exists: false, child: undefined };
+}
+
+function compareFolderNames(name1: string, name2: string): boolean {
+	if (isLinux) {
+		return name1 === name2;
+	}
+
+	return name1.toLowerCase() === name2.toLowerCase();
 }
 
 function trimLongName(name: string): string {
