@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/notificationList';
+import 'vs/css!./media/notificationsCenter';
 import { addClass, removeClass } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -19,10 +19,10 @@ import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/br
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 
 export class NotificationsCenter extends Themable {
-
 	private listContainer: HTMLElement;
 	private list: WorkbenchList<INotificationViewItem>;
 	private viewModel: INotificationViewItem[];
+	private _isVisible: boolean;
 
 	constructor(
 		private container: HTMLElement,
@@ -33,41 +33,36 @@ export class NotificationsCenter extends Themable {
 		super(themeService);
 
 		this.viewModel = [];
-
-		this.create();
-
-		// Show initial notifications if any
-		this.onNotificationsAdded(0, model.notifications);
-
 		this.registerListeners();
+	}
+
+	public get isVisible(): boolean {
+		return this._isVisible;
 	}
 
 	private registerListeners(): void {
 		this.toUnbind.push(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 	}
 
-	private onDidNotificationChange(e: INotificationChangeEvent): void {
-		switch (e.kind) {
-			case NotificationChangeType.ADD:
-				return this.onNotificationsAdded(e.index, [e.item]);
-			case NotificationChangeType.CHANGE:
-				return this.onNotificationChanged(e.index, e.item);
-			case NotificationChangeType.REMOVE:
-				return this.onNotificationRemoved(e.index, e.item);
+	public show(): void {
+		if (this._isVisible) {
+			return; // already visible
 		}
+
+		// Lazily create if showing for the first time
+		if (!this.list) {
+			this.createNotificationsList();
+		}
+
+		// Make visible
+		this._isVisible = true;
+		addClass(this.listContainer, 'visible');
+
+		// Show all notifications that are present now
+		this.onNotificationsAdded(0, this.model.notifications);
 	}
 
-	protected updateStyles(): void {
-		if (this.listContainer) {
-			const outlineColor = this.getColor(contrastBorder);
-			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : null;
-
-			const widgetShadowColor = this.getColor(widgetShadow);
-			this.listContainer.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null;
-		}
-	}
-
-	private create(): void {
+	private createNotificationsList(): void {
 
 		// List Container
 		this.listContainer = document.createElement('div');
@@ -95,6 +90,21 @@ export class NotificationsCenter extends Themable {
 		this.updateStyles();
 	}
 
+	private onDidNotificationChange(e: INotificationChangeEvent): void {
+		if (!this._isVisible) {
+			return; // only if visible
+		}
+
+		switch (e.kind) {
+			case NotificationChangeType.ADD:
+				return this.onNotificationsAdded(e.index, [e.item]);
+			case NotificationChangeType.CHANGE:
+				return this.onNotificationChanged(e.index, e.item);
+			case NotificationChangeType.REMOVE:
+				return this.onNotificationRemoved(e.index, e.item);
+		}
+	}
+
 	private onNotificationsAdded(index: number, items: INotificationViewItem[]): void {
 		this.updateNotificationsList(index, 0, items);
 	}
@@ -108,13 +118,6 @@ export class NotificationsCenter extends Themable {
 	}
 
 	private updateNotificationsList(start: number, deleteCount: number, items: INotificationViewItem[] = []) {
-
-		// Ensure visibility is proper
-		if (this.model.notifications.length > 0) {
-			this.show();
-		} else {
-			this.hide();
-		}
 
 		// Remember focus/selection
 		const selection = this.indexToItems(this.list.getSelection());
@@ -136,12 +139,27 @@ export class NotificationsCenter extends Themable {
 		return indeces.map(index => this.viewModel[index]).filter(item => !!item);
 	}
 
-	private show(): void {
-		addClass(this.listContainer, 'visible');
+	public hide(): void {
+
+		// Hide
+		this._isVisible = false;
+		removeClass(this.listContainer, 'visible');
+
+		// Clear list
+		this.list.splice(0, this.viewModel.length);
+
+		// Clear view model
+		this.viewModel = [];
 	}
 
-	private hide(): void {
-		removeClass(this.listContainer, 'visible');
+	protected updateStyles(): void {
+		if (this.listContainer) {
+			const outlineColor = this.getColor(contrastBorder);
+			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : null;
+
+			const widgetShadowColor = this.getColor(widgetShadow);
+			this.listContainer.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null;
+		}
 	}
 }
 

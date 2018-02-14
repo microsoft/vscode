@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/css!./media/notificationList';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { clearNode, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';

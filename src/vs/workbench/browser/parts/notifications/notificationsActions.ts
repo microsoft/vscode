@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/notificationActions';
+import 'vs/css!./media/notificationsActions';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { localize } from 'vs/nls';
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';

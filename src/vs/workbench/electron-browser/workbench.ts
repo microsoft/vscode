@@ -103,6 +103,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
 import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/notificationsAlerts';
+import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
+import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationCommands';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -1254,6 +1256,13 @@ export class Workbench implements IPartService {
 		// Notification Alerts
 		const notificationsAlerts = this.instantiationService.createInstance(NotificationsAlerts, this.notificationService.model);
 		this.toUnbind.push(notificationsAlerts);
+
+		// Notifications Status
+		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, this.notificationService.model);
+		this.toUnbind.push(notificationsStatus);
+
+		// Register Commands
+		registerNotificationCommands(notificationsCenter);
 	}
 
 	public getInstantiationService(): IInstantiationService {
