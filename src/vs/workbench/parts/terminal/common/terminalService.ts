@@ -236,11 +236,6 @@ export abstract class TerminalService implements ITerminalService {
 			return;
 		}
 
-		if (tab.terminalInstances.length === 2) {
-			console.warn('Only a single split in the terminal is supported currently');
-			return;
-		}
-
 		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, {});
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();

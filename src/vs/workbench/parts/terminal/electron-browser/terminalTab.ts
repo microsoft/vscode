@@ -54,6 +54,8 @@ class SplitPane implements IView {
 
 	public split(instance: ITerminalInstance): void {
 		if (this._parent && this._parent.orientation === this.orientation) {
+			// TODO: Splitting sizes can be a bit weird when not splitting the right-most pane
+			//       If we kept proportions when adding the view to the splitview it would be alright
 			const index = this._parent._children.indexOf(this);
 			this._parent.addChild(this._size / 2, this.orthogonalSize, instance, index + 1);
 		} else {
@@ -374,6 +376,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			configHelper,
 			undefined,
 			shellLaunchConfig);
+		// TODO: Should this be pulled from the splitpanes instead? Currently there are 2 sources of truth.
+		//       _terminalInstances is also the order they were created, not the order in which they appear
 		this._terminalInstances.push(instance);
 		this._initInstanceListeners(instance);
 
@@ -382,13 +386,14 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			this._rootSplitPane.split(instance);
 		} else {
 			// The original branch has already occured, find the inner SplitPane and split it
-			this._rootSplitPane.children[0].orientation = Orientation.HORIZONTAL;
-			this._rootSplitPane.children[0].split(instance);
+			const activePane = this._findSplitPane(this.activeInstance);
+			activePane.orientation = Orientation.HORIZONTAL;
+			activePane.split(instance);
 		}
 		if (this._tabElement) {
 			this._rootSplitPane.render(this._tabElement);
 		}
-		this.setActiveInstanceByIndex(1);
+		this._setActiveInstance(instance);
 
 		return instance;
 	}
