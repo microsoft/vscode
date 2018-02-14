@@ -139,17 +139,17 @@
 				},
 				{
 					"command": "markdown.showSource",
-					"when": "resourceScheme == markdown",
+					"when": "markdownPreview",
 					"group": "navigation"
 				},
 				{
 					"command": "markdown.refreshPreview",
-					"when": "resourceScheme == markdown",
+					"when": "markdownPreview",
 					"group": "1_markdown"
 				},
 				{
 					"command": "markdown.showPreviewSecuritySelector",
-					"when": "resourceScheme == markdown",
+					"when": "markdownPreview",
 					"group": "1_markdown"
 				}
 			],
@@ -173,7 +173,7 @@
 				},
 				{
 					"command": "markdown.showSource",
-					"when": "resourceScheme == markdown",
+					"when": "markdownPreview",
 					"group": "navigation"
 				},
 				{
@@ -182,7 +182,7 @@
 				},
 				{
 					"command": "markdown.showPreviewSecuritySelector",
-					"when": "resourceScheme == markdown"
+					"when": "markdownPreview"
 				}
 			]
 		},

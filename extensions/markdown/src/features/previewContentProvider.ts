@@ -354,6 +354,14 @@ export class MarkdownPreviewWebviewManager {
 			vscode.commands.executeCommand(e.command, ...e.args);
 		});
 
+		view.onFocus(() => {
+			vscode.commands.executeCommand('setContext', 'markdownPreview', true);
+		});
+
+		view.onBlur(() => {
+			vscode.commands.executeCommand('setContext', 'markdownPreview', false);
+		});
+
 		this.webviews.set(resource.fsPath, view);
 		return view;
 	}
