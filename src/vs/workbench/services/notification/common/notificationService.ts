@@ -6,20 +6,21 @@
 'use strict';
 
 import { INotificationService, INotification, INotificationHandle } from 'vs/platform/notification/common/notification';
-import { NotificationList } from 'vs/workbench/services/notification/browser/notificationList';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/message/common/message';
 import { Action } from 'vs/base/common/actions';
+
+export interface INotificationHandler {
+	show(notification: INotification): INotificationHandle;
+}
 
 export class NotificationService implements INotificationService {
 
 	public _serviceBrand: any;
 
-	private handler: NotificationList;
+	private handler: INotificationHandler;
 
 	constructor(
-		container: HTMLElement,
-		@IInstantiationService private instantiationService: IInstantiationService
+		container: HTMLElement
 	) {
 		// TODO@notification remove me
 		setTimeout(() => {
@@ -42,16 +43,12 @@ export class NotificationService implements INotificationService {
 		}, 500);
 	}
 
-	private createHandler(): void {
-		// TODO@notification should this be a setter to pass in from outside?
-		this.handler = this.instantiationService.createInstance(NotificationList, document.getElementById('workbench.main.container'));
+	public setHandler(handler: INotificationHandler): void {
+		this.handler = handler;
+		// TODO@notification release buffered
 	}
 
 	public notify(notification: INotification): INotificationHandle {
-		if (!this.handler) {
-			this.createHandler();
-		}
-
 		return this.handler.show(notification);
 	}
 }

@@ -7,7 +7,6 @@
 
 import 'vs/css!./media/notificationList';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
-import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/services/notification/common/notificationsModel';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { clearNode, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -23,9 +22,10 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { CloseNotificationAction, ExpandNotificationAction, ConfigureNotificationAction, CollapseNotificationAction, DoNotShowNotificationAgainAction } from 'vs/workbench/services/notification/browser/notificationActions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
+import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/common/notifications';
+import { CloseNotificationAction, ExpandNotificationAction, CollapseNotificationAction, DoNotShowNotificationAgainAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationActions';
 
 export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
 

@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/notificationActions';
-import { INotificationViewItem } from 'vs/workbench/services/notification/common/notificationsModel';
+import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { localize } from 'vs/nls';
 import { Action, IAction } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -23,8 +23,10 @@ export class CloseNotificationAction extends Action {
 		super(id, label, 'close-notification-action');
 	}
 
-	public run(context: INotificationViewItem): TPromise<any> {
-		return TPromise.as(void 0); // TODO@notification
+	public run(notification: INotificationViewItem): TPromise<any> {
+		notification.dispose();
+
+		return TPromise.as(void 0);
 	}
 }
 
@@ -40,10 +42,10 @@ export class ExpandNotificationAction extends Action {
 		super(id, label, 'expand-notification-action');
 	}
 
-	public run(context: INotificationViewItem): TPromise<any> {
-		context.expand();
+	public run(notification: INotificationViewItem): TPromise<any> {
+		notification.expand();
 
-		return TPromise.as(void 0); // TODO@notification
+		return TPromise.as(void 0);
 	}
 }
 
@@ -59,10 +61,10 @@ export class CollapseNotificationAction extends Action {
 		super(id, label, 'collapse-notification-action');
 	}
 
-	public run(context: INotificationViewItem): TPromise<any> {
-		context.collapse();
+	public run(notification: INotificationViewItem): TPromise<any> {
+		notification.collapse();
 
-		return TPromise.as(void 0); // TODO@notification
+		return TPromise.as(void 0);
 	}
 }
 
@@ -96,7 +98,7 @@ export class DoNotShowNotificationAgainAction extends Action {
 		super(id, label);
 	}
 
-	public run(context: INotificationViewItem): TPromise<any> {
+	public run(notification: INotificationViewItem): TPromise<any> {
 		return TPromise.as(void 0); // TODO@notification
 	}
 }

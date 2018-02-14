@@ -99,6 +99,9 @@ import { domEvent } from 'vs/base/browser/event';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
 import { ICustomViewsService } from 'vs/workbench/common/views';
 import { CustomViewsService } from 'vs/workbench/browser/parts/views/customView';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
+import { NotificationList } from 'vs/workbench/browser/parts/notifications/notificationList';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -226,7 +229,8 @@ export class Workbench implements IPartService {
 		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: WorkspaceService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@INotificationService private notificationService: NotificationService
 	) {
 		this.parent = parent;
 		this.container = container;
@@ -1169,6 +1173,9 @@ export class Workbench implements IPartService {
 		this.createPanelPart();
 		this.createStatusbarPart();
 
+		// Notifications List
+		this.createNotificationsList();
+
 		// Add Workbench to DOM
 		this.workbenchContainer.build(this.container);
 	}
@@ -1235,6 +1242,11 @@ export class Workbench implements IPartService {
 		});
 
 		this.statusbarPart.create(statusbarContainer);
+	}
+
+	private createNotificationsList(): void {
+		const notificationsList = this.instantiationService.createInstance(NotificationList, this.workbench.getHTMLElement());
+		this.notificationService.setHandler(notificationsList);
 	}
 
 	public getInstantiationService(): IInstantiationService {

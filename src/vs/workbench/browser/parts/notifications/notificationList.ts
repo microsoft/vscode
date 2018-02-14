@@ -9,16 +9,17 @@ import 'vs/css!./media/notificationList';
 import { addClass } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/services/notification/common/notificationsModel';
-import { NotificationRenderer, NotificationsListDelegate } from 'vs/workbench/services/notification/browser/notificationViewer';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
 import { Themable } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, widgetShadow, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { INotification, INotificationHandle } from 'vs/platform/notification/common/notification';
+import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/common/notifications';
+import { INotificationHandler } from 'vs/workbench/services/notification/common/notificationService';
+import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationViewer';
 
-export class NotificationList extends Themable {
+export class NotificationList extends Themable implements INotificationHandler {
 
 	private static NO_OP_NOTIFICATION: INotificationHandle = { dispose: () => void 0 };
 
