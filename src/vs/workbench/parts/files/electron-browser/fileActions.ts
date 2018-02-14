@@ -36,7 +36,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult, getConfirmMessage } from 'vs/platform/message/common/message';
 import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -469,55 +469,6 @@ export class NewFolderAction extends BaseNewAction {
 
 		this.class = 'explorer-action new-folder';
 		this._updateEnablement();
-	}
-}
-
-export abstract class BaseGlobalNewAction extends Action {
-	private toDispose: Action;
-
-	constructor(
-		id: string,
-		label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet) => {
-			return TPromise.timeout(100).then(() => { // use a timeout to prevent the explorer from revealing the active file
-				viewlet.focus();
-
-				const explorer = <ExplorerViewlet>viewlet;
-				const explorerView = explorer.getExplorerView();
-
-				// Not having a folder opened
-				if (!explorerView) {
-					return this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create files or folders within."));
-				}
-
-				if (!explorerView.isExpanded()) {
-					explorerView.setExpanded(true);
-				}
-
-				const action = this.toDispose = this.instantiationService.createInstance(this.getAction(), explorerView.getViewer(), null);
-
-				return explorer.getActionRunner().run(action);
-			});
-		});
-	}
-
-	protected abstract getAction(): IConstructorSignature2<ITree, IFileStat, Action>;
-
-	public dispose(): void {
-		super.dispose();
-
-		if (this.toDispose) {
-			this.toDispose.dispose();
-			this.toDispose = null;
-		}
 	}
 }
 
@@ -1525,27 +1476,41 @@ function getContext(listWidget: ListWidget, viewletService: IViewletService): IE
 
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
 // It should be the other way around, that actions call into commands.
+function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature2<ITree, IFileStat, Action>): TPromise<any> {
+	const instantationService = accessor.get(IInstantiationService);
+	const listService = accessor.get(IListService);
+	const viewletService = accessor.get(IViewletService);
+	const activeViewlet = viewletService.getActiveViewlet();
+	let explorerPromise = TPromise.as(activeViewlet);
+	if (!activeViewlet || activeViewlet.getId() !== VIEWLET_ID) {
+		explorerPromise = viewletService.openViewlet(VIEWLET_ID, true);
+	}
+
+	return explorerPromise.then((explorer: ExplorerViewlet) => {
+		const explorerView = explorer.getExplorerView();
+		if (explorerView && explorerView.isVisible() && explorerView.isExpanded()) {
+			explorerView.focus();
+			const explorerContext = getContext(listService.lastFocusedList, viewletService);
+			const action = instantationService.createInstance(constructor, listService.lastFocusedList, explorerContext.stat);
+
+			return action.run(explorerContext);
+		}
+
+		return undefined;
+	});
+}
+
 CommandsRegistry.registerCommand({
 	id: NEW_FILE_COMMAND_ID,
 	handler: (accessor) => {
-		const instantationService = accessor.get(IInstantiationService);
-		const listService = accessor.get(IListService);
-		const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-		const newFileAction = instantationService.createInstance(NewFileAction, listService.lastFocusedList, explorerContext.stat);
-
-		return newFileAction.run(explorerContext);
+		return openExplorerAndRunAction(accessor, NewFileAction);
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: NEW_FOLDER_COMMAND_ID,
 	handler: (accessor) => {
-		const instantationService = accessor.get(IInstantiationService);
-		const listService = accessor.get(IListService);
-		const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-		const newFolderAction = instantationService.createInstance(NewFolderAction, listService.lastFocusedList, explorerContext.stat);
-
-		return newFolderAction.run(explorerContext);
+		return openExplorerAndRunAction(accessor, NewFolderAction);
 	}
 });
 

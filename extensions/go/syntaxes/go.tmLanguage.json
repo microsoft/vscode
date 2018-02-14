@@ -5,14 +5,9 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/atom/language-go/commit/b6fd68f74efa109679e31fe6f4a41ac105262d0e",
-	"scopeName": "source.go",
 	"name": "Go",
+	"scopeName": "source.go",
 	"comment": "Go language",
-	"fileTypes": [
-		"go"
-	],
-	"foldingStartMarker": "({|\\()\\s*$",
-	"foldingStopMarker": "(}|\\))\\s*$",
 	"patterns": [
 		{
 			"include": "#comments"

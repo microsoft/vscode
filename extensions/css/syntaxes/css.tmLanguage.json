@@ -5,13 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/atom/language-css/commit/2bc1e294e2440ad91197263cd9f95dc4b00bab2f",
-	"scopeName": "source.css",
 	"name": "CSS",
-	"fileTypes": [
-		"css",
-		"css.erb"
-	],
-	"firstLineMatch": "(?xi)\n# Emacs modeline\n-\\*-(?:\\s*(?=[^:;\\s]+\\s*-\\*-)|(?:.*?[;\\s]|(?<=-\\*-))mode\\s*:\\s*)\n  css\n(?=[\\s;]|(?<![-*])-\\*-).*?-\\*-\n|\n# Vim modeline\n(?:(?:\\s|^)vi(?:m[<=>]?\\d+|m)?|\\sex)(?=:(?=\\s*set?\\s[^\\n:]+:)|:(?!\\s*set?\\s))(?:(?:\\s|\\s*:\\s*)\\w*(?:\\s*=(?:[^\\n\\\\\\s]|\\\\.)*)?)*[\\s:](?:filetype|ft|syntax)\\s*=\n  css\n(?=\\s|:|$)",
+	"scopeName": "source.css",
 	"patterns": [
 		{
 			"include": "#comment-block"

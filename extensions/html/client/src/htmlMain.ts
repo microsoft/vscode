@@ -53,7 +53,7 @@ export function activate(context: ExtensionContext) {
 	let clientOptions: LanguageClientOptions = {
 		documentSelector,
 		synchronize: {
-			configurationSection: ['html', 'css', 'javascript'], // the settings to synchronize
+			configurationSection: ['html', 'css', 'javascript', 'emmet'], // the settings to synchronize
 		},
 		initializationOptions: {
 			embeddedLanguages

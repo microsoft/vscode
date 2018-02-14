@@ -10,7 +10,20 @@ import { IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporter
 
 suite('IssueReporter', () => {
 
-	test('serializes model', () => {
+	test('sets defaults to include all data', () => {
+		const issueReporterModel = new IssueReporterModel();
+		assert.deepEqual(issueReporterModel.getData(), {
+			includeSystemInfo: true,
+			includeWorkspaceInfo: true,
+			includeProcessInfo: true,
+			includeExtensions: true,
+			includeSearchedExtensions: true,
+			includeSettingsSearchDetails: true,
+			reprosWithoutExtensions: false
+		});
+	});
+
+	test('serializes model skeleton when no data is provided', () => {
 		const issueReporterModel = new IssueReporterModel();
 		assert.equal(issueReporterModel.serialize(),
 			`

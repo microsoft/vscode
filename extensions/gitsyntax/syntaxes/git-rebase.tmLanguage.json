@@ -5,10 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/textmate/git.tmbundle/commit/d1db42c2d71948662098183a6df519fb53a7a15b",
-	"fileTypes": [
-		"git-rebase-todo"
-	],
 	"name": "Git Rebase Message",
+	"scopeName": "text.git-rebase",
 	"patterns": [
 		{
 			"captures": {
@@ -34,7 +32,5 @@
 			"match": "^\\s*(pick|p|reword|r|edit|e|squash|s|fixup|f|exec|x|drop|d)\\s+([0-9a-f]+)\\s+(.*)$",
 			"name": "meta.commit-command.git-rebase"
 		}
-	],
-	"scopeName": "text.git-rebase",
-	"uuid": "7F1CC209-5F6D-486A-8180-09FA282381A1"
+	]
 }

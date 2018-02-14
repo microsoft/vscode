@@ -5,15 +5,9 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/textmate/lua.tmbundle/commit/42da2c6ff5d86c068f72520f856190f413911a80",
-	"comment": "Lua Syntax: version 0.8",
-	"fileTypes": [
-		"lua",
-		"p8",
-		"rockspec"
-	],
-	"firstLineMatch": "\\A#!.*?\\blua(\\d+(\\.\\d+)?)?\\b|\\A--\\s+-\\*-\\s*lua\\s*-\\*-",
-	"keyEquivalent": "^~L",
 	"name": "Lua",
+	"scopeName": "source.lua",
+	"comment": "Lua Syntax: version 0.8",
 	"patterns": [
 		{
 			"begin": "\\b((local\\b)\\s+)?(function)\\s*(\\s+[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*)*(:[a-zA-Z_][a-zA-Z0-9_]*)?\\s*)?(\\()",
@@ -277,7 +271,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.lua",
-	"uuid": "93E017CC-6F27-11D9-90EB-000D93589AF7"
+	}
 }

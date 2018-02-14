@@ -222,7 +222,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		}
 		modelData.dirty = this.debugService.state !== State.Inactive;
 
-		this.debugService.updateBreakpoints(modelUri, data);
+		this.debugService.updateBreakpoints(modelUri, data, true);
 	}
 
 	private onBreakpointsChange(): void {

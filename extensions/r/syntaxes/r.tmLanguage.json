@@ -5,17 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/Ikuyadeu/vscode-R/commit/b3ef459a3999160d97ea28f4754fda810417f99f",
-	"fileTypes": [
-		"R",
-		"r",
-		"S",
-		"s",
-		"Rprofile"
-	],
-	"foldingStartMarker": "(\\(\\s*$|\\{\\s*$)",
-	"foldingStopMarker": "(^\\s*\\)|^\\s*\\})",
-	"keyEquivalent": "^~R",
 	"name": "R",
+	"scopeName": "source.r",
 	"patterns": [
 		{
 			"include": "#roxygen"
@@ -549,7 +540,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.r",
-	"uuid": "B2E6B78D-6E70-11D9-A369-000D93B3A10A"
+	}
 }

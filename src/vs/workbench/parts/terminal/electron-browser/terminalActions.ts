@@ -99,9 +99,9 @@ export class QuickKillTerminalAction extends Action {
 		if (terminal) {
 			terminal.dispose();
 		}
-		if (this.terminalService.terminalInstances.length > 0 && this.terminalService.activeTerminalInstanceIndex !== terminalIndex) {
-			this.terminalService.setActiveInstanceByIndex(Math.min(terminalIndex, this.terminalService.terminalInstances.length - 1));
-		}
+		// if (this.terminalService.terminalInstances.length > 0 && this.terminalService.activeTerminalInstanceIndex !== terminalIndex) {
+		// 	this.terminalService.setActiveInstanceByIndex(Math.min(terminalIndex, this.terminalService.terminalInstances.length - 1));
+		// }
 		return TPromise.timeout(50).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
 }
@@ -296,6 +296,69 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 	}
 }
 
+export class SplitVerticalTerminalAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.splitVertical';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.splitVertical', "Split the terminal vertically");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const instance = this._terminalService.getActiveInstance();
+		if (!instance) {
+			return TPromise.as(void 0);
+		}
+		this._terminalService.splitInstanceVertically(instance);
+		return this._terminalService.showPanel(true);
+	}
+}
+
+export class FocusTerminalLeftAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.focusTerminalLeft';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalLeft', "Focus terminal to the left");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const tab = this._terminalService.getActiveTab();
+		if (!tab) {
+			return TPromise.as(void 0);
+		}
+		tab.focusLeft();
+		return this._terminalService.showPanel(true);
+	}
+}
+
+export class FocusTerminalRightAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.focusTerminalRight';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalRight', "Focus terminal to the right");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const tab = this._terminalService.getActiveTab();
+		if (!tab) {
+			return TPromise.as(void 0);
+		}
+		tab.focusRight();
+		return this._terminalService.showPanel(true);
+	}
+}
+
 export class FocusActiveTerminalAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.focus';
@@ -331,7 +394,7 @@ export class FocusNextTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		this.terminalService.setActiveInstanceToNext();
+		this.terminalService.setActiveTabToNext();
 		return this.terminalService.showPanel(true);
 	}
 }
@@ -349,10 +412,11 @@ export class FocusPreviousTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		this.terminalService.setActiveInstanceToPrevious();
+		this.terminalService.setActiveTabToPrevious();
 		return this.terminalService.showPanel(true);
 	}
 }
+
 export class TerminalPasteAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.paste';
@@ -459,30 +523,30 @@ export class RunActiveFileInTerminalAction extends Action {
 	}
 }
 
-export class SwitchTerminalInstanceAction extends Action {
+export class SwitchTerminalAction extends Action {
 
-	public static readonly ID = 'workbench.action.terminal.switchTerminalInstance';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.switchTerminalInstance', "Switch Terminal Instance");
+	public static readonly ID = 'workbench.action.terminal.switchTerminal';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.switchTerminal', "Switch Terminal");
 
 	constructor(
 		id: string, label: string,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		super(SwitchTerminalInstanceAction.ID, SwitchTerminalInstanceAction.LABEL);
-		this.class = 'terminal-action switch-terminal-instance';
+		super(SwitchTerminalAction.ID, SwitchTerminalAction.LABEL);
+		this.class = 'terminal-action switch-terminal';
 	}
 
 	public run(item?: string): TPromise<any> {
 		if (!item || !item.split) {
 			return TPromise.as(null);
 		}
-		const selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
-		this.terminalService.setActiveInstanceByIndex(selectedTerminalIndex);
+		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
+		this.terminalService.setActiveTabByIndex(selectedTabIndex);
 		return this.terminalService.showPanel(true);
 	}
 }
 
-export class SwitchTerminalInstanceActionItem extends SelectActionItem {
+export class SwitchTerminalActionItem extends SelectActionItem {
 
 	constructor(
 		action: IAction,
@@ -490,16 +554,16 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex, contextViewService);
+		super(null, action, terminalService.getTabLabels(), terminalService.activeTabIndex, contextViewService);
 
 		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
-		this.toDispose.push(terminalService.onActiveInstanceChanged(this._updateItems, this));
+		this.toDispose.push(terminalService.onActiveTabChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onInstanceTitleChanged(this._updateItems, this));
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 	}
 
 	private _updateItems(): void {
-		this.setOptions(this.terminalService.getInstanceLabels(), this.terminalService.activeTerminalInstanceIndex);
+		this.setOptions(this.terminalService.getTabLabels(), this.terminalService.activeTabIndex);
 	}
 }
 

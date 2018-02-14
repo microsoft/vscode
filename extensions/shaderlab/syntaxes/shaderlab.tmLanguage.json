@@ -5,11 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/tgjones/shaders-tmLanguage/commit/c72c8b39380ba5a86c58ceed053b5d965ebf38b3",
-	"scopeName": "source.shaderlab",
 	"name": "ShaderLab",
-	"fileTypes": [
-		"shader"
-	],
+	"scopeName": "source.shaderlab",
 	"patterns": [
 		{
 			"name": "comment.line.double-slash.shaderlab",
