@@ -199,10 +199,10 @@ suite('Files - View Model', () => {
 		assert(validateFileName(s, '') !== null);
 		assert(validateFileName(s, '  ') !== null);
 		assert(validateFileName(s, 'Read Me') === null, 'name containing space');
-		assert(validateFileName(s, `'foo${platformSpecificSlash.correct}bar'`) === null);
-		assert(validateFileName(s, `'foo${platformSpecificSlash.wrong}bar'`) !== null);
-		assert(validateFileName(s, `a${platformSpecificSlash.correct}all${platformSpecificSlash.correct}correct${platformSpecificSlash.correct}slashes`) === null);
-		assert(validateFileName(s, `a${platformSpecificSlash.correct}one${platformSpecificSlash.correct}wrong${platformSpecificSlash.wrong}slash`) !== null);
+		assert(validateFileName(s, `foo${platformSpecificSlash.correct}bar`) === null);
+		assert(validateFileName(s, `foo${platformSpecificSlash.wrong}bar`) !== null);
+		assert(validateFileName(s, `all${platformSpecificSlash.correct}slashes${platformSpecificSlash.correct}are${platformSpecificSlash.correct}correct`) === null);
+		assert(validateFileName(s, `theres${platformSpecificSlash.correct}one${platformSpecificSlash.correct}wrong${platformSpecificSlash.wrong}slash`) !== null);
 		assert(validateFileName(s, `${platformSpecificSlash.correct}slashAtBeginning`) !== null);
 
 		if (isWindows) {
