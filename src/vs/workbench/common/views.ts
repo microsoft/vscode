@@ -218,7 +218,7 @@ export interface ITreeItem {
 
 	children?: ITreeItem[];
 
-	collapsibleState?: TreeItemCollapsibleState;
+	collapsibleState: TreeItemCollapsibleState;
 }
 
 export interface ITreeViewDataProvider {

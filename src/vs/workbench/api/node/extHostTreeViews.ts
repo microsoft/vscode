@@ -16,6 +16,8 @@ import { ITreeItem, TreeViewItemHandleArg } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { coalesce } from 'vs/base/common/arrays';
+import { TreeItemCollapsibleState } from 'vs/workbench/api/node/extHostTypes';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 type TreeItemHandle = string;
 
@@ -187,7 +189,7 @@ class ExtHostTreeView<T> extends Disposable {
 			contextValue: extensionTreeItem.contextValue,
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
-			collapsibleState: extensionTreeItem.collapsibleState
+			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState
 		};
 	}
 
