@@ -39,12 +39,14 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
+import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 const MAX_URL_LENGTH = 5400;
 
 interface SearchResult {
 	html_url: string;
 	title: string;
+	state?: string;
 }
 
 export interface IssueReporterConfiguration extends IWindowConfiguration {
@@ -142,7 +144,7 @@ export class IssueReporter extends Disposable {
 		const content: string[] = [];
 
 		if (styles.inputBackground) {
-			content.push(`input[type="text"], textarea, select { background-color: ${styles.inputBackground}; }`);
+			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state { background-color: ${styles.inputBackground}; }`);
 		}
 
 		if (styles.inputBorder) {
@@ -152,7 +154,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputForeground) {
-			content.push(`input[type="text"], textarea, select { color: ${styles.inputForeground}; }`);
+			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state { color: ${styles.inputForeground}; }`);
 		}
 
 		if (styles.inputErrorBorder) {
@@ -513,18 +515,37 @@ export class IssueReporter extends Disposable {
 	private displaySearchResults(results: SearchResult[]) {
 		const similarIssues = document.getElementById('similar-issues');
 		if (results.length) {
-			const issues = $('ul.issues-container');
+			const hasIssueState = results.every(result => !!result.state);
+			const issues = hasIssueState ? $('div.issues-container') : $('ul.issues-container');
 			const issuesText = $('div.list-title');
 			issuesText.textContent = localize('similarIssues', "Similar issues");
 
 			const numResultsToDisplay = results.length < 5 ? results.length : 5;
 			for (let i = 0; i < numResultsToDisplay; i++) {
-				const link = $('a', { href: results[i].html_url });
-				link.textContent = results[i].title;
+				const issue = results[i];
+				const link = issue.state ? $('a.issue-link', { href: issue.html_url }) : $('a', { href: issue.html_url });
+				link.textContent = issue.title;
+				link.title = issue.title;
 				link.addEventListener('click', (e) => this.openLink(e));
 				link.addEventListener('auxclick', (e) => this.openLink(<MouseEvent>e));
 
-				const item = $('li.issue', {}, link);
+				let issueState: HTMLElement;
+				if (issue.state) {
+					issueState = $('span.issue-state');
+
+					const issueIcon = $('span.issue-icon');
+					const octicon = new OcticonLabel(issueIcon);
+					octicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
+
+					const issueStateLabel = $('span.issue-state.label');
+					issueStateLabel.textContent = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
+
+					issueState.title = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
+					issueState.appendChild(issueIcon);
+					issueState.appendChild(issueStateLabel);
+				}
+
+				const item = issue.state ? $('div.issue', {}, issueState, link) : $('li.issue', {}, link);
 				issues.appendChild(item);
 			}
 
