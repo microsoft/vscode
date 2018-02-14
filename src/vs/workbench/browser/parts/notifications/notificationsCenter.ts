@@ -16,13 +16,12 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { contrastBorder, widgetShadow, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem, INotificationsModel, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
-import { Severity } from 'vs/platform/message/common/message';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 
-export class NotificationList extends Themable {
+export class NotificationsCenter extends Themable {
 
 	private listContainer: HTMLElement;
 	private list: WorkbenchList<INotificationViewItem>;
+	private viewModel: INotificationViewItem[];
 
 	constructor(
 		private container: HTMLElement,
@@ -31,6 +30,8 @@ export class NotificationList extends Themable {
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
+
+		this.viewModel = [];
 
 		this.create();
 
@@ -94,11 +95,6 @@ export class NotificationList extends Themable {
 	}
 
 	private onNotificationsAdded(index: number, items: INotificationViewItem[]): void {
-
-		// Support in Screen Readers too
-		items.forEach(item => this.ariaAlert(item));
-
-		// Update list
 		this.updateNotificationsList(index, 0, items);
 	}
 
@@ -119,9 +115,24 @@ export class NotificationList extends Themable {
 			this.hide();
 		}
 
+		// Remember focus/selection
+		const selection = this.indexToItems(this.list.getSelection());
+		const focus = this.indexToItems(this.list.getFocus());
+
+		// Update view model
+		this.viewModel.splice(start, deleteCount, ...items);
+
 		// Update list
 		this.list.splice(start, deleteCount, items);
 		this.list.layout();
+
+		// Restore focus/selection
+		this.list.setSelection(selection.map(s => this.viewModel.indexOf(s)));
+		this.list.setFocus(focus.map(f => this.viewModel.indexOf(f)));
+	}
+
+	private indexToItems(indeces: number[]): INotificationViewItem[] {
+		return indeces.map(index => this.viewModel[index]).filter(item => !!item);
 	}
 
 	private show(): void {
@@ -130,19 +141,6 @@ export class NotificationList extends Themable {
 
 	private hide(): void {
 		removeClass(this.listContainer, 'visible');
-	}
-
-	private ariaAlert(notifiation: INotificationViewItem): void {
-		let alertText: string;
-		if (notifiation.severity === Severity.Error) {
-			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.value);
-		} else if (notifiation.severity === Severity.Warning) {
-			alertText = localize('alertWarningMessage', "Warning: {0}", notifiation.message.value);
-		} else {
-			alertText = localize('alertInfoMessage', "Info: {0}", notifiation.message.value);
-		}
-
-		alert(alertText);
 	}
 }
 

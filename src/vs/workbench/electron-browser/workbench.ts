@@ -101,7 +101,8 @@ import { ICustomViewsService } from 'vs/workbench/common/views';
 import { CustomViewsService } from 'vs/workbench/browser/parts/views/customView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
-import { NotificationList } from 'vs/workbench/browser/parts/notifications/notificationsList';
+import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
+import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/notificationsAlerts';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -1173,8 +1174,8 @@ export class Workbench implements IPartService {
 		this.createPanelPart();
 		this.createStatusbarPart();
 
-		// Notifications List
-		this.createNotificationsList();
+		// Notification Handlers
+		this.createNotificationsHandlers();
 
 		// Add Workbench to DOM
 		this.workbenchContainer.build(this.container);
@@ -1244,9 +1245,15 @@ export class Workbench implements IPartService {
 		this.statusbarPart.create(statusbarContainer);
 	}
 
-	private createNotificationsList(): void {
-		const notificationsList = this.instantiationService.createInstance(NotificationList, this.workbench.getHTMLElement(), this.notificationService.model);
-		this.toUnbind.push(notificationsList);
+	private createNotificationsHandlers(): void {
+
+		// Notification Center
+		const notificationsCenter = this.instantiationService.createInstance(NotificationsCenter, this.workbench.getHTMLElement(), this.notificationService.model);
+		this.toUnbind.push(notificationsCenter);
+
+		// Notification Alerts
+		const notificationsAlerts = this.instantiationService.createInstance(NotificationsAlerts, this.notificationService.model);
+		this.toUnbind.push(notificationsAlerts);
 	}
 
 	public getInstantiationService(): IInstantiationService {
