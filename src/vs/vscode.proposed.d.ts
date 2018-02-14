@@ -532,9 +532,19 @@ declare module 'vscode' {
 		options: WebviewOptions;
 
 		/**
-		 * Fixed when the webview posts a message.
+		 * Fired when the webview posts a message.
 		 */
 		readonly onMessage: Event<any>;
+
+		/**
+		 * Fired when the webview becomes focused
+		 */
+		readonly onFocus: Event<void>;
+
+		/**
+		 * Fired when the webview loses focused
+		 */
+		readonly onBlur: Event<void>;
 
 		/**
 		 * Post a message to the webview.

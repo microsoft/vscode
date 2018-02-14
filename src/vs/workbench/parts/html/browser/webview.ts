@@ -47,11 +47,13 @@ export default class Webview {
 	private readonly _webview: Electron.WebviewTag;
 	private _ready: Promise<this>;
 	private _disposables: IDisposable[] = [];
-	private _onDidClickLink = new Emitter<URI>();
 
+	private _onDidClickLink = new Emitter<URI>();
 	private _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
 	private _onFoundInPageResults = new Emitter<FoundInPageResults>();
 	private _onMessage = new Emitter<any>();
+	private _onFocus = new Emitter<void>();
+	private _onBlur = new Emitter<void>();
 
 	private _webviewFindWidget: WebviewFindWidget;
 	private _findStarted: boolean = false;
@@ -197,13 +199,17 @@ export default class Webview {
 			}),
 			addDisposableListener(this._webview, 'focus', () => {
 				if (this._contextKey) {
+					console.log('set');
 					this._contextKey.set(true);
 				}
+				this._onFocus.fire();
 			}),
 			addDisposableListener(this._webview, 'blur', () => {
 				if (this._contextKey) {
+					console.log('reset');
 					this._contextKey.reset();
 				}
+				this._onBlur.fire();
 			}),
 			addDisposableListener(this._webview, 'found-in-page', (event) => {
 				this._onFoundInPageResults.fire(event.result);
@@ -256,6 +262,14 @@ export default class Webview {
 
 	get onMessage(): Event<any> {
 		return this._onMessage.event;
+	}
+
+	get onFocus(): Event<any> {
+		return this._onFocus.event;
+	}
+
+	get onBlur(): Event<any> {
+		return this._onBlur.event;
 	}
 
 	private _send(channel: string, ...args: any[]): void {

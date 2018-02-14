@@ -85,6 +85,10 @@ export abstract class Composite extends Component implements IComposite {
 		return this.parent;
 	}
 
+	public getFocusContainer(): Builder {
+		return this.getContainer();
+	}
+
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.

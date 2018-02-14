@@ -33,6 +33,11 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 
+interface WebviewEvents {
+	onMessage(message: any): void;
+	onFocus(): void;
+	onBlur(): void;
+}
 
 class WebviewInput extends EditorInput {
 	private _name: string;
@@ -43,7 +48,7 @@ class WebviewInput extends EditorInput {
 		name: string,
 		options: vscode.WebviewOptions,
 		html: string,
-		public readonly onMessage: (message: any) => void
+		public readonly events: WebviewEvents
 	) {
 		super();
 		this._name = name;
@@ -86,6 +91,7 @@ class WebviewInput extends EditorInput {
 }
 
 class WebviewEditor extends BaseWebviewEditor {
+	private static webviewIndex = 0;
 
 	public static readonly ID = 'WebviewEditor';
 
@@ -93,6 +99,7 @@ class WebviewEditor extends BaseWebviewEditor {
 
 	private frame: HTMLElement;
 	private container: HTMLElement;
+	private webviewContent: HTMLDivElement;
 
 	private _contentDisposables: IDisposable[] = [];
 
@@ -106,7 +113,6 @@ class WebviewEditor extends BaseWebviewEditor {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IOpenerService private readonly _openerService: IOpenerService
-
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
@@ -115,9 +121,14 @@ class WebviewEditor extends BaseWebviewEditor {
 		this.frame = parent.getHTMLElement();
 		this.container = this._partService.getContainer(Parts.EDITOR_PART);
 
-		this.content = document.createElement('div');
-		this.container.appendChild(this.content);
+		this.webviewContent = document.createElement('div');
+		this.webviewContent.id = `webview-${WebviewEditor.webviewIndex++}`;
+		this.container.appendChild(this.webviewContent);
 
+		this.content = document.createElement('div');
+		this.content.setAttribute('aria-flowto', this.webviewContent.id);
+
+		parent.append(this.content);
 		this.doUpdateContainer();
 	}
 
@@ -125,17 +136,23 @@ class WebviewEditor extends BaseWebviewEditor {
 		const frameRect = this.frame.getBoundingClientRect();
 		const containerRect = this.container.getBoundingClientRect();
 
-		this.content.style.position = 'absolute';
-		this.content.style.top = `${frameRect.top - containerRect.top}px`;
-		this.content.style.left = `${frameRect.left - containerRect.left}px`;
-		this.content.style.width = `${frameRect.width}px`;
-		this.content.style.height = `${frameRect.height}px`;
+		this.webviewContent.style.position = 'absolute';
+		this.webviewContent.style.top = `${frameRect.top - containerRect.top}px`;
+		this.webviewContent.style.left = `${frameRect.left - containerRect.left}px`;
+		this.webviewContent.style.width = `${frameRect.width}px`;
+		this.webviewContent.style.height = `${frameRect.height}px`;
 	}
 
 	public layout(dimension: Dimension): void {
 		if (this._webview) {
 			this.doUpdateContainer();
 			this._webview.layout();
+		}
+	}
+
+	public focus() {
+		if (this._webview) {
+			this._webview.focus();
 		}
 	}
 
@@ -150,13 +167,17 @@ class WebviewEditor extends BaseWebviewEditor {
 		}
 	}
 
+	public getFocusContainer(): Builder {
+		return new Builder(this.webviewContent, false);
+	}
+
 	protected setEditorVisible(visible: boolean, position?: Position): void {
 		if (visible) {
-			this.content.style.visibility = 'visible';
+			this.webviewContent.style.visibility = 'visible';
 			this.doUpdateContainer();
 		} else {
 			if (this._webview) {
-				this.content.style.visibility = 'hidden';
+				this.webviewContent.style.visibility = 'hidden';
 			}
 		}
 		super.setEditorVisible(visible, position);
@@ -192,7 +213,7 @@ class WebviewEditor extends BaseWebviewEditor {
 			this._contentDisposables = dispose(this._contentDisposables);
 
 			this._webview = new WebView(
-				this.content,
+				this.webviewContent,
 				this._partService.getContainer(Parts.EDITOR_PART),
 				this._environmentService,
 				this._contextService,
@@ -207,6 +228,7 @@ class WebviewEditor extends BaseWebviewEditor {
 
 			this._webview.onDidClickLink(this.onDidClickLink, this, this._contentDisposables);
 
+
 			this.themeService.onThemeChange(theme => {
 				if (this._webview) {
 					this._webview.style(theme);
@@ -214,8 +236,22 @@ class WebviewEditor extends BaseWebviewEditor {
 			}, null, this._contentDisposables);
 
 			this._webview.onMessage(message => {
-				(this.input as WebviewInput).onMessage(message);
+				if (this.input) {
+					(this.input as WebviewInput).events.onMessage(message);
+				}
 			}, null, this._contentDisposables);
+
+			this._webview.onFocus(() => {
+				if (this.input) {
+					(this.input as WebviewInput).events.onFocus();
+				}
+			}, this, this._contentDisposables);
+
+			this._webview.onBlur(() => {
+				if (this.input) {
+					(this.input as WebviewInput).events.onBlur();
+				}
+			}, this, this._contentDisposables);
 
 			this._contentDisposables.push(this._webview);
 			this._contentDisposables.push(toDisposable(() => this._webview = null));
@@ -260,7 +296,11 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 	}
 
 	$createWebview(handle: number): void {
-		const webview = new WebviewInput('', {}, '', message => this._proxy.$onMessage(handle, message));
+		const webview = new WebviewInput('', {}, '', {
+			onMessage: (message) => this._proxy.$onMessage(handle, message),
+			onFocus: () => this._proxy.$onFocus(handle),
+			onBlur: () => this._proxy.$onBlur(handle)
+		});
 		this._webviews.set(handle, webview);
 	}
 
@@ -276,12 +316,12 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 
 	$setHtml(handle: number, value: string): void {
 		this.updateInput(handle, existingInput =>
-			this._instantiationService.createInstance(WebviewInput, existingInput.getName(), existingInput.options, value, existingInput.onMessage));
+			this._instantiationService.createInstance(WebviewInput, existingInput.getName(), existingInput.options, value, existingInput.events));
 	}
 
 	$setOptions(handle: number, newOptions: vscode.WebviewOptions): void {
 		this.updateInput(handle, existingInput =>
-			this._instantiationService.createInstance(WebviewInput, existingInput.getName(), newOptions, existingInput.html, existingInput.onMessage));
+			this._instantiationService.createInstance(WebviewInput, existingInput.getName(), newOptions, existingInput.html, existingInput.events));
 	}
 
 	$show(handle: number, column: Position): void {

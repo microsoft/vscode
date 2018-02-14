@@ -46,7 +46,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -58,12 +58,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
-/**  A context key that is set when an extension editor webview not have focus. */
-export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.toNegated();
 /**  A context key that is set when the find widget find input in extension editor webview is focused. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('extensionEditorFindWidgetInputFocused', false);
-/**  A context key that is set when the find widget find input in extension editor webview is not focused. */
-export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
