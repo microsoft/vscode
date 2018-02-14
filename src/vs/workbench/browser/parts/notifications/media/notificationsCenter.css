@@ -53,34 +53,18 @@
 	margin-left: 4px;
 	background-position: center;
 	background-repeat: no-repeat;
-	background-size: cover;
 }
 
 .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
-	background-image: url('notification-info.svg');
+	background-image: url('info.svg');
 }
 
 .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning {
-	background-image: url('notification-warning.svg');
+	background-image: url('warning.svg');
 }
 
 .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error {
-	background-image: url('notification-error.svg');
-}
-
-.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info,
-.hc-black .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
-	background-image: url('notification-info-inverse.svg');
-}
-
-.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning,
-.hc-black .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning {
-	background-image: url('notification-warning-inverse.svg');
-}
-
-.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error,
-.hc-black .mocnaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error {
-	background-image: url('notification-error-inverse.svg');
+	background-image: url('error.svg');
 }
 
 /** Notification: Message */
