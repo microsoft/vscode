@@ -30,7 +30,7 @@
 }
 
 .monaco-icon-label > .monaco-icon-label-description-container {
-	overflow: hidden; /* this causes the label/description to shrink first if decorations are enabled */
+	overflow: visible;
 	text-overflow: ellipsis;
 }
 
