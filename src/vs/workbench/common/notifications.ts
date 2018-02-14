@@ -12,6 +12,7 @@ import { INotification } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { localize } from 'vs/nls';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class INotificationsModel {
 
@@ -42,11 +43,17 @@ export class NotificationViewItem implements INotificationViewItem {
 	private static DEFAULT_SOURCE = localize('product', "Product");
 
 	private _expanded: boolean;
-
-	private _onDidExpansionChange = new Emitter<void>();
+	private toDispose: IDisposable[];
+	private _onDidExpansionChange;
 
 	constructor(private _severity: Severity, private _message: IMarkdownString, private _source: string, private _actions: IAction[]) {
+		this.toDispose = [];
 		this._expanded = _actions.length > 0;
+
+		this._onDidExpansionChange = new Emitter<void>();
+		this.toDispose.push(this._onDidExpansionChange);
+
+		this.toDispose.push(..._actions);
 	}
 
 	public get onDidExpansionChange(): Event<void> {
@@ -109,6 +116,6 @@ export class NotificationViewItem implements INotificationViewItem {
 	}
 
 	public dispose(): void {
-		this._onDidExpansionChange.dispose();
+		this.toDispose = dispose(this.toDispose);
 	}
 }

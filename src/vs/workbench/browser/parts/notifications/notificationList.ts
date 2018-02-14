@@ -18,6 +18,8 @@ import { INotification, INotificationHandle } from 'vs/platform/notification/com
 import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/common/notifications';
 import { INotificationHandler } from 'vs/workbench/services/notification/common/notificationService';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationViewer';
+import { Severity } from 'vs/platform/message/common/message';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 export class NotificationList extends Themable implements INotificationHandler {
 
@@ -52,17 +54,22 @@ export class NotificationList extends Themable implements INotificationHandler {
 		this.listContainer = document.createElement('div');
 		addClass(this.listContainer, 'notifications-list-container');
 
+		// Notification Renderer
+		const renderer = this.instantiationService.createInstance(NotificationRenderer);
+		this.toUnbind.push(renderer);
+
 		// List
 		this.list = this.instantiationService.createInstance(
 			WorkbenchList,
 			this.listContainer,
 			new NotificationsListDelegate(this.listContainer),
-			[this.instantiationService.createInstance(NotificationRenderer)],
+			[renderer],
 			{
 				ariaLabel: localize('notificationsList', "Notifications List"),
 				openController: { shouldOpen: e => this.shouldExpand(e) }
 			} as IListOptions<INotificationViewItem>
 		);
+		this.toUnbind.push(this.list);
 
 		// Expand/Collapse
 		this.list.onOpen(e => {
@@ -105,6 +112,9 @@ export class NotificationList extends Themable implements INotificationHandler {
 			return NotificationList.NO_OP_NOTIFICATION;
 		}
 
+		// Support in Screen Readers too
+		this.ariaAlert(viewItem);
+
 		viewItem.onDidExpansionChange(() => {
 			// TODO expand/collapse using model index
 		}); // TODO@Notification dispose
@@ -114,7 +124,20 @@ export class NotificationList extends Themable implements INotificationHandler {
 		this.list.splice(0, 0, [viewItem]);
 		this.list.layout();
 
-		return { dispose: () => void 0 };
+		return viewItem; // TODO@notification what if message replaced with other?
+	}
+
+	private ariaAlert(notifiation: INotificationViewItem): void {
+		let alertText: string;
+		if (notifiation.severity === Severity.Error) {
+			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.value);
+		} else if (notifiation.severity === Severity.Warning) {
+			alertText = localize('alertWarningMessage', "Warning: {0}", notifiation.message.value);
+		} else {
+			alertText = localize('alertInfoMessage', "Info: {0}", notifiation.message.value);
+		}
+
+		alert(alertText);
 	}
 }
 

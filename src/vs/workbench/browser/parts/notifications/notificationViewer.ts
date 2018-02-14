@@ -26,6 +26,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/common/notifications';
 import { CloseNotificationAction, ExpandNotificationAction, CollapseNotificationAction, DoNotShowNotificationAgainAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationActions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Promise } from 'vs/base/common/winjs.base';
 
 export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
 
@@ -82,7 +84,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 	private computePreferredRows(message: IMarkdownString): number {
 
 		// Render message markdown into offset helper
-		const renderedMessage = NotificationMarkdownRenderer.render(message);
+		const renderedMessage = NotificationMessageMarkdownRenderer.render(message);
 		this.offsetHelper.appendChild(renderedMessage);
 
 		// Compute message width taking overflow into account
@@ -121,7 +123,7 @@ export interface INotificationTemplateData {
 	actionsContainer: HTMLElement;
 }
 
-class NotificationMarkdownRenderer {
+class NotificationMessageMarkdownRenderer {
 
 	private static readonly MARKED_NOOP = (text?: string) => text || '';
 	private static readonly MARKED_NOOP_TARGETS = [
@@ -133,7 +135,7 @@ class NotificationMarkdownRenderer {
 	public static render(markdown: IMarkdownString, actionCallback?: (content: string) => void): HTMLElement {
 		return renderMarkdown(markdown, {
 			inline: true,
-			joinRendererConfiguration: renderer => NotificationMarkdownRenderer.MARKED_NOOP_TARGETS.forEach(fn => renderer[fn] = NotificationMarkdownRenderer.MARKED_NOOP),
+			joinRendererConfiguration: renderer => NotificationMessageMarkdownRenderer.MARKED_NOOP_TARGETS.forEach(fn => renderer[fn] = NotificationMessageMarkdownRenderer.MARKED_NOOP),
 			actionCallback
 		});
 	}
@@ -145,6 +147,8 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 
 	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
 
+	private toDispose: IDisposable[];
+
 	private closeNotificationAction: CloseNotificationAction;
 	private expandNotificationAction: ExpandNotificationAction;
 	private collapseNotificationAction: CollapseNotificationAction;
@@ -154,12 +158,17 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		@IOpenerService private openerService: IOpenerService,
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
+		this.toDispose = [];
+
 		this.closeNotificationAction = instantiationService.createInstance(CloseNotificationAction, CloseNotificationAction.ID, CloseNotificationAction.LABEL);
 		this.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
 		this.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
 		this.doNotShowNotificationAgainAction = this.instantiationService.createInstance(DoNotShowNotificationAgainAction, DoNotShowNotificationAgainAction.ID, DoNotShowNotificationAgainAction.LABEL);
+
+		this.toDispose.push(this.closeNotificationAction, this.expandNotificationAction, this.collapseNotificationAction, this.doNotShowNotificationAgainAction);
 	}
 
 	public get templateId() {
@@ -243,20 +252,20 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		}
 	}
 
-	public renderElement(element: INotificationViewItem, index: number, data: INotificationTemplateData): void {
+	public renderElement(notification: INotificationViewItem, index: number, data: INotificationTemplateData): void {
 
 		// Container
-		toggleClass(data.container, 'expanded', element.expanded);
+		toggleClass(data.container, 'expanded', notification.expanded);
 
 		// Icon
 		NotificationRenderer.SEVERITIES.forEach(severity => {
-			const domAction = element.severity === this.toSeverity(severity) ? addClass : removeClass;
+			const domAction = notification.severity === this.toSeverity(severity) ? addClass : removeClass;
 			domAction(data.icon, `icon-${severity}`);
 		});
 
 		// Message (simple markdown with links support)
 		clearNode(data.message);
-		data.message.appendChild(NotificationMarkdownRenderer.render(element.message, (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)));
+		data.message.appendChild(NotificationMessageMarkdownRenderer.render(notification.message, (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)));
 
 		// Actions
 		const actions: IAction[] = [];
@@ -265,39 +274,66 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		actions.push(configureNotificationAction);
 		data.toDispose.push(configureNotificationAction);
 
-		if (element.canCollapse) {
-			actions.push(element.expanded ? this.collapseNotificationAction : this.expandNotificationAction);
+		if (notification.canCollapse) {
+			actions.push(notification.expanded ? this.collapseNotificationAction : this.expandNotificationAction);
 		}
 
 		actions.push(this.closeNotificationAction);
 
 		// Toolbar
 		data.toolbar.clear();
-		data.toolbar.context = element;
+		data.toolbar.context = notification;
 		data.toolbar.push(actions, { icon: true, label: false });
 
 		// Source
-		if (element.expanded) {
-			data.source.innerText = localize('notificationSource', "Source: {0}", element.source);
+		if (notification.expanded) {
+			data.source.innerText = localize('notificationSource', "Source: {0}", notification.source);
 		} else {
 			data.source.innerText = '';
 		}
 
 		// Actions
 		clearNode(data.actionsContainer);
-		if (element.expanded) {
-			element.actions.forEach(action => {
-				const button = new Button(data.actionsContainer);
-				data.toDispose.push(attachButtonStyler(button, this.themeService));
-
-				button.label = action.label;
-				button.onDidClick(() => action.run());
-			});
+		if (notification.expanded) {
+			notification.actions.forEach(action => this.createButton(notification, action, data));
 		}
+	}
+
+	private createButton(notification: INotificationViewItem, action: IAction, data: INotificationTemplateData): Button {
+		const button = new Button(data.actionsContainer);
+		data.toDispose.push(attachButtonStyler(button, this.themeService));
+
+		button.label = action.label;
+		button.onDidClick(() => {
+
+			// Forward to action
+			const result = action.run();
+			if (Promise.is(result)) {
+				result.done(null, onUnexpectedError);
+			}
+
+			// Telemetry
+			/* __GDPR__
+				"workbenchActionExecuted" : {
+					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
+
+			// Dispose notification
+			notification.dispose();
+		});
+
+		return button;
 	}
 
 	public disposeTemplate(templateData: INotificationTemplateData): void {
 		templateData.toolbar.dispose();
 		templateData.toDispose = dispose(templateData.toDispose);
+	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
 	}
 }
