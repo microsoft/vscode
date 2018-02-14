@@ -8,8 +8,10 @@
 import 'vs/css!./media/notificationActions';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { localize } from 'vs/nls';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class CloseNotificationAction extends Action {
 
@@ -100,5 +102,32 @@ export class DoNotShowNotificationAgainAction extends Action {
 
 	public run(notification: INotificationViewItem): TPromise<any> {
 		return TPromise.as(void 0); // TODO@notification
+	}
+}
+
+export class NotificationActionRunner extends ActionRunner {
+
+	constructor(
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@INotificationService private notificationService: INotificationService
+	) {
+		super();
+	}
+
+	protected runAction(action: IAction, context?: any): TPromise<any> {
+
+		// Telemetry
+		/* __GDPR__
+			"workbenchActionExecuted" : {
+				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
+
+		// Run and make sure to notify on any error again
+		super.runAction(action, context).done(null, error => this.notificationService.notifyError(error));
+
+		return TPromise.as(void 0);
 	}
 }

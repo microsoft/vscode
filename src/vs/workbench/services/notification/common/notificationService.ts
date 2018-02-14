@@ -56,6 +56,10 @@ export class NotificationService implements INotificationService {
 		}, 500);
 	}
 
+	public notifyError(error: Error): INotificationHandle {
+		return this.model.notify({ severity: Severity.Error, message: error });
+	}
+
 	public notify(notification: INotification): INotificationHandle {
 		return this.model.notify(notification);
 	}

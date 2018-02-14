@@ -28,4 +28,6 @@ export interface INotificationService {
 	_serviceBrand: any;
 
 	notify(notification: INotification): INotificationHandle;
+
+	notifyError(error: Error): INotificationHandle;
 }

@@ -16,6 +16,7 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { contrastBorder, widgetShadow, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem, INotificationsModel, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
+import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 
 export class NotificationsCenter extends Themable {
 
@@ -42,10 +43,10 @@ export class NotificationsCenter extends Themable {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.model.onDidNotificationsChange(e => this.onDidNotificationsChange(e)));
+		this.toUnbind.push(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 	}
 
-	private onDidNotificationsChange(e: INotificationChangeEvent): void {
+	private onDidNotificationChange(e: INotificationChangeEvent): void {
 		switch (e.kind) {
 			case NotificationChangeType.ADD:
 				return this.onNotificationsAdded(e.index, [e.item]);
@@ -73,7 +74,7 @@ export class NotificationsCenter extends Themable {
 		addClass(this.listContainer, 'notifications-list-container');
 
 		// Notification Renderer
-		const renderer = this.instantiationService.createInstance(NotificationRenderer);
+		const renderer = this.instantiationService.createInstance(NotificationRenderer, this.instantiationService.createInstance(NotificationActionRunner));
 		this.toUnbind.push(renderer);
 
 		// List

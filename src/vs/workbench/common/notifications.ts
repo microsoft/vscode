@@ -17,7 +17,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 export interface INotificationsModel {
 
 	readonly notifications: INotificationViewItem[];
-	readonly onDidNotificationsChange: Event<INotificationChangeEvent>;
+	readonly onDidNotificationChange: Event<INotificationChangeEvent>;
 
 	notify(notification: INotification): INotificationHandle;
 }
@@ -44,23 +44,23 @@ export class NotificationsModel implements INotificationsModel {
 
 	private _notifications: INotificationViewItem[];
 
-	private _onDidNotificationsChange: Emitter<INotificationChangeEvent>;
+	private _onDidNotificationChange: Emitter<INotificationChangeEvent>;
 	private toDispose: IDisposable[];
 
 	constructor() {
 		this._notifications = [];
 		this.toDispose = [];
 
-		this._onDidNotificationsChange = new Emitter<INotificationChangeEvent>();
-		this.toDispose.push(this._onDidNotificationsChange);
+		this._onDidNotificationChange = new Emitter<INotificationChangeEvent>();
+		this.toDispose.push(this._onDidNotificationChange);
 	}
 
 	public get notifications(): INotificationViewItem[] {
 		return this._notifications;
 	}
 
-	public get onDidNotificationsChange(): Event<INotificationChangeEvent> {
-		return this._onDidNotificationsChange.event;
+	public get onDidNotificationChange(): Event<INotificationChangeEvent> {
+		return this._onDidNotificationChange.event;
 	}
 
 	public notify(notification: INotification): INotificationHandle {
@@ -73,7 +73,7 @@ export class NotificationsModel implements INotificationsModel {
 		this._notifications.splice(0, 0, item);
 
 		// Events
-		this._onDidNotificationsChange.fire({ item, index: 0, kind: NotificationChangeType.ADD });
+		this._onDidNotificationChange.fire({ item, index: 0, kind: NotificationChangeType.ADD });
 
 		return item;
 	}
@@ -88,7 +88,7 @@ export class NotificationsModel implements INotificationsModel {
 		const itemChangeListener = item.onDidChange(() => {
 			const index = this._notifications.indexOf(item);
 			if (index >= 0) {
-				this._onDidNotificationsChange.fire({ item, index, kind: NotificationChangeType.CHANGE });
+				this._onDidNotificationChange.fire({ item, index, kind: NotificationChangeType.CHANGE });
 			}
 		});
 
@@ -98,7 +98,7 @@ export class NotificationsModel implements INotificationsModel {
 			const index = this._notifications.indexOf(item);
 			if (index >= 0) {
 				this._notifications.splice(index, 1);
-				this._onDidNotificationsChange.fire({ item, index, kind: NotificationChangeType.REMOVE });
+				this._onDidNotificationChange.fire({ item, index, kind: NotificationChangeType.REMOVE });
 			}
 		});
 

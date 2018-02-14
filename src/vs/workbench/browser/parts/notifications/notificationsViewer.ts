@@ -19,15 +19,13 @@ import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/common/notifications';
 import { CloseNotificationAction, ExpandNotificationAction, CollapseNotificationAction, DoNotShowNotificationAgainAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Promise } from 'vs/base/common/winjs.base';
 
 export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
 
@@ -155,11 +153,11 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 	private doNotShowNotificationAgainAction: DoNotShowNotificationAgainAction;
 
 	constructor(
+		private actionRunner: IActionRunner,
 		@IOpenerService private openerService: IOpenerService,
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		this.toDispose = [];
 
@@ -306,22 +304,10 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		button.label = action.label;
 		button.onDidClick(() => {
 
-			// Forward to action
-			const result = action.run();
-			if (Promise.is(result)) {
-				result.done(null, onUnexpectedError);
-			}
+			// Run action
+			this.actionRunner.run(action);
 
-			// Telemetry
-			/* __GDPR__
-				"workbenchActionExecuted" : {
-					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
-
-			// Dispose notification
+			// Hide notification
 			notification.dispose();
 		});
 

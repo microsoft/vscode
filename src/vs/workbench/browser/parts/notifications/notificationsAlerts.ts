@@ -25,10 +25,10 @@ export class NotificationsAlerts {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.model.onDidNotificationsChange(e => this.onDidNotificationsChange(e)));
+		this.toDispose.push(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 	}
 
-	private onDidNotificationsChange(e: INotificationChangeEvent): void {
+	private onDidNotificationChange(e: INotificationChangeEvent): void {
 		if (e.kind === NotificationChangeType.ADD) {
 			this.ariaAlert(e.item);
 		}
