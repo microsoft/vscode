@@ -446,20 +446,18 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 
 		if (input.textToWrap) {
 			let parsedAbbr = helper.parseAbbreviation(input.abbreviation, expandOptions);
-			if (input.rangeToReplace.isSingleLine) {
+			if (input.rangeToReplace.isSingleLine && input.textToWrap.length === 1) {
 
-				// Fetch innermost element in the expanded abbreviation
-				let lastNode = parsedAbbr;
-				let tagName = parsedAbbr.name || '';
-				while (lastNode.children && lastNode.children.length > 0) {
-					lastNode = lastNode.children[lastNode.children.length - 1];
-					tagName = lastNode.name;
+				// Fetch rightmost element in the parsed abbreviation (i.e the element that will contain the wrapped text).
+				let wrappingNode = parsedAbbr;
+				while (wrappingNode.children && wrappingNode.children.length > 0) {
+					wrappingNode = wrappingNode.children[wrappingNode.children.length - 1];
 				}
+				let tagName = wrappingNode.name;
 
-				// If wrapping with a block element, insert newline and expand again
-				// We need to expand again because emmet module can't know if the text being wrapped is multiline.
-				if (inlineElements.indexOf(tagName) === -1 && input.textToWrap.length === 1) {
-					lastNode.value = '\n\t' + lastNode.value + '\n';
+				// If wrapping with a block element, insert newline in the text to wrap.
+				if (inlineElements.indexOf(tagName) === -1) {
+					wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
 				}
 			}
 			expandedText = helper.expandAbbreviation(parsedAbbr, expandOptions);

@@ -198,6 +198,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 	});
 
 	test('Wrap with multiline abbreviation doesnt add extra spaces', () => {
+		// Issue #29898
 		const contents = `
 	hello
 	`;
