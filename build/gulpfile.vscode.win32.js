@@ -96,8 +96,8 @@ gulp.task('vscode-win32-x64-archive', ['clean-vscode-win32-x64-archive'], archiv
 
 function copyInnoUpdater(arch) {
 	return () => {
-		return gulp.src('build/win32/inno_updater.exe', { base: 'build/win32' })
-			.pipe(vfs.dest(buildPath(arch)));
+		return gulp.src('build/win32/{inno_updater.exe,vcruntime140.dll}', { base: 'build/win32' })
+			.pipe(vfs.dest(path.join(buildPath(arch), 'tools')));
 	};
 }
 
