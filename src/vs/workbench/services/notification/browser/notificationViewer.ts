@@ -20,10 +20,12 @@ import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action, ActionRunner, IAction } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { IAction } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { CloseNotificationAction, ExpandNotificationAction, ConfigureNotificationAction, CollapseNotificationAction, NotificationActionRunner, DoNotShowNotificationAgainAction } from 'vs/workbench/services/notification/browser/notificationActions';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
 
 export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
 
@@ -66,8 +68,8 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 			expandedHeight += overflow;
 		}
 
-		// Add some padding to separate from actions if any
-		if (messageOverflows && element.actions.length > 0) {
+		// Add some padding to separate from details row
+		if (messageOverflows) {
 			expandedHeight += NotificationsListDelegate.LINE_HEIGHT;
 		}
 
@@ -87,7 +89,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 		const messageWidth = Math.max(renderedMessage.scrollWidth, renderedMessage.offsetWidth);
 
 		// One row per exceeding the total width of the container
-		const availableWidth = this.offsetHelper.offsetWidth - (20 /* paddings */ + 22 /* severity */ + 48 /* toolbar */);
+		const availableWidth = this.offsetHelper.offsetWidth - (20 /* paddings */ + 22 /* severity */ + (24 * 3) /* toolbar */);
 		const preferredRows = Math.ceil(messageWidth / availableWidth);
 
 		// Always clear offset helper after use
@@ -137,72 +139,6 @@ class NotificationMarkdownRenderer {
 	}
 }
 
-class CloseNotificationAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeNotification';
-	public static readonly LABEL = localize('closeNotification', "Close Notification");
-
-	constructor(
-		id: string,
-		label: string
-	) {
-		super(id, label, 'close-notification-action');
-	}
-
-	public run(context: INotificationViewItem): TPromise<any> {
-		return TPromise.as(void 0); // TODO@notification
-	}
-}
-
-class ExpandNotificationAction extends Action {
-
-	public static readonly ID = 'workbench.action.expandNotification';
-	public static readonly LABEL = localize('expandNotification', "Expand Notification");
-
-	constructor(
-		id: string,
-		label: string
-	) {
-		super(id, label, 'expand-notification-action');
-	}
-
-	public run(context: INotificationViewItem): TPromise<any> {
-		context.expand();
-
-		return TPromise.as(void 0); // TODO@notification
-	}
-}
-
-class CollapseNotificationAction extends Action {
-
-	public static readonly ID = 'workbench.action.collapseNotification';
-	public static readonly LABEL = localize('collapseNotification', "Collapse Notification");
-
-	constructor(
-		id: string,
-		label: string
-	) {
-		super(id, label, 'collapse-notification-action');
-	}
-
-	public run(context: INotificationViewItem): TPromise<any> {
-		context.collapse();
-
-		return TPromise.as(void 0); // TODO@notification
-	}
-}
-
-class CloseNotificationActionRunner extends ActionRunner {
-
-	constructor(private context: INotificationViewItem) {
-		super();
-	}
-
-	public run(action: IAction, context?: any): TPromise<void> {
-		return super.run(action, this.context);
-	}
-}
-
 export class NotificationRenderer implements IRenderer<INotificationViewItem, INotificationTemplateData> {
 
 	public static readonly TEMPLATE_ID = 'notification';
@@ -211,12 +147,13 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 
 	private closeNotificationAction: CloseNotificationAction;
 	private expandNotificationAction: ExpandNotificationAction;
-	private collapseNotificationAction: ExpandNotificationAction;
+	private collapseNotificationAction: CollapseNotificationAction;
 
 	constructor(
 		@IOpenerService private openerService: IOpenerService,
 		@IThemeService private themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		this.closeNotificationAction = instantiationService.createInstance(CloseNotificationAction, CloseNotificationAction.ID, CloseNotificationAction.LABEL);
 		this.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
@@ -250,8 +187,22 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		// Toolbar
 		const toolbarContainer = document.createElement('div');
 		addClass(toolbarContainer, 'notification-list-item-toolbar-container');
+		data.toolbar = new ActionBar(
+			toolbarContainer,
+			{
+				ariaLabel: localize('notificationActions', "Notification actions"),
+				actionItemProvider: action => {
+					if (action instanceof ConfigureNotificationAction) {
+						const item = new DropdownMenuActionItem(action, action.configurationActions, this.contextMenuService, null, null, null, action.class);
+						data.toDispose.push(item);
 
-		data.toolbar = new ActionBar(toolbarContainer, { ariaLabel: localize('notificationActions', "Notification actions") });
+						return item;
+					}
+
+					return null;
+				}
+			},
+		);
 
 		// Details Row
 		data.detailsRow = document.createElement('div');
@@ -305,18 +256,29 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		clearNode(data.message);
 		data.message.appendChild(NotificationMarkdownRenderer.render(element.message, (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)));
 
-		// Toolbar
-		data.toolbar.clear();
-
+		// Actions
 		const actions: IAction[] = [];
+
+		const doNotShowNotificationAgainAction = this.instantiationService.createInstance(DoNotShowNotificationAgainAction, DoNotShowNotificationAgainAction.ID, DoNotShowNotificationAgainAction.LABEL, element);
+		data.toDispose.push(doNotShowNotificationAgainAction);
+
+		const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, [doNotShowNotificationAgainAction]);
+		actions.push(configureNotificationAction);
+		data.toDispose.push(configureNotificationAction);
+
 		if (element.canCollapse) {
 			actions.push(element.expanded ? this.collapseNotificationAction : this.expandNotificationAction);
 		}
+
 		actions.push(this.closeNotificationAction);
 
+		// Toolbar
+		const notificationActionRunner = new NotificationActionRunner(element);
+		data.toDispose.push(notificationActionRunner);
+		data.toolbar.actionRunner = notificationActionRunner;
+
+		data.toolbar.clear();
 		data.toolbar.push(actions, { icon: true, label: false });
-		data.toolbar.actionRunner = new CloseNotificationActionRunner(element);
-		data.toDispose.push(data.toolbar.actionRunner);
 
 		// Source
 		if (element.expanded) {
