@@ -527,7 +527,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 	// List Exit - passive - hide drop-down, fire onDidSelect
 	private onListBlur(): void {
-		this.select(this._currentSelection);
 
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
