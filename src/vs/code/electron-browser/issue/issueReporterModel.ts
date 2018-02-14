@@ -81,6 +81,8 @@ ${this.getInfos()}`;
 			return 'Bug';
 		} else if (this._data.issueType === IssueType.PerformanceIssue) {
 			return 'Performance Issue';
+		} else if (this._data.issueType === IssueType.SettingsSearchIssue) {
+			return 'Settings Search Issue';
 		} else {
 			return 'Feature Request';
 		}
