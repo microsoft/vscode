@@ -448,15 +448,13 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 			if (input.rangeToReplace.isSingleLine) {
 
 				// Fetch innermost element in the expanded abbreviation
-				let tagRegexp = /\$TM_SELECTED_TEXT\s*<\/([a-z,A-Z]*)/;
+				let tagRegexp = /\$TM_SELECTED_TEXT<\/([a-z,A-Z,:,-]*)>/;
 				let tagName = expandedText.match(tagRegexp)[1];
 
 				// If wrapping with a block element, insert newline and expand again
+				// We need to expand again because emmet module can't know if the text being wrapped is multiline.
 				if (inlineElements.indexOf(tagName) === -1 && input.textToWrap.length === 1) {
-					if (expandOptions['text'][0].indexOf('\n') === -1) {
-						expandOptions['text'][0] = '\n\t' + expandOptions['text'][0] + '\n';
-					}
-					// We need to expand again because emmet module can't know if the text being wrapped is multiline.
+					expandOptions['text'][0] = '\n\t' + expandOptions['text'][0] + '\n';
 					expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 				}
 			}
