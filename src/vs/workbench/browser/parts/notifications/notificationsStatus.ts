@@ -47,7 +47,7 @@ export class NotificationsStatus {
 		const notificationsCount = this.model.notifications.length;
 		if (notificationsCount > 0) {
 			this.statusItem = this.statusbarService.addEntry({
-				text: `$(bell) ${notificationsCount}`,
+				text: `$(megaphone) ${notificationsCount}`,
 				command: TOGGLE_NOTFICATIONS_CENTER_COMMAND_ID,
 				tooltip: localize('notifications', "{0} notifications", notificationsCount)
 			}, StatusbarAlignment.RIGHT, Number.MIN_VALUE);
