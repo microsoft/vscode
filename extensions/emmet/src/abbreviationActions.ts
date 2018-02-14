@@ -448,8 +448,8 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 			if (input.rangeToReplace.isSingleLine) {
 
 				// Fetch innermost element in the expanded abbreviation
-				let wrappingEnd = expandedText.substring(expandedText.indexOf('$TM_SELECTED_TEXT'));
-				let tagName = wrappingEnd.substring(wrappingEnd.indexOf('/') + 1, wrappingEnd.indexOf('>'));
+				let tagRegexp = /\$TM_SELECTED_TEXT\s*<\/([a-z,A-Z]*)/;
+				let tagName = expandedText.match(tagRegexp)[1];
 
 				// If wrapping with a block element, insert newline and expand again
 				if (inlineElements.indexOf(tagName) === -1 && input.textToWrap.length === 1) {
