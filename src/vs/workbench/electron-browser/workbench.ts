@@ -1245,8 +1245,8 @@ export class Workbench implements IPartService {
 	}
 
 	private createNotificationsList(): void {
-		const notificationsList = this.instantiationService.createInstance(NotificationList, this.workbench.getHTMLElement());
-		this.notificationService.setHandler(notificationsList);
+		const notificationsList = this.instantiationService.createInstance(NotificationList, this.workbench.getHTMLElement(), this.notificationService.model);
+		this.toUnbind.push(notificationsList);
 	}
 
 	public getInstantiationService(): IInstantiationService {
