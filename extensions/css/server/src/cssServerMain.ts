@@ -194,6 +194,7 @@ function validateTextDocument(textDocument: TextDocument): void {
 }
 
 let cachedCompletionList: CompletionList;
+const hexColorRegex = /^#[\d,a-f,A-F]{1,6}$/;
 connection.onCompletion(textDocumentPosition => {
 	return runSafe(() => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
@@ -223,6 +224,9 @@ connection.onCompletion(textDocumentPosition => {
 		const result = getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheets.get(document))!; /* TODO: remove ! once LS has null annotations */
 		if (emmetCompletionList && emmetCompletionList.items) {
 			cachedCompletionList = result;
+			if (emmetCompletionList.items.length && hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
+				emmetCompletionList.items.shift();
+			}
 			return { isIncomplete: true, items: [...emmetCompletionList.items, ...result.items] };
 		}
 		return result;

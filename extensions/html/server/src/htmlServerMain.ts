@@ -238,6 +238,7 @@ async function validateTextDocument(textDocument: TextDocument) {
 }
 
 let cachedCompletionList: CompletionList;
+const hexColorRegex = /^#[\d,a-f,A-F]{1,6}$/;
 connection.onCompletion(async textDocumentPosition => {
 	return runSafe(async () => {
 		let document = documents.get(textDocumentPosition.textDocument.uri);
@@ -280,6 +281,9 @@ connection.onCompletion(async textDocumentPosition => {
 		let result = mode.doComplete(document, textDocumentPosition.position, settings);
 		if (emmetCompletionList && emmetCompletionList.items) {
 			cachedCompletionList = result;
+			if (emmetCompletionList.items.length && hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
+				emmetCompletionList.items.shift();
+			}
 			return { isIncomplete: true, items: [...emmetCompletionList.items, ...result.items] };
 		}
 		return result;
