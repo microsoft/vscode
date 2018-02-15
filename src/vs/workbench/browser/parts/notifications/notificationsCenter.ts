@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/notificationsCenter';
-import { addClass, removeClass } from 'vs/base/browser/dom';
+import { addClass, removeClass, isAncestor } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
@@ -181,6 +181,7 @@ export class NotificationsCenter extends Themable {
 	}
 
 	private updateNotificationsList(start: number, deleteCount: number, items: INotificationViewItem[] = []) {
+		const listHasDOMFocus = isAncestor(document.activeElement, this.listContainer);
 
 		// Remember focus
 		const focusedIndex = this.list.getFocus()[0];
@@ -213,6 +214,11 @@ export class NotificationsCenter extends Themable {
 			}
 
 			this.list.setFocus([indexToFocus]);
+		}
+
+		// Restore DOM focus if we had focus before
+		if (listHasDOMFocus) {
+			this.list.domFocus();
 		}
 	}
 
