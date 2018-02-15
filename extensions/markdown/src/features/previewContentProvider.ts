@@ -158,7 +158,9 @@ export class MarkdownContentProvider {
 	}
 
 	private getMediaPath(mediaFile: string): string {
-		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))).with({ scheme: 'vscode-extension-resource' }).toString();
+		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile)))
+			.with({ scheme: 'vscode-extension-resource' })
+			.toString();
 	}
 
 	private fixHref(resource: vscode.Uri, href: string): string {
@@ -168,23 +170,29 @@ export class MarkdownContentProvider {
 
 		// Use href if it is already an URL
 		const hrefUri = vscode.Uri.parse(href);
-		if (['file', 'http', 'https'].indexOf(hrefUri.scheme) >= 0) {
+		if (['http', 'https'].indexOf(hrefUri.scheme) >= 0) {
 			return hrefUri.toString();
 		}
 
 		// Use href as file URI if it is absolute
-		if (path.isAbsolute(href)) {
-			return vscode.Uri.file(href).toString();
+		if (path.isAbsolute(href) || hrefUri.scheme === 'file') {
+			return vscode.Uri.file(href)
+				.with({ scheme: 'vscode-workspace-resource' })
+				.toString();
 		}
 
 		// use a workspace relative path if there is a workspace
 		let root = vscode.workspace.getWorkspaceFolder(resource);
 		if (root) {
-			return vscode.Uri.file(path.join(root.uri.fsPath, href)).toString();
+			return vscode.Uri.file(path.join(root.uri.fsPath, href))
+				.with({ scheme: 'vscode-workspace-resource' })
+				.toString();
 		}
 
 		// otherwise look relative to the markdown file
-		return vscode.Uri.file(path.join(path.dirname(resource.fsPath), href)).toString();
+		return vscode.Uri.file(path.join(path.dirname(resource.fsPath), href))
+			.with({ scheme: 'vscode-workspace-resource' })
+			.toString();
 	}
 
 	private computeCustomStyleSheetIncludes(resource: vscode.Uri, config: MarkdownPreviewConfig): string {

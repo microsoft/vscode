@@ -9,12 +9,9 @@ import * as path from 'path';
 import { MarkdownContentProvider } from './features/previewContentProvider';
 import { MarkdownEngine } from './markdownEngine';
 
-const resolveExtensionResources = (extension: vscode.Extension<any>, stylePath: string): vscode.Uri => {
-	const resource = vscode.Uri.parse(stylePath);
-	if (resource.scheme) {
-		return resource;
-	}
-	return vscode.Uri.file(path.join(extension.extensionPath, stylePath));
+const resolveExtensionResources = (extension: vscode.Extension<any>, resourcePath: string): vscode.Uri => {
+	return vscode.Uri.parse(path.join(extension.extensionPath, resourcePath))
+		.with({ scheme: 'vscode-extension-resource' });
 };
 
 
