@@ -46,13 +46,6 @@ export default class Webview {
 	private _ready: Promise<this>;
 	private _disposables: IDisposable[] = [];
 
-	private _onDidClickLink = new Emitter<URI>();
-	private _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
-	private _onFoundInPageResults = new Emitter<FoundInPageResults>();
-	private _onMessage = new Emitter<any>();
-	private _onFocus = new Emitter<void>();
-	private _onBlur = new Emitter<void>();
-
 	private _webviewFindWidget: WebviewFindWidget;
 	private _findStarted: boolean = false;
 
@@ -252,29 +245,24 @@ export default class Webview {
 		}
 	}
 
-	get onDidClickLink(): Event<URI> {
-		return this._onDidClickLink.event;
-	}
 
-	get onDidScroll(): Event<{ scrollYPercentage: number }> {
-		return this._onDidScroll.event;
-	}
+	private readonly _onDidClickLink = new Emitter<URI>();
+	public readonly onDidClickLink: Event<URI> = this._onDidClickLink.event;
 
-	get onFindResults(): Event<FoundInPageResults> {
-		return this._onFoundInPageResults.event;
-	}
+	private readonly _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
+	public readonly onDidScroll: Event<{ scrollYPercentage: number }> = this._onDidScroll.event;
 
-	get onMessage(): Event<any> {
-		return this._onMessage.event;
-	}
+	private readonly _onFoundInPageResults = new Emitter<FoundInPageResults>();
+	public readonly onFindResults: Event<FoundInPageResults> = this._onFoundInPageResults.event;
 
-	get onFocus(): Event<any> {
-		return this._onFocus.event;
-	}
+	private readonly _onMessage = new Emitter<any>();
+	public readonly onMessage: Event<any> = this._onMessage.event;
 
-	get onBlur(): Event<any> {
-		return this._onBlur.event;
-	}
+	private readonly _onFocus = new Emitter<void>();
+	public readonly onFocus: Event<void> = this._onFocus.event;
+
+	private readonly _onBlur = new Emitter<void>();
+	public readonly onBlur: Event<void> = this._onBlur.event;
 
 	private _send(channel: string, ...args: any[]): void {
 		this._ready
