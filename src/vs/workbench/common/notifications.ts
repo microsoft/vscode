@@ -130,7 +130,7 @@ export interface INotificationViewItem {
 
 export class NotificationViewItem implements INotificationViewItem {
 
-	private static MAX_MESSAGE_LENGTH = 500;
+	private static MAX_MESSAGE_LENGTH = 1000;
 
 	private _expanded: boolean;
 	private toDispose: IDisposable[];

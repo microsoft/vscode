@@ -28,7 +28,7 @@ import { CloseNotificationAction, ExpandNotificationAction, CollapseNotification
 
 export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
 
-	private static readonly ROW_HEIGHT = 48;
+	private static readonly ROW_HEIGHT = 42;
 	private static readonly LINE_HEIGHT = 22;
 
 	private offsetHelper: HTMLElement;
