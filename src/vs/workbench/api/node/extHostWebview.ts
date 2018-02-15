@@ -13,6 +13,8 @@ class ExtHostWebview implements vscode.Webview {
 	private _html: string;
 	private _options: vscode.WebviewOptions;
 	private _isDisposed: boolean = false;
+	private _viewColumn: vscode.ViewColumn;
+
 
 	public readonly onMessageEmitter = new Emitter<any>();
 	public readonly onMessage = this.onMessageEmitter.event;
@@ -26,7 +28,10 @@ class ExtHostWebview implements vscode.Webview {
 	constructor(
 		private readonly _proxy: MainThreadWebviewShape,
 		private readonly _handle: number,
-	) { }
+		viewColumn: vscode.ViewColumn
+	) {
+		this._viewColumn = viewColumn;
+	}
 
 	public dispose() {
 		if (this._isDisposed) {
@@ -66,6 +71,10 @@ class ExtHostWebview implements vscode.Webview {
 		this._proxy.$setOptions(this._handle, value);
 	}
 
+	get viewColumn(): vscode.ViewColumn {
+		return this._viewColumn;
+	}
+
 	public postMessage(message: any): Thenable<any> {
 		return this._proxy.$sendMessage(this._handle, message);
 	}
@@ -86,17 +95,17 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 
 	createWebview(
 		title: string,
-		column: vscode.ViewColumn,
+		viewColumn: vscode.ViewColumn,
 		options: vscode.WebviewOptions
 	): vscode.Webview {
 		const handle = ExtHostWebviews._handlePool++;
 		this._proxy.$createWebview(handle);
 
-		const webview = new ExtHostWebview(this._proxy, handle);
+		const webview = new ExtHostWebview(this._proxy, handle, viewColumn);
 		this._webviews.set(handle, webview);
 		webview.title = title;
 		webview.options = options;
-		this._proxy.$show(handle, typeConverters.fromViewColumn(column));
+		this._proxy.$show(handle, typeConverters.fromViewColumn(viewColumn));
 		return webview;
 	}
 

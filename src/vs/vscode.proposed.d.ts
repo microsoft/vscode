@@ -493,14 +493,14 @@ declare module 'vscode' {
 	 */
 	export interface WebviewOptions {
 		/**
-		 * Should scripts be enabled in the webview?
+		 * Should scripts be enabled in the webview contetn?
 		 *
 		 * Defaults to false (scripts-disabled).
 		 */
 		readonly enableScripts?: boolean;
 
 		/**
-		 * Should command uris be enabled?
+		 * Should command uris be enabled in webview content?
 		 *
 		 * Defaults to false.
 		 */
@@ -540,6 +540,11 @@ declare module 'vscode' {
 		 * Content settings for the webview.
 		 */
 		options: WebviewOptions;
+
+		/**
+		 * The column in which the webview is showing.
+		 */
+		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Fired when the webview content posts a message.
