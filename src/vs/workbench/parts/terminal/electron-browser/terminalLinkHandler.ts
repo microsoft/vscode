@@ -66,9 +66,9 @@ export class TerminalLinkHandler {
 		private _xterm: any,
 		private _platform: platform.Platform,
 		private _initialCwd: string,
-		@IOpenerService private _openerService: IOpenerService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@ITerminalService private _terminalService: ITerminalService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex

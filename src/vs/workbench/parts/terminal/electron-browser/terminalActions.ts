@@ -157,7 +157,7 @@ export abstract class BaseSendTextTerminalAction extends Action {
 		id: string,
 		label: string,
 		private _text: string,
-		@ITerminalService private _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -302,7 +302,7 @@ export class SplitVerticalTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -321,7 +321,7 @@ export abstract class BaseFocusDirectionTerminalAction extends Action {
 	constructor(
 		id: string, label: string,
 		private _direction: Direction,
-		@ITerminalService private _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}

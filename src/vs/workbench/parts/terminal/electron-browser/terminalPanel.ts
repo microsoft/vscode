@@ -42,11 +42,11 @@ export class TerminalPanel extends Panel {
 	private _findWidget: TerminalFindWidget;
 
 	constructor(
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IContextMenuService private _contextMenuService: IContextMenuService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@ITerminalService private _terminalService: ITerminalService,
-		@ILifecycleService private _lifecycleService: ILifecycleService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {

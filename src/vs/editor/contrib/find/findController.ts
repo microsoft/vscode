@@ -362,10 +362,10 @@ export class FindController extends CommonFindController implements IFindControl
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextViewService private _contextViewService: IContextViewService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IThemeService private _themeService: IThemeService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@optional(IClipboardService) clipboardService: IClipboardService
 	) {

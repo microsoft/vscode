@@ -157,9 +157,9 @@ class MainThreadDocumentAndEditorStateComputer {
 
 	constructor(
 		private readonly _onDidChangeState: (delta: DocumentAndEditorStateDelta) => void,
-		@IModelService private _modelService: IModelService,
-		@ICodeEditorService private _codeEditorService: ICodeEditorService,
-		@IWorkbenchEditorService private _workbenchEditorService: IWorkbenchEditorService
+		@IModelService private readonly _modelService: IModelService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IWorkbenchEditorService private readonly _workbenchEditorService: IWorkbenchEditorService
 	) {
 		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
 		this._modelService.onModelRemoved(this._updateState, this, this._toDispose);
@@ -299,9 +299,9 @@ export class MainThreadDocumentsAndEditors {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IModelService private _modelService: IModelService,
-		@ITextFileService private _textFileService: ITextFileService,
-		@IWorkbenchEditorService private _workbenchEditorService: IWorkbenchEditorService,
+		@IModelService private readonly _modelService: IModelService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IWorkbenchEditorService private readonly _workbenchEditorService: IWorkbenchEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IModeService modeService: IModeService,
 		@IFileService fileService: IFileService,

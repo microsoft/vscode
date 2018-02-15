@@ -39,8 +39,8 @@ export class ColorDetector implements IEditorContribution {
 	private _isEnabled: boolean;
 
 	constructor(private _editor: ICodeEditor,
-		@ICodeEditorService private _codeEditorService: ICodeEditorService,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._globalToDispose.push(_editor.onDidChangeModel((e) => {
 			this._isEnabled = this.isEnabled();

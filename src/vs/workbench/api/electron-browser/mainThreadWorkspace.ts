@@ -30,9 +30,9 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceEditingService private _workspaceEditingService: IWorkspaceEditingService,
-		@IStatusbarService private _statusbarService: IStatusbarService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
+		@IStatusbarService private readonly _statusbarService: IStatusbarService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);

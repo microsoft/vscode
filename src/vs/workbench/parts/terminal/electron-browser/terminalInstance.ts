@@ -118,17 +118,17 @@ export class TerminalInstance implements ITerminalInstance {
 		private _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
 		private _shellLaunchConfig: IShellLaunchConfig,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
-		@IMessageService private _messageService: IMessageService,
-		@IPanelService private _panelService: IPanelService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IClipboardService private _clipboardService: IClipboardService,
-		@IHistoryService private _historyService: IHistoryService,
-		@IThemeService private _themeService: IThemeService,
-		@IConfigurationResolverService private _configurationResolverService: IConfigurationResolverService,
-		@IWorkspaceContextService private _workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IMessageService private readonly _messageService: IMessageService,
+		@IPanelService private readonly _panelService: IPanelService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IHistoryService private readonly _historyService: IHistoryService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];

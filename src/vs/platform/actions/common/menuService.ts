@@ -16,8 +16,8 @@ export class MenuService implements IMenuService {
 	_serviceBrand: any;
 
 	constructor(
-		@IExtensionService private _extensionService: IExtensionService,
-		@ICommandService private _commandService: ICommandService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		//
 	}

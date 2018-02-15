@@ -500,7 +500,7 @@ class TaskService implements ITaskService {
 		@IStorageService private storageService: IStorageService,
 		@IProgressService2 private progressService: IProgressService2,
 		@IOpenerService private openerService: IOpenerService,
-		@IWindowService private _windowServive: IWindowService
+		@IWindowService private readonly _windowServive: IWindowService
 	) {
 		this.configurationService = configurationService;
 		this.markerService = markerService;

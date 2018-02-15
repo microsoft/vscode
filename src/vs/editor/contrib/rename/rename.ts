@@ -113,9 +113,9 @@ class RenameController implements IEditorContribution {
 
 	constructor(
 		private editor: ICodeEditor,
-		@IMessageService private _messageService: IMessageService,
-		@ITextModelService private _textModelResolverService: ITextModelService,
-		@IProgressService private _progressService: IProgressService,
+		@IMessageService private readonly _messageService: IMessageService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IProgressService private readonly _progressService: IProgressService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@optional(IFileService) private _fileService: IFileService

@@ -211,7 +211,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
 		shellLaunchConfig: IShellLaunchConfig,
-		@IInstantiationService private _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._onDisposed = new Emitter<ITerminalTab>();

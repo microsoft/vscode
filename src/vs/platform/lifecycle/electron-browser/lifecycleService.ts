@@ -31,10 +31,10 @@ export class LifecycleService implements ILifecycleService {
 	private _phaseWhen = new Map<LifecyclePhase, Barrier>();
 
 	constructor(
-		@IMessageService private _messageService: IMessageService,
-		@IWindowService private _windowService: IWindowService,
-		@IStorageService private _storageService: IStorageService,
-		@ILogService private _logService: ILogService
+		@IMessageService private readonly _messageService: IMessageService,
+		@IWindowService private readonly _windowService: IWindowService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		const lastShutdownReason = this._storageService.getInteger(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
 		this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);

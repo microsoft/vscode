@@ -38,12 +38,12 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IPanelService _panelService: IPanelService,
 		@IPartService _partService: IPartService,
 		@ILifecycleService _lifecycleService: ILifecycleService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IQuickOpenService private _quickOpenService: IQuickOpenService,
-		@IChoiceService private _choiceService: IChoiceService,
-		@IStorageService private _storageService: IStorageService,
-		@IMessageService private _messageService: IMessageService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
+		@IChoiceService private readonly _choiceService: IChoiceService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IMessageService private readonly _messageService: IMessageService
 	) {
 		super(_contextKeyService, _panelService, _partService, _lifecycleService);
 

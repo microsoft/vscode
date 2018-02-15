@@ -41,7 +41,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
 		extHostContext: IExtHostContext,
-		@ICodeEditorService private _codeEditorService: ICodeEditorService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,

@@ -64,8 +64,8 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		@IOpenerService private openerService: IOpenerService,
 		@IModeService private modeService: IModeService,
 		@IPartService private partService: IPartService,
-		@IContextViewService private _contextViewService: IContextViewService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
 	) {
 		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, contextKeyService);
 	}

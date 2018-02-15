@@ -177,7 +177,7 @@ export class SuggestMemories {
 
 	constructor(
 		mode: MemMode,
-		@IStorageService private _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		this._persistSoon = new RunOnceScheduler(() => this._flush(), 3000);
 		this.setMode(mode);

@@ -43,9 +43,9 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract get configHelper(): ITerminalConfigHelper;
 
 	constructor(
-		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IPanelService protected _panelService: IPanelService,
-		@IPartService private _partService: IPartService,
+		@IPartService private readonly _partService: IPartService,
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this._activeTabIndex = 0;

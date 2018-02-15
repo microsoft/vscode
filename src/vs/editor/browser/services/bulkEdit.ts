@@ -271,7 +271,7 @@ export class BulkEdit {
 	constructor(
 		editor: ICodeEditor,
 		progress: IProgressRunner,
-		@ITextModelService private _textModelService: ITextModelService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 		@optional(IFileService) private _fileService: IFileService
 	) {
 		this._editor = editor;
