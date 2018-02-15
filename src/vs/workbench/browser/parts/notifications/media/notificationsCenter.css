@@ -11,7 +11,7 @@
 	bottom: 32px; /* above status bar */
 	display: none;
 	background: #1E1E1E; /* TODO@notification make themable */
-	border: 5px solid #323232;
+	border: 3px solid #323232;
 	overflow: hidden;
 }
 
@@ -32,6 +32,7 @@
 	padding: 10px 5px;
 	height: 100%;
 	box-sizing: border-box;
+	border-bottom: 1px solid #323232;
 }
 
 /** Notification: Main Row */
