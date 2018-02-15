@@ -507,9 +507,17 @@ declare module 'vscode' {
 		readonly enableCommandUris?: boolean;
 
 		/**
-		 * Should the webview be kept alive even when it is no longer visible?
+		 * Should the webview content be kept arount even when the webview is no longer visible?
 		 *
-		 * TODO: Explain when to use this and when not to
+		 * Normally a webview content is created when the webview becomes visible
+		 * and destroyed when the webview is hidden. Apps that have complex state
+		 * or UI can set the `keepAlive` property to make VS Code keep the webview
+		 * content around, even when the webview itself is no longer visible. When
+		 * the webview becomes visible again, the content is automatically restored
+		 * in the exact same state it was in originally
+		 *
+		 * `keepAlive` has a high memory overhead and should only be used if your
+		 * webview content cannot be quickly saved and restored.
 		 */
 		readonly keepAlive?: boolean;
 	}
