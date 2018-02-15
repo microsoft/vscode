@@ -13,7 +13,7 @@ import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as TypeConverters from './extHostTypeConverters';
-import { MainThreadEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from './extHost.protocol';
+import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
@@ -22,10 +22,10 @@ export class TextEditorDecorationType implements vscode.TextEditorDecorationType
 
 	private static readonly _Keys = new IdGenerator('TextEditorDecorationType');
 
-	private _proxy: MainThreadEditorsShape;
+	private _proxy: MainThreadTextEditorsShape;
 	public key: string;
 
-	constructor(proxy: MainThreadEditorsShape, options: vscode.DecorationRenderOptions) {
+	constructor(proxy: MainThreadTextEditorsShape, options: vscode.DecorationRenderOptions) {
 		this.key = TextEditorDecorationType._Keys.nextId();
 		this._proxy = proxy;
 		this._proxy.$registerTextEditorDecorationType(this.key, <any>/* URI vs Uri */ options);
@@ -141,7 +141,7 @@ function deprecated(name: string, message: string = 'Refer to the documentation 
 
 export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 
-	private _proxy: MainThreadEditorsShape;
+	private _proxy: MainThreadTextEditorsShape;
 	private _id: string;
 
 	private _tabSize: number;
@@ -149,7 +149,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 	private _cursorStyle: TextEditorCursorStyle;
 	private _lineNumbers: TextEditorLineNumbersStyle;
 
-	constructor(proxy: MainThreadEditorsShape, id: string, source: IResolvedTextEditorConfiguration) {
+	constructor(proxy: MainThreadTextEditorsShape, id: string, source: IResolvedTextEditorConfiguration) {
 		this._proxy = proxy;
 		this._id = id;
 		this._accept(source);
@@ -313,7 +313,9 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 
 export class ExtHostTextEditor implements vscode.TextEditor {
 
-	private readonly _proxy: MainThreadEditorsShape;
+	public readonly type = 'texteditor';
+
+	private readonly _proxy: MainThreadTextEditorsShape;
 	private readonly _id: string;
 	private readonly _documentData: ExtHostDocumentData;
 
@@ -324,7 +326,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	get id(): string { return this._id; }
 
-	constructor(proxy: MainThreadEditorsShape, id: string, document: ExtHostDocumentData, selections: Selection[], options: IResolvedTextEditorConfiguration, viewColumn: vscode.ViewColumn) {
+	constructor(proxy: MainThreadTextEditorsShape, id: string, document: ExtHostDocumentData, selections: Selection[], options: IResolvedTextEditorConfiguration, viewColumn: vscode.ViewColumn) {
 		this._proxy = proxy;
 		this._id = id;
 		this._documentData = document;
