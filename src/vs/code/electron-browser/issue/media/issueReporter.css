@@ -264,9 +264,12 @@ input:disabled {
 	margin-top: .5em;
 }
 
+.workbenchCommand {
+	cursor: pointer;
+}
 .workbenchCommand:disabled {
 	color: #868e96;
-	cursor: pointer;
+	cursor: default
 }
 
 .block-extensions .block-info {
@@ -304,6 +307,7 @@ button {
 
 #issue-type {
 	width: calc(100% - 100px);
+	cursor: pointer;
 }
 
 #issue-title-label {
