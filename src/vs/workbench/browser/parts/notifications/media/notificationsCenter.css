@@ -8,7 +8,7 @@
 	width: 600px;
 	z-index: 1000;
 	right: 8px;
-	bottom: 32px; /* above status bar */
+	bottom: 30px; /* above status bar */
 	display: none;
 	background: #323232; /* TODO@notification make themable */
 	overflow: hidden;

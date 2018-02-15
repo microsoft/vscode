@@ -205,6 +205,10 @@ export class NotificationsCenter extends Themable {
 				availableHeight -= 22; // adjust for status bar
 			}
 
+			if (this.partService.isVisible(Parts.TITLEBAR_PART)) {
+				availableHeight -= 22; // adjust for title bar
+			}
+
 			availableHeight -= (2 * 12); // adjust for paddings top and bottom
 
 			if (maxHeight > availableHeight) {
