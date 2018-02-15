@@ -187,15 +187,15 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.sliderBackgroundColor) {
-			content.push(`.issues-container::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
+			content.push(`::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
 		}
 
 		if (styles.sliderActiveColor) {
-			content.push(`.issues-container::-webkit-scrollbar-thumb:active, body::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
+			content.push(`::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
 		}
 
 		if (styles.sliderHoverColor) {
-			content.push(`.issues-container::-webkit-scrollbar-thumb:hover, body::-webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
+			content.push(`::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');
