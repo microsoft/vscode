@@ -450,13 +450,12 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 
 				// Fetch rightmost element in the parsed abbreviation (i.e the element that will contain the wrapped text).
 				let wrappingNode = parsedAbbr;
-				while (wrappingNode.children && wrappingNode.children.length > 0) {
+				while (wrappingNode && wrappingNode.children && wrappingNode.children.length > 0) {
 					wrappingNode = wrappingNode.children[wrappingNode.children.length - 1];
 				}
-				let tagName = wrappingNode.name;
 
 				// If wrapping with a block element, insert newline in the text to wrap.
-				if (inlineElements.indexOf(tagName) === -1) {
+				if (wrappingNode && inlineElements.indexOf(wrappingNode.name) === -1) {
 					wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
 				}
 			}
