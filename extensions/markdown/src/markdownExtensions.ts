@@ -6,20 +6,17 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-import { MDDocumentContentProvider } from './features/previewContentProvider';
+import { MarkdownContentProvider } from './features/previewContentProvider';
 import { MarkdownEngine } from './markdownEngine';
 
-const resolveExtensionResources = (extension: vscode.Extension<any>, stylePath: string): vscode.Uri => {
-	const resource = vscode.Uri.parse(stylePath);
-	if (resource.scheme) {
-		return resource;
-	}
-	return vscode.Uri.file(path.join(extension.extensionPath, stylePath));
+const resolveExtensionResources = (extension: vscode.Extension<any>, resourcePath: string): vscode.Uri => {
+	return vscode.Uri.parse(path.join(extension.extensionPath, resourcePath))
+		.with({ scheme: 'vscode-extension-resource' });
 };
 
 
 export function loadMarkdownExtensions(
-	contentProvider: MDDocumentContentProvider,
+	contentProvider: MarkdownContentProvider,
 	engine: MarkdownEngine
 ) {
 	for (const extension of vscode.extensions.all) {
@@ -50,7 +47,7 @@ function tryLoadMarkdownItPlugins(
 
 function tryLoadPreviewScripts(
 	contributes: any,
-	contentProvider: MDDocumentContentProvider,
+	contentProvider: MarkdownContentProvider,
 	extension: vscode.Extension<any>
 ) {
 	const scripts = contributes['markdown.previewScripts'];
@@ -67,7 +64,7 @@ function tryLoadPreviewScripts(
 
 function tryLoadPreviewStyles(
 	contributes: any,
-	contentProvider: MDDocumentContentProvider,
+	contentProvider: MarkdownContentProvider,
 	extension: vscode.Extension<any>
 ) {
 	const styles = contributes['markdown.previewStyles'];

@@ -17,6 +17,7 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { normalize, nativeSep } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export interface WebviewElementFindInPageOptions {
 	forward?: boolean;
@@ -39,16 +40,20 @@ export interface WebviewOptions {
 	allowScripts?: boolean;
 	allowSvgs?: boolean;
 	svgWhiteList?: string[];
+	enableWrappedPostMessage?: boolean;
 }
 
 export default class Webview {
 	private readonly _webview: Electron.WebviewTag;
 	private _ready: Promise<this>;
 	private _disposables: IDisposable[] = [];
-	private _onDidClickLink = new Emitter<URI>();
 
+	private _onDidClickLink = new Emitter<URI>();
 	private _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
 	private _onFoundInPageResults = new Emitter<FoundInPageResults>();
+	private _onMessage = new Emitter<any>();
+	private _onFocus = new Emitter<void>();
+	private _onBlur = new Emitter<void>();
 
 	private _webviewFindWidget: WebviewFindWidget;
 	private _findStarted: boolean = false;
@@ -57,6 +62,7 @@ export default class Webview {
 		private readonly parent: HTMLElement,
 		private readonly _styleElement: Element,
 		private readonly _environmentService: IEnvironmentService,
+		private readonly _contextService: IWorkspaceContextService,
 		private readonly _contextViewService: IContextViewService,
 		private readonly _contextKey: IContextKey<boolean>,
 		private readonly _findInputContextKey: IContextKey<boolean>,
@@ -102,7 +108,16 @@ export default class Webview {
 
 				const contents = this._webview.getWebContents();
 				if (contents && !contents.isDestroyed()) {
-					registerFileProtocol(contents, 'vscode-core-resource', [this._environmentService.appRoot]);
+					registerFileProtocol(contents, 'vscode-core-resource', [
+						this._environmentService.appRoot
+					]);
+					registerFileProtocol(contents, 'vscode-extension-resource', [
+						this._environmentService.extensionsPath,
+						this._environmentService.appRoot,
+						this._environmentService.extensionDevelopmentPath
+					]);
+					registerFileProtocol(contents, 'vscode-workspace-resource',
+						this._contextService.getWorkspace().folders.map(folder => folder.uri.fsPath));
 				}
 			}));
 		}
@@ -157,6 +172,12 @@ export default class Webview {
 			}),
 			addDisposableListener(this._webview, 'ipc-message', (event) => {
 				switch (event.channel) {
+					case 'onmessage':
+						if (this._options.enableWrappedPostMessage && event.args && event.args.length) {
+							this._onMessage.fire(event.args[0]);
+						}
+						return;
+
 					case 'did-click-link':
 						let [uri] = event.args;
 						this._onDidClickLink.fire(URI.parse(uri));
@@ -178,13 +199,17 @@ export default class Webview {
 			}),
 			addDisposableListener(this._webview, 'focus', () => {
 				if (this._contextKey) {
+					console.log('set');
 					this._contextKey.set(true);
 				}
+				this._onFocus.fire();
 			}),
 			addDisposableListener(this._webview, 'blur', () => {
 				if (this._contextKey) {
+					console.log('reset');
 					this._contextKey.reset();
 				}
+				this._onBlur.fire();
 			}),
 			addDisposableListener(this._webview, 'found-in-page', (event) => {
 				this._onFoundInPageResults.fire(event.result);
@@ -233,6 +258,18 @@ export default class Webview {
 
 	get onFindResults(): Event<FoundInPageResults> {
 		return this._onFoundInPageResults.event;
+	}
+
+	get onMessage(): Event<any> {
+		return this._onMessage.event;
+	}
+
+	get onFocus(): Event<any> {
+		return this._onFocus.event;
+	}
+
+	get onBlur(): Event<any> {
+		return this._onBlur.event;
 	}
 
 	private _send(channel: string, ...args: any[]): void {
@@ -427,6 +464,7 @@ function registerFileProtocol(
 				callback({ path: normalizedPath });
 				return;
 			}
+
 		}
 		callback({ error: 'Cannot load resource outside of protocol root' });
 	}, (error) => {

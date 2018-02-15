@@ -2,7 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+
+import * as nls from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseWebviewEditor } from 'vs/workbench/browser/parts/editor/webviewEditor';
@@ -17,6 +18,11 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 
 import WebView from './webview';
 import { Builder } from 'vs/base/browser/builder';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Action } from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
@@ -24,18 +30,10 @@ export interface HtmlPreviewEditorViewState {
 
 /**  A context key that is set when a webview editor has focus. */
 export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS = new RawContextKey<boolean>('webviewEditorFocus', false);
-/**  A context key that is set when a webview editor does not have focus. */
-export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.toNegated();
 /**  A context key that is set when the find widget find input in webview editor webview is focused. */
 export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('webviewEditorFindWidgetInputFocused', false);
-/**  A context key that is set when the find widget find input in webview editor webview is not focused. */
-export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.toNegated();
-
 /**  A context key that is set when the find widget in a webview is visible. */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
-/**  A context key that is set when the find widget in a webview  is not visible. */
-export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.toNegated();
-
 
 /**
  * This class is only intended to be subclassed and not instantiated.
@@ -46,7 +44,7 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 	protected _webview: WebView;
 	protected content: HTMLElement;
 	protected contextKey: IContextKey<boolean>;
-	private findWidgetVisible: IContextKey<boolean>;
+	protected findWidgetVisible: IContextKey<boolean>;
 	protected findInputFocusContextKey: IContextKey<boolean>;
 
 	constructor(
@@ -104,30 +102,42 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 	protected abstract createEditor(parent: Builder): void;
 }
 
-class ShowWebViewEditorFindCommand extends Command {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const webViewEditor = this.getWebViewEditor(accessor);
+class ShowWebViewEditorFindWidgetAction extends Action {
+	public static readonly ID = 'editor.action.webvieweditor.showFind';
+	public static readonly LABEL = nls.localize('editor.action.webvieweditor.showFind', "Focus Find Widget");
+
+	public constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private workbenchEditorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const webViewEditor = this.getWebViewEditor();
 		if (webViewEditor) {
 			webViewEditor.showFind();
 		}
+		return null;
 	}
 
-	private getWebViewEditor(accessor: ServicesAccessor): WebviewEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as WebviewEditor;
+	private getWebViewEditor(): WebviewEditor {
+		const activeEditor = this.workbenchEditorService.getActiveEditor() as WebviewEditor;
 		if (activeEditor.isWebviewEditor) {
 			return activeEditor;
 		}
 		return null;
 	}
 }
-const showFindCommand = new ShowWebViewEditorFindCommand({
-	id: 'editor.action.webvieweditor.showFind',
-	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
-	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(showFindCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+const category = 'Webview';
+let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowWebViewEditorFindWidgetAction, ShowWebViewEditorFindWidgetAction.ID, ShowWebViewEditorFindWidgetAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+}, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS),
+	'Webview: Focus Find Widget', category);
 
 class HideWebViewEditorFindCommand extends Command {
 	public runCommand(accessor: ServicesAccessor, args: any): void {

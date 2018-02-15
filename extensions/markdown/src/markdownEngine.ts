@@ -152,7 +152,7 @@ export class MarkdownEngine {
 					if (fragment) {
 						uri = uri.with({ fragment });
 					}
-					return normalizeLink(uri.toString(true));
+					return normalizeLink(uri.with({ scheme: 'vscode-workspace-resource' }).toString(true));
 				}
 			} catch (e) {
 				// noop
