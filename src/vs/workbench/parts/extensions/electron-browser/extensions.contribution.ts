@@ -208,6 +208,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsIgnoreRecommendations', "If set to true, the notifications for extension recommendations will stop showing up."),
 				default: false
+			},
+			'extensions.disableEagerRecommendations': {
+				type: 'boolean',
+				description: localize('extensionsDisableEagerRecommendations', "If set to true, no recommendation is fetched or shown unless specifically requested by the user."),
+				default: false
 			}
 		}
 	});
