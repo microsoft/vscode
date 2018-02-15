@@ -39,7 +39,8 @@ export class NotificationService implements INotificationService {
 		setTimeout(() => {
 			this.notify({
 				severity: Severity.Info,
-				message: 'This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com).'
+				message: 'This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com).',
+				source: 'GitLens Extension'
 			});
 			this.notify({
 				severity: Severity.Warning,

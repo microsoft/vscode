@@ -10,7 +10,6 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IAction } from 'vs/base/common/actions';
 import { INotification, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { localize } from 'vs/nls';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -131,7 +130,7 @@ export interface INotificationViewItem {
 
 export class NotificationViewItem implements INotificationViewItem {
 
-	private static DEFAULT_SOURCE = localize('product', "Product");
+	private static MAX_MESSAGE_LENGTH = 500;
 
 	private _expanded: boolean;
 	private toDispose: IDisposable[];
@@ -160,11 +159,15 @@ export class NotificationViewItem implements INotificationViewItem {
 			message = notification.message;
 		}
 
-		if (!message) {
+		if (!message || typeof message.value !== 'string') {
 			return null; // we need a message to show
 		}
 
-		return new NotificationViewItem(severity, message, notification.source || NotificationViewItem.DEFAULT_SOURCE, notification.actions || []);
+		if (message.value.length > NotificationViewItem.MAX_MESSAGE_LENGTH) {
+			message.value = `${message.value.substr(0, NotificationViewItem.MAX_MESSAGE_LENGTH)}...`;
+		}
+
+		return new NotificationViewItem(severity, message, notification.source, notification.actions || []);
 	}
 
 	private constructor(private _severity: Severity, private _message: IMarkdownString, private _source: string, private _actions: IAction[]) {

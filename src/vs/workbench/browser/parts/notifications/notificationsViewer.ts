@@ -50,38 +50,35 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 		return offsetHelper;
 	}
 
-	public getHeight(element: INotificationViewItem): number {
+	public getHeight(notification: INotificationViewItem): number {
 
 		// First row: message and actions
 		let expandedHeight = NotificationsListDelegate.ROW_HEIGHT;
 
-		if (!element.expanded) {
+		if (!notification.expanded) {
 			return expandedHeight; // return early if there are no more rows to show
 		}
 
 		// Dynamic height: if message overflows
-		const preferredMessageHeight = this.computePreferredRows(element.message) * NotificationsListDelegate.LINE_HEIGHT;
-		const messageOverflows = expandedHeight < preferredMessageHeight;
+		const preferredMessageHeight = this.computePreferredRows(notification) * NotificationsListDelegate.LINE_HEIGHT;
+		const messageOverflows = NotificationsListDelegate.LINE_HEIGHT < preferredMessageHeight;
 		if (messageOverflows) {
-			const overflow = preferredMessageHeight - expandedHeight;
+			const overflow = preferredMessageHeight - NotificationsListDelegate.LINE_HEIGHT;
 			expandedHeight += overflow;
 		}
 
-		// Add some padding to separate from details row
-		if (messageOverflows) {
-			expandedHeight += NotificationsListDelegate.LINE_HEIGHT;
+		// Last row: source and actions if we have any
+		if (notification.source || notification.actions.length > 0) {
+			expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 		}
-
-		// Last row: source and actions
-		expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 
 		return expandedHeight;
 	}
 
-	private computePreferredRows(message: IMarkdownString): number {
+	private computePreferredRows(notification: INotificationViewItem): number {
 
 		// Render message markdown into offset helper
-		const renderedMessage = NotificationMessageMarkdownRenderer.render(message);
+		const renderedMessage = NotificationMessageMarkdownRenderer.render(notification.message);
 		this.offsetHelper.appendChild(renderedMessage);
 
 		// Compute message width taking overflow into account
@@ -271,7 +268,18 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		actions.push(configureNotificationAction);
 		data.toDispose.push(configureNotificationAction);
 
+		let showExpandCollapseAction = false;
 		if (notification.canCollapse) {
+			if (notification.expanded) {
+				showExpandCollapseAction = true; // allow to collapse an expanded message
+			} else if (notification.source || notification.actions.length > 0) {
+				showExpandCollapseAction = true; // allow to expand to details row
+			} else if (data.message.scrollWidth > data.message.clientWidth) {
+				showExpandCollapseAction = true; // allow to expand if message overflows
+			}
+		}
+
+		if (showExpandCollapseAction) {
 			actions.push(notification.expanded ? this.collapseNotificationAction : this.expandNotificationAction);
 		}
 
@@ -283,7 +291,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		data.toolbar.push(actions, { icon: true, label: false });
 
 		// Source
-		if (notification.expanded) {
+		if (notification.expanded && notification.source) {
 			data.source.innerText = localize('notificationSource', "Source: {0}", notification.source);
 		} else {
 			data.source.innerText = '';
