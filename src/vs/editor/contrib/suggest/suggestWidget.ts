@@ -596,7 +596,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.ignoreFocusEvents = false;
 		}
 
-		this.updateListHeight();
 		this.list.reveal(index);
 
 		this.currentSuggestionDetails = item.resolve()
@@ -633,8 +632,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		switch (state) {
 			case State.Hidden:
-				hide(this.messageElement, this.details.element);
-				show(this.listElement);
+				hide(this.messageElement, this.details.element, this.listElement);
 				this.hide();
 				if (stateChanged) {
 					this.list.splice(0, this.list.length);
@@ -655,15 +653,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.show();
 				break;
 			case State.Open:
-				hide(this.messageElement);
+				hide(this.messageElement, this.details.element);
 				show(this.listElement);
-				if (this.expandDocsSettingFromStorage()
-					&& canExpandCompletionItem(this.list.getFocusedElements()[0])) {
-					show(this.details.element);
-					this.expandSideOrBelow();
-				} else {
-					hide(this.details.element);
-				}
 				this.show();
 				break;
 			case State.Frozen:
@@ -679,7 +670,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				break;
 		}
 
-		if (stateChanged) {
+		if (stateChanged && this.state !== State.Hidden) {
 			this.editor.layoutContentWidget(this);
 		}
 	}
@@ -743,7 +734,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.focusedItem = null;
 			this.focusedItemIndex = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
-			this.list.setFocus([selectionIndex]);
 			this.list.reveal(selectionIndex, selectionIndex);
 
 			if (isFrozen) {
@@ -751,6 +741,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			} else {
 				this.setState(State.Open);
 			}
+
+			this.list.setFocus([selectionIndex]);
 
 			// Reset focus border
 			if (this.detailsBorderColor) {
@@ -978,7 +970,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		return SuggestWidget.ID;
 	}
 
-	private updateListHeight(): number {
+	private updateListHeight(): void {
 		let height = 0;
 
 		if (this.state === State.Empty || this.state === State.Loading) {
@@ -991,10 +983,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
 		this.listElement.style.height = `${height}px`;
 		this.list.layout(height);
-
-		this.editor.layoutContentWidget(this);
-
-		return height;
 	}
 
 	private adjustDocsPosition() {

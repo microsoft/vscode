@@ -344,10 +344,14 @@ suite('Extfs', () => {
 
 			fs.mkdirSync(testFile); // this will trigger an error because testFile is now a directory!
 
-			extfs.writeFileAndFlush(testFile, toReadable('Hello World'), null, error => {
+			const readable = toReadable('Hello World');
+			extfs.writeFileAndFlush(testFile, readable, null, error => {
 				if (!error || (<any>error).code !== 'EISDIR') {
 					return onError(new Error('Expected EISDIR error for writing to folder but got: ' + (error ? (<any>error).code : 'no error')), done);
 				}
+
+				// verify that the stream is still consumable (for https://github.com/Microsoft/vscode/issues/42542)
+				assert.equal(readable.read(), 'Hello World');
 
 				extfs.del(parentDir, os.tmpdir(), done, ignore);
 			});

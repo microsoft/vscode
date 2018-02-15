@@ -10,6 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILocalization } from 'vs/platform/localizations/common/localizations';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -83,12 +84,6 @@ export interface IColor {
 	id: string;
 	description: string;
 	defaults: { light: string, dark: string, highContrast: string };
-}
-
-export interface ILocalization {
-	languageId: string;
-	languageName?: string;
-	translations: string;
 }
 
 export interface IExtensionContributions {
@@ -345,13 +340,20 @@ export const IExtensionTipsService = createDecorator<IExtensionTipsService>('ext
 
 export interface IExtensionTipsService {
 	_serviceBrand: any;
-	getAllRecommendationsWithReason(): { [id: string]: string; };
+	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; };
 	getFileBasedRecommendations(): string[];
-	getOtherRecommendations(): string[];
+	getOtherRecommendations(): TPromise<string[]>;
 	getWorkspaceRecommendations(): TPromise<string[]>;
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];
 	getRecommendationsForExtension(extension: string): string[];
+}
+
+export enum ExtensionRecommendationReason {
+	Workspace,
+	File,
+	Executable,
+	DynamicWorkspace
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");

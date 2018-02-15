@@ -70,7 +70,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 		}
 		// Run selected debug configuration
 		this.debugService.getConfigurationManager().selectConfiguration(this.launch, this.configurationName);
-		this.debugService.startDebugging(this.launch.workspace).done(undefined, e => this.messageService.show(Severity.Error, e));
+		this.debugService.startDebugging(this.launch).done(undefined, e => this.messageService.show(Severity.Error, e));
 
 		return true;
 	}
@@ -103,14 +103,15 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 			launch.getConfigurationNames().map(config => ({ config: config, highlights: Filters.matchesContiguousSubString(input, config) }))
 				.filter(({ highlights }) => !!highlights)
 				.forEach(({ config, highlights }) => {
-					if (launch === configManager.selectedLaunch && config === configManager.selectedName) {
+					if (launch === configManager.selectedConfiguration.launch && config === configManager.selectedConfiguration.name) {
 						this.autoFocusIndex = configurations.length;
 					}
 					configurations.push(new StartDebugEntry(this.debugService, this.contextService, this.messageService, launch, config, highlights));
 				});
 		}
-		launches.forEach((l, index) => {
-			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
+		launches.filter(l => !l.hidden).forEach((l, index) => {
+
+			const label = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, Filters.matchesContiguousSubString(input, label));
 			if (index === 0) {
 				configurations.push(new QuickOpenEntryGroup(entry, undefined, true));

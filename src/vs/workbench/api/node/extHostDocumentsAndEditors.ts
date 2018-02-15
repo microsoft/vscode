@@ -41,7 +41,9 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		const removedEditors: ExtHostTextEditor[] = [];
 
 		if (delta.removedDocuments) {
-			for (const id of delta.removedDocuments) {
+			for (const uriComponent of delta.removedDocuments) {
+				const uri = URI.revive(uriComponent);
+				const id = uri.toString();
 				const data = this._documents.get(id);
 				this._documents.delete(id);
 				removedDocuments.push(data);

@@ -64,7 +64,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 
 					if (groupMatched || settingMatchResult) {
 						filterMatches.push({
-							setting: this.copySetting(setting),
+							setting,
 							matches: settingMatchResult && settingMatchResult.matches,
 							score: settingMatchResult ? settingMatchResult.score : 0
 						});
@@ -73,22 +73,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			}
 		}
 
-		return filterMatches
-			.sort((a, b) => b.score - a.score)
-			.map(filteredMatch => {
-				// Fix match ranges to offset from setting start line
-				return <ISettingMatch>{
-					setting: filteredMatch.setting,
-					score: filteredMatch.score,
-					matches: filteredMatch.matches && filteredMatch.matches.map(match => {
-						return new Range(
-							match.startLineNumber - filteredMatch.setting.range.startLineNumber,
-							match.startColumn,
-							match.endLineNumber - filteredMatch.setting.range.startLineNumber,
-							match.endColumn);
-					})
-				};
-			});
+		return filterMatches.sort((a, b) => b.score - a.score);
 	}
 
 	public getPreference(key: string): ISetting {
@@ -102,17 +87,6 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			}
 		}
 		return null;
-	}
-
-	private copySetting(setting: ISetting): ISetting {
-		return <ISetting>{
-			description: setting.description,
-			key: setting.key,
-			value: setting.value,
-			range: setting.range,
-			overrides: [],
-			overrideOf: setting.overrideOf
-		};
 	}
 
 	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> {
@@ -710,6 +684,22 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private writeSettingsGroupToBuilder(builder: SettingsContentBuilder, settingsGroup: ISettingsGroup, filterMatches: ISettingMatch[]): IRange[] {
+		filterMatches = filterMatches
+			.map(filteredMatch => {
+				// Fix match ranges to offset from setting start line
+				return <ISettingMatch>{
+					setting: filteredMatch.setting,
+					score: filteredMatch.score,
+					matches: filteredMatch.matches && filteredMatch.matches.map(match => {
+						return new Range(
+							match.startLineNumber - filteredMatch.setting.range.startLineNumber,
+							match.startColumn,
+							match.endLineNumber - filteredMatch.setting.range.startLineNumber,
+							match.endColumn);
+					})
+				};
+			});
+
 		builder.pushGroup(settingsGroup);
 		builder.pushLine(',');
 
@@ -729,6 +719,17 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				}));
 
 		return fixedMatches;
+	}
+
+	private copySetting(setting: ISetting): ISetting {
+		return <ISetting>{
+			description: setting.description,
+			key: setting.key,
+			value: setting.value,
+			range: setting.range,
+			overrides: [],
+			overrideOf: setting.overrideOf
+		};
 	}
 
 	public findValueMatches(filter: string, setting: ISetting): IRange[] {
@@ -756,7 +757,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			titleRange: null,
 			sections: [
 				{
-					settings: resultGroup.result.filterMatches.map(m => m.setting)
+					settings: resultGroup.result.filterMatches.map(m => this.copySetting(m.setting))
 				}
 			]
 		};

@@ -9,11 +9,11 @@ import * as uuid from 'vs/base/common/uuid';
 import * as strings from 'vs/base/common/strings';
 import * as platform from 'vs/base/common/platform';
 import * as flow from 'vs/base/node/flow';
-
 import * as fs from 'fs';
 import * as paths from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { nfcall } from 'vs/base/common/async';
+import { encode, encodeStream } from 'vs/base/node/encoding';
 
 const loop = flow.loop;
 
@@ -319,8 +319,17 @@ export function mv(source: string, target: string, callback: (error: Error) => v
 	});
 }
 
+export interface IWriteFileOptions {
+	mode?: number;
+	flag?: string;
+	encoding?: {
+		charset: string;
+		addBOM: boolean;
+	};
+}
+
 let canFlush = true;
-export function writeFileAndFlush(path: string, data: string | NodeBuffer | NodeJS.ReadableStream, options: { mode?: number; flag?: string; }, callback: (error?: Error) => void): void {
+export function writeFileAndFlush(path: string, data: string | NodeBuffer | NodeJS.ReadableStream, options: IWriteFileOptions, callback: (error?: Error) => void): void {
 	options = ensureOptions(options);
 
 	if (typeof data === 'string' || Buffer.isBuffer(data)) {
@@ -330,7 +339,7 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer | Node
 	}
 }
 
-function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, options: { mode?: number; flag?: string; }, callback: (error?: Error) => void): void {
+function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, options: IWriteFileOptions, callback: (error?: Error) => void): void {
 
 	// finish only once
 	let finished = false;
@@ -361,13 +370,24 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 	const writer = fs.createWriteStream(path, { mode: options.mode, flags: options.flag, autoClose: false });
 
 	// Event: 'open'
-	// Purpose: save the fd for later use
+	// Purpose: save the fd for later use and start piping
 	// Notes: will not be called when there is an error opening the file descriptor!
 	let fd: number;
 	let isOpen: boolean;
 	writer.once('open', descriptor => {
 		fd = descriptor;
 		isOpen = true;
+
+		// if an encoding is provided, we need to pipe the stream through
+		// an encoder stream and forward the encoding related options
+		if (options.encoding) {
+			reader = reader.pipe(encodeStream(options.encoding.charset, { addBOM: options.encoding.addBOM }));
+		}
+
+		// start data piping only when we got a successful open. this ensures that we do
+		// not consume the stream when an error happens and helps to fix this issue:
+		// https://github.com/Microsoft/vscode/issues/42542
+		reader.pipe(writer);
 	});
 
 	// Event: 'error'
@@ -403,9 +423,6 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 	// Purpose: signal we are done to the outside
 	// Notes: event is called when the writer's filedescriptor is closed
 	writer.once('close', () => finish());
-
-	// start data piping
-	reader.pipe(writer);
 }
 
 // Calls fs.writeFile() followed by a fs.sync() call to flush the changes to disk
@@ -413,9 +430,13 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 // not in some cache.
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
-function doWriteFileAndFlush(path: string, data: string | NodeBuffer, options: { mode?: number; flag?: string; }, callback: (error?: Error) => void): void {
+function doWriteFileAndFlush(path: string, data: string | NodeBuffer, options: IWriteFileOptions, callback: (error?: Error) => void): void {
+	if (options.encoding) {
+		data = encode(data, options.encoding.charset, { addBOM: options.encoding.addBOM });
+	}
+
 	if (!canFlush) {
-		return fs.writeFile(path, data, options, callback);
+		return fs.writeFile(path, data, { mode: options.mode, flag: options.flag }, callback);
 	}
 
 	// Open the file with same flags and mode as fs.writeFile()
@@ -446,11 +467,15 @@ function doWriteFileAndFlush(path: string, data: string | NodeBuffer, options: {
 	});
 }
 
-export function writeFileAndFlushSync(path: string, data: string | NodeBuffer, options?: { mode?: number; flag?: string; }): void {
+export function writeFileAndFlushSync(path: string, data: string | NodeBuffer, options?: IWriteFileOptions): void {
 	options = ensureOptions(options);
 
+	if (options.encoding) {
+		data = encode(data, options.encoding.charset, { addBOM: options.encoding.addBOM });
+	}
+
 	if (!canFlush) {
-		return fs.writeFileSync(path, data, options);
+		return fs.writeFileSync(path, data, { mode: options.mode, flag: options.flag });
 	}
 
 	// Open the file with same flags and mode as fs.writeFile()
@@ -473,12 +498,12 @@ export function writeFileAndFlushSync(path: string, data: string | NodeBuffer, o
 	}
 }
 
-function ensureOptions(options?: { mode?: number; flag?: string; }): { mode: number, flag: string } {
+function ensureOptions(options?: IWriteFileOptions): IWriteFileOptions {
 	if (!options) {
 		return { mode: 0o666, flag: 'w' };
 	}
 
-	const ensuredOptions = { mode: options.mode, flag: options.flag };
+	const ensuredOptions: IWriteFileOptions = { mode: options.mode, flag: options.flag, encoding: options.encoding };
 
 	if (typeof ensuredOptions.mode !== 'number') {
 		ensuredOptions.mode = 0o666;
@@ -573,21 +598,34 @@ function normalizePath(path: string): string {
 	return strings.rtrim(paths.normalize(path), paths.sep);
 }
 
-export function watch(path: string, onChange: (type: string, path: string) => void): fs.FSWatcher {
-	const watcher = fs.watch(path);
-	watcher.on('change', (type, raw) => {
-		let file: string = null;
-		if (raw) { // https://github.com/Microsoft/vscode/issues/38191
-			file = raw.toString();
-			if (platform.isMacintosh) {
-				// Mac: uses NFD unicode form on disk, but we want NFC
-				// See also https://github.com/nodejs/node/issues/2165
-				file = strings.normalizeNFC(file);
+export function watch(path: string, onChange: (type: string, path: string) => void, onError: (error: string) => void): fs.FSWatcher {
+	try {
+		const watcher = fs.watch(path);
+
+		watcher.on('change', (type, raw) => {
+			let file: string = null;
+			if (raw) { // https://github.com/Microsoft/vscode/issues/38191
+				file = raw.toString();
+				if (platform.isMacintosh) {
+					// Mac: uses NFD unicode form on disk, but we want NFC
+					// See also https://github.com/nodejs/node/issues/2165
+					file = strings.normalizeNFC(file);
+				}
 			}
-		}
 
-		onChange(type, file);
-	});
+			onChange(type, file);
+		});
 
-	return watcher;
+		watcher.on('error', (code: number, signal: string) => onError(`Failed to watch ${path} for changes (${code}, ${signal})`));
+
+		return watcher;
+	} catch (error) {
+		fs.exists(path, exists => {
+			if (exists) {
+				onError(`Failed to watch ${path} for changes (${error.toString()})`);
+			}
+		});
+	}
+
+	return void 0;
 }

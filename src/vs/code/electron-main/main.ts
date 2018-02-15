@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/code/electron-main/contributions';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -48,6 +49,7 @@ import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -109,7 +111,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const requestService = accessor.get(IRequestService);
-	const choiceService = accessor.get(IChoiceService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
 		let promise = TPromise.wrap<void>(void 0);
@@ -140,7 +141,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 			}
 
 			// Log uploader usage info
-			if (environmentService.args['upload-logs']) {
+			if (typeof environmentService.args['upload-logs'] !== 'undefined') {
 				logService.warn('Warning: The --upload-logs argument can only be used if Code is already running. Please run it again after Code has started.');
 				throw new ExpectedError('Terminating...');
 			}
@@ -202,8 +203,8 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					}
 
 					// Log uploader
-					if (environmentService.args['upload-logs']) {
-						return uploadLogs(channel, requestService, choiceService)
+					if (typeof environmentService.args['upload-logs'] !== 'undefined') {
+						return uploadLogs(channel, requestService, environmentService)
 							.then(() => TPromise.wrapError(new ExpectedError()));
 					}
 
@@ -290,8 +291,12 @@ function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void 
 }
 
 function main() {
-	let args: ParsedArgs;
 
+	// Set the error handler early enough so that we are not getting the
+	// default electron error dialog popping up
+	setUnexpectedErrorHandler(err => console.error(err));
+
+	let args: ParsedArgs;
 	try {
 		args = parseMainProcessArgv(process.argv);
 		args = validatePaths(args);

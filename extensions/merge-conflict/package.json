@@ -99,8 +99,8 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.8",
-    "vscode-nls": "^2.0.2"
+    "vscode-extension-telemetry": "0.0.12",
+    "vscode-nls": "^3.2.1"
   },
   "devDependencies": {
     "@types/node": "8.0.33"

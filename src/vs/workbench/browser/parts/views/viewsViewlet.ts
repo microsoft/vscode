@@ -13,7 +13,6 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { firstIndex } from 'vs/base/common/arrays';
-import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -31,6 +30,7 @@ import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listServic
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -48,9 +48,10 @@ export abstract class ViewsViewletPanel extends ViewletPanel {
 	constructor(
 		options: IViewOptions,
 		protected keybindingService: IKeybindingService,
-		protected contextMenuService: IContextMenuService
+		protected contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(options.name, options, keybindingService, contextMenuService);
+		super(options.name, options, keybindingService, contextMenuService, configurationService);
 
 		this.id = options.id;
 		this.name = options.name;
@@ -101,25 +102,7 @@ export abstract class ViewsViewletPanel extends ViewletPanel {
 
 export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 
-	readonly id: string;
-	readonly name: string;
-	protected treeContainer: HTMLElement;
-
 	protected tree: WorkbenchTree;
-	protected isDisposed: boolean;
-	private dragHandler: DelayedDragHandler;
-
-	constructor(
-		options: IViewOptions,
-		protected keybindingService: IKeybindingService,
-		protected contextMenuService: IContextMenuService
-	) {
-		super(options, keybindingService, contextMenuService);
-
-		this.id = options.id;
-		this.name = options.name;
-		this._expanded = options.expanded;
-	}
 
 	setExpanded(expanded: boolean): void {
 		if (this.isExpanded() !== expanded) {
@@ -128,29 +111,11 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		}
 	}
 
-	protected renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
-
-		// Expand on drag over
-		this.dragHandler = new DelayedDragHandler(container, () => this.setExpanded(true));
-	}
-
-	protected renderViewTree(container: HTMLElement): HTMLElement {
-		const treeContainer = document.createElement('div');
-		container.appendChild(treeContainer);
-		return treeContainer;
-	}
-
-	getViewer(): WorkbenchTree {
-		return this.tree;
-	}
-
 	setVisible(visible: boolean): TPromise<void> {
 		if (this.isVisible() !== visible) {
 			return super.setVisible(visible)
 				.then(() => this.updateTreeVisibility(this.tree, visible && this.isExpanded()));
 		}
-
 		return TPromise.wrap(null);
 	}
 
@@ -159,62 +124,10 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		this.focusTree();
 	}
 
-	protected reveal(element: any, relativeTop?: number): TPromise<void> {
-		if (!this.tree) {
-			return TPromise.as(null); // return early if viewlet has not yet been created
-		}
-
-		return this.tree.reveal(element, relativeTop);
-	}
-
 	layoutBody(size: number): void {
 		if (this.tree) {
-			this.treeContainer.style.height = size + 'px';
 			this.tree.layout(size);
 		}
-	}
-
-	getActions(): IAction[] {
-		return [];
-	}
-
-	getSecondaryActions(): IAction[] {
-		return [];
-	}
-
-	getActionItem(action: IAction): IActionItem {
-		return null;
-	}
-
-	getActionsContext(): any {
-		return undefined;
-	}
-
-	getOptimalWidth(): number {
-		return 0;
-	}
-
-	create(): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	shutdown(): void {
-		// Subclass to implement
-	}
-
-	dispose(): void {
-		this.isDisposed = true;
-		this.treeContainer = null;
-
-		if (this.tree) {
-			this.tree.dispose();
-		}
-
-		if (this.dragHandler) {
-			this.dragHandler.dispose();
-		}
-
-		super.dispose();
 	}
 
 	protected updateTreeVisibility(tree: WorkbenchTree, isVisible: boolean): void {
@@ -241,13 +154,20 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		}
 
 		// Make sure the current selected element is revealed
-		const selection = this.tree.getSelection();
-		if (selection.length > 0) {
-			this.reveal(selection[0], 0.5).done(null, errors.onUnexpectedError);
+		const selectedElement = this.tree.getSelection()[0];
+		if (selectedElement) {
+			this.tree.reveal(selectedElement, 0.5).done(null, errors.onUnexpectedError);
 		}
 
 		// Pass Focus to Viewer
 		this.tree.DOMFocus();
+	}
+
+	dispose(): void {
+		if (this.tree) {
+			this.tree.dispose();
+		}
+		super.dispose();
 	}
 }
 
@@ -440,6 +360,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 					let view = this.getView(viewDescriptor.id);
 					this.removePanel(view);
 					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(view), 1);
+					view.dispose();
 				}
 			}
 
@@ -771,9 +692,11 @@ export class FileIconThemableWorkbenchTree extends WorkbenchTree {
 		options: ITreeOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IWorkbenchThemeService
+		@IThemeService themeService: IWorkbenchThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(container, configuration, { ...options, ...{ showTwistie: false, twistiePixels: 12 } }, contextKeyService, listService, themeService);
+		super(container, configuration, { ...options, ...{ showTwistie: false, twistiePixels: 12 } }, contextKeyService, listService, themeService, instantiationService, configurationService);
 
 		DOM.addClass(container, 'file-icon-themable-tree');
 		DOM.addClass(container, 'show-file-icons');

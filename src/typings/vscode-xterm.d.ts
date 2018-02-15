@@ -88,6 +88,12 @@ declare module 'vscode-xterm' {
 		macOptionIsMeta?: boolean;
 
 		/**
+		 * Whether to select the word under the cursor on right click, this is
+		 * standard behavior in a lot of macOS applications.
+		 */
+		rightClickSelectsWord?: boolean;
+
+		/**
 		 * The number of rows in the terminal.
 		 */
 		rows?: number;
@@ -197,6 +203,34 @@ declare module 'vscode-xterm' {
 		 * default value is 0.
 		 */
 		priority?: number;
+
+		/**
+		 * A callback that fires when the mousedown and click events occur that
+		 * determines whether a link will be activated upon click. This enables
+		 * only activating a link when a certain modifier is held down, if not the
+		 * mouse event will continue propagation (eg. double click to select word).
+		 */
+		willLinkActivate?: (event: MouseEvent, uri: string) => boolean;
+	}
+
+	export interface IEventEmitter {
+	  on(type: string, listener: (...args: any[]) => void): void;
+	  off(type: string, listener: (...args: any[]) => void): void;
+	  emit(type: string, data?: any): void;
+	  addDisposableListener(type: string, handler: (...args: any[]) => void): IDisposable;
+	}
+
+	/**
+	 * An object that can be disposed via a dispose function.
+	 */
+	export interface IDisposable {
+	  dispose(): void;
+	}
+
+	export interface ILocalizableStrings {
+	  blankLine: string;
+	  promptLabel: string;
+	  tooMuchOutput: string;
 	}
 
 	/**
@@ -222,6 +256,11 @@ declare module 'vscode-xterm' {
 		 * The number of columns in the terminal's viewport.
 		 */
 		cols: number;
+
+		/**
+		 * Natural language strings that can be localized.
+		 */
+		static strings: ILocalizableStrings;
 
 		/**
 		 * Creates a new `Terminal` object.
@@ -353,12 +392,6 @@ declare module 'vscode-xterm' {
 		deregisterLinkMatcher(matcherId: number): void;
 
 		/**
-		 * Enters screen reader navigation mode. This will only work when
-		 * the screenReaderMode option is true.
-		 */
-		enterNavigationMode(): void;
-
-		/**
 		 * Gets whether the terminal has an active selection.
 		 */
 		hasSelection(): boolean;
@@ -442,7 +475,7 @@ declare module 'vscode-xterm' {
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
 		 */
-		getOption(key: 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'macOptionIsMeta' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell'): boolean;
+		getOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'macOptionIsMeta' | 'rightClickSelectsWord' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell'): boolean;
 		/**
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
@@ -487,7 +520,7 @@ declare module 'vscode-xterm' {
 		 * @param key The option key.
 		 * @param value The option value.
 		 */
-		setOption(key: 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'macOptionIsMeta' | 'popOnBell' | 'screenKeys' | 'useFlowControl' | 'visualBell', value: boolean): void;
+		setOption(key: 'allowTransparency' | 'cancelEvents' | 'convertEol' | 'cursorBlink' | 'debug' | 'disableStdin' | 'enableBold' | 'macOptionIsMeta' | 'popOnBell' | 'rightClickSelectsWord' | 'screenKeys' | 'useFlowControl' | 'visualBell', value: boolean): void;
 		/**
 		 * Sets an option on the terminal.
 		 * @param key The option key.

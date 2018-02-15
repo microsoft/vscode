@@ -48,7 +48,7 @@ suite('Resources', () => {
 		assert.equal(d.fsPath, normalize('/some/file', true));
 
 		// does not explode (https://github.com/Microsoft/vscode/issues/41987)
-		URI.from({ scheme: 'file', authority: '/users/someone/portal.h' });
+		dirname(URI.from({ scheme: 'file', authority: '/users/someone/portal.h' }));
 		done();
 	});
 });

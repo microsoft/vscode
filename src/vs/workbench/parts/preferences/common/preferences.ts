@@ -17,6 +17,7 @@ import { join } from 'vs/base/common/paths';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import Event from 'vs/base/common/event';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -110,6 +111,10 @@ export interface IFilterMetadata {
 	timestamp: number;
 	duration: number;
 	scoredResults: IScoredResults;
+	extensions?: ILocalExtension[];
+
+	/** The number of requests made, since requests are split by number of filters */
+	requestCount?: number;
 
 	/** The name of the server that actually served the request */
 	context: string;
@@ -170,7 +175,7 @@ export interface IKeybindingsEditor extends IEditor {
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	copyKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
-	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 }
 
 export function getSettingsTargetName(target: ConfigurationTarget, resource: URI, workspaceContextService: IWorkspaceContextService): string {
@@ -215,6 +220,7 @@ export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.cle
 export const SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING = 'settings.action.focusNextSetting';
 export const SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING = 'settings.action.focusPreviousSetting';
 export const SETTINGS_EDITOR_COMMAND_FOCUS_FILE = 'settings.action.focusSettingsFile';
+export const SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING = 'settings.action.editFocusedSetting';
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
 export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';
 export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybinding';
@@ -222,7 +228,7 @@ export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybi
 export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindingEntry';
 export const KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND = 'keybindings.editor.copyCommandKeybindingEntry';
-export const KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS = 'keybindings.editor.showConflicts';
+export const KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR = 'keybindings.editor.showConflicts';
 export const KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS = 'keybindings.editor.focusKeybindings';
 
 export const FOLDER_SETTINGS_PATH = join('.vscode', 'settings.json');

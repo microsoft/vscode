@@ -10,7 +10,6 @@ import lifecycle = require('vs/base/common/lifecycle');
 import objects = require('vs/base/common/objects');
 import DOM = require('vs/base/browser/dom');
 import URI from 'vs/base/common/uri';
-import { MIME_BINARY } from 'vs/base/common/mime';
 import { once } from 'vs/base/common/functional';
 import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
@@ -26,17 +25,17 @@ import { IFilesConfiguration, SortOrder } from 'vs/workbench/parts/files/common/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationError, FileOperationResult, IFileService, FileKind } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
-import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
-import { DesktopDragAndDropData, ExternalElementsDragAndDropData, SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
-import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
+import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { FileStat, NewStatPlaceholder, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IConfirmation, Severity, IConfirmationResult, getConfirmMessage } from 'vs/platform/message/common/message';
@@ -51,12 +50,13 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { getPathLabel } from 'vs/base/common/labels';
-import { extractResources } from 'vs/workbench/browser/editor';
+import { extractResources, SimpleFileResourceDragAndDrop, CodeDataTransfers, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { relative } from 'path';
-import { DataTransfers } from 'vs/base/browser/dnd';
 import { distinctParents } from 'vs/base/common/resources';
-import { WorkbenchTree, multiSelectModifierSettingKey } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { DataTransfers } from 'vs/base/browser/dnd';
+import { Schemas } from 'vs/base/common/network';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -325,12 +325,11 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 }
 
 // Explorer Controller
-export class FileController extends DefaultController implements IDisposable {
-
+export class FileController extends WorkbenchTreeController implements IDisposable {
+	private fileCopiedContextKey: IContextKey<boolean>;
 	private contributedContextMenu: IMenu;
 	private toDispose: IDisposable[];
 	private previousSelectionRangeStop: FileStat;
-	private useAltAsMultiSelectModifier: boolean;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -338,25 +337,16 @@ export class FileController extends DefaultController implements IDisposable {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMenuService private menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IClipboardService private clipboardService: IClipboardService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false /* handled via IListService */ });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ }, configurationService);
 
-		this.useAltAsMultiSelectModifier = configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
+		this.fileCopiedContextKey = FileCopiedContext.bindTo(contextKeyService);
 		this.toDispose = [];
-
-		this.registerListeners();
 	}
 
-	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-				this.useAltAsMultiSelectModifier = this.configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
-			}
-		}));
-	}
-
-	public onLeftClick(tree: ITree, stat: FileStat | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	public onLeftClick(tree: WorkbenchTree, stat: FileStat | Model, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin };
 		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
@@ -394,15 +384,15 @@ export class FileController extends DefaultController implements IDisposable {
 		}
 
 		// Allow to multiselect
-		if ((this.useAltAsMultiSelectModifier && event.altKey) || !this.useAltAsMultiSelectModifier && (event.ctrlKey || event.metaKey)) {
+		if ((tree.useAltAsMultipleSelectionModifier && event.altKey) || !tree.useAltAsMultipleSelectionModifier && (event.ctrlKey || event.metaKey)) {
 			const selection = tree.getSelection();
 			this.previousSelectionRangeStop = undefined;
 			if (selection.indexOf(stat) >= 0) {
 				tree.setSelection(selection.filter(s => s !== stat));
 			} else {
 				tree.setSelection(selection.concat(stat));
+				tree.setFocus(stat, payload);
 			}
-			tree.setFocus(stat, payload);
 		}
 
 		// Allow to unselect
@@ -419,9 +409,12 @@ export class FileController extends DefaultController implements IDisposable {
 
 		// Select, Focus and open files
 		else {
+
 			// Expand / Collapse
-			tree.toggleExpansion(stat, event.altKey);
-			this.previousSelectionRangeStop = undefined;
+			if (isDoubleClick || this.openOnSingleClick || this.isClickOnTwistie(event)) {
+				tree.toggleExpansion(stat, event.altKey);
+				this.previousSelectionRangeStop = undefined;
+			}
 
 			const preserveFocus = !isDoubleClick;
 			tree.setFocus(stat, payload);
@@ -432,10 +425,10 @@ export class FileController extends DefaultController implements IDisposable {
 
 			tree.setSelection([stat], payload);
 
-			if (!stat.isDirectory) {
+			if (!stat.isDirectory && (isDoubleClick || this.openOnSingleClick)) {
 				let sideBySide = false;
 				if (event) {
-					sideBySide = this.useAltAsMultiSelectModifier ? (event.ctrlKey || event.metaKey) : event.altKey;
+					sideBySide = tree.useAltAsMultipleSelectionModifier ? (event.ctrlKey || event.metaKey) : event.altKey;
 				}
 
 				this.openEditor(stat, { preserveFocus, sideBySide, pinned: isDoubleClick });
@@ -455,6 +448,9 @@ export class FileController extends DefaultController implements IDisposable {
 
 		tree.setFocus(stat);
 
+		// update dynamic contexts
+		this.fileCopiedContextKey.set(this.clipboardService.hasFiles());
+
 		if (!this.contributedContextMenu) {
 			this.contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, tree.contextKeyService);
 			this.toDispose.push(this.contributedContextMenu);
@@ -465,8 +461,8 @@ export class FileController extends DefaultController implements IDisposable {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => {
-				const actions = [];
-				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : undefined, shouldForwardArgs: true }, actions, this.contextMenuService);
+				const actions: IAction[] = [];
+				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
 			onHide: (wasCancelled?: boolean) => {
@@ -474,7 +470,9 @@ export class FileController extends DefaultController implements IDisposable {
 					tree.DOMFocus();
 				}
 			},
-			getActionsContext: () => selection && selection.indexOf(stat) >= 0 ? selection.map((fs: FileStat) => fs.resource) : [stat]
+			getActionsContext: () => selection && selection.indexOf(stat) >= 0
+				? selection.map((fs: FileStat) => fs.resource)
+				: stat instanceof FileStat ? [stat.resource] : []
 		});
 
 		return true;
@@ -688,13 +686,13 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
-		super(stat => this.statToResource(stat));
+		super(stat => this.statToResource(stat), instantiationService);
 
 		this.toDispose = [];
 
@@ -722,6 +720,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
 		const sources: FileStat[] = data.getData();
 		if (sources && sources.length) {
+
 			// When dragging folders, make sure to collapse them to free up some space
 			sources.forEach(s => {
 				if (s.isDirectory && tree.isExpanded(s)) {
@@ -730,14 +729,13 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			});
 
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			originalEvent.dataTransfer.setData(DataTransfers.TEXT, sources.map(fs => fs.resource.scheme === 'file' ? getPathLabel(fs.resource) : fs.resource.toString()).join('\n'));
-			if (sources.length === 1) {
-				if (!sources[0].isDirectory) {
-					originalEvent.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, sources[0].name, sources[0].resource.toString()].join(':'));
-				}
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, sources, originalEvent);
 
-			} else {
-				originalEvent.dataTransfer.setData(DataTransfers.URLS, JSON.stringify(sources.filter(s => !s.isDirectory).map(s => s.resource.toString())));
+			// The only custom data transfer we set from the explorer is a file transfer
+			// to be able to DND between multiple code file explorers across windows
+			const fileResources = sources.filter(s => !s.isDirectory && s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
+			if (fileResources.length) {
+				originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
 			}
 		}
 	}
@@ -752,15 +750,13 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 		// Desktop DND
 		if (fromDesktop) {
-			const dragData = (<DesktopDragAndDropData>data).getData();
-
-			const types = dragData.types;
+			const types: string[] = originalEvent.dataTransfer.types;
 			const typesArray: string[] = [];
 			for (let i = 0; i < types.length; i++) {
-				typesArray.push(types[i]);
+				typesArray.push(types[i].toLowerCase()); // somehow the types are lowercase
 			}
 
-			if (typesArray.length === 0 || !typesArray.some(type => { return type === 'Files'; })) {
+			if (typesArray.indexOf(DataTransfers.FILES.toLowerCase()) === -1 && typesArray.indexOf(CodeDataTransfers.FILES.toLowerCase()) === -1) {
 				return DRAG_OVER_REJECT;
 			}
 		}

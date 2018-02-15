@@ -263,8 +263,8 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			message: nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available!", product.nameShort),
 			actions: [
 				LinkAction('update.show64bitreleasenotes', nls.localize('learn more', "Learn More"), url),
-				CloseAction,
-				neverShowAgain.action
+				neverShowAgain.action,
+				CloseAction
 			]
 		});
 	}
@@ -289,6 +289,7 @@ export class UpdateContribution implements IGlobalActivity {
 	private static readonly openUserSnippets = 'workbench.action.openSnippets';
 	private static readonly selectColorThemeId = 'workbench.action.selectTheme';
 	private static readonly selectIconThemeId = 'workbench.action.selectIconTheme';
+	private static readonly showExtensionsId = 'workbench.view.extensions';
 
 	get id() { return 'vs.update'; }
 	get name() { return ''; }
@@ -420,7 +421,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		this.messageService.show(severity.Info, {
 			message: nls.localize('updateInstalling', "{0} {1} is being installed in the background, we'll let you know when it's done.", product.nameLong, update.productVersion),
-			actions: [CloseAction, neverShowAgain.action]
+			actions: [neverShowAgain.action, CloseAction]
 		});
 	}
 
@@ -463,6 +464,7 @@ export class UpdateContribution implements IGlobalActivity {
 			new Separator(),
 			new CommandAction(UpdateContribution.openSettingsId, nls.localize('settings', "Settings"), this.commandService),
 			new CommandAction(UpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), this.commandService),
+			new CommandAction(UpdateContribution.showExtensionsId, nls.localize('showExtensions', "Manage Extensions"), this.commandService),
 			new Separator(),
 			new CommandAction(UpdateContribution.openUserSnippets, nls.localize('userSnippets', "User Snippets"), this.commandService),
 			new Separator(),

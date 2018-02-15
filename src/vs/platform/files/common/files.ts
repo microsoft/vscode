@@ -15,6 +15,7 @@ import { beginsWithIgnoreCase } from 'vs/base/common/strings';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -587,6 +588,10 @@ export class FileOperationError extends Error {
 	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IResolveContentOptions & IUpdateContentOptions & ICreateFileOptions) {
 		super(message);
 	}
+
+	static isFileOperationError(obj: any): obj is FileOperationError {
+		return obj instanceof Error && !isUndefinedOrNull((obj as FileOperationError).fileOperationResult);
+	}
 }
 
 export enum FileOperationResult {
@@ -599,7 +604,8 @@ export enum FileOperationResult {
 	FILE_READ_ONLY,
 	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
-	FILE_INVALID_PATH
+	FILE_INVALID_PATH,
+	FILE_EXCEED_MEMORY_LIMIT
 }
 
 export const AutoSaveConfiguration = {

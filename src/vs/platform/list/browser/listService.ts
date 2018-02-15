@@ -5,9 +5,9 @@
 'use strict';
 
 import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
-import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { List, IListOptions, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, IMultipleSelectionController, IOpenController } from 'vs/base/browser/ui/list/listWidget';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable, toDisposable, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { IDelegate, IRenderer, IListMouseEvent, IListTouchEvent } from 'vs/base/browser/ui/list/list';
@@ -20,7 +20,10 @@ import { mixin } from 'vs/base/common/objects';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-
+import { DefaultController, IControllerOptions, OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { isUndefinedOrNull } from 'vs/base/common/types';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import Event, { Emitter } from 'vs/base/common/event';
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
 export const IListService = createDecorator<IListService>('listService');
@@ -80,6 +83,7 @@ const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', 
 export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
 export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
+export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
 
 export type Widget = List<any> | PagedList<any> | ITree;
 
@@ -94,10 +98,15 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 	return result;
 }
 
-export const multiSelectModifierSettingKey = 'workbench.multiSelectModifier';
+export const multiSelectModifierSettingKey = 'workbench.list.multiSelectModifier';
+export const openModeSettingKey = 'workbench.list.openMode';
 
-export function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
+function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
+}
+
+function useSingleClickToOpen(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue(openModeSettingKey) !== 'doubleClick';
 }
 
 class MultipleSelectionController<T> implements IMultipleSelectionController<T> {
@@ -117,10 +126,50 @@ class MultipleSelectionController<T> implements IMultipleSelectionController<T> 
 	}
 }
 
+class WorkbenchOpenController implements IOpenController {
+
+	constructor(private configurationService: IConfigurationService) { }
+
+	shouldOpen(event: UIEvent): boolean {
+		if (event instanceof MouseEvent) {
+			const isDoubleClick = event.detail === 2;
+			if (!useSingleClickToOpen(this.configurationService) && !isDoubleClick) {
+				return false;
+			}
+
+			return event.button === 0 /* left mouse button */ || event.button === 1 /* middle mouse button */;
+		}
+
+		return true;
+	}
+}
+
+function handleListControllers<T>(options: IListOptions<T>, configurationService: IConfigurationService): IListOptions<T> {
+	if (options.multipleSelectionSupport !== false && !options.multipleSelectionController) {
+		options.multipleSelectionController = new MultipleSelectionController(configurationService);
+	}
+
+	options.openController = new WorkbenchOpenController(configurationService);
+
+	return options;
+}
+
+function handleTreeController(configuration: ITreeConfiguration, instantiationService: IInstantiationService): ITreeConfiguration {
+	if (!configuration.controller) {
+		configuration.controller = instantiationService.createInstance(WorkbenchTreeController, {});
+	}
+
+	return configuration;
+}
+
 export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
+
 	private listDoubleSelection: IContextKey<boolean>;
+	private listMultiSelection: IContextKey<boolean>;
+
+	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -130,31 +179,50 @@ export class WorkbenchList<T> extends List<T> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
+		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false, selectOnMouseDown: true } as IListOptions<any>, false));
 
-		if (multipleSelectionSupport && !options.multipleSelectionController) {
-			options.multipleSelectionController = new MultipleSelectionController(configurationService);
-		}
-
-		super(container, delegate, renderers, mixin(options, useAltAsMultipleSelectionModifier(configurationService)));
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
+		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
+
+		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(combinedDisposable([
 			this.contextKeyService,
 			(listService as ListService).register(this),
 			attachListStyler(this, themeService),
-			this.onSelectionChange(() => this.listDoubleSelection.set(this.getSelection().length === 2))
+			this.onSelectionChange(() => {
+				const selection = this.getSelection();
+				this.listMultiSelection.set(selection.length > 1);
+				this.listDoubleSelection.set(selection.length === 2);
+			})
 		]));
+
+		this.registerListeners();
+	}
+
+	public get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
+	private registerListeners(): void {
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
+			}
+		}));
 	}
 }
 
 export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	readonly contextKeyService: IContextKeyService;
-	private disposable: IDisposable;
+
+	private disposables: IDisposable[] = [];
+
+	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -164,34 +232,51 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
+		super(container, delegate, renderers, mixin(handleListControllers(options, configurationService), { keyboardSupport: false, selectOnMouseDown: true } as IListOptions<any>, false));
 
-		if (multipleSelectionSupport && !options.multipleSelectionController) {
-			options.multipleSelectionController = new MultipleSelectionController(configurationService);
-		}
-
-		super(container, delegate, renderers, mixin(options, useAltAsMultipleSelectionModifier(configurationService)));
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
-		this.disposable = combinedDisposable([
+		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+
+		this.disposables.push(combinedDisposable([
 			this.contextKeyService,
 			(listService as ListService).register(this),
 			attachListStyler(this, themeService)
-		]);
+		]));
+
+		this.registerListeners();
+	}
+
+	public get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
+	private registerListeners(): void {
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
+			}
+		}));
 	}
 
 	dispose(): void {
-		this.disposable.dispose();
+		this.disposables = dispose(this.disposables);
 	}
 }
 
 export class WorkbenchTree extends Tree {
 
 	readonly contextKeyService: IContextKeyService;
+
 	protected disposables: IDisposable[] = [];
+
 	private listDoubleSelection: IContextKey<boolean>;
+	private listMultiSelection: IContextKey<boolean>;
+
+	private _openOnSingleClick: boolean;
+	private _useAltAsMultipleSelectionModifier: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -199,26 +284,185 @@ export class WorkbenchTree extends Tree {
 		options: ITreeOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(container, configuration, options);
+		super(container, handleTreeController(configuration, instantiationService), mixin(options, { keyboardSupport: false } as ITreeOptions, false));
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
+		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
+
+		this._openOnSingleClick = useSingleClickToOpen(configurationService);
+		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
 		this.disposables.push(
 			this.contextKeyService,
 			(listService as ListService).register(this),
 			attachListStyler(this, themeService)
 		);
+
+		this.registerListeners();
+	}
+
+	public get openOnSingleClick(): boolean {
+		return this._openOnSingleClick;
+	}
+
+	public get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
+	}
+
+	private registerListeners(): void {
 		this.disposables.push(this.onDidChangeSelection(() => {
 			const selection = this.getSelection();
 			this.listDoubleSelection.set(selection && selection.length === 2);
+			this.listMultiSelection.set(selection && selection.length > 1);
+		}));
+
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(openModeSettingKey)) {
+				this._openOnSingleClick = useSingleClickToOpen(this.configurationService);
+			}
+
+			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
+			}
 		}));
 	}
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+	}
+}
+
+function massageControllerOptions(options: IControllerOptions): IControllerOptions {
+	if (typeof options.keyboardSupport !== 'boolean') {
+		options.keyboardSupport = false;
+	}
+
+	if (typeof options.clickBehavior !== 'number') {
+		options.clickBehavior = ClickBehavior.ON_MOUSE_DOWN;
+	}
+
+	return options;
+}
+
+export class WorkbenchTreeController extends DefaultController {
+
+	protected disposables: IDisposable[] = [];
+
+	constructor(
+		options: IControllerOptions,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		super(massageControllerOptions(options));
+
+		// if the open mode is not set, we configure it based on settings
+		if (isUndefinedOrNull(options.openMode)) {
+			this.setOpenMode(this.getOpenModeSetting());
+			this.registerListeners();
+		}
+	}
+
+	private registerListeners(): void {
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(openModeSettingKey)) {
+				this.setOpenMode(this.getOpenModeSetting());
+			}
+		}));
+	}
+
+	private getOpenModeSetting(): OpenMode {
+		return useSingleClickToOpen(this.configurationService) ? OpenMode.SINGLE_CLICK : OpenMode.DOUBLE_CLICK;
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export interface IOpenResourceOptions {
+	editorOptions: IEditorOptions;
+	sideBySide: boolean;
+	element: any;
+	payload: any;
+}
+
+export interface IResourceResultsNavigationOptions {
+	openOnFocus: boolean;
+}
+
+export class TreeResourceNavigator extends Disposable {
+
+	private _openResource: Emitter<IOpenResourceOptions> = new Emitter<IOpenResourceOptions>();
+	public readonly openResource: Event<IOpenResourceOptions> = this._openResource.event;
+
+	constructor(private tree: WorkbenchTree, private options?: IResourceResultsNavigationOptions) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		if (this.options && this.options.openOnFocus) {
+			this._register(this.tree.onDidChangeFocus(e => this.onFocus(e)));
+		}
+
+		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
+	}
+
+	private onFocus({ payload }: any): void {
+		const element = this.tree.getFocus();
+		this.tree.setSelection([element], { fromFocus: true });
+
+		const originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
+		const isMouseEvent = payload && payload.origin === 'mouse';
+		const isDoubleClick = isMouseEvent && originalEvent && originalEvent.detail === 2;
+
+		if (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick) {
+			this._openResource.fire({
+				editorOptions: {
+					preserveFocus: true,
+					pinned: false,
+					revealIfVisible: true
+				},
+				sideBySide: false,
+				element,
+				payload
+			});
+		}
+	}
+
+	private onSelection({ payload }: any): void {
+		if (payload && payload.fromFocus) {
+			return;
+		}
+
+		const originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
+		const isMouseEvent = payload && payload.origin === 'mouse';
+		const isDoubleClick = isMouseEvent && originalEvent && originalEvent.detail === 2;
+
+		if (!isMouseEvent || this.tree.openOnSingleClick || isDoubleClick) {
+			if (isDoubleClick && originalEvent) {
+				originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
+			}
+
+			const isFromKeyboard = payload && payload.origin === 'keyboard';
+			const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey || originalEvent.altKey));
+			const preserveFocus = !((isFromKeyboard && (!payload || !payload.preserveFocus)) || isDoubleClick || (payload && payload.focusEditor));
+			this._openResource.fire({
+				editorOptions: {
+					preserveFocus,
+					pinned: isDoubleClick,
+					revealIfVisible: true
+				},
+				sideBySide,
+				element: this.tree.getSelection()[0],
+				payload
+			});
+		}
 	}
 }
 
@@ -230,7 +474,7 @@ configurationRegistry.registerConfiguration({
 	'title': localize('workbenchConfigurationTitle', "Workbench"),
 	'type': 'object',
 	'properties': {
-		'workbench.multiSelectModifier': {
+		'workbench.list.multiSelectModifier': {
 			'type': 'string',
 			'enum': ['ctrlCmd', 'alt'],
 			'enumDescriptions': [
@@ -244,7 +488,20 @@ configurationRegistry.registerConfiguration({
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add an item to a multi-selection with the mouse (for example in trees and lists, if supported). `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The 'Open to Side' mouse gestures - if supported - will adapt such that they do not conflict with the multiselect modifier.")
+			}, "The modifier to be used to add an item in trees and lists to a multi-selection with the mouse (for example in the explorer, open editors and scm view). `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The 'Open to Side' mouse gestures - if supported - will adapt such that they do not conflict with the multiselect modifier.")
+		},
+		'workbench.list.openMode': {
+			'type': 'string',
+			'enum': ['singleClick', 'doubleClick'],
+			'enumDescriptions': [
+				localize('openMode.singleClick', "Opens items on mouse single click."),
+				localize('openMode.doubleClick', "Open items on mouse double click.")
+			],
+			'default': 'singleClick',
+			'description': localize({
+				key: 'openModeModifier',
+				comment: ['`singleClick` and `doubleClick` refers to a value the setting can take and should not be localized.']
+			}, "Controls how to open items in trees and lists using the mouse (if supported). Set to `singleClick` to open items with a single mouse click and `doubleClick` to only open via mouse double click. For parents with children in trees, this setting will control if a single click expands the parent or a double click. Note that some trees and lists might choose to ignore this setting if it is not applicable. ")
 		}
 	}
 });

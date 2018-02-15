@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as vscode from 'vscode';
 
@@ -127,7 +126,7 @@ export class PreviewSecuritySelector {
 					label: this.cspArbiter.shouldDisableSecurityWarnings()
 						? localize('enableSecurityWarning.title', "Enable preview security warnings in this workspace")
 						: localize('disableSecurityWarning.title', "Disable preview security warning in this workspace"),
-					description: localize('toggleSecurityWarning.description', 'Does not effect the content security level')
+					description: localize('toggleSecurityWarning.description', 'Does not affect the content security level')
 				},
 			], {
 				placeHolder: localize(

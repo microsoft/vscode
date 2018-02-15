@@ -468,6 +468,17 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
+		'editor.suggestSelection': {
+			'type': 'string',
+			'enum': ['first', 'recentlyUsed', 'recentlyUsedByPrefix'],
+			'enumDescriptions': [
+				nls.localize('suggestSelection.first', "Always select the first suggestion."),
+				nls.localize('suggestSelection.recentlyUsed', "Select recent suggestions unless further typing selects one, e.g. `console.| -> console.log` because `log` has been completed recently."),
+				nls.localize('suggestSelection.recentlyUsedByPrefix', "Select suggestions based on previous prefixes that have completed those suggestions, e.g. `co -> console` and `con -> const`."),
+			],
+			'default': 'recentlyUsed',
+			'description': nls.localize('suggestSelection', "Controls how suggestions are pre-selected when showing the suggest list.")
+		},
 		'editor.suggestFontSize': {
 			'type': 'integer',
 			'default': 0,
@@ -517,10 +528,10 @@ const editorConfiguration: IConfigurationNode = {
 			'default': editorOptions.cursorStyleToString(EDITOR_DEFAULTS.viewInfo.cursorStyle),
 			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'block-outline', 'line', 'line-thin', 'underline' and 'underline-thin'")
 		},
-		'editor.lineCursorWidth': {
+		'editor.cursorWidth': {
 			'type': 'integer',
-			'default': EDITOR_DEFAULTS.viewInfo.lineCursorWidth,
-			'description': nls.localize('lineCursorWidth', "Controls the width of the cursor when editor.cursorStyle is set to 'line'")
+			'default': EDITOR_DEFAULTS.viewInfo.cursorWidth,
+			'description': nls.localize('cursorWidth', "Controls the width of the cursor when editor.cursorStyle is set to 'line'")
 		},
 		'editor.fontLigatures': {
 			'type': 'boolean',

@@ -499,21 +499,21 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	private _resourceEdits: { seq: number, from: URI, to: URI }[] = [];
 	private _textEdits = new Map<string, { seq: number, uri: URI, edits: TextEdit[] }>();
 
-	createResource(uri: vscode.Uri): void {
-		this.renameResource(undefined, uri);
-	}
+	// createResource(uri: vscode.Uri): void {
+	// 	this.renameResource(undefined, uri);
+	// }
 
-	deleteResource(uri: vscode.Uri): void {
-		this.renameResource(uri, undefined);
-	}
+	// deleteResource(uri: vscode.Uri): void {
+	// 	this.renameResource(uri, undefined);
+	// }
 
-	renameResource(from: vscode.Uri, to: vscode.Uri): void {
-		this._resourceEdits.push({ seq: this._seqPool++, from, to });
-	}
+	// renameResource(from: vscode.Uri, to: vscode.Uri): void {
+	// 	this._resourceEdits.push({ seq: this._seqPool++, from, to });
+	// }
 
-	resourceEdits(): [vscode.Uri, vscode.Uri][] {
-		return this._resourceEdits.map(({ from, to }) => (<[vscode.Uri, vscode.Uri]>[from, to]));
-	}
+	// resourceEdits(): [vscode.Uri, vscode.Uri][] {
+	// 	return this._resourceEdits.map(({ from, to }) => (<[vscode.Uri, vscode.Uri]>[from, to]));
+	// }
 
 	replace(uri: URI, range: Range, newText: string): void {
 		let edit = new TextEdit(range, newText);
@@ -566,19 +566,20 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	allEntries(): ([URI, TextEdit[]] | [URI, URI])[] {
-		// use the 'seq' the we have assigned when inserting
-		// the operation and use that order in the resulting
-		// array
-		const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
-		this._textEdits.forEach(value => {
-			const { seq, uri, edits } = value;
-			res[seq] = [uri, edits];
-		});
-		this._resourceEdits.forEach(value => {
-			const { seq, from, to } = value;
-			res[seq] = [from, to];
-		});
-		return res;
+		return this.entries();
+		// 	// use the 'seq' the we have assigned when inserting
+		// 	// the operation and use that order in the resulting
+		// 	// array
+		// 	const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
+		// 	this._textEdits.forEach(value => {
+		// 		const { seq, uri, edits } = value;
+		// 		res[seq] = [uri, edits];
+		// 	});
+		// 	this._resourceEdits.forEach(value => {
+		// 		const { seq, from, to } = value;
+		// 		res[seq] = [from, to];
+		// 	});
+		// 	return res;
 	}
 
 	get size(): number {
@@ -1200,6 +1201,12 @@ export enum ColorFormat {
 	HSL = 2
 }
 
+export enum SourceControlInputBoxValidationType {
+	Error = 0,
+	Warning = 1,
+	Information = 2
+}
+
 export enum TaskRevealKind {
 	Always = 1,
 
@@ -1517,6 +1524,7 @@ export class TreeItem {
 	iconPath?: string | URI | { light: string | URI; dark: string | URI };
 	command?: vscode.Command;
 	contextValue?: string;
+	tooltip?: string;
 
 	constructor(label: string, collapsibleState?: vscode.TreeItemCollapsibleState)
 	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState)
@@ -1581,20 +1589,25 @@ export class Breakpoint {
 	readonly condition?: string;
 	readonly hitCondition?: string;
 
-	protected constructor(enabled: boolean, condition: string, hitCondition: string) {
-		this.enabled = enabled;
-		this.condition = condition;
-		this.hitCondition = hitCondition;
-		this.condition = condition;
-		this.hitCondition = hitCondition;
+	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string) {
+		this.enabled = typeof enabled === 'boolean' ? enabled : true;
+		if (typeof condition === 'string') {
+			this.condition = condition;
+		}
+		if (typeof hitCondition === 'string') {
+			this.hitCondition = hitCondition;
+		}
 	}
 }
 
 export class SourceBreakpoint extends Breakpoint {
 	readonly location: Location;
 
-	constructor(enabled: boolean, condition: string, hitCondition: string, location: Location) {
+	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string) {
 		super(enabled, condition, hitCondition);
+		if (location === null) {
+			throw illegalArgument('location');
+		}
 		this.location = location;
 	}
 }
@@ -1602,9 +1615,22 @@ export class SourceBreakpoint extends Breakpoint {
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
-	constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string) {
+	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string) {
 		super(enabled, condition, hitCondition);
+		if (!functionName) {
+			throw illegalArgument('functionName');
+		}
 		this.functionName = functionName;
+	}
+}
+
+export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
+	readonly command: string;
+	readonly args: string[];
+
+	constructor(command: string, args?: string[]) {
+		this.command = command;
+		this.args = args;
 	}
 }
 

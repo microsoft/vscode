@@ -31,7 +31,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { ISearchConfigurationProperties } from '../../../../platform/search/common/search';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -253,10 +253,11 @@ export class SearchWidget extends Widget {
 		this._register(this.searchInputFocusTracker.onDidFocus(() => {
 			this.searchInputBoxFocused.set(true);
 
-			const useGlobalFindBuffer = this.configurationService.getValue<IEditorOptions>('editor').find.globalFindClipboard;
+			const useGlobalFindBuffer = this.configurationService.getValue<ISearchConfigurationProperties>('search').globalFindClipboard;
 			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
 				const globalBufferText = this.clipboardServce.readFindText();
 				if (this.previousGlobalFindBufferValue !== globalBufferText) {
+					this.searchHistory.add(this.searchInput.getValue());
 					this.searchInput.setValue(globalBufferText);
 					this.searchInput.select();
 				}
@@ -379,8 +380,12 @@ export class SearchWidget extends Widget {
 
 	private submitSearch(refresh: boolean = true): void {
 		const value = this.searchInput.getValue();
+		const useGlobalFindBuffer = this.configurationService.getValue<ISearchConfigurationProperties>('search').globalFindClipboard;
 		if (value) {
-			this.clipboardServce.writeFindText(value);
+			if (useGlobalFindBuffer) {
+				this.clipboardServce.writeFindText(value);
+			}
+
 			this._onSearchSubmit.fire(refresh);
 		}
 	}

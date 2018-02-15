@@ -178,6 +178,26 @@
                             "type": "boolean",
                             "default": false,
                             "description": "%emmetPreferencesAllowCompactBoolean%"
+                        },
+                        "css.webkitProperties": {
+                            "type": "string",
+                            "default": null,
+                            "description": "%emmetPreferencesCssWebkitProperties%"
+                        },
+                        "css.mozProperties": {
+                            "type": "string",
+                            "default": null,
+                            "description": "%emmetPreferencesCssMozProperties%"
+                        },
+                        "css.oProperties": {
+                            "type": "string",
+                            "default": null,
+                            "description": "%emmetPreferencesCssOProperties%"
+                        },
+                        "css.msProperties": {
+                            "type": "string",
+                            "default": null,
+                            "description": "%emmetPreferencesCssMsProperties%"
                         }
                     }
                 },
@@ -317,9 +337,9 @@
         "@emmetio/html-matcher": "^0.3.3",
         "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
         "@emmetio/math-expression": "^0.1.1",
-        "vscode-emmet-helper": "^1.1.21",
+        "vscode-emmet-helper": "^1.1.36",
         "vscode-languageserver-types": "^3.5.0",
         "image-size": "^0.5.2",
-        "vscode-nls": "2.0.2"
+        "vscode-nls": "3.2.1"
     }
 }

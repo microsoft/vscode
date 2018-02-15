@@ -237,3 +237,17 @@ export class MenuItemActionItem extends ActionItem {
 		super.dispose();
 	}
 }
+
+// Need to subclass MenuItemActionItem in order to respect
+// the action context coming from any action bar, without breaking
+// existing users
+export class ContextAwareMenuItemActionItem extends MenuItemActionItem {
+
+	onClick(event: MouseEvent): void {
+		event.preventDefault();
+		event.stopPropagation();
+
+		this.actionRunner.run(this._commandAction, this._context)
+			.done(undefined, err => this._messageService.show(Severity.Error, err));
+	}
+}

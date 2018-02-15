@@ -77,7 +77,7 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
-import { LifecycleService } from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
+import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -97,6 +97,8 @@ import URI from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { domEvent } from 'vs/base/browser/event';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
+import { ICustomViewsService } from 'vs/workbench/common/views';
+import { CustomViewsService } from 'vs/workbench/browser/parts/views/customView';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -540,6 +542,10 @@ export class Workbench implements IPartService {
 		this.panelPart = this.instantiationService.createInstance(PanelPart, Identifiers.PANEL_PART);
 		this.toUnbind.push({ dispose: () => this.panelPart.shutdown() });
 		serviceCollection.set(IPanelService, this.panelPart);
+
+		// Custom views service
+		const customViewsService = this.instantiationService.createInstance(CustomViewsService);
+		serviceCollection.set(ICustomViewsService, customViewsService);
 
 		// Activity service (activitybar part)
 		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart, Identifiers.ACTIVITYBAR_PART);

@@ -354,8 +354,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return this.servicePromise = new Promise<ForkedTsServerProcess>(async (resolve, reject) => {
 			try {
 				const tsServerForkArgs = await this.getTsServerArgs(currentVersion);
+				const debugPort = this.getDebugPort();
 				const tsServerForkOptions: electron.IForkOptions = {
-					execArgv: [] // [`--debug-brk=5859`]
+					execArgv: debugPort ? [`--inspect=${debugPort}`] : [] // [`--debug-brk=5859`]
 				};
 				electron.fork(currentVersion.tsServerPath, tsServerForkArgs, tsServerForkOptions, this.logger, (err: any, childProcess: cp.ChildProcess | null) => {
 					if (err || !childProcess) {
@@ -940,6 +941,18 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			}
 		}
 		return args;
+	}
+
+
+	private getDebugPort(): number | undefined {
+		const value = process.env['TSS_DEBUG'];
+		if (value) {
+			const port = parseInt(value);
+			if (!isNaN(port)) {
+				return port;
+			}
+		}
+		return undefined;
 	}
 
 	private resetClientVersion() {

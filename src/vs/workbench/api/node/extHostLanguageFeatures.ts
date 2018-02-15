@@ -468,12 +468,20 @@ class NavigateTypeAdapter {
 	}
 }
 
+interface RenameProvider2 extends vscode.RenameProvider {
+	resolveInitialRenameValue?(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<any>;
+}
+
 class RenameAdapter {
 
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.RenameProvider;
+	static supportsResolving(provider: RenameProvider2): boolean {
+		return typeof provider.resolveInitialRenameValue === 'function';
+	}
 
-	constructor(documents: ExtHostDocuments, provider: vscode.RenameProvider) {
+	private _documents: ExtHostDocuments;
+	private _provider: RenameProvider2;
+
+	constructor(documents: ExtHostDocuments, provider: RenameProvider2) {
 		this._documents = documents;
 		this._provider = provider;
 	}
@@ -503,6 +511,22 @@ class RenameAdapter {
 				// generic error
 				return TPromise.wrapError<modes.WorkspaceEdit>(err);
 			}
+		});
+	}
+
+	resolveInitialRenameValue(resource: URI, position: IPosition): TPromise<modes.RenameInitialValue> {
+		if (typeof this._provider.resolveInitialRenameValue !== 'function') {
+			return TPromise.as(undefined);
+		}
+
+		let doc = this._documents.getDocumentData(resource).document;
+		let pos = TypeConverters.toPosition(position);
+
+		return asWinJsPromise(token => this._provider.resolveInitialRenameValue(doc, pos, token)).then((value) => {
+			return <modes.RenameInitialValue>{
+				range: TypeConverters.fromRange(value.range),
+				text: value.text
+			};
 		});
 	}
 }
@@ -557,7 +581,7 @@ class SuggestAdapter {
 			}
 
 			// the default text edit range
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos))
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos))
 				.with({ end: pos });
 
 			for (let i = 0; i < list.items.length; i++) {
@@ -594,7 +618,7 @@ class SuggestAdapter {
 
 			const doc = this._documents.getDocumentData(resource).document;
 			const pos = TypeConverters.toPosition(position);
-			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) || new Range(pos, pos)).with({ end: pos });
+			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos)).with({ end: pos });
 			const newSuggestion = this._convertCompletionItem(resolvedItem, pos, wordRangeBeforePos, _id, _parentId);
 			if (newSuggestion) {
 				mixin(suggestion, newSuggestion, true);
@@ -1008,14 +1032,18 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- rename
 
-	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
+	registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider, canUseProposedApi = false): vscode.Disposable {
 		const handle = this._addNewAdapter(new RenameAdapter(this._documents, provider));
-		this._proxy.$registerRenameSupport(handle, selector);
+		this._proxy.$registerRenameSupport(handle, selector, canUseProposedApi && RenameAdapter.supportsResolving(provider));
 		return this._createDisposable(handle);
 	}
 
 	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit> {
 		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName));
+	}
+
+	$resolveInitialRenameValue(handle: number, resource: URI, position: IPosition): TPromise<modes.RenameInitialValue> {
+		return this._withAdapter(handle, RenameAdapter, adapter => adapter.resolveInitialRenameValue(resource, position));
 	}
 
 	// --- suggestion

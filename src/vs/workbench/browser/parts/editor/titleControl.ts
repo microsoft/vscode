@@ -60,8 +60,6 @@ export interface ITitleAreaControl {
 
 export abstract class TitleControl extends Themable implements ITitleAreaControl {
 
-	private static draggedEditor: IEditorIdentifier;
-
 	protected stacks: IEditorStacksModel;
 	protected context: IEditorGroup;
 
@@ -115,20 +113,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		this.registerListeners();
 	}
 
-	public static getDraggedEditor(): IEditorIdentifier {
-		return TitleControl.draggedEditor;
-	}
-
 	public setDragged(dragged: boolean): void {
 		this.dragged = dragged;
-	}
-
-	protected onEditorDragStart(editor: IEditorIdentifier): void {
-		TitleControl.draggedEditor = editor;
-	}
-
-	protected onEditorDragEnd(): void {
-		TitleControl.draggedEditor = void 0;
 	}
 
 	private registerListeners(): void {

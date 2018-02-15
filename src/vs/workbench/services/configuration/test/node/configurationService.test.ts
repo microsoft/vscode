@@ -24,7 +24,7 @@ import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configurati
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService, TestLifecycleService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -151,7 +151,7 @@ suite('WorkspaceContextService - Workspace', () => {
 
 				return workspaceService.initialize({ id: configPath, configPath }).then(() => {
 
-					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
+					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.setInstantiationService(instantiationService);
@@ -181,6 +181,34 @@ suite('WorkspaceContextService - Workspace', () => {
 	test('add folders', () => {
 		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
 		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }])
+			.then(() => {
+				const actual = testObject.getWorkspace().folders;
+
+				assert.equal(actual.length, 4);
+				assert.equal(path.basename(actual[0].uri.fsPath), 'a');
+				assert.equal(path.basename(actual[1].uri.fsPath), 'b');
+				assert.equal(path.basename(actual[2].uri.fsPath), 'd');
+				assert.equal(path.basename(actual[3].uri.fsPath), 'c');
+			});
+	});
+
+	test('add folders (at specific index)', () => {
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }], 0)
+			.then(() => {
+				const actual = testObject.getWorkspace().folders;
+
+				assert.equal(actual.length, 4);
+				assert.equal(path.basename(actual[0].uri.fsPath), 'd');
+				assert.equal(path.basename(actual[1].uri.fsPath), 'c');
+				assert.equal(path.basename(actual[2].uri.fsPath), 'a');
+				assert.equal(path.basename(actual[3].uri.fsPath), 'b');
+			});
+	});
+
+	test('add folders (at specific wrong index)', () => {
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }], 10)
 			.then(() => {
 				const actual = testObject.getWorkspace().folders;
 
@@ -243,6 +271,55 @@ suite('WorkspaceContextService - Workspace', () => {
 				assert.deepEqual(actual.added, []);
 				assert.deepEqual(actual.removed.map(r => r.uri.toString()), [removedFolder.uri.toString()]);
 				assert.deepEqual(actual.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
+			});
+	});
+
+	test('update folders (remove last and add to end)', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeWorkspaceFolders(target);
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
+		const removedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
+		return testObject.updateFolders(addedFolders, removedFolders)
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+				assert.deepEqual(actual.removed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
+				assert.deepEqual(actual.changed, []);
+			});
+	});
+
+	test('update folders (rename first via add and remove)', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeWorkspaceFolders(target);
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'a')), name: 'The Folder' }];
+		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
+		return testObject.updateFolders(addedFolders, removedFolders, 0)
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added, []);
+				assert.deepEqual(actual.removed, []);
+				assert.deepEqual(actual.changed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
+			});
+	});
+
+	test('update folders (remove first and add to end)', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeWorkspaceFolders(target);
+		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
+		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
+		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
+		const changedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
+		return testObject.updateFolders(addedFolders, removedFolders)
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+				assert.deepEqual(actual.removed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
+				assert.deepEqual(actual.changed.map(r => r.uri.toString()), changedFolders.map(a => a.toString()));
 			});
 	});
 
@@ -318,7 +395,7 @@ suite('WorkspaceService - Initialization', () => {
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(<IWindowConfiguration>{}).then(() => {
-					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
+					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.setInstantiationService(instantiationService);
@@ -570,7 +647,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				instantiationService.stub(IEnvironmentService, environmentService);
 
 				return workspaceService.initialize(folderDir).then(() => {
-					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
+					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.setInstantiationService(instantiationService);
@@ -865,7 +942,7 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 
 				return workspaceService.initialize({ id: configPath, configPath }).then(() => {
 
-					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
+					instantiationService.stub(IFileService, new FileService(<IWorkspaceContextService>workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), workspaceService, new TestLifecycleService(), { disableWatcher: true }));
 					instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 					instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 					workspaceService.setInstantiationService(instantiationService);

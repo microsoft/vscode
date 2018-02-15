@@ -258,6 +258,13 @@ class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 	}
 
 	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+
+		if (editorModel.textEditorModel.isTooLargeForHavingARichMode()) {
+			// the model never made it to the extension
+			// host meaning we cannot participate in its save
+			return undefined;
+		}
+
 		return new Promise<any>((resolve, reject) => {
 			setTimeout(reject, 1750);
 			this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {

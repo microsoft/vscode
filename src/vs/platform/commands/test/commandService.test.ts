@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
-import { IExtensionService, ExtensionPointContribution, IExtensionDescription, IExtensionHostInformation, ProfileSession } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, ExtensionPointContribution, IExtensionDescription, ProfileSession } from 'vs/platform/extensions/common/extensions';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -34,11 +34,11 @@ class SimpleExtensionService implements IExtensionService {
 	getExtensionsStatus() {
 		return undefined;
 	}
-	getExtensionHostInformation(): IExtensionHostInformation {
-		return undefined;
-	}
 	getExtensions(): TPromise<IExtensionDescription[]> {
 		return TPromise.wrap([]);
+	}
+	canProfileExtensionHost() {
+		return false;
 	}
 	startExtensionHostProfile(): TPromise<ProfileSession> {
 		throw new Error('Not implemented');
@@ -117,11 +117,11 @@ suite('CommandService', function () {
 
 		let callCounter = 0;
 		let resolveFunc: Function;
-		// let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+		const whenInstalledExtensionsRegistered = new TPromise<boolean>(_resolve => { resolveFunc = _resolve; });
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			whenInstalledExtensionsRegistered() {
-				return new TPromise<boolean>(_resolve => { resolveFunc = _resolve; });
+				return whenInstalledExtensionsRegistered;
 			}
 		}, new NullLogService());
 

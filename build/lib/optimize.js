@@ -172,7 +172,6 @@ function optimizeTask(opts) {
     };
 }
 exports.optimizeTask = optimizeTask;
-;
 /**
  * Wrap around uglify and allow the preserveComments function
  * to have a file "context" to include our copyright only once per file.
@@ -235,4 +234,3 @@ function minifyTask(src, sourceMapBaseUrl) {
     };
 }
 exports.minifyTask = minifyTask;
-;

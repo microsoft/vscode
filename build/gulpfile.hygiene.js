@@ -77,7 +77,8 @@ const indentationFilter = [
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
 	'!extensions/**/colorize-fixtures/**',
-	'!extensions/vscode-api-tests/testWorkspace/**'
+	'!extensions/vscode-api-tests/testWorkspace/**',
+	'!extensions/vscode-api-tests/testWorkspace2/**'
 ];
 
 const copyrightFilter = [
@@ -95,6 +96,7 @@ const copyrightFilter = [
 	'!**/*.xpm',
 	'!**/*.opts',
 	'!**/*.disabled',
+	'!**/*.code-workspace',
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
@@ -124,6 +126,7 @@ const tslintFilter = [
 	'!**/node_modules/**',
 	'!extensions/typescript/test/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
+	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!extensions/**/*.test.ts',
 	'!extensions/html/server/lib/jquery.d.ts'
 ];
@@ -148,8 +151,8 @@ gulp.task('tslint', () => {
 
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(tslintFilter))
-		.pipe(gulptslint({ rulesDirectory: 'build/lib/tslint' }))
-		.pipe(gulptslint.report(options));
+		.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint' }))
+		.pipe(gulptslint.default.report(options));
 });
 
 const hygiene = exports.hygiene = (some, options) => {
@@ -198,7 +201,12 @@ const hygiene = exports.hygiene = (some, options) => {
 		tsfmt.processString(file.path, file.contents.toString('utf8'), {
 			verify: true,
 			tsfmt: true,
-			verbose: true
+			// verbose: true
+			// keep checkJS happy
+			editorconfig: undefined,
+			replace: undefined,
+			tsconfig: undefined,
+			tslint: undefined
 		}).then(result => {
 			if (result.error) {
 				console.error(result.message);
@@ -224,9 +232,9 @@ const hygiene = exports.hygiene = (some, options) => {
 
 	const tsl = es.through(function (file) {
 		const configuration = tslint.Configuration.findConfiguration(null, '.');
-		const options = { formatter: 'json', rulesDirectory: 'build/lib/tslint' };
+		const linterOptions = { fix: false, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
 		const contents = file.contents.toString('utf8');
-		const linter = new tslint.Linter(options);
+		const linter = new tslint.Linter(linterOptions);
 		linter.lint(file.relative, contents, configuration.results);
 		const result = linter.getResult();
 

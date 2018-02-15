@@ -5,13 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/textmate/git.tmbundle/commit/93897a78c6e52bef13dadc0d4091d203c5facb40",
-	"fileTypes": [
-		"COMMIT_EDITMSG",
-		"MERGE_MSG"
-	],
-	"foldingStartMarker": "^\\+\\+\\+",
-	"foldingStopMarker": "^---",
 	"name": "Git Commit Message",
+	"scopeName": "text.git-commit",
 	"patterns": [
 		{
 			"begin": "\\A(?!# Please enter the commit message)",
@@ -142,7 +137,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "text.git-commit",
-	"uuid": "BFE83C06-8508-44BE-A975-95A57BF619A7"
+	}
 }

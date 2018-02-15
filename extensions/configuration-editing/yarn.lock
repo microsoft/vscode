@@ -10,6 +10,6 @@ jsonc-parser@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.0.tgz#ddcc864ae708e60a7a6dd36daea00172fa8d9272"
 
-vscode-nls@^2.0.1:
-  version "2.0.2"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-2.0.2.tgz#808522380844b8ad153499af5c3b03921aea02da"
+vscode-nls@^3.2.1:
+  version "3.2.1"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.1.tgz#b1f3e04e8a94a715d5a7bcbc8339c51e6d74ca51"

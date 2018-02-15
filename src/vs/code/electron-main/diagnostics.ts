@@ -38,14 +38,12 @@ export interface ProcessInfo {
 	name: string;
 }
 
-export interface DiagnosticInfo {
-	versionInfo?: VersionInfo;
-	systemInfo?: SystemInfo;
+export interface PerformanceInfo {
 	processInfo?: ProcessInfo[];
 	workspaceInfo?: string;
 }
 
-export function buildDiagnostics(info: IMainProcessInfo): Promise<DiagnosticInfo> {
+export function getPerformanceInfo(info: IMainProcessInfo): Promise<PerformanceInfo> {
 	return listProcesses(info.mainPID).then(rootProcess => {
 		const workspaceInfoMessages = [];
 
@@ -80,12 +78,34 @@ export function buildDiagnostics(info: IMainProcessInfo): Promise<DiagnosticInfo
 		}
 
 		return {
-			versionInfo: getVersionInfo(),
-			systemInfo: getSystemInfo(info),
 			processInfo: getProcessList(info, rootProcess),
 			workspaceInfo: workspaceInfoMessages.join('\n')
 		};
 	});
+}
+
+export function getSystemInfo(info: IMainProcessInfo): SystemInfo {
+	const MB = 1024 * 1024;
+	const GB = 1024 * MB;
+
+	const systemInfo: SystemInfo = {
+		'Memory (System)': `${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`,
+		VM: `${Math.round((virtualMachineHint.value() * 100))}%`,
+		'Screen Reader': `${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`,
+		'Process Argv': `${info.mainArguments.join(' ')}`
+	};
+
+	const cpus = os.cpus();
+	if (cpus && cpus.length > 0) {
+		systemInfo.CPUs = `${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`;
+	}
+
+	if (!isWindows) {
+		systemInfo['Load (avg)'] = `${os.loadavg().map(l => Math.round(l)).join(', ')}`;
+	}
+
+
+	return systemInfo;
 }
 
 export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
@@ -188,43 +208,11 @@ function formatLaunchConfigs(configs: WorkspaceStatItem[]): string {
 	return output.join('\n');
 }
 
-function getVersionInfo(): VersionInfo {
-	return {
-		vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
-		os: `${os.type()} ${os.arch()} ${os.release()}`
-	};
-}
-
-function getSystemInfo(info: IMainProcessInfo): SystemInfo {
-	const MB = 1024 * 1024;
-	const GB = 1024 * MB;
-
-	const systemInfo: SystemInfo = {
-		'Memory (System)': `${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`,
-		VM: `${Math.round((virtualMachineHint.value() * 100))}%`,
-		'Screen Reader': `${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`,
-		'Process Argv': `${info.mainArguments.join(' ')}`
-	};
-
-	const cpus = os.cpus();
-	if (cpus && cpus.length > 0) {
-		systemInfo.CPUs = `${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`;
-	}
-
-	if (!isWindows) {
-		systemInfo['Load (avg)'] = `${os.loadavg().map(l => Math.round(l)).join(', ')}`;
-	}
-
-
-	return systemInfo;
-}
-
 function getProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): ProcessInfo[] {
 	const mapPidToWindowTitle = new Map<number, string>();
 	info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
 
 	const processes: ProcessInfo[] = [];
-	getProcessItem(mapPidToWindowTitle, processes, rootProcess, 0);
 
 	if (rootProcess) {
 		getProcessItem(mapPidToWindowTitle, processes, rootProcess, 0);

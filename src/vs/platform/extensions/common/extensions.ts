@@ -119,10 +119,6 @@ export class ExtensionPointContribution<T> {
 	}
 }
 
-export interface IExtensionHostInformation {
-	inspectPort: number;
-}
-
 export interface IExtensionService {
 	_serviceBrand: any;
 
@@ -169,6 +165,11 @@ export interface IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 
 	/**
+	 * Check if the extension host can be profiled.
+	 */
+	canProfileExtensionHost(): boolean;
+
+	/**
 	 * Begin an extension host process profile session.
 	 */
 	startExtensionHostProfile(): TPromise<ProfileSession>;
@@ -187,11 +188,6 @@ export interface IExtensionService {
 	 * Stops the extension host.
 	 */
 	stopExtensionHost(): void;
-
-	/**
-	 *
-	 */
-	getExtensionHostInformation(): IExtensionHostInformation;
 }
 
 export interface ProfileSession {

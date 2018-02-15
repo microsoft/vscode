@@ -144,7 +144,6 @@ export class ExtensionHostProcessWorker {
 						VSCODE_WINDOW_ID: String(this._windowService.getCurrentWindowId()),
 						VSCODE_IPC_HOOK_EXTHOST: pipeName,
 						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
-						ELECTRON_NO_ASAR: '1',
 						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || product.quality !== 'stable' || this._environmentService.verbose)
 					}),
 					// We only detach the extension host on windows. Linux and Mac orphan by default
@@ -276,6 +275,8 @@ export class ExtensionHostProcessWorker {
 		let startPort = 9333;
 		if (typeof this._environmentService.debugExtensionHost.port === 'number') {
 			startPort = expected = this._environmentService.debugExtensionHost.port;
+		} else {
+			return TPromise.as({ expected: undefined, actual: 0 });
 		}
 		return new TPromise((c, e) => {
 			return findFreePort(startPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
@@ -357,7 +358,7 @@ export class ExtensionHostProcessWorker {
 
 	private _createExtHostInitData(): TPromise<IInitData> {
 		return TPromise.join<any>([this._telemetryService.getTelemetryInfo(), this._extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
-			const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: [] };
+			const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
 			const r: IInitData = {
 				parentPid: process.pid,
 				environment: {
@@ -375,7 +376,7 @@ export class ExtensionHostProcessWorker {
 				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : <IWorkspaceData>this._contextService.getWorkspace(),
 				extensions: extensionDescriptions,
 				// Send configurations scopes only in development mode.
-				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes(this._configurationService.keys().default) } : configurationData,
+				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
 				telemetryInfo,
 				args: this._environmentService.args,
 				execPath: this._environmentService.execPath,

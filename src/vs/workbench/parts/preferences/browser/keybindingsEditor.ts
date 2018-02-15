@@ -26,7 +26,7 @@ import { SearchWidget } from 'vs/workbench/parts/preferences/browser/preferences
 import { DefineKeybindingWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import {
 	IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY,
-	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS
+	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -259,7 +259,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.searchWidget.clear();
 	}
 
-	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
 		const value = `"${keybindingEntry.keybindingItem.keybinding.getAriaLabel()}"`;
 		if (value !== this.searchWidget.getValue()) {
 			this.searchWidget.setValue(value);
@@ -333,7 +333,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
 
 		this.keybindingsList = this._register(this.instantiationService.createInstance(WorkbenchList, this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this, this.keybindingsService)],
-			{ identityProvider: e => e.id, keyboardSupport: false, mouseSupport: true, ariaLabel: localize('keybindingsLabel', "Keybindings") }));
+			{ identityProvider: e => e.id, mouseSupport: true, ariaLabel: localize('keybindingsLabel', "Keybindings") })) as WorkbenchList<IListEntry>;
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
 		this._register(this.keybindingsList.onDidFocus(() => {
@@ -517,10 +517,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private createShowConflictsAction(keybindingItem: IKeybindingItemEntry): IAction {
 		return <IAction>{
-			label: localize('showConflictsLabel', "Show Conflicts"),
+			label: localize('showSameKeybindings', "Show Same Keybindings"),
 			enabled: !!keybindingItem.keybindingItem.keybinding,
-			id: KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS,
-			run: () => this.showConflicts(keybindingItem)
+			id: KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR,
+			run: () => this.showSimilarKeybindings(keybindingItem)
 		};
 	}
 
@@ -660,6 +660,7 @@ class KeybindingItemRenderer implements IRenderer<IKeybindingItemEntry, Keybindi
 	}
 
 	renderElement(keybindingEntry: IKeybindingItemEntry, index: number, template: KeybindingItemTemplate): void {
+		DOM.toggleClass(template.parent, 'odd', index % 2 === 1);
 		template.actions.render(keybindingEntry);
 		template.command.render(keybindingEntry);
 		template.keybinding.render(keybindingEntry);

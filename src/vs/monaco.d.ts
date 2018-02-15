@@ -2546,7 +2546,7 @@ declare module monaco.editor {
 		/**
 		 * Control the width of the cursor when cursorStyle is set to 'line'
 		 */
-		lineCursorWidth?: number;
+		cursorWidth?: number;
 		/**
 		 * Enable font ligatures.
 		 * Defaults to false.
@@ -2742,6 +2742,10 @@ declare module monaco.editor {
 		 * Enable word based suggestions. Defaults to 'true'
 		 */
 		wordBasedSuggestions?: boolean;
+		/**
+		 * The history mode for suggestions.
+		 */
+		suggestSelection?: string;
 		/**
 		 * The font size for the suggest widget.
 		 * Defaults to the editor font size.
@@ -3013,7 +3017,7 @@ declare module monaco.editor {
 		readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 		readonly mouseWheelZoom: boolean;
 		readonly cursorStyle: TextEditorCursorStyle;
-		readonly lineCursorWidth: number;
+		readonly cursorWidth: number;
 		readonly hideCursorInOverviewRuler: boolean;
 		readonly scrollBeyondLastLine: boolean;
 		readonly smoothScrolling: boolean;
@@ -3048,6 +3052,7 @@ declare module monaco.editor {
 		readonly acceptSuggestionOnCommitCharacter: boolean;
 		readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		readonly wordBasedSuggestions: boolean;
+		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
 		readonly selectionHighlight: boolean;
@@ -4180,6 +4185,18 @@ declare module monaco.languages {
 		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
 		 */
 		textEdit?: editor.ISingleEditOperation;
+		/**
+		 * An optional array of additional text edits that are applied when
+		 * selecting this completion. Edits must not overlap with the main edit
+		 * nor with themselves.
+		 */
+		additionalTextEdits?: editor.ISingleEditOperation[];
+		/**
+		 * An optional set of characters that when pressed while this completion is active will accept it first and
+		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
+		 * characters will be ignored.
+		 */
+		commitCharacters?: string[];
 	}
 
 	/**
@@ -4939,8 +4956,14 @@ declare module monaco.languages {
 		rejectReason?: string;
 	}
 
+	export interface RenameInitialValue {
+		range: IRange;
+		text?: string;
+	}
+
 	export interface RenameProvider {
 		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
+		resolveInitialRenameValue?(model: editor.ITextModel, position: Position, token: CancellationToken): RenameInitialValue | Thenable<RenameInitialValue>;
 	}
 
 	export interface Command {

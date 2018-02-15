@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.20.0",
-  "distro": "d41bd1b8193403ffe9849b49fc37153e3d5b5a49",
+  "version": "1.21.0",
+  "distro": "4957472198ae7ca4a3ed49fd40d6d082c0bc592b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -18,6 +18,7 @@
     "gulp": "gulp --max_old_space_size=4096",
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
+    "update-localization-extension": "node build/npm/update-localization-extension.js",
     "smoketest": "cd test/smoke && mocha"
   },
   "dependencies": {
@@ -38,14 +39,14 @@
     "node-pty": "0.7.4",
     "nsfw": "1.0.16",
     "semver": "4.3.6",
-    "spdlog": "0.5.0",
+    "spdlog": "0.6.0",
     "sudo-prompt": "^8.0.0",
     "v8-inspect-profiler": "^0.0.7",
     "vscode-chokidar": "1.6.2",
     "vscode-debugprotocol": "1.25.0",
-    "vscode-ripgrep": "^0.7.1-patch.0",
+    "vscode-ripgrep": "^0.7.1-patch.1.5",
     "vscode-textmate": "^3.2.0",
-    "vscode-xterm": "3.1.0-beta10",
+    "vscode-xterm": "3.2.0-beta2",
     "yauzl": "2.8.0"
   },
   "devDependencies": {
@@ -54,7 +55,9 @@
     "@types/minimist": "1.2.0",
     "@types/mocha": "2.2.39",
     "@types/sinon": "1.16.34",
+    "asar": "^0.14.0",
     "azure-storage": "^0.3.1",
+    "chromium-pickle-js": "^0.2.0",
     "clean-css": "3.4.6",
     "coveralls": "^2.11.11",
     "cson-parser": "^1.3.3",
@@ -115,7 +118,7 @@
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
     "vsce": "1.33.2",
-    "vscode-nls-dev": "^2.0.1"
+    "vscode-nls-dev": "3.0.7"
   },
   "repository": {
     "type": "git",

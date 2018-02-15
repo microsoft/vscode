@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IEndpointDetails {
@@ -35,17 +35,22 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService
 	) {
 		super();
-		this._installedExtensions = this.extensionManagementService.getInstalled(LocalExtensionType.User);
+
+		// This request goes to the shared process but results won't change during a window's lifetime, so cache the results.
+		this._installedExtensions = this.extensionManagementService.getInstalled(LocalExtensionType.User).then(exts => {
+			// Filter to enabled extensions that have settings
+			return exts
+				.filter(ext => this.extensionEnablementService.isEnabled(ext.identifier))
+				.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
+				.filter(ext => !!ext.identifier.uuid);
+		});
 	}
 
 	private get remoteSearchAllowed(): boolean {
-		if (this.environmentService.appQuality === 'stable') {
-			return false;
-		}
-
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		if (!workbenchSettings.enableNaturalLanguageSearch) {
 			return false;
@@ -69,13 +74,10 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	}
 
 	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider {
-		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-
 		const opts: IRemoteSearchProviderOptions = {
 			filter,
 			newExtensionsOnly,
-			endpoint: this._endpoint,
-			usePost: workbenchSettings.useNaturalLanguageSearchPost
+			endpoint: this._endpoint
 		};
 
 		return this.remoteSearchAllowed && this.instantiationService.createInstance(RemoteSearchProvider, opts, this._installedExtensions);
@@ -87,10 +89,13 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 }
 
 export class LocalSearchProvider implements ISearchProvider {
-	private _filter: string;
-
-	constructor(filter: string) {
-		this._filter = filter;
+	constructor(private _filter: string) {
+		// Remove " and : which are likely to be copypasted as part of a setting name.
+		// Leave other special characters which the user might want to search for.
+		this._filter = this._filter
+			.replace(/[":]/g, ' ')
+			.replace(/  /g, ' ')
+			.trim();
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
@@ -100,7 +105,7 @@ export class LocalSearchProvider implements ISearchProvider {
 
 		let score = 1000; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
-			const matches = new SettingMatches(this._filter, setting, true, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			const matches = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 			return matches && matches.length ?
 				{
 					matches,
@@ -127,10 +132,20 @@ interface IRemoteSearchProviderOptions {
 	filter: string;
 	endpoint: IEndpointDetails;
 	newExtensionsOnly: boolean;
-	usePost: boolean;
+}
+
+interface IBingRequestDetails {
+	url: string;
+	body?: string;
+	hasMoreFilters?: boolean;
+	extensions?: ILocalExtension[];
 }
 
 class RemoteSearchProvider implements ISearchProvider {
+	// Must keep extension filter size under 8kb. 42 filters puts us there.
+	private static MAX_REQUEST_FILTERS = 42;
+	private static MAX_REQUESTS = 10;
+
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
 	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: TPromise<ILocalExtension[]>,
@@ -138,10 +153,9 @@ class RemoteSearchProvider implements ISearchProvider {
 		@IRequestService private requestService: IRequestService,
 		@ILogService private logService: ILogService
 	) {
-		this._remoteSearchP = (this.options.newExtensionsOnly && !this.options.usePost) ? TPromise.wrap(null) :
-			this.options.filter ?
-				this.getSettingsFromBing(this.options.filter) :
-				TPromise.wrap(null);
+		this._remoteSearchP = this.options.filter ?
+			this.getSettingsForFilter(this.options.filter) :
+			TPromise.wrap(null);
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
@@ -181,76 +195,101 @@ class RemoteSearchProvider implements ISearchProvider {
 		});
 	}
 
-	private getSettingsFromBing(filter: string): TPromise<IFilterMetadata> {
-		const start = Date.now();
-		return this.prepareRequest(filter).then(details => {
-			this.logService.debug(`Searching settings via ${details.url}`);
-			if (details.body) {
-				this.logService.debug(`Body: ${details.body}`);
+	private async getSettingsForFilter(filter: string): TPromise<IFilterMetadata> {
+		const allRequestDetails: IBingRequestDetails[] = [];
+
+		// Only send MAX_REQUESTS requests in total just to keep it sane
+		for (let i = 0; i < RemoteSearchProvider.MAX_REQUESTS; i++) {
+			const details = await this.prepareRequest(filter, i);
+			allRequestDetails.push(details);
+			if (!details.hasMoreFilters) {
+				break;
+			}
+		}
+
+		return TPromise.join(allRequestDetails.map(details => this.getSettingsFromBing(details))).then(allResponses => {
+			// Merge all IFilterMetadata
+			const metadata = allResponses[0];
+			metadata.requestCount = 1;
+
+			for (let response of allResponses.slice(1)) {
+				metadata.requestCount++;
+				metadata.scoredResults = { ...metadata.scoredResults, ...response.scoredResults };
 			}
 
-			const requestType = details.body ? 'post' : 'get';
-			return this.requestService.request({
-				type: requestType,
-				url: details.url,
-				data: details.body,
-				headers: {
-					'User-Agent': 'request',
-					'Content-Type': 'application/json; charset=utf-8',
-					'api-key': this.options.endpoint.key
-				},
-				timeout: 5000
-			}).then(context => {
-				if (context.res.statusCode >= 300) {
-					throw new Error(`${details} returned status code: ${context.res.statusCode}`);
-				}
+			return metadata;
+		});
+	}
 
-				return asJson(context);
-			}).then((result: any) => {
-				const timestamp = Date.now();
-				const duration = timestamp - start;
-				const remoteSettings: IRemoteSetting[] = (result.value || [])
-					.map(r => {
-						const key = JSON.parse(r.setting || r.Setting);
-						const packageId = r['packageid'];
-						const id = getSettingKey(key, packageId);
+	private getSettingsFromBing(details: IBingRequestDetails): TPromise<IFilterMetadata> {
+		this.logService.debug(`Searching settings via ${details.url}`);
+		if (details.body) {
+			this.logService.debug(`Body: ${details.body}`);
+		}
 
-						const value = r['value'];
-						const defaultValue = value ? JSON.parse(value) : value;
+		const requestType = details.body ? 'post' : 'get';
+		const start = Date.now();
+		return this.requestService.request({
+			type: requestType,
+			url: details.url,
+			data: details.body,
+			headers: {
+				'User-Agent': 'request',
+				'Content-Type': 'application/json; charset=utf-8',
+				'api-key': this.options.endpoint.key
+			},
+			timeout: 5000
+		}).then(context => {
+			if (context.res.statusCode >= 300) {
+				throw new Error(`${details} returned status code: ${context.res.statusCode}`);
+			}
 
-						const packageName = r['packagename'];
-						let extensionName: string;
-						let extensionPublisher: string;
-						if (packageName && packageName.indexOf('##') >= 0) {
-							[extensionPublisher, extensionName] = packageName.split('##');
-						}
+			return asJson(context);
+		}).then((result: any) => {
+			const timestamp = Date.now();
+			const duration = timestamp - start;
+			const remoteSettings: IRemoteSetting[] = (result.value || [])
+				.map(r => {
+					const key = JSON.parse(r.setting || r.Setting);
+					const packageId = r['packageid'];
+					const id = getSettingKey(key, packageId);
 
-						return <IRemoteSetting>{
-							key,
-							id,
-							defaultValue,
-							score: r['@search.score'],
-							description: JSON.parse(r['details']),
-							packageId,
-							extensionName,
-							extensionPublisher
-						};
-					});
+					const value = r['value'];
+					const defaultValue = value ? JSON.parse(value) : value;
 
-				const scoredResults = Object.create(null);
-				remoteSettings.forEach(s => {
-					scoredResults[s.id] = s;
+					const packageName = r['packagename'];
+					let extensionName: string;
+					let extensionPublisher: string;
+					if (packageName && packageName.indexOf('##') >= 0) {
+						[extensionPublisher, extensionName] = packageName.split('##');
+					}
+
+					return <IRemoteSetting>{
+						key,
+						id,
+						defaultValue,
+						score: r['@search.score'],
+						description: JSON.parse(r['details']),
+						packageId,
+						extensionName,
+						extensionPublisher
+					};
 				});
 
-				return <IFilterMetadata>{
-					requestUrl: details.url,
-					requestBody: details.body,
-					duration,
-					timestamp,
-					scoredResults,
-					context: result['@odata.context']
-				};
+			const scoredResults = Object.create(null);
+			remoteSettings.forEach(s => {
+				scoredResults[s.id] = s;
 			});
+
+			return <IFilterMetadata>{
+				requestUrl: details.url,
+				requestBody: details.body,
+				duration,
+				timestamp,
+				scoredResults,
+				context: result['@odata.context'],
+				extensions: details.extensions
+			};
 		});
 	}
 
@@ -260,7 +299,7 @@ class RemoteSearchProvider implements ISearchProvider {
 				scoredResults[getSettingKey(setting.key, 'core')] || // core setting
 				scoredResults[getSettingKey(setting.key)]; // core setting from original prod endpoint
 			if (remoteSetting && remoteSetting.score >= minScore) {
-				const settingMatches = new SettingMatches(this.options.filter, setting, false, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+				const settingMatches = new SettingMatches(this.options.filter, setting, false, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 				return { matches: settingMatches, score: remoteSetting.score };
 			}
 
@@ -268,61 +307,57 @@ class RemoteSearchProvider implements ISearchProvider {
 		};
 	}
 
-	private async prepareRequest(query: string): TPromise<{ url: string, body?: string }> {
+	private async prepareRequest(query: string, filterPage = 0): TPromise<IBingRequestDetails> {
+		const verbatimQuery = query;
 		query = escapeSpecialChars(query);
 		const boost = 10;
-		const userQuery = `(${query})^${boost}`;
+		const boostedQuery = `(${query})^${boost}`;
 
 		// Appending Fuzzy after each word.
 		query = query.replace(/\ +/g, '~ ') + '~';
 
-		const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
-		let url = `${this.options.endpoint.urlBase}?`;
+		const encodedQuery = encodeURIComponent(boostedQuery + ' || ' + query);
+		let url = `${this.options.endpoint.urlBase}`;
 
-		const buildNumber = this.environmentService.settingsSearchBuildId;
 		if (this.options.endpoint.key) {
 			url += `${API_VERSION}&${QUERY_TYPE}`;
 		}
 
-		if (this.options.usePost) {
-			const filters = this.options.newExtensionsOnly ?
-				[`diminish eq 'latest'`] :
-				await this.getVersionFilters(buildNumber);
+		const extensions = await this.installedExtensions;
+		const filters = this.options.newExtensionsOnly ?
+			[`diminish eq 'latest'`] :
+			this.getVersionFilters(extensions, this.environmentService.settingsSearchBuildId);
 
-			const filterStr = encodeURIComponent(filters.join(' or '));
-			const body = JSON.stringify({
-				query: encodedQuery,
-				filters: filterStr
-			});
+		const filterStr = filters
+			.slice(filterPage * RemoteSearchProvider.MAX_REQUEST_FILTERS, (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS)
+			.join(' or ');
+		const hasMoreFilters = filters.length > (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS;
 
-			return {
-				url,
-				body
-			};
-		} else {
-			url += `query=${encodedQuery}`;
+		const body = JSON.stringify({
+			query: encodedQuery,
+			filters: encodeURIComponent(filterStr),
+			rawQuery: encodeURIComponent(verbatimQuery)
+		});
 
-			if (buildNumber) {
-				url += `&build=${buildNumber}`;
-			}
-		}
-
-		return TPromise.wrap({ url });
+		return {
+			url,
+			body,
+			hasMoreFilters,
+			extensions
+		};
 	}
 
-	private getVersionFilters(buildNumber?: number): TPromise<string[]> {
-		return this.installedExtensions.then(exts => {
-			// Only search extensions that contribute settings
-			const filters = exts
-				.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
-				.map(ext => this.getExtensionFilter(ext));
+	private getVersionFilters(exts: ILocalExtension[], buildNumber?: number): string[] {
+		// Only search extensions that contribute settings
+		const filters = exts
+			.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
+			.map(ext => this.getExtensionFilter(ext));
 
-			if (buildNumber) {
-				filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
-			}
+		if (buildNumber) {
+			filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
+		}
 
-			return filters;
-		});
+		return filters;
 	}
 
 	private getExtensionFilter(ext: ILocalExtension): string {

@@ -24,6 +24,7 @@ import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/brow
 import Tree = require('vs/base/parts/tree/browser/tree');
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/common/markers';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -80,6 +81,7 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 	constructor(private markersPanel: MarkersPanel, action: IAction,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService,
+		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
 		super(markersPanel, action);
 		this.toDispose = [];
@@ -93,7 +95,7 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER
 		});
 		this.toDispose.push(attachInputBoxStyler(filterInputBox, this.themeService));
-		filterInputBox.value = this.markersPanel.markersModel.filterOptions.completeFilter;
+		filterInputBox.value = this.markersWorkbenchService.markersModel.filterOptions.completeFilter;
 		this.toDispose.push(filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.updateFilter(filter))));
 		this.toDispose.push(DOM.addStandardDisposableListener(filterInputBox.inputElement, 'keyup', (keyboardEvent) => this.onInputKeyUp(keyboardEvent, filterInputBox)));
 		this.toDispose.push(DOM.addStandardDisposableListener(container, 'keydown', this.handleKeyboardEvent));
@@ -107,9 +109,9 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 
 	private reportFilteringUsed(): void {
 		let data = {};
-		data['errors'] = this.markersPanel.markersModel.filterOptions.filterErrors;
-		data['warnings'] = this.markersPanel.markersModel.filterOptions.filterWarnings;
-		data['infos'] = this.markersPanel.markersModel.filterOptions.filterInfos;
+		data['errors'] = this.markersWorkbenchService.markersModel.filterOptions.filterErrors;
+		data['warnings'] = this.markersWorkbenchService.markersModel.filterOptions.filterWarnings;
+		data['infos'] = this.markersWorkbenchService.markersModel.filterOptions.filterInfos;
 		/* __GDPR__
 			"problems.filter" : {
 				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },

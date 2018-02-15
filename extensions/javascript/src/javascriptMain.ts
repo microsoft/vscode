@@ -8,13 +8,9 @@
 import { addJSONProviders } from './features/jsonContributions';
 import * as httpRequest from 'request-light';
 
-import { ExtensionContext, env, workspace } from 'vscode';
-
-import * as nls from 'vscode-nls';
+import { ExtensionContext, workspace } from 'vscode';
 
 export function activate(context: ExtensionContext): any {
-	nls.config({ locale: env.language });
-
 	configureHttpRequest();
 	workspace.onDidChangeConfiguration(() => configureHttpRequest());
 

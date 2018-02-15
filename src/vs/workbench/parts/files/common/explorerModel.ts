@@ -7,14 +7,16 @@
 
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
-import { IFileStat, isParent } from 'vs/platform/files/common/files';
+import { IFileStat } from 'vs/platform/files/common/files';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getPathLabel } from 'vs/base/common/labels';
+import { Schemas } from 'vs/base/common/network';
 
 export class Model {
 
@@ -130,7 +132,7 @@ export class FileStat implements IFileStat {
 			// the folder is fully resolved if either it has a list of children or the client requested this by using the resolveTo
 			// array of resource path to resolve.
 			stat.isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
-				return paths.isEqualOrParent(r.fsPath, stat.resource.fsPath, !isLinux /* ignorecase */);
+				return resources.isEqualOrParent(r, stat.resource, !isLinux /* ignorecase */);
 			}));
 
 			// Recurse into children
@@ -280,7 +282,7 @@ export class FileStat implements IFileStat {
 	public find(resource: URI): FileStat {
 
 		// Return if path found
-		if (paths.isEqual(resource.fsPath, this.resource.fsPath, !isLinux /* ignorecase */)) {
+		if (resources.isEqual(resource, this.resource, !isLinux /* ignorecase */)) {
 			return this;
 		}
 
@@ -292,11 +294,11 @@ export class FileStat implements IFileStat {
 		for (let i = 0; i < this.children.length; i++) {
 			const child = this.children[i];
 
-			if (paths.isEqual(resource.fsPath, child.resource.fsPath, !isLinux /* ignorecase */)) {
+			if (resources.isEqual(resource, child.resource, !isLinux /* ignorecase */)) {
 				return child;
 			}
 
-			if (child.isDirectory && isParent(resource.fsPath, child.resource.fsPath, !isLinux /* ignorecase */)) {
+			if (child.isDirectory && resources.isEqualOrParent(resource, child.resource, !isLinux /* ignorecase */)) {
 				return child.find(resource);
 			}
 		}
@@ -379,6 +381,10 @@ export class OpenEditor implements IEditorIdentifier {
 		return this._editor;
 	}
 
+	public get editorIndex() {
+		return this._group.indexOf(this.editor);
+	}
+
 	public get group() {
 		return this._group;
 	}
@@ -392,7 +398,7 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	public isUntitled(): boolean {
-		return !!toResource(this.editor, { supportSideBySide: true, filter: 'untitled' });
+		return !!toResource(this.editor, { supportSideBySide: true, filter: Schemas.untitled });
 	}
 
 	public isDirty(): boolean {

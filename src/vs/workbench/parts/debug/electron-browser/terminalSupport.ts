@@ -50,16 +50,26 @@ export class TerminalSupport {
 
 	private static isBusy(t: ITerminalInstance): boolean {
 		if (t.processId) {
-			// if shell has at least one child process, assume that shell is busy
-			if (platform.isWindows) {
-				const result = cp.spawnSync('wmic', ['process', 'get', 'ParentProcessId']);
-				const pids = result.stdout.toString().split('\r\n');
-				return pids.some(p => parseInt(p) === t.processId);
-			} else {
-				const result = cp.spawnSync('/usr/bin/pgrep', ['-P', String(t.processId)]);
-				return result.stdout.toString().trim().length > 0;
+			try {
+				// if shell has at least one child process, assume that shell is busy
+				if (platform.isWindows) {
+					const result = cp.spawnSync('wmic', ['process', 'get', 'ParentProcessId']);
+					if (result.stdout) {
+						const pids = result.stdout.toString().split('\r\n');
+						return pids.some(p => parseInt(p) === t.processId);
+					}
+				} else {
+					const result = cp.spawnSync('/usr/bin/pgrep', ['-P', String(t.processId)]);
+					if (result.stdout) {
+						return result.stdout.toString().trim().length > 0;
+					}
+				}
+			}
+			catch (e) {
+				// silently ignore
 			}
 		}
+		// fall back to safe side
 		return true;
 	}
 

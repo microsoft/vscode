@@ -22,7 +22,7 @@ import 'vs/platform/actions/electron-browser/menusExtensionPoint';
 import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 // Localizations
-import 'vs/workbench/api/browser/localizationsExtensionPoint';
+import 'vs/workbench/parts/localizations/browser/localizations.contribution';
 
 // Workbench
 import 'vs/workbench/browser/actions/toggleActivityBarVisibility';

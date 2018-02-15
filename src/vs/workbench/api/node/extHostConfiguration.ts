@@ -41,14 +41,14 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	private readonly _onDidChangeConfiguration = new Emitter<vscode.ConfigurationChangeEvent>();
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
-	private _configurationScopes: Map<string, ConfigurationScope>;
+	private _configurationScopes: { [key: string]: ConfigurationScope };
 	private _configuration: Configuration;
 
 	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationInitData) {
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
 		this._configuration = Configuration.parse(data);
-		this._readConfigurationScopes(data.configurationScopes);
+		this._configurationScopes = data.configurationScopes;
 	}
 
 	get onDidChangeConfiguration(): Event<vscode.ConfigurationChangeEvent> {
@@ -129,7 +129,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	private _validateConfigurationAccess(key: string, resource: URI, extensionId: string): void {
-		const scope = this._configurationScopes.get(key);
+		const scope = this._configurationScopes[key];
 		const extensionIdText = extensionId ? `[${extensionId}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
 			if (resource === void 0) {
@@ -142,18 +142,6 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 				console.warn(`${extensionIdText}Accessing a window scoped configuration for a resource is not expected. To associate '${key}' to a resource, define its scope to 'resource' in configuration contributions in 'package.json'.`);
 			}
 			return;
-		}
-	}
-
-	private _readConfigurationScopes(scopes: ConfigurationScope[]): void {
-		this._configurationScopes = new Map<string, ConfigurationScope>();
-		if (scopes.length) {
-			const defaultKeys = this._configuration.keys(this._extHostWorkspace.workspace).default;
-			if (defaultKeys.length === scopes.length) {
-				for (let i = 0; i < defaultKeys.length; i++) {
-					this._configurationScopes.set(defaultKeys[i], scopes[i]);
-				}
-			}
 		}
 	}
 

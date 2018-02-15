@@ -48,6 +48,10 @@ class MockExtensionService implements IExtensionService {
 		throw new Error('Not implemented');
 	}
 
+	public canProfileExtensionHost() {
+		return false;
+	}
+
 	public startExtensionHostProfile(): TPromise<ProfileSession> {
 		throw new Error('Not implemented');
 	}
@@ -61,10 +65,6 @@ class MockExtensionService implements IExtensionService {
 	}
 
 	public stopExtensionHost(): void {
-		throw new Error('Method not implemented.');
-	}
-
-	public getExtensionHostInformation(): any {
 		throw new Error('Method not implemented.');
 	}
 }

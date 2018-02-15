@@ -51,14 +51,8 @@ export class Workbench {
 	}
 
 	public async saveOpenedFile(): Promise<any> {
-		try {
-			await this.spectron.client.waitForElement('.tabs-container div.tab.active.dirty');
-		} catch (e) {
-			// ignore if there is no dirty file
-			return Promise.resolve();
-		}
-		await this.spectron.runCommand('workbench.action.files.save');
-		return this.spectron.client.waitForElement('.tabs-container div.tab.active.dirty', element => !element);
+		await this.spectron.client.waitForElement('.tabs-container div.tab.active.dirty');
+		await this.spectron.workbench.quickopen.runCommand('File: Save');
 	}
 
 	public async selectTab(tabName: string, untitled: boolean = false): Promise<void> {

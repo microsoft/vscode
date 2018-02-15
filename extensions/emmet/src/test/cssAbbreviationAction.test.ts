@@ -14,9 +14,9 @@ const completionProvider = new DefaultCompletionItemProvider();
 const cssContents = `
 .boo {
 	margin: 20px 10px;
-	m10
+	pos:f
 	background-image: url('tryme.png');
-	m10
+	pos:f
 }
 
 .boo .hoo {
@@ -57,9 +57,32 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 
 	test('Expand abbreviation (CSS)', () => {
 		return withRandomFileEditor(cssContents, 'css', (editor, doc) => {
-			editor.selections = [new Selection(3, 1, 3, 4), new Selection(5, 1, 5, 4)];
+			editor.selections = [new Selection(3, 1, 3, 6), new Selection(5, 1, 5, 6)];
 			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), cssContents.replace(/m10/g, 'margin: 10px;'));
+				assert.equal(editor.document.getText(), cssContents.replace(/pos:f/g, 'position: fixed;'));
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('No emmet when cursor in selector of a rule (CSS)', () => {
+		const testContent = `
+.foo {
+	margin: 10px;
+}
+
+nav#
+		`;
+
+		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+			editor.selection = new Selection(5, 4, 5, 4);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), testContent);
+				const cancelSrc = new CancellationTokenSource();
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token);
+				if (completionPromise) {
+					assert.equal(1, 2, `Invalid completion at property value`);
+				}
 				return Promise.resolve();
 			});
 		});
@@ -220,22 +243,22 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 	});
 
 	test('Expand abbreviation in completion list (CSS)', () => {
-		const abbreviation = 'm10';
-		const expandedText = 'margin: 10px;';
+		const abbreviation = 'pos:f';
+		const expandedText = 'position: fixed;';
 
 		return withRandomFileEditor(cssContents, 'css', (editor, doc) => {
-			editor.selection = new Selection(3, 1, 3, 4);
+			editor.selection = new Selection(3, 1, 3, 6);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 4), cancelSrc.token);
-			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(5, 4), cancelSrc.token);
+			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 6), cancelSrc.token);
+			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(5, 6), cancelSrc.token);
 			if (!completionPromise1 || !completionPromise2) {
-				assert.equal(1, 2, `Problem with expanding m10`);
+				assert.equal(1, 2, `Problem with expanding pos:f`);
 				return Promise.resolve();
 			}
 
 			const callBack = (completionList: CompletionList) => {
 				if (!completionList.items || !completionList.items.length) {
-					assert.equal(1, 2, `Problem with expanding m10`);
+					assert.equal(1, 2, `Problem with expanding pos:f`);
 					return;
 				}
 				const emmetCompletionItem = completionList.items[0];

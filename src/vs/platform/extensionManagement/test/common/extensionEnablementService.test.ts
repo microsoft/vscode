@@ -326,14 +326,17 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test canChangeEnablement return false for language packs', () => {
-		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { localizations: [{ languageId: 'gr', translations: 'somepath' }] })), false);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { localizations: [{ languageId: 'gr', translations: [{ id: 'vscode', path: 'path' }] }] })), false);
 	});
 });
 
 function aLocalExtension(id: string, contributes?: IExtensionContributions): ILocalExtension {
+	const [publisher, name] = id.split('.');
 	return <ILocalExtension>Object.create({
 		identifier: { id },
 		manifest: {
+			name,
+			publisher,
 			contributes
 		}
 	});

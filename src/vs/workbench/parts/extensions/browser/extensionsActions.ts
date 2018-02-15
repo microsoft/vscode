@@ -1564,10 +1564,10 @@ export class MaliciousStatusLabelAction extends Action {
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(long: boolean) {
-		const tooltip = localize('malicious tooltip', "This extension was reported to be malicious.");
+		const tooltip = localize('malicious tooltip', "This extension was reported to be problematic.");
 		const label = long ? tooltip : localize('malicious', "Malicious");
 		super('extensions.install', label, '', false);
-		this.tooltip = localize('malicious tooltip', "This extension was reported to be malicious.");
+		this.tooltip = localize('malicious tooltip', "This extension was reported to be problematic.");
 	}
 
 	private update(): void {

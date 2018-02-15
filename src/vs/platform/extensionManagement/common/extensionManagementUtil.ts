@@ -39,6 +39,10 @@ export function adoptToGalleryExtensionId(id: string): string {
 	return id.replace(EXTENSION_IDENTIFIER_REGEX, (match, publisher: string, name: string) => getGalleryExtensionId(publisher, name));
 }
 
+export function getLocalExtensionId(id: string, version: string): string {
+	return `${id}-${version}`;
+}
+
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
 	const byExtension: T[][] = [];
 	const findGroup = extension => {

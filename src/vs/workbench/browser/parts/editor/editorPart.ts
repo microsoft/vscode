@@ -957,6 +957,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Switch to editor that we want to handle
 		return this.openEditor(identifier.editor, null, this.stacks.positionOfGroup(identifier.group)).then(() => {
 			return editor.confirmSave().then(res => {
+
+				// It could be that the editor saved meanwhile, so we check again
+				// to see if anything needs to happen before closing for good.
+				// This can happen for example if autoSave: onFocusChange is configured
+				// so that the save happens when the dialog opens. 
+				if (!editor.isDirty()) {
+					return res === ConfirmResult.CANCEL ? true : false;
+				}
+
+				// Otherwise, handle accordingly
 				switch (res) {
 					case ConfirmResult.SAVE:
 						return editor.save().then(ok => !ok);

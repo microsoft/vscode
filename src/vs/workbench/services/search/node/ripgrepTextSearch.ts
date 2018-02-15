@@ -23,6 +23,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSearch, LineMatch, FileMatch } from './search';
 import { IProgress } from 'vs/platform/search/common/search';
 
+// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
+const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+
 export class RipgrepEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
@@ -72,7 +75,7 @@ export class RipgrepEngine {
 
 			onMessage({ message: rgCmd });
 		});
-		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd });
+		this.rgProc = cp.spawn(rgDiskPath, rgArgs.args, { cwd });
 		process.once('exit', this.killRgProcFn);
 
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd, this.config.extraFiles);
@@ -157,15 +160,20 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 	}
 
+	if (strings.startsWith(firstLine, 'Literal ')) {
+		// e.g. "Literal \n not allowed"
+		return firstLine;
+	}
+
 	return undefined;
 }
 
 export class RipgrepParser extends EventEmitter {
-	private static readonly RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)(\r?)/;
-	private static readonly FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
+	private static readonly RESULT_REGEX = /^\u001b\[0m(\d+)\u001b\[0m:(.*)(\r?)/;
+	private static readonly FILE_REGEX = /^\u001b\[0m(.+)\u001b\[0m$/;
 
-	public static readonly MATCH_START_MARKER = '\u001b[m\u001b[31m';
-	public static readonly MATCH_END_MARKER = '\u001b[m';
+	public static readonly MATCH_START_MARKER = '\u001b[0m\u001b[31m';
+	public static readonly MATCH_END_MARKER = '\u001b[0m';
 
 	private fileMatch: FileMatch;
 	private remainder: string;
@@ -424,11 +432,7 @@ export function fixDriveC(path: string): string {
 
 function getRgArgs(config: IRawSearch) {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
-	if (config.contentPattern.isSmartCase) {
-		args.push('--smart-case');
-	} else {
-		args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
-	}
+	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs(config.folderQueries, config.includePattern).forEach(globArg => {

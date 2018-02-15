@@ -28,7 +28,7 @@ const fileLimit = 500;
 class ExcludeHintItem {
 	public configFileName?: string;
 	private _item: vscode.StatusBarItem;
-	private _currentHint: Hint;
+	private _currentHint?: Hint;
 
 	constructor(
 		private readonly telemetryReporter: TelemetryReporter
@@ -38,7 +38,7 @@ class ExcludeHintItem {
 	}
 
 	public getCurrentHint(): Hint {
-		return this._currentHint;
+		return this._currentHint!;
 	}
 
 	public hide() {

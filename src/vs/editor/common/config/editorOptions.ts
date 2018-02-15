@@ -264,7 +264,7 @@ export interface IEditorOptions {
 	/**
 	 * Control the width of the cursor when cursorStyle is set to 'line'
 	 */
-	lineCursorWidth?: number;
+	cursorWidth?: number;
 	/**
 	 * Enable font ligatures.
 	 * Defaults to false.
@@ -457,6 +457,10 @@ export interface IEditorOptions {
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
 	wordBasedSuggestions?: boolean;
+	/**
+	 * The history mode for suggestions.
+	 */
+	suggestSelection?: string;
 	/**
 	 * The font size for the suggest widget.
 	 * Defaults to the editor font size.
@@ -796,7 +800,7 @@ export interface InternalEditorViewOptions {
 	readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 	readonly mouseWheelZoom: boolean;
 	readonly cursorStyle: TextEditorCursorStyle;
-	readonly lineCursorWidth: number;
+	readonly cursorWidth: number;
 	readonly hideCursorInOverviewRuler: boolean;
 	readonly scrollBeyondLastLine: boolean;
 	readonly smoothScrolling: boolean;
@@ -827,6 +831,7 @@ export interface EditorContribOptions {
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly wordBasedSuggestions: boolean;
+	readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly selectionHighlight: boolean;
@@ -1066,7 +1071,7 @@ export class InternalEditorOptions {
 			&& a.cursorBlinking === b.cursorBlinking
 			&& a.mouseWheelZoom === b.mouseWheelZoom
 			&& a.cursorStyle === b.cursorStyle
-			&& a.lineCursorWidth === b.lineCursorWidth
+			&& a.cursorWidth === b.cursorWidth
 			&& a.hideCursorInOverviewRuler === b.hideCursorInOverviewRuler
 			&& a.scrollBeyondLastLine === b.scrollBeyondLastLine
 			&& a.smoothScrolling === b.smoothScrolling
@@ -1176,6 +1181,7 @@ export class InternalEditorOptions {
 			&& a.acceptSuggestionOnCommitCharacter === b.acceptSuggestionOnCommitCharacter
 			&& a.snippetSuggestions === b.snippetSuggestions
 			&& a.wordBasedSuggestions === b.wordBasedSuggestions
+			&& a.suggestSelection === b.suggestSelection
 			&& a.suggestFontSize === b.suggestFontSize
 			&& a.suggestLineHeight === b.suggestLineHeight
 			&& a.selectionHighlight === b.selectionHighlight
@@ -1666,7 +1672,7 @@ export class EditorOptionsValidator {
 			cursorBlinking: _cursorBlinkingStyleFromString(opts.cursorBlinking, defaults.cursorBlinking),
 			mouseWheelZoom: _boolean(opts.mouseWheelZoom, defaults.mouseWheelZoom),
 			cursorStyle: _cursorStyleFromString(opts.cursorStyle, defaults.cursorStyle),
-			lineCursorWidth: _clampedInt(opts.lineCursorWidth, defaults.lineCursorWidth, 1, Number.MAX_VALUE),
+			cursorWidth: _clampedInt(opts.cursorWidth, defaults.cursorWidth, 0, Number.MAX_VALUE),
 			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: _boolean(opts.scrollBeyondLastLine, defaults.scrollBeyondLastLine),
 			smoothScrolling: _boolean(opts.smoothScrolling, defaults.smoothScrolling),
@@ -1706,6 +1712,7 @@ export class EditorOptionsValidator {
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippetSuggestions, ['top', 'bottom', 'inline', 'none']),
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
+			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
@@ -1769,7 +1776,7 @@ export class InternalEditorOptionsFactory {
 				cursorBlinking: opts.viewInfo.cursorBlinking,
 				mouseWheelZoom: opts.viewInfo.mouseWheelZoom,
 				cursorStyle: opts.viewInfo.cursorStyle,
-				lineCursorWidth: opts.viewInfo.lineCursorWidth,
+				cursorWidth: opts.viewInfo.cursorWidth,
 				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
 				scrollBeyondLastLine: opts.viewInfo.scrollBeyondLastLine,
 				smoothScrolling: opts.viewInfo.smoothScrolling,
@@ -1806,6 +1813,7 @@ export class InternalEditorOptionsFactory {
 				acceptSuggestionOnCommitCharacter: opts.contribInfo.acceptSuggestionOnCommitCharacter,
 				snippetSuggestions: opts.contribInfo.snippetSuggestions,
 				wordBasedSuggestions: opts.contribInfo.wordBasedSuggestions,
+				suggestSelection: opts.contribInfo.suggestSelection,
 				suggestFontSize: opts.contribInfo.suggestFontSize,
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2210,7 +2218,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		cursorBlinking: TextEditorCursorBlinkingStyle.Blink,
 		mouseWheelZoom: false,
 		cursorStyle: TextEditorCursorStyle.Line,
-		lineCursorWidth: 2,
+		cursorWidth: 0,
 		hideCursorInOverviewRuler: false,
 		scrollBeyondLastLine: true,
 		smoothScrolling: false,
@@ -2260,6 +2268,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		acceptSuggestionOnCommitCharacter: true,
 		snippetSuggestions: 'inline',
 		wordBasedSuggestions: true,
+		suggestSelection: 'recentlyUsed',
 		suggestFontSize: 0,
 		suggestLineHeight: 0,
 		selectionHighlight: true,
@@ -2271,7 +2280,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		find: {
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: false,
-			globalFindClipboard: true
+			globalFindClipboard: false
 		},
 		colorDecorators: true,
 		lightbulbEnabled: true

@@ -16,16 +16,16 @@ export function formatError(message: string, err: any): string {
 	return message;
 }
 
-export function runSafe<T>(func: () => Thenable<T> | T, errorVal: T, errorMessage: string): Thenable<T> | T {
+export function runSafeAsync<T>(func: () => Thenable<T>, errorVal: T, errorMessage: string): Thenable<T> {
+	let t = func();
+	return t.then(void 0, e => {
+		console.error(formatError(errorMessage, e));
+		return errorVal;
+	});
+}
+export function runSafe<T>(func: () => T, errorVal: T, errorMessage: string): T {
 	try {
-		let t = func();
-		if (t instanceof Promise) {
-			return t.then(void 0, e => {
-				console.error(formatError(errorMessage, e));
-				return errorVal;
-			});
-		}
-		return t;
+		return func();
 	} catch (e) {
 		console.error(formatError(errorMessage, e));
 		return errorVal;

@@ -306,8 +306,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	public applyStyles(): void {
 
 		// Style parent select
+
+		let background = null;
+
 		if (this.selectElement) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
+			background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
 			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : null;
 			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : null;
 
@@ -321,8 +324,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		if (this.selectList) {
 			this.selectList.style({});
 
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
-			this.selectDropDownListContainer.style.backgroundColor = background;
+			let listBackground = this.styles.selectListBackground ? this.styles.selectListBackground.toString() : background;
+			this.selectDropDownListContainer.style.backgroundColor = listBackground;
 			const optionsBorder = this.styles.focusBorder ? this.styles.focusBorder.toString() : null;
 			this.selectDropDownContainer.style.outlineColor = optionsBorder;
 			this.selectDropDownContainer.style.outlineOffset = '-1px';
@@ -350,7 +353,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this.cloneElementFont(this.selectElement, this.selectDropDownContainer);
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.selectElement,
-			render: (container: HTMLElement) => { return this.renderSelectDropDown(container); },
+			render: (container: HTMLElement) => this.renderSelectDropDown(container),
 			layout: () => this.layoutSelectDropDown(),
 			onHide: () => {
 				dom.toggleClass(this.selectDropDownContainer, 'visible', false);
@@ -372,7 +375,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this.contextViewProvider.hideContextView();
 	}
 
-	private renderSelectDropDown(container: HTMLElement) {
+	private renderSelectDropDown(container: HTMLElement): IDisposable {
 		dom.append(container, this.selectDropDownContainer);
 		this.layoutSelectDropDown();
 		return null;

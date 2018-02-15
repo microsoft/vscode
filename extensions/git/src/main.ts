@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vscode-nls';
-const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
+const localize = nls.loadMessageBundle();
 import { ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
@@ -14,15 +14,13 @@ import { CommandCenter } from './commands';
 import { GitContentProvider } from './contentProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
-import { toDisposable } from './util';
+import { toDisposable, filterEvent, mapEvent, eventToPromise } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { API, createApi } from './api';
 
-async function init(context: ExtensionContext, outputChannel: OutputChannel, disposables: Disposable[]): Promise<Model> {
-	const { name, version, aiKey } = require(context.asAbsolutePath('./package.json')) as { name: string, version: string, aiKey: string };
-	const telemetryReporter: TelemetryReporter = new TelemetryReporter(name, version, aiKey);
-	disposables.push(telemetryReporter);
+let telemetryReporter: TelemetryReporter;
 
+async function init(context: ExtensionContext, outputChannel: OutputChannel, disposables: Disposable[]): Promise<Model> {
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 	const askpass = new Askpass();
@@ -93,11 +91,30 @@ async function _activate(context: ExtensionContext, disposables: Disposable[]): 
 }
 
 export function activate(context: ExtensionContext): API {
+	const config = workspace.getConfiguration('git', null);
+	const enabled = config.get<boolean>('enabled');
+
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 
-	const activatePromise = _activate(context, disposables);
-	const modelPromise = activatePromise.then(model => model || Promise.reject<Model>('Git model not found'));
+	const { name, version, aiKey } = require(context.asAbsolutePath('./package.json')) as { name: string, version: string, aiKey: string };
+	telemetryReporter = new TelemetryReporter(name, version, aiKey);
+
+	let activatePromise: Promise<Model | undefined>;
+
+	if (enabled) {
+		activatePromise = _activate(context, disposables);
+	} else {
+		const onConfigChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git'));
+		const onEnabled = filterEvent(onConfigChange, () => workspace.getConfiguration('git', null).get<boolean>('enabled') === true);
+
+		activatePromise = eventToPromise(onEnabled)
+			.then(() => _activate(context, disposables));
+	}
+
+	const modelPromise = activatePromise
+		.then(model => model || Promise.reject<Model>('Git model not found'));
+
 	activatePromise.catch(err => console.error(err));
 
 	return createApi(modelPromise);
@@ -129,4 +146,8 @@ async function checkGitVersion(info: IGit): Promise<void> {
 	} else if (choice === neverShowAgain) {
 		await config.update('ignoreLegacyWarning', true, true);
 	}
+}
+
+export function deactivate(): Promise<any> {
+	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }

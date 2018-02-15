@@ -30,7 +30,7 @@ function log(prefix: string, message: string): void {
 	gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
 }
 
-export function loaderConfig(emptyPaths: string[]) {
+export function loaderConfig(emptyPaths?: string[]) {
 	const result = {
 		paths: {
 			'vs': 'out-build/vs',
@@ -163,7 +163,7 @@ export interface IOptimizeTaskOpts {
 	/**
 	 * (languages to process)
 	 */
-	languages: string[];
+	languages: i18n.Language[];
 }
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	const entryPoints = opts.entryPoints;
@@ -239,7 +239,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 			}))
 			.pipe(gulp.dest(out));
 	};
-};
+}
 
 declare class FileWithCopyright extends VinylFile {
 	public __hasOurCopyright: boolean;
@@ -293,7 +293,7 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 	return es.duplex(input, output);
 }
 
-export function minifyTask(src: string, sourceMapBaseUrl: string): (cb: any) => void {
+export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) => void {
 	const sourceMappingURL = sourceMapBaseUrl && (f => `${sourceMapBaseUrl}/${f.relative}.map`);
 
 	return cb => {
@@ -324,4 +324,4 @@ export function minifyTask(src: string, sourceMapBaseUrl: string): (cb: any) => 
 				cb(err);
 			});
 	};
-};
+}

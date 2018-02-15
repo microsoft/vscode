@@ -5,6 +5,8 @@
 'use strict';
 
 import * as path from 'path';
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorInformation, ColorPresentation, Range, CompletionItem, CompletionItemKind, SnippetString } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
@@ -13,9 +15,6 @@ import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
 import { DocumentColorRequest, DocumentColorParams, ColorPresentationRequest, ColorPresentationParams } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
-
-import * as nls from 'vscode-nls';
-let localize = nls.loadMessageBundle();
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
@@ -27,14 +26,13 @@ interface IPackageInfo {
 	aiKey: string;
 }
 
+let telemetryReporter: TelemetryReporter | null;
+
 export function activate(context: ExtensionContext) {
 	let toDispose = context.subscriptions;
 
 	let packageInfo = getPackageInfo(context);
-	let telemetryReporter: TelemetryReporter | null = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
-	if (telemetryReporter) {
-		toDispose.push(telemetryReporter);
-	}
+	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'htmlServerMain.js'));
@@ -55,7 +53,7 @@ export function activate(context: ExtensionContext) {
 	let clientOptions: LanguageClientOptions = {
 		documentSelector,
 		synchronize: {
-			configurationSection: ['html', 'css', 'javascript'], // the settings to synchronize
+			configurationSection: ['html', 'css', 'javascript', 'emmet'], // the settings to synchronize
 		},
 		initializationOptions: {
 			embeddedLanguages
@@ -200,4 +198,8 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
 		};
 	}
 	return null;
+}
+
+export function deactivate(): Promise<any> {
+	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }

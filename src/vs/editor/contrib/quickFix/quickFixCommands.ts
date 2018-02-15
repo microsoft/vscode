@@ -230,7 +230,11 @@ export class RefactorAction extends EditorAction {
 			id: RefactorAction.Id,
 			label: nls.localize('refactor.label', "Refactor"),
 			alias: 'Refactor',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider)
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
+			kbOpts: {
+				kbExpr: EditorContextKeys.textFocus,
+				primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
+			}
 		});
 	}
 

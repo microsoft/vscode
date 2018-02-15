@@ -21,7 +21,8 @@ const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 function getNixIPCHandle(userDataPath: string, type: string): string {
 	if (xdgRuntimeDir) {
-		return path.join(xdgRuntimeDir, `${pkg.name}-${pkg.version}-${type}.sock`);
+		const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
+		return path.join(xdgRuntimeDir, `vscode-${scope}-${pkg.version}-${type}.sock`);
 	}
 
 	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
@@ -156,7 +157,6 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get performance(): boolean { return this._args.performance; }
 	get status(): boolean { return this._args.status; }
-	get issue(): boolean { return this._args.issue; }
 
 	@memoize
 	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }

@@ -47,10 +47,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/parts/explorers",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/parts/extensions",
 			"project": "vscode-workbench"
 		},
@@ -71,11 +67,11 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/parts/logs",
+			"name": "vs/workbench/parts/localizations",
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/parts/nps",
+			"name": "vs/workbench/parts/logs",
 			"project": "vscode-workbench"
 		},
 		{
@@ -196,10 +192,6 @@
 		},
 		{
 			"name": "vs/workbench/services/decorations",
-			"project": "vscode-workbench"
-		},
-		{
-			"name": "setup_messages",
 			"project": "vscode-workbench"
 		}
 	]

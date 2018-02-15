@@ -538,7 +538,7 @@ export class CloseEditorAction extends Action {
 		super(id, label, 'close-editor-action');
 	}
 
-	public run(context?: IEditorIdentifier): TPromise<any> {
+	public run(context?: IEditorCommandsContext): TPromise<any> {
 		return this.commandService.executeCommand(CLOSE_EDITOR_COMMAND_ID, void 0, context);
 	}
 }

@@ -14,6 +14,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import * as objects from 'vs/base/common/objects';
+import * as platform from 'vs/base/common/platform';
 import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -50,6 +51,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IFileService } from 'vs/platform/files/common/files';
 import { distinct } from 'vs/base/common/arrays';
 import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
+import { Schemas } from 'vs/base/common/network';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -232,7 +234,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: FIND_IN_FOLDER_ID,
 		title: nls.localize('findInFolder', "Find in Folder...")
 	},
-	when: ContextKeyExpr.and(ExplorerFolderContext, ResourceContextKey.Scheme.isEqualTo('file'))
+	when: ContextKeyExpr.and(ExplorerFolderContext, ResourceContextKey.Scheme.isEqualTo(Schemas.file)) // todo@remote
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -428,6 +430,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('search.smartCase', "Searches case-insensitively if the pattern is all lowercase, otherwise, searches case-sensitively"),
 			'default': false
+		},
+		'search.globalFindClipboard': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('search.globalFindClipboard', "Controls if the Search Viewlet should read or modify the shared find clipboard on macOS"),
+			'included': platform.isMacintosh
 		}
 	}
 });

@@ -16,6 +16,7 @@ import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extens
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionHostProfileService, ProfileSessionState, RuntimeExtensionsInput } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 
@@ -38,6 +39,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMessageService private readonly _messageService: IMessageService
 	) {
 		super();
 		this._profile = null;
@@ -67,6 +69,12 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		if (this._state !== ProfileSessionState.None) {
 			return;
 		}
+
+		if (!this._extensionService.canProfileExtensionHost()) {
+			this._messageService.show(Severity.Info, nls.localize('noPro', "To profile extensions, launch with `--inspect-extensions=<port>`."));
+			return;
+		}
+
 		this._setState(ProfileSessionState.Starting);
 
 		this._extensionService.startExtensionHostProfile().then((value) => {

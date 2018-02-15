@@ -73,20 +73,24 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 			};
 		}
 
+		const createErrModel = (message: string) => {
+			this.debugService.sourceIsNotAvailable(resource);
+			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
+			const model = this.modelService.createModel(message, modePromise, resource);
+
+			return model;
+		};
+
 		return process.session.source({ sourceReference: sourceRef, source: rawSource }).then(response => {
+			if (!response) {
+				return createErrModel(localize('canNotResolveSource', "Could not resolve resource {0}, no response from debug extension.", resource.toString()));
+			}
 
 			const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
 			const modePromise = this.modeService.getOrCreateMode(mime);
 			const model = this.modelService.createModel(response.body.content, modePromise, resource);
 
 			return model;
-		}, (err: DebugProtocol.ErrorResponse) => {
-
-			this.debugService.sourceIsNotAvailable(resource);
-			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
-			const model = this.modelService.createModel(err.message, modePromise, resource);
-
-			return model;
-		});
+		}, (err: DebugProtocol.ErrorResponse) => createErrModel(err.message));
 	}
 }

@@ -8,7 +8,7 @@ import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
@@ -99,9 +99,9 @@ export class QuickKillTerminalAction extends Action {
 		if (terminal) {
 			terminal.dispose();
 		}
-		if (this.terminalService.terminalInstances.length > 0 && this.terminalService.activeTerminalInstanceIndex !== terminalIndex) {
-			this.terminalService.setActiveInstanceByIndex(Math.min(terminalIndex, this.terminalService.terminalInstances.length - 1));
-		}
+		// if (this.terminalService.terminalInstances.length > 0 && this.terminalService.activeTerminalInstanceIndex !== terminalIndex) {
+		// 	this.terminalService.setActiveInstanceByIndex(Math.min(terminalIndex, this.terminalService.terminalInstances.length - 1));
+		// }
 		return TPromise.timeout(50).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
 }
@@ -152,68 +152,78 @@ export class SelectAllTerminalAction extends Action {
 	}
 }
 
-export class DeleteWordLeftTerminalAction extends Action {
+export abstract class BaseSendTextTerminalAction extends Action {
+	constructor(
+		id: string,
+		label: string,
+		private _text: string,
+		@ITerminalService private _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
 
+	public run(event?: any): TPromise<any> {
+		let terminalInstance = this._terminalService.getActiveInstance();
+		if (terminalInstance) {
+			terminalInstance.sendText(this._text, false);
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class DeleteWordLeftTerminalAction extends BaseSendTextTerminalAction {
 	public static readonly ID = 'workbench.action.terminal.deleteWordLeft';
 	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteWordLeft', "Delete Word Left");
 
 	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		id: string,
+		label: string,
+		@ITerminalService terminalService: ITerminalService
 	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			// Send ctrl+W
-			terminalInstance.sendText(String.fromCharCode('W'.charCodeAt(0) - 64), false);
-		}
-		return TPromise.as(void 0);
+		// Send ctrl+W
+		super(id, label, String.fromCharCode('W'.charCodeAt(0) - 64), terminalService);
 	}
 }
 
-export class DeleteWordRightTerminalAction extends Action {
-
+export class DeleteWordRightTerminalAction extends BaseSendTextTerminalAction {
 	public static readonly ID = 'workbench.action.terminal.deleteWordRight';
 	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteWordRight', "Delete Word Right");
 
 	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		id: string,
+		label: string,
+		@ITerminalService terminalService: ITerminalService
 	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			// Send alt+D
-			terminalInstance.sendText('\x1bD', false);
-		}
-		return TPromise.as(void 0);
+		// Send alt+D
+		super(id, label, '\x1bD', terminalService);
 	}
 }
 
-export class EnterNavigationModeTerminalAction extends Action {
-
-	public static readonly ID = 'workbench.action.terminal.enterLineNavigationMode';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.enterLineNavigationMode', "Enter Screen Reader Navigation Mode");
+export class MoveToLineStartTerminalAction extends BaseSendTextTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.moveToLineStart';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.moveToLineStart', "Move To Line Start");
 
 	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		id: string,
+		label: string,
+		@ITerminalService terminalService: ITerminalService
 	) {
-		super(id, label);
+		// Send ctrl+A
+		super(id, label, String.fromCharCode('A'.charCodeAt(0) - 64), terminalService);
 	}
+}
 
-	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			terminalInstance.enterNavigationMode();
-		}
-		return TPromise.as(void 0);
+export class MoveToLineEndTerminalAction extends BaseSendTextTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.moveToLineEnd';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.moveToLineEnd', "Move To Line End");
+
+	constructor(
+		id: string,
+		label: string,
+		@ITerminalService terminalService: ITerminalService
+	) {
+		// Send ctrl+E
+		super(id, label, String.fromCharCode('E'.charCodeAt(0) - 64), terminalService);
 	}
 }
 
@@ -286,6 +296,82 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 	}
 }
 
+export class SplitVerticalTerminalAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.splitVertical';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.splitVertical', "Split the terminal vertically");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const instance = this._terminalService.getActiveInstance();
+		if (!instance) {
+			return TPromise.as(void 0);
+		}
+		this._terminalService.splitInstanceVertically(instance);
+		return this._terminalService.showPanel(true);
+	}
+}
+
+export abstract class BaseFocusDirectionTerminalAction extends Action {
+	constructor(
+		id: string, label: string,
+		private _direction: Direction,
+		@ITerminalService private _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const tab = this._terminalService.getActiveTab();
+		if (!tab) {
+			return TPromise.as(void 0);
+		}
+		tab.focusDirection(this._direction);
+		return this._terminalService.showPanel(true);
+	}
+}
+
+export class FocusTerminalLeftAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.focusTerminalLeft';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalLeft', "Focus terminal to the left");
+
+	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
+		super(id, label, Direction.Left, terminalService);
+	}
+}
+
+export class FocusTerminalRightAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.focusTerminalRight';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalRight', "Focus terminal to the right");
+
+	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
+		super(id, label, Direction.Right, terminalService);
+	}
+}
+
+export class FocusTerminalUpAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.focusTerminalUp';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalUp', "Focus terminal above");
+
+	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
+		super(id, label, Direction.Up, terminalService);
+	}
+}
+
+export class FocusTerminalDownAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.focusTerminalDown';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalDown', "Focus terminal below");
+
+	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
+		super(id, label, Direction.Down, terminalService);
+	}
+}
+
 export class FocusActiveTerminalAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.focus';
@@ -321,7 +407,7 @@ export class FocusNextTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		this.terminalService.setActiveInstanceToNext();
+		this.terminalService.setActiveTabToNext();
 		return this.terminalService.showPanel(true);
 	}
 }
@@ -339,10 +425,11 @@ export class FocusPreviousTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		this.terminalService.setActiveInstanceToPrevious();
+		this.terminalService.setActiveTabToPrevious();
 		return this.terminalService.showPanel(true);
 	}
 }
+
 export class TerminalPasteAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.paste';
@@ -449,30 +536,30 @@ export class RunActiveFileInTerminalAction extends Action {
 	}
 }
 
-export class SwitchTerminalInstanceAction extends Action {
+export class SwitchTerminalAction extends Action {
 
-	public static readonly ID = 'workbench.action.terminal.switchTerminalInstance';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.switchTerminalInstance', "Switch Terminal Instance");
+	public static readonly ID = 'workbench.action.terminal.switchTerminal';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.switchTerminal', "Switch Terminal");
 
 	constructor(
 		id: string, label: string,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		super(SwitchTerminalInstanceAction.ID, SwitchTerminalInstanceAction.LABEL);
-		this.class = 'terminal-action switch-terminal-instance';
+		super(SwitchTerminalAction.ID, SwitchTerminalAction.LABEL);
+		this.class = 'terminal-action switch-terminal';
 	}
 
 	public run(item?: string): TPromise<any> {
 		if (!item || !item.split) {
 			return TPromise.as(null);
 		}
-		const selectedTerminalIndex = parseInt(item.split(':')[0], 10) - 1;
-		this.terminalService.setActiveInstanceByIndex(selectedTerminalIndex);
+		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
+		this.terminalService.setActiveTabByIndex(selectedTabIndex);
 		return this.terminalService.showPanel(true);
 	}
 }
 
-export class SwitchTerminalInstanceActionItem extends SelectActionItem {
+export class SwitchTerminalActionItem extends SelectActionItem {
 
 	constructor(
 		action: IAction,
@@ -480,16 +567,16 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex, contextViewService);
+		super(null, action, terminalService.getTabLabels(), terminalService.activeTabIndex, contextViewService);
 
 		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
-		this.toDispose.push(terminalService.onActiveInstanceChanged(this._updateItems, this));
+		this.toDispose.push(terminalService.onActiveTabChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onInstanceTitleChanged(this._updateItems, this));
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 	}
 
 	private _updateItems(): void {
-		this.setOptions(this.terminalService.getInstanceLabels(), this.terminalService.activeTerminalInstanceIndex);
+		this.setOptions(this.terminalService.getTabLabels(), this.terminalService.activeTabIndex);
 	}
 }
 

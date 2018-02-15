@@ -1,4 +1,6 @@
 {
     insidersLabel: 'insiders',
-    perform: false
+    insidersColor: '006b75',
+    action: 'remove',
+    perform: true
 }

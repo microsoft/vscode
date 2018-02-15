@@ -13,11 +13,14 @@ import { normalizeNFD, startsWith } from 'vs/base/common/strings';
 import { IFolderSearch, IRawSearch } from './search';
 import { foldersToIncludeGlobs, foldersToRgExcludeGlobs } from './ripgrepTextSearch';
 
+// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
+const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
+
 export function spawnRipgrepCmd(config: IRawSearch, folderQuery: IFolderSearch, includePattern: glob.IExpression, excludePattern: glob.IExpression) {
 	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern);
 	const cwd = folderQuery.folder;
 	return {
-		cmd: cp.spawn(rgPath, rgArgs.args, { cwd }),
+		cmd: cp.spawn(rgDiskPath, rgArgs.args, { cwd }),
 		siblingClauses: rgArgs.siblingClauses,
 		rgArgs,
 		cwd

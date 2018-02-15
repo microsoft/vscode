@@ -167,7 +167,7 @@ class SnippetsService implements ISnippetsService {
 						this._files.get(contribution.path).defaultScopes.push(contribution.language);
 
 					} else {
-						const file = new SnippetFile(contribution.path, [contribution.language], extension.description);
+						const file = new SnippetFile(contribution.path, contribution.language ? [contribution.language] : undefined, extension.description);
 						this._files.set(file.filepath, file);
 
 						if (this._environmentService.isExtensionDevelopment) {
@@ -235,11 +235,13 @@ class SnippetsService implements ISnippetsService {
 						this._files.delete(filepath);
 					}
 				});
-			});
+			}, (error: string) => this._logService.error(error));
 			this._disposables.push({
 				dispose: () => {
-					watcher.removeAllListeners();
-					watcher.close();
+					if (watcher) {
+						watcher.removeAllListeners();
+						watcher.close();
+					}
 				}
 			});
 

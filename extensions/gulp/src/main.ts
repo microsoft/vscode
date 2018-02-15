@@ -8,9 +8,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 
-const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off';
 

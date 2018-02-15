@@ -7,23 +7,24 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as mouse from 'vs/base/browser/mouseEvent';
 import tree = require('vs/base/parts/tree/browser/tree');
-import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import { MarkersModel } from 'vs/workbench/parts/markers/common/markersModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export class Controller extends treedefaults.DefaultController {
+export class Controller extends WorkbenchTreeController {
 
 	constructor(
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMenuService private menuService: IMenuService,
-		@IKeybindingService private _keybindingService: IKeybindingService
+		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
+		super({}, configurationService);
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {

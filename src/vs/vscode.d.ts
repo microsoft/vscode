@@ -1835,16 +1835,40 @@ declare module 'vscode' {
 
 		/**
 		 * Base kind for refactoring extraction actions.
+		 *
+		 * Example extract actions:
+		 *
+		 * - Extract method
+		 * - Extract function
+		 * - Extract variable
+		 * - Extract interface from class
+		 * - ...
 		 */
 		static readonly RefactorExtract: CodeActionKind;
 
 		/**
 		 * Base kind for refactoring inline actions.
+		 *
+		 * Example inline actions:
+		 *
+		 * - Inline function
+		 * - Inline variable
+		 * - Inline constant
+		 * - ...
 		 */
 		static readonly RefactorInline: CodeActionKind;
 
 		/**
-		 * Base kind for refactoring rewite actions.
+		 * Base kind for refactoring rewrite actions.
+		 *
+		 * Example rewrite actions:
+		 *
+		 * - Convert JavaScript function to class
+		 * - Add or remove parameter
+		 * - Encapsulate field
+		 * - Make method static
+		 * - Move method to base class
+		 * - ...
 		 */
 		static readonly RefactorRewrite: CodeActionKind;
 
@@ -1893,6 +1917,8 @@ declare module 'vscode' {
 	/**
 	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
 	 * to refactor code.
+	 *
+	 * A CodeAction must set either [`edit`](CodeAction#edit) and/or a [`command`](CodeAction#command). If both are supplied, the `edit` is applied first, then the command is executed.
 	 */
 	export class CodeAction {
 
@@ -1902,26 +1928,22 @@ declare module 'vscode' {
 		title: string;
 
 		/**
-		 * A workspace edit this code action performs.
-		 *
-		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
+		 * A [workspace edit](#WorkspaceEdit) this code action performs.
 		 */
 		edit?: WorkspaceEdit;
 
 		/**
-		 * Diagnostics that this code action resolves.
+		 * [Diagnostics](#Diagnostic) that this code action resolves.
 		 */
 		diagnostics?: Diagnostic[];
 
 		/**
-		 * A command this code action performs.
-		 *
-		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
+		 * A [command](#Command) this code action executes.
 		 */
 		command?: Command;
 
 		/**
-		 * Kind of the code action.
+		 * [Kind](#CodeActionKind) of the code action.
 		 *
 		 * Used to filter code actions.
 		 */
@@ -1930,7 +1952,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a new code action.
 		 *
-		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edits)
+		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edit)
 		 * or a [command](#CodeAction.command).
 		 *
 		 * @param title The title of the code action.
@@ -2560,46 +2582,6 @@ declare module 'vscode' {
 		 * @return A shallow copy of `[Uri, TextEdit[]]`-tuples.
 		 */
 		entries(): [Uri, TextEdit[]][];
-
-		/**
-		 * Renames a given resource in the workspace.
-		 *
-		 * @param from Uri of current resource.
-		 * @param to Uri of renamed resource.
-		 */
-		renameResource(from: Uri, to: Uri): void;
-
-		/**
-		 * Create a new resource in the workspace.
-		 *
-		 * @param uri Uri of resource to create.
-		 */
-		createResource(uri: Uri): void;
-
-		/**
-		 * Delete a given resource in the workspace.
-		 *
-		 * @param uri Uri of resource to delete.
-		 */
-		deleteResource(uri: Uri): void;
-
-		/**
-		 * Get the resource edits for this workspace edit.
-		 *
-		 * @returns A shallow copy of uri-tuples in which a rename-edit
-		 * is represented as `[from, to]`, a delete-operation as `[from, null]`,
-		 * and a create-operation as `[null, to]`;
-		 */
-		resourceEdits(): [Uri, Uri][];
-
-		/**
-		 * Get all edits, textual changes and file changes. The order is the order
-		 * in which edits have been added to this workspace edits. Textuals edits
-		 * are grouped and the first textual edit for a resource matters.
-		 *
-		 * @returns A shallow copy of all changes.
-		 */
-		allEntries(): ([Uri, TextEdit[]] | [Uri, Uri])[];
 	}
 
 	/**
@@ -3830,7 +3812,7 @@ declare module 'vscode' {
 	 * An output channel is a container for readonly textual information.
 	 *
 	 * To get an instance of an `OutputChannel` use
-	 * [createOutputChannel](#window.createOutputChannel).
+	 * [	createOutputChannel](#window.createOutputChannel).
 	 */
 	export interface OutputChannel {
 
@@ -5059,6 +5041,7 @@ declare module 'vscode' {
 	export interface TreeDataProvider<T> {
 		/**
 		 * An optional event to signal that an element or root has changed.
+		 * This will trigger the view to update the changed element/root and its children recursively (if shown).
 		 * To signal that root has changed, do not pass any argument or pass `undefined` or `null`.
 		 */
 		onDidChangeTreeData?: Event<T | undefined | null>;
@@ -5105,6 +5088,11 @@ declare module 'vscode' {
 		 * Will be used to derive the icon from current file icon theme, when [iconPath](#TreeItem.iconPath) is not provided.
 		 */
 		resourceUri?: Uri;
+
+		/**
+		 * The tooltip text when you hover over this item.
+		 */
+		tooltip?: string | undefined;
 
 		/**
 		 * The [command](#Command) which should be run when the tree item is selected.
@@ -5471,13 +5459,14 @@ declare module 'vscode' {
 		 * will be matched against the file paths of resulting matches relative to their workspace. Use a [relative pattern](#RelativePattern)
 		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
 		 * @param exclude  A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace.
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
+		 * apply, when `null` no excludes will apply.
 		 * @param maxResults An upper-bound for the result.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves to an array of resource identifiers. Will return no results if no
 		 * [workspace folders](#workspace.workspaceFolders) are opened.
 		 */
-		export function findFiles(include: GlobPattern, exclude?: GlobPattern, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
+		export function findFiles(include: GlobPattern, exclude?: GlobPattern | null, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
 
 		/**
 		 * Save all dirty files.
@@ -5560,7 +5549,7 @@ declare module 'vscode' {
 		 * An event that is emitted when a [text document](#TextDocument) is opened.
 		 *
 		 * To add an event listener when a visible text document is opened, use the [TextEditor](#TextEditor) events in the
-		 * [window](#_window) namespace. Note that:
+		 * [window](#window) namespace. Note that:
 		 *
 		 * - The event is emitted before the [document](#TextDocument) is updated in the
 		 * [active text editor](#window.activeTextEditor)
@@ -5573,7 +5562,7 @@ declare module 'vscode' {
 		 * An event that is emitted when a [text document](#TextDocument) is disposed.
 		 *
 		 * To add an event listener when a visible text document is closed, use the [TextEditor](#TextEditor) events in the
-		 * [window](#_window) namespace. Note that this event is not emitted when a [TextEditor](#TextEditor) is closed
+		 * [window](#window) namespace. Note that this event is not emitted when a [TextEditor](#TextEditor) is closed
 		 * but the document remains open in another [visible text editor](#window.visibleTextEditors).
 		 */
 		export const onDidCloseTextDocument: Event<TextDocument>;
@@ -5618,7 +5607,7 @@ declare module 'vscode' {
 		 * @param resource A resource for which the configuration is asked for
 		 * @return The full configuration or a subset.
 		 */
-		export function getConfiguration(section?: string, resource?: Uri): WorkspaceConfiguration;
+		export function getConfiguration(section?: string, resource?: Uri | null): WorkspaceConfiguration;
 
 		/**
 		 * An event that is emitted when the [configuration](#WorkspaceConfiguration) changed.
@@ -6000,11 +5989,6 @@ declare module 'vscode' {
 		 * A string to show as place holder in the input box to guide the user.
 		 */
 		placeholder: string;
-
-		/**
-		 * The warning threshold for lines in the input box.
-		 */
-		lineWarningLength: number | undefined;
 	}
 
 	interface QuickDiffProvider {

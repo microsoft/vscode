@@ -205,8 +205,8 @@ export class Workspace implements IWorkspace {
 export class WorkspaceFolder implements IWorkspaceFolder {
 
 	readonly uri: URI;
-	readonly name: string;
-	readonly index: number;
+	name: string;
+	index: number;
 
 	constructor(data: IWorkspaceFolderData,
 		readonly raw?: IStoredWorkspaceFolder) {
