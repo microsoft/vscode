@@ -62,6 +62,8 @@ export class NotificationsCenter extends Themable {
 
 	public show(): void {
 		if (this._isVisible) {
+			this.focusNotificationsList();
+
 			return; // already visible
 		}
 
@@ -77,8 +79,23 @@ export class NotificationsCenter extends Themable {
 		// Show all notifications that are present now
 		this.onNotificationsAdded(0, this.model.notifications);
 
+		// Focus
+		this.focusNotificationsList();
+
 		// Event
 		this._onDidChangeVisibility.fire();
+	}
+
+	private focusNotificationsList(): void {
+		if (!this._isVisible) {
+			return;
+		}
+
+		this.list.domFocus();
+
+		if (this.list.getFocus().length === 0) {
+			this.list.focusFirst();
+		}
 	}
 
 	private createNotificationsList(): void {
@@ -98,11 +115,19 @@ export class NotificationsCenter extends Themable {
 			new NotificationsListDelegate(this.listContainer),
 			[renderer],
 			{
-				ariaLabel: localize('notificationsList', "Notifications List"),
-				multipleSelectionSupport: true
+				ariaLabel: localize('notificationsList', "Notifications List")
 			} as IListOptions<INotificationViewItem>
 		);
 		this.toUnbind.push(this.list);
+
+		// Only allow for focus in notifications, as the
+		// selection is too strong over the contents of
+		// the notification
+		this.toUnbind.push(this.list.onSelectionChange(e => {
+			if (e.indexes.length > 0) {
+				this.list.setSelection([]);
+			}
+		}));
 
 		this.container.appendChild(this.listContainer);
 
@@ -139,8 +164,7 @@ export class NotificationsCenter extends Themable {
 
 	private updateNotificationsList(start: number, deleteCount: number, items: INotificationViewItem[] = []) {
 
-		// Remember focus/selection
-		const selection = this.indexToItems(this.list.getSelection());
+		// Remember focus
 		const focus = this.indexToItems(this.list.getFocus());
 
 		// Update view model
@@ -155,9 +179,8 @@ export class NotificationsCenter extends Themable {
 			this.hide();
 		}
 
-		// Otherwise restore focus/selection
+		// Otherwise restore focus
 		else {
-			this.list.setSelection(selection.map(s => this.viewModel.indexOf(s)));
 			this.list.setFocus(focus.map(f => this.viewModel.indexOf(f)));
 		}
 	}
