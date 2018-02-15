@@ -217,6 +217,7 @@ function removeDuplicateTSBoilerplate(destFiles) {
         { start: /^var __metadata/, end: /^};$/ },
         { start: /^var __param/, end: /^};$/ },
         { start: /^var __awaiter/, end: /^};$/ },
+        { start: /^var __generator/, end: /^};$/ },
     ];
     destFiles.forEach(function (destFile) {
         var SEEN_BOILERPLATE = [];

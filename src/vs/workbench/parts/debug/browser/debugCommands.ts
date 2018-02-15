@@ -23,7 +23,7 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { openBreakpointSource } from 'vs/workbench/parts/debug/electron-browser/breakpointsView';
+import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpointsView';
 
 export function registerCommands(): void {
 

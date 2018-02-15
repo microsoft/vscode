@@ -339,6 +339,7 @@ function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 		{ start: /^var __metadata/, end: /^};$/ },
 		{ start: /^var __param/, end: /^};$/ },
 		{ start: /^var __awaiter/, end: /^};$/ },
+		{ start: /^var __generator/, end: /^};$/ },
 	];
 
 	destFiles.forEach((destFile) => {

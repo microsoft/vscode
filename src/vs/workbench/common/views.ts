@@ -168,7 +168,7 @@ export interface ITreeViewer extends IDisposable {
 
 	layout(height: number): void;
 
-	render(container: HTMLElement);
+	show(container: HTMLElement);
 
 	getOptimalWidth(): number;
 }
@@ -204,6 +204,8 @@ export interface ITreeItem {
 
 	parentHandle: string;
 
+	collapsibleState: TreeItemCollapsibleState;
+
 	label?: string;
 
 	icon?: string;
@@ -212,13 +214,14 @@ export interface ITreeItem {
 
 	resourceUri?: UriComponents;
 
+	tooltip?: string;
+
 	contextValue?: string;
 
 	command?: Command;
 
 	children?: ITreeItem[];
 
-	collapsibleState?: TreeItemCollapsibleState;
 }
 
 export interface ITreeViewDataProvider {

@@ -28,6 +28,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 function renderBody(
 	body: string,
@@ -63,7 +64,8 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		@IOpenerService private openerService: IOpenerService,
 		@IModeService private modeService: IModeService,
 		@IPartService private partService: IPartService,
-		@IContextViewService private _contextViewService: IContextViewService
+		@IContextViewService private _contextViewService: IContextViewService,
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
 		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
@@ -104,7 +106,17 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = generateTokensCSSForColorMap(colorMap);
 		const body = renderBody(marked(text, { renderer }), css);
-		this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.environmentService, this._contextViewService, this.contextKey, this.findInputFocusContextKey, {}, false);
+		this._webview = new WebView(
+			this.content,
+			this.partService.getContainer(Parts.EDITOR_PART),
+			this.environmentService,
+			this._contextService,
+			this._contextViewService,
+			this.contextKey,
+			this.findInputFocusContextKey,
+			{},
+			false);
+
 		if (this.input && this.input instanceof ReleaseNotesInput) {
 			const state = this.loadViewState(this.input.version);
 			if (state) {

@@ -278,10 +278,11 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			.then(local => {
 				const installedExtensions = local.map(x => `${x.publisher}.${x.name}`);
 				let fileBasedRecommendations = this.tipsService.getFileBasedRecommendations();
-				let others = this.tipsService.getOtherRecommendations();
+				const othersPromise = this.tipsService.getOtherRecommendations();
+				const workspacePromise = this.tipsService.getWorkspaceRecommendations();
 
-				return this.tipsService.getWorkspaceRecommendations()
-					.then(workspaceRecommendations => {
+				return TPromise.join([othersPromise, workspacePromise])
+					.then(([others, workspaceRecommendations]) => {
 						const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, workspaceRecommendations);
 
 						/* __GDPR__
@@ -311,10 +312,11 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			.then(local => {
 				const installedExtensions = local.map(x => `${x.publisher}.${x.name}`);
 				let fileBasedRecommendations = this.tipsService.getFileBasedRecommendations();
-				let others = this.tipsService.getOtherRecommendations();
+				const othersPromise = this.tipsService.getOtherRecommendations();
+				const workspacePromise = this.tipsService.getWorkspaceRecommendations();
 
-				return this.tipsService.getWorkspaceRecommendations()
-					.then(workspaceRecommendations => {
+				return TPromise.join([othersPromise, workspacePromise])
+					.then(([others, workspaceRecommendations]) => {
 						workspaceRecommendations = workspaceRecommendations.map(x => x.toLowerCase());
 						fileBasedRecommendations = fileBasedRecommendations.filter(x => workspaceRecommendations.indexOf(x.toLowerCase()) === -1);
 						others = others.filter(x => workspaceRecommendations.indexOf(x.toLowerCase()) === -1);

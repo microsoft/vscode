@@ -437,7 +437,6 @@ declare module 'vscode' {
 	}
 
 	export namespace languages {
-
 		export interface RenameProvider2 extends RenameProvider {
 			resolveInitialRenameValue?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<RenameInitialValue>;
 		}
@@ -487,5 +486,99 @@ declare module 'vscode' {
 		 * the validation provider simply by setting this property to a different function.
 		 */
 		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
+	}
+
+	/**
+	 * Content settings for a webview.
+	 */
+	export interface WebviewOptions {
+		/**
+		 * Should scripts be enabled in the webview?
+		 *
+		 * Defaults to false (scripts-disabled).
+		 */
+		readonly enableScripts?: boolean;
+
+		/**
+		 * Should command uris be enabled?
+		 *
+		 * Defaults to false.
+		 */
+		readonly enableCommandUris?: boolean;
+
+		/**
+		 * Should the webview content be kept arount even when the webview is no longer visible?
+		 *
+		 * Normally a webview content is created when the webview becomes visible
+		 * and destroyed when the webview is hidden. Apps that have complex state
+		 * or UI can set the `keepAlive` property to make VS Code keep the webview
+		 * content around, even when the webview itself is no longer visible. When
+		 * the webview becomes visible again, the content is automatically restored
+		 * in the exact same state it was in originally
+		 *
+		 * `keepAlive` has a high memory overhead and should only be used if your
+		 * webview content cannot be quickly saved and restored.
+		 */
+		readonly keepAlive?: boolean;
+	}
+
+	/**
+	 * A webview is an editor with html content, like an iframe.
+	 */
+	export interface Webview {
+		/**
+		 * Title of the webview.
+		 */
+		title: string;
+
+		/**
+		 * Contents of the webview.
+		 */
+		html: string;
+
+		/**
+		 * Content settings for the webview.
+		 */
+		options: WebviewOptions;
+
+		/**
+		 * Fired when the webview content posts a message.
+		 */
+		readonly onMessage: Event<any>;
+
+		/**
+		 * Fired when the webview becomes the active editor.
+		 */
+		readonly onBecameActive: Event<void>;
+
+		/**
+		 * Fired when the webview stops being the active editor
+		 */
+		readonly onBecameInactive: Event<void>;
+
+		/**
+		 * Post a message to the webview content.
+		 *
+		 * Messages are only develivered if the webview is visible.
+		 *
+		 * @param message Body of the message.
+		 */
+		postMessage(message: any): Thenable<any>;
+
+		/**
+		 * Dispose the webview.
+		 */
+		dispose(): any;
+	}
+
+	namespace window {
+		/**
+		 * Create and show a new webview.
+		 *
+		 * @param title Title of the webview.
+		 * @param column Editor column to show the new webview in.
+		 * @param options Webview content options.
+		 */
+		export function createWebview(title: string, column: ViewColumn, options: WebviewOptions): Webview;
 	}
 }

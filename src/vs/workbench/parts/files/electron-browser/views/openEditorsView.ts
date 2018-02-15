@@ -396,7 +396,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	}
 
 	private computeMinExpandedBodySize(visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS): number {
-		const itemsToShow = Math.min(Math.max(visibleOpenEditors, 0), this.elementCount);
+		const itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), this.elementCount);
 		return itemsToShow * OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 

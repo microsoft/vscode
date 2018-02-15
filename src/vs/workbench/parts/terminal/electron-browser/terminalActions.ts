@@ -8,7 +8,7 @@ import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
@@ -317,12 +317,10 @@ export class SplitVerticalTerminalAction extends Action {
 	}
 }
 
-export class FocusTerminalLeftAction extends Action {
-	public static readonly ID = 'workbench.action.terminal.focusTerminalLeft';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalLeft', "Focus terminal to the left");
-
+export abstract class BaseFocusDirectionTerminalAction extends Action {
 	constructor(
 		id: string, label: string,
+		private _direction: Direction,
 		@ITerminalService private _terminalService: ITerminalService
 	) {
 		super(id, label);
@@ -333,29 +331,44 @@ export class FocusTerminalLeftAction extends Action {
 		if (!tab) {
 			return TPromise.as(void 0);
 		}
-		tab.focusLeft();
+		tab.focusDirection(this._direction);
 		return this._terminalService.showPanel(true);
 	}
 }
 
-export class FocusTerminalRightAction extends Action {
+export class FocusTerminalLeftAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.focusTerminalLeft';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalLeft', "Focus terminal to the left");
+
+	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
+		super(id, label, Direction.Left, terminalService);
+	}
+}
+
+export class FocusTerminalRightAction extends BaseFocusDirectionTerminalAction {
 	public static readonly ID = 'workbench.action.terminal.focusTerminalRight';
 	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalRight', "Focus terminal to the right");
 
-	constructor(
-		id: string, label: string,
-		@ITerminalService private _terminalService: ITerminalService
-	) {
-		super(id, label);
+	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
+		super(id, label, Direction.Right, terminalService);
 	}
+}
 
-	public run(event?: any): TPromise<any> {
-		const tab = this._terminalService.getActiveTab();
-		if (!tab) {
-			return TPromise.as(void 0);
-		}
-		tab.focusRight();
-		return this._terminalService.showPanel(true);
+export class FocusTerminalUpAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.focusTerminalUp';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalUp', "Focus terminal above");
+
+	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
+		super(id, label, Direction.Up, terminalService);
+	}
+}
+
+export class FocusTerminalDownAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.focusTerminalDown';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalDown', "Focus terminal below");
+
+	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
+		super(id, label, Direction.Down, terminalService);
 	}
 }
 

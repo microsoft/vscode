@@ -195,24 +195,24 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		}
 	}
 
-	render(container: HTMLElement): void {
-		this.treeContainer = DOM.append(container, DOM.$('.tree-explorer-viewlet-tree-view'));
+	show(container: HTMLElement): void {
+		if (!this.tree) {
+			this.createTree();
+		}
+		DOM.append(container, this.treeContainer);
+	}
 
+	private createTree() {
+		this.treeContainer = DOM.$('.tree-explorer-viewlet-tree-view');
 		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : undefined;
 		const menus = this.instantiationService.createInstance(Menus, this.id);
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, this, menus, actionItemProvider);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, menus);
-		this.tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree,
-			this.treeContainer,
-			{ dataSource, renderer, controller },
-			{}
-		);
-
+		this.tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, this.treeContainer, { dataSource, renderer, controller }, {});
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
 		this._register(this.tree);
 		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
-
 		this.tree.setInput(this.root);
 	}
 
@@ -404,7 +404,7 @@ class TreeRenderer implements IRenderer {
 
 	public renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
-		const name = node.label ? node.label : resource ? basename(resource.path) : '';
+		const label = node.label ? node.label : resource ? basename(resource.path) : '';
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
 
 		// reset
@@ -415,11 +415,12 @@ class TreeRenderer implements IRenderer {
 		DOM.removeClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 
 		if (resource && !icon) {
-			templateData.resourceLabel.setLabel({ name, resource }, { fileKind: node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE });
+			templateData.resourceLabel.setLabel({ name: label, resource }, { fileKind: node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE, title: node.tooltip });
 			DOM.addClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 		} else {
-			templateData.label.textContent = name;
+			templateData.label.textContent = label;
 			DOM.addClass(templateData.label, 'custom-view-tree-node-item-label');
+			templateData.label.title = typeof node.tooltip === 'string' ? node.tooltip : label;
 		}
 
 		templateData.icon.treeItem = node;

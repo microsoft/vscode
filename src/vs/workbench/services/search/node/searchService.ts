@@ -22,6 +22,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
+import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class SearchService implements ISearchService {
@@ -267,7 +268,7 @@ export class DiskSearch implements ISearchResultProvider {
 		this.raw = new SearchChannelClient(channel);
 	}
 
-	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+	public async search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
 		let request: PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 
 		let rawSearch: IRawSearch = {
@@ -287,7 +288,7 @@ export class DiskSearch implements ISearchResultProvider {
 
 		if (query.folderQueries) {
 			for (const q of query.folderQueries) {
-				if (q.folder.scheme === Schemas.file) {
+				if (q.folder.scheme === Schemas.file && await pfs.exists(q.folder.path)) {
 					rawSearch.folderQueries.push({
 						excludePattern: q.excludePattern,
 						includePattern: q.includePattern,

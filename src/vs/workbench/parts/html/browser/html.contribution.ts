@@ -92,27 +92,6 @@ CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', function 
 	return activePreviews.length > 0;
 });
 
-CommandsRegistry.registerCommand('_workbench.htmlPreview.updateOptions', function (
-	accessor: ServicesAccessor,
-	resource: URI | string,
-	options: HtmlInputOptions
-) {
-
-	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-	const inputOptions: HtmlInputOptions = options;
-	const allowedBadgeProviders = extensionsWorkbenchService.allowedBadgeProviders;
-	inputOptions.svgWhiteList = allowedBadgeProviders;
-
-	const uri = resource instanceof URI ? resource : URI.parse(resource);
-	const activePreviews = getActivePreviewsForResource(accessor, resource);
-	for (const preview of activePreviews) {
-		if (preview.input && preview.input instanceof HtmlInput) {
-			const input = accessor.get(IInstantiationService).createInstance(HtmlInput, preview.input.getName(), '', uri, options);
-			preview.setInput(input);
-		}
-	}
-});
-
 CommandsRegistry.registerCommand('_webview.openDevTools', function () {
 	const elements = document.querySelectorAll('webview.ready');
 	for (let i = 0; i < elements.length; i++) {

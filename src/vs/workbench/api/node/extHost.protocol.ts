@@ -345,6 +345,21 @@ export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
 }
 
+export interface MainThreadWebviewShape extends IDisposable {
+	$createWebview(handle: number): void;
+	$disposeWebview(handle: number): void;
+	$show(handle: number, column: EditorPosition): void;
+	$setTitle(handle: number, value: string): void;
+	$setHtml(handle: number, value: string): void;
+	$setOptions(handle: number, value: vscode.WebviewOptions): void;
+	$sendMessage(handle: number, value: any): Thenable<boolean>;
+}
+export interface ExtHostWebviewsShape {
+	$onMessage(handle: number, message: any): void;
+	$onBecameActive(handle: number): void;
+	$onBecameInactive(handle: number): void;
+}
+
 export interface MainThreadWorkspaceShape extends IDisposable {
 	$startSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, requestId: number): Thenable<UriComponents[]>;
 	$cancelSearch(requestId: number): Thenable<boolean>;
@@ -796,6 +811,7 @@ export const MainContext = {
 	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage'),
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
+	MainThreadWebview: createMainId<MainThreadWebviewShape>('MainThreadWebview'),
 	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
 	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
@@ -828,4 +844,5 @@ export const ExtHostContext = {
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask'),
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
+	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews')
 };

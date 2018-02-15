@@ -35,6 +35,7 @@ export class CustomTreeViewPanel extends ViewsViewletPanel {
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
 		this.treeViewer = customViewsService.getTreeViewer(this.id);
+		this.disposables.push(toDisposable(() => this.treeViewer.setVisibility(false)));
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
 		this.updateTreeVisibility();
@@ -50,7 +51,7 @@ export class CustomTreeViewPanel extends ViewsViewletPanel {
 	}
 
 	renderBody(container: HTMLElement): void {
-		this.treeViewer.render(container);
+		this.treeViewer.show(container);
 	}
 
 	setExpanded(expanded: boolean): void {
