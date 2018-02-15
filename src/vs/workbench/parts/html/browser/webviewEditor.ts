@@ -12,15 +12,10 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ContextKeyExpr, IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 import { Webview } from './webview';
 import { Builder } from 'vs/base/browser/builder';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -98,7 +93,7 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 	protected abstract createEditor(parent: Builder): void;
 }
 
-class ShowWebViewEditorFindWidgetAction extends Action {
+export class ShowWebViewEditorFindWidgetAction extends Action {
 	public static readonly ID = 'editor.action.webvieweditor.showFind';
 	public static readonly LABEL = nls.localize('editor.action.webvieweditor.showFind', "Focus Find Widget");
 
@@ -127,15 +122,7 @@ class ShowWebViewEditorFindWidgetAction extends Action {
 	}
 }
 
-const category = 'Webview';
-let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowWebViewEditorFindWidgetAction, ShowWebViewEditorFindWidgetAction.ID, ShowWebViewEditorFindWidgetAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-}, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS),
-	'Webview: Focus Find Widget', category);
-
-class HideWebViewEditorFindCommand extends Command {
+export class HideWebViewEditorFindCommand extends Command {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		const webViewEditor = this.getWebViewEditor(accessor);
 		if (webViewEditor) {
@@ -151,18 +138,8 @@ class HideWebViewEditorFindCommand extends Command {
 		return null;
 	}
 }
-const hideCommand = new HideWebViewEditorFindCommand({
-	id: 'editor.action.webvieweditor.hideFind',
-	precondition: ContextKeyExpr.and(
-		KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
-		KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE),
-	kbOpts: {
-		primary: KeyCode.Escape
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
-class ShowWebViewEditorFindTermCommand extends Command {
+export class ShowWebViewEditorFindTermCommand extends Command {
 	constructor(opts: ICommandOptions, private _next: boolean) {
 		super(opts);
 	}
@@ -186,21 +163,3 @@ class ShowWebViewEditorFindTermCommand extends Command {
 		return null;
 	}
 }
-
-const showNextFindTermCommand = new ShowWebViewEditorFindTermCommand({
-	id: 'editor.action.webvieweditor.showNextFindTerm',
-	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED,
-	kbOpts: {
-		primary: KeyMod.Alt | KeyCode.DownArrow
-	}
-}, true);
-KeybindingsRegistry.registerCommandAndKeybindingRule(showNextFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-const showPreviousFindTermCommand = new ShowWebViewEditorFindTermCommand({
-	id: 'editor.action.webvieweditor.showPreviousFindTerm',
-	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED,
-	kbOpts: {
-		primary: KeyMod.Alt | KeyCode.UpArrow
-	}
-}, false);
-KeybindingsRegistry.registerCommandAndKeybindingRule(showPreviousFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
