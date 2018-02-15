@@ -199,14 +199,12 @@ export default class Webview {
 			}),
 			addDisposableListener(this._webview, 'focus', () => {
 				if (this._contextKey) {
-					console.log('set');
 					this._contextKey.set(true);
 				}
 				this._onFocus.fire();
 			}),
 			addDisposableListener(this._webview, 'blur', () => {
 				if (this._contextKey) {
-					console.log('reset');
 					this._contextKey.reset();
 				}
 				this._onBlur.fire();
