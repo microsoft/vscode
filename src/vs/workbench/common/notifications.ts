@@ -128,6 +128,10 @@ export interface INotificationViewItem {
 	dispose(): void;
 }
 
+export function isNotificationViewItem(obj: any): obj is INotificationViewItem {
+	return obj instanceof NotificationViewItem;
+}
+
 export class NotificationViewItem implements INotificationViewItem {
 
 	private static MAX_MESSAGE_LENGTH = 1000;
@@ -216,11 +220,19 @@ export class NotificationViewItem implements INotificationViewItem {
 	}
 
 	public expand(): void {
+		if (this._expanded) {
+			return;
+		}
+
 		this._expanded = true;
 		this._onDidChange.fire();
 	}
 
 	public collapse(): void {
+		if (!this._expanded || !this.canCollapse) {
+			return;
+		}
+
 		this._expanded = false;
 		this._onDidChange.fire();
 	}

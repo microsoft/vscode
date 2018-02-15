@@ -24,7 +24,8 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/common/notifications';
-import { CloseNotificationAction, ExpandNotificationAction, CollapseNotificationAction, DoNotShowNotificationAgainAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, DoNotShowNotificationAgainAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
 
@@ -143,7 +144,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 
 	private toDispose: IDisposable[];
 
-	private closeNotificationAction: CloseNotificationAction;
+	private closeNotificationAction: ClearNotificationAction;
 	private expandNotificationAction: ExpandNotificationAction;
 	private collapseNotificationAction: CollapseNotificationAction;
 	private doNotShowNotificationAgainAction: DoNotShowNotificationAgainAction;
@@ -153,11 +154,12 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		@IOpenerService private openerService: IOpenerService,
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this.toDispose = [];
 
-		this.closeNotificationAction = instantiationService.createInstance(CloseNotificationAction, CloseNotificationAction.ID, CloseNotificationAction.LABEL);
+		this.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
 		this.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
 		this.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
 		this.doNotShowNotificationAgainAction = this.instantiationService.createInstance(DoNotShowNotificationAgainAction, DoNotShowNotificationAgainAction.ID, DoNotShowNotificationAgainAction.LABEL);
@@ -206,7 +208,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 
 					return null;
 				}
-			},
+			}
 		);
 
 		// Details Row
@@ -288,7 +290,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		// Toolbar
 		data.toolbar.clear();
 		data.toolbar.context = notification;
-		data.toolbar.push(actions, { icon: true, label: false });
+		actions.forEach(action => data.toolbar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) }));
 
 		// Source
 		if (notification.expanded && notification.source) {
@@ -302,6 +304,12 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		if (notification.expanded) {
 			notification.actions.forEach(action => this.createButton(notification, action, data));
 		}
+	}
+
+	private getKeybindingLabel(action: IAction): string {
+		const keybinding = this.keybindingService.lookupKeybinding(action.id);
+
+		return keybinding ? keybinding.getLabel() : void 0;
 	}
 
 	private createButton(notification: INotificationViewItem, action: IAction, data: INotificationTemplateData): Button {

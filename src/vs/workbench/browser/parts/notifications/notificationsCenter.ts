@@ -20,6 +20,8 @@ import { NotificationActionRunner } from 'vs/workbench/browser/parts/notificatio
 import { Dimension } from 'vs/base/browser/builder';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import Event, { Emitter } from 'vs/base/common/event';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { NotificationsCenterFocusedContext, NotificationsCenterVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationCommands';
 
 export class NotificationsCenter extends Themable {
 
@@ -31,18 +33,22 @@ export class NotificationsCenter extends Themable {
 	private _isVisible: boolean;
 	private workbenchDimensions: Dimension;
 	private _onDidChangeVisibility: Emitter<void>;
+	private notificationsCenterVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
 		private container: HTMLElement,
 		private model: INotificationsModel,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(themeService);
 
 		this._onDidChangeVisibility = new Emitter<void>();
 		this.toUnbind.push(this._onDidChangeVisibility);
+
+		this.notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(contextKeyService);
 
 		this.viewModel = [];
 		this.registerListeners();
@@ -54,6 +60,16 @@ export class NotificationsCenter extends Themable {
 
 	public get isVisible(): boolean {
 		return this._isVisible;
+	}
+
+	public get selected(): INotificationViewItem {
+		if (!this._isVisible || !this.list) {
+			return null;
+		}
+
+		const focusedIndex = this.list.getFocus()[0];
+
+		return this.viewModel[focusedIndex];
 	}
 
 	private registerListeners(): void {
@@ -82,6 +98,9 @@ export class NotificationsCenter extends Themable {
 		// Focus
 		this.focusNotificationsList();
 
+		// Context Key
+		this.notificationsCenterVisibleContextKey.set(true);
+
 		// Event
 		this._onDidChangeVisibility.fire();
 	}
@@ -92,10 +111,6 @@ export class NotificationsCenter extends Themable {
 		}
 
 		this.list.domFocus();
-
-		if (this.list.getFocus().length === 0) {
-			this.list.focusFirst();
-		}
 	}
 
 	private createNotificationsList(): void {
@@ -119,6 +134,9 @@ export class NotificationsCenter extends Themable {
 			} as IListOptions<INotificationViewItem>
 		);
 		this.toUnbind.push(this.list);
+
+		// Context key
+		NotificationsCenterFocusedContext.bindTo(this.list.contextKeyService);
 
 		// Only allow for focus in notifications, as the
 		// selection is too strong over the contents of
@@ -165,7 +183,8 @@ export class NotificationsCenter extends Themable {
 	private updateNotificationsList(start: number, deleteCount: number, items: INotificationViewItem[] = []) {
 
 		// Remember focus
-		const focus = this.indexToItems(this.list.getFocus());
+		const focusedIndex = this.list.getFocus()[0];
+		const focusedItem = this.viewModel[focusedIndex];
 
 		// Update view model
 		this.viewModel.splice(start, deleteCount, ...items);
@@ -181,15 +200,26 @@ export class NotificationsCenter extends Themable {
 
 		// Otherwise restore focus
 		else {
-			this.list.setFocus(focus.map(f => this.viewModel.indexOf(f)));
+			let indexToFocus = 0;
+			if (focusedItem) {
+				let indexToFocusCandidate = this.viewModel.indexOf(focusedItem);
+				if (indexToFocusCandidate === -1) {
+					indexToFocusCandidate = focusedIndex - 1; // item could have been removed
+				}
+
+				if (indexToFocusCandidate < this.viewModel.length && indexToFocusCandidate >= 0) {
+					indexToFocus = indexToFocusCandidate;
+				}
+			}
+
+			this.list.setFocus([indexToFocus]);
 		}
 	}
 
-	private indexToItems(indeces: number[]): INotificationViewItem[] {
-		return indeces.map(index => this.viewModel[index]).filter(item => !!item);
-	}
-
 	public hide(): void {
+		if (!this._isVisible || !this.list) {
+			return; // already hidden
+		}
 
 		// Hide
 		this._isVisible = false;
@@ -200,6 +230,9 @@ export class NotificationsCenter extends Themable {
 
 		// Clear view model
 		this.viewModel = [];
+
+		// Context Key
+		this.notificationsCenterVisibleContextKey.set(false);
 
 		// Event
 		this._onDidChangeVisibility.fire();
@@ -263,6 +296,17 @@ export class NotificationsCenter extends Themable {
 		this.listContainer.style.width = `${width}px`;
 		this.list.getHTMLElement().style.maxHeight = `${maxHeight}px`;
 		this.list.layout();
+	}
+
+	public clearAll(): void {
+
+		// Hide notifications center first
+		this.hide();
+
+		// Dispose all
+		while (this.model.notifications.length) {
+			this.model.notifications[0].dispose();
+		}
 	}
 }
 

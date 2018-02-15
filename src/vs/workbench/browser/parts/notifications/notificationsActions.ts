@@ -12,21 +12,24 @@ import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CLEAR_NOTFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
-export class CloseNotificationAction extends Action {
+export class ClearNotificationAction extends Action {
 
-	public static readonly ID = 'workbench.action.closeNotification';
+	public static readonly ID = CLEAR_NOTFICATION;
 	public static readonly LABEL = localize('closeNotification', "Close Notification");
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@ICommandService private commandService: ICommandService
 	) {
-		super(id, label, 'close-notification-action');
+		super(id, label, 'clear-notification-action');
 	}
 
 	public run(notification: INotificationViewItem): TPromise<any> {
-		notification.dispose();
+		this.commandService.executeCommand(CLEAR_NOTFICATION, notification);
 
 		return TPromise.as(void 0);
 	}
@@ -34,18 +37,19 @@ export class CloseNotificationAction extends Action {
 
 export class ExpandNotificationAction extends Action {
 
-	public static readonly ID = 'workbench.action.expandNotification';
+	public static readonly ID = EXPAND_NOTIFICATION;
 	public static readonly LABEL = localize('expandNotification', "Expand Notification");
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label, 'expand-notification-action');
 	}
 
 	public run(notification: INotificationViewItem): TPromise<any> {
-		notification.expand();
+		this.commandService.executeCommand(EXPAND_NOTIFICATION, notification);
 
 		return TPromise.as(void 0);
 	}
@@ -53,18 +57,19 @@ export class ExpandNotificationAction extends Action {
 
 export class CollapseNotificationAction extends Action {
 
-	public static readonly ID = 'workbench.action.collapseNotification';
+	public static readonly ID = COLLAPSE_NOTIFICATION;
 	public static readonly LABEL = localize('collapseNotification', "Collapse Notification");
 
 	constructor(
 		id: string,
-		label: string
+		label: string,
+		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label, 'collapse-notification-action');
 	}
 
 	public run(notification: INotificationViewItem): TPromise<any> {
-		notification.collapse();
+		this.commandService.executeCommand(COLLAPSE_NOTIFICATION, notification);
 
 		return TPromise.as(void 0);
 	}

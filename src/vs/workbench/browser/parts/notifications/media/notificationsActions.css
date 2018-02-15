@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.vs .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .close-notification-action {
+.vs .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .clear-notification-action {
 	background-image: url('close.svg');
 }
 
-.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .close-notification-action,
-.hc-black .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .close-notification-action {
+.vs-dark .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .clear-notification-action,
+.hc-black .monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .clear-notification-action {
 	background-image: url('close-inverse.svg');
 }
 
