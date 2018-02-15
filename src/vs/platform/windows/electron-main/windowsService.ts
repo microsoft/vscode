@@ -98,6 +98,16 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return this.windowsMainService.showOpenDialog(options, codeWindow);
 	}
 
+	reloadWindowExtensionsDisabled(windowId: number): TPromise<void> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			this.windowsMainService.reload(codeWindow, undefined, true);
+		}
+
+		return TPromise.as(null);
+	}
+
 	reloadWindow(windowId: number): TPromise<void> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 

@@ -482,7 +482,7 @@ export class CodeWindow implements ICodeWindow {
 		});
 	}
 
-	public load(config: IWindowConfiguration, isReload?: boolean): void {
+	public load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
@@ -497,6 +497,13 @@ export class CodeWindow implements ICodeWindow {
 		else {
 			this.pendingLoadConfig = config;
 			this._readyState = ReadyState.NAVIGATING;
+		}
+
+		// Copy the config so that the change to disable-extensions is not preserved
+		// on another reload.
+		const configuration = objects.mixin({}, config);
+		if (disableExtensions) {
+			configuration['disable-extensions'] = true;
 		}
 
 		// Clear Document Edited if needed
@@ -517,7 +524,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Load URL
 		mark('main:loadWindow');
-		this._win.loadURL(this.getUrl(config));
+		this._win.loadURL(this.getUrl(configuration));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
 		// Only do this when running out of sources and not when running tests
@@ -532,7 +539,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 	}
 
-	public reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void {
+	public reload(configuration?: IWindowConfiguration, cli?: ParsedArgs, disableExtensions?: boolean): void {
 
 		// If config is not provided, copy our current one
 		if (!configuration) {
@@ -558,7 +565,7 @@ export class CodeWindow implements ICodeWindow {
 		configuration.isInitialStartup = false; // since this is a reload
 
 		// Load config
-		this.load(configuration, true);
+		this.load(configuration, true, disableExtensions);
 	}
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {

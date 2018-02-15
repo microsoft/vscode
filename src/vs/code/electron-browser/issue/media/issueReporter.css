@@ -263,9 +263,12 @@ input:disabled {
 	margin-top: .5em;
 }
 
+.workbenchCommand {
+	cursor: pointer;
+}
+
 .workbenchCommand:disabled {
 	color: #868e96;
-	cursor: pointer;
 }
 
 .block-extensions .block-info {

@@ -26,6 +26,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'showSaveDialog', arg: [number, SaveDialogOptions]): TPromise<string>;
 	call(command: 'showOpenDialog', arg: [number, OpenDialogOptions]): TPromise<string[]>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
+	call(command: 'reloadWindowExtensionsDisabled', arg: number): TPromise<void>;
 	call(command: 'toggleDevTools', arg: number): TPromise<void>;
 	call(command: 'closeWorkspace', arg: number): TPromise<void>;
 	call(command: 'createAndEnterWorkspace', arg: [number, IWorkspaceFolderCreationData[], string]): TPromise<IEnterWorkspaceResult>;
@@ -91,6 +92,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'showMessageBox': return this.service.showMessageBox(arg[0], arg[1]);
 			case 'showSaveDialog': return this.service.showSaveDialog(arg[0], arg[1]);
 			case 'showOpenDialog': return this.service.showOpenDialog(arg[0], arg[1]);
+			case 'reloadWindowExtensionsDisabled': return this.service.reloadWindowExtensionsDisabled(arg);
 			case 'reloadWindow': return this.service.reloadWindow(arg);
 			case 'openDevTools': return this.service.openDevTools(arg);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
@@ -194,6 +196,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	reloadWindow(windowId: number): TPromise<void> {
 		return this.channel.call('reloadWindow', windowId);
+	}
+
+	reloadWindowExtensionsDisabled(windowId: number): TPromise<void> {
+		return this.channel.call('reloadWindowExtensionsDisabled', windowId);
 	}
 
 	openDevTools(windowId: number): TPromise<void> {

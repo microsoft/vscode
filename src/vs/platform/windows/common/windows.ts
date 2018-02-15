@@ -109,6 +109,7 @@ export interface IWindowsService {
 	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]>;
 
 	reloadWindow(windowId: number): TPromise<void>;
+	reloadWindowExtensionsDisabled(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
@@ -184,6 +185,7 @@ export interface IWindowService {
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	reloadWindow(): TPromise<void>;
+	reloadWindowExtensionsDisabled(): TPromise<void>;
 	openDevTools(): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;

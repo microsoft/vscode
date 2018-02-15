@@ -1266,12 +1266,12 @@ export class WindowsManager implements IWindowsMainService {
 		return state;
 	}
 
-	public reload(win: CodeWindow, cli?: ParsedArgs): void {
+	public reload(win: CodeWindow, cli?: ParsedArgs, disableExtensions?: boolean): void {
 
 		// Only reload when the window has not vetoed this
 		this.lifecycleService.unload(win, UnloadReason.RELOAD).done(veto => {
 			if (!veto) {
-				win.reload(void 0, cli);
+				win.reload(void 0, cli, disableExtensions);
 
 				// Emit
 				this._onWindowReload.fire(win.id);

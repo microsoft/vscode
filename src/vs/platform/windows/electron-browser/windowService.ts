@@ -64,6 +64,10 @@ export class WindowService implements IWindowService {
 		return this.windowsService.reloadWindow(this.windowId);
 	}
 
+	reloadWindowExtensionsDisabled(): TPromise<void> {
+		return this.windowsService.reloadWindowExtensionsDisabled(this.windowId);
+	}
+
 	openDevTools(): TPromise<void> {
 		return this.windowsService.openDevTools(this.windowId);
 	}
