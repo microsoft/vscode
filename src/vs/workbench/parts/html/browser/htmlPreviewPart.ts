@@ -22,7 +22,7 @@ import { Parts, IPartService } from 'vs/workbench/services/part/common/partServi
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-import Webview, { WebviewOptions } from './webview';
+import { Webview, WebviewOptions } from './webview';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { WebviewEditor } from './webviewEditor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';

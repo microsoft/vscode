@@ -26,7 +26,7 @@ export interface WebviewOptions {
 	readonly enableWrappedPostMessage?: boolean;
 }
 
-export default class Webview {
+export class Webview {
 	private readonly _webview: Electron.WebviewTag;
 	private _ready: Promise<this>;
 	private _disposables: IDisposable[] = [];

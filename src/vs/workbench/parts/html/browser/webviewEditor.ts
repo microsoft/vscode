@@ -16,7 +16,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr, IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-import WebView from './webview';
+import { Webview } from './webview';
 import { Builder } from 'vs/base/browser/builder';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -37,7 +37,7 @@ export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<
 export abstract class WebviewEditor extends BaseWebviewEditor {
 
 	protected _webviewFocusContextKey: IContextKey<boolean>;
-	protected _webview: WebView;
+	protected _webview: Webview;
 	protected content: HTMLElement;
 	protected contextKey: IContextKey<boolean>;
 	protected findWidgetVisible: IContextKey<boolean>;

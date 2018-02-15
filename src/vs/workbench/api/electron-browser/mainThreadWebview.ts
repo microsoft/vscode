@@ -14,7 +14,7 @@ import { IEditorModel, Position } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WebviewEditor as BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/parts/html/browser/webviewEditor';
 import { Builder, Dimension } from 'vs/base/browser/builder';
-import WebView from 'vs/workbench/parts/html/browser/webview';
+import { Webview } from 'vs/workbench/parts/html/browser/webview';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -213,11 +213,11 @@ class WebviewEditor extends BaseWebviewEditor {
 		this.webview.style(this.themeService.getTheme());
 	}
 
-	private get webview(): WebView {
+	private get webview(): Webview {
 		if (!this._webview) {
 			this._contentDisposables = dispose(this._contentDisposables);
 
-			this._webview = new WebView(
+			this._webview = new Webview(
 				this.webviewContent,
 				this._partService.getContainer(Parts.EDITOR_PART),
 				this._environmentService,
