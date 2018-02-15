@@ -116,6 +116,7 @@ html {
 
 body {
 	margin: 0;
+	overflow: scroll;
 }
 
 .hidden {
@@ -348,12 +349,16 @@ button {
 	}
 }
 
-.issues-container::-webkit-scrollbar, body::-webkit-scrollbar {
+::-webkit-scrollbar {
 	width: 14px;
 }
 
-.issues-container::-webkit-scrollbar, body::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
 	min-height: 20px;
+}
+
+::-webkit-scrollbar-corner {
+	display: none;
 }
 
 .issues-container {
