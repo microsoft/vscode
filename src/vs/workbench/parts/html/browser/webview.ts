@@ -107,18 +107,8 @@ export default class Webview {
 				loaded = true;
 
 				const contents = this._webview.getWebContents();
-				if (contents && !contents.isDestroyed()) {
-					registerFileProtocol(contents, 'vscode-core-resource', [
-						this._environmentService.appRoot
-					]);
-					registerFileProtocol(contents, 'vscode-extension-resource', [
-						this._environmentService.extensionsPath,
-						this._environmentService.appRoot,
-						this._environmentService.extensionDevelopmentPath
-					]);
-					registerFileProtocol(contents, 'vscode-workspace-resource',
-						this._contextService.getWorkspace().folders.map(folder => folder.uri.fsPath));
-				}
+				this.registerFileProtocols(contents);
+
 			}));
 		}
 
@@ -221,6 +211,24 @@ export default class Webview {
 			parent.appendChild(this._webviewFindWidget.getDomNode());
 			parent.appendChild(this._webview);
 		}
+	}
+
+	private registerFileProtocols(contents: Electron.WebContents) {
+		if (!contents || contents.isDestroyed()) {
+			return;
+		}
+
+		registerFileProtocol(contents, 'vscode-core-resource', [
+			this._environmentService.appRoot
+		]);
+		registerFileProtocol(contents, 'vscode-extension-resource', [
+			this._environmentService.extensionsPath,
+			this._environmentService.appRoot,
+			this._environmentService.extensionDevelopmentPath
+		]);
+		registerFileProtocol(contents, 'vscode-workspace-resource',
+			this._contextService.getWorkspace().folders.map(folder => folder.uri.fsPath)
+		);
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean) {
