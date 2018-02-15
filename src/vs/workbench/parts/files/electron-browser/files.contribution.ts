@@ -303,6 +303,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 750,
 			'description': nls.localize('formatOnSaveTimeout', "Format on save timeout. Specifies a time limit in milliseconds for formatOnSave-commands. Commands taking longer than the specified timeout will be cancelled."),
+			'overridable': true,
 			'scope': ConfigurationScope.RESOURCE
 		}
 	}
