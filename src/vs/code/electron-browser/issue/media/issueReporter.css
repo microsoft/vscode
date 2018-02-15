@@ -224,16 +224,11 @@ summary {
 
 .include-data {
 	display: inline-block;
-	position: relative;
 }
 
 .include-data > .caption {
 	display: inline-block;
 	font-size: 12px;
-	position: absolute;
-	width: 80px;
-	top: 2px;
-	left: 30px;
 	cursor: pointer;
 }
 
