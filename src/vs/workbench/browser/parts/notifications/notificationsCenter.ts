@@ -19,6 +19,7 @@ import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/br
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { Dimension } from 'vs/base/browser/builder';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class NotificationsCenter extends Themable {
 
@@ -29,6 +30,7 @@ export class NotificationsCenter extends Themable {
 	private viewModel: INotificationViewItem[];
 	private _isVisible: boolean;
 	private workbenchDimensions: Dimension;
+	private _onDidChangeVisibility: Emitter<void>;
 
 	constructor(
 		private container: HTMLElement,
@@ -39,8 +41,15 @@ export class NotificationsCenter extends Themable {
 	) {
 		super(themeService);
 
+		this._onDidChangeVisibility = new Emitter<void>();
+		this.toUnbind.push(this._onDidChangeVisibility);
+
 		this.viewModel = [];
 		this.registerListeners();
+	}
+
+	public get onDidChangeVisibility(): Event<void> {
+		return this._onDidChangeVisibility.event;
 	}
 
 	public get isVisible(): boolean {
@@ -67,6 +76,9 @@ export class NotificationsCenter extends Themable {
 
 		// Show all notifications that are present now
 		this.onNotificationsAdded(0, this.model.notifications);
+
+		// Event
+		this._onDidChangeVisibility.fire();
 	}
 
 	private createNotificationsList(): void {
@@ -165,6 +177,9 @@ export class NotificationsCenter extends Themable {
 
 		// Clear view model
 		this.viewModel = [];
+
+		// Event
+		this._onDidChangeVisibility.fire();
 	}
 
 	protected updateStyles(): void {

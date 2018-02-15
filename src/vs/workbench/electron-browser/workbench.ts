@@ -1270,6 +1270,7 @@ export class Workbench implements IPartService {
 
 		// Notifications Status
 		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, this.notificationService.model);
+		this.toUnbind.push(this.notificationsCenter.onDidChangeVisibility(() => notificationsStatus.update(this.notificationsCenter.isVisible)));
 		this.toUnbind.push(notificationsStatus);
 
 		// Register Commands

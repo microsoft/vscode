@@ -8,12 +8,13 @@
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TOGGLE_NOTFICATIONS_CENTER_COMMAND_ID } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+import { HIDE_NOTFICATIONS_CENTER_COMMAND_ID, SHOW_NOTFICATIONS_CENTER_COMMAND_ID } from 'vs/workbench/browser/parts/notifications/notificationCommands';
 import { localize } from 'vs/nls';
 
 export class NotificationsStatus {
 	private statusItem: IDisposable;
 	private toDispose: IDisposable[];
+	private isCenterVisible: boolean;
 
 	constructor(
 		private model: INotificationsModel,
@@ -22,6 +23,13 @@ export class NotificationsStatus {
 		this.toDispose = [];
 
 		this.registerListeners();
+	}
+
+	public update(isCenterVisible: boolean): void {
+		if (this.isCenterVisible !== isCenterVisible) {
+			this.isCenterVisible = isCenterVisible;
+			this.updateNotificationsStatusItem();
+		}
 	}
 
 	private registerListeners(): void {
@@ -47,9 +55,9 @@ export class NotificationsStatus {
 		const notificationsCount = this.model.notifications.length;
 		if (notificationsCount > 0) {
 			this.statusItem = this.statusbarService.addEntry({
-				text: `$(megaphone) ${notificationsCount}`,
-				command: TOGGLE_NOTFICATIONS_CENTER_COMMAND_ID,
-				tooltip: localize('notifications', "{0} notifications", notificationsCount)
+				text: this.isCenterVisible ? '$(megaphone) ' + localize('hideNotifications', "Hide Notifications") : `$(megaphone) ${notificationsCount}`,
+				command: this.isCenterVisible ? HIDE_NOTFICATIONS_CENTER_COMMAND_ID : SHOW_NOTFICATIONS_CENTER_COMMAND_ID,
+				tooltip: this.isCenterVisible ? localize('hideNotifications', "Hide Notifications") : localize('notifications', "{0} notifications", notificationsCount)
 			}, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
 		}
 	}
