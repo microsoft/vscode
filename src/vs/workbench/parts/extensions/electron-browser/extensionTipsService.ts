@@ -22,7 +22,7 @@ import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionsConfiguration, ConfigurationKey, DisableEagerRecommendationsKey } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as pfs from 'vs/base/node/pfs';
@@ -95,13 +95,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._suggestFileBasedRecommendations();
 		this.promptWorkspaceRecommendationsPromise = this._suggestWorkspaceRecommendations();
 
-		if (!this.configurationService.getValue<boolean>(DisableEagerRecommendationsKey)) {
+		if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
 			this.fetchProactiveRecommendations(true);
 		}
 
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!this.proactiveRecommendationsFetched && !this.configurationService.getValue<boolean>(DisableEagerRecommendationsKey)) {
+			if (!this.proactiveRecommendationsFetched && !this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
 				this.fetchProactiveRecommendations();
 			}
 		}));
@@ -373,7 +373,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			);
 
 			const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
-			if (config.ignoreRecommendations || config.disableEagerRecommendations) {
+			if (config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand) {
 				return;
 			}
 
@@ -552,7 +552,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
 
 		return this.getWorkspaceRecommendations().then(allRecommendations => {
-			if (!allRecommendations.length || config.ignoreRecommendations || config.disableEagerRecommendations || this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
+			if (!allRecommendations.length || config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand || this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
 				return;
 			}
 

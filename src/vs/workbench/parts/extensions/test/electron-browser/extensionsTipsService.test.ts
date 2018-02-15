@@ -227,7 +227,7 @@ suite('ExtensionsTipsService Test', () => {
 			}
 		});
 
-		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false, disableEagerRecommendations: false });
+		testConfigurationService.setUserConfiguration(ConfigurationKey, { ignoreRecommendations: false, showRecommendationsOnlyOnDemand: false });
 		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
 		instantiationService.stub(IModelService, <IModelService>{
 			getModels(): any { return []; },
@@ -333,8 +333,8 @@ suite('ExtensionsTipsService Test', () => {
 		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 
-	test('ExtensionTipsService: No Prompt for valid workspace recommendations if disableEagerRecommendations is set', () => {
-		testConfigurationService.setUserConfiguration(ConfigurationKey, { disableEagerRecommendations: true });
+	test('ExtensionTipsService: No Prompt for valid workspace recommendations if showRecommendationsOnlyOnDemand is set', () => {
+		testConfigurationService.setUserConfiguration(ConfigurationKey, { showRecommendationsOnlyOnDemand: true });
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);
 			return testObject.promptWorkspaceRecommendationsPromise.then(() => {
