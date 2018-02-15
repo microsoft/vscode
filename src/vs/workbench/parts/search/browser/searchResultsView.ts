@@ -143,6 +143,7 @@ interface IMatchTemplate {
 	match: HTMLElement;
 	replace: HTMLElement;
 	after: HTMLElement;
+	lineNumber: HTMLElement;
 	actions: ActionBar;
 }
 
@@ -228,6 +229,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const match = DOM.append(parent, DOM.$('span.findInFileMatch'));
 		const replace = DOM.append(parent, DOM.$('span.replaceMatch'));
 		const after = DOM.append(parent, DOM.$('span'));
+		const lineNumber = DOM.append(parent, DOM.$('span.lineMatch'));
 		const actions = new ActionBar(container, { animated: false });
 
 		return {
@@ -236,6 +238,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 			match,
 			replace,
 			after,
+			lineNumber,
 			actions
 		};
 	}
@@ -291,6 +294,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		DOM.toggleClass(templateData.match, 'replace', replace);
 		templateData.replace.textContent = replace ? match.replaceString : '';
 		templateData.after.textContent = preview.after;
+		templateData.lineNumber.textContent = 'line ' + match.lineNumber().toString();
 		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 
 		templateData.actions.clear();

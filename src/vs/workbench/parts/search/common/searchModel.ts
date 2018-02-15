@@ -29,6 +29,7 @@ import { getBaseLabel } from 'vs/base/common/labels';
 export class Match {
 
 	private _lineText: string;
+	private _lineNumber: number;
 	private _id: string;
 	private _range: Range;
 
@@ -36,6 +37,7 @@ export class Match {
 		this._lineText = text;
 		this._range = new Range(1 + lineNumber, 1 + offset, 1 + lineNumber, 1 + offset + length);
 		this._id = this._parent.id() + '>' + lineNumber + '>' + offset + this.getMatchString();
+		this._lineNumber = lineNumber + 1;
 	}
 
 	public id(): string {
@@ -52,6 +54,10 @@ export class Match {
 
 	public range(): Range {
 		return this._range;
+	}
+
+	public lineNumber(): number{
+		return this._lineNumber;
 	}
 
 	public preview(): { before: string; inside: string; after: string; } {
