@@ -537,8 +537,16 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 		};
 	}
 
+	const process = debugService.getViewModel().focusedProcess;
 	if (breakpoint instanceof FunctionBreakpoint) {
-		// TODO@Isidor handle funciton breakpoints take into account if adapter supports function breakpoints
+		if (process && !process.session.capabilities.supportsFunctionBreakpoints) {
+			return {
+				className: 'debug-breakpoint-unsupported-glyph',
+				message: nls.localize('functionBreakpointUnsupported', "Function breakpoints not supported by this debug type"),
+			};
+		}
+
+		// TODO@Isidor handle funciton breakpoints
 	}
 
 	if (debugActive && textFileService.isDirty(breakpoint.uri)) {
@@ -549,7 +557,6 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	}
 
 	if (breakpoint.condition || breakpoint.hitCondition) {
-		const process = debugService.getViewModel().focusedProcess;
 		if (process && breakpoint.condition && !process.session.capabilities.supportsConditionalBreakpoints) {
 			return {
 				className: 'debug-breakpoint-unsupported-glyph',
