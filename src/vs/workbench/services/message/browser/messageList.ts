@@ -19,7 +19,7 @@ import { Action } from 'vs/base/common/actions';
 import htmlRenderer = require('vs/base/browser/htmlContentRenderer');
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_BUTTON_BACKGROUND, NOTIFICATIONS_BUTTON_HOVER_BACKGROUND, NOTIFICATIONS_BUTTON_FOREGROUND, NOTIFICATIONS_INFO_BACKGROUND, NOTIFICATIONS_WARNING_BACKGROUND, NOTIFICATIONS_ERROR_BACKGROUND, NOTIFICATIONS_INFO_FOREGROUND, NOTIFICATIONS_WARNING_FOREGROUND, NOTIFICATIONS_ERROR_FOREGROUND } from 'vs/workbench/common/theme';
+import { NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
@@ -112,19 +112,19 @@ export class MessageList {
 			this.foreground = theme.getColor(NOTIFICATIONS_FOREGROUND);
 			this.widgetShadow = theme.getColor(widgetShadow);
 			this.outlineBorder = theme.getColor(contrastBorder);
-			this.buttonBackground = theme.getColor(NOTIFICATIONS_BUTTON_BACKGROUND);
-			this.buttonForeground = theme.getColor(NOTIFICATIONS_BUTTON_FOREGROUND);
-			this.infoBackground = theme.getColor(NOTIFICATIONS_INFO_BACKGROUND);
-			this.infoForeground = theme.getColor(NOTIFICATIONS_INFO_FOREGROUND);
-			this.warningBackground = theme.getColor(NOTIFICATIONS_WARNING_BACKGROUND);
-			this.warningForeground = theme.getColor(NOTIFICATIONS_WARNING_FOREGROUND);
-			this.errorBackground = theme.getColor(NOTIFICATIONS_ERROR_BACKGROUND);
-			this.errorForeground = theme.getColor(NOTIFICATIONS_ERROR_FOREGROUND);
+			// this.buttonBackground = theme.getColor(NOTIFICATIONS_BUTTON_BACKGROUND);
+			// this.buttonForeground = theme.getColor(NOTIFICATIONS_BUTTON_FOREGROUND);
+			// this.infoBackground = theme.getColor(NOTIFICATIONS_INFO_BACKGROUND);
+			// this.infoForeground = theme.getColor(NOTIFICATIONS_INFO_FOREGROUND);
+			// this.warningBackground = theme.getColor(NOTIFICATIONS_WARNING_BACKGROUND);
+			// this.warningForeground = theme.getColor(NOTIFICATIONS_WARNING_FOREGROUND);
+			// this.errorBackground = theme.getColor(NOTIFICATIONS_ERROR_BACKGROUND);
+			// this.errorForeground = theme.getColor(NOTIFICATIONS_ERROR_FOREGROUND);
 
-			const buttonHoverBackgroundColor = theme.getColor(NOTIFICATIONS_BUTTON_HOVER_BACKGROUND);
-			if (buttonHoverBackgroundColor) {
-				collector.addRule(`.global-message-list li.message-list-entry .actions-container .message-action .action-button:hover { background-color: ${buttonHoverBackgroundColor} !important; }`);
-			}
+			// const buttonHoverBackgroundColor = theme.getColor(NOTIFICATIONS_BUTTON_HOVER_BACKGROUND);
+			// if (buttonHoverBackgroundColor) {
+			// 	collector.addRule(`.global-message-list li.message-list-entry .actions-container .message-action .action-button:hover { background-color: ${buttonHoverBackgroundColor} !important; }`);
+			// }
 
 			this.updateStyles();
 		}));
