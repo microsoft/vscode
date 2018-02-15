@@ -197,6 +197,7 @@ export class Workbench implements IPartService {
 	private editorPart: EditorPart;
 	private statusbarPart: StatusbarPart;
 	private quickOpen: QuickOpenController;
+	private notificationsCenter: NotificationsCenter;
 	private workbenchLayout: WorkbenchLayout;
 	private toUnbind: IDisposable[];
 	private sideBarHidden: boolean;
@@ -779,6 +780,12 @@ export class Workbench implements IPartService {
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.statusBarHidden = hidden;
 
+		// Adjust CSS
+		if (hidden) {
+			this.workbench.addClass('nostatusbar');
+		} else {
+			this.workbench.removeClass('nostatusbar');
+		}
 
 		// Layout
 		if (!skipLayout) {
@@ -788,7 +795,6 @@ export class Workbench implements IPartService {
 
 	public setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.activityBarHidden = hidden;
-
 
 		// Layout
 		if (!skipLayout) {
@@ -1129,7 +1135,8 @@ export class Workbench implements IPartService {
 	}
 
 	private createWorkbenchLayout(): void {
-		this.workbenchLayout = this.instantiationService.createInstance(WorkbenchLayout,
+		this.workbenchLayout = this.instantiationService.createInstance(
+			WorkbenchLayout,
 			$(this.container),							// Parent
 			this.workbench,								// Workbench Container
 			{
@@ -1140,7 +1147,8 @@ export class Workbench implements IPartService {
 				panel: this.panelPart,					// Panel Part
 				statusbar: this.statusbarPart,			// Statusbar
 			},
-			this.quickOpen								// Quickopen
+			this.quickOpen,								// Quickopen
+			this.notificationsCenter					// Notifications Center
 		);
 	}
 
@@ -1152,6 +1160,9 @@ export class Workbench implements IPartService {
 		}
 		if (this.panelHidden) {
 			this.workbench.addClass('nopanel');
+		}
+		if (this.statusBarHidden) {
+			this.workbench.addClass('nostatusbar');
 		}
 
 		// Apply font aliasing
@@ -1249,11 +1260,11 @@ export class Workbench implements IPartService {
 
 	private createNotificationsHandlers(): void {
 
-		// Notification Center
-		const notificationsCenter = this.instantiationService.createInstance(NotificationsCenter, this.workbench.getHTMLElement(), this.notificationService.model);
-		this.toUnbind.push(notificationsCenter);
+		// Notifications Center
+		this.notificationsCenter = this.instantiationService.createInstance(NotificationsCenter, this.workbench.getHTMLElement(), this.notificationService.model);
+		this.toUnbind.push(this.notificationsCenter);
 
-		// Notification Alerts
+		// Notifications Alerts
 		const notificationsAlerts = this.instantiationService.createInstance(NotificationsAlerts, this.notificationService.model);
 		this.toUnbind.push(notificationsAlerts);
 
@@ -1262,7 +1273,7 @@ export class Workbench implements IPartService {
 		this.toUnbind.push(notificationsStatus);
 
 		// Register Commands
-		registerNotificationCommands(notificationsCenter);
+		registerNotificationCommands(this.notificationsCenter);
 	}
 
 	public getInstantiationService(): IInstantiationService {

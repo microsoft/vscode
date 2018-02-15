@@ -17,18 +17,25 @@ import { contrastBorder, widgetShadow, textLinkForeground } from 'vs/platform/th
 import { INotificationViewItem, INotificationsModel, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { Dimension } from 'vs/base/browser/builder';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
 export class NotificationsCenter extends Themable {
+
+	private static MAX_DIMENSIONS = new Dimension(600, 600);
+
 	private listContainer: HTMLElement;
 	private list: WorkbenchList<INotificationViewItem>;
 	private viewModel: INotificationViewItem[];
 	private _isVisible: boolean;
+	private workbenchDimensions: Dimension;
 
 	constructor(
 		private container: HTMLElement,
 		private model: INotificationsModel,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IPartService private partService: IPartService
 	) {
 		super(themeService);
 
@@ -88,6 +95,7 @@ export class NotificationsCenter extends Themable {
 		this.container.appendChild(this.listContainer);
 
 		this.updateStyles();
+		this.layoutList();
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
@@ -167,6 +175,46 @@ export class NotificationsCenter extends Themable {
 			const widgetShadowColor = this.getColor(widgetShadow);
 			this.listContainer.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null;
 		}
+	}
+
+	public layout(dimension: Dimension): void {
+		this.workbenchDimensions = dimension;
+
+		if (this._isVisible && this.listContainer) {
+			this.layoutList();
+		}
+	}
+
+	private layoutList(): void {
+		let width = NotificationsCenter.MAX_DIMENSIONS.width;
+		let maxHeight = NotificationsCenter.MAX_DIMENSIONS.height;
+
+		if (this.workbenchDimensions) {
+
+			// Make sure notifications are not exceding available width
+			let availableWidth = this.workbenchDimensions.width;
+			availableWidth -= (2 * 12); // adjust for paddings left and right
+
+			if (width > availableWidth) {
+				width = availableWidth;
+			}
+
+			// Make sure notifications are not exceeding available height
+			let availableHeight = this.workbenchDimensions.height;
+			if (this.partService.isVisible(Parts.STATUSBAR_PART)) {
+				availableHeight -= 22; // adjust for status bar
+			}
+
+			availableHeight -= (2 * 12); // adjust for paddings top and bottom
+
+			if (maxHeight > availableHeight) {
+				maxHeight = availableHeight;
+			}
+		}
+
+		this.listContainer.style.width = `${width}px`;
+		this.list.getHTMLElement().style.maxHeight = `${maxHeight}px`;
+		this.list.layout();
 	}
 }
 

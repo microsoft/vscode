@@ -7,24 +7,21 @@
 	position: absolute;
 	width: 600px;
 	z-index: 1000;
-	left: 50%;
-	margin-left: -300px;
+	right: 8px;
+	bottom: 32px; /* above status bar */
 	display: none;
 	background: #1E1E1E; /* TODO@notification make themable */
+	border: 5px solid #323232;
+	overflow: hidden;
+}
+
+.monaco-workbench.nostatusbar > .notifications-list-container {
+	right: 12px;
+	bottom: 12px;
 }
 
 .monaco-workbench > .notifications-list-container.visible {
 	display: block;
-}
-
-.monaco-workbench > .notifications-list-container .monaco-list-row {
-	border-left: 5px solid #323232; /* TODO@notification make themable */
-	border-right: 5px solid #323232;
-	border-bottom: 5px solid #323232;
-}
-
-.monaco-workbench > .notifications-list-container .monaco-list-row:first {
-	border-top: 5px solid #323232;
 }
 
 /** Notification: Container */
