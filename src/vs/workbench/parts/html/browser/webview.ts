@@ -332,19 +332,10 @@ export default class Webview {
 
 		let activeTheme: ApiThemeClassName;
 		if (theme.type === LIGHT) {
-			styles['scrollbar-thumb'] = 'rgba(100, 100, 100, 0.4)';
-			styles['scrollbar-thumb-hover'] = 'rgba(100, 100, 100, 0.7)';
-			styles['scrollbar-thumb-active'] = 'rgba(0, 0, 0, 0.6)';
 			activeTheme = 'vscode-light';
 		} else if (theme.type === DARK) {
-			styles['scrollbar-thumb'] = 'rgba(121, 121, 121, 0.4)';
-			styles['scrollbar-thumb-hover'] = 'rgba(100, 100, 100, 0.7)';
-			styles['scrollbar-thumb-active'] = 'rgba(85, 85, 85, 0.8)';
 			activeTheme = 'vscode-dark';
 		} else {
-			styles['scrollbar-thumb'] = 'rgba(111, 195, 223, 0.3)';
-			styles['scrollbar-thumb-hover'] = 'rgba(111, 195, 223, 0.8)';
-			styles['scrollbar-thumb-active'] = 'rgba(111, 195, 223, 0.8)';
 			activeTheme = 'vscode-high-contrast';
 		}
 

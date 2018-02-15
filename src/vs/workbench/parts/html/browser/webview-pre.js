@@ -184,14 +184,35 @@
 				width: 10px;
 				height: 10px;
 			}
+
 			::-webkit-scrollbar-thumb {
-				background-color: var(--scrollbar-thumb);
+				background-color: rgba(121, 121, 121, 0.4);
 			}
+			body.vscode-light::-webkit-scrollbar-thumb {
+				background-color: rgba(100, 100, 100, 0.4);
+			}
+			body.vscode-high-contrast::-webkit-scrollbar-thumb {
+				background-color: rgba(111, 195, 223, 0.3);
+			}
+
 			::-webkit-scrollbar-thumb:hover {
-				background-color: var(--scrollbar-thumb-hover);
+				background-color: rgba(100, 100, 100, 0.7);
 			}
+			body.vscode-light::-webkit-scrollbar-thumb:hover {
+				background-color: rgba(100, 100, 100, 0.7);
+			}
+			body.vscode-high-contrast::-webkit-scrollbar-thumb:hover {
+				background-color: rgba(111, 195, 223, 0.8);
+			}
+
 			::-webkit-scrollbar-thumb:active {
-				background-color: var(--scrollbar-thumb-active);
+				background-color: rgba(85, 85, 85, 0.8);
+			}
+			body.vscode-light::-webkit-scrollbar-thumb:active {
+				background-color: rgba(0, 0, 0, 0.6);
+			}
+			body.vscode-high-contrast::-webkit-scrollbar-thumb:active {
+				background-color: rgba(111, 195, 223, 0.8);
 			}
 			`;
 			if (newDocument.head.hasChildNodes()) {
