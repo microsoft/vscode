@@ -34,8 +34,6 @@ export interface FoundInPageResults {
 	selectionArea: any;
 }
 
-type ApiThemeClassName = 'vscode-light' | 'vscode-dark' | 'vscode-high-contrast';
-
 export interface WebviewOptions {
 	allowScripts?: boolean;
 	allowSvgs?: boolean;
@@ -330,15 +328,7 @@ export default class Webview {
 			'link-color': theme.getColor(textLinkForeground).toString()
 		};
 
-		let activeTheme: ApiThemeClassName;
-		if (theme.type === LIGHT) {
-			activeTheme = 'vscode-light';
-		} else if (theme.type === DARK) {
-			activeTheme = 'vscode-dark';
-		} else {
-			activeTheme = 'vscode-high-contrast';
-		}
-
+		const activeTheme = ApiThemeClassName.fromTheme(theme);
 		this._send('styles', styles, activeTheme);
 
 		this._webviewFindWidget.updateTheme(theme);
@@ -445,6 +435,25 @@ export default class Webview {
 
 	public showPreviousFindTerm() {
 		this._webviewFindWidget.showPreviousFindTerm();
+	}
+}
+
+
+enum ApiThemeClassName {
+	light = 'vscode-light',
+	dark = 'vscode-dark',
+	highContrast = 'vscode-high-contrast'
+}
+
+namespace ApiThemeClassName {
+	export function fromTheme(theme: ITheme): ApiThemeClassName {
+		if (theme.type === LIGHT) {
+			return ApiThemeClassName.light;
+		} else if (theme.type === DARK) {
+			return ApiThemeClassName.dark;
+		} else {
+			return ApiThemeClassName.highContrast;
+		}
 	}
 }
 
