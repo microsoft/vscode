@@ -10,7 +10,6 @@
 	right: 8px;
 	bottom: 30px; /* above status bar */
 	display: none;
-	background: #323232; /* TODO@notification make themable */
 	overflow: hidden;
 }
 
@@ -31,7 +30,6 @@
 	padding: 10px 5px;
 	height: 100%;
 	box-sizing: border-box;
-	border-bottom: 1px solid #1E1E1E;
 }
 
 /** Notification: Main Row */

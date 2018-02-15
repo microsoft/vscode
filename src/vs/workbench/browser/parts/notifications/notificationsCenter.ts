@@ -11,9 +11,9 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
-import { Themable } from 'vs/workbench/common/theme';
+import { Themable, NOTIFICATIONS_BORDER, NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { contrastBorder, widgetShadow, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem, INotificationsModel, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
@@ -184,6 +184,12 @@ export class NotificationsCenter extends Themable {
 
 	protected updateStyles(): void {
 		if (this.listContainer) {
+			const foreground = this.getColor(NOTIFICATIONS_FOREGROUND);
+			this.listContainer.style.color = foreground ? foreground.toString() : null;
+
+			const background = this.getColor(NOTIFICATIONS_BACKGROUND);
+			this.listContainer.style.background = background ? background.toString() : null;
+
 			const outlineColor = this.getColor(contrastBorder);
 			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : null;
 
@@ -238,8 +244,13 @@ export class NotificationsCenter extends Themable {
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const linkColor = theme.getColor(textLinkForeground);
+	const linkColor = theme.getColor(NOTIFICATIONS_LINKS);
 	if (linkColor) {
 		collector.addRule(`.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-message a { color: ${linkColor}; }`);
+	}
+
+	const notificationBorderColor = theme.getColor(NOTIFICATIONS_BORDER);
+	if (notificationBorderColor) {
+		collector.addRule(`.monaco-workbench > .notifications-list-container .notification-list-item { border-bottom: 1px solid ${notificationBorderColor}; }`);
 	}
 });
