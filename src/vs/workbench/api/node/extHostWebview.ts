@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { MainContext, MainThreadWebviewShape, IMainContext, ExtHostWebviewsShape } from './extHost.protocol';
 import * as vscode from 'vscode';
@@ -33,6 +32,7 @@ class ExtHostWebview implements vscode.Webview {
 		if (this._isDisposed) {
 			return;
 		}
+		this._isDisposed = true;
 		this._proxy.$disposeWebview(this._handle);
 	}
 
