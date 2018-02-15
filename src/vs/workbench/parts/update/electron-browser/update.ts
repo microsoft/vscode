@@ -289,6 +289,7 @@ export class UpdateContribution implements IGlobalActivity {
 	private static readonly openUserSnippets = 'workbench.action.openSnippets';
 	private static readonly selectColorThemeId = 'workbench.action.selectTheme';
 	private static readonly selectIconThemeId = 'workbench.action.selectIconTheme';
+	private static readonly showExtensionsId = 'workbench.view.extensions';
 
 	get id() { return 'vs.update'; }
 	get name() { return ''; }
@@ -463,6 +464,7 @@ export class UpdateContribution implements IGlobalActivity {
 			new Separator(),
 			new CommandAction(UpdateContribution.openSettingsId, nls.localize('settings', "Settings"), this.commandService),
 			new CommandAction(UpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), this.commandService),
+			new CommandAction(UpdateContribution.showExtensionsId, nls.localize('showExtensions', "Manage Extensions"), this.commandService),
 			new Separator(),
 			new CommandAction(UpdateContribution.openUserSnippets, nls.localize('userSnippets', "User Snippets"), this.commandService),
 			new Separator(),
