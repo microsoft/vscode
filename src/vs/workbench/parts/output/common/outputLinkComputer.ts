@@ -105,7 +105,7 @@ export class OutputLinkComputer {
 			// Example: /workspaces/mankala/Features.ts (45): error
 			// Example: /workspaces/mankala/Features.ts(45,18): error
 			// Example: /workspaces/mankala/Features.ts (45,18): error
-			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + '([^\\s\\(\\)]*)(\\s?\\((\\d+)(,(\\d+))?)\\)', 'gi'));
+			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + '((?:[^\\s\\(\\)]| [^\\s\\(\\)])*)(\\s?\\((\\d+)(,(\\d+))?)\\)', 'gi'));
 
 			// Example: at /workspaces/mankala/Game.ts
 			// Example: at /workspaces/mankala/Game.ts:336
