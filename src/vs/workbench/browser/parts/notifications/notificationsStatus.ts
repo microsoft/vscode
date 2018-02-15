@@ -50,7 +50,7 @@ export class NotificationsStatus {
 				text: `$(megaphone) ${notificationsCount}`,
 				command: TOGGLE_NOTFICATIONS_CENTER_COMMAND_ID,
 				tooltip: localize('notifications', "{0} notifications", notificationsCount)
-			}, StatusbarAlignment.RIGHT, Number.MIN_VALUE);
+			}, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
 		}
 	}
 

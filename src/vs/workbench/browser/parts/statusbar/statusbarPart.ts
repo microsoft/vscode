@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./media/statusbarpart';
-import dom = require('vs/base/browser/dom');
 import nls = require('vs/nls');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -31,6 +30,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
+import { addClass, EventHelper } from 'vs/base/browser/dom';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -151,12 +151,12 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private doCreateStatusItem(alignment: StatusbarAlignment, priority: number = 0): HTMLElement {
 		const el = document.createElement('div');
-		dom.addClass(el, 'statusbar-item');
+		addClass(el, 'statusbar-item');
 
 		if (alignment === StatusbarAlignment.RIGHT) {
-			dom.addClass(el, 'right');
+			addClass(el, 'right');
 		} else {
-			dom.addClass(el, 'left');
+			addClass(el, 'left');
 		}
 
 		$(el).setProperty(StatusbarPart.PRIORITY_PROP, priority);
@@ -206,10 +206,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 let manageExtensionAction: ManageExtensionAction;
 class StatusBarEntryItem implements IStatusbarItem {
-	private entry: IStatusbarEntry;
 
 	constructor(
-		entry: IStatusbarEntry,
+		private entry: IStatusbarEntry,
 		@ICommandService private commandService: ICommandService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService private messageService: IMessageService,
@@ -227,7 +226,11 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 	public render(el: HTMLElement): IDisposable {
 		let toDispose: IDisposable[] = [];
-		dom.addClass(el, 'statusbar-entry');
+		addClass(el, 'statusbar-entry');
+
+		if (this.entry.class) {
+			addClass(el, this.entry.class);
+		}
 
 		// Text Container
 		let textContainer: HTMLElement;
@@ -264,7 +267,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		// Context Menu
 		if (this.entry.extensionId) {
 			$(textContainer).on('contextmenu', e => {
-				dom.EventHelper.stop(e, true);
+				EventHelper.stop(e, true);
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => el,

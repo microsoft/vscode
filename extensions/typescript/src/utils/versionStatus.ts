@@ -14,7 +14,7 @@ export default class VersionStatus {
 	constructor(
 		private readonly normalizePath: (resource: vscode.Uri) => string | null
 	) {
-		this.versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
+		this.versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99 /* to the right of editor status (100) */);
 		this.onChangeEditorSub = vscode.window.onDidChangeActiveTextEditor(this.showHideStatus, this);
 	}
 
