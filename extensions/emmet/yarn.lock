@@ -2052,17 +2052,21 @@ vinyl@~2.0.1:
     remove-trailing-separator "^1.0.1"
     replace-ext "^1.0.0"
 
-vscode-emmet-helper@^1.1.32:
-  version "1.1.32"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.1.32.tgz#5a67c6aa34255129d8b6564f5182f016a2b5b0da"
+vscode-emmet-helper@^1.1.36:
+  version "1.1.36"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-1.1.36.tgz#537cbf91041a3d426f6f24dd9834550a26e61685"
   dependencies:
     "@emmetio/extract-abbreviation" "^0.1.4"
     jsonc-parser "^1.0.0"
-    vscode-languageserver-types "^3.5.0"
+    vscode-languageserver-types "^3.6.0-next.1"
 
 vscode-languageserver-types@^3.5.0:
   version "3.5.0"
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.5.0.tgz#e48d79962f0b8e02de955e3f524908e2b19c0374"
+
+vscode-languageserver-types@^3.6.0-next.1:
+  version "3.6.0-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.6.0-next.1.tgz#98e488d3f87b666b4ee1a3d89f0023e246d358f3"
 
 vscode-nls@3.2.1:
   version "3.2.1"
