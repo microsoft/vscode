@@ -16,7 +16,7 @@ import resources = require('vs/base/common/resources');
 import errors = require('vs/base/common/errors');
 import { IAction, ActionRunner as BaseActionRunner, IActionRunner } from 'vs/base/common/actions';
 import comparers = require('vs/base/common/comparers');
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, MessageType, EllipsisType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
@@ -296,6 +296,7 @@ export class FileRenderer implements IRenderer {
 			}, 0);
 		});
 
+		const initialRelPath: string = relative(stat.root.resource.fsPath, stat.parent.resource.fsPath);
 		const toDispose = [
 			inputBox,
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
@@ -307,6 +308,18 @@ export class FileRenderer implements IRenderer {
 					done(false, false);
 				}
 			}),
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
+				if (inputBox.validate()) {
+					if (inputBox.value && inputBox.value.search(/[\\/]/) !== -1) {	// only show if there's a slash
+						const newPath = replaceWithNativeSep(paths.join(initialRelPath, inputBox.value));
+						inputBox.showMessage({
+							type: MessageType.INFO,
+							content: newPath,
+							formatContent: true
+						}, { force: false, ellipsis: EllipsisType.LEFT });
+					}
+				}
+			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
 			}),
@@ -314,6 +327,11 @@ export class FileRenderer implements IRenderer {
 			styler
 		];
 	}
+}
+
+function replaceWithNativeSep(str: string) {
+	if (!str) { return str; }
+	return str.replace(/[\\/]/g, paths.nativeSep);
 }
 
 // Explorer Accessibility Provider

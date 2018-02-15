@@ -67,6 +67,20 @@ export interface IRange {
 	end: number;
 }
 
+export interface IShowMessageOptions {
+	force?: boolean;
+	ellipsis?: EllipsisType;
+}
+
+/**
+ * Determines whether the ellipsis appears at the left or right side of the string
+*/
+export enum EllipsisType {
+	NONE = 1,
+	LEFT = 2,
+	RIGHT = 3
+}
+
 const defaultOpts = {
 	inputBackground: Color.fromHex('#3C3C3C'),
 	inputForeground: Color.fromHex('#CCCCCC'),
@@ -283,7 +297,7 @@ export class InputBox extends Widget {
 		this.input.style.width = width + 'px';
 	}
 
-	public showMessage(message: IMessage, force?: boolean): void {
+	public showMessage(message: IMessage, opts?: IShowMessageOptions): void {
 		this.message = message;
 
 		dom.removeClass(this.element, 'idle');
@@ -307,8 +321,9 @@ export class InputBox extends Widget {
 
 		aria.alert(alertText);
 
-		if (this.hasFocus() || force) {
-			this._showMessage();
+		if (this.hasFocus() || opts && opts.force) {
+			const ellipsis = opts && opts.ellipsis;
+			this._showMessage(ellipsis);
 		}
 	}
 
@@ -362,7 +377,7 @@ export class InputBox extends Widget {
 		}
 	}
 
-	private _showMessage(): void {
+	private _showMessage(useEllipsis?: EllipsisType): void {
 		if (!this.contextViewProvider || !this.message) {
 			return;
 		}
@@ -379,9 +394,14 @@ export class InputBox extends Widget {
 				div = dom.append(container, $('.monaco-inputbox-container'));
 				layout();
 
+				let className: string = 'monaco-inputbox-message';
+				if (useEllipsis && useEllipsis !== EllipsisType.NONE) {
+					className = useEllipsis === EllipsisType.LEFT ? 'monaco-inputbox-ellipsis-left' : 'monaco-inputbox-ellipsis-right';
+				}
+
 				const renderOptions: RenderOptions = {
 					inline: true,
-					className: 'monaco-inputbox-message'
+					className
 				};
 
 				const spanElement = (this.message.formatContent
