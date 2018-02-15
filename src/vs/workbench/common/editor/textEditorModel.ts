@@ -91,7 +91,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this;
 	}
 
-	protected getFirstLineText(value: ITextBufferFactory | ITextSnapshot): string {
+	protected getFirstLineText(value: ITextBufferFactory | ITextModel): string {
 
 		// text buffer factory
 		const textBufferFactory = value as ITextBufferFactory;
@@ -99,21 +99,9 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 			return textBufferFactory.getFirstLineText(100);
 		}
 
-		// text snapshot
-		const textSnapshot = value as ITextSnapshot;
-		const firstLineText = textSnapshot.read().substr(0, 100);
-
-		let crIndex = firstLineText.indexOf('\r');
-		if (crIndex < 0) {
-			crIndex = firstLineText.length;
-		}
-
-		let lfIndex = firstLineText.indexOf('\n');
-		if (lfIndex < 0) {
-			lfIndex = firstLineText.length;
-		}
-
-		return firstLineText.substr(0, Math.min(crIndex, lfIndex));
+		// text model
+		const textSnapshot = value as ITextModel;
+		return textSnapshot.getLineContent(1).substr(0, 100);
 	}
 
 	/**
