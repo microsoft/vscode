@@ -378,7 +378,7 @@ class ExceptionBreakpointsRenderer implements IRenderer<IExceptionBreakpoint, IB
 	}
 }
 
-class FunctionBreakpointsRenderer implements IRenderer<IFunctionBreakpoint, IBaseBreakpointWithIconTemplateData> {
+class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBaseBreakpointWithIconTemplateData> {
 
 	constructor(
 		@IDebugService private debugService: IDebugService,
@@ -413,7 +413,7 @@ class FunctionBreakpointsRenderer implements IRenderer<IFunctionBreakpoint, IBas
 		return data;
 	}
 
-	renderElement(functionBreakpoint: IFunctionBreakpoint, index: number, data: IBaseBreakpointWithIconTemplateData): void {
+	renderElement(functionBreakpoint: FunctionBreakpoint, index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = functionBreakpoint;
 		data.name.textContent = functionBreakpoint.name;
 		const { className, message } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, functionBreakpoint);
