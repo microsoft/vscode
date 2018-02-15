@@ -426,7 +426,7 @@ export class ExtensionEditor extends BaseEditor {
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
 				this.activeWebview.style(this.themeService.getTheme());
-				this.activeWebview.contents = [body];
+				this.activeWebview.contents = body;
 
 				this.activeWebview.onDidClickLink(link => {
 					// Whitelist supported schemes for links

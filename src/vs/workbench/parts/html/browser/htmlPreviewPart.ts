@@ -143,8 +143,8 @@ export class HtmlPreviewPart extends WebviewEditor {
 			this._themeChangeSubscription = this.themeService.onThemeChange(this.onThemeChange.bind(this));
 
 			if (this._hasValidModel()) {
-				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
-				this.webview.contents = this.model.getLinesContent();
+				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent().join('\n'));
+				this.webview.contents = this.model.getLinesContent().join('\n');
 			}
 		}
 	}
@@ -234,14 +234,14 @@ export class HtmlPreviewPart extends WebviewEditor {
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => {
 					if (this.model) {
 						this.scrollYPercentage = 0;
-						this.webview.contents = this.model.getLinesContent();
+						this.webview.contents = this.model.getLinesContent().join('\n');
 					}
 				});
 				const state = this.loadViewState(resourceUri);
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.options = input.options;
-				this.webview.contents = this.model.getLinesContent();
+				this.webview.contents = this.model.getLinesContent().join('\n');
 				this.webview.initialScrollProgress = this.scrollYPercentage;
 				return undefined;
 			});

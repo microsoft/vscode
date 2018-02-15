@@ -24,10 +24,6 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-export interface HtmlPreviewEditorViewState {
-	scrollYPercentage: number;
-}
-
 /**  A context key that is set when a webview editor has focus. */
 export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS = new RawContextKey<boolean>('webviewEditorFocus', false);
 /**  A context key that is set when the find widget find input in webview editor webview is focused. */

@@ -128,7 +128,7 @@
 			const options = data.options;
 			enableWrappedPostMessage = options && options.enableWrappedPostMessage;
 
-			const text = data.contents.join('\n');
+			const text = data.contents;
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
 			newDocument.querySelectorAll('a').forEach(a => {

@@ -284,7 +284,7 @@ export default class Webview {
 		this._options = value;
 	}
 
-	set contents(value: string[]) {
+	set contents(value: string) {
 		this._send('content', {
 			contents: value,
 			options: this._options

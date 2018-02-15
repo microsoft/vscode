@@ -209,7 +209,7 @@ class WebviewEditor extends BaseWebviewEditor {
 			allowScripts: input.options.enableScripts,
 			enableWrappedPostMessage: true
 		};
-		this.webview.contents = [input.html];
+		this.webview.contents = input.html;
 		this.webview.style(this.themeService.getTheme());
 	}
 

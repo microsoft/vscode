@@ -124,7 +124,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 			}
 		}
 		this.onThemeChange(this.themeService.getTheme());
-		this._webview.contents = [body];
+		this._webview.contents = body;
 
 		this._webview.onDidClickLink(link => {
 			addGAParameters(this.telemetryService, this.environmentService, link, 'ReleaseNotes')
