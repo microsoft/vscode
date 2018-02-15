@@ -97,7 +97,7 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	public getTabLabels(): string[] {
-		return this._terminalTabs.map((tab, index) => `${index + 1}: ${tab.title}`);
+		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title}`);
 	}
 
 	private _removeTab(tab: ITerminalTab): void {
