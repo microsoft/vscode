@@ -27,6 +27,7 @@
 .monaco-workbench > .notifications-list-container .notification-list-item {
 	display: flex;
 	flex-direction: column;
+	flex-direction: column-reverse; /* the details row appears first in order for better keyboard access to notification buttons */
 	padding: 10px 5px;
 	height: 100%;
 	box-sizing: border-box;
@@ -82,6 +83,7 @@
 }
 
 .monaco-workbench > .notifications-list-container .notification-list-item:hover .notification-list-item-toolbar-container,
+.monaco-workbench > .notifications-list-container .monaco-list-row.focused .notification-list-item .notification-list-item-toolbar-container,
 .monaco-workbench > .notifications-list-container .notification-list-item.expanded .notification-list-item-toolbar-container {
 	display: block;
 }

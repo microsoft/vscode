@@ -35,7 +35,6 @@
 	position: absolute;
 	top: 0;
 	right: 0;
-	margin: .5em 0 0;
 	padding: .5em;
 	width: 22px;
 	height: 22px;
@@ -67,7 +66,6 @@
 	padding-left: 12px;
 	padding-right: 12px;
 	border: 4px solid #007ACC;
-	border-radius: 4px;
 	float: left;
 	margin-right: 5px;
 }

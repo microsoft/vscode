@@ -43,6 +43,8 @@ export class Button {
 	private _onDidClick = new Emitter<any>();
 	readonly onDidClick: Event<any> = this._onDidClick.event;
 
+	private focusTracker: DOM.IFocusTracker;
+
 	constructor(container: Builder, options?: IButtonOptions);
 	constructor(container: HTMLElement, options?: IButtonOptions);
 	constructor(container: any, options?: IButtonOptions) {
@@ -86,10 +88,7 @@ export class Button {
 
 		this.$el.on(DOM.EventType.MOUSE_OVER, (e) => {
 			if (!this.$el.hasClass('disabled')) {
-				const hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
-				if (hoverBackground) {
-					this.$el.style('background-color', hoverBackground);
-				}
+				this.setHoverBackground();
 			}
 		});
 
@@ -97,7 +96,19 @@ export class Button {
 			this.applyStyles(); // restore standard styles
 		});
 
+		// Also set hover background when button is focused for feedback
+		const tracker = DOM.trackFocus(this.$el.getHTMLElement());
+		tracker.onDidFocus(() => this.setHoverBackground());
+		tracker.onDidBlur(() => this.applyStyles()); // restore standard styles
+
 		this.applyStyles();
+	}
+
+	private setHoverBackground(): void {
+		const hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
+		if (hoverBackground) {
+			this.$el.style('background-color', hoverBackground);
+		}
 	}
 
 	style(styles: IButtonStyles): void {
@@ -165,6 +176,9 @@ export class Button {
 		if (this.$el) {
 			this.$el.dispose();
 			this.$el = null;
+
+			this.focusTracker.dispose();
+			this.focusTracker = null;
 		}
 
 		this._onDidClick.dispose();

@@ -198,8 +198,8 @@ export class NotificationsCenter extends Themable {
 			this.hide();
 		}
 
-		// Otherwise restore focus
-		else {
+		// Otherwise restore focus if we had
+		else if (typeof focusedIndex === 'number') {
 			let indexToFocus = 0;
 			if (focusedItem) {
 				let indexToFocusCandidate = this.viewModel.indexOf(focusedItem);

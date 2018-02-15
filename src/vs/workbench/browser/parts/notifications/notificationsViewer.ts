@@ -225,14 +225,16 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 
 		container.appendChild(data.container);
 
+		// the details row appears first in order for better keyboard access to notification buttons
+		data.container.appendChild(data.detailsRow);
+		data.detailsRow.appendChild(data.source);
+		data.detailsRow.appendChild(data.actionsContainer);
+
+		// main row
 		data.container.appendChild(data.mainRow);
 		data.mainRow.appendChild(data.icon);
 		data.mainRow.appendChild(data.message);
 		data.mainRow.appendChild(toolbarContainer);
-
-		data.container.appendChild(data.detailsRow);
-		data.detailsRow.appendChild(data.source);
-		data.detailsRow.appendChild(data.actionsContainer);
 
 		return data;
 	}
@@ -262,6 +264,11 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		// Message (simple markdown with links support)
 		clearNode(data.message);
 		data.message.appendChild(NotificationMessageMarkdownRenderer.render(notification.message, (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)));
+
+		const links = data.message.querySelectorAll('a');
+		for (let i = 0; i < links.length; i++) {
+			links.item(i).tabIndex = -1; // prevent keyboard navigation to links to allow for better keyboard support within a message
+		}
 
 		// Actions
 		const actions: IAction[] = [];
