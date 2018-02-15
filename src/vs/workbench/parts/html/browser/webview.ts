@@ -19,26 +19,11 @@ import { normalize, nativeSep } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-export interface WebviewElementFindInPageOptions {
-	forward?: boolean;
-	findNext?: boolean;
-	matchCase?: boolean;
-	wordStart?: boolean;
-	medialCapitalAsWordStart?: boolean;
-}
-
-export interface FoundInPageResults {
-	requestId: number;
-	activeMatchOrdinal: number;
-	matches: number;
-	selectionArea: any;
-}
-
 export interface WebviewOptions {
-	allowScripts?: boolean;
-	allowSvgs?: boolean;
-	svgWhiteList?: string[];
-	enableWrappedPostMessage?: boolean;
+	readonly allowScripts?: boolean;
+	readonly allowSvgs?: boolean;
+	readonly svgWhiteList?: string[];
+	readonly enableWrappedPostMessage?: boolean;
 }
 
 export default class Webview {
@@ -204,24 +189,6 @@ export default class Webview {
 		}
 	}
 
-	private registerFileProtocols(contents: Electron.WebContents) {
-		if (!contents || contents.isDestroyed()) {
-			return;
-		}
-
-		registerFileProtocol(contents, 'vscode-core-resource', [
-			this._environmentService.appRoot
-		]);
-		registerFileProtocol(contents, 'vscode-extension-resource', [
-			this._environmentService.extensionsPath,
-			this._environmentService.appRoot,
-			this._environmentService.extensionDevelopmentPath
-		]);
-		registerFileProtocol(contents, 'vscode-workspace-resource',
-			this._contextService.getWorkspace().folders.map(folder => folder.uri.fsPath)
-		);
-	}
-
 	public notifyFindWidgetFocusChanged(isFocused: boolean) {
 		this._contextKey.set(isFocused || document.activeElement === this._webview);
 	}
@@ -245,15 +212,14 @@ export default class Webview {
 		}
 	}
 
-
 	private readonly _onDidClickLink = new Emitter<URI>();
 	public readonly onDidClickLink: Event<URI> = this._onDidClickLink.event;
 
 	private readonly _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
 	public readonly onDidScroll: Event<{ scrollYPercentage: number }> = this._onDidScroll.event;
 
-	private readonly _onFoundInPageResults = new Emitter<FoundInPageResults>();
-	public readonly onFindResults: Event<FoundInPageResults> = this._onFoundInPageResults.event;
+	private readonly _onFoundInPageResults = new Emitter<Electron.FoundInPageResult>();
+	public readonly onFindResults: Event<Electron.FoundInPageResult> = this._onFoundInPageResults.event;
 
 	private readonly _onMessage = new Emitter<any>();
 	public readonly onMessage: Event<any> = this._onMessage.event;
@@ -359,7 +325,25 @@ export default class Webview {
 		return false;
 	}
 
-	public startFind(value: string, options?: WebviewElementFindInPageOptions) {
+	private registerFileProtocols(contents: Electron.WebContents) {
+		if (!contents || contents.isDestroyed()) {
+			return;
+		}
+
+		registerFileProtocol(contents, 'vscode-core-resource', [
+			this._environmentService.appRoot
+		]);
+		registerFileProtocol(contents, 'vscode-extension-resource', [
+			this._environmentService.extensionsPath,
+			this._environmentService.appRoot,
+			this._environmentService.extensionDevelopmentPath
+		]);
+		registerFileProtocol(contents, 'vscode-workspace-resource',
+			this._contextService.getWorkspace().folders.map(folder => folder.uri.fsPath)
+		);
+	}
+
+	public startFind(value: string, options?: Electron.FindInPageOptions) {
 		if (!value) {
 			return;
 		}
@@ -368,7 +352,7 @@ export default class Webview {
 		options = options || {};
 
 		// FindNext must be false for a first request
-		const findOptions: WebviewElementFindInPageOptions = {
+		const findOptions: Electron.FindInPageOptions = {
 			forward: options.forward,
 			findNext: false,
 			matchCase: options.matchCase,
@@ -385,12 +369,10 @@ export default class Webview {
 	 * Successive calls to find will move forward or backward through onFindResults
 	 * depending on the supplied options.
 	 *
-	 * @param {string} value The string to search for. Empty strings are ignored.
-	 * @param {WebviewElementFindInPageOptions} [options]
-	 *
-	 * @memberOf Webview
+	 * @param value The string to search for. Empty strings are ignored.
+	 * @param options
 	 */
-	public find(value: string, options?: WebviewElementFindInPageOptions): void {
+	public find(value: string, options?: Electron.FindInPageOptions): void {
 		// Searching with an empty value will throw an exception
 		if (!value) {
 			return;
