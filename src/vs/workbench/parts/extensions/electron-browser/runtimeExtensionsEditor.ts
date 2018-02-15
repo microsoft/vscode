@@ -88,7 +88,7 @@ interface IRuntimeExtension {
 
 export class RuntimeExtensionsEditor extends BaseEditor {
 
-	static ID: string = 'workbench.editor.runtimeExtensions';
+	static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
 	private _list: WorkbenchList<IRuntimeExtension>;
 	private _profileInfo: IExtensionHostProfile;

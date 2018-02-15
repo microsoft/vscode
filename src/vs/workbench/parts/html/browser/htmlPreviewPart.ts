@@ -34,7 +34,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
  */
 export class HtmlPreviewPart extends WebviewEditor {
 
-	static ID: string = 'workbench.editor.htmlPreviewPart';
+	static readonly ID: string = 'workbench.editor.htmlPreviewPart';
 	static class: string = 'htmlPreviewPart';
 
 	private _webviewDisposables: IDisposable[];

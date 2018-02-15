@@ -51,7 +51,7 @@ export interface IExplorerViewOptions extends IViewletViewOptions {
 
 export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView {
 
-	public static ID: string = 'workbench.explorer.fileView';
+	public static readonly ID: string = 'workbench.explorer.fileView';
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 	private static readonly EXPLORER_FILE_CHANGES_REFRESH_DELAY = 100; // delay in ms to refresh the explorer from disk file changes
 

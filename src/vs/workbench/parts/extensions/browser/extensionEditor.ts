@@ -150,7 +150,7 @@ interface ILayoutParticipant {
 
 export class ExtensionEditor extends BaseEditor {
 
-	static ID: string = 'workbench.editor.extension';
+	static readonly ID: string = 'workbench.editor.extension';
 
 	private icon: HTMLImageElement;
 	private name: HTMLElement;

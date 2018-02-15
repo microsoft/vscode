@@ -297,7 +297,7 @@ export abstract class SearchAction extends Action {
 
 export class RefreshAction extends SearchAction {
 
-	static ID: string = 'search.action.refreshSearchResults';
+	static readonly ID: string = 'search.action.refreshSearchResults';
 	static LABEL: string = nls.localize('RefreshAction.label', "Refresh");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
@@ -322,7 +322,7 @@ export class RefreshAction extends SearchAction {
 
 export class CollapseDeepestExpandedLevelAction extends SearchAction {
 
-	static ID: string = 'search.action.collapseSearchResults';
+	static readonly ID: string = 'search.action.collapseSearchResults';
 	static LABEL: string = nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
@@ -356,7 +356,7 @@ export class CollapseDeepestExpandedLevelAction extends SearchAction {
 
 export class ClearSearchResultsAction extends SearchAction {
 
-	static ID: string = 'search.action.clearSearchResults';
+	static readonly ID: string = 'search.action.clearSearchResults';
 	static LABEL: string = nls.localize('ClearSearchResultsAction.label', "Clear");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
@@ -381,7 +381,7 @@ export class ClearSearchResultsAction extends SearchAction {
 
 export class CancelSearchAction extends SearchAction {
 
-	static ID: string = 'search.action.cancelSearch';
+	static readonly ID: string = 'search.action.cancelSearch';
 	static LABEL: string = nls.localize('CancelSearchAction.label', "Cancel Search");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {

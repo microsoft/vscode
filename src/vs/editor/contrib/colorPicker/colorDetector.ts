@@ -21,7 +21,7 @@ const MAX_DECORATORS = 500;
 
 export class ColorDetector implements IEditorContribution {
 
-	private static ID: string = 'editor.contrib.colorDetector';
+	private static readonly ID: string = 'editor.contrib.colorDetector';
 
 	static RECOMPUTE_TIME = 1000; // ms
 

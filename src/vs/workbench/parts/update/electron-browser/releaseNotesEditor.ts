@@ -50,7 +50,7 @@ function renderBody(
 
 export class ReleaseNotesEditor extends WebviewEditor {
 
-	static ID: string = 'workbench.editor.releaseNotes';
+	static readonly ID: string = 'workbench.editor.releaseNotes';
 
 	private contentDisposables: IDisposable[] = [];
 	private scrollYPercentage: number = 0;

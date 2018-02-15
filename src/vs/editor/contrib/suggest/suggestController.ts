@@ -77,7 +77,7 @@ class AcceptOnCharacterOracle {
 
 export class SuggestController implements IEditorContribution {
 
-	private static ID: string = 'editor.contrib.suggestController';
+	private static readonly ID: string = 'editor.contrib.suggestController';
 
 	public static get(editor: ICodeEditor): SuggestController {
 		return editor.getContribution<SuggestController>(SuggestController.ID);

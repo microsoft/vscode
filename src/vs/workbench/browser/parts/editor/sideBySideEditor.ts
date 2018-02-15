@@ -21,7 +21,7 @@ import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/br
 
 export class SideBySideEditor extends BaseEditor {
 
-	public static ID: string = 'workbench.editor.sidebysideEditor';
+	public static readonly ID: string = 'workbench.editor.sidebysideEditor';
 
 	private dimension: Dimension;
 

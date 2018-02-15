@@ -22,7 +22,7 @@ import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
-	private static ID: string = 'css.editor.codeLens';
+	private static readonly ID: string = 'css.editor.codeLens';
 
 	private _isEnabled: boolean;
 
