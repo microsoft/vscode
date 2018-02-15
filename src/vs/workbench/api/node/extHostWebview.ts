@@ -18,11 +18,11 @@ class ExtHostWebview implements vscode.Webview {
 	public readonly onMessageEmitter = new Emitter<any>();
 	public readonly onMessage = this.onMessageEmitter.event;
 
-	public readonly onFocusEmitter = new Emitter<void>();
-	public readonly onFocus = this.onFocusEmitter.event;
+	public readonly onBecameActiveEmitter = new Emitter<void>();
+	public readonly onBecameActive = this.onBecameActiveEmitter.event;
 
-	public readonly onBlurEmitter = new Emitter<void>();
-	public readonly onBlur = this.onBlurEmitter.event;
+	public readonly onBecameInactiveEmitter = new Emitter<void>();
+	public readonly onBecameInactive = this.onBecameInactiveEmitter.event;
 
 	constructor(
 		private readonly _proxy: MainThreadWebviewShape,
@@ -105,13 +105,13 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		webview.onMessageEmitter.fire(message);
 	}
 
-	$onFocus(handle: number): void {
+	$onBecameActive(handle: number): void {
 		const webview = this._webviews.get(handle);
-		webview.onFocusEmitter.fire();
+		webview.onBecameActiveEmitter.fire();
 	}
 
-	$onBlur(handle: number): void {
+	$onBecameInactive(handle: number): void {
 		const webview = this._webviews.get(handle);
-		webview.onBlurEmitter.fire();
+		webview.onBecameInactiveEmitter.fire();
 	}
 }

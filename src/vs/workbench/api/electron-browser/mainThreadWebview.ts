@@ -12,7 +12,7 @@ import { extHostNamedCustomer } from './extHostCustomers';
 import { EditorInput, EditorModel, EditorOptions } from 'vs/workbench/common/editor';
 import { IEditorModel, Position } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewEditor as BaseWebviewEditor } from 'vs/workbench/parts/html/browser/webviewEditor';
+import { WebviewEditor as BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/parts/html/browser/webviewEditor';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import WebView from 'vs/workbench/parts/html/browser/webview';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -106,7 +106,7 @@ class WebviewEditor extends BaseWebviewEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IPartService private readonly _partService: IPartService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -114,7 +114,7 @@ class WebviewEditor extends BaseWebviewEditor {
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IOpenerService private readonly _openerService: IOpenerService
 	) {
-		super(WebviewEditor.ID, telemetryService, themeService, storageService, contextKeyService);
+		super(WebviewEditor.ID, telemetryService, themeService, storageService, _contextKeyService);
 	}
 
 	protected createEditor(parent: Builder): void {
@@ -123,6 +123,11 @@ class WebviewEditor extends BaseWebviewEditor {
 
 		this.webviewContent = document.createElement('div');
 		this.webviewContent.id = `webview-${WebviewEditor.webviewIndex++}`;
+		this._contextKeyService = this._contextKeyService.createScoped(this.webviewContent);
+		this.contextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.bindTo(this._contextKeyService);
+		this.findInputFocusContextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
+		this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
+
 		this.container.appendChild(this.webviewContent);
 
 		this.content = document.createElement('div');
@@ -298,8 +303,8 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 	$createWebview(handle: number): void {
 		const webview = new WebviewInput('', {}, '', {
 			onMessage: (message) => this._proxy.$onMessage(handle, message),
-			onFocus: () => this._proxy.$onFocus(handle),
-			onBlur: () => this._proxy.$onBlur(handle)
+			onFocus: () => this._proxy.$onBecameActive(handle),
+			onBlur: () => this._proxy.$onBecameInactive(handle)
 		});
 		this._webviews.set(handle, webview);
 	}

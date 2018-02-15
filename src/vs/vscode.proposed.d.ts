@@ -508,6 +508,8 @@ declare module 'vscode' {
 
 		/**
 		 * Should the webview be kept alive even when it is no longer visible?
+		 *
+		 * TODO: Explain when to use this and when not to
 		 */
 		readonly keepAlive?: boolean;
 	}
@@ -532,22 +534,22 @@ declare module 'vscode' {
 		options: WebviewOptions;
 
 		/**
-		 * Fired when the webview posts a message.
+		 * Fired when the webview content posts a message.
 		 */
 		readonly onMessage: Event<any>;
 
 		/**
-		 * Fired when the webview becomes focused
+		 * Fired when the webview becomes the active editor.
 		 */
-		readonly onFocus: Event<void>;
+		readonly onBecameActive: Event<void>;
 
 		/**
-		 * Fired when the webview loses focused
+		 * Fired when the webview stops being the active editor
 		 */
-		readonly onBlur: Event<void>;
+		readonly onBecameInactive: Event<void>;
 
 		/**
-		 * Post a message to the webview.
+		 * Post a message to the webview content.
 		 *
 		 * Messages are only develivered if the webview is visible.
 		 *
