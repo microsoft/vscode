@@ -24,7 +24,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { getResourceForCommand } from 'vs/workbench/parts/files/browser/files';
+import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 
@@ -79,26 +79,32 @@ getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 CommandsRegistry.registerCommand({
 	id: OPEN_IN_TERMINAL_COMMAND_ID,
-	handler: (accessor, resource: uri) => {
+	handler: (accessor, selectedResource: uri) => {
 		const configurationService = accessor.get(IConfigurationService);
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const fileService = accessor.get(IFileService);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 		const terminalService = accessor.get(ITerminalService);
-		resource = getResourceForCommand(resource, accessor.get(IListService), editorService);
-
-		return fileService.resolveFile(resource).then(stat => {
-			return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
-		}).then(directoryToOpen => {
-			if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
-				const instance = integratedTerminalService.createInstance({ cwd: directoryToOpen }, true);
-				if (instance) {
-					integratedTerminalService.setActiveInstance(instance);
-					integratedTerminalService.showPanel(true);
+		let resources:uri[] = [];
+		let directorySet:Set<string> = new Set();
+		resources = getMultiSelectedResources(selectedResource, accessor.get(IListService), editorService);
+		return resources.map((resource) => {
+			return fileService.resolveFile(resource).then(stat => {
+				return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
+			}).then(directoryToOpen => {
+				if (!directorySet.has(directoryToOpen)) {
+					directorySet.add(directoryToOpen);
+					if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
+						const instance = integratedTerminalService.createInstance({ cwd: directoryToOpen }, true);
+						if (instance && (selectedResource === resource)) {
+							integratedTerminalService.setActiveInstance(instance);
+							integratedTerminalService.showPanel(true);
+						}
+					} else {
+						terminalService.openTerminal(directoryToOpen);
+					}
 				}
-			} else {
-				terminalService.openTerminal(directoryToOpen);
-			}
+			});
 		});
 	}
 });
