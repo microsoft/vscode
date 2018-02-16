@@ -149,7 +149,7 @@ export class TerminalPanel extends Panel {
 				new Separator(),
 				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, nls.localize('clear', "Clear")),
 				new Separator(),
-				this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, nls.localize('splitVertically', "Split Vertically"))
+				this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, nls.localize('split', "Split"))
 			];
 			this._contextMenuActions.forEach(a => {
 				this._register(a);
