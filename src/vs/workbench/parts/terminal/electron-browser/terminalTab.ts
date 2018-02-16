@@ -11,12 +11,9 @@ import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/t
 import Event, { Emitter, anyEvent } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView } from 'vs/base/browser/ui/splitview/splitview';
+import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
 
-class SplitPaneContainer implements IView {
-	public minimumSize: number = 40;
-	public maximumSize: number = Number.MAX_VALUE;
-
-	// TODO: Swap height and width when rotation is implemented
+class SplitPaneContainer {
 	private _height: number;
 	private _width: number;
 	private _splitView: SplitView;
@@ -33,12 +30,12 @@ class SplitPaneContainer implements IView {
 		this._height = this._container.offsetHeight;
 		this._splitView = new SplitView(this._container, { orientation: this.orientation });
 		this._splitView.onDidSashReset(() => this._resetSize());
-		this.render(this._container);
-		this._splitView.layout(this._width);
+		this._splitView.layout(this.orientation === Orientation.HORIZONTAL ? this._width : this._height);
 	}
 
 	public split(instance: ITerminalInstance, index: number = this._children.length): void {
-		this._addChild(this._width / (this._children.length + 1), instance, index);
+		const size = this.orientation === Orientation.HORIZONTAL ? this._width : this._height;
+		this._addChild(size / (this._children.length + 1), instance, index);
 	}
 
 	private _resetSize(): void {
@@ -91,7 +88,7 @@ class SplitPaneContainer implements IView {
 	}
 
 	private _addChild(size: number, instance: ITerminalInstance, index: number): void {
-		const child = new SplitPane(this._height);
+		const child = new SplitPane(this.orientation === Orientation.HORIZONTAL ? this._height : this._width);
 		child.orientation = this.orientation;
 		child.instance = instance;
 		this._splitView.addView(child, size, index);
@@ -105,10 +102,6 @@ class SplitPaneContainer implements IView {
 		this._resetSize();
 
 		this._onDidChange = anyEvent(...this._children.map(c => c.onDidChange));
-	}
-
-	public render(container: HTMLElement): void {
-		this._container = container;
 	}
 
 	public remove(instance: ITerminalInstance): void {
@@ -125,32 +118,41 @@ class SplitPaneContainer implements IView {
 		}
 	}
 
-	public layoutBox(width: number, height: number): void {
+	public layout(width: number, height: number): void {
+		this._width = width;
+		this._height = height;
 		if (this.orientation === Orientation.HORIZONTAL) {
-			this.layout(height);
-			this.orthogonalLayout(width);
+			this._splitView.layout(width);
+			this._children.forEach(c => c.orthogonalLayout(height));
 		} else {
-			this.layout(width);
-			this.orthogonalLayout(height);
+			this._splitView.layout(height);
+			this._children.forEach(c => c.orthogonalLayout(width));
 		}
 	}
 
-	public layout(size: number): void {
-		// Only layout when both sizes are known
-		this._height = size;
-		if (!this._height) {
+	public setOrientation(orientation: Orientation): void {
+		if (this.orientation === orientation) {
 			return;
 		}
+		this.orientation = orientation;
 
-		this._children.forEach(c => c.orthogonalLayout(this._height));
-	}
-
-	public orthogonalLayout(size: number): void {
-		this._width = size;
-
-		if (this._splitView) {
-			this._splitView.layout(this._width);
+		// Remove old split view
+		while (this._container.children.length > 0) {
+			this._container.removeChild(this._container.children[0]);
 		}
+		this._splitView.dispose();
+
+		// Create new split view with updated orientation
+		this._splitView = new SplitView(this._container, { orientation });
+		this._splitView.onDidSashReset(() => this._resetSize());
+		this._children.forEach(child => {
+			child.orientation = orientation;
+			this._splitView.addView(child, 1);
+		});
+
+		// Allow time for a layout to occur
+		this.layout(this._container.offsetWidth, this._container.offsetHeight);
+		this._resetSize();
 	}
 }
 
@@ -161,7 +163,6 @@ class SplitPane implements IView {
 	public instance: ITerminalInstance;
 	public orientation: Orientation | undefined;
 	protected _size: number;
-	private _isContainerSet: boolean = false;
 
 	private _onDidChange: Event<number | undefined> = Event.None;
 	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
@@ -175,10 +176,7 @@ class SplitPane implements IView {
 		if (!container) {
 			return;
 		}
-		if (!this._isContainerSet && this.instance) {
-			this.instance.attachToElement(container);
-			this._isContainerSet = true;
-		}
+		this.instance.attachToElement(container);
 	}
 
 	public layout(size: number): void {
@@ -204,6 +202,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	private _terminalInstances: ITerminalInstance[] = [];
 	private _splitPaneContainer: SplitPaneContainer | undefined;
 	private _tabElement: HTMLElement;
+	private _panelPosition: Position = Position.BOTTOM;
 
 	private _activeInstanceIndex: number;
 
@@ -220,7 +219,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		private _container: HTMLElement,
 		shellLaunchConfig: IShellLaunchConfig,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IPartService private readonly _partService: IPartService
 	) {
 		super();
 		this._onDisposed = new Emitter<ITerminalTab>();
@@ -328,7 +328,9 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._tabElement.classList.add('terminal-tab');
 		this._container.appendChild(this._tabElement);
 		if (!this._splitPaneContainer) {
-			this._splitPaneContainer = new SplitPaneContainer(this._tabElement, Orientation.HORIZONTAL);
+			this._panelPosition = this._partService.getPanelPosition();
+			const orientation = this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+			this._splitPaneContainer = new SplitPaneContainer(this._tabElement, orientation);
 			this.terminalInstances.forEach(instance => this._splitPaneContainer.split(instance));
 		}
 	}
@@ -358,8 +360,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			configHelper,
 			undefined,
 			shellLaunchConfig);
-		// TODO: Should this be pulled from the splitpanes instead? Currently there are 2 sources of truth.
-		//       _terminalInstances is also the order they were created, not the order in which they appear
 		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
 		this._initInstanceListeners(instance);
 		this._setActiveInstance(instance);
@@ -377,7 +377,15 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public layout(width: number, height: number): void {
 		if (this._splitPaneContainer) {
-			this._splitPaneContainer.layoutBox(width, height);
+			// Check if the panel position changed and rotate panes if so
+			const newPanelPosition = this._partService.getPanelPosition();
+			if (newPanelPosition !== this._panelPosition) {
+				const newOrientation = newPanelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+				this._splitPaneContainer.setOrientation(newOrientation);
+			}
+			this._panelPosition = newPanelPosition;
+
+			this._splitPaneContainer.layout(width, height);
 		}
 	}
 
