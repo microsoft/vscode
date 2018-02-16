@@ -98,6 +98,7 @@ class SplitPaneContainer {
 		for (let i = 0; i < this._splitView.length - 1; i++) {
 			this._splitView.resizeView(i, sizes[i]);
 		}
+		this._isManuallySized = true;
 	}
 
 	private _addChild(size: number, instance: ITerminalInstance, index: number): void {
