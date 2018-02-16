@@ -263,6 +263,13 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		clearNode(data.message);
 		data.message.appendChild(NotificationMessageMarkdownRenderer.render(notification.message, (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)));
 
+		const messageOverflows = notification.canCollapse && !notification.expanded && data.message.scrollWidth > data.message.clientWidth;
+		if (messageOverflows) {
+			data.message.title = data.message.textContent;
+		} else {
+			data.message.removeAttribute('title');
+		}
+
 		const links = data.message.querySelectorAll('a');
 		for (let i = 0; i < links.length; i++) {
 			links.item(i).tabIndex = -1; // prevent keyboard navigation to links to allow for better keyboard support within a message
@@ -283,7 +290,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 				showExpandCollapseAction = true; // allow to collapse an expanded message
 			} else if (notification.source) {
 				showExpandCollapseAction = true; // allow to expand to details row
-			} else if (data.message.scrollWidth > data.message.clientWidth) {
+			} else if (messageOverflows) {
 				showExpandCollapseAction = true; // allow to expand if message overflows
 			}
 		}
