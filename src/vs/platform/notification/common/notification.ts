@@ -17,7 +17,12 @@ export interface INotification {
 	severity: Severity;
 	message: string | IMarkdownString | Error;
 	source?: string;
-	actions?: IAction[];
+	actions?: INotificationActions;
+}
+
+export interface INotificationActions {
+	primary?: IAction[];
+	secondary?: IAction[];
 }
 
 export interface INotificationHandle extends IDisposable {

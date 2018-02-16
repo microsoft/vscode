@@ -24,7 +24,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/common/notifications';
-import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, DoNotShowNotificationAgainAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
+import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
@@ -69,7 +69,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 		}
 
 		// Last row: source and actions if we have any
-		if (notification.source || notification.actions.length > 0) {
+		if (notification.source || notification.actions.primary.length > 0) {
 			expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 		}
 
@@ -147,7 +147,6 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 	private closeNotificationAction: ClearNotificationAction;
 	private expandNotificationAction: ExpandNotificationAction;
 	private collapseNotificationAction: CollapseNotificationAction;
-	private doNotShowNotificationAgainAction: DoNotShowNotificationAgainAction;
 
 	constructor(
 		private actionRunner: IActionRunner,
@@ -162,9 +161,8 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		this.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
 		this.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
 		this.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
-		this.doNotShowNotificationAgainAction = this.instantiationService.createInstance(DoNotShowNotificationAgainAction, DoNotShowNotificationAgainAction.ID, DoNotShowNotificationAgainAction.LABEL);
 
-		this.toDispose.push(this.closeNotificationAction, this.expandNotificationAction, this.collapseNotificationAction, this.doNotShowNotificationAgainAction);
+		this.toDispose.push(this.closeNotificationAction, this.expandNotificationAction, this.collapseNotificationAction);
 	}
 
 	public get templateId() {
@@ -273,15 +271,17 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		// Actions
 		const actions: IAction[] = [];
 
-		const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, [this.doNotShowNotificationAgainAction]);
-		actions.push(configureNotificationAction);
-		data.toDispose.push(configureNotificationAction);
+		if (notification.actions.secondary.length > 0) {
+			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, notification.actions.secondary);
+			actions.push(configureNotificationAction);
+			data.toDispose.push(configureNotificationAction);
+		}
 
 		let showExpandCollapseAction = false;
 		if (notification.canCollapse) {
 			if (notification.expanded) {
 				showExpandCollapseAction = true; // allow to collapse an expanded message
-			} else if (notification.source || notification.actions.length > 0) {
+			} else if (notification.source) {
 				showExpandCollapseAction = true; // allow to expand to details row
 			} else if (data.message.scrollWidth > data.message.clientWidth) {
 				showExpandCollapseAction = true; // allow to expand if message overflows
@@ -309,7 +309,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		// Actions
 		clearNode(data.actionsContainer);
 		if (notification.expanded) {
-			notification.actions.forEach(action => this.createButton(notification, action, data));
+			notification.actions.primary.forEach(action => this.createButton(notification, action, data));
 		}
 	}
 

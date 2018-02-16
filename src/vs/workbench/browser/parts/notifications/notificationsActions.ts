@@ -93,23 +93,6 @@ export class ConfigureNotificationAction extends Action {
 	}
 }
 
-export class DoNotShowNotificationAgainAction extends Action {
-
-	public static readonly ID = 'workbench.action.doNotShowNotificationAgain';
-	public static readonly LABEL = localize('dontShowNotificationAgain', "Don't Show Again");
-
-	constructor(
-		id: string,
-		label: string
-	) {
-		super(id, label);
-	}
-
-	public run(notification: INotificationViewItem): TPromise<any> {
-		return TPromise.as(void 0); // TODO@notification
-	}
-}
-
 export class NotificationActionRunner extends ActionRunner {
 
 	constructor(

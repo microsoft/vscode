@@ -25,7 +25,7 @@ suite('Notifications', () => {
 		let item2 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' });
 		let item3 = NotificationViewItem.create({ severity: Severity.Info, message: 'Info Message' });
 		let item4 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', source: 'Source' });
-		let item5 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: [new Action('id', 'label')] });
+		let item5 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [new Action('id', 'label')] } });
 
 		assert.equal(item1.equals(item1), true);
 		assert.equal(item2.equals(item2), true);
@@ -72,7 +72,7 @@ suite('Notifications', () => {
 			lastEvent = e;
 		});
 
-		let item1: INotification = { severity: Severity.Error, message: 'Error Message', actions: [new Action('id', 'label')] };
+		let item1: INotification = { severity: Severity.Error, message: 'Error Message', actions: { primary: [new Action('id', 'label')] } };
 		let item2: INotification = { severity: Severity.Warning, message: 'Warning Message', source: 'Some Source' };
 		let item2Duplicate: INotification = { severity: Severity.Warning, message: 'Warning Message', source: 'Some Source' };
 		let item3: INotification = { severity: Severity.Info, message: 'Info Message' };

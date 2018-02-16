@@ -45,10 +45,16 @@ export class NotificationService implements INotificationService {
 			this.notify({
 				severity: Severity.Warning,
 				message: 'This is a warning message with a [link](https://code.visualstudio.com).',
-				actions: [
-					new Action('id.reload', 'Yes OK', null, true, () => { console.log('OK'); return void 0; }),
-					new Action('id.cancel', 'No, not OK!', null, true, () => { console.log('NOT OK'); return void 0; })
-				]
+				actions: {
+					primary: [
+						new Action('id.reload', 'Yes OK', null, true, () => { console.log('OK'); return void 0; }),
+						new Action('id.cancel', 'No, not OK!', null, true, () => { console.log('NOT OK'); return void 0; })
+					],
+					secondary: [
+						new Action('id.reload', 'Yes OK', null, true, () => { console.log('OK'); return void 0; }),
+						new Action('id.cancel', 'No, not OK!', null, true, () => { console.log('NOT OK'); return void 0; })
+					]
+				}
 			});
 			this.notify({
 				severity: Severity.Error,

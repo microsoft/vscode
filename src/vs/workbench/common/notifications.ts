@@ -7,8 +7,7 @@
 
 import { Severity } from 'vs/platform/message/common/message';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IAction } from 'vs/base/common/actions';
-import { INotification, INotificationHandle } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -143,7 +142,7 @@ export interface INotificationViewItem {
 	readonly severity: Severity;
 	readonly message: IMarkdownString;
 	readonly source: string;
-	readonly actions: IAction[];
+	readonly actions: INotificationActions;
 
 	readonly expanded: boolean;
 	readonly canCollapse: boolean;
@@ -205,9 +204,17 @@ export class NotificationViewItem implements INotificationViewItem {
 		return new NotificationViewItem(severity, message, notification.source, notification.actions);
 	}
 
-	private constructor(private _severity: Severity, private _message: IMarkdownString, private _source: string, private _actions: IAction[] = []) {
+	private constructor(private _severity: Severity, private _message: IMarkdownString, private _source: string, private _actions: INotificationActions = { primary: [], secondary: [] }) {
+		if (!Array.isArray(_actions.primary)) {
+			_actions.primary = [];
+		}
+
+		if (!Array.isArray(_actions.secondary)) {
+			_actions.secondary = [];
+		}
+
 		this.toDispose = [];
-		this._expanded = _actions.length > 0;
+		this._expanded = _actions.primary.length > 0;
 
 		this._onDidChange = new Emitter<void>();
 		this.toDispose.push(this._onDidChange);
@@ -215,7 +222,8 @@ export class NotificationViewItem implements INotificationViewItem {
 		this._onDidDispose = new Emitter<void>();
 		this.toDispose.push(this._onDidDispose);
 
-		this.toDispose.push(..._actions);
+		this.toDispose.push(..._actions.primary);
+		this.toDispose.push(..._actions.secondary);
 	}
 
 	public get onDidChange(): Event<void> {
@@ -227,7 +235,7 @@ export class NotificationViewItem implements INotificationViewItem {
 	}
 
 	public get canCollapse(): boolean {
-		return this._actions.length === 0;
+		return this._actions.primary.length === 0;
 	}
 
 	public get expanded(): boolean {
@@ -246,7 +254,7 @@ export class NotificationViewItem implements INotificationViewItem {
 		return this._source;
 	}
 
-	public get actions(): IAction[] {
+	public get actions(): INotificationActions {
 		return this._actions;
 	}
 
@@ -279,7 +287,9 @@ export class NotificationViewItem implements INotificationViewItem {
 			return false;
 		}
 
-		if (this._actions.length !== other.actions.length) {
+		const primaryActions = this._actions.primary;
+		const otherPrimaryActions = other.actions.primary;
+		if (primaryActions.length !== otherPrimaryActions.length) {
 			return false;
 		}
 
@@ -287,8 +297,8 @@ export class NotificationViewItem implements INotificationViewItem {
 			return false;
 		}
 
-		for (let i = 0; i < this._actions.length; i++) {
-			if (this._actions[i].id !== other.actions[i].id) {
+		for (let i = 0; i < primaryActions.length; i++) {
+			if (primaryActions[i].id !== otherPrimaryActions[i].id) {
 				return false;
 			}
 		}
