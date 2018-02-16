@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/notificationsList';
-import { addClass, removeClass, isAncestor } from 'vs/base/browser/dom';
+import { addClass, isAncestor } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
@@ -17,14 +17,13 @@ import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegi
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { Dimension } from 'vs/base/browser/builder';
 import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationCommands';
 
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
 	private list: WorkbenchList<INotificationViewItem>;
 	private viewModel: INotificationViewItem[];
-	private dimensions: Dimension;
+	private maxHeight: number;
 	private isVisible: boolean;
 
 	constructor(
@@ -51,7 +50,6 @@ export class NotificationsList extends Themable {
 
 		// Make visible
 		this.isVisible = true;
-		addClass(this.listContainer, 'visible');
 
 		// Focus
 		this.list.domFocus();
@@ -148,7 +146,6 @@ export class NotificationsList extends Themable {
 
 		// Hide
 		this.isVisible = false;
-		removeClass(this.listContainer, 'visible');
 
 		// Clear list
 		this.list.splice(0, this.viewModel.length);
@@ -173,17 +170,15 @@ export class NotificationsList extends Themable {
 		}
 	}
 
-	public layout(dimension: Dimension): void {
-		this.dimensions = dimension;
+	public layout(maxHeight: number): void {
+		this.maxHeight = maxHeight;
 
 		this.layoutList();
 	}
 
 	private layoutList(): void {
 		if (this.list) {
-			this.listContainer.style.width = `${this.dimensions.width}px`;
-
-			this.list.getHTMLElement().style.maxHeight = `${this.dimensions.height}px`;
+			this.list.getHTMLElement().style.maxHeight = `${this.maxHeight}px`;
 			this.list.layout();
 		}
 	}
@@ -198,11 +193,11 @@ export class NotificationsList extends Themable {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const linkColor = theme.getColor(NOTIFICATIONS_LINKS);
 	if (linkColor) {
-		collector.addRule(`.monaco-workbench > .notifications-list-container .notification-list-item .notification-list-item-message a { color: ${linkColor}; }`);
+		collector.addRule(`.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a { color: ${linkColor}; }`);
 	}
 
 	const notificationBorderColor = theme.getColor(NOTIFICATIONS_BORDER);
 	if (notificationBorderColor) {
-		collector.addRule(`.monaco-workbench > .notifications-list-container .notification-list-item { border-bottom: 1px solid ${notificationBorderColor}; }`);
+		collector.addRule(`.monaco-workbench .notifications-list-container .notification-list-item { border-bottom: 1px solid ${notificationBorderColor}; }`);
 	}
 });

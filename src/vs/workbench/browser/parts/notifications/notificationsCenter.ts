@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/css!./media/notificationsCenter';
 import { Themable } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
@@ -15,11 +16,13 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { NotificationsCenterVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationCommands';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { addClass, removeClass } from 'vs/base/browser/dom';
 
 export class NotificationsCenter extends Themable {
 
 	private static MAX_DIMENSIONS = new Dimension(600, 600);
 
+	private notificationsCenterContainer: HTMLElement;
 	private notificationsList: NotificationsList;
 	private _isVisible: boolean;
 	private workbenchDimensions: Dimension;
@@ -59,16 +62,22 @@ export class NotificationsCenter extends Themable {
 	public show(): void {
 
 		// Lazily create if showing for the first time
-		if (!this.notificationsList) {
-			this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.container);
+		if (!this.notificationsCenterContainer) {
+			this.notificationsCenterContainer = document.createElement('div');
+			addClass(this.notificationsCenterContainer, 'notifications-center');
+
+			this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer);
+
+			this.container.appendChild(this.notificationsCenterContainer);
 		}
 
 		// Make visible
 		this._isVisible = true;
+		addClass(this.notificationsCenterContainer, 'visible');
 		this.notificationsList.show();
 
 		// Layout
-		this.layoutList();
+		this.doLayout();
 
 		// Show all notifications that are present now
 		this.notificationsList.updateNotificationsList(0, 0, this.model.notifications);
@@ -105,12 +114,13 @@ export class NotificationsCenter extends Themable {
 	}
 
 	public hide(): void {
-		if (!this._isVisible || !this.notificationsList) {
+		if (!this._isVisible || !this.notificationsCenterContainer) {
 			return; // already hidden
 		}
 
 		// Hide
 		this._isVisible = false;
+		removeClass(this.notificationsCenterContainer, 'visible');
 		this.notificationsList.hide();
 
 		// Context Key
@@ -123,12 +133,12 @@ export class NotificationsCenter extends Themable {
 	public layout(dimension: Dimension): void {
 		this.workbenchDimensions = dimension;
 
-		if (this._isVisible && this.notificationsList) {
-			this.layoutList();
+		if (this._isVisible && this.notificationsCenterContainer) {
+			this.doLayout();
 		}
 	}
 
-	private layoutList(): void {
+	private doLayout(): void {
 		let width = NotificationsCenter.MAX_DIMENSIONS.width;
 		let maxHeight = NotificationsCenter.MAX_DIMENSIONS.height;
 
@@ -159,7 +169,9 @@ export class NotificationsCenter extends Themable {
 			}
 		}
 
-		this.notificationsList.layout(new Dimension(width, maxHeight));
+		this.notificationsCenterContainer.style.width = `${width}px`;
+
+		this.notificationsList.layout(maxHeight);
 	}
 
 	public clearAll(): void {

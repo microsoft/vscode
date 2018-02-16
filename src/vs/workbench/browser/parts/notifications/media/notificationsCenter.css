@@ -1,0 +1,23 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .notifications-center {
+	position: absolute;
+	width: 600px;
+	z-index: 1000;
+	right: 8px;
+	bottom: 30px; /* above status bar */
+	display: none;
+	overflow: hidden;
+}
+
+.monaco-workbench.nostatusbar > .notifications-center {
+	right: 12px;
+	bottom: 12px;
+}
+
+.monaco-workbench > .notifications-center.visible {
+	display: block;
+}
