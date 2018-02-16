@@ -38,6 +38,7 @@ _winjs("WinJS/Core/_Global", [], function () {
         typeof window !== 'undefined' ? window :
         typeof self !== 'undefined' ? self :
         typeof global !== 'undefined' ? global :
+        typeof MonacoSnapshotGlobal !== 'undefined' ? MonacoSnapshotGlobal : // monacochange
         {};
     return globalObject;
 });

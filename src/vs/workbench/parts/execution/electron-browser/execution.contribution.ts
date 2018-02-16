@@ -36,45 +36,54 @@ if (env.isWindows) {
 	registerSingleton(ITerminalService, LinuxTerminalService);
 }
 
-getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
-	let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
-	configurationRegistry.registerConfiguration({
-		'id': 'externalTerminal',
-		'order': 100,
-		'title': nls.localize('terminalConfigurationTitle', "External Terminal"),
-		'type': 'object',
-		'properties': {
-			'terminal.explorerKind': {
-				'type': 'string',
-				'enum': [
-					'integrated',
-					'external'
-				],
-				'description': nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
-				'default': 'integrated',
-				'isExecutable': false
-			},
-			'terminal.external.windowsExec': {
-				'type': 'string',
-				'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
-				'default': getDefaultTerminalWindows(),
-				'isExecutable': true
-			},
-			'terminal.external.osxExec': {
-				'type': 'string',
-				'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on OS X."),
-				'default': DEFAULT_TERMINAL_OSX,
-				'isExecutable': true
-			},
-			'terminal.external.linuxExec': {
-				'type': 'string',
-				'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
-				'default': defaultTerminalLinux,
-				'isExecutable': true
+let _initialize = () => {
+	getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
+		let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': 'externalTerminal',
+			'order': 100,
+			'title': nls.localize('terminalConfigurationTitle', "External Terminal"),
+			'type': 'object',
+			'properties': {
+				'terminal.explorerKind': {
+					'type': 'string',
+					'enum': [
+						'integrated',
+						'external'
+					],
+					'description': nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
+					'default': 'integrated',
+					'isExecutable': false
+				},
+				'terminal.external.windowsExec': {
+					'type': 'string',
+					'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
+					'default': getDefaultTerminalWindows(),
+					'isExecutable': true
+				},
+				'terminal.external.osxExec': {
+					'type': 'string',
+					'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on OS X."),
+					'default': DEFAULT_TERMINAL_OSX,
+					'isExecutable': true
+				},
+				'terminal.external.linuxExec': {
+					'type': 'string',
+					'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
+					'default': defaultTerminalLinux,
+					'isExecutable': true
+				}
 			}
-		}
+		});
 	});
-});
+};
+
+declare var MonacoSnapshotInitializeCallbacks: any;
+if (typeof MonacoSnapshotInitializeCallbacks !== 'undefined') {
+	MonacoSnapshotInitializeCallbacks.push(_initialize);
+} else {
+	_initialize();
+}
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 CommandsRegistry.registerCommand({

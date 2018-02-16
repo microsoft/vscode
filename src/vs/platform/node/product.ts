@@ -82,14 +82,19 @@ export interface ISurveyData {
 	userProbability: number;
 }
 
-const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
-const productJsonPath = path.join(rootPath, 'product.json');
-const product = require.__$__nodeRequire(productJsonPath) as IProductConfiguration;
-
-if (process.env['VSCODE_DEV']) {
-	product.nameShort += ' Dev';
-	product.nameLong += ' Dev';
-	product.dataFolderName += '-dev';
+let product: IProductConfiguration = null;
+declare var MonacoSnapshotProduct: any;
+if (typeof MonacoSnapshotProduct !== 'undefined') {
+	product = MonacoSnapshotProduct;
+} else {
+	const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
+	const productJsonPath = path.join(rootPath, 'product.json');
+	product = require.__$__nodeRequire(productJsonPath) as IProductConfiguration;
+	if (process.env['VSCODE_DEV']) {
+		product.nameShort += ' Dev';
+		product.nameLong += ' Dev';
+		product.dataFolderName += '-dev';
+	}
 }
 
 export default product;

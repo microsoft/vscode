@@ -67,239 +67,248 @@ const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Ac
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionTermContributor);
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
-configurationRegistry.registerConfiguration({
-	'id': 'terminal',
-	'order': 100,
-	'title': nls.localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
-	'type': 'object',
-	'properties': {
-		'terminal.integrated.shell.linux': {
-			'description': nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux."),
-			'type': 'string',
-			'default': getTerminalDefaultShellUnixLike()
-		},
-		'terminal.integrated.shellArgs.linux': {
-			'description': nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal."),
-			'type': 'array',
-			'items': {
+let _initialize = () => {
+	configurationRegistry.registerConfiguration({
+		'id': 'terminal',
+		'order': 100,
+		'title': nls.localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
+		'type': 'object',
+		'properties': {
+			'terminal.integrated.shell.linux': {
+				'description': nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux."),
+				'type': 'string',
+				'default': getTerminalDefaultShellUnixLike()
+			},
+			'terminal.integrated.shellArgs.linux': {
+				'description': nls.localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal."),
+				'type': 'array',
+				'items': {
+					'type': 'string'
+				},
+				'default': []
+			},
+			'terminal.integrated.shell.osx': {
+				'description': nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on OS X."),
+				'type': 'string',
+				'default': getTerminalDefaultShellUnixLike()
+			},
+			'terminal.integrated.shellArgs.osx': {
+				'description': nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the OS X terminal."),
+				'type': 'array',
+				'items': {
+					'type': 'string'
+				},
+				// Unlike on Linux, ~/.profile is not sourced when logging into a macOS session. This
+				// is the reason terminals on macOS typically run login shells by default which set up
+				// the environment. See http://unix.stackexchange.com/a/119675/115410
+				'default': ['-l']
+			},
+			'terminal.integrated.shell.windows': {
+				'description': nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. When using shells shipped with Windows (cmd, PowerShell or Bash on Ubuntu)."),
+				'type': 'string',
+				'default': getTerminalDefaultShellWindows()
+			},
+			'terminal.integrated.shellArgs.windows': {
+				'description': nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal."),
+				'type': 'array',
+				'items': {
+					'type': 'string'
+				},
+				'default': []
+			},
+			'terminal.integrated.macOptionIsMeta': {
+				'description': nls.localize('terminal.integrated.macOptionIsMeta', "Treat the option key as the meta key in the terminal on macOS."),
+				'type': 'boolean',
+				'default': false
+			},
+			'terminal.integrated.copyOnSelection': {
+				'description': nls.localize('terminal.integrated.copyOnSelection', "When set, text selected in the terminal will be copied to the clipboard."),
+				'type': 'boolean',
+				'default': false
+			},
+			'terminal.integrated.fontFamily': {
+				'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
 				'type': 'string'
 			},
-			'default': []
-		},
-		'terminal.integrated.shell.osx': {
-			'description': nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on OS X."),
-			'type': 'string',
-			'default': getTerminalDefaultShellUnixLike()
-		},
-		'terminal.integrated.shellArgs.osx': {
-			'description': nls.localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the OS X terminal."),
-			'type': 'array',
-			'items': {
-				'type': 'string'
+			// TODO: Support font ligatures
+			// 'terminal.integrated.fontLigatures': {
+			// 	'description': nls.localize('terminal.integrated.fontLigatures', "Controls whether font ligatures are enabled in the terminal."),
+			// 	'type': 'boolean',
+			// 	'default': false
+			// },
+			'terminal.integrated.fontSize': {
+				'description': nls.localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
+				'type': 'number',
+				'default': EDITOR_FONT_DEFAULTS.fontSize
 			},
-			// Unlike on Linux, ~/.profile is not sourced when logging into a macOS session. This
-			// is the reason terminals on macOS typically run login shells by default which set up
-			// the environment. See http://unix.stackexchange.com/a/119675/115410
-			'default': ['-l']
-		},
-		'terminal.integrated.shell.windows': {
-			'description': nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. When using shells shipped with Windows (cmd, PowerShell or Bash on Ubuntu)."),
-			'type': 'string',
-			'default': getTerminalDefaultShellWindows()
-		},
-		'terminal.integrated.shellArgs.windows': {
-			'description': nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal."),
-			'type': 'array',
-			'items': {
-				'type': 'string'
+			'terminal.integrated.lineHeight': {
+				'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multiplied by the terminal font size to get the actual line-height in pixels."),
+				'type': 'number',
+				'default': 1
 			},
-			'default': []
-		},
-		'terminal.integrated.macOptionIsMeta': {
-			'description': nls.localize('terminal.integrated.macOptionIsMeta', "Treat the option key as the meta key in the terminal on macOS."),
-			'type': 'boolean',
-			'default': false
-		},
-		'terminal.integrated.copyOnSelection': {
-			'description': nls.localize('terminal.integrated.copyOnSelection', "When set, text selected in the terminal will be copied to the clipboard."),
-			'type': 'boolean',
-			'default': false
-		},
-		'terminal.integrated.fontFamily': {
-			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
-			'type': 'string'
-		},
-		// TODO: Support font ligatures
-		// 'terminal.integrated.fontLigatures': {
-		// 	'description': nls.localize('terminal.integrated.fontLigatures', "Controls whether font ligatures are enabled in the terminal."),
-		// 	'type': 'boolean',
-		// 	'default': false
-		// },
-		'terminal.integrated.fontSize': {
-			'description': nls.localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
-			'type': 'number',
-			'default': EDITOR_FONT_DEFAULTS.fontSize
-		},
-		'terminal.integrated.lineHeight': {
-			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multiplied by the terminal font size to get the actual line-height in pixels."),
-			'type': 'number',
-			'default': 1
-		},
-		'terminal.integrated.fontWeight': {
-			'type': 'string',
-			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			'description': nls.localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text."),
-			'default': 'normal'
-		},
-		'terminal.integrated.fontWeightBold': {
-			'type': 'string',
-			'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			'description': nls.localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text."),
-			'default': 'bold'
-		},
-		'terminal.integrated.cursorBlinking': {
-			'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
-			'type': 'boolean',
-			'default': false
-		},
-		'terminal.integrated.cursorStyle': {
-			'description': nls.localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor."),
-			'enum': [TerminalCursorStyle.BLOCK, TerminalCursorStyle.LINE, TerminalCursorStyle.UNDERLINE],
-			'default': TerminalCursorStyle.BLOCK
-		},
-		'terminal.integrated.scrollback': {
-			'description': nls.localize('terminal.integrated.scrollback', "Controls the maximum amount of lines the terminal keeps in its buffer."),
-			'type': 'number',
-			'default': 1000
-		},
-		'terminal.integrated.setLocaleVariables': {
-			'description': nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to true on OS X, false on other platforms."),
-			'type': 'boolean',
-			'default': platform.isMacintosh
-		},
-		'terminal.integrated.rightClickBehavior': {
-			'type': 'string',
-			'enum': ['default', 'copyPaste', 'selectWord'],
-			default: platform.isMacintosh ? 'selectWord' : platform.isWindows ? 'copyPaste' : 'default',
-			description: nls.localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click, possibilities are 'default', 'copyPaste', and 'selectWord'. 'default' will show the context menu, 'copyPaste' will copy when there is a selection otherwise paste, 'selectWord' will select the word under the cursor and show the context menu.")
-		},
-		'terminal.integrated.cwd': {
-			'description': nls.localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),
-			'type': 'string',
-			'default': undefined
-		},
-		'terminal.integrated.confirmOnExit': {
-			'description': nls.localize('terminal.integrated.confirmOnExit', "Whether to confirm on exit if there are active terminal sessions."),
-			'type': 'boolean',
-			'default': false
-		},
-		'terminal.integrated.enableBell': {
-			'description': nls.localize('terminal.integrated.enableBell', "Whether the terminal bell is enabled or not."),
-			'type': 'boolean',
-			'default': false
-		},
-		'terminal.integrated.commandsToSkipShell': {
-			'description': nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open."),
-			'type': 'array',
-			'items': {
-				'type': 'string'
+			'terminal.integrated.fontWeight': {
+				'type': 'string',
+				'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
+				'description': nls.localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text."),
+				'default': 'normal'
 			},
-			'default': [
-				ToggleTabFocusModeAction.ID,
-				FocusActiveGroupAction.ID,
-				QUICKOPEN_ACTION_ID,
-				QUICKOPEN_FOCUS_SECONDARY_ACTION_ID,
-				ShowAllCommandsAction.ID,
-				CreateNewTerminalAction.ID,
-				CreateNewInActiveWorkspaceTerminalAction.ID,
-				CopyTerminalSelectionAction.ID,
-				KillTerminalAction.ID,
-				FocusActiveTerminalAction.ID,
-				FocusPreviousTerminalAction.ID,
-				FocusNextTerminalAction.ID,
-				'workbench.action.tasks.build',
-				'workbench.action.tasks.restartTask',
-				'workbench.action.tasks.runTask',
-				'workbench.action.tasks.showLog',
-				'workbench.action.tasks.showTasks',
-				'workbench.action.tasks.terminate',
-				'workbench.action.tasks.test',
-				'workbench.action.terminal.focusAtIndex1',
-				'workbench.action.terminal.focusAtIndex2',
-				'workbench.action.terminal.focusAtIndex3',
-				'workbench.action.terminal.focusAtIndex4',
-				'workbench.action.terminal.focusAtIndex5',
-				'workbench.action.terminal.focusAtIndex6',
-				'workbench.action.terminal.focusAtIndex7',
-				'workbench.action.terminal.focusAtIndex8',
-				'workbench.action.terminal.focusAtIndex9',
-				TerminalPasteAction.ID,
-				RunSelectedTextInTerminalAction.ID,
-				RunActiveFileInTerminalAction.ID,
-				ToggleTerminalAction.ID,
-				ScrollDownTerminalAction.ID,
-				ScrollDownPageTerminalAction.ID,
-				ScrollToBottomTerminalAction.ID,
-				ScrollUpTerminalAction.ID,
-				ScrollUpPageTerminalAction.ID,
-				ScrollToTopTerminalAction.ID,
-				ClearTerminalAction.ID,
-				debugActions.StartAction.ID,
-				debugActions.StopAction.ID,
-				debugActions.RunAction.ID,
-				debugActions.RestartAction.ID,
-				debugActions.ContinueAction.ID,
-				debugActions.PauseAction.ID,
-				debugActions.StepIntoAction.ID,
-				debugActions.StepOutAction.ID,
-				debugActions.StepOverAction.ID,
-				OpenNextRecentlyUsedEditorInGroupAction.ID,
-				OpenPreviousRecentlyUsedEditorInGroupAction.ID,
-				FocusFirstGroupAction.ID,
-				FocusSecondGroupAction.ID,
-				FocusThirdGroupAction.ID,
-				SelectAllTerminalAction.ID,
-				FocusTerminalFindWidgetAction.ID,
-				HideTerminalFindWidgetAction.ID,
-				ShowPreviousFindTermTerminalFindWidgetAction.ID,
-				ShowNextFindTermTerminalFindWidgetAction.ID,
-				NavigateUpAction.ID,
-				NavigateDownAction.ID,
-				NavigateRightAction.ID,
-				NavigateLeftAction.ID,
-				DeleteWordLeftTerminalAction.ID,
-				DeleteWordRightTerminalAction.ID,
-				MoveToLineStartTerminalAction.ID,
-				MoveToLineEndTerminalAction.ID,
-				TogglePanelAction.ID,
-				'workbench.action.quickOpenView',
-				SplitVerticalTerminalAction.ID,
-				FocusTerminalLeftAction.ID,
-				FocusTerminalRightAction.ID
-			].sort()
-		},
-		'terminal.integrated.env.osx': {
-			'description': nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on OS X"),
-			'type': 'object',
-			'default': {}
-		},
-		'terminal.integrated.env.linux': {
-			'description': nls.localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux"),
-			'type': 'object',
-			'default': {}
-		},
-		'terminal.integrated.env.windows': {
-			'description': nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows"),
-			'type': 'object',
-			'default': {}
-		},
-		'terminal.integrated.showExitAlert': {
-			'description': nls.localize('terminal.integrated.showExitAlert', "Show alert `The terminal process terminated with exit code` when exit code is non-zero."),
-			'type': 'boolean',
-			'default': true
-		},
-	}
-});
+			'terminal.integrated.fontWeightBold': {
+				'type': 'string',
+				'enum': ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
+				'description': nls.localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text."),
+				'default': 'bold'
+			},
+			'terminal.integrated.cursorBlinking': {
+				'description': nls.localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
+				'type': 'boolean',
+				'default': false
+			},
+			'terminal.integrated.cursorStyle': {
+				'description': nls.localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor."),
+				'enum': [TerminalCursorStyle.BLOCK, TerminalCursorStyle.LINE, TerminalCursorStyle.UNDERLINE],
+				'default': TerminalCursorStyle.BLOCK
+			},
+			'terminal.integrated.scrollback': {
+				'description': nls.localize('terminal.integrated.scrollback', "Controls the maximum amount of lines the terminal keeps in its buffer."),
+				'type': 'number',
+				'default': 1000
+			},
+			'terminal.integrated.setLocaleVariables': {
+				'description': nls.localize('terminal.integrated.setLocaleVariables', "Controls whether locale variables are set at startup of the terminal, this defaults to true on OS X, false on other platforms."),
+				'type': 'boolean',
+				'default': platform.isMacintosh
+			},
+			'terminal.integrated.rightClickBehavior': {
+				'type': 'string',
+				'enum': ['default', 'copyPaste', 'selectWord'],
+				default: platform.isMacintosh ? 'selectWord' : platform.isWindows ? 'copyPaste' : 'default',
+				description: nls.localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click, possibilities are 'default', 'copyPaste', and 'selectWord'. 'default' will show the context menu, 'copyPaste' will copy when there is a selection otherwise paste, 'selectWord' will select the word under the cursor and show the context menu.")
+			},
+			'terminal.integrated.cwd': {
+				'description': nls.localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),
+				'type': 'string',
+				'default': undefined
+			},
+			'terminal.integrated.confirmOnExit': {
+				'description': nls.localize('terminal.integrated.confirmOnExit', "Whether to confirm on exit if there are active terminal sessions."),
+				'type': 'boolean',
+				'default': false
+			},
+			'terminal.integrated.enableBell': {
+				'description': nls.localize('terminal.integrated.enableBell', "Whether the terminal bell is enabled or not."),
+				'type': 'boolean',
+				'default': false
+			},
+			'terminal.integrated.commandsToSkipShell': {
+				'description': nls.localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open."),
+				'type': 'array',
+				'items': {
+					'type': 'string'
+				},
+				'default': [
+					ToggleTabFocusModeAction.ID,
+					FocusActiveGroupAction.ID,
+					QUICKOPEN_ACTION_ID,
+					QUICKOPEN_FOCUS_SECONDARY_ACTION_ID,
+					ShowAllCommandsAction.ID,
+					CreateNewTerminalAction.ID,
+					CreateNewInActiveWorkspaceTerminalAction.ID,
+					CopyTerminalSelectionAction.ID,
+					KillTerminalAction.ID,
+					FocusActiveTerminalAction.ID,
+					FocusPreviousTerminalAction.ID,
+					FocusNextTerminalAction.ID,
+					'workbench.action.tasks.build',
+					'workbench.action.tasks.restartTask',
+					'workbench.action.tasks.runTask',
+					'workbench.action.tasks.showLog',
+					'workbench.action.tasks.showTasks',
+					'workbench.action.tasks.terminate',
+					'workbench.action.tasks.test',
+					'workbench.action.terminal.focusAtIndex1',
+					'workbench.action.terminal.focusAtIndex2',
+					'workbench.action.terminal.focusAtIndex3',
+					'workbench.action.terminal.focusAtIndex4',
+					'workbench.action.terminal.focusAtIndex5',
+					'workbench.action.terminal.focusAtIndex6',
+					'workbench.action.terminal.focusAtIndex7',
+					'workbench.action.terminal.focusAtIndex8',
+					'workbench.action.terminal.focusAtIndex9',
+					TerminalPasteAction.ID,
+					RunSelectedTextInTerminalAction.ID,
+					RunActiveFileInTerminalAction.ID,
+					ToggleTerminalAction.ID,
+					ScrollDownTerminalAction.ID,
+					ScrollDownPageTerminalAction.ID,
+					ScrollToBottomTerminalAction.ID,
+					ScrollUpTerminalAction.ID,
+					ScrollUpPageTerminalAction.ID,
+					ScrollToTopTerminalAction.ID,
+					ClearTerminalAction.ID,
+					debugActions.StartAction.ID,
+					debugActions.StopAction.ID,
+					debugActions.RunAction.ID,
+					debugActions.RestartAction.ID,
+					debugActions.ContinueAction.ID,
+					debugActions.PauseAction.ID,
+					debugActions.StepIntoAction.ID,
+					debugActions.StepOutAction.ID,
+					debugActions.StepOverAction.ID,
+					OpenNextRecentlyUsedEditorInGroupAction.ID,
+					OpenPreviousRecentlyUsedEditorInGroupAction.ID,
+					FocusFirstGroupAction.ID,
+					FocusSecondGroupAction.ID,
+					FocusThirdGroupAction.ID,
+					SelectAllTerminalAction.ID,
+					FocusTerminalFindWidgetAction.ID,
+					HideTerminalFindWidgetAction.ID,
+					ShowPreviousFindTermTerminalFindWidgetAction.ID,
+					ShowNextFindTermTerminalFindWidgetAction.ID,
+					NavigateUpAction.ID,
+					NavigateDownAction.ID,
+					NavigateRightAction.ID,
+					NavigateLeftAction.ID,
+					DeleteWordLeftTerminalAction.ID,
+					DeleteWordRightTerminalAction.ID,
+					MoveToLineStartTerminalAction.ID,
+					MoveToLineEndTerminalAction.ID,
+					TogglePanelAction.ID,
+					'workbench.action.quickOpenView',
+					SplitVerticalTerminalAction.ID,
+					FocusTerminalLeftAction.ID,
+					FocusTerminalRightAction.ID
+				].sort()
+			},
+			'terminal.integrated.env.osx': {
+				'description': nls.localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on OS X"),
+				'type': 'object',
+				'default': {}
+			},
+			'terminal.integrated.env.linux': {
+				'description': nls.localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux"),
+				'type': 'object',
+				'default': {}
+			},
+			'terminal.integrated.env.windows': {
+				'description': nls.localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows"),
+				'type': 'object',
+				'default': {}
+			},
+			'terminal.integrated.showExitAlert': {
+				'description': nls.localize('terminal.integrated.showExitAlert', "Show alert `The terminal process terminated with exit code` when exit code is non-zero."),
+				'type': 'boolean',
+				'default': true
+			},
+		}
+	});
+};
+
+declare var MonacoSnapshotInitializeCallbacks: any;
+if (typeof MonacoSnapshotInitializeCallbacks !== 'undefined') {
+	MonacoSnapshotInitializeCallbacks.push(_initialize);
+} else {
+	_initialize();
+}
 
 registerSingleton(ITerminalService, TerminalService);
 

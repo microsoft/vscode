@@ -17,7 +17,16 @@ import { isWindows, isLinux } from 'vs/base/common/platform';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624
-const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
+let xdgRuntimeDir: string = null;
+let _initialize = () => {
+	xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
+};
+declare var MonacoSnapshotInitializeCallbacks;
+if (typeof MonacoSnapshotInitializeCallbacks !== 'undefined') {
+	MonacoSnapshotInitializeCallbacks.push(_initialize);
+} else {
+	_initialize();
+}
 
 function getNixIPCHandle(userDataPath: string, type: string): string {
 	if (xdgRuntimeDir) {

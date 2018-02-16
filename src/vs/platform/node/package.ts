@@ -11,6 +11,13 @@ export interface IPackageConfiguration {
 	version: string;
 }
 
-const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
-const packageJsonPath = path.join(rootPath, 'package.json');
-export default require.__$__nodeRequire(packageJsonPath) as IPackageConfiguration;
+let packageJSONContents: IPackageConfiguration = null;
+declare var MonacoSnapshotPackage: any;
+if (typeof MonacoSnapshotPackage !== 'undefined') {
+	packageJSONContents = MonacoSnapshotPackage;
+} else {
+	const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
+	const packageJsonPath = path.join(rootPath, 'package.json');
+	packageJSONContents = require.__$__nodeRequire(packageJsonPath) as IPackageConfiguration;
+}
+export default packageJSONContents;
