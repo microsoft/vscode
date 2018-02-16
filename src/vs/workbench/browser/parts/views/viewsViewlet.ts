@@ -360,6 +360,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 					let view = this.getView(viewDescriptor.id);
 					this.removePanel(view);
 					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(view), 1);
+					view.dispose();
 				}
 			}
 

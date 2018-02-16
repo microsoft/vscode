@@ -31,7 +31,7 @@ export class WinTerminalService implements ITerminalService {
 	private static readonly CMD = 'cmd.exe';
 
 	constructor(
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 	}
 
@@ -120,7 +120,7 @@ export class MacTerminalService implements ITerminalService {
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
 	constructor(
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 	public openTerminal(cwd?: string): void {
@@ -211,7 +211,7 @@ export class LinuxTerminalService implements ITerminalService {
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
 	constructor(
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 

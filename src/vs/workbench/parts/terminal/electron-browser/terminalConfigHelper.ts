@@ -33,10 +33,10 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	public config: ITerminalConfiguration;
 
 	public constructor(
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceConfigurationService private _workspaceConfigurationService: IWorkspaceConfigurationService,
-		@IChoiceService private _choiceService: IChoiceService,
-		@IStorageService private _storageService: IStorageService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService private readonly _workspaceConfigurationService: IWorkspaceConfigurationService,
+		@IChoiceService private readonly _choiceService: IChoiceService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		this._updateConfig();
 		this._configurationService.onDidChangeConfiguration(e => {

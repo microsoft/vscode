@@ -39,12 +39,14 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
+import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 const MAX_URL_LENGTH = 5400;
 
 interface SearchResult {
 	html_url: string;
 	title: string;
+	state?: string;
 }
 
 export interface IssueReporterConfiguration extends IWindowConfiguration {
@@ -65,6 +67,7 @@ export class IssueReporter extends Disposable {
 	private logService: ILogService;
 	private issueReporterModel: IssueReporterModel;
 	private shouldQueueSearch = true;
+	private numberOfSearchResultsDisplayed = 0;
 	private features: IssueReporterFeatures;
 	private receivedSystemInfo = false;
 	private receivedPerformanceInfo = false;
@@ -142,7 +145,7 @@ export class IssueReporter extends Disposable {
 		const content: string[] = [];
 
 		if (styles.inputBackground) {
-			content.push(`input[type="text"], textarea, select { background-color: ${styles.inputBackground}; }`);
+			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state { background-color: ${styles.inputBackground}; }`);
 		}
 
 		if (styles.inputBorder) {
@@ -152,7 +155,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputForeground) {
-			content.push(`input[type="text"], textarea, select { color: ${styles.inputForeground}; }`);
+			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state { color: ${styles.inputForeground}; }`);
 		}
 
 		if (styles.inputErrorBorder) {
@@ -185,15 +188,15 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.sliderBackgroundColor) {
-			content.push(`.issues-container::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
+			content.push(`::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
 		}
 
 		if (styles.sliderActiveColor) {
-			content.push(`.issues-container::-webkit-scrollbar-thumb:active, body::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
+			content.push(`::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
 		}
 
 		if (styles.sliderHoverColor) {
-			content.push(`.issues-container::-webkit-scrollbar-thumb:hover, body::-webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
+			content.push(`::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');
@@ -332,7 +335,13 @@ export class IssueReporter extends Disposable {
 		});
 
 		document.getElementById('description').addEventListener('input', (event: Event) => {
-			this.issueReporterModel.update({ issueDescription: (<HTMLInputElement>event.target).value });
+			const issueDescription = (<HTMLInputElement>event.target).value;
+			this.issueReporterModel.update({ issueDescription });
+
+			if (this.features.useDuplicateSearch) {
+				const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
+				this.searchDuplicates(title, issueDescription);
+			}
 		});
 
 		document.getElementById('issue-title').addEventListener('input', (e) => { this.searchIssues(e); });
@@ -423,7 +432,8 @@ export class IssueReporter extends Disposable {
 		const title = (<HTMLInputElement>event.target).value;
 		if (title) {
 			if (this.features.useDuplicateSearch) {
-				this.searchDuplicates(title);
+				const description = this.issueReporterModel.getData().issueDescription;
+				this.searchDuplicates(title, description);
 			} else {
 				this.searchGitHub(title);
 			}
@@ -435,15 +445,17 @@ export class IssueReporter extends Disposable {
 	private clearSearchResults(): void {
 		const similarIssues = document.getElementById('similar-issues');
 		similarIssues.innerHTML = '';
+		this.numberOfSearchResultsDisplayed = 0;
 	}
 
-	private searchDuplicates(title: string): void {
-		// TODO: Change to HTTPS
-		const url = 'http://vscode-probot.westus.cloudapp.azure.com:5010/duplicate_candidates';
+	@debounce(300)
+	private searchDuplicates(title: string, body: string): void {
+		const url = 'https://vscode-probot.westus.cloudapp.azure.com:7890/duplicate_candidates';
 		const init = {
 			method: 'POST',
 			body: JSON.stringify({
-				title
+				title,
+				body
 			}),
 			headers: new Headers({
 				'Content-Type': 'application/json'
@@ -455,16 +467,9 @@ export class IssueReporter extends Disposable {
 				this.clearSearchResults();
 
 				if (result && result.candidates) {
-					const normalizedResults = result.candidates.map(result => {
-						return {
-							html_url: `https://github.com/Microsoft/vscode/issues/${result.number}`,
-							title: result.title
-						};
-					});
-
-					this.displaySearchResults(normalizedResults);
+					this.displaySearchResults(result.candidates);
 				} else {
-					throw new Error();
+					throw new Error('Unexpected response, no candidates property');
 				}
 			}).catch((error) => {
 				this.logSearchError(error);
@@ -512,18 +517,37 @@ export class IssueReporter extends Disposable {
 	private displaySearchResults(results: SearchResult[]) {
 		const similarIssues = document.getElementById('similar-issues');
 		if (results.length) {
-			const issues = $('ul.issues-container');
+			const hasIssueState = results.every(result => !!result.state);
+			const issues = hasIssueState ? $('div.issues-container') : $('ul.issues-container');
 			const issuesText = $('div.list-title');
 			issuesText.textContent = localize('similarIssues', "Similar issues");
 
-			const numResultsToDisplay = results.length < 5 ? results.length : 5;
-			for (let i = 0; i < numResultsToDisplay; i++) {
-				const link = $('a', { href: results[i].html_url });
-				link.textContent = results[i].title;
+			this.numberOfSearchResultsDisplayed = results.length < 5 ? results.length : 5;
+			for (let i = 0; i < this.numberOfSearchResultsDisplayed; i++) {
+				const issue = results[i];
+				const link = issue.state ? $('a.issue-link', { href: issue.html_url }) : $('a', { href: issue.html_url });
+				link.textContent = issue.title;
+				link.title = issue.title;
 				link.addEventListener('click', (e) => this.openLink(e));
 				link.addEventListener('auxclick', (e) => this.openLink(<MouseEvent>e));
 
-				const item = $('li.issue', {}, link);
+				let issueState: HTMLElement;
+				if (issue.state) {
+					issueState = $('span.issue-state');
+
+					const issueIcon = $('span.issue-icon');
+					const octicon = new OcticonLabel(issueIcon);
+					octicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
+
+					const issueStateLabel = $('span.issue-state.label');
+					issueStateLabel.textContent = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
+
+					issueState.title = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
+					issueState.appendChild(issueIcon);
+					issueState.appendChild(issueStateLabel);
+				}
+
+				const item = issue.state ? $('div.issue', {}, issueState, link) : $('li.issue', {}, link);
 				issues.appendChild(item);
 			}
 
@@ -654,14 +678,13 @@ export class IssueReporter extends Disposable {
 			return false;
 		}
 
-		if (this.telemetryService) {
-			/* __GDPR__
-				"issueReporterSubmit" : {
-					"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType });
-		}
+		/* __GDPR__
+			"issueReporterSubmit" : {
+				"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"numSimilarIssuesDisplayed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
 
 		const issueTitle = encodeURIComponent((<HTMLInputElement>document.getElementById('issue-title')).value);
 		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';

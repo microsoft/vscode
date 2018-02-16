@@ -19,7 +19,7 @@ import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from './terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitVerticalTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -42,11 +42,11 @@ export class TerminalPanel extends Panel {
 	private _findWidget: TerminalFindWidget;
 
 	constructor(
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IContextMenuService private _contextMenuService: IContextMenuService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@ITerminalService private _terminalService: ITerminalService,
-		@ILifecycleService private _lifecycleService: ILifecycleService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
@@ -147,7 +147,9 @@ export class TerminalPanel extends Panel {
 				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste")),
 				this._instantiationService.createInstance(SelectAllTerminalAction, SelectAllTerminalAction.ID, nls.localize('selectAll', "Select All")),
 				new Separator(),
-				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, nls.localize('clear', "Clear"))
+				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, nls.localize('clear', "Clear")),
+				new Separator(),
+				this._instantiationService.createInstance(SplitVerticalTerminalAction, SplitVerticalTerminalAction.ID, nls.localize('splitVertically', "Split Vertically"))
 			];
 			this._contextMenuActions.forEach(a => {
 				this._register(a);

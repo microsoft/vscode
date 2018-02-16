@@ -50,11 +50,11 @@ export abstract class BaseTextEditor extends BaseEditor {
 	constructor(
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
-		@ITextResourceConfigurationService private _configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService private readonly _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
-		@ITextFileService private _textFileService: ITextFileService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService
 	) {
 		super(id, telemetryService, themeService);

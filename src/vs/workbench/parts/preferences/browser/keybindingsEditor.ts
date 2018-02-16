@@ -46,7 +46,7 @@ let $ = DOM.$;
 
 export class KeybindingsEditorInput extends EditorInput {
 
-	public static ID: string = 'workbench.input.keybindings';
+	public static readonly ID: string = 'workbench.input.keybindings';
 	public readonly keybindingsModel: KeybindingsEditorModel;
 
 	constructor( @IInstantiationService instantiationService: IInstantiationService) {
@@ -73,7 +73,7 @@ export class KeybindingsEditorInput extends EditorInput {
 
 export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor {
 
-	public static ID: string = 'workbench.editor.keybindings';
+	public static readonly ID: string = 'workbench.editor.keybindings';
 
 	private keybindingsEditorModel: KeybindingsEditorModel;
 

@@ -2,6 +2,7 @@
 	"name": "vscode-markdown",
 	"displayName": "VS Code Markdown",
 	"description": "Markdown for VS Code",
+	"enableProposedApi": true,
 	"version": "0.2.0",
 	"publisher": "Microsoft",
 	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
@@ -138,17 +139,17 @@
 				},
 				{
 					"command": "markdown.showSource",
-					"when": "resourceScheme == markdown",
+					"when": "markdownPreview",
 					"group": "navigation"
 				},
 				{
 					"command": "markdown.refreshPreview",
-					"when": "resourceScheme == markdown",
+					"when": "markdownPreview",
 					"group": "1_markdown"
 				},
 				{
 					"command": "markdown.showPreviewSecuritySelector",
-					"when": "resourceScheme == markdown",
+					"when": "markdownPreview",
 					"group": "1_markdown"
 				}
 			],
@@ -172,7 +173,7 @@
 				},
 				{
 					"command": "markdown.showSource",
-					"when": "resourceScheme == markdown",
+					"when": "markdownPreview",
 					"group": "navigation"
 				},
 				{
@@ -181,7 +182,7 @@
 				},
 				{
 					"command": "markdown.showPreviewSecuritySelector",
-					"when": "resourceScheme == markdown"
+					"when": "markdownPreview"
 				}
 			]
 		},

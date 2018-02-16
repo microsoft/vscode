@@ -22,7 +22,7 @@ import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsConfiguration, ConfigurationKey, ShowRecommendationsOnlyOnDemandKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as pfs from 'vs/base/node/pfs';
@@ -63,10 +63,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _extensionsRecommendationsUrl: string;
 	private _disposables: IDisposable[] = [];
 	public promptWorkspaceRecommendationsPromise: TPromise<any>;
+	private proactiveRecommendationsFetched: boolean = false;
 
 	constructor(
-		@IExtensionGalleryService private _galleryService: IExtensionGalleryService,
-		@IModelService private _modelService: IModelService,
+		@IExtensionGalleryService private readonly _galleryService: IExtensionGalleryService,
+		@IModelService private readonly _modelService: IModelService,
 		@IStorageService private storageService: IStorageService,
 		@IChoiceService private choiceService: IChoiceService,
 		@IExtensionManagementService private extensionsService: IExtensionManagementService,
@@ -89,15 +90,39 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (product.extensionsGallery && product.extensionsGallery.recommendationsUrl) {
 			this._extensionsRecommendationsUrl = product.extensionsGallery.recommendationsUrl;
 		}
-		this.getDynamicWorkspaceRecommendations();
-		this._suggestFileBasedRecommendations();
 
+		this.getCachedDynamicWorkspaceRecommendations();
+		this._suggestFileBasedRecommendations();
 		this.promptWorkspaceRecommendationsPromise = this._suggestWorkspaceRecommendations();
 
-		// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
-		// So that the startup is not affected
-		setTimeout(() => this._suggestBasedOnExecutables(this._exeBasedRecommendations), 10000);
+		if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
+			this.fetchProactiveRecommendations(true);
+		}
+
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (!this.proactiveRecommendationsFetched && !this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
+				this.fetchProactiveRecommendations();
+			}
+		}));
+	}
+
+	private fetchProactiveRecommendations(calledDuringStartup?: boolean): TPromise<void> {
+		let fetchPromise = TPromise.as(null);
+		if (!this.proactiveRecommendationsFetched) {
+			this.proactiveRecommendationsFetched = true;
+
+			// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
+			// So that the startup is not affected
+
+			fetchPromise = new TPromise((c, e) => {
+				setTimeout(() => {
+					TPromise.join([this._suggestBasedOnExecutables(), this.getDynamicWorkspaceRecommendations()]).then(() => c(null));
+				}, calledDuringStartup ? 10000 : 0);
+			});
+
+		}
+		return fetchPromise;
 	}
 
 	private isEnabled(): boolean {
@@ -106,6 +131,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
 		let output: { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } = Object.create(null);
+
+		if (!this.proactiveRecommendationsFetched) {
+			return output;
+		}
 
 		if (this.contextService.getWorkspace().folders && this.contextService.getWorkspace().folders.length === 1) {
 			const currentRepo = this.contextService.getWorkspace().folders[0].name;
@@ -238,10 +267,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return fileBased;
 	}
 
-	getOtherRecommendations(): string[] {
-		const others = distinct([...Object.keys(this._exeBasedRecommendations), ...this._dynamicWorkspaceRecommendations]);
-		shuffle(others);
-		return others;
+	getOtherRecommendations(): TPromise<string[]> {
+		return this.fetchProactiveRecommendations().then(() => {
+			const others = distinct([...Object.keys(this._exeBasedRecommendations), ...this._dynamicWorkspaceRecommendations]);
+			shuffle(others);
+			return others;
+		});
 	}
 
 	getKeymapRecommendations(): string[] {
@@ -342,7 +373,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			);
 
 			const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
-			if (config.ignoreRecommendations) {
+			if (config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand) {
 				return;
 			}
 
@@ -521,7 +552,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
 
 		return this.getWorkspaceRecommendations().then(allRecommendations => {
-			if (!allRecommendations.length || config.ignoreRecommendations || this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
+			if (!allRecommendations.length || config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand || this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
 				return;
 			}
 
@@ -609,7 +640,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		});
 	}
 
-	private _suggestBasedOnExecutables(recommendations: { [id: string]: string; }): void {
+	private _suggestBasedOnExecutables(): TPromise<any> {
 		const homeDir = os.homedir();
 		let foundExecutables: Set<string> = new Set<string>();
 
@@ -620,13 +651,14 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					(product.exeBasedExtensionTips[exeName]['recommendations'] || [])
 						.forEach(x => {
 							if (product.exeBasedExtensionTips[exeName]['friendlyName']) {
-								recommendations[x] = product.exeBasedExtensionTips[exeName]['friendlyName'];
+								this._exeBasedRecommendations[x] = product.exeBasedExtensionTips[exeName]['friendlyName'];
 							}
 						});
 				}
 			});
 		};
 
+		let promises: TPromise<any>[] = [];
 		// Loop through recommended extensions
 		forEach(product.exeBasedExtensionTips, entry => {
 			if (typeof entry.value !== 'object' || !Array.isArray(entry.value['recommendations'])) {
@@ -643,12 +675,14 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)'])
 					.replace('%ProgramFiles%', process.env['ProgramFiles'])
 					.replace('%APPDATA%', process.env['APPDATA']);
-				findExecutable(exeName, windowsPath);
+				promises.push(findExecutable(exeName, windowsPath));
 			} else {
-				findExecutable(exeName, paths.join('/usr/local/bin', exeName));
-				findExecutable(exeName, paths.join(homeDir, exeName));
+				promises.push(findExecutable(exeName, paths.join('/usr/local/bin', exeName)));
+				promises.push(findExecutable(exeName, paths.join(homeDir, exeName)));
 			}
 		});
+
+		return TPromise.join(promises);
 	}
 
 	private setIgnoreRecommendationsConfig(configVal: boolean) {
@@ -659,9 +693,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		}
 	}
 
-	private getDynamicWorkspaceRecommendations(): TPromise<void> {
+	private getCachedDynamicWorkspaceRecommendations() {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
-			return TPromise.as(null);
+			return;
 		}
 
 		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
@@ -684,13 +718,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				}
 			*/
 			this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 1 });
+		}
+	}
+
+	private getDynamicWorkspaceRecommendations(): TPromise<void> {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
+			|| this._dynamicWorkspaceRecommendations.length
+			|| !this._extensionsRecommendationsUrl) {
 			return TPromise.as(null);
 		}
 
-		if (!this._extensionsRecommendationsUrl) {
-			return TPromise.as(null);
-		}
-
+		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
 		const workspaceUri = this.contextService.getWorkspace().folders[0].uri;
 		return TPromise.join([getHashedRemotesFromUri(workspaceUri, this.fileService, false), getHashedRemotesFromUri(workspaceUri, this.fileService, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
 			const hashedRemotes = (hashedRemotes1 || []).concat(hashedRemotes2 || []);
@@ -698,43 +736,37 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				return null;
 			}
 
-			return new TPromise((c, e) => {
-				setTimeout(() => {
-					this.requestService.request({ type: 'GET', url: this._extensionsRecommendationsUrl }).then(context => {
-						if (context.res.statusCode !== 200) {
-							return c(null);
-						}
-						return asJson(context).then((result) => {
-							const allRecommendations: IDynamicWorkspaceRecommendations[] = Array.isArray(result['workspaceRecommendations']) ? result['workspaceRecommendations'] : [];
-							if (!allRecommendations.length) {
-								return c(null);
-							}
+			return this.requestService.request({ type: 'GET', url: this._extensionsRecommendationsUrl }).then(context => {
+				if (context.res.statusCode !== 200) {
+					return TPromise.as(null);
+				}
+				return asJson(context).then((result) => {
+					const allRecommendations: IDynamicWorkspaceRecommendations[] = Array.isArray(result['workspaceRecommendations']) ? result['workspaceRecommendations'] : [];
+					if (!allRecommendations.length) {
+						return;
+					}
 
-							let foundRemote = false;
-							for (let i = 0; i < hashedRemotes.length && !foundRemote; i++) {
-								for (let j = 0; j < allRecommendations.length && !foundRemote; j++) {
-									if (Array.isArray(allRecommendations[j].remoteSet) && allRecommendations[j].remoteSet.indexOf(hashedRemotes[i]) > -1) {
-										foundRemote = true;
-										this._dynamicWorkspaceRecommendations = allRecommendations[j].recommendations || [];
-										this.storageService.store(storageKey, JSON.stringify({
-											recommendations: this._dynamicWorkspaceRecommendations,
-											timestamp: Date.now()
-										}), StorageScope.WORKSPACE);
-										/* __GDPR__
-											"dynamicWorkspaceRecommendations" : {
-												"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-												"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-											}
-										*/
-										this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 0 });
+					let foundRemote = false;
+					for (let i = 0; i < hashedRemotes.length && !foundRemote; i++) {
+						for (let j = 0; j < allRecommendations.length && !foundRemote; j++) {
+							if (Array.isArray(allRecommendations[j].remoteSet) && allRecommendations[j].remoteSet.indexOf(hashedRemotes[i]) > -1) {
+								foundRemote = true;
+								this._dynamicWorkspaceRecommendations = allRecommendations[j].recommendations || [];
+								this.storageService.store(storageKey, JSON.stringify({
+									recommendations: this._dynamicWorkspaceRecommendations,
+									timestamp: Date.now()
+								}), StorageScope.WORKSPACE);
+								/* __GDPR__
+									"dynamicWorkspaceRecommendations" : {
+										"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"cache" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 									}
-								}
+								*/
+								this.telemetryService.publicLog('dynamicWorkspaceRecommendations', { count: this._dynamicWorkspaceRecommendations.length, cache: 0 });
 							}
-
-							return c(null);
-						});
-					});
-				}, 10000);
+						}
+					}
+				});
 			});
 		});
 	}

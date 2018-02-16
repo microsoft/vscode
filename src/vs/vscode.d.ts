@@ -5090,6 +5090,11 @@ declare module 'vscode' {
 		resourceUri?: Uri;
 
 		/**
+		 * The tooltip text when you hover over this item.
+		 */
+		tooltip?: string | undefined;
+
+		/**
 		 * The [command](#Command) which should be run when the tree item is selected.
 		 */
 		command?: Command;

@@ -44,7 +44,7 @@ export interface ISearchWidgetOptions {
 class ReplaceAllAction extends Action {
 
 	private static fgInstance: ReplaceAllAction = null;
-	public static ID: string = 'search.action.replaceAll';
+	public static readonly ID: string = 'search.action.replaceAll';
 
 	static get INSTANCE(): ReplaceAllAction {
 		if (ReplaceAllAction.fgInstance === null) {

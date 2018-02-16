@@ -182,6 +182,13 @@ export interface ITerminalService {
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
 
+export const enum Direction {
+	Left = 0,
+	Right = 1,
+	Up = 2,
+	Down = 3
+}
+
 export interface ITerminalTab {
 	activeInstance: ITerminalInstance;
 	terminalInstances: ITerminalInstance[];
@@ -189,8 +196,7 @@ export interface ITerminalTab {
 	onDisposed: Event<ITerminalTab>;
 	onInstancesChanged: Event<void>;
 
-	focusLeft(): void;
-	focusRight(): void;
+	focusDirection(direction: Direction): void;
 	setActiveInstanceByIndex(index: number): void;
 	attachToElement(element: HTMLElement): void;
 	setVisible(visible: boolean): void;

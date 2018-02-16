@@ -47,7 +47,7 @@ export class IssueService implements IIssueService {
 		});
 
 		ipcMain.on('workbenchCommand', (event, arg) => {
-			this._parentWindow.webContents.send('vscode:runAction', { id: arg });
+			this._parentWindow.webContents.send('vscode:runAction', { id: arg, from: 'issueReporter' });
 		});
 
 		this._parentWindow = BrowserWindow.getFocusedWindow();
