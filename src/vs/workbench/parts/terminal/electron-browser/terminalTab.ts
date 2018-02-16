@@ -17,6 +17,7 @@ class SplitPaneContainer {
 	private _height: number;
 	private _width: number;
 	private _splitView: SplitView;
+	private _splitViewDisposables: IDisposable[];
 	private _children: SplitPane[] = [];
 
 	// If the user sizes the panes manually, the proportional resizing will not be applied.
@@ -33,11 +34,17 @@ class SplitPaneContainer {
 	) {
 		this._width = this._container.offsetWidth;
 		this._height = this._container.offsetHeight;
-		this._splitView = new SplitView(this._container, { orientation: this.orientation });
-		// TODO: Dispose listeners
-		this._splitView.onDidSashReset(() => this._resetSize());
-		this._splitView.onDidSashChange(() => this._isManuallySized = true);
+		this._createSplitView();
 		this._splitView.layout(this.orientation === Orientation.HORIZONTAL ? this._width : this._height);
+	}
+
+	private _createSplitView(): void {
+		this._splitView = new SplitView(this._container, { orientation: this.orientation });
+		this._splitViewDisposables = [];
+		this._splitViewDisposables.push(this._splitView.onDidSashReset(() => this._resetSize()));
+		this._splitViewDisposables.push(this._splitView.onDidSashChange(() => {
+			this._isManuallySized = true;
+		}));
 	}
 
 	public split(instance: ITerminalInstance, index: number = this._children.length): void {
@@ -157,11 +164,12 @@ class SplitPaneContainer {
 		while (this._container.children.length > 0) {
 			this._container.removeChild(this._container.children[0]);
 		}
+		this._splitViewDisposables.forEach(d => d.dispose());
+		this._splitViewDisposables = [];
 		this._splitView.dispose();
 
 		// Create new split view with updated orientation
-		this._splitView = new SplitView(this._container, { orientation });
-		this._splitView.onDidSashReset(() => this._resetSize());
+		this._createSplitView();
 		this._children.forEach(child => {
 			child.orientation = orientation;
 			this._splitView.addView(child, 1);
