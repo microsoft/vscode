@@ -71,11 +71,15 @@ class SplitPaneContainer {
 		}
 
 		// Remove size from right pane, unless index is the last pane in which case use left pane
-		const isSizingRightPane = index !== this._children.length - 1;
-		const indexToChange = isSizingRightPane ? index + 1 : index - 1;
-		if (isSizingRightPane && direction === Direction.Left) {
+		const isSizingEndPane = index !== this._children.length - 1;
+		const indexToChange = isSizingEndPane ? index + 1 : index - 1;
+		if (isSizingEndPane && direction === Direction.Left) {
 			amount *= -1;
-		} else if (!isSizingRightPane && direction === Direction.Right) {
+		} else if (!isSizingEndPane && direction === Direction.Right) {
+			amount *= -1;
+		} else if (isSizingEndPane && direction === Direction.Up) {
+			amount *= -1;
+		} else if (!isSizingEndPane && direction === Direction.Down) {
 			amount *= -1;
 		}
 		sizes[index] += amount;
