@@ -35,7 +35,7 @@ export interface INotificationChangeEvent {
 }
 
 class NoOpNotification implements INotificationHandle {
-	dispose() { }
+	public dispose(): void { }
 }
 
 export class NotificationsModel implements INotificationsModel {
@@ -69,13 +69,42 @@ export class NotificationsModel implements INotificationsModel {
 			return item; // return early if this is a no-op
 		}
 
-		// Add to list as first entry (TODO@notification dedupe!)
+		// Deduplicate
+		const duplicate = this.findNotification(item);
+		if (duplicate) {
+			duplicate.dispose();
+		}
+
+		// Add to list as first entry
 		this._notifications.splice(0, 0, item);
 
 		// Events
 		this._onDidNotificationChange.fire({ item, index: 0, kind: NotificationChangeType.ADD });
 
-		return item;
+		// Wrap into handles
+		return {
+			dispose: () => this.disposeItem(item)
+		};
+	}
+
+	private disposeItem(item: INotificationViewItem): void {
+		const liveItem = this.findNotification(item);
+		if (liveItem && liveItem !== item) {
+			liveItem.dispose(); // item could have been replaced with another one, make sure to dispose the live item
+		} else {
+			item.dispose(); // otherwise just dispose the item that was passed in
+		}
+	}
+
+	private findNotification(item: INotificationViewItem): INotificationViewItem {
+		for (let i = 0; i < this._notifications.length; i++) {
+			const notification = this._notifications[i];
+			if (notification.equals(item)) {
+				return notification;
+			}
+		}
+
+		return void 0;
 	}
 
 	private createViewItem(notification: INotification): INotificationViewItem | NoOpNotification {
@@ -126,6 +155,8 @@ export interface INotificationViewItem {
 	collapse(): void;
 
 	dispose(): void;
+
+	equals(item: INotificationViewItem);
 }
 
 export function isNotificationViewItem(obj: any): obj is INotificationViewItem {
@@ -171,10 +202,10 @@ export class NotificationViewItem implements INotificationViewItem {
 			message.value = `${message.value.substr(0, NotificationViewItem.MAX_MESSAGE_LENGTH)}...`;
 		}
 
-		return new NotificationViewItem(severity, message, notification.source, notification.actions || []);
+		return new NotificationViewItem(severity, message, notification.source, notification.actions);
 	}
 
-	private constructor(private _severity: Severity, private _message: IMarkdownString, private _source: string, private _actions: IAction[]) {
+	private constructor(private _severity: Severity, private _message: IMarkdownString, private _source: string, private _actions: IAction[] = []) {
 		this.toDispose = [];
 		this._expanded = _actions.length > 0;
 
@@ -241,5 +272,27 @@ export class NotificationViewItem implements INotificationViewItem {
 		this._onDidDispose.fire();
 
 		this.toDispose = dispose(this.toDispose);
+	}
+
+	public equals(other: INotificationViewItem): boolean {
+		if (this._source !== other.source) {
+			return false;
+		}
+
+		if (this._actions.length !== other.actions.length) {
+			return false;
+		}
+
+		if (this._message.value !== other.message.value) {
+			return false;
+		}
+
+		for (let i = 0; i < this._actions.length; i++) {
+			if (this._actions[i].id !== other.actions[i].id) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }

@@ -1,0 +1,127 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+'use strict';
+
+import * as assert from 'assert';
+import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
+import { Severity } from 'vs/platform/message/common/message';
+import { Action } from 'vs/base/common/actions';
+import { INotification } from 'vs/platform/notification/common/notification';
+
+suite('Notifications', () => {
+
+	test('Items', () => {
+
+		// Invalid
+		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: '' }));
+		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: null }));
+		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: { value: '', isTrusted: true } }));
+
+		// Duplicates
+		let item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' });
+		let item2 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' });
+		let item3 = NotificationViewItem.create({ severity: Severity.Info, message: 'Info Message' });
+		let item4 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', source: 'Source' });
+		let item5 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: [new Action('id', 'label')] });
+
+		assert.equal(item1.equals(item1), true);
+		assert.equal(item2.equals(item2), true);
+		assert.equal(item3.equals(item3), true);
+		assert.equal(item4.equals(item4), true);
+		assert.equal(item5.equals(item5), true);
+
+		assert.equal(item1.equals(item2), true);
+		assert.equal(item1.equals(item3), false);
+		assert.equal(item1.equals(item4), false);
+		assert.equal(item1.equals(item5), false);
+
+		// Message Box
+		assert.equal(item5.canCollapse, false);
+		assert.equal(item5.expanded, true);
+
+		// Events
+		let called = 0;
+		item1.onDidChange(() => {
+			called++;
+		});
+
+		item1.expand();
+		item1.expand();
+		item1.collapse();
+		item1.collapse();
+
+		assert.equal(called, 2);
+
+		called = 0;
+		item1.onDidDispose(() => {
+			called++;
+		});
+
+		item1.dispose();
+		assert.equal(called, 1);
+	});
+
+	test('Model', () => {
+		const model = new NotificationsModel();
+
+		let lastEvent: INotificationChangeEvent;
+		model.onDidNotificationChange(e => {
+			lastEvent = e;
+		});
+
+		let item1: INotification = { severity: Severity.Error, message: 'Error Message', actions: [new Action('id', 'label')] };
+		let item2: INotification = { severity: Severity.Warning, message: 'Warning Message', source: 'Some Source' };
+		let item2Duplicate: INotification = { severity: Severity.Warning, message: 'Warning Message', source: 'Some Source' };
+		let item3: INotification = { severity: Severity.Info, message: 'Info Message' };
+
+		let item1Handle = model.notify(item1);
+		assert.equal(lastEvent.item.severity, item1.severity);
+		assert.equal(lastEvent.item.message.value, item1.message);
+		assert.equal(lastEvent.index, 0);
+		assert.equal(lastEvent.kind, NotificationChangeType.ADD);
+
+		let item2Handle = model.notify(item2);
+		assert.equal(lastEvent.item.severity, item2.severity);
+		assert.equal(lastEvent.item.message.value, item2.message);
+		assert.equal(lastEvent.index, 0);
+		assert.equal(lastEvent.kind, NotificationChangeType.ADD);
+
+		model.notify(item3);
+		assert.equal(lastEvent.item.severity, item3.severity);
+		assert.equal(lastEvent.item.message.value, item3.message);
+		assert.equal(lastEvent.index, 0);
+		assert.equal(lastEvent.kind, NotificationChangeType.ADD);
+
+		assert.equal(model.notifications.length, 3);
+
+		item1Handle.dispose();
+		assert.equal(model.notifications.length, 2);
+		assert.equal(lastEvent.item.severity, item1.severity);
+		assert.equal(lastEvent.item.message.value, item1.message);
+		assert.equal(lastEvent.index, 2);
+		assert.equal(lastEvent.kind, NotificationChangeType.REMOVE);
+
+		model.notify(item2Duplicate);
+		assert.equal(model.notifications.length, 2);
+		assert.equal(lastEvent.item.severity, item2Duplicate.severity);
+		assert.equal(lastEvent.item.message.value, item2Duplicate.message);
+		assert.equal(lastEvent.index, 0);
+		assert.equal(lastEvent.kind, NotificationChangeType.ADD);
+
+		item2Handle.dispose();
+		assert.equal(model.notifications.length, 1);
+		assert.equal(lastEvent.item.severity, item2Duplicate.severity);
+		assert.equal(lastEvent.item.message.value, item2Duplicate.message);
+		assert.equal(lastEvent.index, 0);
+		assert.equal(lastEvent.kind, NotificationChangeType.REMOVE);
+
+		model.notifications[0].expand();
+		assert.equal(lastEvent.item.severity, item3.severity);
+		assert.equal(lastEvent.item.message.value, item3.message);
+		assert.equal(lastEvent.index, 0);
+		assert.equal(lastEvent.kind, NotificationChangeType.CHANGE);
+	});
+});
