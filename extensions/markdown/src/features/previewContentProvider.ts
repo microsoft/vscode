@@ -312,6 +312,10 @@ export class MarkdownPreviewWebviewManager {
 		vscode.workspace.onDidChangeTextDocument(event => {
 			this.update(event.document.uri);
 		}, null, this.disposables);
+
+		vscode.window.onDidChangeActiveEditor(editor => {
+			vscode.commands.executeCommand('setContext', 'markdownPreview', editor && editor.editorType === 'webview');
+		}, null, this.disposables);
 	}
 
 	public dispose(): void {
@@ -360,14 +364,6 @@ export class MarkdownPreviewWebviewManager {
 
 		view.onMessage(e => {
 			vscode.commands.executeCommand(e.command, ...e.args);
-		});
-
-		view.onBecameActive(() => {
-			vscode.commands.executeCommand('setContext', 'markdownPreview', true);
-		});
-
-		view.onBecameInactive(() => {
-			vscode.commands.executeCommand('setContext', 'markdownPreview', false);
 		});
 
 		this.webviews.set(resource.fsPath, view);

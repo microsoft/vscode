@@ -35,8 +35,6 @@ import URI from 'vs/base/common/uri';
 
 interface WebviewEvents {
 	onMessage(message: any): void;
-	onFocus(): void;
-	onBlur(): void;
 }
 
 class WebviewInput extends EditorInput {
@@ -290,9 +288,7 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 
 	$createWebview(handle: number): void {
 		const webview = new WebviewInput('', {}, '', {
-			onMessage: (message) => this._proxy.$onMessage(handle, message),
-			onFocus: () => this._proxy.$onBecameActive(handle),
-			onBlur: () => this._proxy.$onBecameInactive(handle)
+			onMessage: (message) => this._proxy.$onMessage(handle, message)
 		});
 		this._webviews.set(handle, webview);
 	}
@@ -345,28 +341,25 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 
 	private onEditorsChanged() {
 		const activeEditor = this._editorService.getActiveEditor();
-		let newActiveWebview: WebviewInput | undefined = undefined;
+		let newActiveWebview: { input: WebviewInput, handle: number } | undefined = undefined;
 		if (activeEditor.input instanceof WebviewInput) {
 			for (const handle of map.keys(this._webviews)) {
 				const input = this._webviews.get(handle);
 				if (input.matches(activeEditor.input)) {
-					newActiveWebview = input;
+					newActiveWebview = { input, handle };
 					break;
 				}
 			}
 		}
 
 		if (newActiveWebview) {
-			if (!this._activeWebview || !newActiveWebview.matches(this._activeWebview)) {
-				if (this._activeWebview) {
-					this._activeWebview.events.onBlur();
-				}
-				newActiveWebview.events.onFocus();
-				this._activeWebview = newActiveWebview;
+			if (!this._activeWebview || !newActiveWebview.input.matches(this._activeWebview)) {
+				this._proxy.$onDidChangeActiveWeview(newActiveWebview.handle);
+				this._activeWebview = newActiveWebview.input;
 			}
 		} else {
 			if (this._activeWebview) {
-				this._activeWebview.events.onBlur();
+				this._proxy.$onDidChangeActiveWeview(undefined);
 				this._activeWebview = undefined;
 			}
 		}
