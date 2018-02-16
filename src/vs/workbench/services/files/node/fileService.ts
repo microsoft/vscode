@@ -913,7 +913,7 @@ export class FileService implements IFileService {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		return pfs.stat(absolutePath).then(stat => {
-			return new StatResolver(resource, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.options.verboseLogging ? this.options.errorLogger : void 0);
+			return new StatResolver(resource, false, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.options.verboseLogging ? this.options.errorLogger : void 0);
 		});
 	}
 
@@ -1146,25 +1146,21 @@ export class FileService implements IFileService {
 }
 
 export class StatResolver {
-	private resource: uri;
-	private isDirectory: boolean;
-	private mtime: number;
 	private name: string;
 	private etag: string;
-	private size: number;
-	private errorLogger: (error: Error | string) => void;
 
-	constructor(resource: uri, isDirectory: boolean, mtime: number, size: number, errorLogger?: (error: Error | string) => void) {
+	constructor(
+		private resource: uri,
+		private isSymbolicLink: boolean,
+		private isDirectory: boolean,
+		private mtime: number,
+		private size: number,
+		private errorLogger?: (error: Error | string) => void
+	) {
 		assert.ok(resource && resource.scheme === Schemas.file, `Invalid resource: ${resource}`);
 
-		this.resource = resource;
-		this.isDirectory = isDirectory;
-		this.mtime = mtime;
 		this.name = getBaseLabel(resource);
 		this.etag = etag(size, mtime);
-		this.size = size;
-
-		this.errorLogger = errorLogger;
 	}
 
 	public resolve(options: IResolveFileOptions): TPromise<IFileStat> {
@@ -1173,6 +1169,7 @@ export class StatResolver {
 		const fileStat: IFileStat = {
 			resource: this.resource,
 			isDirectory: this.isDirectory,
+			isSymbolicLink: this.isSymbolicLink,
 			name: this.name,
 			etag: this.etag,
 			size: this.size,
@@ -1223,6 +1220,7 @@ export class StatResolver {
 			flow.parallel(files, (file: string, clb: (error: Error, children: IFileStat) => void) => {
 				const fileResource = uri.file(paths.resolve(absolutePath, file));
 				let fileStat: fs.Stats;
+				let isSymbolicLink = false;
 				const $this = this;
 
 				flow.sequence(
@@ -1235,7 +1233,14 @@ export class StatResolver {
 					},
 
 					function stat(this: any): void {
-						fs.stat(fileResource.fsPath, this);
+						fs.lstat(fileResource.fsPath, (error, stat) => {
+							isSymbolicLink = stat.isSymbolicLink();
+							if (isSymbolicLink) {
+								fs.stat(fileResource.fsPath, this);
+							} else {
+								this(null, stat);
+							}
+						});
 					},
 
 					function countChildren(this: any, fsstat: fs.Stats): void {
@@ -1254,6 +1259,7 @@ export class StatResolver {
 						const childStat: IFileStat = {
 							resource: fileResource,
 							isDirectory: fileStat.isDirectory(),
+							isSymbolicLink: isSymbolicLink,
 							name: file,
 							mtime: fileStat.mtime.getTime(),
 							etag: etag(fileStat),
