@@ -79,24 +79,25 @@ getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 CommandsRegistry.registerCommand({
 	id: OPEN_IN_TERMINAL_COMMAND_ID,
-	handler: (accessor, selectedResource: uri) => {
+	handler: (accessor, resource: uri) => {
 		const configurationService = accessor.get(IConfigurationService);
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const fileService = accessor.get(IFileService);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 		const terminalService = accessor.get(ITerminalService);
-		let resources:uri[] = [];
-		let directorySet:Set<string> = new Set();
-		resources = getMultiSelectedResources(selectedResource, accessor.get(IListService), editorService);
-		return resources.map((resource) => {
-			return fileService.resolveFile(resource).then(stat => {
+
+		const directorySet = new Set<string>();
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+
+		return resources.map(r => {
+			return fileService.resolveFile(r).then(stat => {
 				return stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath);
 			}).then(directoryToOpen => {
 				if (!directorySet.has(directoryToOpen)) {
 					directorySet.add(directoryToOpen);
 					if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
 						const instance = integratedTerminalService.createInstance({ cwd: directoryToOpen }, true);
-						if (instance && (selectedResource === resource)) {
+						if (instance && (resource === r || resources.length === 1)) {
 							integratedTerminalService.setActiveInstance(instance);
 							integratedTerminalService.showPanel(true);
 						}
