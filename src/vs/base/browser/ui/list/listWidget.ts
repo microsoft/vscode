@@ -462,14 +462,17 @@ class MouseController<T> implements IDisposable {
 		}
 
 		let reference = this.list.getFocus()[0];
-		reference = reference === undefined ? this.list.getSelection()[0] : reference;
+		const selection = this.list.getSelection();
+		reference = reference === undefined ? selection[0] : reference;
+
+		const focus = e.index;
+		if (selection.every(s => s !== focus)) {
+			this.list.setFocus([focus]);
+		}
 
 		if (this.multipleSelectionSupport && this.isSelectionRangeChangeEvent(e)) {
 			return this.changeSelection(e, reference);
 		}
-
-		const focus = e.index;
-		this.list.setFocus([focus]);
 
 		if (this.multipleSelectionSupport && this.isSelectionChangeEvent(e)) {
 			return this.changeSelection(e, reference);
