@@ -9,8 +9,9 @@ import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
 import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
-import { marked, MarkedRenderer } from 'vs/base/common/marked/marked';
+import { marked, MarkedRenderer, MarkedOptions } from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { assign } from 'vs/base/common/objects';
 
 export interface RenderOptions {
 	className?: string;
@@ -18,7 +19,7 @@ export interface RenderOptions {
 	actionCallback?: (content: string, event?: IMouseEvent) => void;
 	codeBlockRenderer?: (modeId: string, value: string) => Thenable<string>;
 	codeBlockRenderCallback?: () => void;
-	joinRendererConfiguration?: (renderer: MarkedRenderer) => void;
+	joinRendererConfiguration?: (renderer: MarkedRenderer) => MarkedOptions;
 }
 
 function createElement(options: RenderOptions): HTMLElement {
@@ -157,14 +158,19 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 		});
 	}
 
-	if (options.joinRendererConfiguration) {
-		options.joinRendererConfiguration(renderer);
-	}
-
-	element.innerHTML = marked(markdown.value, {
+	const markedOptions: MarkedOptions = {
 		sanitize: true,
 		renderer
-	});
+	};
+
+	if (options.joinRendererConfiguration) {
+		const additionalMarkedOptions = options.joinRendererConfiguration(renderer);
+		if (additionalMarkedOptions) {
+			assign(markedOptions, additionalMarkedOptions);
+		}
+	}
+
+	element.innerHTML = marked(markdown.value, markedOptions);
 	signalInnerHTML();
 
 	return element;

@@ -26,6 +26,7 @@ import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/common/notifications';
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MarkedOptions } from 'vs/base/common/marked/marked';
 
 export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
 
@@ -130,7 +131,16 @@ class NotificationMessageMarkdownRenderer {
 	public static render(markdown: IMarkdownString, actionCallback?: (content: string) => void): HTMLElement {
 		return renderMarkdown(markdown, {
 			inline: true,
-			joinRendererConfiguration: renderer => NotificationMessageMarkdownRenderer.MARKED_NOOP_TARGETS.forEach(fn => renderer[fn] = NotificationMessageMarkdownRenderer.MARKED_NOOP),
+			joinRendererConfiguration: renderer => {
+
+				// Overwrite markdown render functions as no-ops
+				NotificationMessageMarkdownRenderer.MARKED_NOOP_TARGETS.forEach(fn => renderer[fn] = NotificationMessageMarkdownRenderer.MARKED_NOOP);
+
+				return {
+					gfm: false, // disable GitHub style markdown,
+					smartypants: false // disable some text transformations
+				} as MarkedOptions;
+			},
 			actionCallback
 		});
 	}
