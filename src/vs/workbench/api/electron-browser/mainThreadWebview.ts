@@ -35,8 +35,6 @@ import URI from 'vs/base/common/uri';
 
 interface WebviewEvents {
 	onMessage(message: any): void;
-	onFocus(): void;
-	onBlur(): void;
 }
 
 class WebviewInput extends EditorInput {
@@ -189,6 +187,12 @@ class WebviewEditor extends BaseWebviewEditor {
 				return;
 			}
 		}
+
+		if (this._webview) {
+			this._webview.dispose();
+			this._webview = undefined;
+		}
+
 		super.clearInput();
 	}
 
@@ -257,7 +261,9 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 	private readonly _toDispose: Disposable[] = [];
 
 	private readonly _proxy: ExtHostWebviewsShape;
-	private readonly _webviews = new Map<number, WebviewInput>();
+	private readonly _webviews = new Map<string, WebviewInput>();
+	private readonly _disposeSubscriptions = new Map<string, IDisposable>();
+
 	private _activeWebview: WebviewInput | undefined = undefined;
 
 	constructor(
@@ -273,43 +279,52 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 
 	dispose(): void {
 		dispose(this._toDispose);
+
+		for (const sub of map.values(this._disposeSubscriptions)) {
+			sub.dispose();
+		}
+		this._disposeSubscriptions.clear();
 	}
 
-	$createWebview(handle: number): void {
+	$createWebview(handle: string): void {
 		const webview = new WebviewInput('', {}, '', {
-			onMessage: (message) => this._proxy.$onMessage(handle, message),
-			onFocus: () => this._proxy.$onBecameActive(handle),
-			onBlur: () => this._proxy.$onBecameInactive(handle)
+			onMessage: (message) => this._proxy.$onMessage(handle, message)
 		});
+
+		this._disposeSubscriptions.set(handle, webview.onDispose(() => {
+			this._proxy.$onDidDisposeWeview(handle);
+		}));
+
 		this._webviews.set(handle, webview);
 	}
 
-	$disposeWebview(handle: number): void {
+	$disposeWebview(handle: string): void {
 		const webview = this._webviews.get(handle);
 		this._editorService.closeEditor(Position.ONE, webview);
 	}
 
-	$setTitle(handle: number, value: string): void {
+	$setTitle(handle: string, value: string): void {
 		const webview = this._webviews.get(handle);
 		webview.setName(value);
 	}
 
-	$setHtml(handle: number, value: string): void {
-		this.updateInput(handle, existingInput =>
-			this._instantiationService.createInstance(WebviewInput, existingInput.getName(), existingInput.options, value, existingInput.events));
+	$setHtml(handle: string, value: string): void {
+		this.updateInput(handle, existingInput => {
+			return this._instantiationService.createInstance(WebviewInput, existingInput.getName(), existingInput.options, value, existingInput.events);
+		});
 	}
 
-	$setOptions(handle: number, newOptions: vscode.WebviewOptions): void {
+	$setOptions(handle: string, newOptions: vscode.WebviewOptions): void {
 		this.updateInput(handle, existingInput =>
 			this._instantiationService.createInstance(WebviewInput, existingInput.getName(), newOptions, existingInput.html, existingInput.events));
 	}
 
-	$show(handle: number, column: Position): void {
+	$show(handle: string, column: Position): void {
 		const webviewInput = this._webviews.get(handle);
 		this._editorService.openEditor(webviewInput, { pinned: true }, column);
 	}
 
-	async $sendMessage(handle: number, message: any): Promise<boolean> {
+	async $sendMessage(handle: string, message: any): Promise<boolean> {
 		const webviewInput = this._webviews.get(handle);
 		const editors = this._editorService.getVisibleEditors()
 			.filter(e => e instanceof WebviewInput)
@@ -323,37 +338,48 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 		return (editors.length > 0);
 	}
 
-	private updateInput(handle: number, f: (existingInput: WebviewInput) => WebviewInput) {
+	private updateInput(handle: string, f: (existingInput: WebviewInput) => WebviewInput) {
 		const existingInput = this._webviews.get(handle);
 		const newInput = f(existingInput);
 		this._webviews.set(handle, newInput);
-		this._editorService.replaceEditors([{ toReplace: existingInput, replaceWith: newInput }]);
+
+		const existing = this._disposeSubscriptions.get(handle);
+		this._disposeSubscriptions.set(handle, newInput.onDispose(() => {
+			this._proxy.$onDidDisposeWeview(handle);
+		}));
+
+		if (existing) {
+			existing.dispose();
+		}
+
+		this._editorService.replaceEditors([{
+			toReplace: existingInput,
+			replaceWith: newInput,
+			options: { preserveFocus: true }
+		}]);
 	}
 
 	private onEditorsChanged() {
 		const activeEditor = this._editorService.getActiveEditor();
-		let newActiveWebview: WebviewInput | undefined = undefined;
-		if (activeEditor && activeEditor.input instanceof WebviewInput) {
+		let newActiveWebview: { input: WebviewInput, handle: string } | undefined = undefined;
+		if (activeEditor.input instanceof WebviewInput) {
 			for (const handle of map.keys(this._webviews)) {
 				const input = this._webviews.get(handle);
 				if (input.matches(activeEditor.input)) {
-					newActiveWebview = input;
+					newActiveWebview = { input, handle };
 					break;
 				}
 			}
 		}
 
 		if (newActiveWebview) {
-			if (!this._activeWebview || !newActiveWebview.matches(this._activeWebview)) {
-				if (this._activeWebview) {
-					this._activeWebview.events.onBlur();
-				}
-				newActiveWebview.events.onFocus();
-				this._activeWebview = newActiveWebview;
+			if (!this._activeWebview || !newActiveWebview.input.matches(this._activeWebview)) {
+				this._proxy.$onDidChangeActiveWeview(newActiveWebview.handle);
+				this._activeWebview = newActiveWebview.input;
 			}
 		} else {
 			if (this._activeWebview) {
-				this._activeWebview.events.onBlur();
+				this._proxy.$onDidChangeActiveWeview(undefined);
 				this._activeWebview = undefined;
 			}
 		}

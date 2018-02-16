@@ -14,7 +14,7 @@ import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { loadMarkdownExtensions } from './markdownExtensions';
 import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
-import { MarkdownContentProvider, getMarkdownUri, isMarkdownFile, MarkdownPreviewWebviewManager } from './features/previewContentProvider';
+import { MarkdownContentProvider, MarkdownPreviewWebviewManager } from './features/previewContentProvider';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -54,18 +54,5 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
 		logger.updateConfiguration();
 		webviewManager.updateConfiguration();
-	}));
-
-	context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(event => {
-		if (isMarkdownFile(event.textEditor.document)) {
-			const markdownFile = getMarkdownUri(event.textEditor.document.uri);
-			logger.log('updatePreviewForSelection', { markdownFile: markdownFile.toString() });
-
-			vscode.commands.executeCommand('_workbench.htmlPreview.postMessage',
-				markdownFile,
-				{
-					line: event.selections[0].active.line
-				});
-		}
 	}));
 }

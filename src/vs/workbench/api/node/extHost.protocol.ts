@@ -346,18 +346,18 @@ export interface MainThreadTelemetryShape extends IDisposable {
 }
 
 export interface MainThreadWebviewShape extends IDisposable {
-	$createWebview(handle: number): void;
-	$disposeWebview(handle: number): void;
-	$show(handle: number, column: EditorPosition): void;
-	$setTitle(handle: number, value: string): void;
-	$setHtml(handle: number, value: string): void;
-	$setOptions(handle: number, value: vscode.WebviewOptions): void;
-	$sendMessage(handle: number, value: any): Thenable<boolean>;
+	$createWebview(handle: string): void;
+	$disposeWebview(handle: string): void;
+	$show(handle: string, column: EditorPosition): void;
+	$setTitle(handle: string, value: string): void;
+	$setHtml(handle: string, value: string): void;
+	$setOptions(handle: string, value: vscode.WebviewOptions): void;
+	$sendMessage(handle: string, value: any): Thenable<boolean>;
 }
 export interface ExtHostWebviewsShape {
-	$onMessage(handle: number, message: any): void;
-	$onBecameActive(handle: number): void;
-	$onBecameInactive(handle: number): void;
+	$onMessage(handle: string, message: any): void;
+	$onDidChangeActiveWeview(handle: string | undefined): void;
+	$onDidDisposeWeview(handle: string): void;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {

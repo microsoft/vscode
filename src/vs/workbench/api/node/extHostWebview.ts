@@ -5,10 +5,12 @@
 
 import { MainContext, MainThreadWebviewShape, IMainContext, ExtHostWebviewsShape } from './extHost.protocol';
 import * as vscode from 'vscode';
-import { Emitter } from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 
-class ExtHostWebview implements vscode.Webview {
+export class ExtHostWebview implements vscode.Webview {
+	public readonly editorType = 'webview';
+
 	private _title: string;
 	private _html: string;
 	private _options: vscode.WebviewOptions;
@@ -17,17 +19,12 @@ class ExtHostWebview implements vscode.Webview {
 
 
 	public readonly onMessageEmitter = new Emitter<any>();
-	public readonly onMessage = this.onMessageEmitter.event;
-
-	public readonly onBecameActiveEmitter = new Emitter<void>();
-	public readonly onBecameActive = this.onBecameActiveEmitter.event;
-
-	public readonly onBecameInactiveEmitter = new Emitter<void>();
-	public readonly onBecameInactive = this.onBecameInactiveEmitter.event;
+	public readonly onMessage: Event<any> = this.onMessageEmitter.event;
 
 	constructor(
+		private readonly _id: string,
 		private readonly _proxy: MainThreadWebviewShape,
-		private readonly _handle: number,
+		private readonly _handle: string,
 		viewColumn: vscode.ViewColumn
 	) {
 		this._viewColumn = viewColumn;
@@ -39,6 +36,10 @@ class ExtHostWebview implements vscode.Webview {
 		}
 		this._isDisposed = true;
 		this._proxy.$disposeWebview(this._handle);
+	}
+
+	get id(): string {
+		return this._id;
 	}
 
 	get title(): string {
@@ -81,11 +82,9 @@ class ExtHostWebview implements vscode.Webview {
 }
 
 export class ExtHostWebviews implements ExtHostWebviewsShape {
-	private static _handlePool = 0;
-
 	private readonly _proxy: MainThreadWebviewShape;
 
-	private readonly _webviews = new Map<number, ExtHostWebview>();
+	private readonly _webviews = new Map<string, ExtHostWebview>();
 
 	constructor(
 		mainContext: IMainContext
@@ -93,34 +92,42 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadWebview);
 	}
 
-	createWebview(
-		title: string,
-		viewColumn: vscode.ViewColumn,
-		options: vscode.WebviewOptions
+	getOrCreateWebview(
+		id: string,
+		viewColumn: vscode.ViewColumn
 	): vscode.Webview {
-		const handle = ExtHostWebviews._handlePool++;
-		this._proxy.$createWebview(handle);
+		const handle = `webview-${id}-${viewColumn}`;
+		if (!this._webviews.has(handle)) {
+			this._proxy.$createWebview(handle);
 
-		const webview = new ExtHostWebview(this._proxy, handle, viewColumn);
-		this._webviews.set(handle, webview);
-		webview.title = title;
-		webview.options = options;
+			const webview = new ExtHostWebview(id, this._proxy, handle, viewColumn);
+			this._webviews.set(handle, webview);
+		}
+
 		this._proxy.$show(handle, typeConverters.fromViewColumn(viewColumn));
-		return webview;
+		return this._webviews.get(handle);
 	}
 
-	$onMessage(handle: number, message: any): void {
+	$onMessage(handle: string, message: any): void {
 		const webview = this._webviews.get(handle);
 		webview.onMessageEmitter.fire(message);
 	}
 
-	$onBecameActive(handle: number): void {
+	$onDidChangeActiveWeview(handle: string | undefined): void {
 		const webview = this._webviews.get(handle);
-		webview.onBecameActiveEmitter.fire();
+		this._onDidChangeActiveWebview.fire(webview);
 	}
 
-	$onBecameInactive(handle: number): void {
+	$onDidDisposeWeview(handle: string): void {
 		const webview = this._webviews.get(handle);
-		webview.onBecameInactiveEmitter.fire();
+		if (webview) {
+			this._onDidDisposeWebview.fire(webview);
+		}
 	}
+
+	private readonly _onDidChangeActiveWebview = new Emitter<ExtHostWebview | undefined>();
+	public readonly onDidChangeActiveWebview = this._onDidChangeActiveWebview.event;
+
+	private readonly _onDidDisposeWebview = new Emitter<ExtHostWebview | undefined>();
+	public readonly onDidDisposeWebview = this._onDidDisposeWebview.event;
 }
