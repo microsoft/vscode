@@ -7,7 +7,7 @@
 
 'use strict';
 
-/*global window,document,define*/
+/*global window,document,define,Monaco_Loader_Init,Monaco_CSS*/
 
 const perf = require('../../../base/common/performance');
 perf.mark('renderer/started');
@@ -201,17 +201,23 @@ function main() {
 		webFrame.setZoomLevel(zoomLevel);
 	}
 
+	var define = null;
+
 	// Load the loader and start loading the workbench
-	const loaderFilename = configuration.appRoot + '/out/vs/loader.js';
-	const loaderSource = require('fs').readFileSync(loaderFilename);
-	require('vm').runInThisContext(loaderSource, { filename: loaderFilename });
-	var define = global.define;
-	global.define = undefined;
+	if (typeof Monaco_Loader_Init === 'function') {
+		// There has been a snapshot
+		define = Monaco_Loader_Init().define;
+	} else {
+		const loaderFilename = configuration.appRoot + '/out/vs/loader.js';
+		const loaderSource = require('fs').readFileSync(loaderFilename);
+		require('vm').runInThisContext(loaderSource, { filename: loaderFilename });
+		define = global.define;
+		global.define = undefined;
+
+		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+	}
 
 	window.nodeRequire = require.__$__nodeRequire;
-
-	define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
-
 	window.MonacoEnvironment = {};
 
 	const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
@@ -239,11 +245,15 @@ function main() {
 	};
 
 	perf.mark('willLoadWorkbenchMain');
-	require([
+	var loadModules = [
 		'vs/workbench/workbench.main',
 		'vs/nls!vs/workbench/workbench.main',
 		'vs/css!vs/workbench/workbench.main'
-	], function () {
+	];
+	if (typeof Monaco_CSS !== 'undefined' && process.env['VSCODE_DEV']) {
+		loadModules = loadModules.concat(Monaco_CSS);
+	}
+	require(loadModules, function () {
 		perf.mark('didLoadWorkbenchMain');
 
 		process.lazyEnv.then(function () {

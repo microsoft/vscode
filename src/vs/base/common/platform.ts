@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+declare var MonacoSnapshotPlatform: 'win32' | 'darwin' | 'linux';
+declare var MonacoSnapshotGlobal: any;
+
 let _isWindows = false;
 let _isMacintosh = false;
 let _isLinux = false;
@@ -41,7 +44,14 @@ declare let self: any;
 export const LANGUAGE_DEFAULT = 'en';
 
 // OS detection
-if (typeof process === 'object') {
+if (typeof MonacoSnapshotPlatform === 'string') {
+	_isWindows = (MonacoSnapshotPlatform === 'win32');
+	_isMacintosh = (MonacoSnapshotPlatform === 'darwin');
+	_isLinux = (MonacoSnapshotPlatform === 'linux');
+	_locale = 'en-us';
+	_language = 'en';
+	_isNative = true;
+} else if (typeof process === 'object') {
 	_isWindows = (process.platform === 'win32');
 	_isMacintosh = (process.platform === 'darwin');
 	_isLinux = (process.platform === 'linux');
@@ -116,7 +126,12 @@ export const locale = _locale;
  */
 export const translationsConfigFile = _translationsConfigFile;
 
-const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
+const _globals = (
+	typeof self === 'object' ? self :
+		typeof global === 'object' ? global :
+			typeof MonacoSnapshotGlobal !== 'undefined' ? MonacoSnapshotGlobal :
+				{} as any
+);
 export const globals: any = _globals;
 
 export const enum OperatingSystem {

@@ -23,7 +23,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { realpath } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import gracefulFs = require('graceful-fs');
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -42,12 +41,26 @@ import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspace
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 
-import fs = require('fs');
+// TODO@snapshot
+// import gracefulFs = require('graceful-fs');
+// import fs = require('fs');
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
 import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
-gracefulFs.gracefulify(fs); // enable gracefulFs
+
+let _initialize = () => {
+	// TODO@snapshot
+	// gracefulFs.gracefulify(fs); // enable gracefulFs
+};
+
+declare var MonacoSnapshotInitializeCallbacks: any;
+if (typeof MonacoSnapshotInitializeCallbacks !== 'undefined') {
+	MonacoSnapshotInitializeCallbacks.push(_initialize);
+} else {
+	_initialize();
+}
+
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
 

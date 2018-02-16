@@ -7,6 +7,7 @@ var path = require('path');
 var os = require('os');
 var pkg = require('../package.json');
 
+// TODO@snapshot: duplicated in vs/base/node/paths.ts
 function getAppDataPath(platform) {
 	switch (platform) {
 		case 'win32': return process.env['VSCODE_APPDATA'] || process.env['APPDATA'] || path.join(process.env['USERPROFILE'], 'AppData', 'Roaming');
@@ -16,6 +17,7 @@ function getAppDataPath(platform) {
 	}
 }
 
+// TODO@snapshot: duplicated in vs/base/node/paths.ts
 function getDefaultUserDataPath(platform) {
 	return path.join(getAppDataPath(platform), pkg.name);
 }

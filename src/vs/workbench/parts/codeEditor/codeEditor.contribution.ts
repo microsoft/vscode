@@ -15,8 +15,17 @@ import './electron-browser/toggleRenderWhitespace';
 import './electron-browser/toggleWordWrap';
 import { OPTIONS, TextBufferType } from 'vs/editor/common/model/textModel';
 
-// Configure text buffer implementation
-if (process.env['VSCODE_PIECE_TREE']) {
-	console.log(`Using TextBufferType.PieceTree (env variable VSCODE_PIECE_TREE)`);
-	OPTIONS.TEXT_BUFFER_IMPLEMENTATION = TextBufferType.PieceTree;
+let _initialize = () => {
+	// Configure text buffer implementation
+	if (process.env['VSCODE_PIECE_TREE']) {
+		console.log(`Using TextBufferType.PieceTree (env variable VSCODE_PIECE_TREE)`);
+		OPTIONS.TEXT_BUFFER_IMPLEMENTATION = TextBufferType.PieceTree;
+	}
+};
+
+declare var MonacoSnapshotInitializeCallbacks: any;
+if (typeof MonacoSnapshotInitializeCallbacks !== 'undefined') {
+	MonacoSnapshotInitializeCallbacks.push(_initialize);
+} else {
+	_initialize();
 }

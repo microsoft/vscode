@@ -47,8 +47,8 @@ namespace snaps {
 			${inputFile.toString()};
 			Monaco_Loader_Init = function() {
 				AMDLoader.init();
-				CSSLoaderPlugin.init();
-				NLSLoaderPlugin.init();
+				// CSSLoaderPlugin.init();
+				// NLSLoaderPlugin.init();
 
 				return { define, require };
 			}

@@ -569,6 +569,7 @@ export function create(): IRequestHandler {
 }
 
 if (typeof importScripts === 'function') {
+	// TODO@snapshot
 	// Running in a web worker
 	globals.monaco = createMonacoBaseAPI();
 }
