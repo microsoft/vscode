@@ -135,6 +135,11 @@ export class NotificationsCenter extends Themable {
 		);
 		this.toUnbind.push(this.list);
 
+		this.toUnbind.push(this.list.onMouseDblClick(event => {
+			const item = event.element;
+			item.toggle();
+		}));
+
 		// Context key
 		NotificationsCenterFocusedContext.bindTo(this.list.contextKeyService);
 

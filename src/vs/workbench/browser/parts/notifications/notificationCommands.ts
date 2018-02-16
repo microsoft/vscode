@@ -148,11 +148,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		handler: accessor => {
 			const notification = center.selected;
 			if (notification) {
-				if (notification.expanded) {
-					notification.collapse();
-				} else {
-					notification.expand();
-				}
+				notification.toggle();
 			}
 		}
 	});

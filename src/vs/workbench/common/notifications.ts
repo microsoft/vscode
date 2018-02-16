@@ -152,6 +152,7 @@ export interface INotificationViewItem {
 
 	expand(): void;
 	collapse(): void;
+	toggle(): void;
 
 	dispose(): void;
 
@@ -274,6 +275,14 @@ export class NotificationViewItem implements INotificationViewItem {
 
 		this._expanded = false;
 		this._onDidChange.fire();
+	}
+
+	public toggle(): void {
+		if (this._expanded) {
+			this.collapse();
+		} else {
+			this.expand();
+		}
 	}
 
 	public dispose(): void {
