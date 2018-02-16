@@ -233,7 +233,7 @@
 		}
 
 		// Ignore clicks on links
-		for (let node = event.target; node; node = node.parentNode) {
+		for (let node = /** @type {HTMLElement} */(event.target); node; node = /** @type {HTMLElement} */(node.parentNode)) {
 			if (node.tagName === "A") {
 				return;
 			}
