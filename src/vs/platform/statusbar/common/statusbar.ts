@@ -51,11 +51,6 @@ export interface IStatusbarEntry {
 	 * An optional extension ID if this entry is provided from an extension.
 	 */
 	extensionId?: string;
-
-	/**
-	 * An optional CSS class for the status bar item.
-	 */
-	class?: string;
 }
 
 export interface IStatusbarService {

@@ -228,10 +228,6 @@ class StatusBarEntryItem implements IStatusbarItem {
 		let toDispose: IDisposable[] = [];
 		addClass(el, 'statusbar-entry');
 
-		if (this.entry.class) {
-			addClass(el, this.entry.class);
-		}
-
 		// Text Container
 		let textContainer: HTMLElement;
 		if (this.entry.command) {
