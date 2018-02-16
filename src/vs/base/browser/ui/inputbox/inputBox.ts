@@ -67,20 +67,6 @@ export interface IRange {
 	end: number;
 }
 
-export interface IShowMessageOptions {
-	force?: boolean;
-	ellipsis?: EllipsisType;
-}
-
-/**
- * Determines whether the ellipsis appears at the left or right side of the string
-*/
-export enum EllipsisType {
-	NONE = 1,
-	LEFT = 2,
-	RIGHT = 3
-}
-
 const defaultOpts = {
 	inputBackground: Color.fromHex('#3C3C3C'),
 	inputForeground: Color.fromHex('#CCCCCC'),
@@ -406,7 +392,6 @@ export class InputBox extends Widget {
 				const styles = this.stylesForType(this.message.type);
 				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : null;
 				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : null;
-				spanElement.style.wordWrap = 'break-word';
 
 				dom.append(div, spanElement);
 
