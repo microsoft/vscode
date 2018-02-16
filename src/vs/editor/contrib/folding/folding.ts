@@ -104,7 +104,11 @@ export class FoldingController implements IEditorContribution {
 		if (!model || !this._isEnabled || model.isTooLargeForTokenization()) {
 			return {};
 		}
-		return { collapsedRegions: this.foldingModel.getMemento(), lineCount: model.getLineCount() };
+		if (this.foldingModel) { // disposed ?
+			let collapsedRegions = this.foldingModel.isInitialized ? this.foldingModel.getMemento() : this.hiddenRangeModel.getMemento();
+			return { collapsedRegions, lineCount: model.getLineCount() };
+		}
+		return void 0;
 	}
 
 	/**
