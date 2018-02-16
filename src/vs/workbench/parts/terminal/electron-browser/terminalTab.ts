@@ -19,6 +19,11 @@ class SplitPaneContainer {
 	private _splitView: SplitView;
 	private _children: SplitPane[] = [];
 
+	// If the user sizes the panes manually, the proportional resizing will not be applied.
+	// Proportional resizing will come back when: a sash is reset, an instance is added/removed or
+	// the panel position moves.
+	private _isManuallySized: boolean = false;
+
 	private _onDidChange: Event<number | undefined> = Event.None;
 	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
 
@@ -29,7 +34,9 @@ class SplitPaneContainer {
 		this._width = this._container.offsetWidth;
 		this._height = this._container.offsetHeight;
 		this._splitView = new SplitView(this._container, { orientation: this.orientation });
+		// TODO: Dispose listeners
 		this._splitView.onDidSashReset(() => this._resetSize());
+		this._splitView.onDidSashChange(() => this._isManuallySized = true);
 		this._splitView.layout(this.orientation === Orientation.HORIZONTAL ? this._width : this._height);
 	}
 
@@ -39,6 +46,7 @@ class SplitPaneContainer {
 	}
 
 	private _resetSize(): void {
+		// TODO: Optimize temrinal instance layout
 		let totalSize = 0;
 		for (let i = 0; i < this._splitView.length; i++) {
 			totalSize += this._splitView.getViewSize(i);
@@ -47,6 +55,7 @@ class SplitPaneContainer {
 		for (let i = 0; i < this._splitView.length - 1; i++) {
 			this._splitView.resizeView(i, newSize);
 		}
+		this._isManuallySized = false;
 	}
 
 	public resizePane(index: number, direction: Direction, amount: number): void {
@@ -123,6 +132,9 @@ class SplitPaneContainer {
 	}
 
 	public layout(width: number, height: number): void {
+		if (!this._isManuallySized) {
+			this._resetSize();
+		}
 		this._width = width;
 		this._height = height;
 		if (this.orientation === Orientation.HORIZONTAL) {
