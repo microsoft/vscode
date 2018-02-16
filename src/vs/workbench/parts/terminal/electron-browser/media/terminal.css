@@ -76,10 +76,14 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) {
-	/* border-color is set by theme key terminal.border */
+/* border-color is set by theme key terminal.border */
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:first-child) {
 	border-left-width: 1px;
 	border-left-style: solid;
+}
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.vertical .split-view-view:not(:first-child) {
+	border-top-width: 1px;
+	border-top-style: solid;
 }
 
 .monaco-workbench .panel.integrated-terminal.enable-ligatures {

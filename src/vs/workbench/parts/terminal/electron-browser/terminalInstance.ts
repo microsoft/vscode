@@ -168,7 +168,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 			// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 			if (_container) {
-				this.attachToElement(_container);
+				this._attachToElement(_container);
 			}
 		});
 
@@ -337,6 +337,25 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public attachToElement(container: HTMLElement): void {
+		// The container did not change, do nothing
+		if (this._container === container) {
+			return;
+		}
+
+		// Attach has not occured yet
+		if (!this._wrapperElement) {
+			this._attachToElement(container);
+			return;
+		}
+
+		// TODO: Verify listeners still work
+		// The container changed, reattach
+		this._container.removeChild(this._wrapperElement);
+		this._container = container;
+		this._container.appendChild(this._wrapperElement);
+	}
+
+	public _attachToElement(container: HTMLElement): void {
 		this._xtermReadyPromise.then(() => {
 			if (this._wrapperElement) {
 				throw new Error('The terminal instance has already been attached to a container');
