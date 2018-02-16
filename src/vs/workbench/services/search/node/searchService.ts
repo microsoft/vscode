@@ -288,7 +288,7 @@ export class DiskSearch implements ISearchResultProvider {
 
 		if (query.folderQueries) {
 			for (const q of query.folderQueries) {
-				if (q.folder.scheme === Schemas.file && await pfs.exists(q.folder.path)) {
+				if (q.folder.scheme === Schemas.file && await pfs.exists(q.folder.fsPath)) {
 					rawSearch.folderQueries.push({
 						excludePattern: q.excludePattern,
 						includePattern: q.includePattern,
