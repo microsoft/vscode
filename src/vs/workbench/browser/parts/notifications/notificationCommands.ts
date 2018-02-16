@@ -7,7 +7,7 @@
 
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { INotificationViewItem, isNotificationViewItem } from 'vs/workbench/common/notifications';
@@ -15,6 +15,7 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 
 export const SHOW_NOTFICATIONS_CENTER_COMMAND_ID = 'notifications.show';
 export const HIDE_NOTFICATIONS_CENTER_COMMAND_ID = 'notifications.hide';
@@ -25,17 +26,14 @@ export const TOGGLE_NOTIFICATION = 'notification.toggle';
 export const CLEAR_NOTFICATION = 'notification.clear';
 export const CLEAR_ALL_NOTFICATIONS = 'notifications.clearAll';
 
-const notificationsCenterFocusedId = 'notificationsCenterFocus';
-export const NotificationsCenterFocusedContext = new RawContextKey<boolean>(notificationsCenterFocusedId, true);
+const notificationFocusedId = 'notificationFocus';
+export const NotificationFocusedContext = new RawContextKey<boolean>(notificationFocusedId, true);
 
 const notificationsCenterVisibleId = 'notificationsCenterVisible';
 export const NotificationsCenterVisibleContext = new RawContextKey<boolean>(notificationsCenterVisibleId, false);
 
-export const InNotificationsCenterContext = ContextKeyExpr.and(ContextKeyExpr.has(notificationsCenterFocusedId), ContextKeyExpr.has(notificationsCenterVisibleId));
-
 export interface INotificationsCenterController {
 	readonly isVisible: boolean;
-	readonly selected: INotificationViewItem;
 
 	show(): void;
 	hide(): void;
@@ -61,14 +59,30 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		}
 	}
 
+	function getNotificationFromContext(listService: IListService, context?: any): INotificationViewItem {
+		if (isNotificationViewItem(context)) {
+			return context;
+		}
+
+		const list = listService.lastFocusedList;
+		if (list instanceof WorkbenchList) {
+			const focusedElement = list.getFocusedElements()[0];
+			if (isNotificationViewItem(focusedElement)) {
+				return focusedElement;
+			}
+		}
+
+		return void 0;
+	}
+
 	// Show Notifications Cneter
 	CommandsRegistry.registerCommand(SHOW_NOTFICATIONS_CENTER_COMMAND_ID, () => showCenter());
 
 	// Hide Notifications Center
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: HIDE_NOTFICATIONS_CENTER_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: InNotificationsCenterContext,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+		when: NotificationsCenterVisibleContext,
 		primary: KeyCode.Escape,
 		handler: accessor => hideCenter(accessor)
 	});
@@ -80,19 +94,13 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLEAR_NOTFICATION,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: InNotificationsCenterContext,
+		when: NotificationFocusedContext,
 		primary: KeyCode.Delete,
 		mac: {
 			primary: KeyMod.CtrlCmd | KeyCode.Backspace
 		},
 		handler: (accessor, args?: any) => {
-			let notification: INotificationViewItem;
-			if (isNotificationViewItem(args)) {
-				notification = args;
-			} else {
-				notification = center.selected;
-			}
-
+			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			if (notification) {
 				notification.dispose();
 			}
@@ -103,16 +111,10 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: EXPAND_NOTIFICATION,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: InNotificationsCenterContext,
+		when: NotificationFocusedContext,
 		primary: KeyCode.RightArrow,
 		handler: (accessor, args?: any) => {
-			let notification: INotificationViewItem;
-			if (isNotificationViewItem(args)) {
-				notification = args;
-			} else {
-				notification = center.selected;
-			}
-
+			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			if (notification) {
 				notification.expand();
 			}
@@ -123,16 +125,10 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: COLLAPSE_NOTIFICATION,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: InNotificationsCenterContext,
+		when: NotificationFocusedContext,
 		primary: KeyCode.LeftArrow,
 		handler: (accessor, args?: any) => {
-			let notification: INotificationViewItem;
-			if (isNotificationViewItem(args)) {
-				notification = args;
-			} else {
-				notification = center.selected;
-			}
-
+			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			if (notification) {
 				notification.collapse();
 			}
@@ -143,10 +139,10 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: TOGGLE_NOTIFICATION,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: InNotificationsCenterContext,
+		when: NotificationFocusedContext,
 		primary: KeyCode.Space,
 		handler: accessor => {
-			const notification = center.selected;
+			const notification = getNotificationFromContext(accessor.get(IListService));
 			if (notification) {
 				notification.toggle();
 			}
@@ -165,7 +161,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 
 
 
-	// TODO@Notification remove me
+	// TODO@notifications remove me
 	CommandsRegistry.registerCommand('notifications.showInfo', accessor => {
 		accessor.get(INotificationService).info('This is an information message!');
 	});

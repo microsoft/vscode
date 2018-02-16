@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 export class NotificationsStatus {
 	private statusItem: IDisposable;
 	private toDispose: IDisposable[];
-	private isCenterVisible: boolean;
+	private isNotificationsCenterVisible: boolean;
 
 	constructor(
 		private model: INotificationsModel,
@@ -26,8 +26,8 @@ export class NotificationsStatus {
 	}
 
 	public update(isCenterVisible: boolean): void {
-		if (this.isCenterVisible !== isCenterVisible) {
-			this.isCenterVisible = isCenterVisible;
+		if (this.isNotificationsCenterVisible !== isCenterVisible) {
+			this.isNotificationsCenterVisible = isCenterVisible;
 			this.updateNotificationsStatusItem();
 		}
 	}
@@ -55,9 +55,9 @@ export class NotificationsStatus {
 		const notificationsCount = this.model.notifications.length;
 		if (notificationsCount > 0) {
 			this.statusItem = this.statusbarService.addEntry({
-				text: this.isCenterVisible ? '$(megaphone) ' + localize('hideNotifications', "Hide Notifications") : `$(megaphone) ${notificationsCount}`,
-				command: this.isCenterVisible ? HIDE_NOTFICATIONS_CENTER_COMMAND_ID : SHOW_NOTFICATIONS_CENTER_COMMAND_ID,
-				tooltip: this.isCenterVisible ? localize('hideNotifications', "Hide Notifications") : localize('notifications', "{0} notifications", notificationsCount)
+				text: this.isNotificationsCenterVisible ? '$(megaphone) ' + localize('hideNotifications', "Hide Notifications") : `$(megaphone) ${notificationsCount}`,
+				command: this.isNotificationsCenterVisible ? HIDE_NOTFICATIONS_CENTER_COMMAND_ID : SHOW_NOTFICATIONS_CENTER_COMMAND_ID,
+				tooltip: this.isNotificationsCenterVisible ? localize('hideNotifications', "Hide Notifications") : localize('notifications', "{0} notifications", notificationsCount)
 			}, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
 		}
 	}

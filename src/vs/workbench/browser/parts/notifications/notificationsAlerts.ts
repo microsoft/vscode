@@ -13,7 +13,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export class NotificationsAlerts {
-
 	private toDispose: IDisposable[];
 
 	constructor(private model: INotificationsModel) {

@@ -260,7 +260,7 @@ export class NotificationViewItem implements INotificationViewItem {
 	}
 
 	public expand(): void {
-		if (this._expanded) {
+		if (this._expanded || !this.canCollapse) {
 			return;
 		}
 
