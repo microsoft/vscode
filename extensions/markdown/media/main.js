@@ -262,7 +262,7 @@
 				}
 				if (node.href.startsWith('file://')) {
 					const [path, fragment] = node.href.replace(/^file:\/\//i, '').split('#');
-					postMessage('_markdown.openDocumentLink', { path, fragment });
+					postMessage('_markdown.openDocumentLink', [{ path, fragment }]);
 					event.preventDefault();
 					event.stopPropagation();
 					break;
