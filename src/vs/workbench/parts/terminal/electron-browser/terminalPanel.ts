@@ -298,7 +298,7 @@ export class TerminalPanel extends Panel {
 
 		const borderColor = theme.getColor(TERMINAL_BORDER_COLOR) || theme.getColor(PANEL_BORDER);
 		if (borderColor) {
-			css += `.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) { border-left-color: ${borderColor.toString()}; }`;
+			css += `.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) { border-color: ${borderColor.toString()}; }`;
 		}
 
 		// Borrow the editor's hover background for now
