@@ -19,20 +19,7 @@ const previewStrings = {
 };
 
 export function isMarkdownFile(document: vscode.TextDocument) {
-	return document.languageId === 'markdown'
-		&& document.uri.scheme !== MarkdownContentProvider.scheme; // prevent processing of own documents
-}
-
-export function getMarkdownUri(uri: vscode.Uri) {
-	if (uri.scheme === MarkdownContentProvider.scheme) {
-		return uri;
-	}
-
-	return uri.with({
-		scheme: MarkdownContentProvider.scheme,
-		path: uri.path + '.rendered',
-		query: uri.toString()
-	});
+	return document.languageId === 'markdown';
 }
 
 export class MarkdownPreviewConfig {
@@ -137,8 +124,6 @@ export class PreviewConfigManager {
 }
 
 export class MarkdownContentProvider {
-	public static readonly scheme = 'markdown';
-
 	private extraStyles: Array<vscode.Uri> = [];
 	private extraScripts: Array<vscode.Uri> = [];
 
@@ -296,8 +281,16 @@ export class MarkdownContentProvider {
 	}
 }
 
+interface MarkdownPreview {
+	resource: vscode.Uri;
+	webview: vscode.Webview;
+	ofColumn: vscode.ViewColumn;
+}
+
 export class MarkdownPreviewWebviewManager {
-	private readonly webviews = new Map<string, vscode.Webview>();
+	private static webviewId = vscode.Uri.parse('vscode-markdown-preview://preview');
+
+	private previews: MarkdownPreview[] = [];
 	private readonly previewConfigurations = new PreviewConfigManager();
 
 	private readonly disposables: vscode.Disposable[] = [];
@@ -305,12 +298,12 @@ export class MarkdownPreviewWebviewManager {
 	public constructor(
 		private readonly contentProvider: MarkdownContentProvider
 	) {
-		vscode.workspace.onDidSaveTextDocument(document => {
-			this.update(document.uri);
+		vscode.workspace.onDidChangeTextDocument(event => {
+			this.update(event.document, undefined);
 		}, null, this.disposables);
 
-		vscode.workspace.onDidChangeTextDocument(event => {
-			this.update(event.document.uri);
+		vscode.window.onDidChangeActiveEditor(editor => {
+			vscode.commands.executeCommand('setContext', 'markdownPreview', editor && editor.editorType === 'webview' && editor.uri.fsPath === MarkdownPreviewWebviewManager.webviewId.fsPath);
 		}, null, this.disposables);
 	}
 
@@ -321,60 +314,74 @@ export class MarkdownPreviewWebviewManager {
 				item.dispose();
 			}
 		}
-		this.webviews.clear();
+		this.previews = [];
 	}
 
-	public update(uri: vscode.Uri) {
-		const webview = this.webviews.get(uri.fsPath);
-		if (webview) {
-			this.contentProvider.provideTextDocumentContent(uri, this.previewConfigurations).then(x => webview.html = x);
+	private update(document: vscode.TextDocument, viewColumn: vscode.ViewColumn | undefined) {
+		if (!isMarkdownFile(document)) {
+			return;
 		}
-	}
 
-	public updateAll() {
-		for (const resource of this.webviews.keys()) {
-			const sourceUri = vscode.Uri.parse(resource);
-			this.update(sourceUri);
-		}
-	}
-
-	public updateConfiguration() {
-		for (const resource of this.webviews.keys()) {
-			const sourceUri = vscode.Uri.parse(resource);
-			if (this.previewConfigurations.shouldUpdateConfiguration(sourceUri)) {
-				this.update(sourceUri);
+		for (const preview of this.previews) {
+			if (preview.resource.fsPath === document.uri.fsPath || viewColumn && preview.ofColumn === viewColumn) {
+				preview.webview.title = this.getPreviewTitle(document.uri);
+				preview.resource = document.uri;
+				this.contentProvider.provideTextDocumentContent(document.uri, this.previewConfigurations).then(x => preview.webview.html = x);
 			}
 		}
 	}
 
-	public create(
+	public refresh() {
+		for (const preview of this.previews) {
+			this.contentProvider.provideTextDocumentContent(preview.resource, this.previewConfigurations).then(x => preview.webview.html = x);
+		}
+	}
+
+	public updateConfiguration() {
+		for (const preview of this.previews) {
+			if (this.previewConfigurations.shouldUpdateConfiguration(preview.resource)) {
+				this.contentProvider.provideTextDocumentContent(preview.resource, this.previewConfigurations).then(x => preview.webview.html = x);
+			}
+		}
+	}
+
+	public preview(
 		resource: vscode.Uri,
-		viewColumn: vscode.ViewColumn
+		resourceColumn: vscode.ViewColumn,
+		previewColumn: vscode.ViewColumn
 	) {
-		const view = vscode.window.createWebview(
-			localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath)),
-			viewColumn,
-			{
-				enableScripts: true,
-				localResourceRoots: this.getLocalResourceRoots(resource)
+		let webview: vscode.Webview;
+
+		const existing = this.previews.find(preview => preview.webview.viewColumn === webview.viewColumn);
+		if (existing) {
+			existing.resource = resource;
+			webview = existing.webview;
+		} else {
+			webview = vscode.window.createWebview(
+				MarkdownPreviewWebviewManager.webviewId,
+				previewColumn, {
+					enableScripts: true,
+					localResourceRoots: this.getLocalResourceRoots(resource)
+				});
+
+			webview.onDispose(() => {
+				const existing = this.previews.findIndex(preview => preview.webview === webview);
+				if (existing >= 0) {
+					this.previews.splice(existing, 1);
+				}
 			});
 
-		this.contentProvider.provideTextDocumentContent(resource, this.previewConfigurations).then(x => view.html = x);
+			webview.onMessage(e => {
+				vscode.commands.executeCommand(e.command, ...e.args);
+			});
 
-		view.onMessage(e => {
-			vscode.commands.executeCommand(e.command, ...e.args);
-		});
+			this.previews.push({ webview, resource, ofColumn: resourceColumn });
+		}
 
-		view.onBecameActive(() => {
-			vscode.commands.executeCommand('setContext', 'markdownPreview', true);
-		});
+		webview.title = this.getPreviewTitle(resource);
+		this.contentProvider.provideTextDocumentContent(resource, this.previewConfigurations).then(x => webview.html = x);
 
-		view.onBecameInactive(() => {
-			vscode.commands.executeCommand('setContext', 'markdownPreview', false);
-		});
-
-		this.webviews.set(resource.fsPath, view);
-		return view;
+		return webview;
 	}
 
 	private getLocalResourceRoots(
@@ -390,5 +397,9 @@ export class MarkdownPreviewWebviewManager {
 		}
 
 		return [];
+	}
+
+	private getPreviewTitle(resource: vscode.Uri): string {
+		return localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
 	}
 }
