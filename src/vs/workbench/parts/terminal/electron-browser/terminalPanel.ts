@@ -19,7 +19,7 @@ import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from './terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitVerticalTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -149,7 +149,7 @@ export class TerminalPanel extends Panel {
 				new Separator(),
 				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, nls.localize('clear', "Clear")),
 				new Separator(),
-				this._instantiationService.createInstance(SplitVerticalTerminalAction, SplitVerticalTerminalAction.ID, nls.localize('splitVertically', "Split Vertically"))
+				this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, nls.localize('splitVertically', "Split Vertically"))
 			];
 			this._contextMenuActions.forEach(a => {
 				this._register(a);

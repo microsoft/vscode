@@ -296,9 +296,9 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 	}
 }
 
-export class SplitVerticalTerminalAction extends Action {
-	public static readonly ID = 'workbench.action.terminal.splitVertical';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.splitVertical', "Split Terminal Vertically");
+export class SplitTerminalAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.split';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.split', "Split Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -312,7 +312,7 @@ export class SplitVerticalTerminalAction extends Action {
 		if (!instance) {
 			return TPromise.as(void 0);
 		}
-		this._terminalService.splitInstanceVertically(instance);
+		this._terminalService.splitInstance(instance);
 		return this._terminalService.showPanel(true);
 	}
 }

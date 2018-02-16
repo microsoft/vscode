@@ -163,7 +163,7 @@ export interface ITerminalService {
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
-	splitInstanceVertically(instance: ITerminalInstance): void;
+	splitInstance(instance: ITerminalInstance): void;
 
 	getActiveTab(): ITerminalTab;
 	setActiveTabToNext(): void;

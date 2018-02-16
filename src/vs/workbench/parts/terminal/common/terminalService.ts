@@ -230,7 +230,7 @@ export abstract class TerminalService implements ITerminalService {
 		this.setActiveTabByIndex(newIndex);
 	}
 
-	public splitInstanceVertically(instanceToSplit: ITerminalInstance): void {
+	public splitInstance(instanceToSplit: ITerminalInstance): void {
 		const tab = this._getTabForInstance(instanceToSplit);
 		if (!tab) {
 			return;
