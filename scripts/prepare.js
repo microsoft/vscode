@@ -568,14 +568,13 @@ const CONTENTS = [
 	'vs/workbench/parts/debug/common/debug',
 	'vs/workbench/parts/debug/browser/breakpointWidget',
 	'vs/workbench/parts/debug/browser/debugActionItems',
-	'vs/workbench/parts/debug/browser/debugEditorModelManager',
 	'vs/workbench/parts/debug/browser/debugStatus',
 	'vs/workbench/parts/debug/common/debugSource',
 	'vs/workbench/parts/debug/browser/debugContentProvider',
 	'vs/workbench/parts/debug/common/debugModel',
+	'vs/workbench/parts/debug/browser/baseDebugView',
 	'vs/workbench/parts/debug/common/debugViewModel',
 	'vs/workbench/parts/debug/common/replHistory',
-	'vs/workbench/parts/debug/electron-browser/baseDebugView',
 	'vs/workbench/parts/debug/electron-browser/electronDebugActions',
 	'vs/workbench/parts/debug/electron-browser/terminalSupport',
 	'vs/workbench/parts/debug/node/debugAdapter',
@@ -595,6 +594,7 @@ const CONTENTS = [
 	'vs/workbench/parts/files/common/explorerModel',
 	'vs/workbench/parts/files/browser/files',
 	'vs/workbench/parts/files/electron-browser/views/explorerDecorationsProvider',
+	'vs/workbench/parts/html/browser/webviewEditor',
 	'vs/workbench/parts/html/browser/webviewFindWidget',
 	'vs/workbench/parts/html/browser/webview',
 	'vs/workbench/parts/logs/common/logConstants',
@@ -761,6 +761,7 @@ const CONTENTS = [
 	'vs/workbench/services/panel/common/panelService',
 	'vs/workbench/parts/output/electron-browser/outputServices',
 	'vs/workbench/parts/terminal/electron-browser/terminalInstance',
+	'vs/workbench/parts/terminal/electron-browser/terminalTab',
 	'vs/workbench/services/activity/browser/activityService',
 	'vs/workbench/services/part/common/partService',
 	'vs/workbench/api/electron-browser/mainThreadOutputService',
@@ -770,11 +771,13 @@ const CONTENTS = [
 	'vs/workbench/browser/actions/toggleStatusbarVisibility',
 	'vs/workbench/browser/actions/toggleZenMode',
 	'vs/workbench/browser/parts/panel/panelActions',
-	'vs/workbench/parts/debug/electron-browser/statusbarColorProvider',
+	'vs/workbench/parts/debug/browser/statusbarColorProvider',
+	'vs/workbench/parts/html/browser/htmlPreviewPart',
 	'vs/workbench/parts/markers/browser/markersPanelActions',
 	'vs/workbench/parts/output/browser/outputActions',
 	'vs/workbench/parts/terminal/common/terminalService',
 	'vs/workbench/parts/terminal/electron-browser/terminalService',
+	'vs/workbench/parts/update/electron-browser/releaseNotesEditor',
 	'vs/workbench/services/scm/common/scm',
 	'vs/workbench/api/electron-browser/mainThreadSCM',
 	'vs/workbench/parts/scm/electron-browser/scmActivity',
@@ -827,6 +830,7 @@ const CONTENTS = [
 	'vs/workbench/services/editor/common/editorService',
 	'vs/workbench/api/electron-browser/mainThreadEditors',
 	'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors',
+	'vs/workbench/api/electron-browser/mainThreadWebview',
 	'vs/workbench/browser/dnd',
 	'vs/workbench/browser/parts/editor/editorPicker',
 	'vs/workbench/browser/parts/editor/editorStatus',
@@ -859,8 +863,8 @@ const CONTENTS = [
 	'vs/workbench/parts/extensions/node/extensionsWorkbenchService',
 	'vs/workbench/parts/files/browser/editors/fileEditorTracker',
 	'vs/workbench/parts/files/common/dirtyFilesTracker',
-	'vs/workbench/parts/html/browser/webviewEditor',
-	'vs/workbench/parts/html/browser/htmlPreviewPart',
+	'vs/workbench/parts/html/browser/webviewCommands',
+	'vs/workbench/parts/html/browser/webview.contribution',
 	'vs/workbench/parts/html/browser/html.contribution',
 	'vs/workbench/parts/localizations/browser/localizationsActions',
 	'vs/workbench/parts/localizations/browser/localizations.contribution',
@@ -881,7 +885,6 @@ const CONTENTS = [
 	'vs/workbench/parts/search/browser/openSymbolHandler',
 	'vs/workbench/parts/search/browser/openAnythingHandler',
 	'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution',
-	'vs/workbench/parts/update/electron-browser/releaseNotesEditor',
 	'vs/workbench/parts/welcome/overlay/browser/welcomeOverlay',
 	'vs/workbench/parts/welcome/page/electron-browser/welcomePage',
 	'vs/workbench/parts/welcome/page/electron-browser/welcomePage.contribution',
@@ -906,11 +909,12 @@ const CONTENTS = [
 	'vs/workbench/browser/parts/views/customViewPanel',
 	'vs/workbench/api/browser/viewsExtensionPoint',
 	'vs/workbench/electron-browser/actions',
+	'vs/workbench/parts/debug/browser/breakpointsView',
+	'vs/workbench/parts/debug/browser/debugCommands',
 	'vs/workbench/parts/debug/browser/debugEditorActions',
+	'vs/workbench/parts/debug/browser/debugEditorModelManager',
 	'vs/workbench/parts/debug/browser/debugViewlet',
-	'vs/workbench/parts/debug/electron-browser/breakpointsView',
 	'vs/workbench/parts/debug/electron-browser/callStackView',
-	'vs/workbench/parts/debug/electron-browser/debugCommands',
 	'vs/workbench/parts/debug/electron-browser/debugService',
 	'vs/workbench/parts/debug/electron-browser/variablesView',
 	'vs/workbench/parts/debug/electron-browser/debugHover',
@@ -1047,9 +1051,8 @@ package.name = 'Code - OSS';
 
 const startupFileContents = `
 var Monaco_Loader_Init;
-var Monaco_LOG = [];
 var Monaco_CSS = ${JSON.stringify(CSS)};
-var Monaco_Node_Modules = null;
+// var Monaco_Node_Modules = null;
 (function() {
 	var doNotInitLoader = true;
 	var MonacoSnapshotPlatform = '${process.platform}';
@@ -1083,7 +1086,7 @@ var Monaco_Node_Modules = null;
 			'util',
 			'zlib',
 		];
-		Monaco_Node_Modules = Object.create(null);
+		// Monaco_Node_Modules = Object.create(null);
 		var bindModule = function(moduleName) {
 			define(moduleName, function() {
 				// Monaco_Node_Modules[moduleName] = {};
@@ -1134,20 +1137,20 @@ var Monaco_Node_Modules = null;
 	${results.join('\n;\n').toString()};
 	Monaco_Loader_Init = function() {
 		AMDLoader.init();
-		Object.keys(Monaco_Node_Modules).forEach(function(moduleName) {
-			var actual = require.__$__nodeRequire(moduleName);
-			var target = Monaco_Node_Modules[moduleName];
+		// Object.keys(Monaco_Node_Modules).forEach(function(moduleName) {
+		// 	var actual = require.__$__nodeRequire(moduleName);
+		// 	var target = Monaco_Node_Modules[moduleName];
 
-			//console.log('required ' + moduleName);
-			Object.keys(actual).forEach(function(key) {
-				if (moduleName === 'crypto') {
-					if (key === 'createCredentials' || key === 'Credentials') {
-						return;
-					}
-				}
-				target[key] = actual[key];
-			});
-		});
+		// 	//console.log('required ' + moduleName);
+		// 	Object.keys(actual).forEach(function(key) {
+		// 		if (moduleName === 'crypto') {
+		// 			if (key === 'createCredentials' || key === 'Credentials') {
+		// 				return;
+		// 			}
+		// 		}
+		// 		target[key] = actual[key];
+		// 	});
+		// });
 		MonacoSnapshotInitializeCallbacks.forEach(function(callback) {
 			callback();
 		});
