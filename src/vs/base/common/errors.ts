@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import platform = require('vs/base/common/platform');
 import types = require('vs/base/common/types');
 import { IAction } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
@@ -79,7 +78,7 @@ export class ErrorHandler {
 		this.listeners = [];
 
 		this.unexpectedErrorHandler = function (e: any) {
-			platform.setTimeout(() => {
+			setTimeout(() => {
 				if (e.stack) {
 					throw new Error(e.message + '\n\n' + e.stack);
 				}

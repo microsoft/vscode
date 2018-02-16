@@ -44,8 +44,20 @@ import product from 'vs/platform/node/product';
 import * as strings from 'vs/base/common/strings';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 
-const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
-const ExtraDevSystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', '.build', 'builtInExtensions'));
+let _SystemExtensionsRoot: string = null;
+function getSystemExtensionsRoot(): string {
+	if (!_SystemExtensionsRoot) {
+		_SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
+	}
+	return _SystemExtensionsRoot;
+}
+let _ExtraDevSystemExtensionsRoot: string = null;
+function getExtraDevSystemExtensionsRoot(): string {
+	if (!_ExtraDevSystemExtensionsRoot) {
+		_ExtraDevSystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', '.build', 'builtInExtensions'));
+	}
+	return _ExtraDevSystemExtensionsRoot;
+}
 
 interface IBuiltInExtension {
 	name: string;
@@ -71,7 +83,7 @@ class ExtraBuiltInExtensionResolver implements IExtensionResolver {
 				case 'disabled':
 					break;
 				case 'marketplace':
-					result.push({ name: ext.name, path: path.join(ExtraDevSystemExtensionsRoot, ext.name) });
+					result.push({ name: ext.name, path: path.join(getExtraDevSystemExtensionsRoot(), ext.name) });
 					break;
 				default:
 					result.push({ name: ext.name, path: controlState });
@@ -667,7 +679,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				messageService,
 				environmentService,
 				BUILTIN_MANIFEST_CACHE_FILE,
-				new ExtensionScannerInput(version, commit, locale, devMode, SystemExtensionsRoot, true, translations),
+				new ExtensionScannerInput(version, commit, locale, devMode, getSystemExtensionsRoot(), true, translations),
 				log
 			);
 
@@ -682,7 +694,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				const controlFile = pfs.readFile(controlFilePath, 'utf8')
 					.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
 
-				const input = new ExtensionScannerInput(version, commit, locale, devMode, ExtraDevSystemExtensionsRoot, true, translations);
+				const input = new ExtensionScannerInput(version, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, translations);
 				const extraBuiltinExtensions = TPromise.join([builtInExtensions, controlFile])
 					.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
 					.then(resolver => ExtensionScanner.scanExtensions(input, log, resolver));

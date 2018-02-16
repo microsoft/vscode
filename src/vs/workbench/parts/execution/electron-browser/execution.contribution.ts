@@ -17,7 +17,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ITerminalService as IIntegratedTerminalService, KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
-import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINAL_OSX, ITerminalConfiguration } from 'vs/workbench/parts/execution/electron-browser/terminal';
+import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX, ITerminalConfiguration } from 'vs/workbench/parts/execution/electron-browser/terminal';
 import { WinTerminalService, MacTerminalService, LinuxTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
@@ -36,7 +36,7 @@ if (env.isWindows) {
 	registerSingleton(ITerminalService, LinuxTerminalService);
 }
 
-DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
+getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 	let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 	configurationRegistry.registerConfiguration({
 		'id': 'externalTerminal',
@@ -57,7 +57,7 @@ DEFAULT_TERMINAL_LINUX_READY.then(defaultTerminalLinux => {
 			'terminal.external.windowsExec': {
 				'type': 'string',
 				'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
-				'default': DEFAULT_TERMINAL_WINDOWS,
+				'default': getDefaultTerminalWindows(),
 				'isExecutable': true
 			},
 			'terminal.external.osxExec': {

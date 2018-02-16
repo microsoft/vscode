@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as pfs from 'vs/base/node/pfs';
+import * as platform from 'vs/base/common/platform';
 import { nfcall } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
@@ -21,11 +22,17 @@ function ignore<T>(code: string, value: T = null): (err: any) => TPromise<T> {
 	return err => err.code === code ? TPromise.as<T>(value) : TPromise.wrapError<T>(err);
 }
 
-const root = URI.parse(require.toUrl('')).fsPath;
-const source = path.resolve(root, '..', 'bin', 'code');
+let _source: string = null;
+function getSource(): string {
+	if (!_source) {
+		const root = URI.parse(require.toUrl('')).fsPath;
+		_source = path.resolve(root, '..', 'bin', 'code');
+	}
+	return _source;
+}
 
 function isAvailable(): TPromise<boolean> {
-	return pfs.exists(source);
+	return pfs.exists(getSource());
 }
 
 class InstallAction extends Action {
@@ -61,7 +68,7 @@ class InstallAction extends Action {
 						const createSymlink = () => {
 							return pfs.unlink(this.target)
 								.then(null, ignore('ENOENT'))
-								.then(() => pfs.symlink(source, this.target));
+								.then(() => pfs.symlink(getSource(), this.target));
 						};
 
 						return createSymlink().then(null, err => {
@@ -84,7 +91,7 @@ class InstallAction extends Action {
 		return pfs.lstat(this.target)
 			.then(stat => stat.isSymbolicLink())
 			.then(() => pfs.readlink(this.target))
-			.then(link => link === source)
+			.then(link => link === getSource())
 			.then(null, ignore('ENOENT', false));
 	}
 
@@ -143,7 +150,7 @@ class UninstallAction extends Action {
 	}
 }
 
-if (process.platform === 'darwin') {
+if (platform.isMacintosh) {
 	const category = nls.localize('shellCommand', "Shell Command");
 
 	const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
