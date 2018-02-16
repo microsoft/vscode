@@ -155,9 +155,10 @@
 		if (previous) {
 			if (next) {
 				const betweenProgress = (offset - window.scrollY - previous.element.getBoundingClientRect().top) / (next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top);
-				return previous.line + betweenProgress * (next.line - previous.line);
+				const line = previous.line + betweenProgress * (next.line - previous.line);
+				return (0 <= line) ? line : 0;
 			} else {
-				return previous.line;
+				return (0 <= previous.line) ? previous.line : 0;
 			}
 		}
 		return null;
