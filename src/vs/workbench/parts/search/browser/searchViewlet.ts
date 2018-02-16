@@ -52,7 +52,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -1519,10 +1519,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.monaco-workbench .search-viewlet .replace.findInFileMatch { border: 1px dashed ${diffRemovedOutlineColor}; }`);
 	}
 
-	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
-	if (activeContrastBorderColor) {
-		collector.addRule(`
-			.monaco-workbench .search-viewlet .findInFileMatch { border: 1px dashed ${activeContrastBorderColor}; }
-		`);
+	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
+	if (findMatchHighlightBorder) {
+		collector.addRule(`.monaco-workbench .search-viewlet .findInFileMatch { border: 1px dashed ${findMatchHighlightBorder}; }`);
 	}
 });
