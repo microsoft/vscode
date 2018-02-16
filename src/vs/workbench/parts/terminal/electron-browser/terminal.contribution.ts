@@ -422,11 +422,19 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitVerticalTer
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Split Vertically', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousPaneTerminalAction, FocusPreviousPaneTerminalAction.ID, FocusPreviousPaneTerminalAction.LABEL, {
 	primary: KeyMod.Alt | KeyCode.LeftArrow,
-	mac: { primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.LeftArrow }
+	secondary: [KeyMod.Alt | KeyCode.UpArrow],
+	mac: {
+		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.LeftArrow,
+		secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.UpArrow]
+	}
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Previous Pane', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextPaneTerminalAction, FocusNextPaneTerminalAction.ID, FocusNextPaneTerminalAction.LABEL, {
 	primary: KeyMod.Alt | KeyCode.RightArrow,
-	mac: { primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.RightArrow }
+	secondary: [KeyMod.Alt | KeyCode.DownArrow],
+	mac: {
+		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.RightArrow,
+		secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.DownArrow]
+	}
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Next Pane', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneLeftTerminalAction, ResizePaneLeftTerminalAction.ID, ResizePaneLeftTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
