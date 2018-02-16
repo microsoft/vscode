@@ -84,7 +84,7 @@
 	text-align: right;
 }
 
-.monaco-inputbox-container .monaco-inputbox-message, .monaco-inputbox-ellipsis-right, .monaco-inputbox-ellipsis-left {
+.monaco-inputbox-container .monaco-inputbox-message {
 	display: inline-block;
 	overflow: hidden;
 	text-align: left;
@@ -99,16 +99,6 @@
 	line-height: 17px;
 	min-height: 34px;
 	margin-top: -1px;
-}
-
-.monaco-inputbox-ellipsis-right, .monaco-inputbox-ellipsis-left {
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.monaco-inputbox-ellipsis-left {
-	direction: rtl;
 }
 
 /* Action bar support */

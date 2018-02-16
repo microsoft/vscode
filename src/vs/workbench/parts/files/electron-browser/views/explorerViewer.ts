@@ -16,7 +16,7 @@ import resources = require('vs/base/common/resources');
 import errors = require('vs/base/common/errors');
 import { IAction, ActionRunner as BaseActionRunner, IActionRunner } from 'vs/base/common/actions';
 import comparers = require('vs/base/common/comparers');
-import { InputBox, MessageType, EllipsisType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
@@ -309,16 +309,7 @@ export class FileRenderer implements IRenderer {
 				}
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
-				if (inputBox.validate()) {
-					if (inputBox.value && inputBox.value.search(/[\\/]/) !== -1) {	// only show if there's a slash
-						const newPath = replaceWithNativeSep(paths.join(initialRelPath, inputBox.value));
-						inputBox.showMessage({
-							type: MessageType.INFO,
-							content: newPath,
-							formatContent: true
-						}, { force: false, ellipsis: EllipsisType.LEFT });
-					}
-				}
+				displayCurrentPath(inputBox, initialRelPath, fileKind);
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
@@ -326,6 +317,22 @@ export class FileRenderer implements IRenderer {
 			label,
 			styler
 		];
+	}
+}
+
+function displayCurrentPath(inputBox: InputBox, initialRelPath: string, fileKind: FileKind) {
+	const value = inputBox.value;
+	if (inputBox.validate()) {
+		if (value && value.search(/[\\/]/) !== -1) {	// only show if there's a slash
+			const newPath = replaceWithNativeSep(paths.join(initialRelPath, value));
+			const fileType: string = FileKind[fileKind].toLowerCase();
+
+			inputBox.showMessage({
+				type: MessageType.INFO,
+				content: nls.localize('constructedPath', "Create **{0}** in **{1}**", fileType, newPath),
+				formatContent: true
+			});
+		}
 	}
 }
 

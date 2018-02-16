@@ -297,7 +297,7 @@ export class InputBox extends Widget {
 		this.input.style.width = width + 'px';
 	}
 
-	public showMessage(message: IMessage, opts?: IShowMessageOptions): void {
+	public showMessage(message: IMessage, force?: boolean): void {
 		this.message = message;
 
 		dom.removeClass(this.element, 'idle');
@@ -321,9 +321,8 @@ export class InputBox extends Widget {
 
 		aria.alert(alertText);
 
-		if (this.hasFocus() || opts && opts.force) {
-			const ellipsis = opts && opts.ellipsis;
-			this._showMessage(ellipsis);
+		if (this.hasFocus() || force) {
+			this._showMessage();
 		}
 	}
 
@@ -377,7 +376,7 @@ export class InputBox extends Widget {
 		}
 	}
 
-	private _showMessage(useEllipsis?: EllipsisType): void {
+	private _showMessage(): void {
 		if (!this.contextViewProvider || !this.message) {
 			return;
 		}
@@ -394,14 +393,9 @@ export class InputBox extends Widget {
 				div = dom.append(container, $('.monaco-inputbox-container'));
 				layout();
 
-				let className: string = 'monaco-inputbox-message';
-				if (useEllipsis && useEllipsis !== EllipsisType.NONE) {
-					className = useEllipsis === EllipsisType.LEFT ? 'monaco-inputbox-ellipsis-left' : 'monaco-inputbox-ellipsis-right';
-				}
-
 				const renderOptions: RenderOptions = {
 					inline: true,
-					className
+					className: 'monaco-inputbox-message'
 				};
 
 				const spanElement = (this.message.formatContent
@@ -412,6 +406,7 @@ export class InputBox extends Widget {
 				const styles = this.stylesForType(this.message.type);
 				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : null;
 				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : null;
+				spanElement.style.wordWrap = 'break-word';
 
 				dom.append(div, spanElement);
 
