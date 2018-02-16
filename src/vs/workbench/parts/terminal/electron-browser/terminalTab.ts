@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalInstance, IShellLaunchConfig, ITerminalTab } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, IShellLaunchConfig, ITerminalTab, Direction, ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -49,6 +49,44 @@ class SplitPaneContainer implements IView {
 		const newSize = Math.floor(totalSize / this._splitView.length);
 		for (let i = 0; i < this._splitView.length - 1; i++) {
 			this._splitView.resizeView(i, newSize);
+		}
+	}
+
+	public resizePane(index: number, direction: Direction, amount: number): void {
+		// TODO: Should resize pane up/down resize the panel?
+
+		// Only resize the correct dimension
+		const isHorizontal = direction === Direction.Left || direction === Direction.Right;
+		if (isHorizontal && this.orientation !== Orientation.HORIZONTAL ||
+			!isHorizontal && this.orientation !== Orientation.VERTICAL) {
+			return;
+		}
+
+		// Only resize when there is mor ethan one pane
+		if (this._children.length <= 1) {
+			return;
+		}
+
+		// Get sizes
+		const sizes = [];
+		for (let i = 0; i < this._splitView.length; i++) {
+			sizes.push(this._splitView.getViewSize(i));
+		}
+
+		// Remove size from right pane, unless index is the last pane in which case use left pane
+		const isSizingRightPane = index !== this._children.length - 1;
+		const indexToChange = isSizingRightPane ? index + 1 : index - 1;
+		if (isSizingRightPane && direction === Direction.Left) {
+			amount *= -1;
+		} else if (!isSizingRightPane && direction === Direction.Right) {
+			amount *= -1;
+		}
+		sizes[index] += amount;
+		sizes[indexToChange] -= amount;
+
+		// Apply
+		for (let i = 0; i < this._splitView.length - 1; i++) {
+			this._splitView.resizeView(i, sizes[i]);
 		}
 	}
 
@@ -181,7 +219,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
 		shellLaunchConfig: IShellLaunchConfig,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
 		this._onDisposed = new Emitter<ITerminalTab>();
@@ -348,5 +387,18 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public focusNextPane(): void {
 		this.setActiveInstanceByIndex(this._activeInstanceIndex + 1);
+	}
+
+	public resizePane(direction: Direction): void {
+		if (!this._splitPaneContainer) {
+			return;
+		}
+
+		const isHorizontal = (direction === Direction.Left || direction === Direction.Right);
+		const font = this._terminalService.configHelper.getFont();
+		const amount = isHorizontal ? font.charWidth : font.charHeight;
+		if (amount) {
+			this._splitPaneContainer.resizePane(this._activeInstanceIndex, direction, amount);
+		}
 	}
 }

@@ -8,7 +8,7 @@ import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance, Direction } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
@@ -356,6 +356,72 @@ export class FocusNextPaneTerminalAction extends Action {
 		}
 		tab.focusNextPane();
 		return this._terminalService.showPanel(true);
+	}
+}
+
+export abstract class BaseFocusDirectionTerminalAction extends Action {
+	constructor(
+		id: string, label: string,
+		private _direction: Direction,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const tab = this._terminalService.getActiveTab();
+		if (tab) {
+			tab.resizePane(this._direction);
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ResizePaneLeftTerminalAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.resizePaneLeft';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.resizePaneLeft', "Resize Pane Left");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService readonly terminalService: ITerminalService
+	) {
+		super(id, label, Direction.Left, terminalService);
+	}
+}
+
+export class ResizePaneRightTerminalAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.resizePaneRight';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.resizePaneRight', "Resize Pane Right");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService readonly terminalService: ITerminalService
+	) {
+		super(id, label, Direction.Right, terminalService);
+	}
+}
+
+export class ResizePaneUpTerminalAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.resizePaneUp';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.resizePaneUp', "Resize Pane Up");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService readonly terminalService: ITerminalService
+	) {
+		super(id, label, Direction.Up, terminalService);
+	}
+}
+
+export class ResizePaneDownTerminalAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.resizePaneDown';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.resizePaneDown', "Resize Pane Down");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService readonly terminalService: ITerminalService
+	) {
+		super(id, label, Direction.Down, terminalService);
 	}
 }
 
