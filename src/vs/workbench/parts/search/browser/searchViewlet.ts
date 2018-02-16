@@ -159,7 +159,7 @@ export class SearchViewlet extends Viewlet {
 		this.viewModel = this.searchWorkbenchService.searchModel;
 		let builder: Builder;
 		parent.div({
-			'class': 'search-viewlet'
+			'class': 'search-view'
 		}, (div) => {
 			builder = div;
 		});
@@ -1496,33 +1496,33 @@ export class SearchViewlet extends Viewlet {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const matchHighlightColor = theme.getColor(editorFindMatchHighlight);
 	if (matchHighlightColor) {
-		collector.addRule(`.monaco-workbench .search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { background-color: ${matchHighlightColor}; }`);
 	}
 
 	const diffInsertedColor = theme.getColor(diffInserted);
 	if (diffInsertedColor) {
-		collector.addRule(`.monaco-workbench .search-viewlet .replaceMatch { background-color: ${diffInsertedColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replaceMatch { background-color: ${diffInsertedColor}; }`);
 	}
 
 	const diffRemovedColor = theme.getColor(diffRemoved);
 	if (diffRemovedColor) {
-		collector.addRule(`.monaco-workbench .search-viewlet .replace.findInFileMatch { background-color: ${diffRemovedColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { background-color: ${diffRemovedColor}; }`);
 	}
 
 	const diffInsertedOutlineColor = theme.getColor(diffInsertedOutline);
 	if (diffInsertedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-viewlet .replaceMatch:not(:empty) { border: 1px dashed ${diffInsertedOutlineColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replaceMatch:not(:empty) { border: 1px dashed ${diffInsertedOutlineColor}; }`);
 	}
 
 	const diffRemovedOutlineColor = theme.getColor(diffRemovedOutline);
 	if (diffRemovedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-viewlet .replace.findInFileMatch { border: 1px dashed ${diffRemovedOutlineColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { border: 1px dashed ${diffRemovedOutlineColor}; }`);
 	}
 
 	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
 	if (activeContrastBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .search-viewlet .findInFileMatch { border: 1px dashed ${activeContrastBorderColor}; }
+			.monaco-workbench .search-view .findInFileMatch { border: 1px dashed ${activeContrastBorderColor}; }
 		`);
 	}
 });
