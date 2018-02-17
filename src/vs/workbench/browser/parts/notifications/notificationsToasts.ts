@@ -7,8 +7,8 @@
 
 import 'vs/css!./media/notificationsToasts';
 import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem } from 'vs/workbench/common/notifications';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { addClass, removeClass } from 'vs/base/browser/dom';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { addClass, removeClass, isAncestor } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { Dimension } from 'vs/base/browser/builder';
@@ -17,6 +17,8 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { Themable } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Severity } from 'vs/platform/message/common/message';
 
 interface INotificationToast {
 	list: NotificationsList;
@@ -28,6 +30,15 @@ export class NotificationsToasts extends Themable {
 
 	private static MAX_DIMENSIONS = new Dimension(600, 600);
 
+	private static PURGE_TIMEOUT: { [severity: number]: number } = (() => {
+		const intervals = Object.create(null);
+		intervals[Severity.Info] = 8000;
+		intervals[Severity.Warning] = 12000;
+		intervals[Severity.Error] = 15000;
+
+		return intervals;
+	})();
+
 	private notificationsToastsContainer: HTMLElement;
 	private workbenchDimensions: Dimension;
 	private isNotificationsCenterVisible: boolean;
@@ -38,7 +49,8 @@ export class NotificationsToasts extends Themable {
 		private model: INotificationsModel,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(themeService);
 
@@ -85,7 +97,7 @@ export class NotificationsToasts extends Themable {
 		const notificationToastContainer = document.createElement('div');
 		addClass(notificationToastContainer, 'notification-toast');
 		this.notificationsToastsContainer.appendChild(notificationToastContainer);
-		itemDisposeables.push({ dispose: () => this.notificationsToastsContainer.removeChild(notificationToastContainer) });
+		itemDisposeables.push(toDisposable(() => this.notificationsToastsContainer.removeChild(notificationToastContainer)));
 
 		// Create toast with item and show
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToastContainer);
@@ -111,13 +123,24 @@ export class NotificationsToasts extends Themable {
 			this.removeToast(item);
 		});
 
+		// Automatically hide notifications without buttons after a timeout
+		if (item.actions.primary.length === 0) {
+			const timeoutHandle = setTimeout(() => {
+				this.removeToast(item);
+			}, NotificationsToasts.PURGE_TIMEOUT[item.severity]);
+
+			itemDisposeables.push(toDisposable(() => clearTimeout(timeoutHandle)));
+		}
+
 		// Theming
 		this.updateStyles();
 	}
 
 	private removeToast(item: INotificationViewItem): void {
 		const notificationToast = this.mapNotificationToToast.get(item);
+		let toastHasDOMFocus = false;
 		if (notificationToast) {
+			toastHasDOMFocus = isAncestor(document.activeElement, notificationToast.container);
 
 			// Listeners
 			dispose(notificationToast.disposeables);
@@ -132,6 +155,14 @@ export class NotificationsToasts extends Themable {
 
 		// Layout
 		this.layout(this.workbenchDimensions);
+
+		// Restore focus to editor if toast had focus
+		if (toastHasDOMFocus) {
+			const editor = this.editorService.getActiveEditor();
+			if (editor) {
+				editor.focus();
+			}
+		}
 	}
 
 	private removeToasts(): void {
