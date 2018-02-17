@@ -12,12 +12,12 @@ import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CLEAR_NOTFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION } from 'vs/workbench/browser/parts/notifications/notificationCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class ClearNotificationAction extends Action {
 
-	public static readonly ID = CLEAR_NOTFICATION;
+	public static readonly ID = CLEAR_NOTIFICATION;
 	public static readonly LABEL = localize('closeNotification', "Close Notification");
 
 	constructor(
@@ -29,7 +29,7 @@ export class ClearNotificationAction extends Action {
 	}
 
 	public run(notification: INotificationViewItem): TPromise<any> {
-		this.commandService.executeCommand(CLEAR_NOTFICATION, notification);
+		this.commandService.executeCommand(CLEAR_NOTIFICATION, notification);
 
 		return TPromise.as(void 0);
 	}

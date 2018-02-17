@@ -1290,7 +1290,7 @@ export class Workbench implements IPartService {
 		}));
 
 		// Register Commands
-		registerNotificationCommands(this.notificationsCenter);
+		registerNotificationCommands(this.notificationsCenter, this.notificationsToasts);
 	}
 
 	public getInstantiationService(): IInstantiationService {

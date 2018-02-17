@@ -16,8 +16,9 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { NotificationsCenterVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationCommands';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { addClass, removeClass } from 'vs/base/browser/dom';
+import { addClass, removeClass, isAncestor } from 'vs/base/browser/dom';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class NotificationsCenter extends Themable {
 
@@ -36,7 +37,8 @@ export class NotificationsCenter extends Themable {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(themeService);
 
@@ -98,6 +100,8 @@ export class NotificationsCenter extends Themable {
 			return; // only if visible
 		}
 
+		let focusEditor = false;
+
 		// Update notifications list based on event
 		switch (e.kind) {
 			case NotificationChangeType.ADD:
@@ -107,6 +111,7 @@ export class NotificationsCenter extends Themable {
 				this.notificationsList.updateNotificationsList(e.index, 1, [e.item]);
 				break;
 			case NotificationChangeType.REMOVE:
+				focusEditor = isAncestor(document.activeElement, this.notificationsCenterContainer);
 				this.notificationsList.updateNotificationsList(e.index, 1);
 				break;
 		}
@@ -114,6 +119,18 @@ export class NotificationsCenter extends Themable {
 		// Hide if no more notifications to show
 		if (this.model.notifications.length === 0) {
 			this.hide();
+
+			// Restore focus to editor if we had focus
+			if (focusEditor) {
+				this.focusEditor();
+			}
+		}
+	}
+
+	private focusEditor(): void {
+		const editor = this.editorService.getActiveEditor();
+		if (editor) {
+			editor.focus();
 		}
 	}
 
@@ -121,6 +138,8 @@ export class NotificationsCenter extends Themable {
 		if (!this._isVisible || !this.notificationsCenterContainer) {
 			return; // already hidden
 		}
+
+		const focusEditor = isAncestor(document.activeElement, this.notificationsCenterContainer);
 
 		// Hide
 		this._isVisible = false;
@@ -132,6 +151,10 @@ export class NotificationsCenter extends Themable {
 
 		// Event
 		this._onDidChangeVisibility.fire();
+
+		if (focusEditor) {
+			this.focusEditor();
+		}
 	}
 
 	protected updateStyles(): void {

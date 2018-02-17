@@ -164,6 +164,23 @@ export class NotificationsList extends Themable {
 		this.viewModel = [];
 	}
 
+	public focusFirst(): void {
+		if (!this.isVisible || !this.list) {
+			return; // hidden
+		}
+
+		this.list.focusFirst();
+		this.list.domFocus();
+	}
+
+	public hasFocus(): boolean {
+		if (!this.isVisible || !this.list) {
+			return false; // hidden
+		}
+
+		return this.list.isDOMFocused();
+	}
+
 	protected updateStyles(): void {
 		if (this.listContainer) {
 			const foreground = this.getColor(NOTIFICATIONS_FOREGROUND);
