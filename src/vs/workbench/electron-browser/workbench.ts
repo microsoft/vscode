@@ -155,6 +155,7 @@ export class Workbench implements IPartService {
 	private static readonly sidebarRestoreStorageKey = 'workbench.sidebar.restore';
 	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
 	private static readonly zenModeActiveStorageKey = 'workbench.zenmode.active';
+	private static readonly centeredLayoutActiveStorageKey = 'workbench.centeredlayout.active';
 	private static readonly panelPositionStorageKey = 'workbench.panel.location';
 	private static readonly defaultPanelPositionStorageKey = 'workbench.panel.defaultLocation';
 
@@ -213,6 +214,7 @@ export class Workbench implements IPartService {
 		wasSideBarVisible: boolean;
 		wasPanelVisible: boolean;
 	};
+	private centeredLayoutActive: boolean;
 
 	constructor(
 		parent: HTMLElement,
@@ -377,6 +379,11 @@ export class Workbench implements IPartService {
 		// Restore Zen Mode if active
 		if (this.storageService.getBoolean(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE, false)) {
 			this.toggleZenMode(true);
+		}
+
+		// Restore Forced Center Mode
+		if (this.storageService.getBoolean(Workbench.centeredLayoutActiveStorageKey, StorageScope.GLOBAL, false)) {
+			this.centeredLayoutActive = true;
 		}
 
 		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
@@ -660,6 +667,9 @@ export class Workbench implements IPartService {
 			wasSideBarVisible: false,
 			wasPanelVisible: false
 		};
+
+		// Centered Layout
+		this.centeredLayoutActive = false;
 	}
 
 	private setPanelPositionFromStorageOrConfig() {
@@ -1311,6 +1321,22 @@ export class Workbench implements IPartService {
 		if (toggleFullScreen) {
 			this.windowService.toggleFullScreen().done(void 0, errors.onUnexpectedError);
 		}
+	}
+
+	public isCenteredLayoutActive(): boolean {
+		return this.centeredLayoutActive;
+	}
+
+	public toggleCenteredLayout(): void {
+		this.centeredLayoutActive = !this.centeredLayoutActive;
+
+		if (this.centeredLayoutActive) {
+			this.storageService.store(Workbench.centeredLayoutActiveStorageKey, 'true', StorageScope.GLOBAL);
+		} else {
+			this.storageService.remove(Workbench.centeredLayoutActiveStorageKey, StorageScope.GLOBAL);
+		}
+
+		this.layout();
 	}
 
 	// Resize requested part along the main axis

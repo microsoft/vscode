@@ -37,6 +37,8 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ResourcesDropHandler, LocalSelectionTransfer, DraggedEditorIdentifier } from 'vs/workbench/browser/dnd';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 
 export enum Rochade {
 	NONE,
@@ -101,6 +103,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	private static readonly EDITOR_TITLE_HEIGHT = 35;
 
+	private static readonly CENTERED_EDITOR_MIN_MARGIN = 10;
+
 	private static readonly SNAP_TO_MINIMIZED_THRESHOLD_WIDTH = 50;
 	private static readonly SNAP_TO_MINIMIZED_THRESHOLD_HEIGHT = 20;
 
@@ -125,6 +129,22 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	private sashTwo: Sash;
 	private startSiloThreeSize: number;
 
+	// if the centered layout is activated, the editor inside of silo ONE is centered
+	// the silo will then contain:
+	// [left margin]|[editor]|[right margin]
+	// - The size of the editor is defined by centeredEditorSize
+	// - The position is defined by the ratio centeredEditorLeftMarginRatio = left-margin/(left-margin + editor + right-margin).
+	// - The two sashes can be used to control the size and position of the editor inside of the silo.
+	// - In order to seperate the two sashes from the sashes that control the size of bordering widgets
+	//   CENTERED_EDITOR_MIN_MARGIN is forced as a minimum size for the two margins.
+	private centeredEditorActive: boolean;
+	private centeredEditorSashLeft: Sash;
+	private centeredEditorSashRight: Sash;
+	private centeredEditorPreferedSize: number;
+	private centeredEditorLeftMarginRatio: number;
+	private centeredEditorDragStartPosition: number;
+	private centeredEditorDragStartSize: number;
+
 	private visibleEditors: BaseEditor[];
 
 	private lastActiveEditor: BaseEditor;
@@ -144,6 +164,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		groupOrientation: GroupOrientation,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IPartService private partService: IPartService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -193,6 +214,10 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		return this.layoutVertically ? EditorGroupsControl.MIN_EDITOR_WIDTH : EditorGroupsControl.MIN_EDITOR_HEIGHT;
 	}
 
+	private get visibleSilos(): number {
+		return this.visibleEditors.reduce((acc, min) => min ? acc + 1 : acc, 0);
+	}
+
 	private isSiloMinimized(position: number): boolean {
 		return this.silosSize[position] === this.minSize && this.silosMinimized[position];
 	}
@@ -207,6 +232,22 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				this.silosMinimized[p] = false; // release silo from minimized state if it was sized large enough
 			}
 		});
+	}
+
+	private get centeredEditorAvailableSize(): number {
+		return this.silosSize[0] - EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN * 2;
+	}
+
+	private get centeredEditorSize(): number {
+		return Math.min(this.centeredEditorAvailableSize, this.centeredEditorPreferedSize);
+	}
+
+	private get centeredEditorPosition(): number {
+		return EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN + this.centeredEditorLeftMarginRatio * (this.centeredEditorAvailableSize - this.centeredEditorSize);
+	}
+
+	private get centeredEditorEndPosition(): number {
+		return this.centeredEditorPosition + this.centeredEditorSize;
 	}
 
 	private get snapToMinimizeThresholdSize(): number {
@@ -968,6 +1009,23 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Silo Three
 		this.silos[Position.THREE] = $(this.parent).div({ class: 'one-editor-silo editor-three' });
+
+		// Center Layout stuff
+		this.centeredEditorSashLeft = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: Orientation.VERTICAL });
+		this.toUnbind.push(this.centeredEditorSashLeft.onDidStart(() => this.onCenterSashLeftDragStart()));
+		this.toUnbind.push(this.centeredEditorSashLeft.onDidChange((e: ISashEvent) => this.onCenterSashLeftDrag(e)));
+		this.toUnbind.push(this.centeredEditorSashLeft.onDidEnd(() => this.onCenterSashLeftDragEnd()));
+		this.toUnbind.push(this.centeredEditorSashLeft.onDidReset(() => this.resetCenteredEditor()));
+
+		this.centeredEditorSashRight = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: Orientation.VERTICAL });
+		this.toUnbind.push(this.centeredEditorSashRight.onDidStart(() => this.onCenterSashRightDragStart()));
+		this.toUnbind.push(this.centeredEditorSashRight.onDidChange((e: ISashEvent) => this.onCenterSashRightDrag(e)));
+		this.toUnbind.push(this.centeredEditorSashRight.onDidEnd(() => this.onCenterSashRightDragEnd()));
+		this.toUnbind.push(this.centeredEditorSashRight.onDidReset(() => this.resetCenteredEditor()));
+
+		this.centeredEditorActive = false;
+		this.centeredEditorLeftMarginRatio = 0.5;
+		this.centeredEditorPreferedSize = -1; // set this later if we know the container size
 
 		// For each position
 		POSITIONS.forEach(position => {
@@ -1858,12 +1916,70 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.sashTwo.layout();
 	}
 
+	private setCenteredEditorPositionAndSize(pos: number, size: number): void {
+		this.centeredEditorPreferedSize = Math.max(this.minSize, size);
+		pos -= EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN;
+		pos = Math.min(pos, this.centeredEditorAvailableSize - this.centeredEditorSize);
+		pos = Math.max(0, pos);
+		this.centeredEditorLeftMarginRatio = pos / (this.centeredEditorAvailableSize - this.centeredEditorSize);
+
+		this.layoutContainers();
+	}
+
+	private onCenterSashLeftDragStart(): void {
+		this.centeredEditorDragStartPosition = this.centeredEditorPosition;
+		this.centeredEditorDragStartSize = this.centeredEditorSize;
+	}
+
+	private onCenterSashLeftDrag(e: ISashEvent): void {
+		const minMargin = EditorGroupsControl.CENTERED_EDITOR_MIN_MARGIN;
+		const diffPos = e.currentX - e.startX;
+		const diffSize = -diffPos;
+
+		const pos = this.centeredEditorDragStartPosition + diffPos;
+		const size = this.centeredEditorDragStartSize + diffSize;
+		this.setCenteredEditorPositionAndSize(pos, pos <= minMargin ? size + pos - minMargin : size);
+	}
+
+	private onCenterSashLeftDragEnd(): void {
+		this.layoutContainers();
+	}
+
+	private onCenterSashRightDragStart(): void {
+		this.centeredEditorDragStartPosition = this.centeredEditorPosition;
+		this.centeredEditorDragStartSize = this.centeredEditorSize;
+	}
+
+	private onCenterSashRightDrag(e: ISashEvent): void {
+		const diffPos = e.currentX - e.startX;
+		const diffSize = diffPos;
+
+		const pos = this.centeredEditorDragStartPosition;
+		const maxSize = this.centeredEditorAvailableSize - this.centeredEditorDragStartPosition;
+		const size = Math.min(maxSize, this.centeredEditorDragStartSize + diffSize);
+		this.setCenteredEditorPositionAndSize(size < this.minSize ? pos + (size - this.minSize) : pos, size);
+	}
+
+	private onCenterSashRightDragEnd(): void {
+	}
+
 	public getVerticalSashTop(sash: Sash): number {
 		return 0;
 	}
 
 	public getVerticalSashLeft(sash: Sash): number {
-		return sash === this.sashOne ? this.silosSize[Position.ONE] : this.silosSize[Position.TWO] + this.silosSize[Position.ONE];
+		switch (sash) {
+			case this.sashOne:
+				return this.silosSize[Position.ONE];
+			case this.sashTwo:
+				return this.silosSize[Position.TWO] + this.silosSize[Position.ONE];
+			case this.centeredEditorSashLeft:
+				return this.centeredEditorPosition;
+			case this.centeredEditorSashRight:
+				return this.centeredEditorEndPosition;
+			default:
+				return 0;
+		}
 	}
 
 	public getVerticalSashHeight(sash: Sash): number {
@@ -2013,6 +2129,32 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			}
 		});
 
+		// Layout centered Editor
+		const doCentering =
+			this.layoutVertically &&
+			this.visibleSilos === 1 &&
+			this.partService.isCenteredLayoutActive() &&
+			this.visibleEditors[Position.ONE] instanceof TextResourceEditor;
+
+		if (doCentering && !this.centeredEditorActive) {
+			this.centeredEditorSashLeft.show();
+			this.centeredEditorSashRight.show();
+
+			// no size set yet. Calculate a default value
+			if (this.centeredEditorPreferedSize === -1) {
+				this.resetCenteredEditor(false);
+			}
+		} else if (!doCentering && this.centeredEditorActive) {
+			this.centeredEditorSashLeft.hide();
+			this.centeredEditorSashRight.hide();
+		}
+		this.centeredEditorActive = doCentering;
+
+		if (this.centeredEditorActive) {
+			this.centeredEditorSashLeft.layout();
+			this.centeredEditorSashRight.layout();
+		}
+
 		// Layout visible editors
 		POSITIONS.forEach(position => {
 			this.layoutEditor(position);
@@ -2031,9 +2173,17 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	private layoutEditor(position: Position): void {
 		const editorSize = this.silosSize[position];
-		if (editorSize && this.visibleEditors[position]) {
+		const editor = this.visibleEditors[position];
+		if (editorSize && editor) {
 			let editorWidth = this.layoutVertically ? editorSize : this.dimension.width;
 			let editorHeight = (this.layoutVertically ? this.dimension.height : this.silosSize[position]) - EditorGroupsControl.EDITOR_TITLE_HEIGHT;
+
+			let editorPosition = 0;
+
+			if (this.centeredEditorActive) {
+				editorWidth = this.centeredEditorSize;
+				editorPosition = this.centeredEditorPosition;
+			}
 
 			if (position !== Position.ONE) {
 				if (this.layoutVertically) {
@@ -2043,7 +2193,16 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				}
 			}
 
-			this.visibleEditors[position].layout(new Dimension(editorWidth, editorHeight));
+			editor.getContainer().style({ 'margin-left': editorPosition + 'px', 'width': editorWidth + 'px' });
+			editor.layout(new Dimension(editorWidth, editorHeight));
+		}
+	}
+
+	private resetCenteredEditor(layout: boolean = true) {
+		this.centeredEditorLeftMarginRatio = 0.5;
+		this.centeredEditorPreferedSize = Math.floor(this.dimension.width * 0.5);
+		if (layout) {
+			this.layoutContainers();
 		}
 	}
 
