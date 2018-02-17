@@ -256,7 +256,7 @@
 		/** @type {*} */
 		let node = event.target;
 		while (node) {
-			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+			if (node.tagName && node.tagName === 'A' && node.href) {
 				if (node.getAttribute('href').startsWith('#')) {
 					break;
 				}
