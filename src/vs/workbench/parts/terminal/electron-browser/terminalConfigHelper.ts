@@ -51,6 +51,14 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
+		// Return cached font if no config changed
+		if (this._lastFontMeasurement &&
+			this._lastFontMeasurement.fontFamily === fontFamily &&
+			this._lastFontMeasurement.fontSize === fontSize &&
+			this._lastFontMeasurement.lineHeight === lineHeight) {
+			return this._lastFontMeasurement;
+		}
+
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
 			this._charMeasureElement = document.createElement('div');
