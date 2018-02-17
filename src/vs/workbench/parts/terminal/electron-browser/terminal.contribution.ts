@@ -417,7 +417,7 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(MoveToLineEndTer
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line End', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL, {
-	primary: null,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_D,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_D }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Split', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousPaneTerminalAction, FocusPreviousPaneTerminalAction.ID, FocusPreviousPaneTerminalAction.LABEL, {
