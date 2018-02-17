@@ -249,6 +249,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
 			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
 			if (this._xterm) {
+				// TODO: See if we can live without this now
 				this._xterm.emit('scroll', this._xterm.buffer.ydisp);
 			}
 		}
@@ -260,10 +261,10 @@ export class TerminalInstance implements ITerminalInstance {
 		const wrapperElementStyle = getComputedStyle(this._wrapperElement);
 		const marginLeft = parseInt(wrapperElementStyle.marginLeft.split('px')[0], 10);
 		const marginRight = parseInt(wrapperElementStyle.marginRight.split('px')[0], 10);
-		const paddingBottom = parseInt(wrapperElementStyle.paddingBottom.split('px')[0], 10);
+		const bottom = parseInt(wrapperElementStyle.bottom.split('px')[0], 10);
 
-		const innerWidth = width - (marginLeft + marginRight);
-		const innerHeight = height - paddingBottom;
+		const innerWidth = width - marginLeft - marginRight;
+		const innerHeight = height - bottom;
 
 		TerminalInstance._lastKnownDimensions = new Dimension(innerWidth, innerHeight);
 		return TerminalInstance._lastKnownDimensions;
