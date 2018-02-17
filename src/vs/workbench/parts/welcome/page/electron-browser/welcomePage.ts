@@ -24,7 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
+import { IMessageService, Severity, CloseAction, CancelAction } from 'vs/platform/message/common/message';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
 import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
@@ -133,6 +133,7 @@ interface Strings {
 
 	alreadyInstalled: string;
 	reloadAfterInstall: string;
+	confirmInstall: string;
 	installing: string;
 	extensionNotFound: string;
 }
@@ -170,6 +171,7 @@ const extensionPackStrings: Strings = {
 
 	alreadyInstalled: localize('welcomePage.extensionPackAlreadyInstalled', "Support for {0} is already installed."),
 	reloadAfterInstall: localize('welcomePage.willReloadAfterInstallingExtensionPack', "The window will reload after installing additional support for {0}."),
+	confirmInstall: localize('welcomePage.confirmInstallExtensionPack', "{0} will be installed. Continue?"),
 	installing: localize('welcomePage.installingExtensionPack', "Installing additional support for {0}..."),
 	extensionNotFound: localize('welcomePage.extensionPackNotFound', "Support for {0} with id {1} could not be found."),
 };
@@ -207,6 +209,7 @@ const keymapStrings: Strings = {
 
 	alreadyInstalled: localize('welcomePage.keymapAlreadyInstalled', "The {0} keyboard shortcuts are already installed."),
 	reloadAfterInstall: localize('welcomePage.willReloadAfterInstallingKeymap', "The window will reload after installing the {0} keyboard shortcuts."),
+	confirmInstall: localize('welcomePage.confirmInstallKeymap', "{0} keyboard shortcuts will be installed. Continue?"),
 	installing: localize('welcomePage.installingKeymap', "Installing the {0} keyboard shortcuts..."),
 	extensionNotFound: localize('welcomePage.keymapNotFound', "The {0} keyboard shortcuts with id {1} could not be found."),
 };
@@ -416,121 +419,130 @@ class WelcomePage {
 				this.messageService.show(Severity.Info, strings.alreadyInstalled.replace('{0}', extensionSuggestion.name));
 				return;
 			}
-			const foundAndInstalled = installedExtension ? TPromise.as(installedExtension.identifier) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
-				.then(result => {
-					const [extension] = result.firstPage;
-					if (!extension) {
-						return null;
-					}
-					return this.extensionManagementService.installFromGallery(extension)
-						.then(() => {
-							// TODO: Do this as part of the install to avoid multiple events.
-							return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
-						}).then(() => {
-							return extension.identifier;
-						});
-				});
 			this.messageService.show(Severity.Info, {
-				message: strings.reloadAfterInstall.replace('{0}', extensionSuggestion.name),
+				message: strings.confirmInstall.replace('{0}', extensionSuggestion.name),
 				actions: [
 					new Action('ok', localize('ok', "OK"), null, true, () => {
-						const messageDelay = TPromise.timeout(300);
-						messageDelay.then(() => {
-							this.messageService.show(Severity.Info, {
-								message: strings.installing.replace('{0}', extensionSuggestion.name),
-								actions: [CloseAction]
+						const foundAndInstalled = installedExtension ? TPromise.as(installedExtension.identifier) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
+							.then(result => {
+								const [extension] = result.firstPage;
+								if (!extension) {
+									return null;
+								}
+								return this.extensionManagementService.installFromGallery(extension)
+									.then(() => {
+										// TODO: Do this as part of the install to avoid multiple events.
+										return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
+									}).then(() => {
+										return extension.identifier;
+									});
 							});
-						});
-						TPromise.join(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
-							.map(extension => {
-								return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
-							}) : []).then(() => {
-								return foundAndInstalled.then(foundExtension => {
-									messageDelay.cancel();
-									if (foundExtension) {
-										return this.extensionEnablementService.setEnablement(foundExtension, EnablementState.Enabled)
-											.then(() => {
-												/* __GDPR__FRAGMENT__
-													"WelcomePageInstalled-2" : {
-														"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-														"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-														"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-													}
-												*/
-												this.telemetryService.publicLog(strings.installedEvent, {
-													from: telemetryFrom,
-													extensionId: extensionSuggestion.id,
-													outcome: installedExtension ? 'enabled' : 'installed',
-												});
-												return this.windowService.reloadWindow();
-											});
-									} else {
-										/* __GDPR__FRAGMENT__
-											"WelcomePageInstalled-3" : {
-												"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-												"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-												"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-											}
-										*/
-										this.telemetryService.publicLog(strings.installedEvent, {
-											from: telemetryFrom,
-											extensionId: extensionSuggestion.id,
-											outcome: 'not_found',
+						this.messageService.show(Severity.Info, {
+							message: strings.reloadAfterInstall.replace('{0}', extensionSuggestion.name),
+							actions: [
+								new Action('ok', localize('ok', "OK"), null, true, () => {
+									const messageDelay = TPromise.timeout(300);
+									messageDelay.then(() => {
+										this.messageService.show(Severity.Info, {
+											message: strings.installing.replace('{0}', extensionSuggestion.name),
+											actions: [CloseAction]
 										});
-										this.messageService.show(Severity.Error, strings.extensionNotFound.replace('{0}', extensionSuggestion.name).replace('{1}', extensionSuggestion.id));
-										return undefined;
-									}
-								});
-							}).then(null, err => {
-								/* __GDPR__FRAGMENT__
-									"WelcomePageInstalled-4" : {
-										"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-									}
-								*/
-								this.telemetryService.publicLog(strings.installedEvent, {
-									from: telemetryFrom,
-									extensionId: extensionSuggestion.id,
-									outcome: isPromiseCanceledError(err) ? 'canceled' : 'error',
-									error: String(err),
-								});
-								this.messageService.show(Severity.Error, err);
-							});
+									});
+									TPromise.join(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
+										.map(extension => {
+											return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
+										}) : []).then(() => {
+											return foundAndInstalled.then(foundExtension => {
+												messageDelay.cancel();
+												if (foundExtension) {
+													return this.extensionEnablementService.setEnablement(foundExtension, EnablementState.Enabled)
+														.then(() => {
+															/* __GDPR__FRAGMENT__
+																"WelcomePageInstalled-2" : {
+																	"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+																	"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+																	"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+																}
+															*/
+															this.telemetryService.publicLog(strings.installedEvent, {
+																from: telemetryFrom,
+																extensionId: extensionSuggestion.id,
+																outcome: installedExtension ? 'enabled' : 'installed',
+															});
+															return this.windowService.reloadWindow();
+														});
+												} else {
+													/* __GDPR__FRAGMENT__
+														"WelcomePageInstalled-3" : {
+															"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+															"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+															"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+														}
+													*/
+													this.telemetryService.publicLog(strings.installedEvent, {
+														from: telemetryFrom,
+														extensionId: extensionSuggestion.id,
+														outcome: 'not_found',
+													});
+													this.messageService.show(Severity.Error, strings.extensionNotFound.replace('{0}', extensionSuggestion.name).replace('{1}', extensionSuggestion.id));
+													return undefined;
+												}
+											});
+										}).then(null, err => {
+											/* __GDPR__FRAGMENT__
+												"WelcomePageInstalled-4" : {
+													"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+													"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+													"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+													"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+												}
+											*/
+											this.telemetryService.publicLog(strings.installedEvent, {
+												from: telemetryFrom,
+												extensionId: extensionSuggestion.id,
+												outcome: isPromiseCanceledError(err) ? 'canceled' : 'error',
+												error: String(err),
+											});
+											this.messageService.show(Severity.Error, err);
+										});
+									return TPromise.as(true);
+								}),
+								new Action('details', localize('details', "Details"), null, true, () => {
+									/* __GDPR__FRAGMENT__
+										"WelcomePageDetails-1" : {
+											"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+										}
+									*/
+									this.telemetryService.publicLog(strings.detailsEvent, {
+										from: telemetryFrom,
+										extensionId: extensionSuggestion.id,
+									});
+									this.extensionsWorkbenchService.queryGallery({ names: [extensionSuggestion.id] })
+										.then(result => this.extensionsWorkbenchService.open(result.firstPage[0]))
+										.then(null, onUnexpectedError);
+									return TPromise.as(false);
+								}),
+								new Action('cancel', localize('cancel', "Cancel"), null, true, () => {
+									/* __GDPR__FRAGMENT__
+										"WelcomePageInstalled-5" : {
+											"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+										}
+									*/
+									this.telemetryService.publicLog(strings.installedEvent, {
+										from: telemetryFrom,
+										extensionId: extensionSuggestion.id,
+										outcome: 'user_canceled',
+									});
+									return TPromise.as(true);
+								})
+							]
+						});
 						return TPromise.as(true);
 					}),
-					new Action('details', localize('details', "Details"), null, true, () => {
-						/* __GDPR__FRAGMENT__
-							"WelcomePageDetails-1" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-							}
-						*/
-						this.telemetryService.publicLog(strings.detailsEvent, {
-							from: telemetryFrom,
-							extensionId: extensionSuggestion.id,
-						});
-						this.extensionsWorkbenchService.queryGallery({ names: [extensionSuggestion.id] })
-							.then(result => this.extensionsWorkbenchService.open(result.firstPage[0]))
-							.then(null, onUnexpectedError);
-						return TPromise.as(false);
-					}),
-					new Action('cancel', localize('cancel', "Cancel"), null, true, () => {
-						/* __GDPR__FRAGMENT__
-							"WelcomePageInstalled-5" : {
-								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-							}
-						*/
-						this.telemetryService.publicLog(strings.installedEvent, {
-							from: telemetryFrom,
-							extensionId: extensionSuggestion.id,
-							outcome: 'user_canceled',
-						});
-						return TPromise.as(true);
-					})
+					CancelAction
 				]
 			});
 		}).then(null, err => {
