@@ -22,7 +22,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 
 export class NotificationsCenter extends Themable {
 
-	private static MAX_DIMENSIONS = new Dimension(600, 600);
+	private static MAX_DIMENSIONS = new Dimension(600, 400);
 
 	private notificationsCenterContainer: HTMLElement;
 	private notificationsList: NotificationsList;

@@ -6,8 +6,8 @@
 .monaco-workbench > .notifications-toasts {
 	position: absolute;
 	z-index: 1000;
-	right: 8px;
-	bottom: 30px; /* above status bar */
+	right: 3px;
+	bottom: 28px; /* above status bar */
 	display: none;
 	overflow: hidden;
 }
@@ -23,5 +23,5 @@
 }
 
 .monaco-workbench > .notifications-toasts .notification-toast {
-	margin-top: 10px;
+	margin: 5px; /* enables separation and drop shadows around toasts */
 }
