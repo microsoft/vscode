@@ -260,8 +260,8 @@
 				if (node.getAttribute('href').startsWith('#')) {
 					break;
 				}
-				if (node.href.startsWith('file://')) {
-					const [path, fragment] = node.href.replace(/^file:\/\//i, '').split('#');
+				if (node.href.startsWith('file://') || node.href.startsWith('vscode-workspace-resource:')) {
+					const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-workspace-resource:)/i, '').split('#');
 					postMessage('_markdown.openDocumentLink', [{ path, fragment }]);
 					event.preventDefault();
 					event.stopPropagation();
