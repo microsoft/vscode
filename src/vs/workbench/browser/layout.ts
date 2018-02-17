@@ -21,6 +21,7 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { memoize } from 'vs/base/common/decorators';
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
+import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
 const MIN_EDITOR_PART_HEIGHT = 70;
@@ -65,6 +66,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private statusbar: Part;
 	private quickopen: QuickOpenController;
 	private notificationsCenter: NotificationsCenter;
+	private notificationsToasts: NotificationsToasts;
 	private toUnbind: IDisposable[];
 	private workbenchSize: Dimension;
 	private sashXOne: Sash;
@@ -94,6 +96,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		},
 		quickopen: QuickOpenController,
 		notificationsCenter: NotificationsCenter,
+		notificationsToasts: NotificationsToasts,
 		@IStorageService private storageService: IStorageService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -112,6 +115,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.statusbar = parts.statusbar;
 		this.quickopen = quickopen;
 		this.notificationsCenter = notificationsCenter;
+		this.notificationsToasts = notificationsToasts;
 		this.toUnbind = [];
 		this.panelSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.panelSizeBeforeMaximizedKey, StorageScope.GLOBAL, 0);
 		this.panelMaximized = false;
@@ -647,6 +651,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Notifications
 		this.notificationsCenter.layout(this.workbenchSize);
+		this.notificationsToasts.layout(this.workbenchSize);
 
 		// Sashes
 		this.sashXOne.layout();

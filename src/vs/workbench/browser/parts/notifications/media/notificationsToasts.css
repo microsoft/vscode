@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .notifications-center {
+.monaco-workbench > .notifications-toasts {
 	position: absolute;
 	z-index: 1000;
 	right: 8px;
@@ -12,11 +12,16 @@
 	overflow: hidden;
 }
 
-.monaco-workbench.nostatusbar > .notifications-center {
+.monaco-workbench.nostatusbar > .notifications-toasts {
 	right: 12px;
 	bottom: 12px;
 }
 
-.monaco-workbench > .notifications-center.visible {
-	display: block;
+.monaco-workbench > .notifications-toasts.visible {
+	display: flex;
+	flex-direction: column-reverse;
+}
+
+.monaco-workbench > .notifications-toasts .notification-toast {
+	margin-top: 10px;
 }

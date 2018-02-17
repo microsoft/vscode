@@ -105,6 +105,7 @@ import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/no
 import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/notificationsAlerts';
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -198,6 +199,7 @@ export class Workbench implements IPartService {
 	private statusbarPart: StatusbarPart;
 	private quickOpen: QuickOpenController;
 	private notificationsCenter: NotificationsCenter;
+	private notificationsToasts: NotificationsToasts;
 	private workbenchLayout: WorkbenchLayout;
 	private toUnbind: IDisposable[];
 	private sideBarHidden: boolean;
@@ -1148,7 +1150,8 @@ export class Workbench implements IPartService {
 				statusbar: this.statusbarPart,			// Statusbar
 			},
 			this.quickOpen,								// Quickopen
-			this.notificationsCenter					// Notifications Center
+			this.notificationsCenter,					// Notifications Center
+			this.notificationsToasts					// Notifications Toasts
 		);
 	}
 
@@ -1264,14 +1267,27 @@ export class Workbench implements IPartService {
 		this.notificationsCenter = this.instantiationService.createInstance(NotificationsCenter, this.workbench.getHTMLElement(), this.notificationService.model);
 		this.toUnbind.push(this.notificationsCenter);
 
+		// Notifications Toasts
+		this.notificationsToasts = this.instantiationService.createInstance(NotificationsToasts, this.workbench.getHTMLElement(), this.notificationService.model);
+		this.toUnbind.push(this.notificationsToasts);
+
 		// Notifications Alerts
 		const notificationsAlerts = this.instantiationService.createInstance(NotificationsAlerts, this.notificationService.model);
 		this.toUnbind.push(notificationsAlerts);
 
 		// Notifications Status
 		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, this.notificationService.model);
-		this.toUnbind.push(this.notificationsCenter.onDidChangeVisibility(() => notificationsStatus.update(this.notificationsCenter.isVisible)));
 		this.toUnbind.push(notificationsStatus);
+
+		// Eventing
+		this.toUnbind.push(this.notificationsCenter.onDidChangeVisibility(() => {
+
+			// Update status
+			notificationsStatus.update(this.notificationsCenter.isVisible);
+
+			// Update toasts
+			this.notificationsToasts.update(this.notificationsCenter.isVisible);
+		}));
 
 		// Register Commands
 		registerNotificationCommands(this.notificationsCenter);

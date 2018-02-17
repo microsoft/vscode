@@ -6,14 +6,14 @@
 'use strict';
 
 import 'vs/css!./media/notificationsList';
-import { addClass, isAncestor } from 'vs/base/browser/dom';
+import { addClass, isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
-import { Themable, NOTIFICATIONS_BORDER, NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND } from 'vs/workbench/common/theme';
+import { Themable, NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
@@ -23,7 +23,6 @@ export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
 	private list: WorkbenchList<INotificationViewItem>;
 	private viewModel: INotificationViewItem[];
-	private maxHeight: number;
 	private isVisible: boolean;
 
 	constructor(
@@ -36,9 +35,11 @@ export class NotificationsList extends Themable {
 		this.viewModel = [];
 	}
 
-	public show(): void {
+	public show(focus?: boolean): void {
 		if (this.isVisible) {
-			this.list.domFocus();
+			if (focus) {
+				this.list.domFocus();
+			}
 
 			return; // already visible
 		}
@@ -52,7 +53,9 @@ export class NotificationsList extends Themable {
 		this.isVisible = true;
 
 		// Focus
-		this.list.domFocus();
+		if (focus) {
+			this.list.domFocus();
+		}
 	}
 
 	private createNotificationsList(): void {
@@ -79,6 +82,13 @@ export class NotificationsList extends Themable {
 
 		// Toggle on double click
 		this.toUnbind.push(this.list.onMouseDblClick(event => (event.element as INotificationViewItem).toggle()));
+
+		// Clear focus when DOM focus moves out
+		const listFocusTracker = trackFocus(this.list.getHTMLElement());
+		listFocusTracker.onDidBlur(() => {
+			this.list.setFocus([]);
+		});
+		this.toUnbind.push(listFocusTracker);
 
 		// Context key
 		NotificationFocusedContext.bindTo(this.list.contextKeyService);
@@ -164,21 +174,17 @@ export class NotificationsList extends Themable {
 
 			const outlineColor = this.getColor(contrastBorder);
 			this.listContainer.style.outlineColor = outlineColor ? outlineColor.toString() : null;
-
-			const widgetShadowColor = this.getColor(widgetShadow);
-			this.listContainer.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null;
 		}
 	}
 
-	public layout(maxHeight: number): void {
-		this.maxHeight = maxHeight;
-
-		this.layoutList();
-	}
-
-	private layoutList(): void {
+	public layout(width: number, maxHeight?: number): void {
 		if (this.list) {
-			this.list.getHTMLElement().style.maxHeight = `${this.maxHeight}px`;
+			this.listContainer.style.width = `${width}px`;
+
+			if (typeof maxHeight === 'number') {
+				this.list.getHTMLElement().style.maxHeight = `${maxHeight}px`;
+			}
+
 			this.list.layout();
 		}
 	}
@@ -194,10 +200,5 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const linkColor = theme.getColor(NOTIFICATIONS_LINKS);
 	if (linkColor) {
 		collector.addRule(`.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a { color: ${linkColor}; }`);
-	}
-
-	const notificationBorderColor = theme.getColor(NOTIFICATIONS_BORDER);
-	if (notificationBorderColor) {
-		collector.addRule(`.monaco-workbench .notifications-list-container .notification-list-item { border-bottom: 1px solid ${notificationBorderColor}; }`);
 	}
 });

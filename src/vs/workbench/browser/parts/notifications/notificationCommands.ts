@@ -163,14 +163,14 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 
 	// TODO@notifications remove me
 	CommandsRegistry.registerCommand('notifications.showInfo', accessor => {
-		accessor.get(INotificationService).info('This is an information message!');
+		accessor.get(INotificationService).info('This is an information message!' + Date.now());
 	});
 
 	CommandsRegistry.registerCommand('notifications.showWarning', accessor => {
-		accessor.get(INotificationService).warn('This is a warning message!');
+		accessor.get(INotificationService).warn('This is a warning message!' + Date.now());
 	});
 
 	CommandsRegistry.registerCommand('notifications.showError', accessor => {
-		accessor.get(INotificationService).error('This is an error message!');
+		accessor.get(INotificationService).error('This is an error message!' + Date.now());
 	});
 }
