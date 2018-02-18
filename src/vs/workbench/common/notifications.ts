@@ -85,6 +85,7 @@ export class NotificationsModel implements INotificationsModel {
 				worked: value => item.progress.worked(value),
 				done: () => item.progress.done()
 			},
+			updateSeverity: (severity: Severity) => item.updateSeverity(severity),
 			updateMessage: (message: string | IMarkdownString | Error) => item.updateMessage(message),
 			updateActions: (actions: INotificationActions) => item.updateActions(actions)
 		};
@@ -173,6 +174,7 @@ export interface INotificationViewItem {
 
 	hasProgress(): boolean;
 
+	updateSeverity(severity: Severity): void;
 	updateMessage(message: string | IMarkdownString | Error): void;
 	updateActions(actions?: INotificationActions): void;
 
@@ -186,6 +188,7 @@ export function isNotificationViewItem(obj: any): obj is INotificationViewItem {
 }
 
 export enum NotificationViewItemLabelKind {
+	SEVERITY,
 	MESSAGE,
 	ACTIONS,
 	PROGRESS
@@ -424,6 +427,11 @@ export class NotificationViewItem implements INotificationViewItem {
 
 	public get actions(): INotificationActions {
 		return this._actions;
+	}
+
+	public updateSeverity(severity: Severity): void {
+		this._severity = severity;
+		this._onDidLabelChange.fire({ kind: NotificationViewItemLabelKind.SEVERITY });
 	}
 
 	public updateMessage(input: string | IMarkdownString | Error): void {

@@ -227,15 +227,15 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 							handle.updateMessage('Installing: error-ex...');
 							handle.progress.worked(100);
 							setTimeout(() => {
-								handle.updateMessage('Installation complete');
+								handle.updateMessage('Installation completed');
 								handle.progress.done();
 								handle.updateActions();
-							}, 3000);
-						}, 3000);
-					}, 3000);
-				}, 3000);
-			}, 3000);
-		}, 1000);
+							}, 2000);
+						}, 2000);
+					}, 2000);
+				}, 2000);
+			}, 2000);
+		}, 2000);
 	});
 
 	CommandsRegistry.registerCommand('notifications.showWarning', accessor => {

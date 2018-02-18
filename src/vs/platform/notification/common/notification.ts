@@ -35,6 +35,7 @@ export interface INotificationProgress {
 export interface INotificationHandle extends IDisposable {
 	readonly progress: INotificationProgress;
 
+	updateSeverity(severity: Severity): void;
 	updateMessage(message: string | IMarkdownString | Error): void;
 	updateActions(actions?: INotificationActions): void;
 }
@@ -53,8 +54,10 @@ export interface INotificationService {
 export class NoOpNotification implements INotificationHandle {
 	readonly progress = new NoOpProgress();
 
+	updateSeverity(severity: Severity): void { }
 	updateMessage(message: string | IMarkdownString | Error): void { }
 	updateActions(actions?: INotificationActions): void { }
+
 	dispose(): void { }
 }
 

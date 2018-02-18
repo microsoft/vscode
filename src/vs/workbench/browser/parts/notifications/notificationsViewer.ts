@@ -291,11 +291,8 @@ export class NotificationTemplateRenderer {
 		// Container
 		toggleClass(this.template.container, 'expanded', notification.expanded);
 
-		// Icon
-		NotificationTemplateRenderer.SEVERITIES.forEach(severity => {
-			const domAction = notification.severity === this.toSeverity(severity) ? addClass : removeClass;
-			domAction(this.template.icon, `icon-${severity}`);
-		});
+		// Severity Icon
+		this.renderSeverity(notification);
 
 		// Message
 		const messageOverflows = this.renderMessage(notification);
@@ -315,11 +312,21 @@ export class NotificationTemplateRenderer {
 		// Label Change Events
 		this.inputDisposeables.push(notification.onDidLabelChange(event => {
 			switch (event.kind) {
+				case NotificationViewItemLabelKind.SEVERITY:
+					this.renderSeverity(notification);
+					break;
 				case NotificationViewItemLabelKind.PROGRESS:
 					this.renderProgress(notification);
 					break;
 			}
 		}));
+	}
+
+	private renderSeverity(notification: INotificationViewItem): void {
+		NotificationTemplateRenderer.SEVERITIES.forEach(severity => {
+			const domAction = notification.severity === this.toSeverity(severity) ? addClass : removeClass;
+			domAction(this.template.icon, `icon-${severity}`);
+		});
 	}
 
 	private renderMessage(notification: INotificationViewItem): boolean {
