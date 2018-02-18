@@ -57,6 +57,15 @@
 	background: url('CollapseAll_inverse.svg') center center no-repeat;
 }
 
+.monaco-workbench .explorer-action.reveal-in-explorer {
+	background: url('RevealInExplorer.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .explorer-action.reveal-in-explorer,
+.hc-black .monaco-workbench .explorer-action.reveal-in-explorer {
+	background: url('RevealInExplorer_inverse.svg') center center no-repeat;
+}
+
 .monaco-workbench .quick-open-sidebyside-vertical {
 	background-image: url('split-editor-vertical.svg');
 }

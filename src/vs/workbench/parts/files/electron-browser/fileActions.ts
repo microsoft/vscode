@@ -1227,6 +1227,10 @@ export class ShowActiveFileInExplorer extends Action {
 
 		return TPromise.as(true);
 	}
+
+	public get class(): string {
+		return 'explorer-action reveal-in-explorer';
+	}
 }
 
 export class CollapseExplorerView extends Action {
