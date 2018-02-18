@@ -285,7 +285,7 @@ export class SimpleNotificationService implements INotificationService {
 
 	public _serviceBrand: any;
 
-	private static readonly Empty: INotificationHandle = { dispose: () => undefined };
+	private static readonly Empty: INotificationHandle = { dispose: () => undefined, progress: undefined };
 
 	public info(message: string): INotificationHandle {
 		return this.notify({ severity: Severity.Info, message });

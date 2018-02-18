@@ -14,7 +14,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Severity } from 'vs/platform/message/common/message';
 import { localize } from 'vs/nls';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -27,6 +27,7 @@ import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/common
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MarkedOptions } from 'vs/base/common/marked/marked';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 
 export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
 
@@ -117,6 +118,9 @@ export interface INotificationTemplateData {
 	detailsRow: HTMLElement;
 	source: HTMLElement;
 	actionsContainer: HTMLElement;
+	progress: ProgressBar;
+
+	renderer: NotificationTemplateRenderer;
 }
 
 class NotificationMessageMarkdownRenderer {
@@ -150,29 +154,12 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 
 	public static readonly TEMPLATE_ID = 'notification';
 
-	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
-
-	private toDispose: IDisposable[];
-
-	private closeNotificationAction: ClearNotificationAction;
-	private expandNotificationAction: ExpandNotificationAction;
-	private collapseNotificationAction: CollapseNotificationAction;
-
 	constructor(
 		private actionRunner: IActionRunner,
-		@IOpenerService private openerService: IOpenerService,
 		@IThemeService private themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		this.toDispose = [];
-
-		this.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
-		this.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
-		this.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
-
-		this.toDispose.push(this.closeNotificationAction, this.expandNotificationAction, this.collapseNotificationAction);
 	}
 
 	public get templateId() {
@@ -218,6 +205,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 				}
 			}
 		);
+		data.toDispose.push(data.toolbar);
 
 		// Details Row
 		data.detailsRow = document.createElement('div');
@@ -244,43 +232,83 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		data.mainRow.appendChild(data.message);
 		data.mainRow.appendChild(toolbarContainer);
 
+		// Progress: below the rows to span the entire width of the item
+		data.progress = new ProgressBar(container);
+		data.toDispose.push(attachProgressBarStyler(data.progress, this.themeService));
+		data.toDispose.push(data.progress);
+
+		// Renderer
+		data.renderer = this.instantiationService.createInstance(NotificationTemplateRenderer, data, this.actionRunner);
+		data.toDispose.push(data.renderer);
+
 		return data;
 	}
 
-	private toSeverity(severity: 'info' | 'warning' | 'error'): Severity {
-		switch (severity) {
-			case 'info':
-				return Severity.Info;
-			case 'warning':
-				return Severity.Warning;
-			case 'error':
-				return Severity.Error;
+	public renderElement(notification: INotificationViewItem, index: number, data: INotificationTemplateData): void {
+		data.renderer.setInput(notification);
+	}
+
+	public disposeTemplate(templateData: INotificationTemplateData): void {
+		templateData.toDispose = dispose(templateData.toDispose);
+	}
+}
+
+export class NotificationTemplateRenderer {
+
+	private static closeNotificationAction: ClearNotificationAction;
+	private static expandNotificationAction: ExpandNotificationAction;
+	private static collapseNotificationAction: CollapseNotificationAction;
+
+	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
+
+	private inputDisposeables: IDisposable[];
+
+	constructor(
+		private template: INotificationTemplateData,
+		private actionRunner: IActionRunner,
+		@IOpenerService private openerService: IOpenerService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService,
+		@IKeybindingService private keybindingService: IKeybindingService
+	) {
+		this.inputDisposeables = [];
+
+		if (!NotificationTemplateRenderer.closeNotificationAction) {
+			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
+			NotificationTemplateRenderer.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
+			NotificationTemplateRenderer.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
 		}
 	}
 
-	public renderElement(notification: INotificationViewItem, index: number, data: INotificationTemplateData): void {
+	public setInput(notification: INotificationViewItem): void {
+		this.inputDisposeables = dispose(this.inputDisposeables);
+
+		this.render(notification);
+	}
+
+	private render(notification: INotificationViewItem): void {
 
 		// Container
-		toggleClass(data.container, 'expanded', notification.expanded);
+		toggleClass(this.template.container, 'expanded', notification.expanded);
 
 		// Icon
-		NotificationRenderer.SEVERITIES.forEach(severity => {
+		NotificationTemplateRenderer.SEVERITIES.forEach(severity => {
 			const domAction = notification.severity === this.toSeverity(severity) ? addClass : removeClass;
-			domAction(data.icon, `icon-${severity}`);
+			domAction(this.template.icon, `icon-${severity}`);
 		});
 
 		// Message (simple markdown with links support)
-		clearNode(data.message);
-		data.message.appendChild(NotificationMessageMarkdownRenderer.render(notification.message, (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)));
+		clearNode(this.template.message);
+		this.template.message.appendChild(NotificationMessageMarkdownRenderer.render(notification.message, (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)));
 
-		const messageOverflows = notification.canCollapse && !notification.expanded && data.message.scrollWidth > data.message.clientWidth;
+		const messageOverflows = notification.canCollapse && !notification.expanded && this.template.message.scrollWidth > this.template.message.clientWidth;
 		if (messageOverflows) {
-			data.message.title = data.message.textContent;
+			this.template.message.title = this.template.message.textContent;
 		} else {
-			data.message.removeAttribute('title');
+			this.template.message.removeAttribute('title');
 		}
 
-		const links = data.message.querySelectorAll('a');
+		const links = this.template.message.querySelectorAll('a');
 		for (let i = 0; i < links.length; i++) {
 			links.item(i).tabIndex = -1; // prevent keyboard navigation to links to allow for better keyboard support within a message
 		}
@@ -291,7 +319,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		if (notification.actions.secondary.length > 0) {
 			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, notification.actions.secondary);
 			actions.push(configureNotificationAction);
-			data.toDispose.push(configureNotificationAction);
+			this.inputDisposeables.push(configureNotificationAction);
 		}
 
 		let showExpandCollapseAction = false;
@@ -306,27 +334,74 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		}
 
 		if (showExpandCollapseAction) {
-			actions.push(notification.expanded ? this.collapseNotificationAction : this.expandNotificationAction);
+			actions.push(notification.expanded ? NotificationTemplateRenderer.collapseNotificationAction : NotificationTemplateRenderer.expandNotificationAction);
 		}
 
-		actions.push(this.closeNotificationAction);
+		actions.push(NotificationTemplateRenderer.closeNotificationAction);
 
 		// Toolbar
-		data.toolbar.clear();
-		data.toolbar.context = notification;
-		actions.forEach(action => data.toolbar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) }));
+		this.template.toolbar.clear();
+		this.template.toolbar.context = notification;
+		actions.forEach(action => this.template.toolbar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) }));
 
 		// Source
 		if (notification.expanded && notification.source) {
-			data.source.innerText = localize('notificationSource', "Source: {0}", notification.source);
+			this.template.source.innerText = localize('notificationSource', "Source: {0}", notification.source);
 		} else {
-			data.source.innerText = '';
+			this.template.source.innerText = '';
 		}
 
 		// Actions
-		clearNode(data.actionsContainer);
+		clearNode(this.template.actionsContainer);
 		if (notification.expanded) {
-			notification.actions.primary.forEach(action => this.createButton(notification, action, data));
+			notification.actions.primary.forEach(action => this.createButton(notification, action));
+		}
+
+		// Progress
+		this.renderProgress(notification);
+		this.inputDisposeables.push(notification.progress.onDidChange(() => this.renderProgress(notification)));
+	}
+
+	private renderProgress(notification: INotificationViewItem): void {
+
+		// Return early if the item has no progress
+		if (!notification.hasProgress()) {
+			this.template.progress.done().getContainer().hide();
+
+			return;
+		}
+
+		// Infinite
+		const state = notification.progress.state;
+		if (state.infinite) {
+			this.template.progress.infinite().getContainer().show();
+		}
+
+		// Total / Worked
+		else if (state.total || state.worked) {
+			if (state.total) {
+				this.template.progress.total(state.total);
+			}
+
+			if (state.worked) {
+				this.template.progress.worked(state.worked).getContainer().show();
+			}
+		}
+
+		// Done
+		else {
+			this.template.progress.done().getContainer().hide();
+		}
+	}
+
+	private toSeverity(severity: 'info' | 'warning' | 'error'): Severity {
+		switch (severity) {
+			case 'info':
+				return Severity.Info;
+			case 'warning':
+				return Severity.Warning;
+			case 'error':
+				return Severity.Error;
 		}
 	}
 
@@ -336,29 +411,25 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		return keybinding ? keybinding.getLabel() : void 0;
 	}
 
-	private createButton(notification: INotificationViewItem, action: IAction, data: INotificationTemplateData): Button {
-		const button = new Button(data.actionsContainer);
-		data.toDispose.push(attachButtonStyler(button, this.themeService));
-
+	private createButton(notification: INotificationViewItem, action: IAction): Button {
+		const button = new Button(this.template.actionsContainer);
 		button.label = action.label;
-		button.onDidClick(() => {
+		this.inputDisposeables.push(button.onDidClick(() => {
 
 			// Run action
 			this.actionRunner.run(action);
 
 			// Hide notification
 			notification.dispose();
-		});
+		}));
+
+		this.inputDisposeables.push(attachButtonStyler(button, this.themeService));
+		this.inputDisposeables.push(button);
 
 		return button;
 	}
 
-	public disposeTemplate(templateData: INotificationTemplateData): void {
-		templateData.toolbar.dispose();
-		templateData.toDispose = dispose(templateData.toDispose);
-	}
-
 	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+		this.inputDisposeables = dispose(this.inputDisposeables);
 	}
 }

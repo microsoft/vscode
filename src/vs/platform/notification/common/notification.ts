@@ -25,7 +25,15 @@ export interface INotificationActions {
 	secondary?: IAction[];
 }
 
+export interface INotificationProgress {
+	infinite(): void;
+	total(value: number): void;
+	worked(value: number): void;
+	done(): void;
+}
+
 export interface INotificationHandle extends IDisposable {
+	readonly progress: INotificationProgress;
 }
 
 export interface INotificationService {

@@ -7,7 +7,7 @@
 
 import { Severity } from 'vs/platform/message/common/message';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { INotification, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -34,7 +34,19 @@ export interface INotificationChangeEvent {
 }
 
 class NoOpNotification implements INotificationHandle {
+	public readonly progress = new NoOpProgress();
+
 	public dispose(): void { }
+}
+
+class NoOpProgress implements INotificationProgress {
+	public infinite(): void { }
+
+	public done(): void { }
+
+	public total(value: number): void { }
+
+	public worked(value: number): void { }
 }
 
 export class NotificationsModel implements INotificationsModel {
@@ -64,8 +76,8 @@ export class NotificationsModel implements INotificationsModel {
 
 	public notify(notification: INotification): INotificationHandle {
 		const item = this.createViewItem(notification);
-		if (item instanceof NoOpNotification) {
-			return item; // return early if this is a no-op
+		if (!item) {
+			return NotificationsModel.NO_OP_NOTIFICATION; // return early if this is a no-op
 		}
 
 		// Deduplicate
@@ -80,9 +92,15 @@ export class NotificationsModel implements INotificationsModel {
 		// Events
 		this._onDidNotificationChange.fire({ item, index: 0, kind: NotificationChangeType.ADD });
 
-		// Wrap into handles
+		// Wrap into handle
 		return {
-			dispose: () => this.disposeItem(item)
+			dispose: () => this.disposeItem(item),
+			progress: {
+				infinite: () => item.progress.infinite(),
+				total: value => item.progress.total(value),
+				worked: value => item.progress.worked(value),
+				done: () => item.progress.done()
+			}
 		};
 	}
 
@@ -106,10 +124,10 @@ export class NotificationsModel implements INotificationsModel {
 		return void 0;
 	}
 
-	private createViewItem(notification: INotification): INotificationViewItem | NoOpNotification {
+	private createViewItem(notification: INotification): INotificationViewItem {
 		const item = NotificationViewItem.create(notification);
 		if (!item) {
-			return NotificationsModel.NO_OP_NOTIFICATION;
+			return null;
 		}
 
 		// Item Events
@@ -143,6 +161,7 @@ export interface INotificationViewItem {
 	readonly message: IMarkdownString;
 	readonly source: string;
 	readonly actions: INotificationActions;
+	readonly progress: INotificationViewItemProgress;
 
 	readonly expanded: boolean;
 	readonly canCollapse: boolean;
@@ -154,6 +173,8 @@ export interface INotificationViewItem {
 	collapse(): void;
 	toggle(): void;
 
+	hasProgress(): boolean;
+
 	dispose(): void;
 
 	equals(item: INotificationViewItem);
@@ -161,6 +182,101 @@ export interface INotificationViewItem {
 
 export function isNotificationViewItem(obj: any): obj is INotificationViewItem {
 	return obj instanceof NotificationViewItem;
+}
+
+export interface INotificationViewItemProgressState {
+	infinite?: boolean;
+	total?: number;
+	worked?: number;
+	done?: boolean;
+}
+
+export interface INotificationViewItemProgress extends INotificationProgress {
+	readonly state: INotificationViewItemProgressState;
+	readonly onDidChange: Event<void>;
+
+	dispose(): void;
+}
+
+export class NotificationViewItemProgress implements INotificationViewItemProgress {
+	private _state: INotificationViewItemProgressState;
+
+	private _onDidChange: Emitter<void>;
+	private toDispose: IDisposable[];
+
+	constructor() {
+		this.toDispose = [];
+		this._state = Object.create(null);
+
+		this._onDidChange = new Emitter<void>();
+		this.toDispose.push(this._onDidChange);
+	}
+
+	public get state(): INotificationViewItemProgressState {
+		return this._state;
+	}
+
+	public get onDidChange(): Event<void> {
+		return this._onDidChange.event;
+	}
+
+	public infinite(): void {
+		if (this._state.infinite) {
+			return;
+		}
+
+		this._state.infinite = true;
+
+		this._state.total = void 0;
+		this._state.worked = void 0;
+		this._state.done = void 0;
+
+		this._onDidChange.fire();
+	}
+
+	public done(): void {
+		if (this._state.done) {
+			return;
+		}
+
+		this._state.done = true;
+
+		this._state.infinite = void 0;
+		this._state.total = void 0;
+		this._state.worked = void 0;
+
+		this._onDidChange.fire();
+	}
+
+	public total(value: number): void {
+		if (this._state.total === value) {
+			return;
+		}
+
+		this._state.total = value;
+
+		this._state.infinite = void 0;
+		this._state.done = void 0;
+
+		this._onDidChange.fire();
+	}
+
+	public worked(value: number): void {
+		if (this._state.worked === value) {
+			return;
+		}
+
+		this._state.worked = value;
+
+		this._state.infinite = void 0;
+		this._state.done = void 0;
+
+		this._onDidChange.fire();
+	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
+	}
 }
 
 export class NotificationViewItem implements INotificationViewItem {
@@ -172,6 +288,8 @@ export class NotificationViewItem implements INotificationViewItem {
 
 	private _onDidChange: Emitter<void>;
 	private _onDidDispose: Emitter<void>;
+
+	private _progress: INotificationViewItemProgress;
 
 	public static create(notification: INotification): INotificationViewItem {
 		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
@@ -245,6 +363,19 @@ export class NotificationViewItem implements INotificationViewItem {
 
 	public get severity(): Severity {
 		return this._severity;
+	}
+
+	public hasProgress(): boolean {
+		return !!this._progress;
+	}
+
+	public get progress(): INotificationViewItemProgress {
+		if (!this._progress) {
+			this._progress = new NotificationViewItemProgress();
+			this.toDispose.push(this._progress);
+		}
+
+		return this._progress;
 	}
 
 	public get message(): IMarkdownString {

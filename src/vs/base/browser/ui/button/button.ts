@@ -97,9 +97,9 @@ export class Button {
 		});
 
 		// Also set hover background when button is focused for feedback
-		const tracker = DOM.trackFocus(this.$el.getHTMLElement());
-		tracker.onDidFocus(() => this.setHoverBackground());
-		tracker.onDidBlur(() => this.applyStyles()); // restore standard styles
+		this.focusTracker = DOM.trackFocus(this.$el.getHTMLElement());
+		this.focusTracker.onDidFocus(() => this.setHoverBackground());
+		this.focusTracker.onDidBlur(() => this.applyStyles()); // restore standard styles
 
 		this.applyStyles();
 	}

@@ -42,7 +42,7 @@ export class NotificationService implements INotificationService {
 				message: 'This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com). This is a info message with a [link](https://code.visualstudio.com).',
 				source: 'GitLens Extension'
 			});
-			this.notify({
+			let handle = this.notify({
 				severity: Severity.Warning,
 				message: 'This is a warning message with a [link](https://code.visualstudio.com).',
 				actions: {
@@ -56,10 +56,36 @@ export class NotificationService implements INotificationService {
 					]
 				}
 			});
-			this.notify({
+			handle.progress.total(100);
+			setTimeout(() => {
+				handle.progress.worked(20);
+				setTimeout(() => {
+					handle.progress.worked(40);
+					setTimeout(() => {
+						handle.progress.worked(60);
+						setTimeout(() => {
+							handle.progress.worked(80);
+							setTimeout(() => {
+								handle.progress.worked(100);
+								setTimeout(() => {
+									handle.progress.done();
+								}, 3000);
+							}, 3000);
+						}, 3000);
+					}, 3000);
+				}, 3000);
+			}, 1000);
+
+			let handle2 = this.notify({
 				severity: Severity.Error,
 				message: 'This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).'
 			});
+			setTimeout(() => {
+				handle2.progress.infinite();
+				setTimeout(() => {
+					handle2.progress.done();
+				}, 1500);
+			}, 500);
 		}, 500);
 	}
 
