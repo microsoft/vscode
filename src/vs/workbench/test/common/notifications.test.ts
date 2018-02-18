@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
+import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
 import { Severity } from 'vs/platform/message/common/message';
 import { Action } from 'vs/base/common/actions';
 import { INotification } from 'vs/platform/notification/common/notification';
@@ -44,7 +44,7 @@ suite('Notifications', () => {
 
 		// Events
 		let called = 0;
-		item1.onDidChange(() => {
+		item1.onDidExpansionChange(() => {
 			called++;
 		});
 
@@ -52,6 +52,18 @@ suite('Notifications', () => {
 		item1.expand();
 		item1.collapse();
 		item1.collapse();
+
+		assert.equal(called, 2);
+
+		called = 0;
+		item1.onDidLabelChange(e => {
+			if (e.kind === NotificationViewItemLabelKind.PROGRESS) {
+				called++;
+			}
+		});
+
+		item1.progress.infinite();
+		item1.progress.done();
 
 		assert.equal(called, 2);
 

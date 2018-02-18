@@ -118,8 +118,8 @@ export class NotificationsToasts extends Themable {
 		// Show notification
 		notificationList.updateNotificationsList(0, 0, [item]);
 
-		// Update when item changes
-		itemDisposeables.push(item.onDidChange(() => {
+		// Update when item height changes due to expansion
+		itemDisposeables.push(item.onDidExpansionChange(() => {
 			notificationList.updateNotificationsList(0, 1, [item]);
 		}));
 

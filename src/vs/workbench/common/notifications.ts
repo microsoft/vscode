@@ -131,7 +131,7 @@ export class NotificationsModel implements INotificationsModel {
 		}
 
 		// Item Events
-		const itemChangeListener = item.onDidChange(() => {
+		const itemChangeListener = item.onDidExpansionChange(() => {
 			const index = this._notifications.indexOf(item);
 			if (index >= 0) {
 				this._onDidNotificationChange.fire({ item, index, kind: NotificationChangeType.CHANGE });
@@ -166,8 +166,9 @@ export interface INotificationViewItem {
 	readonly expanded: boolean;
 	readonly canCollapse: boolean;
 
-	readonly onDidChange: Event<void>;
+	readonly onDidExpansionChange: Event<void>;
 	readonly onDidDispose: Event<void>;
+	readonly onDidLabelChange: Event<INotificationViewItemLabelChangeEvent>;
 
 	expand(): void;
 	collapse(): void;
@@ -184,6 +185,14 @@ export function isNotificationViewItem(obj: any): obj is INotificationViewItem {
 	return obj instanceof NotificationViewItem;
 }
 
+export enum NotificationViewItemLabelKind {
+	PROGRESS
+}
+
+export interface INotificationViewItemLabelChangeEvent {
+	kind: NotificationViewItemLabelKind;
+}
+
 export interface INotificationViewItemProgressState {
 	infinite?: boolean;
 	total?: number;
@@ -193,7 +202,6 @@ export interface INotificationViewItemProgressState {
 
 export interface INotificationViewItemProgress extends INotificationProgress {
 	readonly state: INotificationViewItemProgressState;
-	readonly onDidChange: Event<void>;
 
 	dispose(): void;
 }
@@ -286,10 +294,11 @@ export class NotificationViewItem implements INotificationViewItem {
 	private _expanded: boolean;
 	private toDispose: IDisposable[];
 
-	private _onDidChange: Emitter<void>;
+	private _onDidExpansionChange: Emitter<void>;
 	private _onDidDispose: Emitter<void>;
+	private _onDidLabelChange: Emitter<INotificationViewItemLabelChangeEvent>;
 
-	private _progress: INotificationViewItemProgress;
+	private _progress: NotificationViewItemProgress;
 
 	public static create(notification: INotification): INotificationViewItem {
 		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
@@ -335,8 +344,11 @@ export class NotificationViewItem implements INotificationViewItem {
 		this.toDispose = [];
 		this._expanded = _actions.primary.length > 0;
 
-		this._onDidChange = new Emitter<void>();
-		this.toDispose.push(this._onDidChange);
+		this._onDidExpansionChange = new Emitter<void>();
+		this.toDispose.push(this._onDidExpansionChange);
+
+		this._onDidLabelChange = new Emitter<INotificationViewItemLabelChangeEvent>();
+		this.toDispose.push(this._onDidLabelChange);
 
 		this._onDidDispose = new Emitter<void>();
 		this.toDispose.push(this._onDidDispose);
@@ -345,8 +357,12 @@ export class NotificationViewItem implements INotificationViewItem {
 		this.toDispose.push(..._actions.secondary);
 	}
 
-	public get onDidChange(): Event<void> {
-		return this._onDidChange.event;
+	public get onDidExpansionChange(): Event<void> {
+		return this._onDidExpansionChange.event;
+	}
+
+	public get onDidLabelChange(): Event<INotificationViewItemLabelChangeEvent> {
+		return this._onDidLabelChange.event;
 	}
 
 	public get onDidDispose(): Event<void> {
@@ -373,6 +389,7 @@ export class NotificationViewItem implements INotificationViewItem {
 		if (!this._progress) {
 			this._progress = new NotificationViewItemProgress();
 			this.toDispose.push(this._progress);
+			this.toDispose.push(this._progress.onDidChange(() => this._onDidLabelChange.fire({ kind: NotificationViewItemLabelKind.PROGRESS })));
 		}
 
 		return this._progress;
@@ -396,7 +413,7 @@ export class NotificationViewItem implements INotificationViewItem {
 		}
 
 		this._expanded = true;
-		this._onDidChange.fire();
+		this._onDidExpansionChange.fire();
 	}
 
 	public collapse(): void {
@@ -405,7 +422,7 @@ export class NotificationViewItem implements INotificationViewItem {
 		}
 
 		this._expanded = false;
-		this._onDidChange.fire();
+		this._onDidExpansionChange.fire();
 	}
 
 	public toggle(): void {

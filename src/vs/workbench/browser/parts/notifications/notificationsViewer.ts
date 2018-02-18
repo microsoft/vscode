@@ -23,7 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
-import { INotificationViewItem, NotificationViewItem } from 'vs/workbench/common/notifications';
+import { INotificationViewItem, NotificationViewItem, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MarkedOptions } from 'vs/base/common/marked/marked';
@@ -359,14 +359,21 @@ export class NotificationTemplateRenderer {
 
 		// Progress
 		this.renderProgress(notification);
-		this.inputDisposeables.push(notification.progress.onDidChange(() => this.renderProgress(notification)));
+
+		// Label Change Events
+		this.inputDisposeables.push(notification.onDidLabelChange(event => {
+			switch (event.kind) {
+				case NotificationViewItemLabelKind.PROGRESS:
+					return this.renderProgress(notification);
+			}
+		}));
 	}
 
 	private renderProgress(notification: INotificationViewItem): void {
 
 		// Return early if the item has no progress
 		if (!notification.hasProgress()) {
-			this.template.progress.done().getContainer().hide();
+			this.template.progress.stop().getContainer().hide();
 
 			return;
 		}
