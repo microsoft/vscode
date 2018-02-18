@@ -7,7 +7,7 @@
 
 import { Severity } from 'vs/platform/message/common/message';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -31,22 +31,6 @@ export interface INotificationChangeEvent {
 	index: number;
 	item: INotificationViewItem;
 	kind: NotificationChangeType;
-}
-
-class NoOpNotification implements INotificationHandle {
-	public readonly progress = new NoOpProgress();
-
-	public dispose(): void { }
-}
-
-class NoOpProgress implements INotificationProgress {
-	public infinite(): void { }
-
-	public done(): void { }
-
-	public total(value: number): void { }
-
-	public worked(value: number): void { }
 }
 
 export class NotificationsModel implements INotificationsModel {
@@ -100,7 +84,9 @@ export class NotificationsModel implements INotificationsModel {
 				total: value => item.progress.total(value),
 				worked: value => item.progress.worked(value),
 				done: () => item.progress.done()
-			}
+			},
+			updateMessage: (message: string | IMarkdownString | Error) => item.updateMessage(message),
+			updateActions: (actions: INotificationActions) => item.updateActions(actions)
 		};
 	}
 
@@ -131,15 +117,26 @@ export class NotificationsModel implements INotificationsModel {
 		}
 
 		// Item Events
-		const itemChangeListener = item.onDidExpansionChange(() => {
+		const onItemChangeEvent = () => {
 			const index = this._notifications.indexOf(item);
 			if (index >= 0) {
 				this._onDidNotificationChange.fire({ item, index, kind: NotificationChangeType.CHANGE });
 			}
+		};
+
+		const itemExpansionChangeListener = item.onDidExpansionChange(() => onItemChangeEvent());
+
+		const itemLabelChangeListener = item.onDidLabelChange(e => {
+			// a label change in the area of actions or the message is a change that potentially has an impact
+			// on the size of the notification and as such we emit a change event so that viewers can redraw
+			if (e.kind === NotificationViewItemLabelKind.ACTIONS || e.kind === NotificationViewItemLabelKind.MESSAGE) {
+				onItemChangeEvent();
+			}
 		});
 
 		once(item.onDidDispose)(() => {
-			itemChangeListener.dispose();
+			itemExpansionChangeListener.dispose();
+			itemLabelChangeListener.dispose();
 
 			const index = this._notifications.indexOf(item);
 			if (index >= 0) {
@@ -176,6 +173,9 @@ export interface INotificationViewItem {
 
 	hasProgress(): boolean;
 
+	updateMessage(message: string | IMarkdownString | Error): void;
+	updateActions(actions?: INotificationActions): void;
+
 	dispose(): void;
 
 	equals(item: INotificationViewItem);
@@ -186,6 +186,8 @@ export function isNotificationViewItem(obj: any): obj is INotificationViewItem {
 }
 
 export enum NotificationViewItemLabelKind {
+	MESSAGE,
+	ACTIONS,
 	PROGRESS
 }
 
@@ -294,11 +296,12 @@ export class NotificationViewItem implements INotificationViewItem {
 	private _expanded: boolean;
 	private toDispose: IDisposable[];
 
+	private _actions: INotificationActions;
+	private _progress: NotificationViewItemProgress;
+
 	private _onDidExpansionChange: Emitter<void>;
 	private _onDidDispose: Emitter<void>;
 	private _onDidLabelChange: Emitter<INotificationViewItemLabelChangeEvent>;
-
-	private _progress: NotificationViewItemProgress;
 
 	public static create(notification: INotification): INotificationViewItem {
 		if (!notification || !notification.message || isPromiseCanceledError(notification.message)) {
@@ -312,16 +315,8 @@ export class NotificationViewItem implements INotificationViewItem {
 			severity = Severity.Info;
 		}
 
-		let message: IMarkdownString;
-		if (notification.message instanceof Error) {
-			message = { value: toErrorMessage(notification.message, false), isTrusted: false };
-		} else if (typeof notification.message === 'string') {
-			message = { value: notification.message, isTrusted: false };
-		} else if (notification.message.value) {
-			message = notification.message;
-		}
-
-		if (!message || typeof message.value !== 'string') {
+		const message = NotificationViewItem.toMarkdownString(notification.message);
+		if (!message) {
 			return null; // we need a message to show
 		}
 
@@ -332,17 +327,24 @@ export class NotificationViewItem implements INotificationViewItem {
 		return new NotificationViewItem(severity, message, notification.source, notification.actions);
 	}
 
-	private constructor(private _severity: Severity, private _message: IMarkdownString, private _source: string, private _actions: INotificationActions = { primary: [], secondary: [] }) {
-		if (!Array.isArray(_actions.primary)) {
-			_actions.primary = [];
+	private static toMarkdownString(input: string | IMarkdownString | Error): IMarkdownString {
+		let message: IMarkdownString;
+
+		if (input instanceof Error) {
+			message = { value: toErrorMessage(input, false), isTrusted: false };
+		} else if (typeof input === 'string') {
+			message = { value: input, isTrusted: false };
+		} else if (input.value && typeof input.value === 'string') {
+			message = input;
 		}
 
-		if (!Array.isArray(_actions.secondary)) {
-			_actions.secondary = [];
-		}
+		return message;
+	}
 
+	private constructor(private _severity: Severity, private _message: IMarkdownString, private _source: string, actions?: INotificationActions) {
 		this.toDispose = [];
-		this._expanded = _actions.primary.length > 0;
+
+		this.setActions(actions);
 
 		this._onDidExpansionChange = new Emitter<void>();
 		this.toDispose.push(this._onDidExpansionChange);
@@ -352,9 +354,26 @@ export class NotificationViewItem implements INotificationViewItem {
 
 		this._onDidDispose = new Emitter<void>();
 		this.toDispose.push(this._onDidDispose);
+	}
 
-		this.toDispose.push(..._actions.primary);
-		this.toDispose.push(..._actions.secondary);
+	private setActions(actions: INotificationActions): void {
+		if (!actions) {
+			actions = { primary: [], secondary: [] };
+		}
+
+		if (!Array.isArray(actions.primary)) {
+			actions.primary = [];
+		}
+
+		if (!Array.isArray(actions.secondary)) {
+			actions.secondary = [];
+		}
+
+		this._actions = actions;
+		this._expanded = actions.primary.length > 0;
+
+		this.toDispose.push(...actions.primary);
+		this.toDispose.push(...actions.secondary);
 	}
 
 	public get onDidExpansionChange(): Event<void> {
@@ -405,6 +424,22 @@ export class NotificationViewItem implements INotificationViewItem {
 
 	public get actions(): INotificationActions {
 		return this._actions;
+	}
+
+	public updateMessage(input: string | IMarkdownString | Error): void {
+		const message = NotificationViewItem.toMarkdownString(input);
+		if (!message) {
+			return;
+		}
+
+		this._message = message;
+		this._onDidLabelChange.fire({ kind: NotificationViewItemLabelKind.MESSAGE });
+	}
+
+	public updateActions(actions?: INotificationActions): void {
+		this.setActions(actions);
+
+		this._onDidLabelChange.fire({ kind: NotificationViewItemLabelKind.ACTIONS });
 	}
 
 	public expand(): void {

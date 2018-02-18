@@ -70,7 +70,7 @@ export class NotificationsListDelegate implements IDelegate<INotificationViewIte
 			expandedHeight += overflow;
 		}
 
-		// Last row: source and actions if we have any
+		// Last row: source and buttons if we have any
 		if (notification.source || notification.actions.primary.length > 0) {
 			expandedHeight += NotificationsListDelegate.ROW_HEIGHT;
 		}
@@ -117,7 +117,7 @@ export interface INotificationTemplateData {
 
 	detailsRow: HTMLElement;
 	source: HTMLElement;
-	actionsContainer: HTMLElement;
+	buttonsContainer: HTMLElement;
 	progress: ProgressBar;
 
 	renderer: NotificationTemplateRenderer;
@@ -192,7 +192,7 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		data.toolbar = new ActionBar(
 			toolbarContainer,
 			{
-				ariaLabel: localize('notificationActions', "Notification actions"),
+				ariaLabel: localize('notificationActions', "Notification Actions"),
 				actionItemProvider: action => {
 					if (action instanceof ConfigureNotificationAction) {
 						const item = new DropdownMenuActionItem(action, action.configurationActions, this.contextMenuService, null, null, null, action.class);
@@ -216,15 +216,15 @@ export class NotificationRenderer implements IRenderer<INotificationViewItem, IN
 		addClass(data.source, 'notification-list-item-source');
 
 		// Buttons Container
-		data.actionsContainer = document.createElement('div');
-		addClass(data.actionsContainer, 'notification-list-item-actions-container');
+		data.buttonsContainer = document.createElement('div');
+		addClass(data.buttonsContainer, 'notification-list-item-buttons-container');
 
 		container.appendChild(data.container);
 
 		// the details row appears first in order for better keyboard access to notification buttons
 		data.container.appendChild(data.detailsRow);
 		data.detailsRow.appendChild(data.source);
-		data.detailsRow.appendChild(data.actionsContainer);
+		data.detailsRow.appendChild(data.buttonsContainer);
 
 		// main row
 		data.container.appendChild(data.mainRow);
@@ -297,7 +297,32 @@ export class NotificationTemplateRenderer {
 			domAction(this.template.icon, `icon-${severity}`);
 		});
 
-		// Message (simple markdown with links support)
+		// Message
+		const messageOverflows = this.renderMessage(notification);
+
+		// Secondary Actions
+		this.renderSecondaryActions(notification, messageOverflows);
+
+		// Source
+		this.renderSource(notification);
+
+		// Buttons
+		this.renderButtons(notification);
+
+		// Progress
+		this.renderProgress(notification);
+
+		// Label Change Events
+		this.inputDisposeables.push(notification.onDidLabelChange(event => {
+			switch (event.kind) {
+				case NotificationViewItemLabelKind.PROGRESS:
+					this.renderProgress(notification);
+					break;
+			}
+		}));
+	}
+
+	private renderMessage(notification: INotificationViewItem): boolean {
 		clearNode(this.template.message);
 		this.template.message.appendChild(NotificationMessageMarkdownRenderer.render(notification.message, (content: string) => this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError)));
 
@@ -313,15 +338,20 @@ export class NotificationTemplateRenderer {
 			links.item(i).tabIndex = -1; // prevent keyboard navigation to links to allow for better keyboard support within a message
 		}
 
-		// Actions
+		return messageOverflows;
+	}
+
+	private renderSecondaryActions(notification: INotificationViewItem, messageOverflows: boolean): void {
 		const actions: IAction[] = [];
 
+		// Secondary Actions
 		if (notification.actions.secondary.length > 0) {
 			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, notification.actions.secondary);
 			actions.push(configureNotificationAction);
 			this.inputDisposeables.push(configureNotificationAction);
 		}
 
+		// Expand / Collapse
 		let showExpandCollapseAction = false;
 		if (notification.canCollapse) {
 			if (notification.expanded) {
@@ -337,36 +367,28 @@ export class NotificationTemplateRenderer {
 			actions.push(notification.expanded ? NotificationTemplateRenderer.collapseNotificationAction : NotificationTemplateRenderer.expandNotificationAction);
 		}
 
+		// Close
 		actions.push(NotificationTemplateRenderer.closeNotificationAction);
 
-		// Toolbar
 		this.template.toolbar.clear();
 		this.template.toolbar.context = notification;
 		actions.forEach(action => this.template.toolbar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) }));
+	}
 
-		// Source
+	private renderSource(notification): void {
 		if (notification.expanded && notification.source) {
 			this.template.source.innerText = localize('notificationSource', "Source: {0}", notification.source);
 		} else {
 			this.template.source.innerText = '';
 		}
+	}
 
-		// Actions
-		clearNode(this.template.actionsContainer);
+	private renderButtons(notification: INotificationViewItem): void {
+		clearNode(this.template.buttonsContainer);
+
 		if (notification.expanded) {
 			notification.actions.primary.forEach(action => this.createButton(notification, action));
 		}
-
-		// Progress
-		this.renderProgress(notification);
-
-		// Label Change Events
-		this.inputDisposeables.push(notification.onDidLabelChange(event => {
-			switch (event.kind) {
-				case NotificationViewItemLabelKind.PROGRESS:
-					return this.renderProgress(notification);
-			}
-		}));
 	}
 
 	private renderProgress(notification: INotificationViewItem): void {
@@ -419,7 +441,7 @@ export class NotificationTemplateRenderer {
 	}
 
 	private createButton(notification: INotificationViewItem, action: IAction): Button {
-		const button = new Button(this.template.actionsContainer);
+		const button = new Button(this.template.buttonsContainer);
 		button.label = action.label;
 		this.inputDisposeables.push(button.onDidClick(() => {
 

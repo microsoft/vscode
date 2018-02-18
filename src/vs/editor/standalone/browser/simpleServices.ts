@@ -39,7 +39,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { INotificationService, INotification, INotificationHandle } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, NoOpNotification } from 'vs/platform/notification/common/notification';
 
 export class SimpleEditor implements IEditor {
 
@@ -285,7 +285,7 @@ export class SimpleNotificationService implements INotificationService {
 
 	public _serviceBrand: any;
 
-	private static readonly Empty: INotificationHandle = { dispose: () => undefined, progress: undefined };
+	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
 	public info(message: string): INotificationHandle {
 		return this.notify({ severity: Severity.Info, message });
@@ -312,7 +312,7 @@ export class SimpleNotificationService implements INotificationService {
 				break;
 		}
 
-		return SimpleNotificationService.Empty;
+		return SimpleNotificationService.NO_OP;
 	}
 }
 

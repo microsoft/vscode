@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/notificationsToasts';
-import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem } from 'vs/workbench/common/notifications';
+import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { addClass, removeClass, isAncestor } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -123,6 +123,13 @@ export class NotificationsToasts extends Themable {
 			notificationList.updateNotificationsList(0, 1, [item]);
 		}));
 
+		// Update when item height potentially changes due to label changes
+		itemDisposeables.push(item.onDidLabelChange(e => {
+			if (e.kind === NotificationViewItemLabelKind.ACTIONS || e.kind === NotificationViewItemLabelKind.MESSAGE) {
+				notificationList.updateNotificationsList(0, 1, [item]);
+			}
+		}));
+
 		// Remove when item gets disposed
 		once(item.onDidDispose)(() => {
 			this.removeToast(item);
@@ -134,7 +141,9 @@ export class NotificationsToasts extends Themable {
 			const hideAfterTimeout = () => {
 				timeoutHandle = setTimeout(() => {
 					if (!notificationList.hasFocus()) {
-						this.removeToast(item);
+						if (item.actions.primary.length === 0) {
+							this.removeToast(item); // only remove if actions are still not there (they can change after the fact)
+						}
 					} else {
 						hideAfterTimeout(); // push out disposal if item has focus
 					}

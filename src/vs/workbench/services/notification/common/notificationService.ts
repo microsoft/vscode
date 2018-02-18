@@ -58,16 +58,22 @@ export class NotificationService implements INotificationService {
 			});
 			handle.progress.total(100);
 			setTimeout(() => {
+				handle.updateMessage('First 20% done...');
 				handle.progress.worked(20);
 				setTimeout(() => {
+					handle.updateMessage('First 40% done...');
 					handle.progress.worked(40);
 					setTimeout(() => {
+						handle.updateMessage('First 60% done...');
 						handle.progress.worked(60);
 						setTimeout(() => {
+							handle.updateMessage('First 80% done...');
 							handle.progress.worked(80);
 							setTimeout(() => {
+								handle.updateMessage('First 100% done...');
 								handle.progress.worked(100);
 								setTimeout(() => {
+									handle.updateMessage('Finished!');
 									handle.progress.done();
 								}, 3000);
 							}, 3000);
@@ -78,11 +84,22 @@ export class NotificationService implements INotificationService {
 
 			let handle2 = this.notify({
 				severity: Severity.Error,
-				message: 'This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).'
+				message: 'Short message'
 			});
 			setTimeout(() => {
 				handle2.progress.infinite();
+				handle2.updateActions({
+					primary: [
+						new Action('id.reload', 'Yes OK', null, true, () => { console.log('OK'); return void 0; }),
+						new Action('id.cancel', 'No, not OK!', null, true, () => { console.log('NOT OK'); return void 0; })
+					],
+					secondary: [
+						new Action('id.reload', 'Yes OK', null, true, () => { console.log('OK'); return void 0; }),
+						new Action('id.cancel', 'No, not OK!', null, true, () => { console.log('NOT OK'); return void 0; })
+					]
+				});
 				setTimeout(() => {
+					handle2.updateMessage('This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com). This is a error message with a [link](https://code.visualstudio.com).');
 					handle2.progress.done();
 				}, 1500);
 			}, 500);

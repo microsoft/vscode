@@ -99,18 +99,18 @@
 	opacity: 0.7;
 	flex: 1;
 	font-size: 12px;
-	overflow: hidden; /* always give away space to actions container */
+	overflow: hidden; /* always give away space to buttons container */
 }
 
-/** Notification: Actions */
+/** Notification: Buttons */
 
-.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-actions-container .monaco-button {
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
 	max-width: fit-content;
 	padding: 5px 10px;
 	font-size: 12px;
 }
 
-.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-actions-container .monaco-button:not(:first-of-type) {
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button:not(:first-of-type) {
 	margin-left: 10px;
 }
 

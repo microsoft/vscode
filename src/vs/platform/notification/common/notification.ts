@@ -34,6 +34,9 @@ export interface INotificationProgress {
 
 export interface INotificationHandle extends IDisposable {
 	readonly progress: INotificationProgress;
+
+	updateMessage(message: string | IMarkdownString | Error): void;
+	updateActions(actions?: INotificationActions): void;
 }
 
 export interface INotificationService {
@@ -45,4 +48,19 @@ export interface INotificationService {
 	info(message: string): INotificationHandle;
 	warn(message: string): INotificationHandle;
 	error(error: string | Error): INotificationHandle;
+}
+
+export class NoOpNotification implements INotificationHandle {
+	readonly progress = new NoOpProgress();
+
+	updateMessage(message: string | IMarkdownString | Error): void { }
+	updateActions(actions?: INotificationActions): void { }
+	dispose(): void { }
+}
+
+export class NoOpProgress implements INotificationProgress {
+	infinite(): void { }
+	done(): void { }
+	total(value: number): void { }
+	worked(value: number): void { }
 }

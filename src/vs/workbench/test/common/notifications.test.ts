@@ -68,6 +68,17 @@ suite('Notifications', () => {
 		assert.equal(called, 2);
 
 		called = 0;
+		item1.onDidLabelChange(e => {
+			if (e.kind === NotificationViewItemLabelKind.MESSAGE) {
+				called++;
+			}
+		});
+
+		item1.updateMessage('message update');
+
+		assert.equal(called, 1);
+
+		called = 0;
 		item1.onDidDispose(() => {
 			called++;
 		});
