@@ -10,7 +10,6 @@ import { addClass, isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
-import { localize } from 'vs/nls';
 import { Themable, NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -18,6 +17,10 @@ import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+
+export interface INotificationsListOptions {
+	ariaLabel: string;
+}
 
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
@@ -27,6 +30,7 @@ export class NotificationsList extends Themable {
 
 	constructor(
 		private container: HTMLElement,
+		private options: INotificationsListOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -74,7 +78,7 @@ export class NotificationsList extends Themable {
 			new NotificationsListDelegate(this.listContainer),
 			[renderer],
 			{
-				ariaLabel: localize('notificationsList', "Notifications List")
+				ariaLabel: this.options.ariaLabel
 			} as IListOptions<INotificationViewItem>
 		);
 		this.toUnbind.push(this.list);

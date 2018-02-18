@@ -19,6 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { addClass, removeClass, isAncestor } from 'vs/base/browser/dom';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { localize } from 'vs/nls';
 
 export class NotificationsCenter extends Themable {
 
@@ -69,7 +70,7 @@ export class NotificationsCenter extends Themable {
 			this.notificationsCenterContainer = document.createElement('div');
 			addClass(this.notificationsCenterContainer, 'notifications-center');
 
-			this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer);
+			this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, { ariaLabel: localize('notificationsList', "Notifications List") });
 
 			this.container.appendChild(this.notificationsCenterContainer);
 		}

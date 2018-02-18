@@ -21,6 +21,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { Severity } from 'vs/platform/message/common/message';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationCommands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { localize } from 'vs/nls';
 
 interface INotificationToast {
 	list: NotificationsList;
@@ -105,7 +106,7 @@ export class NotificationsToasts extends Themable {
 		itemDisposeables.push(toDisposable(() => this.notificationsToastsContainer.removeChild(notificationToastContainer)));
 
 		// Create toast with item and show
-		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToastContainer);
+		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToastContainer, { ariaLabel: localize('notificationsToast', "Notification Toast") });
 		itemDisposeables.push(notificationList);
 		this.mapNotificationToToast.set(item, { list: notificationList, container: notificationToastContainer, disposeables: itemDisposeables });
 
