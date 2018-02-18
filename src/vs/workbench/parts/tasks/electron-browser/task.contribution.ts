@@ -72,7 +72,7 @@ import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent, TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind, TaskIdentifier, TaskSorter } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties } from 'vs/workbench/parts/tasks/common/taskService';
-import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
+import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../node/taskConfiguration';
 import { ProcessTaskSystem } from 'vs/workbench/parts/tasks/node/processTaskSystem';
@@ -500,7 +500,7 @@ class TaskService implements ITaskService {
 		@IStorageService private storageService: IStorageService,
 		@IProgressService2 private progressService: IProgressService2,
 		@IOpenerService private openerService: IOpenerService,
-		@IWindowService private _windowServive: IWindowService
+		@IWindowService private readonly _windowServive: IWindowService
 	) {
 		this.configurationService = configurationService;
 		this.markerService = markerService;
@@ -2129,7 +2129,7 @@ class TaskService implements ITaskService {
 				if (stat) {
 					return stat.resource;
 				}
-				return this.quickOpenService.pick(taskTemplates, { placeHolder: nls.localize('TaskService.template', 'Select a Task Template') }).then((selection) => {
+				return this.quickOpenService.pick(getTaskTemplates(), { placeHolder: nls.localize('TaskService.template', 'Select a Task Template') }).then((selection) => {
 					if (!selection) {
 						return undefined;
 					}

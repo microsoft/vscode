@@ -39,7 +39,7 @@ export class GettingStarted implements IWorkbenchContribution {
 	private openExternal(url: string) {
 		// Don't open the welcome page as the root user on Linux, this is due to a bug with xdg-open
 		// which recommends against running itself as root.
-		if (platform.isLinux && platform.isRootUser) {
+		if (platform.isLinux && platform.isRootUser()) {
 			return;
 		}
 		window.open(url);

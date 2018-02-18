@@ -329,7 +329,7 @@ export class ElectronWindow extends Themable {
 			if (isWindows) {
 				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated());
 			} else {
-				isAdminPromise = Promise.resolve(isRootUser);
+				isAdminPromise = Promise.resolve(isRootUser());
 			}
 
 			return isAdminPromise.then(isAdmin => {

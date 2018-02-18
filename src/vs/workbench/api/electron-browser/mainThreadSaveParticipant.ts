@@ -179,9 +179,9 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 
 	constructor(
-		@ICodeEditorService private _editorService: ICodeEditorService,
-		@IEditorWorkerService private _editorWorkerService: IEditorWorkerService,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		// Nothing
 	}
@@ -288,8 +288,8 @@ export class SaveParticipant implements ISaveParticipant {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProgressService2 private _progressService: IProgressService2,
-		@ILogService private _logService: ILogService
+		@IProgressService2 private readonly _progressService: IProgressService2,
+		@ILogService private readonly _logService: ILogService
 	) {
 		this._saveParticipants = [
 			instantiationService.createInstance(TrimWhitespaceParticipant),

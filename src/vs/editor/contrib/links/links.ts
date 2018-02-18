@@ -130,7 +130,7 @@ class LinkOccurrence {
 
 class LinkDetector implements editorCommon.IEditorContribution {
 
-	private static ID: string = 'editor.linkDetector';
+	private static readonly ID: string = 'editor.linkDetector';
 
 	public static get(editor: ICodeEditor): LinkDetector {
 		return editor.getContribution<LinkDetector>(LinkDetector.ID);

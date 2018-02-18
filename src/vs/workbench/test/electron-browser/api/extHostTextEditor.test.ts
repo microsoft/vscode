@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { MainThreadEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/extHost.protocol';
+import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/node/extHostTextEditor';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import URI from 'vs/base/common/uri';
@@ -48,7 +48,7 @@ suite('ExtHostTextEditorOptions', () => {
 
 	setup(() => {
 		calls = [];
-		let mockProxy: MainThreadEditorsShape = {
+		let mockProxy: MainThreadTextEditorsShape = {
 			dispose: undefined,
 			$trySetOptions: (id: string, options: ITextEditorConfigurationUpdate) => {
 				assert.equal(id, '1');

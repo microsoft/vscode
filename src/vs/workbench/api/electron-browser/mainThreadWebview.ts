@@ -14,7 +14,7 @@ import { IEditorModel, Position } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WebviewEditor as BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from 'vs/workbench/parts/html/browser/webviewEditor';
 import { Builder, Dimension } from 'vs/base/browser/builder';
-import WebView from 'vs/workbench/parts/html/browser/webview';
+import { Webview } from 'vs/workbench/parts/html/browser/webview';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -209,15 +209,15 @@ class WebviewEditor extends BaseWebviewEditor {
 			allowScripts: input.options.enableScripts,
 			enableWrappedPostMessage: true
 		};
-		this.webview.contents = [input.html];
+		this.webview.contents = input.html;
 		this.webview.style(this.themeService.getTheme());
 	}
 
-	private get webview(): WebView {
+	private get webview(): Webview {
 		if (!this._webview) {
 			this._contentDisposables = dispose(this._contentDisposables);
 
-			this._webview = new WebView(
+			this._webview = new Webview(
 				this.webviewContent,
 				this._partService.getContainer(Parts.EDITOR_PART),
 				this._environmentService,
@@ -246,18 +246,6 @@ class WebviewEditor extends BaseWebviewEditor {
 				}
 			}, null, this._contentDisposables);
 
-			this._webview.onFocus(() => {
-				if (this.input) {
-					(this.input as WebviewInput).events.onFocus();
-				}
-			}, this, this._contentDisposables);
-
-			this._webview.onBlur(() => {
-				if (this.input) {
-					(this.input as WebviewInput).events.onBlur();
-				}
-			}, this, this._contentDisposables);
-
 			this._contentDisposables.push(this._webview);
 			this._contentDisposables.push(toDisposable(() => this._webview = null));
 		}
@@ -283,7 +271,7 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 
 	private readonly _proxy: ExtHostWebviewsShape;
 	private readonly _webviews = new Map<number, WebviewInput>();
-	// private _activeWebview: WebviewInput | undefined;
+	private _activeWebview: WebviewInput | undefined = undefined;
 
 	constructor(
 		context: IExtHostContext,
@@ -293,7 +281,7 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostWebviews);
 
-		_editorGroupService.onEditorsChanged(() => this.onEditorsChanged, null, this._toDispose);
+		_editorGroupService.onEditorsChanged(this.onEditorsChanged, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -357,13 +345,29 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 
 	private onEditorsChanged() {
 		const activeEditor = this._editorService.getActiveEditor();
+		let newActiveWebview: WebviewInput | undefined = undefined;
 		if (activeEditor.input instanceof WebviewInput) {
-			// this._activeWebview = activeEditor.input;
 			for (const handle of map.keys(this._webviews)) {
 				const input = this._webviews.get(handle);
 				if (input.matches(activeEditor.input)) {
-
+					newActiveWebview = input;
+					break;
 				}
+			}
+		}
+
+		if (newActiveWebview) {
+			if (!this._activeWebview || !newActiveWebview.matches(this._activeWebview)) {
+				if (this._activeWebview) {
+					this._activeWebview.events.onBlur();
+				}
+				newActiveWebview.events.onFocus();
+				this._activeWebview = newActiveWebview;
+			}
+		} else {
+			if (this._activeWebview) {
+				this._activeWebview.events.onBlur();
+				this._activeWebview = undefined;
 			}
 		}
 	}

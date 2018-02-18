@@ -8,6 +8,7 @@
 import * as nls from 'vs/nls';
 import 'vs/css!./media/update.contribution';
 import 'vs/platform/update/node/update.config.contribution';
+import * as platform from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ReleaseNotesEditor } from 'vs/workbench/parts/update/electron-browser/releaseNotesEditor';
@@ -23,7 +24,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Running);
 
-if (process.platform === 'win32' && process.arch === 'ia32') {
+if (platform.isWindows && process.arch === 'ia32') {
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 		.registerWorkbenchContribution(Win3264BitContribution, LifecyclePhase.Running);
 }

@@ -55,14 +55,14 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	public constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService private _editorService: IEditorService,
-		@ITextModelService private _textModelResolverService: ITextModelService,
-		@IMessageService private _messageService: IMessageService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
-		@IStorageService private _storageService: IStorageService,
-		@IThemeService private _themeService: IThemeService,
-		@IConfigurationService private _configurationService: IConfigurationService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IMessageService private readonly _messageService: IMessageService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@optional(IEnvironmentService) private _environmentService: IEnvironmentService
 	) {
 		this._editor = editor;

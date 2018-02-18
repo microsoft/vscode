@@ -157,7 +157,7 @@ export abstract class BaseSendTextTerminalAction extends Action {
 		id: string,
 		label: string,
 		private _text: string,
-		@ITerminalService private _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -296,13 +296,13 @@ export class CreateNewInActiveWorkspaceTerminalAction extends Action {
 	}
 }
 
-export class SplitVerticalTerminalAction extends Action {
-	public static readonly ID = 'workbench.action.terminal.splitVertical';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.splitVertical', "Split the terminal vertically");
+export class SplitTerminalAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.split';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.split', "Split Terminal");
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -312,16 +312,18 @@ export class SplitVerticalTerminalAction extends Action {
 		if (!instance) {
 			return TPromise.as(void 0);
 		}
-		this._terminalService.splitInstanceVertically(instance);
+		this._terminalService.splitInstance(instance);
 		return this._terminalService.showPanel(true);
 	}
 }
 
-export abstract class BaseFocusDirectionTerminalAction extends Action {
+export class FocusPreviousPaneTerminalAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.focusPreviousPane';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusPreviousPane', "Focus Previous Pane");
+
 	constructor(
 		id: string, label: string,
-		private _direction: Direction,
-		@ITerminalService private _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(id, label);
 	}
@@ -331,43 +333,94 @@ export abstract class BaseFocusDirectionTerminalAction extends Action {
 		if (!tab) {
 			return TPromise.as(void 0);
 		}
-		tab.focusDirection(this._direction);
+		tab.focusPreviousPane();
 		return this._terminalService.showPanel(true);
 	}
 }
 
-export class FocusTerminalLeftAction extends BaseFocusDirectionTerminalAction {
-	public static readonly ID = 'workbench.action.terminal.focusTerminalLeft';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalLeft', "Focus terminal to the left");
+export class FocusNextPaneTerminalAction extends Action {
+	public static readonly ID = 'workbench.action.terminal.focusNextPane';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusNextPane', "Focus Next Pane");
 
-	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const tab = this._terminalService.getActiveTab();
+		if (!tab) {
+			return TPromise.as(void 0);
+		}
+		tab.focusNextPane();
+		return this._terminalService.showPanel(true);
+	}
+}
+
+export abstract class BaseFocusDirectionTerminalAction extends Action {
+	constructor(
+		id: string, label: string,
+		private _direction: Direction,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const tab = this._terminalService.getActiveTab();
+		if (tab) {
+			tab.resizePane(this._direction);
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+export class ResizePaneLeftTerminalAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.resizePaneLeft';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.resizePaneLeft', "Resize Pane Left");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService readonly terminalService: ITerminalService
+	) {
 		super(id, label, Direction.Left, terminalService);
 	}
 }
 
-export class FocusTerminalRightAction extends BaseFocusDirectionTerminalAction {
-	public static readonly ID = 'workbench.action.terminal.focusTerminalRight';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalRight', "Focus terminal to the right");
+export class ResizePaneRightTerminalAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.resizePaneRight';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.resizePaneRight', "Resize Pane Right");
 
-	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
+	constructor(
+		id: string, label: string,
+		@ITerminalService readonly terminalService: ITerminalService
+	) {
 		super(id, label, Direction.Right, terminalService);
 	}
 }
 
-export class FocusTerminalUpAction extends BaseFocusDirectionTerminalAction {
-	public static readonly ID = 'workbench.action.terminal.focusTerminalUp';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalUp', "Focus terminal above");
+export class ResizePaneUpTerminalAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.resizePaneUp';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.resizePaneUp', "Resize Pane Up");
 
-	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
+	constructor(
+		id: string, label: string,
+		@ITerminalService readonly terminalService: ITerminalService
+	) {
 		super(id, label, Direction.Up, terminalService);
 	}
 }
 
-export class FocusTerminalDownAction extends BaseFocusDirectionTerminalAction {
-	public static readonly ID = 'workbench.action.terminal.focusTerminalDown';
-	public static readonly LABEL = nls.localize('workbench.action.terminal.focusTerminalDown', "Focus terminal below");
+export class ResizePaneDownTerminalAction extends BaseFocusDirectionTerminalAction {
+	public static readonly ID = 'workbench.action.terminal.resizePaneDown';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.resizePaneDown', "Resize Pane Down");
 
-	constructor(id: string, label: string, @ITerminalService terminalService: ITerminalService) {
+	constructor(
+		id: string, label: string,
+		@ITerminalService readonly terminalService: ITerminalService
+	) {
 		super(id, label, Direction.Down, terminalService);
 	}
 }

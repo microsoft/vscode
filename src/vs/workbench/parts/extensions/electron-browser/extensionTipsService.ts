@@ -66,8 +66,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private proactiveRecommendationsFetched: boolean = false;
 
 	constructor(
-		@IExtensionGalleryService private _galleryService: IExtensionGalleryService,
-		@IModelService private _modelService: IModelService,
+		@IExtensionGalleryService private readonly _galleryService: IExtensionGalleryService,
+		@IModelService private readonly _modelService: IModelService,
 		@IStorageService private storageService: IStorageService,
 		@IChoiceService private choiceService: IChoiceService,
 		@IExtensionManagementService private extensionsService: IExtensionManagementService,

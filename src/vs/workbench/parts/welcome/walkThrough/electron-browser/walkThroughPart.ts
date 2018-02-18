@@ -83,7 +83,7 @@ class WalkThroughCodeEditor extends CodeEditor {
 
 export class WalkThroughPart extends BaseEditor {
 
-	static ID: string = 'workbench.editor.walkThroughPart';
+	static readonly ID: string = 'workbench.editor.walkThroughPart';
 
 	private disposables: IDisposable[] = [];
 	private contentDisposables: IDisposable[] = [];

@@ -14,7 +14,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ReleaseNotesInput } from './releaseNotesInput';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import WebView from 'vs/workbench/parts/html/browser/webview';
+import { Webview } from 'vs/workbench/parts/html/browser/webview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -50,7 +50,7 @@ function renderBody(
 
 export class ReleaseNotesEditor extends WebviewEditor {
 
-	static ID: string = 'workbench.editor.releaseNotes';
+	static readonly ID: string = 'workbench.editor.releaseNotes';
 
 	private contentDisposables: IDisposable[] = [];
 	private scrollYPercentage: number = 0;
@@ -64,8 +64,8 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		@IOpenerService private openerService: IOpenerService,
 		@IModeService private modeService: IModeService,
 		@IPartService private partService: IPartService,
-		@IContextViewService private _contextViewService: IContextViewService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
 	) {
 		super(ReleaseNotesEditor.ID, telemetryService, themeService, storageService, contextKeyService);
 	}
@@ -106,7 +106,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = generateTokensCSSForColorMap(colorMap);
 		const body = renderBody(marked(text, { renderer }), css);
-		this._webview = new WebView(
+		this._webview = new Webview(
 			this.content,
 			this.partService.getContainer(Parts.EDITOR_PART),
 			this.environmentService,
@@ -124,7 +124,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 			}
 		}
 		this.onThemeChange(this.themeService.getTheme());
-		this._webview.contents = [body];
+		this._webview.contents = body;
 
 		this._webview.onDidClickLink(link => {
 			addGAParameters(this.telemetryService, this.environmentService, link, 'ReleaseNotes')

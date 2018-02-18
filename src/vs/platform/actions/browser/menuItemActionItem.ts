@@ -128,9 +128,9 @@ export class MenuItemActionItem extends ActionItem {
 
 	constructor(
 		public _action: MenuItemAction,
-		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMessageService protected _messageService: IMessageService,
-		@IContextMenuService private _contextMenuService: IContextMenuService
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService
 	) {
 		super(undefined, _action, { icon: !!(_action.class || _action.item.iconPath), label: !_action.class && !_action.item.iconPath });
 	}

@@ -33,7 +33,7 @@ export abstract class SimpleFindWidget extends Widget {
 	protected _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
-		@IContextViewService private _contextViewService: IContextViewService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
 		private animate: boolean = true
 	) {
 		super();

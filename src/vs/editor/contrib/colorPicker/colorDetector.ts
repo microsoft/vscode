@@ -21,7 +21,7 @@ const MAX_DECORATORS = 500;
 
 export class ColorDetector implements IEditorContribution {
 
-	private static ID: string = 'editor.contrib.colorDetector';
+	private static readonly ID: string = 'editor.contrib.colorDetector';
 
 	static RECOMPUTE_TIME = 1000; // ms
 
@@ -39,8 +39,8 @@ export class ColorDetector implements IEditorContribution {
 	private _isEnabled: boolean;
 
 	constructor(private _editor: ICodeEditor,
-		@ICodeEditorService private _codeEditorService: ICodeEditorService,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._globalToDispose.push(_editor.onDidChangeModel((e) => {
 			this._isEnabled = this.isEnabled();

@@ -20,7 +20,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { TERMINAL_DEFAULT_SHELL_WINDOWS } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalTab } from 'vs/workbench/parts/terminal/electron-browser/terminalTab';
 
@@ -38,12 +38,12 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IPanelService _panelService: IPanelService,
 		@IPartService _partService: IPartService,
 		@ILifecycleService _lifecycleService: ILifecycleService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IQuickOpenService private _quickOpenService: IQuickOpenService,
-		@IChoiceService private _choiceService: IChoiceService,
-		@IStorageService private _storageService: IStorageService,
-		@IMessageService private _messageService: IMessageService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
+		@IChoiceService private readonly _choiceService: IChoiceService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IMessageService private readonly _messageService: IMessageService
 	) {
 		super(_contextKeyService, _panelService, _partService, _lifecycleService);
 
@@ -121,7 +121,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		// Never suggest if the setting is non-default already (ie. they set the setting manually)
-		if (this._configHelper.config.shell.windows !== TERMINAL_DEFAULT_SHELL_WINDOWS) {
+		if (this._configHelper.config.shell.windows !== getTerminalDefaultShellWindows()) {
 			this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
 			return;
 		}
@@ -237,8 +237,5 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
 		this._terminalTabs.forEach(tab => tab.attachToElement(this._terminalContainer));
-		this._terminalInstances.forEach(terminalInstance => {
-			terminalInstance.attachToElement(this._terminalContainer);
-		});
 	}
 }

@@ -161,8 +161,14 @@ export function fileExists(path: string): TPromise<boolean> {
 /**
  * Deletes a path from disk.
  */
-const tmpDir = os.tmpdir();
-export function del(path: string, tmp = tmpDir): TPromise<void> {
+let _tmpDir: string = null;
+function getTmpDir(): string {
+	if (!_tmpDir) {
+		_tmpDir = os.tmpdir();
+	}
+	return _tmpDir;
+}
+export function del(path: string, tmp = getTmpDir()): TPromise<void> {
 	return nfcall(extfs.del, path, tmp);
 }
 

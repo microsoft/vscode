@@ -57,6 +57,7 @@ import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
+import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -782,8 +783,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					return true; // NewStatPlaceholders can not be moved
 				}
 
-				if (source.isRoot) {
-					return true; // Root folder can not be moved
+				if (source.isRoot && (sources.length > 1 || target instanceof FileStat && !target.isRoot)) {
+					return true; // Root folder can not be moved to a non root file stat. Do not allow root folder move when multi selection drag.
 				}
 
 				if (source.resource.toString() === target.resource.toString()) {
@@ -916,7 +917,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 			return updateConfirmSettingsPromise.then(() => {
 				if (confirmation.confirmed) {
-					return TPromise.join(sources.map(source => this.doHandleExplorerDrop(tree, data, source, target, isCopy))).then(() => void 0);
+					return TPromise.join(sources.map(source => this.doHandleExplorerDrop(tree, source, target, isCopy))).then(() => void 0);
 				}
 
 				return TPromise.as(void 0);
@@ -924,8 +925,37 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		});
 	}
 
-	private doHandleExplorerDrop(tree: ITree, data: IDragAndDropData, source: FileStat, target: FileStat, isCopy: boolean): TPromise<void> {
+	private doHandleExplorerDrop(tree: ITree, source: FileStat, target: FileStat, isCopy: boolean): TPromise<void> {
 		return tree.expand(target).then(() => {
+			if (source.isRoot) {
+				const folders = this.contextService.getWorkspace().folders;
+				let sourceIndex: number;
+				let targetIndex: number;
+				const workspaceCreationData: IWorkspaceFolderCreationData[] = [];
+
+				for (let index = 0; index < folders.length; index++) {
+					if (folders[index].uri.toString() === source.resource.toString()) {
+						sourceIndex = index;
+					}
+					if (folders[index].uri.toString() === target.resource.toString()) {
+						targetIndex = index;
+					}
+					workspaceCreationData.push({
+						name: folders[index].name,
+						uri: folders[index].uri
+					});
+
+					if (sourceIndex && targetIndex) {
+						break;
+					}
+				}
+
+				const swap = workspaceCreationData[sourceIndex];
+				workspaceCreationData[sourceIndex] = workspaceCreationData[targetIndex];
+				workspaceCreationData[targetIndex] = swap;
+
+				return this.workspaceEditingService.updateFolders(Math.min(sourceIndex, targetIndex), workspaceCreationData.length, workspaceCreationData);
+			}
 
 			// Reuse duplicate action if user copies
 			if (isCopy) {

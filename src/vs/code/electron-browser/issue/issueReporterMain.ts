@@ -67,6 +67,7 @@ export class IssueReporter extends Disposable {
 	private logService: ILogService;
 	private issueReporterModel: IssueReporterModel;
 	private shouldQueueSearch = true;
+	private numberOfSearchResultsDisplayed = 0;
 	private features: IssueReporterFeatures;
 	private receivedSystemInfo = false;
 	private receivedPerformanceInfo = false;
@@ -187,15 +188,15 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.sliderBackgroundColor) {
-			content.push(`.issues-container::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
+			content.push(`::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
 		}
 
 		if (styles.sliderActiveColor) {
-			content.push(`.issues-container::-webkit-scrollbar-thumb:active, body::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
+			content.push(`::-webkit-scrollbar-thumb:active { background-color: ${styles.sliderActiveColor}; }`);
 		}
 
 		if (styles.sliderHoverColor) {
-			content.push(`.issues-container::-webkit-scrollbar-thumb:hover, body::-webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
+			content.push(`::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');
@@ -444,6 +445,7 @@ export class IssueReporter extends Disposable {
 	private clearSearchResults(): void {
 		const similarIssues = document.getElementById('similar-issues');
 		similarIssues.innerHTML = '';
+		this.numberOfSearchResultsDisplayed = 0;
 	}
 
 	@debounce(300)
@@ -520,8 +522,8 @@ export class IssueReporter extends Disposable {
 			const issuesText = $('div.list-title');
 			issuesText.textContent = localize('similarIssues', "Similar issues");
 
-			const numResultsToDisplay = results.length < 5 ? results.length : 5;
-			for (let i = 0; i < numResultsToDisplay; i++) {
+			this.numberOfSearchResultsDisplayed = results.length < 5 ? results.length : 5;
+			for (let i = 0; i < this.numberOfSearchResultsDisplayed; i++) {
 				const issue = results[i];
 				const link = issue.state ? $('a.issue-link', { href: issue.html_url }) : $('a', { href: issue.html_url });
 				link.textContent = issue.title;
@@ -676,14 +678,13 @@ export class IssueReporter extends Disposable {
 			return false;
 		}
 
-		if (this.telemetryService) {
-			/* __GDPR__
-				"issueReporterSubmit" : {
-					"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType });
-		}
+		/* __GDPR__
+			"issueReporterSubmit" : {
+				"issueType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"numSimilarIssuesDisplayed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog('issueReporterSubmit', { issueType: this.issueReporterModel.getData().issueType, numSimilarIssuesDisplayed: this.numberOfSearchResultsDisplayed });
 
 		const issueTitle = encodeURIComponent((<HTMLInputElement>document.getElementById('issue-title')).value);
 		const queryStringPrefix = product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';

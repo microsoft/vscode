@@ -116,6 +116,7 @@ html {
 
 body {
 	margin: 0;
+	overflow: scroll;
 }
 
 .hidden {
@@ -223,16 +224,11 @@ summary {
 
 .include-data {
 	display: inline-block;
-	position: relative;
 }
 
 .include-data > .caption {
 	display: inline-block;
 	font-size: 12px;
-	position: absolute;
-	width: 80px;
-	top: 2px;
-	left: 30px;
 	cursor: pointer;
 }
 
@@ -263,9 +259,12 @@ input:disabled {
 	margin-top: .5em;
 }
 
+.workbenchCommand {
+	cursor: pointer;
+}
 .workbenchCommand:disabled {
 	color: #868e96;
-	cursor: pointer;
+	cursor: default
 }
 
 .block-extensions .block-info {
@@ -303,6 +302,7 @@ button {
 
 #issue-type {
 	width: calc(100% - 100px);
+	cursor: pointer;
 }
 
 #issue-title-label {
@@ -348,12 +348,16 @@ button {
 	}
 }
 
-.issues-container::-webkit-scrollbar, body::-webkit-scrollbar {
+::-webkit-scrollbar {
 	width: 14px;
 }
 
-.issues-container::-webkit-scrollbar, body::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
 	min-height: 20px;
+}
+
+::-webkit-scrollbar-corner {
+	display: none;
 }
 
 .issues-container {

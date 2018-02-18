@@ -343,7 +343,7 @@ export interface ISelectedSuggestion {
 
 export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>, IDisposable {
 
-	private static ID: string = 'editor.widget.suggestWidget';
+	private static readonly ID: string = 'editor.widget.suggestWidget';
 
 	static LOADING_MESSAGE: string = nls.localize('suggestWidget.loading', "Loading...");
 	static NO_SUGGESTIONS_MESSAGE: string = nls.localize('suggestWidget.noSuggestions', "No suggestions.");
