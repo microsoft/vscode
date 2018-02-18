@@ -24,4 +24,12 @@
 
 .monaco-workbench > .notifications-toasts .notification-toast {
 	margin: 5px; /* enables separation and drop shadows around toasts */
+	position: relative;
+
+	-webkit-transition:	left 200ms linear;
+	-ms-transition:		left 200ms linear;
+	-moz-transition:	left 200ms linear;
+	-khtml-transition:	left 200ms linear;
+	-o-transition:		left 200ms linear;
+	transition:			left 200ms linear;
 }

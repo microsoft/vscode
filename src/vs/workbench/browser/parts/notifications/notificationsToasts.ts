@@ -135,17 +135,15 @@ export class NotificationsToasts extends Themable {
 			this.removeToast(item);
 		});
 
-		// Automatically hide notifications without buttons after a timeout
-		if (item.actions.primary.length === 0) {
+		// Automatically hide collapsed notifications
+		if (!item.expanded) {
 			let timeoutHandle: number;
 			const hideAfterTimeout = () => {
 				timeoutHandle = setTimeout(() => {
-					if (!notificationList.hasFocus()) {
-						if (item.actions.primary.length === 0) {
-							this.removeToast(item); // only remove if actions are still not there (they can change after the fact)
-						}
+					if (!notificationList.hasFocus() && !item.expanded) {
+						this.removeToast(item);
 					} else {
-						hideAfterTimeout(); // push out disposal if item has focus
+						hideAfterTimeout(); // push out disposal if item has focus or is expanded
 					}
 				}, NotificationsToasts.PURGE_TIMEOUT[item.severity]);
 			};
@@ -160,6 +158,13 @@ export class NotificationsToasts extends Themable {
 
 		// Context Key
 		this.notificationsToastsVisibleContextKey.set(true);
+
+		// Animate In
+		notificationToastContainer.style.left = `${NotificationsToasts.MAX_DIMENSIONS.width}px`;
+		const animationHandle = setTimeout(() => {
+			notificationToastContainer.style.left = '0px';
+		});
+		itemDisposeables.push(toDisposable(() => clearTimeout(animationHandle)));
 	}
 
 	private removeToast(item: INotificationViewItem): void {
@@ -313,7 +318,7 @@ export class NotificationsToasts extends Themable {
 
 			// Make sure notifications are not exceding available width
 			availableWidth = this.workbenchDimensions.width;
-			availableWidth -= (2 * 12); // adjust for paddings left and right
+			availableWidth -= (2 * 8); // adjust for paddings left and right
 
 			// Make sure notifications are not exceeding available height
 			availableHeight = this.workbenchDimensions.height;
