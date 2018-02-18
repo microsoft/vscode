@@ -14,6 +14,8 @@ import { INotificationViewItem, isNotificationViewItem } from 'vs/workbench/comm
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { Action } from 'vs/base/common/actions';
+import { Severity } from 'vs/platform/message/common/message';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER_COMMAND_ID = 'notifications.showList';
@@ -199,14 +201,62 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 
 	// TODO@notifications remove me
 	CommandsRegistry.registerCommand('notifications.showInfo', accessor => {
-		accessor.get(INotificationService).info('This is an information message!' + Date.now());
+		let handle = accessor.get(INotificationService).notify({
+			severity: Severity.Info,
+			message: 'Installing additional dependencies...',
+			actions: {
+				primary: [
+					new Action('id.cancel', 'Cancel', null, true, () => { console.log('OK'); return void 0; }),
+				]
+			}
+		});
+		handle.progress.total(100);
+		setTimeout(() => {
+			handle.updateMessage('Installing: admdefine...');
+			handle.progress.worked(20);
+			setTimeout(() => {
+				handle.updateMessage('Installing: binary-search...');
+				handle.progress.worked(40);
+				setTimeout(() => {
+					handle.updateMessage('Installing: cookie...');
+					handle.progress.worked(60);
+					setTimeout(() => {
+						handle.updateMessage('Installing: editorconfig...');
+						handle.progress.worked(80);
+						setTimeout(() => {
+							handle.updateMessage('Installing: error-ex...');
+							handle.progress.worked(100);
+							setTimeout(() => {
+								handle.updateMessage('Installation complete');
+								handle.progress.done();
+								handle.updateActions();
+							}, 3000);
+						}, 3000);
+					}, 3000);
+				}, 3000);
+			}, 3000);
+		}, 1000);
 	});
 
 	CommandsRegistry.registerCommand('notifications.showWarning', accessor => {
-		accessor.get(INotificationService).warn('This is a warning message!' + Date.now());
+		accessor.get(INotificationService).warn('This is a warning message!');
 	});
 
 	CommandsRegistry.registerCommand('notifications.showError', accessor => {
-		accessor.get(INotificationService).error('This is an error message!' + Date.now());
+		accessor.get(INotificationService).notify({
+			severity: Severity.Info,
+			message: 'This is a info message with a [link](https://code.visualstudio.com).',
+			actions: {
+				primary: [
+					new Action('id.reload', 'Yes OK', null, true, () => { console.log('OK'); return void 0; }),
+					new Action('id.cancel', 'No, not OK!', null, true, () => { console.log('NOT OK'); return void 0; })
+				],
+				secondary: [
+					new Action('id.reload', 'Yes OK', null, true, () => { console.log('OK'); return void 0; }),
+					new Action('id.cancel', 'No, not OK!', null, true, () => { console.log('NOT OK'); return void 0; })
+				]
+			}
+		});
 	});
+
 }
