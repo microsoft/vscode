@@ -55,7 +55,6 @@
 
 .monaco-shell .screen-reader-detected-explanation p.question {
 	font-size: 1.4em;
-	font-weight: bold;
 }
 
 .monaco-shell .screen-reader-detected-explanation .buttons {
@@ -63,6 +62,7 @@
 }
 
 .monaco-shell .screen-reader-detected-explanation .buttons a {
+	font-size: 13px;
 	padding-left: 12px;
 	padding-right: 12px;
 	margin-right: 5px;

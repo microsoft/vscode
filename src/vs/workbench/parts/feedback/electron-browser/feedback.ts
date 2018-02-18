@@ -114,8 +114,7 @@ export class FeedbackDropdown extends Dropdown {
 
 	protected renderContents(container: HTMLElement): IDisposable {
 		const $form = $('form.feedback-form').attr({
-			action: 'javascript:void(0);',
-			tabIndex: '-1'
+			action: 'javascript:void(0);'
 		}).appendTo(container);
 
 		$(container).addClass('monaco-menu-container');
