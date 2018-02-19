@@ -30,14 +30,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { mkdirp, writeFile } from 'vs/base/node/pfs';
-import { IChoiceService } from 'vs/platform/message/common/message';
-import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IStateService } from 'vs/platform/state/common/state';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { ChoiceCliService } from 'vs/platform/dialogs/node/choiceCli';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);

@@ -18,10 +18,11 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/common/message';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { Action } from 'vs/base/common/actions';
 import { BetterMergeDisabledNowKey, BetterMergeId, areSameExtensions, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 export interface IExtensionStatus {
 	identifier: IExtensionIdentifier;

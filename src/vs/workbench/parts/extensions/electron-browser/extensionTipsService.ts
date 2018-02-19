@@ -15,7 +15,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/node/product';
-import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
@@ -36,6 +36,7 @@ import { getHashedRemotesFromUri } from 'vs/workbench/parts/stats/node/workspace
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { isNumber } from 'vs/base/common/types';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 interface IExtensionsContent {
 	recommendations: string[];

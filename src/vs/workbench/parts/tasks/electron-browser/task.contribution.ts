@@ -32,7 +32,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IMessageService, IChoiceService } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -500,7 +500,8 @@ class TaskService implements ITaskService {
 		@IStorageService private storageService: IStorageService,
 		@IProgressService2 private progressService: IProgressService2,
 		@IOpenerService private openerService: IOpenerService,
-		@IWindowService private readonly _windowServive: IWindowService
+		@IWindowService private readonly _windowServive: IWindowService,
+		@IConfirmationService private confirmationService: IConfirmationService
 	) {
 		this.configurationService = configurationService;
 		this.markerService = markerService;
@@ -1671,7 +1672,7 @@ class TaskService implements ITaskService {
 		if (this._taskSystem.canAutoTerminate()) {
 			terminatePromise = TPromise.wrap(true);
 		} else {
-			terminatePromise = this.messageService.confirm({
+			terminatePromise = this.confirmationService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
 				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
 				type: 'question'
@@ -1696,7 +1697,7 @@ class TaskService implements ITaskService {
 						this.disposeTaskSystemListeners();
 						return false; // no veto
 					} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-						return this.messageService.confirm({
+						return this.confirmationService.confirm({
 							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
 							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
 							type: 'info'
@@ -2412,6 +2413,7 @@ let schema: IJSONSchema = {
 
 import schemaVersion1 from './jsonSchema_v1';
 import schemaVersion2 from './jsonSchema_v2';
+import { IChoiceService, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,

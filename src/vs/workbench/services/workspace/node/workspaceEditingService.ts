@@ -23,11 +23,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
-import { IChoiceService, Severity, IMessageService } from 'vs/platform/message/common/message';
+import { Severity, IMessageService } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 export class WorkspaceEditingService implements IWorkspaceEditingService {
 

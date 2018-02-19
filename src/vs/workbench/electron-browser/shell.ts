@@ -54,8 +54,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
-import { ChoiceChannel } from 'vs/platform/message/common/messageIpc';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
@@ -96,6 +95,9 @@ import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue
 import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-browser/workbenchIssueService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
+import { ChoiceChannel } from 'vs/platform/dialogs/common/choiceIpc';
+import { IChoiceService, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
 
 /**
  * Services that we require for the Shell
@@ -401,9 +403,12 @@ export class WorkbenchShell {
 		}
 		serviceCollection.set(ICrashReporterService, crashReporterService);
 
+		const dialog = instantiationService.createInstance(DialogService);
+		serviceCollection.set(IChoiceService, dialog);
+		serviceCollection.set(IConfirmationService, dialog);
+
 		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);
-		serviceCollection.set(IChoiceService, this.messageService);
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(reason => this.dispose(reason)));

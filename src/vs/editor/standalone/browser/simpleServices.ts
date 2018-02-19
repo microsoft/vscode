@@ -17,7 +17,7 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingEvent, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfirmation, IMessageService, IConfirmationResult } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -40,6 +40,7 @@ import { OS } from 'vs/base/common/platform';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, INotification, INotificationHandle, NoOpNotification } from 'vs/platform/notification/common/notification';
+import { IConfirmation, IConfirmationResult, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
 
 export class SimpleEditor implements IEditor {
 
@@ -261,6 +262,11 @@ export class SimpleMessageService implements IMessageService {
 	public hideAll(): void {
 		// No-op
 	}
+}
+
+export class SimpleConfirmationService implements IConfirmationService {
+
+	public _serviceBrand: any;
 
 	public confirm(confirmation: IConfirmation): TPromise<boolean> {
 		let messageText = confirmation.message;

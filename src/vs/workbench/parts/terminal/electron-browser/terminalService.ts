@@ -17,12 +17,12 @@ import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfi
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalTab } from 'vs/workbench/parts/terminal/electron-browser/terminalTab';
+import { IChoiceService, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -43,7 +43,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
 		@IChoiceService private readonly _choiceService: IChoiceService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IMessageService private readonly _messageService: IMessageService
+		@IConfirmationService private readonly _confirmationService: IConfirmationService
 	) {
 		super(_contextKeyService, _panelService, _partService, _lifecycleService);
 
@@ -227,7 +227,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
 
-		return this._messageService.confirm({
+		return this._confirmationService.confirm({
 			message,
 			type: 'warning',
 		}).then(confirmed => !confirmed);

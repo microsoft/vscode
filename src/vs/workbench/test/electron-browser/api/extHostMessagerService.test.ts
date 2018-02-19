@@ -9,7 +9,8 @@ import * as assert from 'assert';
 import { Action } from 'vs/base/common/actions';
 import { MainThreadMessageService } from 'vs/workbench/api/electron-browser/mainThreadMessageService';
 import { TPromise as Promise } from 'vs/base/common/winjs.base';
-import { IMessageService, IChoiceService } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 const emptyChoiceService = new class implements IChoiceService {
 	_serviceBrand: 'choiceService';

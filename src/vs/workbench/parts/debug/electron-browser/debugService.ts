@@ -24,7 +24,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { IMessageService, CloseAction, IChoiceService } from 'vs/platform/message/common/message';
+import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
@@ -52,6 +52,7 @@ import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-br
 import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { TaskEvent, TaskEventKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';

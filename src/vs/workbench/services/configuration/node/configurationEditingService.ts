@@ -27,10 +27,11 @@ import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIG
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModel } from 'vs/editor/common/model';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 export enum ConfigurationEditingErrorCode {
 

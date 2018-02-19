@@ -29,11 +29,12 @@ import { Limiter } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as semver from 'semver';
 import URI from 'vs/base/common/uri';
-import { IChoiceService, Severity } from 'vs/platform/message/common/message';
+import { Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';

@@ -26,7 +26,7 @@ import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
@@ -36,6 +36,7 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;

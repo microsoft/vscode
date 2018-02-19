@@ -37,7 +37,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult, getConfirmMessage } from 'vs/platform/message/common/message';
+import { IMessageService, IMessageWithAction, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -53,6 +53,8 @@ import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { distinctParents, basenameOrAuthority } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
+import { IConfirmationService, IConfirmationResult, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
+import { getConfirmMessage } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
 
 export interface IEditableData {
 	action: IAction;
@@ -567,6 +569,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 		private useTrash: boolean,
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
+		@IConfirmationService private confirmationService: IConfirmationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -611,7 +614,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 				message = nls.localize('dirtyMessageFileDelete', "You are deleting a file with unsaved changes. Do you want to continue?");
 			}
 
-			confirmDirtyPromise = this.messageService.confirm({
+			confirmDirtyPromise = this.confirmationService.confirm({
 				message,
 				type: 'warning',
 				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
@@ -644,7 +647,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 				const message = distinctElements.length > 1 ? getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource))
 					: distinctElements[0].isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name)
 						: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
-				confirmDeletePromise = this.messageService.confirmWithCheckbox({
+				confirmDeletePromise = this.confirmationService.confirmWithCheckbox({
 					message,
 					detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
 					primaryButton,
@@ -660,7 +663,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 				const message = distinctElements.length > 1 ? getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource))
 					: distinctElements[0].isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name)
 						: nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
-				confirmDeletePromise = this.messageService.confirmWithCheckbox({
+				confirmDeletePromise = this.confirmationService.confirmWithCheckbox({
 					message,
 					detail: nls.localize('irreversible', "This action is irreversible!"),
 					primaryButton,
@@ -720,6 +723,7 @@ export class ImportFileAction extends BaseFileAction {
 		clazz: string,
 		@IFileService fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IConfirmationService private confirmationService: IConfirmationService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -772,7 +776,7 @@ export class ImportFileAction extends BaseFileAction {
 							type: 'warning'
 						};
 
-						overwritePromise = this.messageService.confirm(confirm);
+						overwritePromise = this.confirmationService.confirm(confirm);
 					}
 
 					return overwritePromise.then(overwrite => {

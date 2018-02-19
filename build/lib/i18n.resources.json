@@ -147,6 +147,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/dialogs",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/editor",
 			"project": "vscode-workbench"
 		},

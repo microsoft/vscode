@@ -36,7 +36,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -59,6 +59,7 @@ import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/edito
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
+import { IConfirmation, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
 
 export class SearchViewlet extends Viewlet {
 
@@ -109,6 +110,7 @@ export class SearchViewlet extends Viewlet {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IProgressService private progressService: IProgressService,
 		@IMessageService private messageService: IMessageService,
+		@IConfirmationService private confirmationService: IConfirmationService,
 		@IStorageService private storageService: IStorageService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -395,7 +397,7 @@ export class SearchViewlet extends Viewlet {
 			type: 'question'
 		};
 
-		this.messageService.confirm(confirmation).then(confirmed => {
+		this.confirmationService.confirm(confirmation).then(confirmed => {
 			if (confirmed) {
 				this.searchWidget.setReplaceAllActionState(false);
 				this.viewModel.searchResult.replaceAll(progressRunner).then(() => {
