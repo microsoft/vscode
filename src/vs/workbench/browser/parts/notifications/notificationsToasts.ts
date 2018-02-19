@@ -31,7 +31,7 @@ interface INotificationToast {
 
 export class NotificationsToasts extends Themable {
 
-	private static MAX_DIMENSIONS = new Dimension(600, 300);
+	private static MAX_DIMENSIONS = new Dimension(450, 300);
 
 	private static PURGE_TIMEOUT: { [severity: number]: number } = (() => {
 		const intervals = Object.create(null);
