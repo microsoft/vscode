@@ -96,8 +96,7 @@ export class WorkspaceConfiguration extends Disposable {
 			const defaultConfig = new WorkspaceConfigurationModelParser(this._workspaceConfigPath.fsPath);
 			defaultConfig.parse(JSON.stringify({ folders: [] } as IStoredWorkspace, null, '\t'));
 			if (this._workspaceConfigurationWatcher) {
-				this.stopListeningToWatcher();
-				this._workspaceConfigurationWatcher.dispose();
+				this.disposeConfigurationWatcher();
 			}
 			this._workspaceConfigurationWatcher = new ConfigWatcher(this._workspaceConfigPath.fsPath, {
 				changeBufferDelay: 300,
@@ -158,8 +157,15 @@ export class WorkspaceConfiguration extends Disposable {
 		this._cache = this._workspaceConfigurationModelParser.settingsModel.merge(this._workspaceConfigurationModelParser.launchModel);
 	}
 
+	private disposeConfigurationWatcher(): void {
+		this.stopListeningToWatcher();
+		if (this._workspaceConfigurationWatcher) {
+			this._workspaceConfigurationWatcher.dispose();
+		}
+	}
+
 	dispose(): void {
-		dispose(this._workspaceConfigurationWatcherDisposables);
+		this.disposeConfigurationWatcher();
 		super.dispose();
 	}
 }
