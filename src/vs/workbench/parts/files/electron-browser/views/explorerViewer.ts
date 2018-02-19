@@ -196,7 +196,9 @@ export class FileRenderer implements IRenderer {
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+
 	) {
 		this.state = state;
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
@@ -310,7 +312,11 @@ export class FileRenderer implements IRenderer {
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
 				const initialRelPath: string = relative(stat.root.resource.fsPath, stat.parent.resource.fsPath);
-				this.displayCurrentPath(inputBox, initialRelPath, fileKind);
+				let projectFolderName: string = '';
+				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+					projectFolderName = paths.basename(stat.root.resource.fsPath);	// show root folder name in multi-folder project
+				}
+				this.displayCurrentPath(inputBox, initialRelPath, fileKind, projectFolderName);
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
@@ -320,11 +326,12 @@ export class FileRenderer implements IRenderer {
 		];
 	}
 
-	private displayCurrentPath(inputBox: InputBox, initialRelPath: string, fileKind: FileKind) {
+	private displayCurrentPath(inputBox: InputBox, initialRelPath: string, fileKind: FileKind, projectFolderName?: string) {
 		if (inputBox.validate()) {
 			const value = inputBox.value;
 			if (value && value.search(/[\\/]/) !== -1) {	// only show if there's a slash
-				const newPath = paths.normalize(paths.join(initialRelPath, value), true);
+
+				const newPath = paths.normalize(paths.join(projectFolderName, initialRelPath, value), true);
 				const fileType: string = FileKind[fileKind].toLowerCase();
 
 				inputBox.showMessage({
