@@ -13,8 +13,8 @@ import { isLinux } from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IConfirmationService, IChoiceService, IConfirmation, IConfirmationResult } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotificationHandle } from 'vs/platform/notification/common/notification';
+import { IConfirmationService, IChoiceService, IConfirmation, IConfirmationResult, Choice } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { once } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
@@ -86,21 +86,30 @@ export class DialogService implements IChoiceService, IConfirmationService {
 		return opts;
 	}
 
-	public choose(severity: Severity, message: string, options: string[], cancelId: number, modal: boolean = false): TPromise<number> {
+	public choose(severity: Severity, message: string, choices: Choice[], cancelId?: number, modal: boolean = false): TPromise<number> {
 		if (modal) {
-			return this.doChooseWithDialog(severity, message, options, cancelId);
+			return this.doChooseWithDialog(severity, message, choices, cancelId);
 		}
 
-		return this.doChooseWithNotification(severity, message, options);
+		return this.doChooseWithNotification(severity, message, choices);
 	}
 
-	private doChooseWithDialog(severity: Severity, message: string, options: string[], cancelId: number): TPromise<number> {
+	private doChooseWithDialog(severity: Severity, message: string, choices: Choice[], cancelId?: number): TPromise<number> {
 		const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
+
+		const options: string[] = [];
+		choices.forEach(choice => {
+			if (typeof choice === 'string') {
+				options.push(choice);
+			} else {
+				options.push(choice.label);
+			}
+		});
 
 		return this.doShowMessageBox({ message, buttons: options, type, cancelId });
 	}
 
-	private doChooseWithNotification(severity: Severity, message: string, options: string[]): TPromise<number> {
+	private doChooseWithNotification(severity: Severity, message: string, choices: Choice[]): TPromise<number> {
 		let handle: INotificationHandle;
 
 		const promise = new TPromise<number>((c, e) => {
@@ -112,12 +121,33 @@ export class DialogService implements IChoiceService, IConfirmationService {
 				return TPromise.as(void 0);
 			};
 
-			// Show notification with actions
-			handle = this.notificationService.notify({
-				severity,
-				message,
-				actions: { primary: options.map((option, index) => new Action('?', option, '', true, callback(index))) }
+			// Convert choices into primary/secondary actions
+			const actions: INotificationActions = {
+				primary: [],
+				secondary: []
+			};
+
+			choices.forEach((choice, index) => {
+				let isPrimary = true;
+				let label: string;
+
+				if (typeof choice === 'string') {
+					label = choice;
+				} else {
+					label = choice.label;
+					isPrimary = !choice.isSecondary;
+				}
+
+				const action = new Action(`workbench.dialog.choice.${index}`, label, null, true, callback(index));
+				if (isPrimary) {
+					actions.primary.push(action);
+				} else {
+					actions.secondary.push(action);
+				}
 			});
+
+			// Show notification with actions
+			handle = this.notificationService.notify({ severity, message, actions });
 
 			// Cancel promise when notification gets disposed
 			once(handle.onDidHide)(() => promise.cancel());

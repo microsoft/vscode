@@ -176,7 +176,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	}
 
 	private askToOpenWorkspaceConfigurationFile(message: string): TPromise<void> {
-		return this.choiceService.choose(Severity.Error, message, [nls.localize('openWorkspaceConfigurationFile', "Open Workspace Configuration File"), nls.localize('close', "Close")], 1)
+		return this.choiceService.choose(Severity.Error, message, [nls.localize('openWorkspaceConfigurationFile', "Open Workspace Configuration")])
 			.then(option => {
 				switch (option) {
 					case 0:

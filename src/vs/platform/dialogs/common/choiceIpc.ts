@@ -34,7 +34,7 @@ export class ChoiceChannelClient implements IChoiceService {
 
 	constructor(private channel: IChoiceChannel) { }
 
-	choose(severity: Severity, message: string, options: string[], cancelId: number, modal?: boolean): TPromise<number> {
+	choose(severity: Severity, message: string, options: string[], cancelId?: number, modal?: boolean): TPromise<number> {
 		return this.channel.call('choose', [severity, message, options, cancelId, modal]);
 	}
 }

@@ -46,6 +46,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -454,20 +456,6 @@ class TaskService implements ITaskService {
 	public static OutputChannelId: string = 'tasks';
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 
-	private configurationService: IConfigurationService;
-	private markerService: IMarkerService;
-	private outputService: IOutputService;
-	private messageService: IMessageService;
-	private choiceService: IChoiceService;
-	private fileService: IFileService;
-	private telemetryService: ITelemetryService;
-	private editorService: IWorkbenchEditorService;
-	private contextService: IWorkspaceContextService;
-	private textFileService: ITextFileService;
-	private modelService: IModelService;
-	private extensionService: IExtensionService;
-	private quickOpenService: IQuickOpenService;
-
 	private _configHasErrors: boolean;
 	private __schemaVersion: JsonSchemaVersion;
 	private __executionEngine: ExecutionEngine;
@@ -486,37 +474,28 @@ class TaskService implements ITaskService {
 	private _onDidStateChange: Emitter<TaskEvent>;
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@IMarkerService markerService: IMarkerService, @IOutputService outputService: IOutputService,
-		@IMessageService messageService: IMessageService, @IChoiceService choiceService: IChoiceService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IFileService fileService: IFileService, @IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ITelemetryService telemetryService: ITelemetryService, @ITextFileService textFileService: ITextFileService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IMarkerService private markerService: IMarkerService,
+		@IOutputService private outputService: IOutputService,
+		@IMessageService private messageService: IMessageService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IFileService private fileService: IFileService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IModelService modelService: IModelService, @IExtensionService extensionService: IExtensionService,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IModelService private modelService: IModelService,
+		@IExtensionService private extensionService: IExtensionService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
 		@ITerminalService private terminalService: ITerminalService,
 		@IStorageService private storageService: IStorageService,
 		@IProgressService2 private progressService: IProgressService2,
 		@IOpenerService private openerService: IOpenerService,
 		@IWindowService private readonly _windowServive: IWindowService,
-		@IConfirmationService private confirmationService: IConfirmationService
+		@IConfirmationService private confirmationService: IConfirmationService,
+		@INotificationService private notificationService: INotificationService
 	) {
-		this.configurationService = configurationService;
-		this.markerService = markerService;
-		this.outputService = outputService;
-		this.messageService = messageService;
-		this.choiceService = choiceService;
-		this.editorService = editorService;
-		this.fileService = fileService;
-		this.contextService = contextService;
-		this.telemetryService = telemetryService;
-		this.textFileService = textFileService;
-		this.modelService = modelService;
-		this.extensionService = extensionService;
-		this.quickOpenService = quickOpenService;
-
 		this._configHasErrors = false;
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
@@ -1876,23 +1855,21 @@ class TaskService implements ITaskService {
 		if (this.ignoredWorkspaceFolders.length === 0 || !this.showIgnoreMessage) {
 			return TPromise.as(undefined);
 		}
-		let message: string = nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: ');
-		for (let i = 0; i < this.ignoredWorkspaceFolders.length; i++) {
-			message = message + this.ignoredWorkspaceFolders[i].name;
-			if (i < this.ignoredWorkspaceFolders.length - 1) {
-				message = message + ', ';
-			}
-		}
 
-		let notAgain = nls.localize('TaskService.notAgain', 'Don\'t Show Again');
-		let ok = nls.localize('TaskService.ok', 'OK');
-		return this.choiceService.choose(Severity.Info, message, [notAgain, ok], 0).then((choice) => {
-			if (choice === 0) {
-				this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
+		this.notificationService.notify({
+			severity: Severity.Info,
+			message: nls.localize('TaskService.ignoredFolder', 'The following workspace folders are ignored since they use task version 0.1.0: {0}', this.ignoredWorkspaceFolders.map(f => f.name).join(', ')),
+			actions: {
+				secondary: [new Action('dontShowAgain', nls.localize('TaskService.notAgain', 'Don\'t Show Again'), null, true, () => {
+					this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
+					this.__showIgnoreMessage = false;
+
+					return TPromise.as(true);
+				})]
 			}
-			this.__showIgnoreMessage = false;
-			return undefined;
-		}, () => undefined);
+		});
+
+		return TPromise.as(undefined);
 	}
 
 	private runTaskCommand(accessor: ServicesAccessor, arg: any): void {
@@ -2413,13 +2390,11 @@ let schema: IJSONSchema = {
 
 import schemaVersion1 from './jsonSchema_v1';
 import schemaVersion2 from './jsonSchema_v2';
-import { IChoiceService, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,
 };
 schema.oneOf = [...schemaVersion2.oneOf, ...schemaVersion1.oneOf];
-
 
 let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);

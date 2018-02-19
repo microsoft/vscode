@@ -66,8 +66,6 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	}
 
 	private promptForDisablingOtherKeymaps(newKeymap: IExtensionStatus, oldKeymaps: IExtensionStatus[]): TPromise<void> {
-
-
 		const message = localize('disableOtherKeymapsConfirmation', "Disable other keymaps ({0}) to avoid conflicts between keybindings?", oldKeymaps.map(k => `'${k.local.manifest.displayName}'`).join(', '));
 		const options = [
 			localize('yes', "Yes"),

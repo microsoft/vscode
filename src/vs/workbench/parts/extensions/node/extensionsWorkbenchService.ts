@@ -961,7 +961,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 							nls.localize('install', "Install"),
 							nls.localize('cancel', "Cancel")
 						];
-						return this.choiceService.choose(Severity.Info, message, options, 2, false).then(value => {
+						return this.choiceService.choose(Severity.Info, message, options).then(value => {
 							if (value !== 0) {
 								return TPromise.as(null);
 							}

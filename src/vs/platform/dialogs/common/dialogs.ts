@@ -45,12 +45,14 @@ export interface IConfirmationService {
 
 export const IChoiceService = createDecorator<IChoiceService>('choiceService');
 
+export type Choice = string | { label: string; isSecondary?: boolean; };
+
 export interface IChoiceService {
 
 	_serviceBrand: any;
 
 	/**
-	 * Prompt the user for a choice between multiple options.
+	 * Prompt the user for a choice between multiple choices.
 	 *
 	 * @param when `modal` is true, this will block the user until chooses.
 	 *
@@ -62,5 +64,5 @@ export interface IChoiceService {
 	 * `Cancel` option is returned. If there is no such option then promise with
 	 * `0` index is returned.
 	 */
-	choose(severity: Severity, message: string, options: string[], cancelId: number, modal?: boolean): TPromise<number>;
+	choose(severity: Severity, message: string, choices: Choice[], cancelId?: number, modal?: boolean): TPromise<number>;
 }

@@ -194,7 +194,7 @@ export class ConfigurationEditingService {
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
 				: null;
 		if (openStandAloneConfigurationActionLabel) {
-			this.choiceService.choose(Severity.Error, error.message, [openStandAloneConfigurationActionLabel, nls.localize('close', "Close")], 1)
+			this.choiceService.choose(Severity.Error, error.message, [openStandAloneConfigurationActionLabel])
 				.then(option => {
 					switch (option) {
 						case 0:
@@ -203,7 +203,7 @@ export class ConfigurationEditingService {
 					}
 				});
 		} else {
-			this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 1)
+			this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings")])
 				.then(option => {
 					switch (option) {
 						case 0:
@@ -219,7 +219,7 @@ export class ConfigurationEditingService {
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
 				: null;
 		if (openStandAloneConfigurationActionLabel) {
-			this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), openStandAloneConfigurationActionLabel, nls.localize('close', "Close")], 2)
+			this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), openStandAloneConfigurationActionLabel])
 				.then(option => {
 					switch (option) {
 						case 0:
@@ -232,7 +232,7 @@ export class ConfigurationEditingService {
 					}
 				});
 		} else {
-			this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 2)
+			this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), nls.localize('open', "Open Settings")])
 				.then(option => {
 					switch (option) {
 						case 0:

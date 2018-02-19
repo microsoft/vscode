@@ -12,7 +12,7 @@ export class ChoiceCliService implements IChoiceService {
 
 	_serviceBrand: any;
 
-	choose(severity: Severity, message: string, options: string[], cancelId: number): TPromise<number> {
+	choose(severity: Severity, message: string, options: string[]): TPromise<number> {
 		const promise = new TPromise<number>((c, e) => {
 			const rl = readline.createInterface({
 				input: process.stdin,
