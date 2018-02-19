@@ -138,6 +138,9 @@ class Extension implements IExtension {
 	}
 
 	private get defaultIconUrl(): string {
+		if (this.type === LocalExtensionType.System) {
+			return require.toUrl('../browser/media/code-icon.svg');
+		}
 		return require.toUrl('../browser/media/defaultIcon.png');
 	}
 
@@ -588,10 +591,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	setEnablement(extension: IExtension, enablementState: EnablementState): TPromise<void> {
-		if (extension.type === LocalExtensionType.System) {
-			return TPromise.wrap<void>(void 0);
-		}
-
 		const enable = enablementState === EnablementState.Enabled || enablementState === EnablementState.WorkspaceEnabled;
 		return this.promptAndSetEnablement(extension, enablementState, enable).then(reload => {
 			/* __GDPR__

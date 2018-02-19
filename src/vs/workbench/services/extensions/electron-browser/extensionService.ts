@@ -470,8 +470,9 @@ export class ExtensionService extends Disposable implements IExtensionService {
 						let userMigratedSystemExtensions: IExtensionIdentifier[] = [{ id: BetterMergeId }];
 
 						system.forEach((systemExtension) => {
-							// Disabling system extensions is not supported
-							result[systemExtension.id] = systemExtension;
+							if (disabledExtensions.every(disabled => !areSameExtensions(disabled, systemExtension))) {
+								result[systemExtension.id] = systemExtension;
+							}
 						});
 
 						user.forEach((userExtension) => {

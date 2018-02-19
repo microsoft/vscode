@@ -146,6 +146,18 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
 
+		if (!value || ExtensionsListView.isBuiltInExtensionsQuery(value)) {
+			// Show installed extensions
+			value = value ? value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
+
+			let result = await this.extensionsWorkbenchService.queryLocal();
+
+			result = result
+				.filter(e => e.type === LocalExtensionType.System && e.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(this.sortExtensions(result, options));
+		}
+
 		if (!value || ExtensionsListView.isInstalledExtensionsQuery(value)) {
 			// Show installed extensions
 			value = value ? value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
@@ -468,6 +480,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		super.dispose();
+	}
+
+	static isBuiltInExtensionsQuery(query: string): boolean {
+		return /@builtin/i.test(query);
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {

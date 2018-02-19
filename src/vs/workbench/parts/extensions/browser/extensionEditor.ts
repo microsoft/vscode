@@ -25,7 +25,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
@@ -33,7 +33,7 @@ import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/
 import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction, MaliciousStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { Webview } from 'vs/workbench/parts/html/browser/webview';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -156,6 +156,7 @@ export class ExtensionEditor extends BaseEditor {
 	private name: HTMLElement;
 	private identifier: HTMLElement;
 	private preview: HTMLElement;
+	private builtin: HTMLElement;
 	private license: HTMLElement;
 	private publisher: HTMLElement;
 	private installCount: HTMLElement;
@@ -220,7 +221,12 @@ export class ExtensionEditor extends BaseEditor {
 		const title = append(details, $('.title'));
 		this.name = append(title, $('span.name.clickable', { title: localize('name', "Extension name") }));
 		this.identifier = append(title, $('span.identifier', { title: localize('extension id', "Extension identifier") }));
+
 		this.preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
+		this.preview.textContent = localize('preview', "Preview");
+
+		this.builtin = append(title, $('span.builtin'));
+		this.builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name") }));
@@ -283,11 +289,8 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.name.textContent = extension.displayName;
 		this.identifier.textContent = extension.id;
-		if (extension.preview) {
-			this.preview.textContent = localize('preview', "Preview");
-		} else {
-			this.preview.textContent = null;
-		}
+		this.preview.style.display = extension.preview ? 'inherit' : 'none';
+		this.builtin.style.display = extension.type === LocalExtensionType.System ? 'inherit' : 'none';
 
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
@@ -346,7 +349,6 @@ export class ExtensionEditor extends BaseEditor {
 		const ratings = this.instantiationService.createInstance(RatingsWidget, this.rating, { extension });
 		this.transientDisposables.push(ratings);
 
-		const builtinStatusAction = this.instantiationService.createInstance(BuiltinStatusLabelAction);
 		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, true);
 		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
@@ -355,7 +357,6 @@ export class ExtensionEditor extends BaseEditor {
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 
 		installAction.extension = extension;
-		builtinStatusAction.extension = extension;
 		maliciousStatusAction.extension = extension;
 		updateAction.extension = extension;
 		enableAction.extension = extension;
@@ -363,8 +364,8 @@ export class ExtensionEditor extends BaseEditor {
 		reloadAction.extension = extension;
 
 		this.extensionActionBar.clear();
-		this.extensionActionBar.push([reloadAction, updateAction, enableAction, disableAction, installAction, builtinStatusAction, maliciousStatusAction], { icon: true, label: true });
-		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, builtinStatusAction, maliciousStatusAction);
+		this.extensionActionBar.push([reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction], { icon: true, label: true });
+		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction);
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
