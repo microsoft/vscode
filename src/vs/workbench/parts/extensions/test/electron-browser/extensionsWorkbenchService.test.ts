@@ -797,14 +797,14 @@ suite('ExtensionsWorkbenchService Test', () => {
 			});
 	});
 
-	test('test system extensions are always enabled', () => {
+	test('test system extensions can be disabled', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a', {}, { type: LocalExtensionType.System })]);
 		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 
 		return testObject.setEnablement(testObject.local[0], EnablementState.Disabled)
 			.then(() => {
 				const actual = testObject.local[0];
-				assert.equal(actual.enablementState, EnablementState.Enabled);
+				assert.equal(actual.enablementState, EnablementState.Disabled);
 			});
 	});
 
