@@ -6,7 +6,7 @@
 'use strict';
 
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -15,7 +15,6 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { Action } from 'vs/base/common/actions';
-import { Severity } from 'vs/platform/message/common/message';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER_COMMAND_ID = 'notifications.showList';

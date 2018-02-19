@@ -5,10 +5,10 @@
 
 'use strict';
 
-import { INotificationService, INotification, INotificationHandle } from 'vs/platform/notification/common/notification';
-import { Severity } from 'vs/platform/message/common/message';
+import { INotificationService, INotification, INotificationHandle, Severity } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export class NotificationService implements INotificationService {
 
@@ -17,9 +17,7 @@ export class NotificationService implements INotificationService {
 	private _model: INotificationsModel;
 	private toDispose: IDisposable[];
 
-	constructor(
-		container: HTMLElement
-	) {
+	constructor() {
 		this.toDispose = [];
 
 		const model = new NotificationsModel();
@@ -31,16 +29,16 @@ export class NotificationService implements INotificationService {
 		return this._model;
 	}
 
-	public info(message: string): INotificationHandle {
+	public info(message: string | IMarkdownString | Error): INotificationHandle {
 		return this.model.notify({ severity: Severity.Info, message });
 	}
 
-	public warn(message: string): INotificationHandle {
+	public warn(message: string | IMarkdownString | Error): INotificationHandle {
 		return this.model.notify({ severity: Severity.Warning, message });
 	}
 
-	public error(error: string | Error): INotificationHandle {
-		return this.model.notify({ severity: Severity.Error, message: error });
+	public error(message: string | IMarkdownString | Error): INotificationHandle {
+		return this.model.notify({ severity: Severity.Error, message });
 	}
 
 	public notify(notification: INotification): INotificationHandle {

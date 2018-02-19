@@ -16,7 +16,6 @@ import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import strings = require('vs/base/common/strings');
-import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
 import { Action, IAction } from 'vs/base/common/actions';
 import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -37,7 +36,6 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, IMessageWithAction, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -55,6 +53,7 @@ import { distinctParents, basenameOrAuthority } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { IConfirmationService, IConfirmationResult, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { getConfirmMessage } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export interface IEditableData {
 	action: IAction;
@@ -88,13 +87,13 @@ export class BaseErrorReportingAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private _messageService: IMessageService
+		private _notificationService: INotificationService
 	) {
 		super(id, label);
 	}
 
-	public get messageService() {
-		return this._messageService;
+	public get notificationService() {
+		return this._notificationService;
 	}
 
 	protected onError(error: any): void {
@@ -102,25 +101,23 @@ export class BaseErrorReportingAction extends Action {
 			error = error.message;
 		}
 
-		this._messageService.show(Severity.Error, toErrorMessage(error, false));
+		this._notificationService.error(toErrorMessage(error, false));
 	}
 
 	protected onErrorWithRetry(error: any, retry: () => TPromise<any>, extraAction?: Action): void {
 		const actions = [
 			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry()),
-			CancelAction
 		];
 
 		if (extraAction) {
 			actions.unshift(extraAction);
 		}
 
-		const errorWithRetry: IMessageWithAction = {
-			actions,
-			message: toErrorMessage(error, false)
-		};
-
-		this._messageService.show(Severity.Error, errorWithRetry);
+		this._notificationService.notify({
+			severity: Severity.Error,
+			message: toErrorMessage(error, false),
+			actions: { primary: actions }
+		});
 	}
 }
 
@@ -131,10 +128,10 @@ export class BaseFileAction extends BaseErrorReportingAction {
 		id: string,
 		label: string,
 		@IFileService protected fileService: IFileService,
-		@IMessageService _messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService protected textFileService: ITextFileService
 	) {
-		super(id, label, _messageService);
+		super(id, label, notificationService);
 
 		this.enabled = false;
 	}
@@ -159,11 +156,11 @@ class TriggerRenameFileAction extends BaseFileAction {
 		tree: ITree,
 		element: FileStat,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(TriggerRenameFileAction.ID, TRIGGER_RENAME_LABEL, fileService, messageService, textFileService);
+		super(TriggerRenameFileAction.ID, TRIGGER_RENAME_LABEL, fileService, notificationService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
@@ -230,10 +227,10 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		label: string,
 		element: FileStat,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(id, label, fileService, messageService, textFileService);
+		super(id, label, fileService, notificationService, textFileService);
 
 		this.element = element;
 	}
@@ -291,11 +288,11 @@ class RenameFileAction extends BaseRenameAction {
 	constructor(
 		element: FileStat,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IBackupFileService private backupFileService: IBackupFileService
 	) {
-		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, fileService, messageService, textFileService);
+		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, fileService, notificationService, textFileService);
 
 		this._updateEnablement();
 	}
@@ -356,10 +353,10 @@ export class BaseNewAction extends BaseFileAction {
 		editableAction: BaseRenameAction,
 		element: FileStat,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(id, label, fileService, messageService, textFileService);
+		super(id, label, fileService, notificationService, textFileService);
 
 		if (element) {
 			this.presetFolder = element.isDirectory ? element : element.parent;
@@ -445,11 +442,11 @@ export class NewFileAction extends BaseNewAction {
 		tree: ITree,
 		element: FileStat,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('explorer.newFile', NEW_FILE_LABEL, tree, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, messageService, textFileService);
+		super('explorer.newFile', NEW_FILE_LABEL, tree, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, notificationService, textFileService);
 
 		this.class = 'explorer-action new-file';
 		this._updateEnablement();
@@ -463,11 +460,11 @@ export class NewFolderAction extends BaseNewAction {
 		tree: ITree,
 		element: FileStat,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('explorer.newFolder', NEW_FOLDER_LABEL, tree, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, messageService, textFileService);
+		super('explorer.newFolder', NEW_FOLDER_LABEL, tree, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, notificationService, textFileService);
 
 		this.class = 'explorer-action new-folder';
 		this._updateEnablement();
@@ -514,10 +511,10 @@ class CreateFileAction extends BaseCreateAction {
 		element: FileStat,
 		@IFileService fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(CreateFileAction.ID, CreateFileAction.LABEL, element, fileService, messageService, textFileService);
+		super(CreateFileAction.ID, CreateFileAction.LABEL, element, fileService, notificationService, textFileService);
 
 		this._updateEnablement();
 	}
@@ -541,10 +538,10 @@ class CreateFolderAction extends BaseCreateAction {
 	constructor(
 		element: FileStat,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(CreateFolderAction.ID, CreateFolderAction.LABEL, null, fileService, messageService, textFileService);
+		super(CreateFolderAction.ID, CreateFolderAction.LABEL, null, fileService, notificationService, textFileService);
 
 		this._updateEnablement();
 	}
@@ -568,12 +565,12 @@ class BaseDeleteFileAction extends BaseFileAction {
 		private elements: FileStat[],
 		private useTrash: boolean,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@IConfirmationService private confirmationService: IConfirmationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, fileService, messageService, textFileService);
+		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, fileService, notificationService, textFileService);
 
 		this.tree = tree;
 		this.useTrash = useTrash && elements.every(e => !paths.isUNC(e.resource.fsPath)); // on UNC shares there is no trash
@@ -724,10 +721,10 @@ export class ImportFileAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfirmationService private confirmationService: IConfirmationService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super('workbench.files.action.importFile', nls.localize('importFiles', "Import Files"), fileService, messageService, textFileService);
+		super('workbench.files.action.importFile', nls.localize('importFiles', "Import Files"), fileService, notificationService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
@@ -836,12 +833,12 @@ class CopyFileAction extends BaseFileAction {
 		tree: ITree,
 		private elements: FileStat[],
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IClipboardService private clipboardService: IClipboardService
 	) {
-		super('filesExplorer.copy', COPY_FILE_LABEL, fileService, messageService, textFileService);
+		super('filesExplorer.copy', COPY_FILE_LABEL, fileService, notificationService, textFileService);
 
 		this.tree = tree;
 		this._updateEnablement();
@@ -874,11 +871,11 @@ class PasteFileAction extends BaseFileAction {
 		tree: ITree,
 		element: FileStat,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
-		super(PasteFileAction.ID, PASTE_FILE_LABEL, fileService, messageService, textFileService);
+		super(PasteFileAction.ID, PASTE_FILE_LABEL, fileService, notificationService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
@@ -940,10 +937,10 @@ export class DuplicateFileAction extends BaseFileAction {
 		target: FileStat,
 		@IFileService fileService: IFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super('workbench.files.action.duplicateFile', nls.localize('duplicateFile', "Duplicate"), fileService, messageService, textFileService);
+		super('workbench.files.action.duplicateFile', nls.localize('duplicateFile', "Duplicate"), fileService, notificationService, textFileService);
 
 		this.tree = tree;
 		this.element = fileToDuplicate;
@@ -1020,7 +1017,7 @@ export class GlobalCompareResourcesAction extends Action {
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
 		super(id, label);
@@ -1049,7 +1046,7 @@ export class GlobalCompareResourcesAction extends Action {
 				unbind.dispose(); // make sure to unbind if quick open is closing
 			});
 		} else {
-			this.messageService.show(Severity.Info, nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
+			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}
 
 		return TPromise.as(true);
@@ -1074,9 +1071,9 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@ICommandService protected commandService: ICommandService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 	) {
-		super(id, label, messageService);
+		super(id, label, notificationService);
 
 		this.toDispose = [];
 		this.lastIsDirty = this.textFileService.isDirty();
@@ -1215,7 +1212,7 @@ export class ShowActiveFileInExplorer extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
@@ -1226,7 +1223,7 @@ export class ShowActiveFileInExplorer extends Action {
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		} else {
-			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
+			this.notificationService.info(nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
 
 		return TPromise.as(true);
@@ -1294,7 +1291,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 		label: string,
 		@IWindowsService private windowsService: IWindowsService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService,
 	) {
 		super(id, label);
 	}
@@ -1304,7 +1301,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 		if (fileResource) {
 			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
 		} else {
-			this.messageService.show(severity.Info, nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
+			this.notificationService.info(nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
 		}
 
 		return TPromise.as(true);

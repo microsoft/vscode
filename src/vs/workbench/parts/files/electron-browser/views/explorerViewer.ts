@@ -38,7 +38,6 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -60,11 +59,12 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IConfirmationService, IConfirmationResult, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { getConfirmMessage } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class FileDataSource implements IDataSource {
 	constructor(
 		@IProgressService private progressService: IProgressService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService
 	) { }
@@ -109,7 +109,7 @@ export class FileDataSource implements IDataSource {
 
 				return stat.children;
 			}, (e: any) => {
-				this.messageService.show(Severity.Error, e);
+				this.notificationService.error(e);
 
 				return []; // we could not resolve any children because of an error
 			});
@@ -685,7 +685,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	private dropEnabled: boolean;
 
 	constructor(
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IConfirmationService private confirmationService: IConfirmationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
@@ -972,7 +972,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			const onSuccess = () => TPromise.join(dirtyMoved.map(t => this.textFileService.models.loadOrCreate(t)));
 			const onError = (error?: Error, showError?: boolean) => {
 				if (showError) {
-					this.messageService.show(Severity.Error, error);
+					this.notificationService.error(error);
 				}
 
 				return TPromise.join(dirtyMoved.map(d => this.backupFileService.discardResourceBackup(d)));

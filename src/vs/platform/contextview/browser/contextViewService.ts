@@ -7,7 +7,6 @@
 import { IContextViewService, IContextViewDelegate } from './contextView';
 import { ContextView } from 'vs/base/browser/ui/contextview/contextview';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class ContextViewService implements IContextViewService {
@@ -18,7 +17,6 @@ export class ContextViewService implements IContextViewService {
 	constructor(
 		container: HTMLElement,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService,
 		@ILogService private logService: ILogService
 	) {
 		this.contextView = new ContextView(container);

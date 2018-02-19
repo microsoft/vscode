@@ -39,7 +39,6 @@ import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -53,7 +52,9 @@ import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from '
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { getGalleryExtensionIdFromLocal, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -91,7 +92,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorInputService: IEditorGroupService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -410,16 +411,15 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		if (/ECONNREFUSED/.test(message)) {
 			const error = createError(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
 				actions: [
-					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL),
-					CloseAction
+					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
 				]
 			});
 
-			this.messageService.show(Severity.Error, error);
+			this.notificationService.error(error);
 			return;
 		}
 
-		this.messageService.show(Severity.Error, err);
+		this.notificationService.error(err);
 	}
 
 	dispose(): void {
@@ -468,9 +468,9 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 	constructor(
 		@IExtensionManagementService private extensionsManagementService: IExtensionManagementService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWindowService private windowService: IWindowService,
 		@ILogService private logService: ILogService,
-		@IMessageService private messageService: IMessageService
+		@IChoiceService private choiceService: IChoiceService
 	) {
 		this.loopCheckForMaliciousExtensions();
 	}
@@ -491,9 +491,12 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 				if (maliciousExtensions.length) {
 					return TPromise.join(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e, true).then(() => {
-						this.messageService.show(Severity.Warning, {
-							message: localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", getGalleryExtensionIdFromLocal(e)),
-							actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('reloadNow', "Reload Now"))]
+						return this.choiceService.choose(Severity.Warning, localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", getGalleryExtensionIdFromLocal(e)), [localize('reloadNow', "Reload Now")]).then(choice => {
+							if (choice === 0) {
+								return this.windowService.reloadWindow();
+							}
+
+							return TPromise.as(undefined);
 						});
 					})));
 				} else {

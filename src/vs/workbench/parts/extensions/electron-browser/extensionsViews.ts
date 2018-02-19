@@ -11,9 +11,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { chain } from 'vs/base/common/event';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
-import Severity from 'vs/base/common/severity';
 import { PagedModel, IPagedModel, IPager } from 'vs/base/common/paging';
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -37,6 +35,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class ExtensionsListView extends ViewsViewletPanel {
 
@@ -48,7 +47,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 
 	constructor(
 		private options: IViewletViewOptions,
-		@IMessageService protected messageService: IMessageService,
+		@INotificationService protected notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -453,16 +452,15 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		if (/ECONNREFUSED/.test(message)) {
 			const error = createError(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
 				actions: [
-					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL),
-					CloseAction
+					this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
 				]
 			});
 
-			this.messageService.show(Severity.Error, error);
+			this.notificationService.error(error);
 			return;
 		}
 
-		this.messageService.show(Severity.Error, err);
+		this.notificationService.error(err);
 	}
 
 	dispose(): void {
@@ -540,7 +538,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		const actionbar = new ActionBar(listActionBar, {
 			animated: false
 		});
-		actionbar.onDidRun(({ error }) => error && this.messageService.show(Severity.Error, error));
+		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 		const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, InstallWorkspaceRecommendedExtensionsAction.LABEL);
 		const configureWorkspaceFolderAction = this.instantiationService.createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL);
 

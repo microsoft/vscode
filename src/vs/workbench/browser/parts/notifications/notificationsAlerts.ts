@@ -7,10 +7,10 @@
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { localize } from 'vs/nls';
-import { Severity } from 'vs/platform/message/common/message';
 import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { Severity } from 'vs/platform/notification/common/notification';
 
 export class NotificationsAlerts {
 	private toDispose: IDisposable[];

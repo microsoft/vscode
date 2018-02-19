@@ -17,7 +17,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -32,7 +31,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {
-	SimpleConfigurationService, SimpleResourceConfigurationService, SimpleMenuService, SimpleMessageService,
+	SimpleConfigurationService, SimpleResourceConfigurationService, SimpleMenuService,
 	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService, SimpleNotificationService,
 	StandaloneTelemetryService, SimpleWorkspaceContextService, SimpleConfirmationService
 } from 'vs/editor/standalone/browser/simpleServices';
@@ -127,8 +126,6 @@ export module StaticServices {
 
 	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
 
-	export const messageService = define(IMessageService, () => new SimpleMessageService());
-
 	export const confirmationService = define(IConfirmationService, () => new SimpleConfirmationService());
 
 	export const notificationService = define(INotificationService, () => new SimpleNotificationService());
@@ -166,7 +163,7 @@ export class DynamicStandaloneServices extends Disposable {
 		this._instantiationService = _instantiationService;
 
 		const configurationService = this.get(IConfigurationService);
-		const messageService = this.get(IMessageService);
+		const notificationService = this.get(INotificationService);
 		const telemetryService = this.get(ITelemetryService);
 
 		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
@@ -185,11 +182,11 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService));
 
-		ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, messageService, domElement)));
+		ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, notificationService, domElement)));
 
-		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(domElement, telemetryService, messageService, new NullLogService())));
+		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(domElement, telemetryService, new NullLogService())));
 
-		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, messageService, contextViewService)));
+		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, notificationService, contextViewService)));
 
 		ensure(IMenuService, () => new SimpleMenuService(commandService));
 	}

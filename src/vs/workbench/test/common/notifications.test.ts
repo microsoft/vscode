@@ -7,9 +7,8 @@
 
 import * as assert from 'assert';
 import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
-import { Severity } from 'vs/platform/message/common/message';
 import { Action } from 'vs/base/common/actions';
-import { INotification } from 'vs/platform/notification/common/notification';
+import { INotification, Severity } from 'vs/platform/notification/common/notification';
 
 suite('Notifications', () => {
 

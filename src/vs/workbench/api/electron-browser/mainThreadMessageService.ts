@@ -5,20 +5,20 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, INotificationHandle } from 'vs/platform/notification/common/notification';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IMessageService private readonly _messageService: IMessageService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@IChoiceService private readonly _choiceService: IChoiceService
 	) {
 		//
@@ -40,7 +40,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 		return new Promise<number>(resolve => {
 
-			let messageHide: Function;
+			let messageHandle: INotificationHandle;
 			let actions: MessageItemAction[] = [];
 			let hasCloseAffordance = false;
 
@@ -48,7 +48,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				constructor(id: string, label: string, handle: number) {
 					super(id, label, undefined, true, () => {
 						resolve(handle);
-						messageHide(); // triggers dispose! make sure promise is already resolved
+						messageHandle.dispose(); // triggers dispose! make sure promise is already resolved
 						return undefined;
 					});
 				}
@@ -68,9 +68,10 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				actions.push(new MessageItemAction('__close', nls.localize('close', "Close"), undefined));
 			}
 
-			messageHide = this._messageService.show(severity, {
+			messageHandle = this._notificationService.notify({
+				severity,
 				message,
-				actions,
+				actions: { primary: actions },
 				source: extension && `${extension.displayName || extension.name}`
 			});
 		});

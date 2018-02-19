@@ -167,10 +167,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/message",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/services/mode",
 			"project": "vscode-workbench"
 		},

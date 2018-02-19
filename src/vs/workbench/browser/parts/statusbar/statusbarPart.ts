@@ -19,7 +19,6 @@ import { Part } from 'vs/workbench/browser/part';
 import { StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -31,6 +30,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
 import { addClass, EventHelper } from 'vs/base/browser/dom';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -211,7 +211,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		private entry: IStatusbarEntry,
 		@ICommandService private commandService: ICommandService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -299,7 +299,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 			}
 		*/
 		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: 'status bar' });
-		this.commandService.executeCommand(id, ...args).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
+		this.commandService.executeCommand(id, ...args).done(undefined, err => this.notificationService.error(toErrorMessage(err)));
 	}
 }
 

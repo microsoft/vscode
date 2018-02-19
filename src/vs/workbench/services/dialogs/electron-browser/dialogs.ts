@@ -8,7 +8,7 @@
 import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Severity } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 import { isLinux } from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';

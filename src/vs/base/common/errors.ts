@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import types = require('vs/base/common/types');
 import { IAction } from 'vs/base/common/actions';
-import Severity from 'vs/base/common/severity';
 import { TPromise, IPromiseError, IPromiseErrorDetail } from 'vs/base/common/winjs.base';
 
 // ------ BEGIN Hook up error listeners to winjs promises
@@ -237,19 +235,18 @@ export function disposed(what: string): Error {
 }
 
 export interface IErrorOptions {
-	severity?: Severity;
 	actions?: IAction[];
 }
 
-export function create(message: string, options: IErrorOptions = {}): Error {
-	let result = new Error(message);
+export interface IErrorWithActions {
+	actions?: IAction[];
+}
 
-	if (types.isNumber(options.severity)) {
-		(<any>result).severity = options.severity;
-	}
+export function create(message: string, options: IErrorOptions = Object.create(null)): Error & IErrorWithActions {
+	const result = new Error(message);
 
 	if (options.actions) {
-		(<any>result).actions = options.actions;
+		(<IErrorWithActions>result).actions = options.actions;
 	}
 
 	return result;

@@ -32,7 +32,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -47,7 +46,7 @@ import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platfo
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmationService, IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -85,32 +84,12 @@ import { QuickOpenActionContributor } from '../browser/quickOpen';
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-
 let $ = Builder.$;
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
 namespace ConfigureTaskAction {
 	export const ID = 'workbench.action.tasks.configureTaskRunner';
 	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
-}
-
-class CloseMessageAction extends Action {
-
-	public static readonly ID = 'workbench.action.build.closeMessage';
-	public static readonly TEXT = nls.localize('CloseMessageAction.label', 'Close');
-
-	public closeFunction: () => void;
-
-	constructor() {
-		super(CloseMessageAction.ID, CloseMessageAction.TEXT);
-	}
-	public run(): TPromise<void> {
-		if (this.closeFunction) {
-			this.closeFunction();
-		}
-		return TPromise.as(undefined);
-	}
 }
 
 class BuildStatusBarItem extends Themable implements IStatusbarItem {
@@ -477,7 +456,6 @@ class TaskService implements ITaskService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IMarkerService private markerService: IMarkerService,
 		@IOutputService private outputService: IOutputService,
-		@IMessageService private messageService: IMessageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -492,9 +470,10 @@ class TaskService implements ITaskService {
 		@IStorageService private storageService: IStorageService,
 		@IProgressService2 private progressService: IProgressService2,
 		@IOpenerService private openerService: IOpenerService,
-		@IWindowService private readonly _windowServive: IWindowService,
+		@IWindowService private readonly _windowService: IWindowService,
 		@IConfirmationService private confirmationService: IConfirmationService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@IChoiceService private choiceService: IChoiceService
 	) {
 		this._configHasErrors = false;
 		this._workspaceTasksPromise = undefined;
@@ -512,19 +491,14 @@ class TaskService implements ITaskService {
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
 				if (this._taskSystem && this._taskSystem.getActiveTasks().length > 0) {
-					this.messageService.show(
-						Severity.Info,
-						{
-							message: nls.localize(
-								'TaskSystem.noHotSwap',
-								'Changing the task execution engine with an active task running requires to reload the Window'
-							),
-							actions: [
-								new ReloadWindowAction(ReloadWindowAction.ID, ReloadWindowAction.LABEL, this._windowServive),
-								new CloseMessageAction()
-							]
+					this.choiceService.choose(Severity.Info, nls.localize(
+						'TaskSystem.noHotSwap',
+						'Changing the task execution engine with an active task running requires to reload the Window'
+					), [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
+						if (choice === 0) {
+							this._windowService.reloadWindow();
 						}
-					);
+					});
 					return;
 				} else {
 					this.disposeTaskSystemListeners();
@@ -937,7 +911,7 @@ class TaskService implements ITaskService {
 		}
 		let configuration = this.getConfiguration(workspaceFolder);
 		if (configuration.hasParseErrors) {
-			this.messageService.show(Severity.Warning, nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
+			this.notificationService.warn(nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
 			return TPromise.wrap<void>(undefined);
 		}
 
@@ -1174,9 +1148,9 @@ class TaskService implements ITaskService {
 					let active = executeResult.active;
 					if (active.same) {
 						if (active.background) {
-							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode. To terminate it use `Terminate Task...` from the Tasks menu.', Task.getQualifiedLabel(task)));
+							this.notificationService.info(nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode. To terminate it use `Terminate Task...` from the Tasks menu.', Task.getQualifiedLabel(task)));
 						} else {
-							this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use `Terminate Task...` from the Tasks menu.', Task.getQualifiedLabel(task)));
+							this.notificationService.info(nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use `Terminate Task...` from the Tasks menu.', Task.getQualifiedLabel(task)));
 						}
 					} else {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
@@ -1195,7 +1169,7 @@ class TaskService implements ITaskService {
 			if (response.success) {
 				this.run(task);
 			} else {
-				this.messageService.show(Severity.Warning, nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.name));
+				this.notificationService.warn(nls.localize('TaskSystem.restartFailed', 'Failed to terminate and restart task {0}', Types.isString(task) ? task : task.name));
 			}
 			return response;
 		});
@@ -1708,24 +1682,23 @@ class TaskService implements ITaskService {
 			let needsConfig = buildError.code === TaskErrors.NotConfigured || buildError.code === TaskErrors.NoBuildTask || buildError.code === TaskErrors.NoTestTask;
 			let needsTerminate = buildError.code === TaskErrors.RunningTask;
 			if (needsConfig || needsTerminate) {
-				let closeAction = new CloseMessageAction();
 				let action: Action = needsConfig
 					? this.getConfigureAction(buildError.code)
 					: new Action(
 						'workbench.action.tasks.terminate',
 						nls.localize('TerminateAction.label', "Terminate Task"),
 						undefined, true, () => { this.runTerminateCommand(); return TPromise.wrap<void>(undefined); });
-				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [action, closeAction] });
+				this.notificationService.notify({ severity: buildError.severity, message: buildError.message, actions: { primary: [action] } });
 			} else {
-				this.messageService.show(buildError.severity, buildError.message);
+				this.notificationService.notify({ severity: buildError.severity, message: buildError.message });
 			}
 		} else if (err instanceof Error) {
 			let error = <Error>err;
-			this.messageService.show(Severity.Error, error.message);
+			this.notificationService.error(error.message);
 		} else if (Types.isString(err)) {
-			this.messageService.show(Severity.Error, <string>err);
+			this.notificationService.error(<string>err);
 		} else {
-			this.messageService.show(Severity.Error, nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
+			this.notificationService.error(nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
 			this.outputService.showChannel(this._outputChannel.id, true);
@@ -1734,7 +1707,7 @@ class TaskService implements ITaskService {
 
 	private canRunCommand(): boolean {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.messageService.show(Severity.Info, nls.localize('TaskService.noWorkspace', 'Tasks are only available on a workspace folder.'));
+			this.notificationService.info(nls.localize('TaskService.noWorkspace', 'Tasks are only available on a workspace folder.'));
 			return false;
 		}
 		return true;
@@ -2050,9 +2023,9 @@ class TaskService implements ITaskService {
 							return;
 						}
 						if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
-							this.messageService.show(Severity.Error, nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
+							this.notificationService.error(nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
 						} else {
-							this.messageService.show(Severity.Error, nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+							this.notificationService.error(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
 						}
 					});
 				}
@@ -2284,7 +2257,7 @@ class TaskService implements ITaskService {
 					}
 				}
 				if (defaultTask) {
-					this.messageService.show(Severity.Info, nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', Task.getQualifiedLabel(defaultTask)));
+					this.notificationService.info(nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', Task.getQualifiedLabel(defaultTask)));
 					return;
 				}
 				this.showIgnoredFoldersMessage().then(() => {

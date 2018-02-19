@@ -21,7 +21,6 @@ import { IEditorAction, IEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity, IMessageWithAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -33,8 +32,9 @@ import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, IErrorWithActions } from 'vs/base/common/errors';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { INotificationService, INotificationActions, Severity } from 'vs/platform/notification/common/notification';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -222,7 +222,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		alias: string,
 		highlights: { label: IHighlight[], alias: IHighlight[] },
 		private onBeforeRun: (commandId: string) => void,
-		@IMessageService protected messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService protected telemetryService: ITelemetryService
 	) {
 		super();
@@ -275,19 +275,24 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		return nls.localize('entryAriaLabel', "{0}, commands", this.getLabel());
 	}
 
-	private onError(error?: Error): void;
-	private onError(messagesWithAction?: IMessageWithAction): void;
-	private onError(arg1?: any): void {
-		if (isPromiseCanceledError(arg1)) {
+	private onError(error?: Error | IErrorWithActions): void {
+		if (isPromiseCanceledError(error)) {
 			return;
 		}
 
-		const messagesWithAction: IMessageWithAction = arg1;
-		if (messagesWithAction && typeof messagesWithAction.message === 'string' && Array.isArray(messagesWithAction.actions)) {
-			this.messageService.show(Severity.Error, messagesWithAction);
+		let message: string;
+		if (error) {
+			message = toErrorMessage(error);
 		} else {
-			this.messageService.show(Severity.Error, !arg1 ? nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label) : toErrorMessage(arg1));
+			message = nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label);
 		}
+
+		const actions: INotificationActions = { primary: [] };
+		if (error && Array.isArray((<IErrorWithActions>error).actions)) {
+			actions.primary = (<IErrorWithActions>error).actions;
+		}
+
+		this.notificationService.notify({ severity: Severity.Error, message, actions });
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
@@ -327,7 +332,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 					this.onError(error);
 				}
 			} else {
-				this.messageService.show(Severity.Info, nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
+				this.notificationService.info(nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
 			}
 		}, err => this.onError(err));
 	}
@@ -343,10 +348,10 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		highlights: { label: IHighlight[], alias: IHighlight[] },
 		private action: IEditorAction,
 		onBeforeRun: (commandId: string) => void,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(commandId, keybinding, label, meta, highlights, onBeforeRun, messageService, telemetryService);
+		super(commandId, keybinding, label, meta, highlights, onBeforeRun, notificationService, telemetryService);
 	}
 
 	protected getAction(): Action | IEditorAction {
@@ -364,10 +369,10 @@ class ActionCommandEntry extends BaseCommandEntry {
 		highlights: { label: IHighlight[], alias: IHighlight[] },
 		private action: Action,
 		onBeforeRun: (commandId: string) => void,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(commandId, keybinding, label, alias, highlights, onBeforeRun, messageService, telemetryService);
+		super(commandId, keybinding, label, alias, highlights, onBeforeRun, notificationService, telemetryService);
 	}
 
 	protected getAction(): Action | IEditorAction {

@@ -14,7 +14,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickOpenService, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
@@ -25,6 +24,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -565,7 +565,7 @@ export class RunActiveFileInTerminalAction extends Action {
 		id: string, label: string,
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@ITerminalService private terminalService: ITerminalService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label);
 	}
@@ -581,7 +581,7 @@ export class RunActiveFileInTerminalAction extends Action {
 		}
 		const uri = editor.getModel().uri;
 		if (uri.scheme !== 'file') {
-			this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
+			this.notificationService.warn(nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 			return TPromise.as(void 0);
 		}
 		instance.sendText(uri.fsPath, true);

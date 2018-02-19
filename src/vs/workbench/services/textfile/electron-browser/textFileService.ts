@@ -24,7 +24,6 @@ import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textMo
 import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -32,6 +31,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { getConfirmMessage } from 'vs/workbench/services/dialogs/electron-browser/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -46,13 +46,13 @@ export class TextFileService extends AbstractTextFileService {
 		@IModelService modelService: IModelService,
 		@IWindowService private windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWindowsService windowsService: IWindowsService,
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, environmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {

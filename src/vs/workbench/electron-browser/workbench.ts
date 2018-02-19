@@ -58,7 +58,6 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
 import { IWorkbenchEditorService, IResourceInputType, WorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -79,7 +78,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
@@ -107,7 +105,6 @@ import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/no
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 
-export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const SidebarVisibleContext = new RawContextKey<boolean>('sidebarVisible', false);
@@ -210,7 +207,6 @@ export class Workbench implements IPartService {
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
 	private closeEmptyWindowScheduler: RunOnceScheduler;
-	private messagesVisibleContext: IContextKey<boolean>;
 	private editorsVisibleContext: IContextKey<boolean>;
 	private inZenMode: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
@@ -232,7 +228,6 @@ export class Workbench implements IPartService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
-		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: WorkspaceService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
@@ -284,7 +279,6 @@ export class Workbench implements IPartService {
 		this.initServices();
 
 		// Contexts
-		this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.contextKeyService);
 		this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 		this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
 		this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
@@ -1020,13 +1014,6 @@ export class Workbench implements IPartService {
 
 			this.toUnbind.push(listenerDispose);
 		}
-
-		// Handle message service and quick open events
-		this.toUnbind.push((<WorkbenchMessageService>this.messageService).onMessagesShowing(() => this.messagesVisibleContext.set(true)));
-		this.toUnbind.push((<WorkbenchMessageService>this.messageService).onMessagesCleared(() => this.messagesVisibleContext.reset()));
-
-		this.toUnbind.push(this.quickOpen.onShow(() => (<WorkbenchMessageService>this.messageService).suspend())); // when quick open is open, don't show messages behind
-		this.toUnbind.push(this.quickOpen.onHide(() => (<WorkbenchMessageService>this.messageService).resume()));  // resume messages once quick open is closed again
 
 		// Configuration changes
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(() => this.onDidUpdateConfiguration()));

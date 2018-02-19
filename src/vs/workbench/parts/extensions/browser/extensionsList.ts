@@ -10,7 +10,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
@@ -22,6 +21,7 @@ import { Label, RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/ext
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -48,7 +48,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
@@ -90,7 +90,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				return null;
 			}
 		});
-		actionbar.onDidRun(({ error }) => error && this.messageService.show(Severity.Error, error));
+		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
 		const versionWidget = this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version);
 		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCount, { small: true });

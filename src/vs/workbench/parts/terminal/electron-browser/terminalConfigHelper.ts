@@ -11,7 +11,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION } from 'vs/workbench/parts/terminal/common/terminal';
-import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
@@ -160,12 +159,14 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			const message = nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString);
 			const options = [nls.localize('allow', "Allow"), nls.localize('disallow', "Disallow")];
 			this._choiceService.choose(Severity.Info, message, options).then(choice => {
-				if (choice === 0) {
-					this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
-				} else {
-					this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
+				switch (choice) {
+					case 0:  /* Allow */
+						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
+						break;
+					case 1:  /* Disallow */
+						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
+						break;
 				}
-				return TPromise.as(null);
 			});
 		}
 

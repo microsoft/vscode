@@ -11,7 +11,6 @@ import { clearNode, addClass, removeClass, toggleClass } from 'vs/base/browser/d
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import URI from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Severity } from 'vs/platform/message/common/message';
 import { localize } from 'vs/nls';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
@@ -28,6 +27,7 @@ import { ClearNotificationAction, ExpandNotificationAction, CollapseNotification
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MarkedOptions } from 'vs/base/common/marked/marked';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { Severity } from 'vs/platform/notification/common/notification';
 
 export class NotificationsListDelegate implements IDelegate<INotificationViewItem> {
 

@@ -16,7 +16,6 @@ import Event, { Emitter, once, chain } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import Severity from 'vs/base/common/severity';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { domEvent } from 'vs/base/browser/event';
@@ -38,7 +37,6 @@ import { Webview } from 'vs/workbench/parts/html/browser/webview';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -55,6 +53,7 @@ import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { assign } from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -188,7 +187,7 @@ export class ExtensionEditor extends BaseEditor {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IThemeService protected themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IOpenerService private openerService: IOpenerService,
 		@IPartService private partService: IPartService,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -515,7 +514,7 @@ export class ExtensionEditor extends BaseEditor {
 				scrollableContent.scanDomNode();
 			}, error => {
 				append(this.content, $('p.nocontent')).textContent = error;
-				this.messageService.show(Severity.Error, error);
+				this.notificationService.error(error);
 			});
 		});
 	}
@@ -926,7 +925,7 @@ export class ExtensionEditor extends BaseEditor {
 			return;
 		}
 
-		this.messageService.show(Severity.Error, err);
+		this.notificationService.error(err);
 	}
 
 	dispose(): void {

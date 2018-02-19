@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
-import { Severity } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 
 export interface IChoiceChannel extends IChannel {
 	call(command: 'choose'): TPromise<number>;

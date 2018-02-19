@@ -127,11 +127,11 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
-		const options: Choice[] = [nls.localize('customize', "Customize"), nls.localize('cancel', "Cancel"), { label: nls.localize('never again', "OK, Don't Show Again"), isSecondary: true }];
+		const options: Choice[] = [nls.localize('customize', "Customize"), { label: nls.localize('never again', "Don't Show Again"), isSecondary: true }];
 		this._choiceService.choose(Severity.Info, message, options).then(choice => {
 			switch (choice) {
-				case 0:
-					return this.selectDefaultWindowsShell().then(shell => {
+				case 0 /* Customize */:
+					this.selectDefaultWindowsShell().then(shell => {
 						if (!shell) {
 							return TPromise.as(null);
 						}
@@ -145,12 +145,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 						}
 						return TPromise.as(null);
 					});
-				case 1:
-					return TPromise.as(null);
-				case 2:
+					break;
+				case 1 /* Do not show again */:
 					this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
-				default:
-					return TPromise.as(null);
+					break;
 			}
 		});
 	}

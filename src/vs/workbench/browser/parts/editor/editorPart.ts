@@ -32,7 +32,6 @@ import { Position, POSITIONS, Direction, IEditor } from 'vs/platform/editor/comm
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMessageService, IMessageWithAction, Severity } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { EditorStacksModel, EditorGroup, EditorIdentifier, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
@@ -48,6 +47,8 @@ import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } fr
 import { ThrottledEmitter } from 'vs/base/common/async';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { INotificationService, Severity, INotificationActions } from 'vs/platform/notification/common/notification';
+import { IErrorWithActions } from 'vs/base/common/errors';
 
 class ProgressMonitor {
 
@@ -126,7 +127,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	constructor(
 		id: string,
 		restoreFromStorage: boolean,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IStorageService private storageService: IStorageService,
 		@IPartService private partService: IPartService,
@@ -540,7 +541,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	private doHandleSetInputError(e: Error | IMessageWithAction, group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {
+	private doHandleSetInputError(e: Error, group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {
 		const position = this.stacks.positionOfGroup(group);
 
 		// Stop loading promise if any
@@ -548,16 +549,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Report error only if this was not us restoring previous error state
 		if (this.partService.isCreated() && !errors.isPromiseCanceledError(e)) {
-			const errorMessage = nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), toErrorMessage(e));
-
-			let error: any;
-			if (e && (<IMessageWithAction>e).actions && (<IMessageWithAction>e).actions.length) {
-				error = errors.create(errorMessage, { actions: (<IMessageWithAction>e).actions }); // Support error actions from thrower
-			} else {
-				error = errorMessage;
+			const actions: INotificationActions = { primary: [] };
+			if (e && Array.isArray((<IErrorWithActions>e).actions)) {
+				actions.primary = (<IErrorWithActions>e).actions;
 			}
 
-			this.messageService.show(Severity.Error, types.isString(error) ? new Error(error) : error);
+			this.notificationService.notify({
+				severity: Severity.Error,
+				message: nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), toErrorMessage(e)),
+				actions
+			});
 		}
 
 		this.editorGroupsControl.updateProgress(position, ProgressState.DONE);
@@ -961,7 +962,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				// It could be that the editor saved meanwhile, so we check again
 				// to see if anything needs to happen before closing for good.
 				// This can happen for example if autoSave: onFocusChange is configured
-				// so that the save happens when the dialog opens. 
+				// so that the save happens when the dialog opens.
 				if (!editor.isDirty()) {
 					return res === ConfirmResult.CANCEL ? true : false;
 				}

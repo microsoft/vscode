@@ -36,7 +36,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -47,7 +46,6 @@ import { SearchRenderer, SearchDataSource, SearchSorter, SearchAccessibilityProv
 import { SearchWidget, ISearchWidgetOptions } from 'vs/workbench/parts/search/browser/searchWidget';
 import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, SearchAction, CancelSearchAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
-import Severity from 'vs/base/common/severity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
@@ -60,6 +58,7 @@ import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/l
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
 import { IConfirmation, IConfirmationService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class SearchViewlet extends Viewlet {
 
@@ -109,7 +108,7 @@ export class SearchViewlet extends Viewlet {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IProgressService private progressService: IProgressService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IConfirmationService private confirmationService: IConfirmationService,
 		@IStorageService private storageService: IStorageService,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -407,7 +406,7 @@ export class SearchViewlet extends Viewlet {
 				}, (error) => {
 					progressRunner.done();
 					errors.isPromiseCanceledError(error);
-					this.messageService.show(Severity.Error, error);
+					this.notificationService.error(error);
 				});
 			}
 		});

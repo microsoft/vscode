@@ -5,12 +5,14 @@
 
 'use strict';
 
-import { Severity } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IAction } from 'vs/base/common/actions';
 import Event, { Emitter } from 'vs/base/common/event';
+
+export import Severity = Severity;
 
 export const INotificationService = createDecorator<INotificationService>('notificationService');
 
@@ -48,9 +50,9 @@ export interface INotificationService {
 
 	notify(notification: INotification): INotificationHandle;
 
-	info(message: string): INotificationHandle;
-	warn(message: string): INotificationHandle;
-	error(error: string | Error): INotificationHandle;
+	info(message: string | IMarkdownString | Error): INotificationHandle;
+	warn(message: string | IMarkdownString | Error): INotificationHandle;
+	error(message: string | IMarkdownString | Error): INotificationHandle;
 }
 
 export class NoOpNotification implements INotificationHandle {

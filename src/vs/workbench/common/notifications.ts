@@ -5,9 +5,8 @@
 
 'use strict';
 
-import { Severity } from 'vs/platform/message/common/message';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
