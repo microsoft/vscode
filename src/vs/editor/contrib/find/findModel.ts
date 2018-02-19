@@ -46,10 +46,10 @@ export const ToggleSearchScopeKeybinding: IKeybindings = {
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
 };
 export const ShowPreviousFindTermKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.UpArrow
+	primary: KeyCode.UpArrow
 };
 export const ShowNextFindTermKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.DownArrow
+	primary: KeyCode.DownArrow
 };
 
 export const FIND_IDS = {
