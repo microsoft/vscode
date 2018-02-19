@@ -58,6 +58,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { rtrim } from 'vs/base/common/strings';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -324,7 +325,8 @@ export class FileRenderer implements IRenderer {
 		if (inputBox.validate()) {
 			const value = inputBox.value;
 			if (value && value.search(/[\\/]/) !== -1) {	// only show if there's a slash
-				const newPath = paths.normalize(paths.join(initialRelPath, value), true);
+				let newPath = paths.normalize(paths.join(initialRelPath, value), true);
+				newPath = rtrim(newPath, paths.nativeSep);
 				const fileType: string = FileKind[fileKind].toLowerCase();
 
 				inputBox.showMessage({
