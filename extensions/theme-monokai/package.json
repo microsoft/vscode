@@ -1,7 +1,7 @@
 {
 	"name": "theme-monokai",
-	"displayName": "Monokai Theme",
-	"description": "Monokai theme for Visual Studio Code",
+	"displayName": "%displayName%",
+	"description": "%description%",
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": {

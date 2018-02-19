@@ -1,7 +1,7 @@
 {
 	"name": "theme-defaults",
-	"displayName": "Default Themes",
-	"description": "The default light and dark themes (Plus and Visual Studio)",
+	"displayName": "%displayName%",
+	"description": "%description%",
 	"categories": [ "Themes" ],
 	"version": "0.1.10",
 	"publisher": "vscode",

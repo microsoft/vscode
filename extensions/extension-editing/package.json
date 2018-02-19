@@ -1,7 +1,7 @@
 {
 	"name": "extension-editing",
-	"displayName": "Package File Editing",
-	"description": "Provides intelli-sense for VS Code extension points and linting capabilities in Package json files",
+	"displayName": "%displayName%",
+	"description": "%description%",
 	"version": "0.0.1",
 	"publisher": "vscode",
 	"engines": {

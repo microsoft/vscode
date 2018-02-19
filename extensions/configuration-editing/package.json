@@ -1,7 +1,7 @@
 {
   "name": "configuration-editing",
-  "displayName": "Configuration Editing",
-  "description": "Provides capabilities (advanced intelli-sense, auto-fixing) in configuration files like settings, launch and extension recommendation files",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "version": "0.0.1",
   "publisher": "vscode",
   "engines": {
