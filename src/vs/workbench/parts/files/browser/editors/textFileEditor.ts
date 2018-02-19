@@ -154,16 +154,12 @@ export class TextFileEditor extends BaseTextEditor {
 					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
 						actions: [
 							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
-								return this.fileService.updateContent(input.getResource(), '').then(() => {
-
-									// Open
-									return this.editorService.openEditor({
-										resource: input.getResource(),
-										options: {
-											pinned: true // new file gets pinned by default
-										}
-									});
-								});
+								return this.fileService.updateContent(input.getResource(), '').then(() => this.editorService.openEditor({
+									resource: input.getResource(),
+									options: {
+										pinned: true // new file gets pinned by default
+									}
+								}));
 							})
 						]
 					}));

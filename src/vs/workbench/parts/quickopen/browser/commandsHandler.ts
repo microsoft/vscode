@@ -11,7 +11,6 @@ import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -32,9 +31,9 @@ import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { isPromiseCanceledError, IErrorWithActions } from 'vs/base/common/errors';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { INotificationService, INotificationActions, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -275,26 +274,6 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		return nls.localize('entryAriaLabel', "{0}, commands", this.getLabel());
 	}
 
-	private onError(error?: Error | IErrorWithActions): void {
-		if (isPromiseCanceledError(error)) {
-			return;
-		}
-
-		let message: string;
-		if (error) {
-			message = toErrorMessage(error);
-		} else {
-			message = nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label);
-		}
-
-		const actions: INotificationActions = { primary: [] };
-		if (error && Array.isArray((<IErrorWithActions>error).actions)) {
-			actions.primary = (<IErrorWithActions>error).actions;
-		}
-
-		this.notificationService.notify({ severity: Severity.Error, message, actions });
-	}
-
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			this.runAction(this.getAction());
@@ -335,6 +314,14 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 				this.notificationService.info(nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
 			}
 		}, err => this.onError(err));
+	}
+
+	private onError(error?: Error): void {
+		if (isPromiseCanceledError(error)) {
+			return;
+		}
+
+		this.notificationService.error(error || nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label));
 	}
 }
 

@@ -10,7 +10,7 @@ import { INotification, INotificationHandle, INotificationActions, INotification
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, isErrorWithActions } from 'vs/base/common/errors';
 
 export interface INotificationsModel {
 
@@ -355,7 +355,14 @@ export class NotificationViewItem implements INotificationViewItem {
 			message.value = `${message.value.substr(0, NotificationViewItem.MAX_MESSAGE_LENGTH)}...`;
 		}
 
-		return new NotificationViewItem(severity, message, notification.source, notification.actions);
+		let actions: INotificationActions;
+		if (notification.actions) {
+			actions = notification.actions;
+		} else if (isErrorWithActions(notification.message)) {
+			actions = { primary: notification.message.actions };
+		}
+
+		return new NotificationViewItem(severity, message, notification.source, actions);
 	}
 
 	private static toMarkdownString(input: string | IMarkdownString | Error): IMarkdownString {

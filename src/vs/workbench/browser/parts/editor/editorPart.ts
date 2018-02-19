@@ -48,7 +48,7 @@ import { ThrottledEmitter } from 'vs/base/common/async';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { INotificationService, Severity, INotificationActions } from 'vs/platform/notification/common/notification';
-import { IErrorWithActions } from 'vs/base/common/errors';
+import { isErrorWithActions } from 'vs/base/common/errors';
 
 class ProgressMonitor {
 
@@ -541,22 +541,22 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		});
 	}
 
-	private doHandleSetInputError(e: Error, group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {
+	private doHandleSetInputError(error: Error, group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {
 		const position = this.stacks.positionOfGroup(group);
 
 		// Stop loading promise if any
 		monitor.cancel();
 
 		// Report error only if this was not us restoring previous error state
-		if (this.partService.isCreated() && !errors.isPromiseCanceledError(e)) {
+		if (this.partService.isCreated() && !errors.isPromiseCanceledError(error)) {
 			const actions: INotificationActions = { primary: [] };
-			if (e && Array.isArray((<IErrorWithActions>e).actions)) {
-				actions.primary = (<IErrorWithActions>e).actions;
+			if (isErrorWithActions(error)) {
+				actions.primary = error.actions;
 			}
 
 			this.notificationService.notify({
 				severity: Severity.Error,
-				message: nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), toErrorMessage(e)),
+				message: nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), toErrorMessage(error)),
 				actions
 			});
 		}
