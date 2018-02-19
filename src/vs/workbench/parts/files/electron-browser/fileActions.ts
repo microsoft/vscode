@@ -1325,6 +1325,7 @@ export class CopyPathAction extends Action {
 	}
 }
 
+
 export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false): string {
 
 	// Produce a well formed file name
@@ -1335,21 +1336,29 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 		return nls.localize('emptyFileNameError', "A file or folder name must be provided.");
 	}
 
+	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+
 	// Do not allow to overwrite existing file
 	if (!allowOverwriting) {
-		if (parent.children && parent.children.some((c) => {
-			if (isLinux) {
-				return c.name === name;
-			}
+		let p = parent;
+		const alreadyExisting = names.every((folderName) => {
+			let { exists, child } = alreadyExists(p, folderName);
 
-			return c.name.toLowerCase() === name.toLowerCase();
-		})) {
+			if (!exists) {
+				return false;
+			} else {
+				p = child;
+				return true;
+			}
+		});
+
+		if (alreadyExisting) {
 			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
 		}
 	}
 
 	// Invalid File name
-	if (!paths.isValidBasename(name)) {
+	if (names.some((folderName) => !paths.isValidBasename(folderName))) {
 		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
 	}
 
@@ -1362,6 +1371,28 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 	}
 
 	return null;
+}
+
+function alreadyExists(parent: IFileStat, name: string): { exists: boolean, child: IFileStat | undefined } {
+	let duplicateChild: IFileStat;
+
+	if (parent.children) {
+		let exists: boolean = parent.children.some((c) => {
+			let found: boolean;
+			if (isLinux) {
+				found = c.name === name;
+			} else {
+				found = c.name.toLowerCase() === name.toLowerCase();
+			}
+			if (found) {
+				duplicateChild = c;
+			}
+			return found;
+		});
+		return { exists, child: duplicateChild };
+	}
+
+	return { exists: false, child: undefined };
 }
 
 function trimLongName(name: string): string {

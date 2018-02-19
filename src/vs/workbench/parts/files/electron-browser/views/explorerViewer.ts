@@ -16,7 +16,7 @@ import resources = require('vs/base/common/resources');
 import errors = require('vs/base/common/errors');
 import { IAction, ActionRunner as BaseActionRunner, IActionRunner } from 'vs/base/common/actions';
 import comparers = require('vs/base/common/comparers');
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
@@ -308,12 +308,32 @@ export class FileRenderer implements IRenderer {
 					done(false, false);
 				}
 			}),
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
+				const initialRelPath: string = relative(stat.root.resource.fsPath, stat.parent.resource.fsPath);
+				this.displayCurrentPath(inputBox, initialRelPath, fileKind);
+			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
 			}),
 			label,
 			styler
 		];
+	}
+
+	private displayCurrentPath(inputBox: InputBox, initialRelPath: string, fileKind: FileKind) {
+		if (inputBox.validate()) {
+			const value = inputBox.value;
+			if (value && value.search(/[\\/]/) !== -1) {	// only show if there's a slash
+				const newPath = paths.normalize(paths.join(initialRelPath, value), true);
+				const fileType: string = FileKind[fileKind].toLowerCase();
+
+				inputBox.showMessage({
+					type: MessageType.INFO,
+					content: nls.localize('constructedPath', "Create {0} in **{1}**", fileType, newPath),
+					formatContent: true
+				});
+			}
+		}
 	}
 }
 
