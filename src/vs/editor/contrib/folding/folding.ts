@@ -26,6 +26,7 @@ import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IRange } from 'vs/editor/common/core/range';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { computeRanges as computeIndentRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
+import { IPosition } from 'vs/editor/common/core/position';
 
 export const ID = 'editor.contrib.folding';
 
@@ -317,15 +318,15 @@ export class FoldingController implements IEditorContribution {
 							toToggle.push(...foldingModel.getRegionsInside(region, r => r.isCollapsed === isCollapsed));
 						}
 						foldingModel.toggleCollapseState(toToggle);
-						this.reveal(lineNumber);
+						this.reveal({ lineNumber, column: 1 });
 					}
 				}
 			}
 		});
 	}
 
-	public reveal(focusLine: number): void {
-		this.editor.revealPositionInCenterIfOutsideViewport({ lineNumber: focusLine, column: 1 }, ScrollType.Smooth);
+	public reveal(position: IPosition): void {
+		this.editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
 	}
 }
 
@@ -344,6 +345,7 @@ abstract class FoldingAction<T> extends EditorAction {
 			return foldingModelPromise.then(foldingModel => {
 				if (foldingModel) {
 					this.invoke(foldingController, foldingModel, editor, args);
+					foldingController.reveal(editor.getSelection().getStartPosition());
 				}
 			});
 		}
@@ -514,10 +516,6 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		let selectedLines = this.getSelectedLines(editor);
 		setCollapseStateLevelsDown(foldingModel, true, Number.MAX_VALUE, selectedLines);
-		if (selectedLines.length > 0) {
-			foldingController.reveal(selectedLines[0]);
-		}
-
 	}
 }
 
