@@ -15,7 +15,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/node/product';
-import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
@@ -36,6 +35,7 @@ import { getHashedRemotesFromUri } from 'vs/workbench/parts/stats/node/workspace
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { isNumber } from 'vs/base/common/types';
+import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -44,7 +44,6 @@ interface IExtensionsContent {
 const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
-const choiceClose = localize('close', "Close");
 
 interface IDynamicWorkspaceRecommendations {
 	remoteSet: string[];
@@ -75,7 +74,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IExtensionService private extensionService: IExtensionService,
@@ -400,16 +398,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 				const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 				const installAction = this.instantiationService.createInstance(InstallRecommendedExtensionAction, id);
-				const options = [
+				const options: Choice[] = [
 					localize('install', 'Install'),
 					recommendationsAction.label,
-					choiceNever,
-					choiceClose
+					{ label: choiceNever, isSecondary: true }
 				];
 
-				this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
+				this.choiceService.choose(Severity.Info, message, options).done(choice => {
 					switch (choice) {
-						case 0:
+						case 0 /* Install */:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -418,7 +415,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'install', extensionId: name });
 							return installAction.run();
-						case 1:
+						case 1 /* Show Recommendations */:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -427,7 +424,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show', extensionId: name });
 							return recommendationsAction.run();
-						case 2: importantRecommendationsIgnoreList.push(id);
+						case 2 /* Never show again */:
+							importantRecommendationsIgnoreList.push(id);
 							this.storageService.store(
 								'extensionsAssistant/importantRecommendationsIgnore',
 								JSON.stringify(importantRecommendationsIgnoreList),
@@ -441,14 +439,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId: name });
 							return this.ignoreExtensionRecommendations();
-						case 3:
-							/* __GDPR__
-								"extensionRecommendations:popup" : {
-									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-								}
-							*/
-							this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'close', extensionId: name });
 					}
 				}, () => {
 					/* __GDPR__
@@ -491,15 +481,14 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 					const searchMarketplaceAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, fileExtension);
 
-					const options = [
+					const options: Choice[] = [
 						localize('searchMarketplace', "Search Marketplace"),
-						choiceNever,
-						choiceClose
+						{ label: choiceNever, isSecondary: true }
 					];
 
-					this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+					this.choiceService.choose(Severity.Info, message, options).done(choice => {
 						switch (choice) {
-							case 0:
+							case 0 /* Search Marketplace */:
 								/* __GDPR__
 									"fileExtensionSuggestion:popup" : {
 										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -509,7 +498,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension: fileExtension });
 								searchMarketplaceAction.run();
 								break;
-							case 1:
+							case 1 /* Never show again */:
 								fileExtensionSuggestionIgnoreList.push(fileExtension);
 								this.storageService.store(
 									'extensionsAssistant/fileExtensionsSuggestionIgnore',
@@ -523,14 +512,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									}
 								*/
 								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'neverShowAgain', fileExtension: fileExtension });
-							case 2:
-								/* __GDPR__
-									"fileExtensionSuggestion:popup" : {
-										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-									}
-								*/
-								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'close', fileExtension: fileExtension });
 								break;
 						}
 					}, () => {
@@ -568,16 +549,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				const showAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 				const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"));
 
-				const options = [
+				const options: Choice[] = [
 					installAllAction.label,
 					showAction.label,
-					choiceNever,
-					choiceClose
+					{ label: choiceNever, isSecondary: true }
 				];
 
-				return this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
+				return this.choiceService.choose(Severity.Info, message, options).done(choice => {
 					switch (choice) {
-						case 0:
+						case 0 /* Install */:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -585,7 +565,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'install' });
 							return installAllAction.run();
-						case 1:
+						case 1 /* Show Recommendations */:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -593,7 +573,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
 							return showAction.run();
-						case 2:
+						case 2 /* Never show again */:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -601,13 +581,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
 							return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
-						case 3:
-							/* __GDPR__
-								"extensionRecommendations:popup" : {
-									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-								}
-							*/
-							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'close' });
 					}
 				}, () => {
 					/* __GDPR__
@@ -629,13 +602,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			localize('cancel', "Cancel")
 		];
 
-		this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+		this.choiceService.choose(Severity.Info, message, options).done(choice => {
 			switch (choice) {
 				case 0:	// If the user ignores the current message and selects different file type
-					// we should hide all the stacked up messages as he has selected Yes, Ignore All
-					this.messageService.hideAll();
 					return this.setIgnoreRecommendationsConfig(true);
-				case 1: return this.setIgnoreRecommendationsConfig(false);
+				case 1:
+					return this.setIgnoreRecommendationsConfig(false);
 			}
 		});
 	}

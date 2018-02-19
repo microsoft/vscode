@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
-import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import pkg from 'vs/platform/node/package';
 import * as path from 'path';
@@ -21,7 +20,6 @@ import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } fr
 import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionScanner, ILog, ExtensionScannerInput, IExtensionResolver, IExtensionReference, Translations } from 'vs/workbench/services/extensions/node/extensionPoints';
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -32,17 +30,17 @@ import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/ele
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { Action } from 'vs/base/common/actions';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { mark, time } from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Barrier } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import product from 'vs/platform/node/product';
 import * as strings from 'vs/base/common/strings';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 let _SystemExtensionsRoot: string = null;
 function getSystemExtensionsRoot(): string {
@@ -144,7 +142,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IMessageService private readonly _messageService: IMessageService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IChoiceService private readonly _choiceService: IChoiceService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
@@ -271,16 +270,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _onExtensionHostCrashed(code: number, signal: string): void {
-		const openDevTools = new Action('openDevTools', nls.localize('devTools', "Developer Tools"), '', true, (): TPromise<boolean> => {
-			return this._windowService.openDevTools().then(() => false);
-		});
-
-		const restart = new Action('restart', nls.localize('restart', "Restart Extension Host"), '', true, (): TPromise<boolean> => {
-			this._messageService.hideAll();
-			this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
-			return TPromise.as(true);
-		});
-
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 		this._stopExtensionHostProcess();
 
@@ -288,12 +277,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		if (code === 87) {
 			message = nls.localize('extensionHostProcess.unresponsiveCrash', "Extension host terminated because it was not responsive.");
 		}
-		this._messageService.show(Severity.Error, {
-			message: message,
-			actions: [
-				openDevTools,
-				restart
-			]
+
+		this._choiceService.choose(Severity.Error, message, [nls.localize('devTools', "Developer Tools"), nls.localize('restart', "Restart Extension Host")]).then(choice => {
+			switch (choice) {
+				case 0 /* Open Dev Tools */:
+					this._windowService.openDevTools();
+					break;
+				case 1 /* Restart Extension Host */:
+					this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents));
+					break;
+			}
 		});
 	}
 
@@ -460,7 +453,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			this._logOrShowMessage(severity, this._isDev ? messageWithSource2(source, message) : message);
 		});
 
-		return ExtensionService._scanInstalledExtensions(this._instantiationService, this._messageService, this._environmentService, log)
+		return ExtensionService._scanInstalledExtensions(this._windowService, this._choiceService, this._environmentService, log)
 			.then(({ system, user, development }) => {
 				this._extensionEnablementService.migrateToIdentifiers(user); // TODO: @sandy Remove it after couple of milestones
 				return this._extensionEnablementService.getDisabledExtensions()
@@ -549,7 +542,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private static async _validateExtensionsCache(instantiationService: IInstantiationService, messageService: IMessageService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput): TPromise<void> {
+	private static async _validateExtensionsCache(windowService: IWindowService, choiceService: IChoiceService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput): TPromise<void> {
 		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
@@ -574,13 +567,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			console.error(err);
 		}
 
-		let message = nls.localize('extensionCache.invalid', "Extensions have been modified on disk. Please reload the window.");
-		messageService.show(Severity.Info, {
-			message: message,
-			actions: [
-				instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL),
-				CloseAction
-			]
+		choiceService.choose(Severity.Error, nls.localize('extensionCache.invalid', "Extensions have been modified on disk. Please reload the window."), [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
+			if (choice === 0) {
+				windowService.reloadWindow();
+			}
 		});
 	}
 
@@ -615,7 +605,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private static async _scanExtensionsWithCache(instantiationService: IInstantiationService, messageService: IMessageService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): TPromise<IExtensionDescription[]> {
+	private static async _scanExtensionsWithCache(windowService: IWindowService, choiceService: IChoiceService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): TPromise<IExtensionDescription[]> {
 		if (input.devMode) {
 			// Do not cache when running out of sources...
 			return ExtensionScanner.scanExtensions(input, log);
@@ -633,7 +623,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			// Validate the cache asynchronously after 5s
 			setTimeout(async () => {
 				try {
-					await this._validateExtensionsCache(instantiationService, messageService, environmentService, cacheKey, input);
+					await this._validateExtensionsCache(windowService, choiceService, environmentService, cacheKey, input);
 				} catch (err) {
 					errors.onUnexpectedError(err);
 				}
@@ -655,7 +645,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		return result;
 	}
 
-	private static _scanInstalledExtensions(instantiationService: IInstantiationService, messageService: IMessageService, environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
+	private static _scanInstalledExtensions(windowService: IWindowService, choiceService: IChoiceService, environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
 
 		const translationConfig: TPromise<Translations> = platform.translationsConfigFile
 			? pfs.readFile(platform.translationsConfigFile, 'utf8').then((content) => {
@@ -676,8 +666,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			const locale = platform.locale;
 
 			const builtinExtensions = this._scanExtensionsWithCache(
-				instantiationService,
-				messageService,
+				windowService,
+				choiceService,
 				environmentService,
 				BUILTIN_MANIFEST_CACHE_FILE,
 				new ExtensionScannerInput(version, commit, locale, devMode, getSystemExtensionsRoot(), true, translations),
@@ -730,8 +720,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				environmentService.disableExtensions || !environmentService.extensionsPath
 					? TPromise.as([])
 					: this._scanExtensionsWithCache(
-						instantiationService,
-						messageService,
+						windowService,
+						choiceService,
 						environmentService,
 						USER_MANIFEST_CACHE_FILE,
 						new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionsPath, false, translations),
@@ -780,7 +770,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private _showMessageToUser(severity: Severity, msg: string): void {
 		if (severity === Severity.Error || severity === Severity.Warning) {
-			this._messageService.show(severity, msg);
+			this._notificationService.notify({ severity, message: msg });
 		} else {
 			this._logMessageInConsole(severity, msg);
 		}

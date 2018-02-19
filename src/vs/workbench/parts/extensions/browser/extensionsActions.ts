@@ -20,7 +20,6 @@ import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extens
 import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -38,12 +37,12 @@ import { Color } from 'vs/base/common/color';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import Severity from 'vs/base/common/severity';
 import { PagedModel } from 'vs/base/common/paging';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class InstallAction extends Action {
 
@@ -1110,7 +1109,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label, 'extension-action');
 		this.extensionsWorkbenchService.onChange(() => this.update(), this, this.disposables);
@@ -1137,7 +1136,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 				.then(viewlet => {
 					if (!toInstall.length) {
 						this.enabled = false;
-						this.messageService.show(Severity.Info, localize('allExtensionsInstalled', "All extensions recommended for this workspace have already been installed"));
+						this.notificationService.info(localize('allExtensionsInstalled', "All extensions recommended for this workspace have already been installed"));
 						viewlet.focus();
 						return TPromise.as(null);
 					}
@@ -1185,7 +1184,7 @@ export class InstallRecommendedExtensionAction extends Action {
 		extensionId: string,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, null);
 		this.extensionId = extensionId;
@@ -1202,7 +1201,7 @@ export class InstallRecommendedExtensionAction extends Action {
 			.then(viewlet => {
 				if (this.extensionsWorkbenchService.local.some(x => x.id.toLowerCase() === this.extensionId.toLowerCase())) {
 					this.enabled = false;
-					this.messageService.show(Severity.Info, localize('extensionInstalled', "The recommended extension has already been installed"));
+					this.notificationService.info(localize('extensionInstalled', "The recommended extension has already been installed"));
 					viewlet.focus();
 					return TPromise.as(null);
 				}

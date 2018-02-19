@@ -8,22 +8,25 @@
 import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
-import { IConfirmation, Severity, IChoiceService, IConfirmationResult } from 'vs/platform/message/common/message';
+import Severity from 'vs/base/common/severity';
 import { isLinux } from 'vs/base/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { IConfirmationService, IChoiceService, IConfirmation, IConfirmationResult, Choice } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
+import { once } from 'vs/base/common/event';
+import URI from 'vs/base/common/uri';
+import { basename } from 'vs/base/common/paths';
 
-export class MessageService extends WorkbenchMessageService implements IChoiceService {
+export class DialogService implements IChoiceService, IConfirmationService {
+
+	public _serviceBrand: any;
 
 	constructor(
-		container: HTMLElement,
 		@IWindowService private windowService: IWindowService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@INotificationService private notificationService: INotificationService
 	) {
-		super(container, telemetryService);
 	}
 
 	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
@@ -59,7 +62,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 			buttons.push(nls.localize('cancelButton', "Cancel"));
 		}
 
-		let opts: Electron.MessageBoxOptions = {
+		const opts: Electron.MessageBoxOptions = {
 			title: confirmation.title,
 			message: confirmation.message,
 			buttons,
@@ -83,34 +86,73 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		return opts;
 	}
 
-	public choose(severity: Severity, message: string, options: string[], cancelId: number, modal: boolean = false): TPromise<number> {
+	public choose(severity: Severity, message: string, choices: Choice[], cancelId?: number, modal: boolean = false): TPromise<number> {
 		if (modal) {
-			return this.doChooseModal(severity, message, options, cancelId);
+			return this.doChooseWithDialog(severity, message, choices, cancelId);
 		}
 
-		return this.doChooseWithMessage(severity, message, options);
+		return this.doChooseWithNotification(severity, message, choices);
 	}
 
-	private doChooseModal(severity: Severity, message: string, options: string[], cancelId: number): TPromise<number> {
+	private doChooseWithDialog(severity: Severity, message: string, choices: Choice[], cancelId?: number): TPromise<number> {
 		const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
+
+		const options: string[] = [];
+		choices.forEach(choice => {
+			if (typeof choice === 'string') {
+				options.push(choice);
+			} else {
+				options.push(choice.label);
+			}
+		});
 
 		return this.doShowMessageBox({ message, buttons: options, type, cancelId });
 	}
 
-	private doChooseWithMessage(severity: Severity, message: string, options: string[]): TPromise<number> {
-		let onCancel: () => void = null;
+	private doChooseWithNotification(severity: Severity, message: string, choices: Choice[]): TPromise<number> {
+		let handle: INotificationHandle;
 
 		const promise = new TPromise<number>((c, e) => {
+
+			// Complete promise with index of action that was picked
 			const callback = (index: number) => () => {
 				c(index);
 
-				return TPromise.as(true);
+				return TPromise.as(void 0);
 			};
 
-			const actions = options.map((option, index) => new Action('?', option, '', true, callback(index)));
+			// Convert choices into primary/secondary actions
+			const actions: INotificationActions = {
+				primary: [],
+				secondary: []
+			};
 
-			onCancel = this.show(severity, { message, actions }, () => promise.cancel());
-		}, () => onCancel());
+			choices.forEach((choice, index) => {
+				let isPrimary = true;
+				let label: string;
+
+				if (typeof choice === 'string') {
+					label = choice;
+				} else {
+					label = choice.label;
+					isPrimary = !choice.isSecondary;
+				}
+
+				const action = new Action(`workbench.dialog.choice.${index}`, label, null, true, callback(index));
+				if (isPrimary) {
+					actions.primary.push(action);
+				} else {
+					actions.secondary.push(action);
+				}
+			});
+
+			// Show notification with actions
+			handle = this.notificationService.notify({ severity, message, actions });
+
+			// Cancel promise when notification gets disposed
+			once(handle.onDidHide)(() => promise.cancel());
+
+		}, () => handle.dispose());
 
 		return promise;
 	}
@@ -140,4 +182,22 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 
 		return opts;
 	}
+}
+
+const MAX_CONFIRM_FILES = 10;
+export function getConfirmMessage(start: string, resourcesToConfirm: URI[]): string {
+	const message = [start];
+	message.push('');
+	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => basename(r.fsPath)));
+
+	if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
+		if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {
+			message.push(nls.localize('moreFile', "...1 additional file not shown"));
+		} else {
+			message.push(nls.localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
+		}
+	}
+
+	message.push('');
+	return message.join('\n');
 }

@@ -27,10 +27,11 @@ import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIG
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModel } from 'vs/editor/common/model';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export enum ConfigurationEditingErrorCode {
 
@@ -127,7 +128,7 @@ export class ConfigurationEditingService {
 		@ITextModelService private textModelResolverService: ITextModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IChoiceService private choiceService: IChoiceService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
@@ -184,7 +185,7 @@ export class ConfigurationEditingService {
 				this.onConfigurationFileDirtyError(error, operation, scopes);
 				break;
 			default:
-				this.messageService.show(Severity.Error, error.message);
+				this.notificationService.error(error.message);
 		}
 	}
 
@@ -193,21 +194,17 @@ export class ConfigurationEditingService {
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
 				: null;
 		if (openStandAloneConfigurationActionLabel) {
-			this.choiceService.choose(Severity.Error, error.message, [openStandAloneConfigurationActionLabel, nls.localize('close', "Close")], 1)
+			this.choiceService.choose(Severity.Error, error.message, [openStandAloneConfigurationActionLabel])
 				.then(option => {
-					switch (option) {
-						case 0:
-							this.openFile(operation.resource);
-							break;
+					if (option === 0) {
+						this.openFile(operation.resource);
 					}
 				});
 		} else {
-			this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 1)
+			this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings")])
 				.then(option => {
-					switch (option) {
-						case 0:
-							this.openSettings(operation);
-							break;
+					if (option === 0) {
+						this.openSettings(operation);
 					}
 				});
 		}
@@ -218,26 +215,26 @@ export class ConfigurationEditingService {
 			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
 				: null;
 		if (openStandAloneConfigurationActionLabel) {
-			this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), openStandAloneConfigurationActionLabel, nls.localize('close', "Close")], 2)
+			this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), openStandAloneConfigurationActionLabel])
 				.then(option => {
 					switch (option) {
-						case 0:
+						case 0 /* Save & Retry */:
 							const key = operation.key ? `${operation.workspaceStandAloneConfigurationKey}.${operation.key}` : operation.workspaceStandAloneConfigurationKey;
 							this.writeConfiguration(operation.target, { key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes });
 							break;
-						case 1:
+						case 1 /* Open Config */:
 							this.openFile(operation.resource);
 							break;
 					}
 				});
 		} else {
-			this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 2)
+			this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save and Retry"), nls.localize('open', "Open Settings")])
 				.then(option => {
 					switch (option) {
-						case 0:
+						case 0 /* Save and Retry */:
 							this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <ConfigurationEditingOptions>{ force: true, scopes });
 							break;
-						case 1:
+						case 1 /* Open Settings */:
 							this.openSettings(operation);
 							break;
 					}

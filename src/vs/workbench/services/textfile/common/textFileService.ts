@@ -26,7 +26,6 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -34,6 +33,7 @@ import { IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -70,7 +70,7 @@ export abstract class TextFileService implements ITextFileService {
 		protected fileService: IFileService,
 		private untitledEditorService: IUntitledEditorService,
 		private instantiationService: IInstantiationService,
-		private messageService: IMessageService,
+		private notificationService: INotificationService,
 		protected environmentService: IEnvironmentService,
 		private backupFileService: IBackupFileService,
 		private windowsService: IWindowsService,
@@ -161,7 +161,7 @@ export abstract class TextFileService implements ITextFileService {
 							return this.confirmBeforeShutdown();
 						}, errors => {
 							const firstError = errors[0];
-							this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", firstError.message));
+							this.notificationService.error(nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", firstError.message));
 
 							return true; // veto, the backups failed
 						});

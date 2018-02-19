@@ -47,9 +47,9 @@ import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
-import { IChoiceService } from 'vs/platform/message/common/message';
-import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { ChoiceCliService } from 'vs/platform/dialogs/node/choiceCli';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();

@@ -58,7 +58,6 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
 import { IWorkbenchEditorService, IResourceInputType, WorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -79,7 +78,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
 import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
@@ -99,8 +97,14 @@ import { domEvent } from 'vs/base/browser/event';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
 import { ICustomViewsService } from 'vs/workbench/common/views';
 import { CustomViewsService } from 'vs/workbench/browser/parts/views/customView';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
+import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
+import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/notificationsAlerts';
+import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
+import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 
-export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const SidebarVisibleContext = new RawContextKey<boolean>('sidebarVisible', false);
@@ -191,6 +195,8 @@ export class Workbench implements IPartService {
 	private editorPart: EditorPart;
 	private statusbarPart: StatusbarPart;
 	private quickOpen: QuickOpenController;
+	private notificationsCenter: NotificationsCenter;
+	private notificationsToasts: NotificationsToasts;
 	private workbenchLayout: WorkbenchLayout;
 	private toUnbind: IDisposable[];
 	private sideBarHidden: boolean;
@@ -201,7 +207,6 @@ export class Workbench implements IPartService {
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
 	private closeEmptyWindowScheduler: RunOnceScheduler;
-	private messagesVisibleContext: IContextKey<boolean>;
 	private editorsVisibleContext: IContextKey<boolean>;
 	private inZenMode: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
@@ -223,10 +228,10 @@ export class Workbench implements IPartService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
-		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: WorkspaceService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@INotificationService private notificationService: NotificationService
 	) {
 		this.parent = parent;
 		this.container = container;
@@ -274,7 +279,6 @@ export class Workbench implements IPartService {
 		this.initServices();
 
 		// Contexts
-		this.messagesVisibleContext = MessagesVisibleContext.bindTo(this.contextKeyService);
 		this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 		this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
 		this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
@@ -772,6 +776,12 @@ export class Workbench implements IPartService {
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.statusBarHidden = hidden;
 
+		// Adjust CSS
+		if (hidden) {
+			this.workbench.addClass('nostatusbar');
+		} else {
+			this.workbench.removeClass('nostatusbar');
+		}
 
 		// Layout
 		if (!skipLayout) {
@@ -781,7 +791,6 @@ export class Workbench implements IPartService {
 
 	public setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		this.activityBarHidden = hidden;
-
 
 		// Layout
 		if (!skipLayout) {
@@ -1006,13 +1015,6 @@ export class Workbench implements IPartService {
 			this.toUnbind.push(listenerDispose);
 		}
 
-		// Handle message service and quick open events
-		this.toUnbind.push((<WorkbenchMessageService>this.messageService).onMessagesShowing(() => this.messagesVisibleContext.set(true)));
-		this.toUnbind.push((<WorkbenchMessageService>this.messageService).onMessagesCleared(() => this.messagesVisibleContext.reset()));
-
-		this.toUnbind.push(this.quickOpen.onShow(() => (<WorkbenchMessageService>this.messageService).suspend())); // when quick open is open, don't show messages behind
-		this.toUnbind.push(this.quickOpen.onHide(() => (<WorkbenchMessageService>this.messageService).resume()));  // resume messages once quick open is closed again
-
 		// Configuration changes
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(() => this.onDidUpdateConfiguration()));
 
@@ -1122,7 +1124,8 @@ export class Workbench implements IPartService {
 	}
 
 	private createWorkbenchLayout(): void {
-		this.workbenchLayout = this.instantiationService.createInstance(WorkbenchLayout,
+		this.workbenchLayout = this.instantiationService.createInstance(
+			WorkbenchLayout,
 			$(this.container),							// Parent
 			this.workbench,								// Workbench Container
 			{
@@ -1133,7 +1136,9 @@ export class Workbench implements IPartService {
 				panel: this.panelPart,					// Panel Part
 				statusbar: this.statusbarPart,			// Statusbar
 			},
-			this.quickOpen								// Quickopen
+			this.quickOpen,								// Quickopen
+			this.notificationsCenter,					// Notifications Center
+			this.notificationsToasts					// Notifications Toasts
 		);
 	}
 
@@ -1145,6 +1150,9 @@ export class Workbench implements IPartService {
 		}
 		if (this.panelHidden) {
 			this.workbench.addClass('nopanel');
+		}
+		if (this.statusBarHidden) {
+			this.workbench.addClass('nostatusbar');
 		}
 
 		// Apply font aliasing
@@ -1168,6 +1176,9 @@ export class Workbench implements IPartService {
 		this.createEditorPart();
 		this.createPanelPart();
 		this.createStatusbarPart();
+
+		// Notification Handlers
+		this.createNotificationsHandlers();
 
 		// Add Workbench to DOM
 		this.workbenchContainer.build(this.container);
@@ -1235,6 +1246,38 @@ export class Workbench implements IPartService {
 		});
 
 		this.statusbarPart.create(statusbarContainer);
+	}
+
+	private createNotificationsHandlers(): void {
+
+		// Notifications Center
+		this.notificationsCenter = this.instantiationService.createInstance(NotificationsCenter, this.workbench.getHTMLElement(), this.notificationService.model);
+		this.toUnbind.push(this.notificationsCenter);
+
+		// Notifications Toasts
+		this.notificationsToasts = this.instantiationService.createInstance(NotificationsToasts, this.workbench.getHTMLElement(), this.notificationService.model);
+		this.toUnbind.push(this.notificationsToasts);
+
+		// Notifications Alerts
+		const notificationsAlerts = this.instantiationService.createInstance(NotificationsAlerts, this.notificationService.model);
+		this.toUnbind.push(notificationsAlerts);
+
+		// Notifications Status
+		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, this.notificationService.model);
+		this.toUnbind.push(notificationsStatus);
+
+		// Eventing
+		this.toUnbind.push(this.notificationsCenter.onDidChangeVisibility(() => {
+
+			// Update status
+			notificationsStatus.update(this.notificationsCenter.isVisible);
+
+			// Update toasts
+			this.notificationsToasts.update(this.notificationsCenter.isVisible);
+		}));
+
+		// Register Commands
+		registerNotificationCommands(this.notificationsCenter, this.notificationsToasts);
 	}
 
 	public getInstantiationService(): IInstantiationService {

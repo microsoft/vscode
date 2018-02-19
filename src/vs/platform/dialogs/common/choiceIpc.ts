@@ -7,7 +7,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IChoiceService, Severity } from 'vs/platform/message/common/message';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import Severity from 'vs/base/common/severity';
 
 export interface IChoiceChannel extends IChannel {
 	call(command: 'choose'): TPromise<number>;
@@ -33,7 +34,7 @@ export class ChoiceChannelClient implements IChoiceService {
 
 	constructor(private channel: IChoiceChannel) { }
 
-	choose(severity: Severity, message: string, options: string[], cancelId: number, modal?: boolean): TPromise<number> {
+	choose(severity: Severity, message: string, options: string[], cancelId?: number, modal?: boolean): TPromise<number> {
 		return this.channel.call('choose', [severity, message, options, cancelId, modal]);
 	}
 }

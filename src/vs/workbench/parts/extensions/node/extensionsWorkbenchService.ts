@@ -26,7 +26,6 @@ import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { IExtension, IExtensionDependencies, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
@@ -36,6 +35,8 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import product from 'vs/platform/node/product';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -346,7 +347,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IChoiceService private choiceService: IChoiceService,
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
@@ -925,7 +926,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return;
 		}
 
-		this.messageService.show(Severity.Error, err);
+		this.notificationService.error(err);
 	}
 
 	private onOpenExtensionUrl(uri: URI): void {
@@ -959,7 +960,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 							nls.localize('install', "Install"),
 							nls.localize('cancel', "Cancel")
 						];
-						return this.choiceService.choose(Severity.Info, message, options, 2, false).then(value => {
+						return this.choiceService.choose(Severity.Info, message, options).then(value => {
 							if (value !== 0) {
 								return TPromise.as(null);
 							}

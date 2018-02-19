@@ -8,10 +8,10 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ITreeViewDataProvider, ITreeItem, ICustomViewsService } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -22,14 +22,14 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	constructor(
 		extHostContext: IExtHostContext,
 		@ICustomViewsService private viewsService: ICustomViewsService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
 	$registerTreeViewDataProvider(treeViewId: string): void {
-		const dataProvider = this._register(new TreeViewDataProvider(treeViewId, this._proxy, this.messageService));
+		const dataProvider = this._register(new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService));
 		this._dataProviders.set(treeViewId, dataProvider);
 		this.viewsService.getTreeViewer(treeViewId).dataProvider = dataProvider;
 	}
@@ -61,7 +61,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 
 	constructor(private treeViewId: string,
 		private _proxy: ExtHostTreeViewsShape,
-		private messageService: IMessageService
+		private notificationService: INotificationService
 	) {
 	}
 
@@ -73,7 +73,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			.then(children => {
 				return this.postGetChildren(children);
 			}, err => {
-				this.messageService.show(Severity.Error, err);
+				this.notificationService.error(err);
 				return [];
 			});
 	}
