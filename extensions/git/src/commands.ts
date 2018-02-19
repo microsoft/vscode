@@ -757,14 +757,6 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const basename = path.basename(modifiedUri.fsPath);
-		const message = localize('confirm revert', "Are you sure you want to revert the selected changes in {0}?", basename);
-		const yes = localize('revert', "Revert Changes");
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-		if (pick !== yes) {
-			return;
-		}
 
 		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
 		const edit = new WorkspaceEdit();
