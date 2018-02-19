@@ -1,5 +1,7 @@
 {
 	"name": "theme-monokai-dimmed",
+	"displayName": "Monokai Dimmed Theme",
+	"description": "Monokai dimmed theme for Visual Studio Code",
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },

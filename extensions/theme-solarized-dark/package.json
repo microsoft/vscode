@@ -1,5 +1,7 @@
 {
 	"name": "theme-solarized-dark",
+	"displayName": "Solarized Dark Theme",
+	"description": "Solarized dark theme for Visual Studio Code",
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },

@@ -1,5 +1,7 @@
 {
 	"name": "theme-abyss",
+	"displayName": "Abyss Theme",
+	"description": "Abyss theme for Visual Studio Code",
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },

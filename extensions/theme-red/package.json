@@ -1,5 +1,7 @@
 {
 	"name": "theme-red",
+	"displayName": "Red Theme",
+	"description": "Red theme for Visual Studio Code",
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },

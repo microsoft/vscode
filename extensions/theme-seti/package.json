@@ -2,6 +2,7 @@
 	"name": "vscode-theme-seti",
 	"private": true,
 	"version": "0.1.0",
+	"displayName": "Seti File Icon Theme",
     "description": "A file icon theme made out of the Seti UI file icons",
 	"publisher": "vscode",
 	"scripts": {

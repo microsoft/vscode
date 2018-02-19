@@ -1,5 +1,7 @@
 {
 	"name": "theme-quietlight",
+	"displayName": "Quiet Light Theme",
+	"description": "Quiet light theme for Visual Studio Code",
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },

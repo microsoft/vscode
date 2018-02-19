@@ -1,5 +1,7 @@
 {
 	"name": "theme-tomorrow-night-blue",
+	"displayName": "Tomorrow Night Blue Theme",
+	"description": "Tomorrow night blue theme for Visual Studio Code",
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },

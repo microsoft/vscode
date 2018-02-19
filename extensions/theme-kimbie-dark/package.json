@@ -1,5 +1,7 @@
 {
 	"name": "theme-kimbie-dark",
+	"displayName": "Kimbie Dark Theme",
+	"description": "Kimbie dark theme for Visual Studio Code",
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
