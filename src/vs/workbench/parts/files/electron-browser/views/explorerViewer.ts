@@ -328,7 +328,7 @@ export class FileRenderer implements IRenderer {
 
 				inputBox.showMessage({
 					type: MessageType.INFO,
-					content: nls.localize('constructedPath', "Create **{0}** in **{1}**", fileType, newPath),
+					content: nls.localize('constructedPath', "Create {0} in **{1}**", fileType, newPath),
 					formatContent: true
 				});
 			}
