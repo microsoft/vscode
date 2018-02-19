@@ -1336,14 +1336,11 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 		return nls.localize('emptyFileNameError', "A file or folder name must be provided.");
 	}
 
-	const names: string[] = trimTrailingSlashes(name)	// prevents empty last array element after split
-		.split(/[\\/]/);
-
+	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
 
 	// Do not allow to overwrite existing file
 	if (!allowOverwriting) {
 		let p = parent;
-
 		const alreadyExisting = names.every((folderName) => {
 			let { exists, child } = alreadyExists(p, folderName);
 
@@ -1365,8 +1362,10 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
 	}
 
+	// Max length restriction (on Windows)
 	if (isWindows) {
-		if (windowsMaxLengthRestrictionReached(name, parent)) {
+		const fullPathLength = name.length + parent.resource.fsPath.length + 1 /* path segment */;
+		if (fullPathLength > 255) {
 			return nls.localize('filePathTooLongError', "The name **{0}** results in a path that is too long. Please choose a shorter name.", trimLongName(name));
 		}
 	}
@@ -1374,37 +1373,26 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 	return null;
 }
 
-function windowsMaxLengthRestrictionReached(name: string, parent: IFileStat): boolean {
-	const fullPathLength = name.length + parent.resource.fsPath.length + 1 /* path segment */;
-	return fullPathLength > 255;
-}
-
-function trimTrailingSlashes(str): string | undefined {
-	if (!str) { return str; }
-	return str.replace(/[\\/]*$/, '');
-}
-
 function alreadyExists(parent: IFileStat, name: string): { exists: boolean, child: IFileStat | undefined } {
-	let foundDupChild: IFileStat;
+	let duplicateChild: IFileStat;
 
 	if (parent.children) {
 		let exists: boolean = parent.children.some((c) => {
-			let found = compareFolderNames(c.name, name);
-			if (found) { foundDupChild = c; }
+			let found: boolean;
+			if (isLinux) {
+				found = c.name === name;
+			} else {
+				found = c.name.toLowerCase() === name.toLowerCase();
+			}
+			if (found) {
+				duplicateChild = c;
+			}
 			return found;
 		});
-		return { exists, child: foundDupChild };
+		return { exists, child: duplicateChild };
 	}
 
 	return { exists: false, child: undefined };
-}
-
-function compareFolderNames(name1: string, name2: string): boolean {
-	if (isLinux) {
-		return name1 === name2;
-	}
-
-	return name1.toLowerCase() === name2.toLowerCase();
 }
 
 function trimLongName(name: string): string {
