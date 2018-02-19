@@ -76,6 +76,24 @@ suite('Notifications', () => {
 
 		item1.updateMessage('message update');
 
+		called = 0;
+		item1.onDidLabelChange(e => {
+			if (e.kind === NotificationViewItemLabelKind.SEVERITY) {
+				called++;
+			}
+		});
+
+		item1.updateSeverity(Severity.Error);
+
+		called = 0;
+		item1.onDidLabelChange(e => {
+			if (e.kind === NotificationViewItemLabelKind.ACTIONS) {
+				called++;
+			}
+		});
+
+		item1.updateActions({ primary: [new Action('id2', 'label')] });
+
 		assert.equal(called, 1);
 
 		called = 0;
@@ -120,7 +138,13 @@ suite('Notifications', () => {
 
 		assert.equal(model.notifications.length, 3);
 
+		let called = 0;
+		item1Handle.onDidHide(() => {
+			called++;
+		});
+
 		item1Handle.dispose();
+		assert.equal(called, 1);
 		assert.equal(model.notifications.length, 2);
 		assert.equal(lastEvent.item.severity, item1.severity);
 		assert.equal(lastEvent.item.message.value, item1.message);

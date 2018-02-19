@@ -33,6 +33,46 @@ export interface INotificationChangeEvent {
 	kind: NotificationChangeType;
 }
 
+export class NotificationHandle implements INotificationHandle {
+	private _onDidHide: Emitter<void> = new Emitter();
+
+	constructor(private item: INotificationViewItem, private disposeItem: (item: INotificationViewItem) => void) {
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		once(this.item.onDidDispose)(() => {
+			this._onDidHide.fire();
+			this._onDidHide.dispose();
+		});
+	}
+
+	public get onDidHide(): Event<void> {
+		return this._onDidHide.event;
+	}
+
+	public get progress(): INotificationProgress {
+		return this.item.progress;
+	}
+
+	public updateSeverity(severity: Severity): void {
+		this.item.updateSeverity(severity);
+	}
+
+	public updateMessage(message: string | IMarkdownString | Error): void {
+		this.item.updateMessage(message);
+	}
+
+	public updateActions(actions?: INotificationActions): void {
+		this.item.updateActions(actions);
+	}
+
+	public dispose(): void {
+		this.disposeItem(this.item);
+		this._onDidHide.dispose();
+	}
+}
+
 export class NotificationsModel implements INotificationsModel {
 
 	private static NO_OP_NOTIFICATION = new NoOpNotification();
@@ -77,18 +117,7 @@ export class NotificationsModel implements INotificationsModel {
 		this._onDidNotificationChange.fire({ item, index: 0, kind: NotificationChangeType.ADD });
 
 		// Wrap into handle
-		return {
-			dispose: () => this.disposeItem(item),
-			progress: {
-				infinite: () => item.progress.infinite(),
-				total: value => item.progress.total(value),
-				worked: value => item.progress.worked(value),
-				done: () => item.progress.done()
-			},
-			updateSeverity: (severity: Severity) => item.updateSeverity(severity),
-			updateMessage: (message: string | IMarkdownString | Error) => item.updateMessage(message),
-			updateActions: (actions: INotificationActions) => item.updateActions(actions)
-		};
+		return new NotificationHandle(item, item => this.disposeItem(item));
 	}
 
 	private disposeItem(item: INotificationViewItem): void {

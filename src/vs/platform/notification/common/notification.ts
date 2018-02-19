@@ -10,6 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IAction } from 'vs/base/common/actions';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export const INotificationService = createDecorator<INotificationService>('notificationService');
 
@@ -33,6 +34,7 @@ export interface INotificationProgress {
 }
 
 export interface INotificationHandle extends IDisposable {
+	readonly onDidHide: Event<void>;
 	readonly progress: INotificationProgress;
 
 	updateSeverity(severity: Severity): void;
@@ -54,11 +56,19 @@ export interface INotificationService {
 export class NoOpNotification implements INotificationHandle {
 	readonly progress = new NoOpProgress();
 
+	private _onDidHide: Emitter<void> = new Emitter();
+
+	public get onDidHide(): Event<void> {
+		return this._onDidHide.event;
+	}
+
 	updateSeverity(severity: Severity): void { }
 	updateMessage(message: string | IMarkdownString | Error): void { }
 	updateActions(actions?: INotificationActions): void { }
 
-	dispose(): void { }
+	dispose(): void {
+		this._onDidHide.dispose();
+	}
 }
 
 export class NoOpProgress implements INotificationProgress {
