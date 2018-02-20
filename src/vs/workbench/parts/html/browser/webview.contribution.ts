@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr, } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -11,7 +12,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './webviewEditor';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ShowWebViewEditorFindWidgetAction, ShowWebViewEditorFindTermCommand, HideWebViewEditorFindCommand } from './webviewCommands';
+import { ShowWebViewEditorFindWidgetAction, ShowWebViewEditorFindTermCommand, HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction } from './webviewCommands';
 
 
 const category = 'Webview';
@@ -52,3 +53,9 @@ const hideCommand = new HideWebViewEditorFindCommand({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+
+actionRegistry.registerWorkbenchAction(
+	new SyncActionDescriptor(OpenWebviewDeveloperToolsAction, OpenWebviewDeveloperToolsAction.ID, OpenWebviewDeveloperToolsAction.LABEL),
+	'Webview Tools',
+	nls.localize('developer', "Developer"));

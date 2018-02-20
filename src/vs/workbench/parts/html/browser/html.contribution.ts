@@ -16,7 +16,6 @@ import { HtmlPreviewPart } from 'vs/workbench/parts/html/browser/htmlPreviewPart
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 
@@ -92,20 +91,4 @@ CommandsRegistry.registerCommand('_workbench.htmlPreview.postMessage', function 
 		preview.sendMessage(message);
 	}
 	return activePreviews.length > 0;
-});
-
-CommandsRegistry.registerCommand('_webview.openDevTools', function () {
-	const elements = document.querySelectorAll('webview.ready');
-	for (let i = 0; i < elements.length; i++) {
-		try {
-			(elements.item(i) as Electron.WebviewTag).openDevTools();
-		} catch (e) {
-			console.error(e);
-		}
-	}
-});
-
-MenuRegistry.addCommand({
-	id: '_webview.openDevTools',
-	title: localize('devtools.webview', "Developer: Webview Tools")
 });
