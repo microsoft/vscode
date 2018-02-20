@@ -1938,7 +1938,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	}
 
 	private onCenterSashLeftDragEnd(): void {
-		this.layoutContainers();
 	}
 
 	private onCenterSashRightDragStart(): void {
