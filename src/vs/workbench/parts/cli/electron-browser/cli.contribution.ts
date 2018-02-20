@@ -19,6 +19,7 @@ import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
+import { ILogService } from '../../../../platform/log/common/log';
 
 function ignore<T>(code: string, value: T = null): (err: any) => TPromise<T> {
 	return err => err.code === code ? TPromise.as<T>(value) : TPromise.wrapError<T>(err);
@@ -46,7 +47,8 @@ class InstallAction extends Action {
 		id: string,
 		label: string,
 		@INotificationService private notificationService: INotificationService,
-		@IChoiceService private choiceService: IChoiceService
+		@IChoiceService private choiceService: IChoiceService,
+		@ILogService private logService: ILogService
 	) {
 		super(id, label);
 	}
@@ -85,6 +87,7 @@ class InstallAction extends Action {
 					}
 				})
 				.then(() => {
+					this.logService.trace('cli#install', this.target);
 					this.notificationService.info(nls.localize('successIn', "Shell command '{0}' successfully installed in PATH.", product.applicationName));
 				});
 		});
@@ -128,7 +131,8 @@ class UninstallAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@ILogService private logService: ILogService
 	) {
 		super(id, label);
 	}
@@ -148,6 +152,7 @@ class UninstallAction extends Action {
 			return pfs.unlink(this.target)
 				.then(null, ignore('ENOENT'))
 				.then(() => {
+					this.logService.trace('cli#uninstall', this.target);
 					this.notificationService.info(nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName));
 				});
 		});
