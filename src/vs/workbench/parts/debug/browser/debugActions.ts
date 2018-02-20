@@ -1,7 +1,7 @@
-/*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
+ /*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
@@ -13,7 +13,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID, ProcessState }
-from 'vs/workbench/parts/debug/common/debug';
+	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -396,7 +396,7 @@ export class RemoveBreakpointAction extends AbstractDebugAction {
 
 	public run(breakpoint: IBreakpoint): TPromise<any> {
 		return breakpoint instanceof Breakpoint ? this.debugService.removeBreakpoints(breakpoint.getId())
-		: this.debugService.removeFunctionBreakpoints(breakpoint.getId());
+			: this.debugService.removeFunctionBreakpoints(breakpoint.getId());
 	}
 }
 
@@ -827,7 +827,7 @@ export class StepBackAction extends AbstractDebugAction {
 	protected isEnabled(state: State): boolean {
 		const process = this.debugService.getViewModel().focusedProcess;
 		return super.isEnabled(state) && state === State.Stopped &&
-		process && process.session.capabilities.supportsStepBack;
+			process && process.session.capabilities.supportsStepBack;
 	}
 }
 
@@ -850,6 +850,6 @@ export class ReverseContinueAction extends AbstractDebugAction {
 	protected isEnabled(state: State): boolean {
 		const process = this.debugService.getViewModel().focusedProcess;
 		return super.isEnabled(state) && state === State.Stopped &&
-		process && process.session.capabilities.supportsStepBack;
+			process && process.session.capabilities.supportsStepBack;
 	}
 }

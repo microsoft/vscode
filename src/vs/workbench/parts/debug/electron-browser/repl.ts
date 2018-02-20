@@ -1,7 +1,7 @@
-/*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
+ /*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!vs/workbench/parts/debug/browser/media/repl';
 import * as nls from 'vs/nls';
@@ -176,253 +176,253 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-			this.replInput = scopedInstantiationService.createInstance(ReplInputEditor, this.replInputContainer, this.getReplInputOptions());
+		this.replInput = scopedInstantiationService.createInstance(ReplInputEditor, this.replInputContainer, this.getReplInputOptions());
 
-			modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
-				triggerCharacters: ['.'],
-				provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
-					const word = this.replInput.getModel().getWordAtPosition(position);
-					const overwriteBefore = word ? word.word.length : 0;
-					const text = this.replInput.getModel().getLineContent(position.lineNumber);
-					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-					const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
-					const focusedProcess = this.debugService.getViewModel().focusedProcess;
-					const completions = focusedProcess ? focusedProcess.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
-					return wireCancellationToken(token, completions.then(suggestions => ({
-						suggestions
-					})));
-				}
-			});
-
-			this.toUnbind.push(this.replInput.onDidScrollChange(e => {
-				if (!e.scrollHeightChanged) {
-					return;
-				}
-				this.replInputHeight = Math.max(Repl.REPL_INPUT_INITIAL_HEIGHT, Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height));
-				this.layout(this.dimension);
-			}));
-			this.toUnbind.push(this.replInput.onDidChangeCursorPosition(e => {
-				onFirstReplLine.set(e.position.lineNumber === 1);
-				onLastReplLine.set(e.position.lineNumber === this.replInput.getModel().getLineCount());
-			}));
-
-			this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
-			this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
-		}
-
-		public navigateHistory(previous: boolean): void {
-			const historyInput = previous ? Repl.HISTORY.previous() : Repl.HISTORY.next();
-			if (historyInput) {
-				Repl.HISTORY.remember(this.replInput.getValue(), previous);
-				this.replInput.setValue(historyInput);
-				// always leave cursor at the end.
-				this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
+		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
+			triggerCharacters: ['.'],
+			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+				const word = this.replInput.getModel().getWordAtPosition(position);
+				const overwriteBefore = word ? word.word.length : 0;
+				const text = this.replInput.getModel().getLineContent(position.lineNumber);
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+				const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
+				const focusedProcess = this.debugService.getViewModel().focusedProcess;
+				const completions = focusedProcess ? focusedProcess.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
+				return wireCancellationToken(token, completions.then(suggestions => ({
+					suggestions
+				})));
 			}
-		}
+		});
 
-		public acceptReplInput(): void {
-			this.debugService.addReplExpression(this.replInput.getValue());
-			Repl.HISTORY.evaluated(this.replInput.getValue());
-			this.replInput.setValue('');
-			// Trigger a layout to shrink a potential multi line input
-			this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
+		this.toUnbind.push(this.replInput.onDidScrollChange(e => {
+			if (!e.scrollHeightChanged) {
+				return;
+			}
+			this.replInputHeight = Math.max(Repl.REPL_INPUT_INITIAL_HEIGHT, Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height));
 			this.layout(this.dimension);
-		}
+		}));
+		this.toUnbind.push(this.replInput.onDidChangeCursorPosition(e => {
+			onFirstReplLine.set(e.position.lineNumber === 1);
+			onLastReplLine.set(e.position.lineNumber === this.replInput.getModel().getLineCount());
+		}));
 
-		public getVisibleContent(): string {
-			let text = '';
-			const navigator = this.tree.getNavigator();
-			// skip first navigator element - the root node
-			while (navigator.next()) {
-				if (text) {
-					text += `\n`;
-				}
-				text += navigator.current().toString();
-			}
+		this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
+		this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
+	}
 
-			return text;
-		}
-
-		public layout(dimension: Dimension): void {
-			this.dimension = dimension;
-			if (this.tree) {
-				this.renderer.setWidth(dimension.width - 25, this.characterWidth);
-				const treeHeight = dimension.height - this.replInputHeight;
-				this.treeContainer.style.height = `${treeHeight}px`;
-				this.tree.layout(treeHeight);
-			}
-			this.replInputContainer.style.height = `${this.replInputHeight}px`;
-
-			this.replInput.layout({ width: dimension.width - 20, height: this.replInputHeight });
-		}
-
-		@memoize
-		private get characterWidth(): number {
-			const characterWidthSurveyor = dom.append(this.container, $('.surveyor'));
-			characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
-			for (let i = 0; i < 10; i++) {
-				characterWidthSurveyor.textContent += characterWidthSurveyor.textContent;
-			}
-			characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
-
-			return characterWidthSurveyor.clientWidth / characterWidthSurveyor.textContent.length;
-		}
-
-		public focus(): void {
-			this.replInput.focus();
-		}
-
-		public getActions(): IAction[] {
-			if (!this.actions) {
-				this.actions = [
-					this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL),
-					this.instantiationService.createInstance(CollapseAllReplAction, CollapseAllReplAction.ID, CollapseAllReplAction.LABEL, this.tree)
-				];
-
-				this.actions.forEach(a => {
-					this.toUnbind.push(a);
-				});
-			}
-
-			return this.actions;
-		}
-
-		public shutdown(): void {
-			const replHistory = Repl.HISTORY.save();
-			if (replHistory.length) {
-				this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
-			} else {
-				this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
-			}
-		}
-
-		private getReplInputOptions(): IEditorOptions {
-			return {
-				wordWrap: 'on',
-				overviewRulerLanes: 0,
-				glyphMargin: false,
-				lineNumbers: 'off',
-				folding: false,
-				selectOnLineNumbers: false,
-				selectionHighlight: false,
-				scrollbar: {
-					horizontal: 'hidden'
-				},
-				lineDecorationsWidth: 0,
-				scrollBeyondLastLine: false,
-				renderLineHighlight: 'none',
-				fixedOverflowWidgets: true,
-				acceptSuggestionOnEnter: 'smart',
-				minimap: {
-					enabled: false
-				}
-			};
-		}
-
-		public dispose(): void {
-			this.replInput.dispose();
-			super.dispose();
+	public navigateHistory(previous: boolean): void {
+		const historyInput = previous ? Repl.HISTORY.previous() : Repl.HISTORY.next();
+		if (historyInput) {
+			Repl.HISTORY.remember(this.replInput.getValue(), previous);
+			this.replInput.setValue(historyInput);
+			// always leave cursor at the end.
+			this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
 		}
 	}
 
-	class ReplHistoryPreviousAction extends EditorAction {
+	public acceptReplInput(): void {
+		this.debugService.addReplExpression(this.replInput.getValue());
+		Repl.HISTORY.evaluated(this.replInput.getValue());
+		this.replInput.setValue('');
+		// Trigger a layout to shrink a potential multi line input
+		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
+		this.layout(this.dimension);
+	}
 
-		constructor() {
-			super({
-				id: 'repl.action.historyPrevious',
-				label: nls.localize('actions.repl.historyPrevious', "History Previous"),
-				alias: 'History Previous',
-				precondition: debug.CONTEXT_IN_DEBUG_REPL,
-				kbOpts: {
-					kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE),
-					primary: KeyCode.UpArrow,
-					weight: 50
-				},
-				menuOpts: {
-					group: 'debug'
-				}
+	public getVisibleContent(): string {
+		let text = '';
+		const navigator = this.tree.getNavigator();
+		// skip first navigator element - the root node
+		while (navigator.next()) {
+			if (text) {
+				text += `\n`;
+			}
+			text += navigator.current().toString();
+		}
+
+		return text;
+	}
+
+	public layout(dimension: Dimension): void {
+		this.dimension = dimension;
+		if (this.tree) {
+			this.renderer.setWidth(dimension.width - 25, this.characterWidth);
+			const treeHeight = dimension.height - this.replInputHeight;
+			this.treeContainer.style.height = `${treeHeight}px`;
+			this.tree.layout(treeHeight);
+		}
+		this.replInputContainer.style.height = `${this.replInputHeight}px`;
+
+		this.replInput.layout({ width: dimension.width - 20, height: this.replInputHeight });
+	}
+
+	@memoize
+	private get characterWidth(): number {
+		const characterWidthSurveyor = dom.append(this.container, $('.surveyor'));
+		characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
+		for (let i = 0; i < 10; i++) {
+			characterWidthSurveyor.textContent += characterWidthSurveyor.textContent;
+		}
+		characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
+
+		return characterWidthSurveyor.clientWidth / characterWidthSurveyor.textContent.length;
+	}
+
+	public focus(): void {
+		this.replInput.focus();
+	}
+
+	public getActions(): IAction[] {
+		if (!this.actions) {
+			this.actions = [
+				this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL),
+				this.instantiationService.createInstance(CollapseAllReplAction, CollapseAllReplAction.ID, CollapseAllReplAction.LABEL, this.tree)
+			];
+
+			this.actions.forEach(a => {
+				this.toUnbind.push(a);
 			});
 		}
 
-		public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
-			accessor.get(IPrivateReplService).navigateHistory(true);
+		return this.actions;
+	}
+
+	public shutdown(): void {
+		const replHistory = Repl.HISTORY.save();
+		if (replHistory.length) {
+			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
+		} else {
+			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 	}
 
-	class ReplHistoryNextAction extends EditorAction {
-
-		constructor() {
-			super({
-				id: 'repl.action.historyNext',
-				label: nls.localize('actions.repl.historyNext', "History Next"),
-				alias: 'History Next',
-				precondition: debug.CONTEXT_IN_DEBUG_REPL,
-				kbOpts: {
-					kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE),
-					primary: KeyCode.DownArrow,
-					weight: 50
-				},
-				menuOpts: {
-					group: 'debug'
-				}
-			});
-		}
-
-		public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
-			accessor.get(IPrivateReplService).navigateHistory(false);
-		}
+	private getReplInputOptions(): IEditorOptions {
+		return {
+			wordWrap: 'on',
+			overviewRulerLanes: 0,
+			glyphMargin: false,
+			lineNumbers: 'off',
+			folding: false,
+			selectOnLineNumbers: false,
+			selectionHighlight: false,
+			scrollbar: {
+				horizontal: 'hidden'
+			},
+			lineDecorationsWidth: 0,
+			scrollBeyondLastLine: false,
+			renderLineHighlight: 'none',
+			fixedOverflowWidgets: true,
+			acceptSuggestionOnEnter: 'smart',
+			minimap: {
+				enabled: false
+			}
+		};
 	}
 
-	class AcceptReplInputAction extends EditorAction {
+	public dispose(): void {
+		this.replInput.dispose();
+		super.dispose();
+	}
+}
 
-		constructor() {
-			super({
-				id: 'repl.action.acceptInput',
-				label: nls.localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "REPL Accept Input"),
-				alias: 'REPL Accept Input',
-				precondition: debug.CONTEXT_IN_DEBUG_REPL,
-				kbOpts: {
-					kbExpr: EditorContextKeys.textFocus,
-					primary: KeyCode.Enter
-				}
-			});
-		}
+class ReplHistoryPreviousAction extends EditorAction {
 
-		public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
-			SuggestController.get(editor).acceptSelectedSuggestion();
-			accessor.get(IPrivateReplService).acceptReplInput();
-		}
+	constructor() {
+		super({
+			id: 'repl.action.historyPrevious',
+			label: nls.localize('actions.repl.historyPrevious', "History Previous"),
+			alias: 'History Previous',
+			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			kbOpts: {
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE),
+				primary: KeyCode.UpArrow,
+				weight: 50
+			},
+			menuOpts: {
+				group: 'debug'
+			}
+		});
 	}
 
-	export class ReplCopyAllAction extends EditorAction {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
+		accessor.get(IPrivateReplService).navigateHistory(true);
+	}
+}
 
-		constructor() {
-			super({
-				id: 'repl.action.copyAll',
-				label: nls.localize('actions.repl.copyAll', "Debug: Console Copy All"),
-				alias: 'Debug Console Copy All',
-				precondition: debug.CONTEXT_IN_DEBUG_REPL,
-			});
-		}
+class ReplHistoryNextAction extends EditorAction {
 
-		public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
-			clipboard.writeText(accessor.get(IPrivateReplService).getVisibleContent());
-		}
+	constructor() {
+		super({
+			id: 'repl.action.historyNext',
+			label: nls.localize('actions.repl.historyNext', "History Next"),
+			alias: 'History Next',
+			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			kbOpts: {
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE),
+				primary: KeyCode.DownArrow,
+				weight: 50
+			},
+			menuOpts: {
+				group: 'debug'
+			}
+		});
 	}
 
-	registerEditorAction(ReplHistoryPreviousAction);
-	registerEditorAction(ReplHistoryNextAction);
-	registerEditorAction(AcceptReplInputAction);
-	registerEditorAction(ReplCopyAllAction);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
+		accessor.get(IPrivateReplService).navigateHistory(false);
+	}
+}
 
-	const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
-	registerEditorCommand(new SuggestCommand({
-		id: 'repl.action.acceptSuggestion',
-		precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
-		handler: x => x.acceptSelectedSuggestion(),
-		kbOpts: {
-			weight: 50,
-			kbExpr: EditorContextKeys.textFocus,
-			primary: KeyCode.RightArrow
-		}
-	}));
+class AcceptReplInputAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'repl.action.acceptInput',
+			label: nls.localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "REPL Accept Input"),
+			alias: 'REPL Accept Input',
+			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textFocus,
+				primary: KeyCode.Enter
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
+		SuggestController.get(editor).acceptSelectedSuggestion();
+		accessor.get(IPrivateReplService).acceptReplInput();
+	}
+}
+
+export class ReplCopyAllAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'repl.action.copyAll',
+			label: nls.localize('actions.repl.copyAll', "Debug: Console Copy All"),
+			alias: 'Debug Console Copy All',
+			precondition: debug.CONTEXT_IN_DEBUG_REPL,
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
+		clipboard.writeText(accessor.get(IPrivateReplService).getVisibleContent());
+	}
+}
+
+registerEditorAction(ReplHistoryPreviousAction);
+registerEditorAction(ReplHistoryNextAction);
+registerEditorAction(AcceptReplInputAction);
+registerEditorAction(ReplCopyAllAction);
+
+const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
+registerEditorCommand(new SuggestCommand({
+	id: 'repl.action.acceptSuggestion',
+	precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
+	handler: x => x.acceptSelectedSuggestion(),
+	kbOpts: {
+		weight: 50,
+		kbExpr: EditorContextKeys.textFocus,
+		primary: KeyCode.RightArrow
+	}
+}));
