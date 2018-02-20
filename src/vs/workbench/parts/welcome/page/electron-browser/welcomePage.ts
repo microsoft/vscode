@@ -152,7 +152,6 @@ interface Strings {
 			"${WelcomePageInstalled-2}",
 			"${WelcomePageInstalled-3}",
 			"${WelcomePageInstalled-4}",
-			"${WelcomePageInstalled-5}",
 			"${WelcomePageInstalled-6}"
 		]
 	}
@@ -189,7 +188,6 @@ const extensionPackStrings: Strings = {
 			"${WelcomePageInstalled-2}",
 			"${WelcomePageInstalled-3}",
 			"${WelcomePageInstalled-4}",
-			"${WelcomePageInstalled-5}",
 			"${WelcomePageInstalled-6}"
 		]
 	}
