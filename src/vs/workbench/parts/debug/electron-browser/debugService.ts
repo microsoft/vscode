@@ -955,7 +955,7 @@ export class DebugService implements debug.IDebugService {
 				/* __GDPR__
 					"debugMisconfiguration" : {
 						"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"error": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"error": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 					}
 				*/
 				this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined, error: errorMessage });

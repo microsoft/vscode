@@ -165,7 +165,7 @@ export class RawDebugSession extends V8Protocol implements debug.ISession {
 				if (error && error.sendTelemetry) {
 					/* __GDPR__
 						"debugProtocolErrorResponse" : {
-							"error" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							"error" : { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 						}
 					*/
 					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });

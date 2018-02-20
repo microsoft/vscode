@@ -519,7 +519,7 @@ export class IssueReporter extends Disposable {
 		this.logService.warn('issueReporter#search ', error.message);
 		/* __GDPR__
 		"issueReporterSearchError" : {
-				"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 			}
 		*/
 		this.telemetryService.publicLog('issueReporterSearchError', { message: error.message });

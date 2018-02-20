@@ -484,7 +484,7 @@ class WelcomePage {
 										"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 										"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 										"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+										"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 									}
 								*/
 								this.telemetryService.publicLog(strings.installedEvent, {
@@ -519,7 +519,7 @@ class WelcomePage {
 					"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"extensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+					"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" }
 				}
 			*/
 			this.telemetryService.publicLog(strings.installedEvent, {
