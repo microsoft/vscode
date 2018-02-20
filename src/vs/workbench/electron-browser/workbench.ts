@@ -1329,13 +1329,7 @@ export class Workbench implements IPartService {
 
 	public toggleCenteredLayout(): void {
 		this.centeredLayoutActive = !this.centeredLayoutActive;
-
-		if (this.centeredLayoutActive) {
-			this.storageService.store(Workbench.centeredLayoutActiveStorageKey, 'true', StorageScope.GLOBAL);
-		} else {
-			this.storageService.remove(Workbench.centeredLayoutActiveStorageKey, StorageScope.GLOBAL);
-		}
-
+		this.storageService.store(Workbench.centeredLayoutActiveStorageKey, this.centeredLayoutActive, StorageScope.GLOBAL);
 		this.layout();
 	}
 
