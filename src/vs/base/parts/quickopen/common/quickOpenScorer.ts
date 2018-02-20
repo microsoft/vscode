@@ -296,6 +296,7 @@ const LABEL_CAMELCASE_SCORE = 1 << 16;
 const LABEL_SCORE_THRESHOLD = 1 << 15;
 
 export interface IPreparedQuery {
+	original: string;
 	value: string;
 	lowercase: string;
 	containsPathSeparator: boolean;
@@ -304,12 +305,13 @@ export interface IPreparedQuery {
 /**
  * Helper function to prepare a search value for scoring in quick open by removing unwanted characters.
  */
-export function prepareQuery(value: string): IPreparedQuery {
+export function prepareQuery(original: string): IPreparedQuery {
 	let lowercase: string;
 	let containsPathSeparator: boolean;
+	let value: string;
 
-	if (value) {
-		value = stripWildcards(value).replace(/\s/g, ''); // get rid of all wildcards and whitespace
+	if (original) {
+		value = stripWildcards(original).replace(/\s/g, ''); // get rid of all wildcards and whitespace
 		if (isWindows) {
 			value = value.replace(/\//g, '\\'); // Help Windows users to search for paths when using slash
 		}
@@ -318,7 +320,7 @@ export function prepareQuery(value: string): IPreparedQuery {
 		containsPathSeparator = value.indexOf(nativeSep) >= 0;
 	}
 
-	return { value, lowercase, containsPathSeparator };
+	return { original, value, lowercase, containsPathSeparator };
 }
 
 export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: ScorerCache): IItemScore {
@@ -354,7 +356,7 @@ export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, acc
 function doScoreItem(label: string, description: string, path: string, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
-	if (path && isEqual(query.value, path, true)) {
+	if (path && isEqual(query.original, path, true)) {
 		return { score: PATH_IDENTITY_SCORE, labelMatch: [{ start: 0, end: label.length }], descriptionMatch: description ? [{ start: 0, end: description.length }] : void 0 };
 	}
 
