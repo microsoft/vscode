@@ -135,15 +135,6 @@
 	background: url('clear-repl-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .debug-action.collapse-repl {
-	background: url('collapse-all.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .debug-action.collapse-repl,
-.hc-black .monaco-workbench .debug-action.collapse-repl {
-	background: url('collapse-inverse.svg') center center no-repeat;
-}
-
 /* Output coloring */
 
 .vs .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .warn {

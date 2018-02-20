@@ -18,7 +18,7 @@ import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Model, RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/browser/baseDebugView';
-import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { ClearReplAction, CollapseAllReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -438,6 +438,7 @@ export class ReplExpressionsActionProvider implements IActionProvider {
 		actions.push(new CopyAction(CopyAction.ID, CopyAction.LABEL));
 		actions.push(new CopyAllAction(CopyAllAction.ID, CopyAllAction.LABEL, tree));
 		actions.push(this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL));
+		actions.push(this.instantiationService.createInstance(CollapseAllReplAction, CollapseAllReplAction.ID, CollapseAllReplAction.LABEL, tree));
 
 		return TPromise.as(actions);
 	}

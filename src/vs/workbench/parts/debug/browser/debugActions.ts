@@ -712,7 +712,7 @@ export class ClearReplAction extends AbstractDebugAction {
 
 export class CollapseAllReplAction extends Action {
 	static readonly ID = 'workbench.debug.panel.action.collapseReplAction';
-	static LABEL = nls.localize('collapseRepl', "Collaps All");
+	static LABEL = nls.localize('collapseRepl', "Collapse All");
 
 	constructor(id: string, label: string, private tree: ITree){
 		super(id, label, 'debug-action collapse-repl collapse-all');

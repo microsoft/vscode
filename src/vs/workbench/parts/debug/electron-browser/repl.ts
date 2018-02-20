@@ -33,7 +33,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
 import { ReplInputEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { ClearReplAction, CollapseAllReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -275,8 +275,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	public getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
-				this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL),
-				this.instantiationService.createInstance(CollapseAllReplAction, CollapseAllReplAction.ID, CollapseAllReplAction.LABEL, this.tree)
+				this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL)
 			];
 
 			this.actions.forEach(a => {
