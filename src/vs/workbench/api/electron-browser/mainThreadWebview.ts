@@ -346,7 +346,7 @@ export class MainThreadWebview implements MainThreadWebviewShape {
 	private onEditorsChanged() {
 		const activeEditor = this._editorService.getActiveEditor();
 		let newActiveWebview: WebviewInput | undefined = undefined;
-		if (activeEditor.input instanceof WebviewInput) {
+		if (activeEditor && activeEditor.input instanceof WebviewInput) {
 			for (const handle of map.keys(this._webviews)) {
 				const input = this._webviews.get(handle);
 				if (input.matches(activeEditor.input)) {
