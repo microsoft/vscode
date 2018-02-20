@@ -116,12 +116,18 @@
 .hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus::before {
 	display: block;
 	content: "";
-	border: 2px solid #f38518;
+	border: 1px solid #f38518;
 	position: absolute;
 	left: -5px;
 	top: 0;
 	right: -5px;
 	bottom: 0;
+	z-index: 10;
+}
+
+.hc-black .monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm.focus::before,
+.hc-black .monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm:focus::before {
+	right: 0px;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm .xterm-helpers {
