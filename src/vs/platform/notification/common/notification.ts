@@ -16,9 +16,11 @@ export import Severity = Severity;
 
 export const INotificationService = createDecorator<INotificationService>('notificationService');
 
+export type NotificationMessage = string | IMarkdownString | Error;
+
 export interface INotification {
 	severity: Severity;
-	message: string | IMarkdownString | Error;
+	message: NotificationMessage;
 	source?: string;
 	actions?: INotificationActions;
 }
@@ -40,7 +42,7 @@ export interface INotificationHandle extends IDisposable {
 	readonly progress: INotificationProgress;
 
 	updateSeverity(severity: Severity): void;
-	updateMessage(message: string | IMarkdownString | Error): void;
+	updateMessage(message: NotificationMessage): void;
 	updateActions(actions?: INotificationActions): void;
 }
 
@@ -50,9 +52,9 @@ export interface INotificationService {
 
 	notify(notification: INotification): INotificationHandle;
 
-	info(message: string | IMarkdownString | Error): INotificationHandle;
-	warn(message: string | IMarkdownString | Error): INotificationHandle;
-	error(message: string | IMarkdownString | Error): INotificationHandle;
+	info(message: NotificationMessage | NotificationMessage[]): void;
+	warn(message: NotificationMessage | NotificationMessage[]): void;
+	error(message: NotificationMessage | NotificationMessage[]): void;
 }
 
 export class NoOpNotification implements INotificationHandle {
@@ -65,7 +67,7 @@ export class NoOpNotification implements INotificationHandle {
 	}
 
 	updateSeverity(severity: Severity): void { }
-	updateMessage(message: string | IMarkdownString | Error): void { }
+	updateMessage(message: NotificationMessage): void { }
 	updateActions(actions?: INotificationActions): void { }
 
 	dispose(): void {

@@ -126,7 +126,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 						const editorLabel = nls.localize('saveConflictDiffLabel', "{0} (on disk) ↔ {1} (in {2}) - Resolve save conflict", name, name, this.environmentService.appNameLong);
 
 						return this.editorService.openEditor({ leftResource: URI.from({ scheme: CONFLICT_RESOLUTION_SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel, options: { pinned: true } }).then(() => {
-							pendingResolveSaveConflictMessages.push(this.notificationService.info(conflictEditorHelp)); // Inform user
+							pendingResolveSaveConflictMessages.push(this.notificationService.notify({ severity: Severity.Info, message: conflictEditorHelp })); // Inform user
 						});
 					}
 

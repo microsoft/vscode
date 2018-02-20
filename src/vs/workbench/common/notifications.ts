@@ -6,7 +6,7 @@
 'use strict';
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -58,7 +58,7 @@ export class NotificationHandle implements INotificationHandle {
 		this.item.updateSeverity(severity);
 	}
 
-	public updateMessage(message: string | IMarkdownString | Error): void {
+	public updateMessage(message: NotificationMessage): void {
 		this.item.updateMessage(message);
 	}
 
@@ -203,7 +203,7 @@ export interface INotificationViewItem {
 	hasProgress(): boolean;
 
 	updateSeverity(severity: Severity): void;
-	updateMessage(message: string | IMarkdownString | Error): void;
+	updateMessage(message: NotificationMessage): void;
 	updateActions(actions?: INotificationActions): void;
 
 	dispose(): void;
@@ -365,7 +365,7 @@ export class NotificationViewItem implements INotificationViewItem {
 		return new NotificationViewItem(severity, message, notification.source, actions);
 	}
 
-	private static toMarkdownString(input: string | IMarkdownString | Error): IMarkdownString {
+	private static toMarkdownString(input: NotificationMessage): IMarkdownString {
 		let message: IMarkdownString;
 
 		if (input instanceof Error) {
@@ -469,7 +469,7 @@ export class NotificationViewItem implements INotificationViewItem {
 		this._onDidLabelChange.fire({ kind: NotificationViewItemLabelKind.SEVERITY });
 	}
 
-	public updateMessage(input: string | IMarkdownString | Error): void {
+	public updateMessage(input: NotificationMessage): void {
 		const message = NotificationViewItem.toMarkdownString(input);
 		if (!message) {
 			return;

@@ -52,7 +52,7 @@ import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { TaskEvent, TaskEventKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -945,8 +945,8 @@ export class DebugService implements debug.IDebugService {
 					isBuiltin: adapter.extensionDescription.isBuiltin,
 					launchJsonExists: root && !!this.configurationService.getValue<debug.IGlobalConfig>('launch', { resource: root.uri })
 				});
-			}).then(() => process, (error: any) => {
-				if (error instanceof Error && error.message === 'Canceled') {
+			}).then(() => process, (error: Error | string) => {
+				if (errors.isPromiseCanceledError(error)) {
 					// Do not show 'canceled' error messages to the user #7906
 					return TPromise.as(null);
 				}
@@ -975,8 +975,14 @@ export class DebugService implements debug.IDebugService {
 				}
 
 				const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
-				const actions = (error.actions && error.actions.length) ? error.actions.concat([configureAction]) : [configureAction];
-				this.notificationService.notify({ severity: severity.Error, message: errorMessage, actions: { primary: actions } });
+
+				let actions: INotificationActions = { primary: [] };
+				if (errors.isErrorWithActions(error)) {
+					actions.primary.push(...error.actions);
+				}
+				actions.primary.push(configureAction);
+
+				this.notificationService.notify({ severity: severity.Error, message: errorMessage, actions });
 				return undefined;
 			});
 		});
