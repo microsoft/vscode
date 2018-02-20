@@ -1989,8 +1989,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			case this.centeredEditorSashLeft:
 				return this.centeredEditorPosition;
 			case this.centeredEditorSashRight:
-				// the border indicating the sash is 1px right to the end position
-				return this.centeredEditorEndPosition + 1;
+				return this.centeredEditorEndPosition;
 			default:
 				return 0;
 		}
@@ -2153,12 +2152,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.centeredEditorSashLeft.show();
 			this.centeredEditorSashRight.show();
 
-			const centeredEditor = this.visibleEditors[Position.ONE];
-			// TODO: replace the color
-			centeredEditor.getContainer().style('border-color', '#383838');
-			centeredEditor.getContainer().style('border-left-width', '1px');
-			centeredEditor.getContainer().style('border-right-width', '1px');
-
 			// no size set yet. Calculate a default value
 			if (this.centeredEditorPreferedSize === -1) {
 				this.resetCenteredEditor(false);
@@ -2202,9 +2195,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			if (this.centeredEditorActive) {
 				editorWidth = this.centeredEditorSize;
 				editorPosition = this.centeredEditorPosition;
-
-				// adjust the position because of the border
-				editorPosition--;
 			}
 
 			if (position !== Position.ONE) {
@@ -2215,8 +2205,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				}
 			}
 
-			editor.getContainer().style('border-left-style', this.centeredEditorActive ? 'solid' : 'none');
-			editor.getContainer().style('border-right-style', this.centeredEditorActive ? 'solid' : 'none');
 			editor.getContainer().style({ 'margin-left': editorPosition + 'px', 'width': editorWidth + 'px' });
 			editor.layout(new Dimension(editorWidth, editorHeight));
 		}
