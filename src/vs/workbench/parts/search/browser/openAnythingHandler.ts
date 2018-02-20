@@ -23,6 +23,7 @@ import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/ba
 
 export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler; // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 interface ISearchWithRange {
 	search: string;
@@ -143,13 +144,17 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				});
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
-			}, (errors: Error[]) => {
+			}, error => {
 				this.pendingSearch = null;
-				if (errors && errors[0] && errors[0].message) {
-					this.notificationService.error(errors[0].message.replace(/[\*_\[\]]/g, '\\$&'));
-				} else {
-					this.notificationService.error(errors);
+
+				if (!isPromiseCanceledError(error)) {
+					if (error && error[0] && error[0].message) {
+						this.notificationService.error(error[0].message.replace(/[\*_\[\]]/g, '\\$&'));
+					} else {
+						this.notificationService.error(error);
+					}
 				}
+
 				return null;
 			});
 
