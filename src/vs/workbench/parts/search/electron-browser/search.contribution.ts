@@ -35,7 +35,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/findModel';
 import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
+import { SearchView } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { OpenSymbolHandler } from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import { OpenAnythingHandler } from 'vs/workbench/parts/search/browser/openAnythingHandler';
@@ -53,6 +53,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
 import { Schemas } from 'vs/base/common/network';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -65,8 +66,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
 	handler: accessor => {
 		let viewletService = accessor.get(IViewletService);
-		viewletService.openViewlet(Constants.VIEWLET_ID, true)
-			.then((viewlet: SearchViewlet) => viewlet.toggleQueryDetails());
+		viewletService.openViewlet(Constants.VIEW_ID, true)
+			.then((viewlet: SearchView) => viewlet.toggleQueryDetails());
 	}
 });
 
@@ -76,8 +77,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.FirstMatchFocusKey),
 	primary: KeyCode.UpArrow,
 	handler: (accessor, args: any) => {
-		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
-		searchViewlet.focusPreviousInputBox();
+		const searchView = searchActions.getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		searchView.focusPreviousInputBox();
 	}
 });
 
@@ -90,9 +91,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.WinCtrl | KeyCode.Enter
 	},
 	handler: (accessor, args: any) => {
-		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
-		const tree: ITree = searchViewlet.getControl();
-		searchViewlet.open(tree.getFocus(), false, true, true);
+		const searchView = searchActions.getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const tree: ITree = searchView.getControl();
+		searchView.open(tree.getFocus(), false, true, true);
 	}
 });
 
@@ -102,8 +103,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, WorkbenchListFocusContextKey),
 	primary: KeyCode.Escape,
 	handler: (accessor, args: any) => {
-		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
-		searchViewlet.cancelSearch();
+		const searchView = searchActions.getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		searchView.cancelSearch();
 	}
 });
 
@@ -116,9 +117,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	},
 	handler: (accessor, args: any) => {
-		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
-		const tree: ITree = searchViewlet.getControl();
-		accessor.get(IInstantiationService).createInstance(searchActions.RemoveAction, tree, tree.getFocus(), searchViewlet).run();
+		const searchView = searchActions.getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const tree: ITree = searchView.getControl();
+		accessor.get(IInstantiationService).createInstance(searchActions.RemoveAction, tree, tree.getFocus(), searchView).run();
 	}
 });
 
@@ -128,9 +129,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey),
 	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
 	handler: (accessor, args: any) => {
-		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
-		const tree: ITree = searchViewlet.getControl();
-		accessor.get(IInstantiationService).createInstance(searchActions.ReplaceAction, tree, tree.getFocus(), searchViewlet).run();
+		const searchView = searchActions.getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const tree: ITree = searchView.getControl();
+		accessor.get(IInstantiationService).createInstance(searchActions.ReplaceAction, tree, tree.getFocus(), searchView).run();
 	}
 });
 
@@ -140,9 +141,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceActiveKey, Constants.FileFocusKey),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
 	handler: (accessor, args: any) => {
-		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
-		const tree: ITree = searchViewlet.getControl();
-		accessor.get(IInstantiationService).createInstance(searchActions.ReplaceAllAction, tree, tree.getFocus(), searchViewlet).run();
+		const searchView = searchActions.getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const tree: ITree = searchView.getControl();
+		accessor.get(IInstantiationService).createInstance(searchActions.ReplaceAllAction, tree, tree.getFocus(), searchView).run();
 	}
 });
 
@@ -152,8 +153,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceActiveKey, Constants.FolderFocusKey),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
 	handler: (accessor, args: any) => {
-		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
-		const tree: ITree = searchViewlet.getControl();
+		const searchView = searchActions.getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		const tree: ITree = searchView.getControl();
 		accessor.get(IInstantiationService).createInstance(searchActions.ReplaceAllInFolderAction, tree, tree.getFocus()).run();
 	}
 });
@@ -197,7 +198,7 @@ CommandsRegistry.registerCommand({
 		const fileService = accessor.get(IFileService);
 		const resources = getMultiSelectedResources(resource, listService, accessor.get(IWorkbenchEditorService));
 
-		return viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
+		return viewletService.openViewlet(Constants.VIEW_ID, true).then(viewlet => {
 			if (resources && resources.length) {
 				return fileService.resolveFiles(resources.map(resource => ({ resource }))).then(results => {
 					const folders: URI[] = [];
@@ -208,7 +209,7 @@ CommandsRegistry.registerCommand({
 						}
 					});
 
-					(viewlet as SearchViewlet).searchInFolders(distinct(folders, folder => folder.toString()), (from, to) => relative(from, to));
+					(viewlet as SearchView).searchInFolders(distinct(folders, folder => folder.toString()), (from, to) => relative(from, to));
 				});
 			}
 
@@ -222,8 +223,8 @@ CommandsRegistry.registerCommand({
 	id: FIND_IN_WORKSPACE_ID,
 	handler: (accessor) => {
 		const viewletService = accessor.get(IViewletService);
-		return viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
-			(viewlet as SearchViewlet).searchInFolders(null, (from, to) => relative(from, to));
+		return viewletService.openViewlet(Constants.VIEW_ID, true).then(viewlet => {
+			(viewlet as SearchView).searchInFolders(null, (from, to) => relative(from, to));
 		});
 	}
 });
@@ -290,8 +291,8 @@ class ShowAllSymbolsAction extends Action {
 
 // Register Viewlet
 Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
-	SearchViewlet,
-	Constants.VIEWLET_ID,
+	SearchView,
+	Constants.VIEW_ID,
 	nls.localize('name', "Search"),
 	'search',
 	10
@@ -301,7 +302,7 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 const category = nls.localize('search', "Search");
 
-registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FindInFilesAction, Constants.VIEWLET_ID, nls.localize('showSearchViewlet', "Show Search"), { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F },
+registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FindInFilesAction, Constants.VIEW_ID, nls.localize('showSearchViewlet', "Show Search"), { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F },
 	Constants.SearchViewletVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FindInFilesAction, Constants.FindInFilesActionId, nls.localize('findInFiles', "Find in Files"), { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F },
 	Constants.SearchInputBoxFocusedKey.toNegated()), 'Find in Files', category);
@@ -385,68 +386,73 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
-	'id': 'search',
-	'order': 13,
-	'title': nls.localize('searchConfigurationTitle', "Search"),
-	'type': 'object',
-	'properties': {
+	id: 'search',
+	order: 13,
+	title: nls.localize('searchConfigurationTitle', "Search"),
+	type: 'object',
+	properties: {
 		'search.exclude': {
-			'type': 'object',
-			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders in searches. Inherits all glob patterns from the files.exclude setting."),
-			'default': { '**/node_modules': true, '**/bower_components': true },
-			'additionalProperties': {
-				'anyOf': [
+			type: 'object',
+			description: nls.localize('exclude', "Configure glob patterns for excluding files and folders in searches. Inherits all glob patterns from the files.exclude setting."),
+			default: { '**/node_modules': true, '**/bower_components': true },
+			additionalProperties: {
+				anyOf: [
 					{
-						'type': 'boolean',
-						'description': nls.localize('exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
+						type: 'boolean',
+						description: nls.localize('exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
 					},
 					{
-						'type': 'object',
-						'properties': {
-							'when': {
-								'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
-								'pattern': '\\w*\\$\\(basename\\)\\w*',
-								'default': '$(basename).ext',
-								'description': nls.localize('exclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
+						type: 'object',
+						properties: {
+							when: {
+								type: 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
+								pattern: '\\w*\\$\\(basename\\)\\w*',
+								default: '$(basename).ext',
+								description: nls.localize('exclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
 							}
 						}
 					}
 				]
 			},
-			'scope': ConfigurationScope.RESOURCE
+			scope: ConfigurationScope.RESOURCE
 		},
 		'search.useRipgrep': {
-			'type': 'boolean',
-			'description': nls.localize('useRipgrep', "Controls whether to use ripgrep in text and file search"),
-			'default': true
+			type: 'boolean',
+			description: nls.localize('useRipgrep', "Controls whether to use ripgrep in text and file search"),
+			default: true
 		},
 		'search.useIgnoreFiles': {
-			'type': 'boolean',
-			'description': nls.localize('useIgnoreFiles', "Controls whether to use .gitignore and .ignore files when searching for files."),
-			'default': true,
-			'scope': ConfigurationScope.RESOURCE
+			type: 'boolean',
+			description: nls.localize('useIgnoreFiles', "Controls whether to use .gitignore and .ignore files when searching for files."),
+			default: true,
+			scope: ConfigurationScope.RESOURCE
 		},
 		'search.quickOpen.includeSymbols': {
-			'type': 'boolean',
-			'description': nls.localize('search.quickOpen.includeSymbols', "Configure to include results from a global symbol search in the file results for Quick Open."),
-			'default': false
+			type: 'boolean',
+			description: nls.localize('search.quickOpen.includeSymbols', "Configure to include results from a global symbol search in the file results for Quick Open."),
+			default: false
 		},
 		'search.followSymlinks': {
-			'type': 'boolean',
-			'description': nls.localize('search.followSymlinks', "Controls whether to follow symlinks while searching."),
-			'default': true
+			type: 'boolean',
+			description: nls.localize('search.followSymlinks', "Controls whether to follow symlinks while searching."),
+			default: true
 		},
 		'search.smartCase': {
-			'type': 'boolean',
-			'description': nls.localize('search.smartCase', "Searches case-insensitively if the pattern is all lowercase, otherwise, searches case-sensitively"),
-			'default': false
+			type: 'boolean',
+			description: nls.localize('search.smartCase', "Searches case-insensitively if the pattern is all lowercase, otherwise, searches case-sensitively"),
+			default: false
 		},
 		'search.globalFindClipboard': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('search.globalFindClipboard', "Controls if the Search Viewlet should read or modify the shared find clipboard on macOS"),
-			'included': platform.isMacintosh
-		}
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.globalFindClipboard', "Controls if the Search Viewlet should read or modify the shared find clipboard on macOS"),
+			included: platform.isMacintosh
+		},
+		'search.location': {
+			enum: ['sidebar', 'panel'],
+			default: 'sidebar',
+			description: nls.localize('search.location', "Controls if the search will be shown as a viewlet in the sidebar or as a panel in the panel area for more horizontal space"),
+		},
 	}
 });
 
