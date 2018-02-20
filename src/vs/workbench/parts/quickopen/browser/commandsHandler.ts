@@ -321,7 +321,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 			return;
 		}
 
-		this.notificationService.error(error || nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label));
+		this.notificationService.error(error || nls.localize('canNotRun', "Command '{0}' resulted in an error.", this.label));
 	}
 }
 

@@ -285,7 +285,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 			editor.focus();
 		}, err => {
 			if (err instanceof Error && err.name === NoProviderError.Name) {
-				notificationService.info(nls.localize('no.provider', "Sorry, but there is no formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
+				notificationService.info(nls.localize('no.provider', "There is no formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
 			} else {
 				throw err;
 			}

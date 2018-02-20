@@ -802,7 +802,7 @@ export class TerminalInstance implements ITerminalInstance {
 							return a;
 						}).join(' ');
 					}
-					this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command `{0}{1}` failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
+					this._notificationService.error(nls.localize('terminal.integrated.launchFailed', 'The terminal process command \'{0}{1}\' failed to launch (exit code: {2})', this._shellLaunchConfig.executable, args, exitCode));
 				} else {
 					if (this._configHelper.config.showExitAlert) {
 						this._notificationService.error(exitCodeMessage);

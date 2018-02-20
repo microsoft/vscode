@@ -215,7 +215,7 @@ class RenameController implements IEditorContribution {
 				});
 
 			}, err => {
-				this._notificationService.error(nls.localize('rename.failed', "Sorry, rename failed to execute."));
+				this._notificationService.error(nls.localize('rename.failed', "Rename failed to execute."));
 				return TPromise.wrapError(err);
 			});
 

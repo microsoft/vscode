@@ -1148,9 +1148,9 @@ class TaskService implements ITaskService {
 					let active = executeResult.active;
 					if (active.same) {
 						if (active.background) {
-							this.notificationService.info(nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode. To terminate it use `Terminate Task...` from the Tasks menu.', Task.getQualifiedLabel(task)));
+							this.notificationService.info(nls.localize('TaskSystem.activeSame.background', 'The task \'{0}\' is already active and in background mode. To terminate it use \'Terminate Task...\' from the Tasks menu.', Task.getQualifiedLabel(task)));
 						} else {
-							this.notificationService.info(nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use `Terminate Task...` from the Tasks menu.', Task.getQualifiedLabel(task)));
+							this.notificationService.info(nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active. To terminate it use \'Terminate Task...\' from the Tasks menu.', Task.getQualifiedLabel(task)));
 						}
 					} else {
 						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);

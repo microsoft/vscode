@@ -148,7 +148,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				if (errors && errors[0] && errors[0].message) {
 					this.notificationService.error(errors[0].message.replace(/[\*_\[\]]/g, '\\$&'));
 				} else {
-					errors.forEach(error => this.notificationService.error(error));
+					this.notificationService.error(errors);
 				}
 				return null;
 			});

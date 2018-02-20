@@ -326,9 +326,9 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		}, err => {
 			// different error cases
 			if (err === 'invalid') {
-				this.notificationService.warn(nls.localize('invalid.url', 'Sorry, failed to open this link because it is not well-formed: {0}', link.url));
+				this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url));
 			} else if (err === 'missing') {
-				this.notificationService.warn(nls.localize('missing.url', 'Sorry, failed to open this link because its target is missing.'));
+				this.notificationService.warn(nls.localize('missing.url', 'Failed to open this link because its target is missing.'));
 			} else {
 				onUnexpectedError(err);
 			}

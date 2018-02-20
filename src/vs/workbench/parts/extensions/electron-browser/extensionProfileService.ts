@@ -71,7 +71,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		}
 
 		if (!this._extensionService.canProfileExtensionHost()) {
-			this._notificationService.info(nls.localize('noPro', "To profile extensions, launch with `--inspect-extensions=<port>`."));
+			this._notificationService.info(nls.localize('noPro', "To profile extensions, launch with '--inspect-extensions=<port>'."));
 			return;
 		}
 
