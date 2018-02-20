@@ -1323,7 +1323,7 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	public isCenteredLayoutActive(): boolean {
+	public isLayoutCentered(): boolean {
 		return this.centeredLayoutActive;
 	}
 

@@ -132,7 +132,7 @@ export interface IPartService {
 	/**
 	 * Returns whether the centered layout is active.
 	 */
-	isCenteredLayoutActive(): boolean;
+	isLayoutCentered(): boolean;
 
 	/**
 	 * Toggles the workbench in and out of centered layout.

@@ -2133,7 +2133,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		const doCentering =
 			this.layoutVertically &&
 			this.visibleSilos === 1 &&
-			this.partService.isCenteredLayoutActive() &&
+			this.partService.isLayoutCentered() &&
 			this.visibleEditors[Position.ONE] instanceof TextResourceEditor;
 
 		if (doCentering && !this.centeredEditorActive) {
