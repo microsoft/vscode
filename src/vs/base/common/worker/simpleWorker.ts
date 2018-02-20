@@ -339,13 +339,6 @@ export class SimpleWorkerServer {
 					delete loaderConfig.paths['vs'];
 				}
 			}
-			let nlsConfig = loaderConfig['vs/nls'];
-			// We need to have pseudo translation
-			if (nlsConfig && nlsConfig.pseudo) {
-				require(['vs/nls'], function (nlsPlugin) {
-					nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-				});
-			}
 
 			// Since this is in a web worker, enable catching errors
 			loaderConfig.catchError = true;

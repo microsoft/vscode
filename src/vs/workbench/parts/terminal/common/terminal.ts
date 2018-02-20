@@ -163,7 +163,7 @@ export interface ITerminalService {
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
-	splitInstanceVertically(instance: ITerminalInstance): void;
+	splitInstance(instance: ITerminalInstance): void;
 
 	getActiveTab(): ITerminalTab;
 	setActiveTabToNext(): void;
@@ -196,7 +196,9 @@ export interface ITerminalTab {
 	onDisposed: Event<ITerminalTab>;
 	onInstancesChanged: Event<void>;
 
-	focusDirection(direction: Direction): void;
+	focusPreviousPane(): void;
+	focusNextPane(): void;
+	resizePane(direction: Direction): void;
 	setActiveInstanceByIndex(index: number): void;
 	attachToElement(element: HTMLElement): void;
 	setVisible(visible: boolean): void;

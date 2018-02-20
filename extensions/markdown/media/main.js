@@ -155,9 +155,10 @@
 		if (previous) {
 			if (next) {
 				const betweenProgress = (offset - window.scrollY - previous.element.getBoundingClientRect().top) / (next.element.getBoundingClientRect().top - previous.element.getBoundingClientRect().top);
-				return previous.line + betweenProgress * (next.line - previous.line);
+				const line = previous.line + betweenProgress * (next.line - previous.line);
+				return Math.max(line, 0);
 			} else {
-				return previous.line;
+				return Math.max(previous.line, 0);
 			}
 		}
 		return null;
@@ -232,7 +233,7 @@
 		}
 
 		// Ignore clicks on links
-		for (let node = event.target; node; node = node.parentNode) {
+		for (let node = /** @type {HTMLElement} */(event.target); node; node = /** @type {HTMLElement} */(node.parentNode)) {
 			if (node.tagName === "A") {
 				return;
 			}
@@ -255,13 +256,13 @@
 		/** @type {*} */
 		let node = event.target;
 		while (node) {
-			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+			if (node.tagName && node.tagName === 'A' && node.href) {
 				if (node.getAttribute('href').startsWith('#')) {
 					break;
 				}
-				if (node.href.startsWith('file://')) {
-					const [path, fragment] = node.href.replace(/^file:\/\//i, '').split('#');
-					postMessage('_markdown.openDocumentLink', { path, fragment });
+				if (node.href.startsWith('file://') || node.href.startsWith('vscode-workspace-resource:')) {
+					const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-workspace-resource:)/i, '').split('#');
+					postMessage('_markdown.openDocumentLink', [{ path, fragment }]);
 					event.preventDefault();
 					event.stopPropagation();
 					break;

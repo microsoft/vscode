@@ -15,8 +15,6 @@ import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, I
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Action } from 'vs/base/common/actions';
-import { IMessageService, IMessageWithAction, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -26,6 +24,8 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 import { Schemas } from 'vs/base/common/network';
+import { Severity } from 'vs/platform/notification/common/notification';
+import { IChoiceService, Choice } from 'vs/platform/dialogs/common/dialogs';
 
 export class FileService implements IFileService {
 
@@ -50,7 +50,7 @@ export class FileService implements IFileService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IMessageService private messageService: IMessageService,
+		@IChoiceService private choiceService: IChoiceService,
 		@IStorageService private storageService: IStorageService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
@@ -109,41 +109,31 @@ export class FileService implements IFileService {
 
 		// Detect if we run < .NET Framework 4.5 (TODO@ben remove with new watcher impl)
 		if (msg.indexOf(FileService.NET_VERSION_ERROR) >= 0 && !this.storageService.getBoolean(FileService.NET_VERSION_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
-			this.messageService.show(Severity.Warning, <IMessageWithAction>{
-				message: nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
-				actions: [
-					new Action('install.net', nls.localize('installNet', "Download .NET Framework 4.5"), null, true, () => {
+			const choices: Choice[] = [nls.localize('installNet', "Download .NET Framework 4.5"), { label: nls.localize('neverShowAgain', "Don't Show Again"), isSecondary: true }];
+			this.choiceService.choose(Severity.Warning, nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."), choices).then(choice => {
+				switch (choice) {
+					case 0 /* Read More */:
 						window.open('https://go.microsoft.com/fwlink/?LinkId=786533');
-
-						return TPromise.as(true);
-					}),
-					new Action('net.error.ignore', nls.localize('neverShowAgain', "Don't Show Again"), '', true, () => {
+						break;
+					case 1 /* Never show again */:
 						this.storageService.store(FileService.NET_VERSION_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE);
-
-						return TPromise.as(null);
-					}),
-					CloseAction
-				]
+						break;
+				}
 			});
 		}
 
 		// Detect if we run into ENOSPC issues (TODO@ben remove with new watcher impl)
 		if (msg.indexOf(FileService.ENOSPC_ERROR) >= 0 && !this.storageService.getBoolean(FileService.ENOSPC_ERROR_IGNORE_KEY, StorageScope.WORKSPACE)) {
-			this.messageService.show(Severity.Warning, <IMessageWithAction>{
-				message: nls.localize('enospcError', "{0} is running out of file handles. Please follow the instructions link to resolve this issue.", product.nameLong),
-				actions: [
-					new Action('learnMore', nls.localize('learnMore', "Instructions"), null, true, () => {
+			const choices: Choice[] = [nls.localize('learnMore', "Instructions"), { label: nls.localize('neverShowAgain', "Don't Show Again"), isSecondary: true }];
+			this.choiceService.choose(Severity.Warning, nls.localize('enospcError', "{0} is running out of file handles. Please follow the instructions link to resolve this issue.", product.nameLong), choices).then(choice => {
+				switch (choice) {
+					case 0 /* Read More */:
 						window.open('https://go.microsoft.com/fwlink/?linkid=867693');
-
-						return TPromise.as(true);
-					}),
-					new Action('enospc.error.ignore', nls.localize('neverShowAgain', "Don't Show Again"), '', true, () => {
+						break;
+					case 1 /* Never show again */:
 						this.storageService.store(FileService.ENOSPC_ERROR_IGNORE_KEY, true, StorageScope.WORKSPACE);
-
-						return TPromise.as(null);
-					}),
-					CloseAction
-				]
+						break;
+				}
 			});
 		}
 	}

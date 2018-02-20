@@ -274,6 +274,19 @@ suite('WorkspaceContextService - Workspace', () => {
 			});
 	});
 
+	test('remove folders and add them back by writing into the file', done => {
+		const folders = testObject.getWorkspace().folders;
+		return testObject.removeFolders([folders[0].uri])
+			.then(() => {
+				testObject.onDidChangeWorkspaceFolders(actual => {
+					assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
+					done();
+				});
+				const workspace = { folders: [{ path: folders[0].uri.fsPath }, { path: folders[1].uri.fsPath }] };
+				fs.writeFileSync(testObject.getWorkspace().configuration.fsPath, JSON.stringify(workspace, null, '\t'));
+			});
+	});
+
 	test('update folders (remove last and add to end)', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);

@@ -27,17 +27,17 @@
 	display: none;
 	margin: 0 20px;
 }
-.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-of-type) .terminal-wrapper {
-	margin-left: 10px;
-}
-.monaco-workbench .panel.integrated-terminal .split-view-view:not(:last-of-type) .terminal-wrapper {
-	margin-right: 10px;
-}
 .monaco-workbench .panel.integrated-terminal .terminal-wrapper.active {
 	display: block;
 	position: absolute;
 	bottom: 2px; /* Matches padding-bottom on .terminal-outer-container */
 	top: 0;
+}
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:first-of-type) .terminal-wrapper {
+	margin-left: 10px;
+}
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:last-of-type) .terminal-wrapper {
+	margin-right: 10px;
 }
 
 .monaco-workbench .panel.integrated-terminal .xterm a:not(.xterm-invalid-link) {
@@ -52,7 +52,7 @@
 .monaco-workbench .panel.integrated-terminal .xterm-viewport {
 	margin-right: -20px;
 }
-.monaco-workbench .panel.integrated-terminal .split-view-view:not(:only-of-type) .xterm-viewport {
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-of-type) .xterm-viewport {
 	margin-right: -10px;
 }
 
@@ -76,10 +76,14 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench .panel.integrated-terminal .split-view-view:not(:first-child) {
-	/* border-color is set by theme key terminal.border */
+/* border-color is set by theme key terminal.border */
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:first-child) {
 	border-left-width: 1px;
 	border-left-style: solid;
+}
+.monaco-workbench .panel.integrated-terminal .monaco-split-view2.vertical .split-view-view:not(:first-child) {
+	border-top-width: 1px;
+	border-top-style: solid;
 }
 
 .monaco-workbench .panel.integrated-terminal.enable-ligatures {

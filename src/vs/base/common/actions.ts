@@ -233,6 +233,7 @@ export class ActionRunner implements IActionRunner {
 	}
 
 	public dispose(): void {
-		// noop
+		this._onDidBeforeRun.dispose();
+		this._onDidRun.dispose();
 	}
 }

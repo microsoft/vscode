@@ -14,7 +14,7 @@
 }
 
 .monaco-editor .debug-top-stack-frame-range {
-	background: #ffeca0;
+	background: rgba(255, 255, 102, 0.6);
 }
 
 .monaco-editor .debug-top-stack-frame-column::before {

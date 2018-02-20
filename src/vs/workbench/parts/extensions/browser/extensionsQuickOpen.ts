@@ -11,7 +11,7 @@ import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IExtensionsViewlet, VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 class SimpleEntry extends QuickOpenEntry {
 
@@ -77,7 +77,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
 		@IExtensionManagementService private extensionsService: IExtensionManagementService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super();
 	}
@@ -100,7 +100,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 								.then(viewlet => viewlet as IExtensionsViewlet)
 								.then(viewlet => viewlet.search(`@id:${text}`))
 								.then(() => this.extensionsService.installFromGallery(galleryExtension))
-								.done(null, err => this.messageService.show(Severity.Error, err));
+								.done(null, err => this.notificationService.error(err));
 						};
 
 						entries.push(new SimpleEntry(label, action));

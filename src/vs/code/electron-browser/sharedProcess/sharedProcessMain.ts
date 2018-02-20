@@ -30,8 +30,6 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { IChoiceService } from 'vs/platform/message/common/message';
-import { ChoiceChannelClient } from 'vs/platform/message/common/messageIpc';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ipcRenderer } from 'electron';
@@ -43,6 +41,8 @@ import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LocalizationsChannel } from 'vs/platform/localizations/common/localizationsIpc';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { ChoiceChannelClient } from 'vs/platform/dialogs/common/choiceIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
