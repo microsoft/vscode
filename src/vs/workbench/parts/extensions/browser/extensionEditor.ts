@@ -183,19 +183,19 @@ export class ExtensionEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IViewletService private viewletService: IViewletService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IViewletService private readonly viewletService: IViewletService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IThemeService protected themeService: IThemeService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@INotificationService private notificationService: INotificationService,
-		@IOpenerService private openerService: IOpenerService,
-		@IPartService private partService: IPartService,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IPartService private readonly partService: IPartService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
