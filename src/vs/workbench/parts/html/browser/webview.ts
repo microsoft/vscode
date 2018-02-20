@@ -33,6 +33,7 @@ export class Webview {
 
 	private _webviewFindWidget: WebviewFindWidget;
 	private _findStarted: boolean = false;
+	private _contents: string = '';
 
 	constructor(
 		private readonly parent: HTMLElement,
@@ -84,7 +85,6 @@ export class Webview {
 
 				const contents = this._webview.getWebContents();
 				this.registerFileProtocols(contents);
-
 			}));
 		}
 
@@ -245,6 +245,7 @@ export class Webview {
 	}
 
 	set contents(value: string) {
+		this._contents = value;
 		this._send('content', {
 			contents: value,
 			options: this._options
@@ -405,6 +406,10 @@ export class Webview {
 
 	public showPreviousFindTerm() {
 		this._webviewFindWidget.showPreviousFindTerm();
+	}
+
+	public reload() {
+		this.contents = this._contents;
 	}
 }
 

@@ -84,6 +84,12 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 		return true;
 	}
 
+	public reload() {
+		if (this._webview) {
+			this._webview.reload();
+		}
+	}
+
 	protected abstract createEditor(parent: Builder): void;
 }
 

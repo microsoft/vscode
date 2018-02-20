@@ -12,10 +12,12 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './webviewEditor';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ShowWebViewEditorFindWidgetAction, ShowWebViewEditorFindTermCommand, HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction } from './webviewCommands';
+import { ShowWebViewEditorFindWidgetAction, ShowWebViewEditorFindTermCommand, HideWebViewEditorFindCommand, OpenWebviewDeveloperToolsAction, ReloadWebviewAction } from './webviewCommands';
 
 
 const category = 'Webview';
+const webviewDeveloperCategory = nls.localize('developer', "Developer");
+
 const actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowWebViewEditorFindWidgetAction, ShowWebViewEditorFindWidgetAction.ID, ShowWebViewEditorFindWidgetAction.LABEL, {
@@ -58,4 +60,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKey
 actionRegistry.registerWorkbenchAction(
 	new SyncActionDescriptor(OpenWebviewDeveloperToolsAction, OpenWebviewDeveloperToolsAction.ID, OpenWebviewDeveloperToolsAction.LABEL),
 	'Webview Tools',
-	nls.localize('developer', "Developer"));
+	webviewDeveloperCategory);
+
+actionRegistry.registerWorkbenchAction(
+	new SyncActionDescriptor(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
+	'Reload Webview',
+	webviewDeveloperCategory);

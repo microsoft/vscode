@@ -107,3 +107,30 @@ export class OpenWebviewDeveloperToolsAction extends Action {
 		return null;
 	}
 }
+
+
+export class ReloadWebviewAction extends Action {
+	static readonly ID = 'workbench.action.webview.reloadWebviewAction';
+	static LABEL = nls.localize('refreshWebviewLabel', "Reload Webviews");
+
+	public constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private readonly workbenchEditorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		for (const webview of this.getVisibleWebviews()) {
+			webview.reload();
+		}
+		return null;
+	}
+
+	private getVisibleWebviews() {
+		return this.workbenchEditorService.getVisibleEditors()
+			.filter(c => c && (c as any).isWebviewEditor)
+			.map(e => e as WebviewEditor);
+	}
+}
