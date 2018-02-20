@@ -54,7 +54,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 
 	private _updateWidth(): boolean {
 		const layoutInfo = this._context.configuration.editor.layoutInfo;
-		let newWidth = layoutInfo.width - layoutInfo.minimapWidth;
+		let newWidth = layoutInfo.width - layoutInfo.verticalScrollbarWidth;
 		if (this._width !== newWidth) {
 			this._width = newWidth;
 			return true;
