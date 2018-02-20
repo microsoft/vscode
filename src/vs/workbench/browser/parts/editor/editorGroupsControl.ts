@@ -214,10 +214,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		return this.layoutVertically ? EditorGroupsControl.MIN_EDITOR_WIDTH : EditorGroupsControl.MIN_EDITOR_HEIGHT;
 	}
 
-	private get visibleSilos(): number {
-		return this.visibleEditors.reduce((acc, min) => min ? acc + 1 : acc, 0);
-	}
-
 	private isSiloMinimized(position: number): boolean {
 		return this.silosSize[position] === this.minSize && this.silosMinimized[position];
 	}
@@ -2132,7 +2128,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		// Layout centered Editor
 		const doCentering =
 			this.layoutVertically &&
-			this.visibleSilos === 1 &&
+			this.editorGroupService.getStacksModel().groups.length === 1 &&
 			this.partService.isLayoutCentered() &&
 			this.visibleEditors[Position.ONE] instanceof TextResourceEditor;
 
