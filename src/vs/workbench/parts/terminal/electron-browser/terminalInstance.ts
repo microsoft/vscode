@@ -27,7 +27,7 @@ import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-brows
 import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
+import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -1206,6 +1206,14 @@ export class TerminalInstance implements ITerminalInstance {
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	// Border
+	const border = theme.getColor(activeContrastBorder);
+	if (border) {
+		collector.addRule(`
+			.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus::before,
+			.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
+		);
+	}
 
 	// Scrollbar
 	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
