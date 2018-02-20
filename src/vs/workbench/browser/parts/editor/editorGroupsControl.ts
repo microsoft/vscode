@@ -1019,13 +1019,13 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.centeredEditorSashLeft = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: Orientation.VERTICAL });
 		this.toUnbind.push(this.centeredEditorSashLeft.onDidStart(() => this.onCenterSashLeftDragStart()));
 		this.toUnbind.push(this.centeredEditorSashLeft.onDidChange((e: ISashEvent) => this.onCenterSashLeftDrag(e)));
-		this.toUnbind.push(this.centeredEditorSashLeft.onDidEnd(() => this.saveCenterdLayoutData()));
+		this.toUnbind.push(this.centeredEditorSashLeft.onDidEnd(() => this.storeCenteredLayoutData()));
 		this.toUnbind.push(this.centeredEditorSashLeft.onDidReset(() => this.resetCenteredEditor()));
 
 		this.centeredEditorSashRight = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: Orientation.VERTICAL });
 		this.toUnbind.push(this.centeredEditorSashRight.onDidStart(() => this.onCenterSashRightDragStart()));
 		this.toUnbind.push(this.centeredEditorSashRight.onDidChange((e: ISashEvent) => this.onCenterSashRightDrag(e)));
-		this.toUnbind.push(this.centeredEditorSashRight.onDidEnd(() => this.saveCenterdLayoutData()));
+		this.toUnbind.push(this.centeredEditorSashRight.onDidEnd(() => this.storeCenteredLayoutData()));
 		this.toUnbind.push(this.centeredEditorSashRight.onDidReset(() => this.resetCenteredEditor()));
 
 		this.centeredEditorActive = false;
@@ -1969,7 +1969,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.setCenteredEditorPositionAndSize(size < this.minSize ? pos + (size - this.minSize) : pos, size);
 	}
 
-	private saveCenterdLayoutData(): void {
+	private storeCenteredLayoutData(): void {
 		const data: CenteredLayoutData = {
 			leftMarginRatio: this.centeredEditorLeftMarginRatio,
 			size: this.centeredEditorSize
