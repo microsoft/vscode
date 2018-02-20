@@ -41,8 +41,8 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 		}
 		if (fileStat && fileStat.isSymbolicLink) {
 			return {
-				tooltip: localize('symbolicLlink', "Symbolic link"),
-				letter: '\u21f2'
+				tooltip: localize('symbolicLlink', "Symbolic Link"),
+				letter: '\u2937'
 			};
 		}
 

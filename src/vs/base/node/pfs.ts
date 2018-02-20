@@ -54,6 +54,16 @@ export function stat(path: string): TPromise<fs.Stats> {
 	return nfcall(fs.stat, path);
 }
 
+export function statLink(path: string): TPromise<{ stat: fs.Stats, isSymbolicLink: boolean }> {
+	return nfcall(fs.lstat, path).then((stat: fs.Stats) => {
+		if (stat.isSymbolicLink()) {
+			return nfcall(fs.stat, path).then(stat => ({ stat, isSymbolicLink: true }));
+		}
+
+		return { stat, isSymbolicLink: false };
+	});
+}
+
 export function lstat(path: string): TPromise<fs.Stats> {
 	return nfcall(fs.lstat, path);
 }

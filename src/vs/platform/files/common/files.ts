@@ -411,7 +411,7 @@ export interface IFileStat extends IBaseStat {
 	isDirectory: boolean;
 
 	/**
-	 * The resource is a simbolic link.
+	 * The resource is a symbolic link.
 	 */
 	isSymbolicLink?: boolean;
 

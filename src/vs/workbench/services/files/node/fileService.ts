@@ -1233,13 +1233,9 @@ export class StatResolver {
 					},
 
 					function stat(this: any): void {
-						fs.lstat(fileResource.fsPath, (error, stat) => {
-							isSymbolicLink = stat.isSymbolicLink();
-							if (isSymbolicLink) {
-								fs.stat(fileResource.fsPath, this);
-							} else {
-								this(null, stat);
-							}
+						extfs.statLink(fileResource.fsPath, (error: Error, statAndIsLink) => {
+							isSymbolicLink = statAndIsLink.isSymbolicLink;
+							this(null, statAndIsLink.stat);
 						});
 					},
 
@@ -1259,7 +1255,7 @@ export class StatResolver {
 						const childStat: IFileStat = {
 							resource: fileResource,
 							isDirectory: fileStat.isDirectory(),
-							isSymbolicLink: isSymbolicLink,
+							isSymbolicLink,
 							name: file,
 							mtime: fileStat.mtime.getTime(),
 							etag: etag(fileStat),
