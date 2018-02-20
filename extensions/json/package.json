@@ -1,5 +1,7 @@
 {
   "name": "json",
+  "displayName": "%displayName%",
+	"description": "%description%",
   "version": "0.1.0",
   "publisher": "vscode",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
