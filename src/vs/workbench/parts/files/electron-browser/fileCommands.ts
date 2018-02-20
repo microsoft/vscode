@@ -249,7 +249,7 @@ CommandsRegistry.registerCommand({
 
 		if (resources.length) {
 			return textFileService.revertAll(resources, { force: true }).then(null, error => {
-				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => r.fsPath).join(', '), toErrorMessage(error, false)));
+				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => basename(r.fsPath)).join(', '), toErrorMessage(error, false)));
 			});
 		}
 
