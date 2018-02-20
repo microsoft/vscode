@@ -363,7 +363,7 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private onUpdateNotAvailable(): void {
-		this.notificationService.info(nls.localize('noUpdatesAvailable', "There are no updates currently available."));
+		this.notificationService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 	}
 
 	// linux
