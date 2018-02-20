@@ -6,10 +6,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { MainThreadMessageService } from 'vs/workbench/api/electron-browser/mainThreadMessageService';
 import { TPromise as Promise } from 'vs/base/common/winjs.base';
-import { IMessageService, IChoiceService } from 'vs/platform/message/common/message';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, INotification } from 'vs/platform/notification/common/notification';
 
 const emptyChoiceService = new class implements IChoiceService {
 	_serviceBrand: 'choiceService';
@@ -19,19 +20,19 @@ const emptyChoiceService = new class implements IChoiceService {
 };
 
 
-const emptyMesssageService = new class implements IMessageService {
-	_serviceBrand: 'messageService';
-	show(...args: any[]): never {
+const emptyNotificationService = new class implements INotificationService {
+	_serviceBrand: 'notificiationService';
+	notify(...args: any[]): never {
 		throw new Error('not implemented');
 	}
-	hideAll(): void {
-		throw new Error('not implemented.');
+	info(...args: any[]): never {
+		throw new Error('not implemented');
 	}
-	confirm(confirmation): never {
-		throw new Error('not implemented.');
+	warn(...args: any[]): never {
+		throw new Error('not implemented');
 	}
-	confirmWithCheckbox(confirmation): never {
-		throw new Error('not implemented.');
+	error(...args: any[]): never {
+		throw new Error('not implemented');
 	}
 };
 
@@ -40,12 +41,12 @@ suite('ExtHostMessageService', function () {
 	test('propagte handle on select', function () {
 
 		let service = new MainThreadMessageService(null, {
-			show(sev: number, m: { actions: Action[] }) {
-				assert.equal(m.actions.length, 1);
-				setImmediate(() => m.actions[0].run());
-				return () => { };
+			notify(m: INotification) {
+				assert.equal(m.actions.primary.length, 1);
+				setImmediate(() => m.actions.primary[0].run());
+				return undefined;
 			}
-		} as IMessageService, emptyChoiceService);
+		} as INotificationService, emptyChoiceService);
 
 		return service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]).then(handle => {
 			assert.equal(handle, 42);
@@ -54,12 +55,14 @@ suite('ExtHostMessageService', function () {
 
 	test('isCloseAffordance', function () {
 
-		let actions: Action[];
+		let actions: IAction[];
 		let service = new MainThreadMessageService(null, {
-			show(sev: number, m: { actions: Action[] }) {
-				actions = m.actions;
+			notify(m: INotification) {
+				actions = m.actions.primary;
+
+				return undefined;
 			}
-		} as IMessageService, emptyChoiceService);
+		} as INotificationService, emptyChoiceService);
 
 		// default close action
 		service.$showMessage(1, '', {}, [{ title: 'a thing', isCloseAffordance: false, handle: 0 }]);
@@ -77,17 +80,19 @@ suite('ExtHostMessageService', function () {
 
 	test('hide on select', function () {
 
-		let actions: Action[];
+		let actions: IAction[];
 		let c: number;
 		let service = new MainThreadMessageService(null, {
-			show(sev: number, m: { actions: Action[] }) {
+			notify(m: INotification) {
 				c = 0;
-				actions = m.actions;
-				return () => {
-					c += 1;
+				actions = m.actions.primary;
+				return {
+					dispose: () => {
+						c += 1;
+					}
 				};
 			}
-		} as IMessageService, emptyChoiceService);
+		} as INotificationService, emptyChoiceService);
 
 		service.$showMessage(1, '', {}, [{ title: 'a thing', isCloseAffordance: true, handle: 0 }]);
 		assert.equal(actions.length, 1);
@@ -98,7 +103,7 @@ suite('ExtHostMessageService', function () {
 
 	suite('modal', () => {
 		test('calls choice service', () => {
-			const service = new MainThreadMessageService(null, emptyMesssageService, {
+			const service = new MainThreadMessageService(null, emptyNotificationService, {
 				choose(severity, message, options, modal) {
 					assert.equal(severity, 1);
 					assert.equal(message, 'h');
@@ -114,7 +119,7 @@ suite('ExtHostMessageService', function () {
 		});
 
 		test('returns undefined when cancelled', () => {
-			const service = new MainThreadMessageService(null, emptyMesssageService, {
+			const service = new MainThreadMessageService(null, emptyNotificationService, {
 				choose(severity, message, options, modal) {
 					return Promise.as(1);
 				}
@@ -126,7 +131,7 @@ suite('ExtHostMessageService', function () {
 		});
 
 		test('hides Cancel button when not needed', () => {
-			const service = new MainThreadMessageService(null, emptyMesssageService, {
+			const service = new MainThreadMessageService(null, emptyNotificationService, {
 				choose(severity, message, options, modal) {
 					assert.equal(options.length, 1);
 					return Promise.as(0);

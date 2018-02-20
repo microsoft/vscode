@@ -9,9 +9,7 @@ import 'vs/css!./links';
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
@@ -26,6 +24,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/clickLinkGesture';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh
@@ -145,17 +144,17 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private computePromise: TPromise<void>;
 	private activeLinkDecorationId: string;
 	private openerService: IOpenerService;
-	private messageService: IMessageService;
+	private notificationService: INotificationService;
 	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
 
 	constructor(
 		editor: ICodeEditor,
 		@IOpenerService openerService: IOpenerService,
-		@IMessageService messageService: IMessageService
+		@INotificationService notificationService: INotificationService
 	) {
 		this.editor = editor;
 		this.openerService = openerService;
-		this.messageService = messageService;
+		this.notificationService = notificationService;
 		this.listenersToRemove = [];
 
 		let clickLinkGesture = new ClickLinkGesture(editor);
@@ -327,9 +326,9 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		}, err => {
 			// different error cases
 			if (err === 'invalid') {
-				this.messageService.show(Severity.Warning, nls.localize('invalid.url', 'Sorry, failed to open this link because it is not well-formed: {0}', link.url));
+				this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url));
 			} else if (err === 'missing') {
-				this.messageService.show(Severity.Warning, nls.localize('missing.url', 'Sorry, failed to open this link because its target is missing.'));
+				this.notificationService.warn(nls.localize('missing.url', 'Failed to open this link because its target is missing.'));
 			} else {
 				onUnexpectedError(err);
 			}

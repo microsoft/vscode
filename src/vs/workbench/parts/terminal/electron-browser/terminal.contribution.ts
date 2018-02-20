@@ -18,7 +18,7 @@ import { getTerminalDefaultShellUnixLike, getTerminalDefaultShellWindows } from 
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, CreateNewInActiveWorkspaceTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, ShowNextFindTermTerminalFindWidgetAction, ShowPreviousFindTermTerminalFindWidgetAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX, MoveToLineStartTerminalAction, MoveToLineEndTerminalAction, SplitVerticalTerminalAction, FocusTerminalLeftAction, FocusTerminalRightAction, FocusTerminalUpAction, FocusTerminalDownAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
+import { KillTerminalAction, CopyTerminalSelectionAction, CreateNewTerminalAction, CreateNewInActiveWorkspaceTerminalAction, FocusActiveTerminalAction, FocusNextTerminalAction, FocusPreviousTerminalAction, SelectDefaultShellWindowsTerminalAction, RunSelectedTextInTerminalAction, RunActiveFileInTerminalAction, ScrollDownTerminalAction, ScrollDownPageTerminalAction, ScrollToBottomTerminalAction, ScrollUpTerminalAction, ScrollUpPageTerminalAction, ScrollToTopTerminalAction, TerminalPasteAction, ToggleTerminalAction, ClearTerminalAction, AllowWorkspaceShellTerminalCommand, DisallowWorkspaceShellTerminalCommand, RenameTerminalAction, SelectAllTerminalAction, FocusTerminalFindWidgetAction, HideTerminalFindWidgetAction, ShowNextFindTermTerminalFindWidgetAction, ShowPreviousFindTermTerminalFindWidgetAction, DeleteWordLeftTerminalAction, DeleteWordRightTerminalAction, QuickOpenActionTermContributor, QuickOpenTermAction, TERMINAL_PICKER_PREFIX, MoveToLineStartTerminalAction, MoveToLineEndTerminalAction, SplitTerminalAction, FocusPreviousPaneTerminalAction, FocusNextPaneTerminalAction, ResizePaneLeftTerminalAction, ResizePaneRightTerminalAction, ResizePaneUpTerminalAction, ResizePaneDownTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -273,9 +273,13 @@ configurationRegistry.registerConfiguration({
 				MoveToLineEndTerminalAction.ID,
 				TogglePanelAction.ID,
 				'workbench.action.quickOpenView',
-				SplitVerticalTerminalAction.ID,
-				FocusTerminalLeftAction.ID,
-				FocusTerminalRightAction.ID
+				SplitTerminalAction.ID,
+				FocusPreviousPaneTerminalAction.ID,
+				FocusNextPaneTerminalAction.ID,
+				ResizePaneLeftTerminalAction.ID,
+				ResizePaneRightTerminalAction.ID,
+				ResizePaneUpTerminalAction.ID,
+				ResizePaneDownTerminalAction.ID
 			].sort()
 		},
 		'terminal.integrated.env.osx': {
@@ -412,26 +416,42 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(MoveToLineEndTer
 	primary: null,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Move To Line End', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitVerticalTerminalAction, SplitVerticalTerminalAction.ID, SplitVerticalTerminalAction.LABEL, {
-	primary: null,
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_D,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_D }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Split Vertically', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalLeftAction, FocusTerminalLeftAction.ID, FocusTerminalLeftAction.LABEL, {
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Split', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousPaneTerminalAction, FocusPreviousPaneTerminalAction.ID, FocusPreviousPaneTerminalAction.LABEL, {
 	primary: KeyMod.Alt | KeyCode.LeftArrow,
-	mac: { primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.LeftArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Terminal To Left', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalRightAction, FocusTerminalRightAction.ID, FocusTerminalRightAction.LABEL, {
+	secondary: [KeyMod.Alt | KeyCode.UpArrow],
+	mac: {
+		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.LeftArrow,
+		secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.UpArrow]
+	}
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Previous Pane', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextPaneTerminalAction, FocusNextPaneTerminalAction.ID, FocusNextPaneTerminalAction.LABEL, {
 	primary: KeyMod.Alt | KeyCode.RightArrow,
-	mac: { primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.RightArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Terminal To Right', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalDownAction, FocusTerminalDownAction.ID, FocusTerminalDownAction.LABEL, {
-	primary: KeyMod.Alt | KeyCode.DownArrow,
-	mac: { primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.DownArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Terminal Below', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusTerminalUpAction, FocusTerminalUpAction.ID, FocusTerminalUpAction.LABEL, {
-	primary: KeyMod.Alt | KeyCode.UpArrow,
-	mac: { primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.UpArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Terminal Above', category);
+	secondary: [KeyMod.Alt | KeyCode.DownArrow],
+	mac: {
+		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.RightArrow,
+		secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.DownArrow]
+	}
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Focus Next Pane', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneLeftTerminalAction, ResizePaneLeftTerminalAction.ID, ResizePaneLeftTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Left', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneRightTerminalAction, ResizePaneRightTerminalAction.ID, ResizePaneRightTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Right', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneUpTerminalAction, ResizePaneUpTerminalAction.ID, ResizePaneUpTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.UpArrow }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Up', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ResizePaneDownTerminalAction, ResizePaneDownTerminalAction.ID, ResizePaneDownTerminalAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.DownArrow }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Resize Pane Down', category);
 
 terminalCommands.setup();
 

@@ -15,7 +15,6 @@ import Event, { Emitter, anyEvent as anyEvent, filterEvent, once } from 'vs/base
 import * as ext from 'vs/workbench/common/contributions';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -54,6 +53,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ISplice } from 'vs/base/common/sequence';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { createStyleSheet } from '../../../../base/browser/dom';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -66,7 +66,7 @@ class DiffMenuItemActionItem extends MenuItemActionItem {
 		event.stopPropagation();
 
 		this.actionRunner.run(this._commandAction, this._context)
-			.done(undefined, err => this._messageService.show(Severity.Error, err));
+			.done(undefined, err => this._notificationService.error(err));
 	}
 }
 
@@ -198,7 +198,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
@@ -291,7 +291,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 			return undefined;
 		}
 
-		return new DiffMenuItemActionItem(action, this.keybindingService, this.messageService, this.contextMenuService);
+		return new DiffMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 	}
 
 	protected _fillBody(container: HTMLElement): void {

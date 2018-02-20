@@ -9,12 +9,11 @@ import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IChoiceService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION } from 'vs/workbench/parts/terminal/common/terminal';
-import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 const DEFAULT_LINE_HEIGHT = 1.0;
 
@@ -51,6 +50,14 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
+		// Return cached font if no config changed
+		if (this._lastFontMeasurement &&
+			this._lastFontMeasurement.fontFamily === fontFamily &&
+			this._lastFontMeasurement.fontSize === fontSize &&
+			this._lastFontMeasurement.lineHeight === lineHeight) {
+			return this._lastFontMeasurement;
+		}
+
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
 			this._charMeasureElement = document.createElement('div');
@@ -151,13 +158,15 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			}
 			const message = nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString);
 			const options = [nls.localize('allow', "Allow"), nls.localize('disallow', "Disallow")];
-			this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
-				if (choice === 0) {
-					this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
-				} else {
-					this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
+			this._choiceService.choose(Severity.Info, message, options).then(choice => {
+				switch (choice) {
+					case 0:  /* Allow */
+						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
+						break;
+					case 1:  /* Disallow */
+						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
+						break;
 				}
-				return TPromise.as(null);
 			});
 		}
 

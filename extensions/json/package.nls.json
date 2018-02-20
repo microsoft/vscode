@@ -1,4 +1,6 @@
 {
+	"displayName": "JSON Language Features",
+	"description": "Provides rich language support for JSON files.",
 	"json.schemas.desc": "Associate schemas to JSON files in the current project",
 	"json.schemas.url.desc": "A URL to a schema or a relative path to a schema in the current directory",
 	"json.schemas.fileMatch.desc": "An array of file patterns to match against when resolving JSON files to schemas.",

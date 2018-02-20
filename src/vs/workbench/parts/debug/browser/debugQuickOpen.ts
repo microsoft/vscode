@@ -15,8 +15,7 @@ import * as errors from 'vs/base/common/errors';
 import { QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { Severity } from 'vs/workbench/services/message/browser/messageList';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 class AddConfigEntry extends Model.QuickOpenEntry {
 
@@ -48,7 +47,7 @@ class AddConfigEntry extends Model.QuickOpenEntry {
 
 class StartDebugEntry extends Model.QuickOpenEntry {
 
-	constructor(private debugService: IDebugService, private contextService: IWorkspaceContextService, private messageService: IMessageService, private launch: ILaunch, private configurationName: string, highlights: Model.IHighlight[] = []) {
+	constructor(private debugService: IDebugService, private contextService: IWorkspaceContextService, private notificationService: INotificationService, private launch: ILaunch, private configurationName: string, highlights: Model.IHighlight[] = []) {
 		super(highlights);
 	}
 
@@ -70,7 +69,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 		}
 		// Run selected debug configuration
 		this.debugService.getConfigurationManager().selectConfiguration(this.launch, this.configurationName);
-		this.debugService.startDebugging(this.launch).done(undefined, e => this.messageService.show(Severity.Error, e));
+		this.debugService.startDebugging(this.launch).done(undefined, e => this.notificationService.error(e));
 
 		return true;
 	}
@@ -85,7 +84,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 		@IDebugService private debugService: IDebugService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ICommandService private commandService: ICommandService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super();
 	}
@@ -106,7 +105,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 					if (launch === configManager.selectedConfiguration.launch && config === configManager.selectedConfiguration.name) {
 						this.autoFocusIndex = configurations.length;
 					}
-					configurations.push(new StartDebugEntry(this.debugService, this.contextService, this.messageService, launch, config, highlights));
+					configurations.push(new StartDebugEntry(this.debugService, this.contextService, this.notificationService, launch, config, highlights));
 				});
 		}
 		launches.filter(l => !l.hidden).forEach((l, index) => {

@@ -30,7 +30,6 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { MenuItemAction, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { fillInActions, ContextAwareMenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
@@ -57,6 +56,7 @@ import { firstIndex } from 'vs/base/common/arrays';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ThrottledDelayer } from 'vs/base/common/async';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -746,7 +746,7 @@ export class RepositoryPanel extends ViewletPanel {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IContextViewService protected contextViewService: IContextViewService,
 		@ICommandService protected commandService: ICommandService,
-		@IMessageService protected messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -935,7 +935,7 @@ export class RepositoryPanel extends ViewletPanel {
 			return undefined;
 		}
 
-		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.messageService, this.contextMenuService);
+		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 	}
 
 	getActionsContext(): any {
@@ -1053,7 +1053,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		@IContextViewService protected contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
-		@IMessageService protected messageService: IMessageService,
+		@INotificationService protected notificationService: INotificationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService protected themeService: IThemeService,
 		@ICommandService protected commandService: ICommandService,
@@ -1207,7 +1207,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			return undefined;
 		}
 
-		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.messageService, this.contextMenuService);
+		return new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
 	}
 
 	layout(dimension: Dimension): void {

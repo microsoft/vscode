@@ -14,6 +14,7 @@ import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/termi
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
+import { IEditorService } from 'vs/platform/editor/common/editor';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -67,6 +68,7 @@ export class TerminalLinkHandler {
 		private _platform: platform.Platform,
 		private _initialCwd: string,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
@@ -136,7 +138,7 @@ export class TerminalLinkHandler {
 		return this._localLinkPattern;
 	}
 
-	private _handleLocalLink(link: string): TPromise<void> {
+	private _handleLocalLink(link: string): TPromise<any> {
 		return this._resolvePath(link).then(resolvedLink => {
 			if (!resolvedLink) {
 				return void 0;
@@ -152,7 +154,7 @@ export class TerminalLinkHandler {
 				fragment: Uri.parse(normalizedPath).fragment
 			});
 
-			return this._openerService.open(resource);
+			return this._editorService.openEditor({ resource, options: { pinned: true } });
 		});
 	}
 

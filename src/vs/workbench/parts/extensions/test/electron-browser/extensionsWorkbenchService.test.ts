@@ -30,12 +30,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestContextService, TestWindowService } from 'vs/workbench/test/workbenchTestServices';
-import { IChoiceService } from 'vs/platform/message/common/message';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IProgressService2 } from 'vs/platform/progress/common/progress';
 import { ProgressService2 } from 'vs/workbench/services/progress/browser/progressService2';
+import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
 
 suite('ExtensionsWorkbenchService Test', () => {
 
@@ -797,14 +797,14 @@ suite('ExtensionsWorkbenchService Test', () => {
 			});
 	});
 
-	test('test system extensions are always enabled', () => {
+	test('test system extensions can be disabled', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a', {}, { type: LocalExtensionType.System })]);
 		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 
 		return testObject.setEnablement(testObject.local[0], EnablementState.Disabled)
 			.then(() => {
 				const actual = testObject.local[0];
-				assert.equal(actual.enablementState, EnablementState.Enabled);
+				assert.equal(actual.enablementState, EnablementState.Disabled);
 			});
 	});
 

@@ -92,10 +92,12 @@ export class WorkspaceConfiguration extends Disposable {
 
 		this._workspaceConfigPath = workspaceConfigPath;
 
-		this.stopListeningToWatcher();
 		return new TPromise<void>((c, e) => {
 			const defaultConfig = new WorkspaceConfigurationModelParser(this._workspaceConfigPath.fsPath);
 			defaultConfig.parse(JSON.stringify({ folders: [] } as IStoredWorkspace, null, '\t'));
+			if (this._workspaceConfigurationWatcher) {
+				this.disposeConfigurationWatcher();
+			}
 			this._workspaceConfigurationWatcher = new ConfigWatcher(this._workspaceConfigPath.fsPath, {
 				changeBufferDelay: 300,
 				onError: error => errors.onUnexpectedError(error),
@@ -144,7 +146,6 @@ export class WorkspaceConfiguration extends Disposable {
 	}
 
 	private listenToWatcher() {
-		this._workspaceConfigurationWatcherDisposables.push(this._workspaceConfigurationWatcher);
 		this._workspaceConfigurationWatcher.onDidUpdateConfiguration(() => this._onDidUpdateConfiguration.fire(), this, this._workspaceConfigurationWatcherDisposables);
 	}
 
@@ -156,8 +157,15 @@ export class WorkspaceConfiguration extends Disposable {
 		this._cache = this._workspaceConfigurationModelParser.settingsModel.merge(this._workspaceConfigurationModelParser.launchModel);
 	}
 
+	private disposeConfigurationWatcher(): void {
+		this.stopListeningToWatcher();
+		if (this._workspaceConfigurationWatcher) {
+			this._workspaceConfigurationWatcher.dispose();
+		}
+	}
+
 	dispose(): void {
-		dispose(this._workspaceConfigurationWatcherDisposables);
+		this.disposeConfigurationWatcher();
 		super.dispose();
 	}
 }

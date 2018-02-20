@@ -837,7 +837,7 @@ export class CodeWindow implements ICodeWindow {
 				this._win.setAutoHideMenuBar(true);
 
 				if (notify) {
-					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
+					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
 				}
 				break;
 

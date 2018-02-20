@@ -9,7 +9,6 @@ import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionItem } from 'vs/base/common/actions';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -18,6 +17,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICustomViewsService, ITreeViewer } from 'vs/workbench/common/views';
 import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class CustomTreeViewPanel extends ViewsViewletPanel {
 
@@ -26,7 +26,7 @@ export class CustomTreeViewPanel extends ViewsViewletPanel {
 
 	constructor(
 		options: IViewletViewOptions,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -72,7 +72,7 @@ export class CustomTreeViewPanel extends ViewsViewletPanel {
 	}
 
 	getActionItem(action: IAction): IActionItem {
-		return action instanceof MenuItemAction ? new ContextAwareMenuItemActionItem(action, this.keybindingService, this.messageService, this.contextMenuService) : undefined;
+		return action instanceof MenuItemAction ? new ContextAwareMenuItemActionItem(action, this.keybindingService, this.notificationService, this.contextMenuService) : undefined;
 	}
 
 	getOptimalWidth(): number {
