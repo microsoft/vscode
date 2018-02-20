@@ -39,7 +39,6 @@ import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ResourcesDropHandler, LocalSelectionTransfer, DraggedEditorIdentifier } from 'vs/workbench/browser/dnd';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 
 export enum Rochade {
 	NONE,
