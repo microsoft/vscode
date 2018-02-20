@@ -2195,7 +2195,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	private resetCenteredEditor(layout: boolean = true) {
 		this.centeredEditorLeftMarginRatio = 0.5;
-		this.centeredEditorPreferedSize = Math.floor(this.dimension.width * 0.5);
+		this.centeredEditorPreferedSize = Math.floor(this.dimension.width * 0.61);
 		if (layout) {
 			this.layoutContainers();
 		}
