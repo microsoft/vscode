@@ -244,11 +244,12 @@ CommandsRegistry.registerCommand({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const textFileService = accessor.get(ITextFileService);
 		const notificationService = accessor.get(INotificationService);
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService)
+			.filter(resource => resource.scheme !== Schemas.untitled);
 
-		if (resource && resource.scheme !== Schemas.untitled) {
+		if (resources.length) {
 			return textFileService.revertAll(resources, { force: true }).then(null, error => {
-				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", basename(resource.fsPath), toErrorMessage(error, false)));
+				notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", resources.map(r => r.fsPath).join(', '), toErrorMessage(error, false)));
 			});
 		}
 
