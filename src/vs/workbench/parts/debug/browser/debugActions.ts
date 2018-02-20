@@ -21,8 +21,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -707,20 +705,6 @@ export class ClearReplAction extends AbstractDebugAction {
 
 		// focus back to repl
 		return this.panelService.openPanel(REPL_ID, true);
-	}
-}
-
-export class CollapseAllReplAction extends Action {
-	static readonly ID = 'workbench.debug.panel.action.collapseReplAction';
-	static LABEL = nls.localize('collapseRepl', "Collapse All");
-
-	constructor(id: string, label: string, private tree: ITree){
-		super(id, label, 'debug-action collapse-repl collapse-all');
-	}
-	public run(): TPromise<void>{
-		let collapseAction = new CollapseAction(this.tree, false, 'explore-action collapse-all');
-		collapseAction.run();
-		return null;
 	}
 }
 
