@@ -536,6 +536,18 @@ export class InstalledExtensionsView extends ExtensionsListView {
 	}
 }
 
+export class BuiltInExtensionsView extends ExtensionsListView {
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		if (!ExtensionsListView.isBuiltInExtensionsQuery(query)) {
+			return super.show(query);
+		}
+		let searchBuiltInQuery = '@builtin';
+		searchBuiltInQuery = query ? searchBuiltInQuery + ' ' + query : searchBuiltInQuery;
+		return super.show(searchBuiltInQuery);
+	}
+}
+
 export class RecommendedExtensionsView extends ExtensionsListView {
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
