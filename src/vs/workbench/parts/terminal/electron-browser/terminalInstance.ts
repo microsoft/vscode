@@ -1111,6 +1111,13 @@ export class TerminalInstance implements ITerminalInstance {
 
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
+			if (this._isVisible) {
+				// Force the renderer to unpause by simulating an IntersectionObserver event. This
+				// is to fix an issue where dragging the window to the top of the screen to maximize
+				// on Winodws/Linux would fire an event saying that the terminal was not visible.
+				// This should only force a refresh if one is needed.
+				(<any>this._xterm).renderer.onIntersectionChange({ intersectionRatio: 1 });
+			}
 		}
 
 		this._processReady.then(() => {
