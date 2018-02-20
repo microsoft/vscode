@@ -167,16 +167,11 @@ export class Webview {
 				if (this._contextKey) {
 					this._contextKey.set(true);
 				}
-				this._onFocus.fire();
 			}),
 			addDisposableListener(this._webview, 'blur', () => {
 				if (this._contextKey) {
 					this._contextKey.reset();
 				}
-				this._onBlur.fire();
-			}),
-			addDisposableListener(this._webview, 'found-in-page', (event) => {
-				this._onFoundInPageResults.fire(event.result);
 			})
 		);
 
@@ -218,17 +213,8 @@ export class Webview {
 	private readonly _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
 	public readonly onDidScroll: Event<{ scrollYPercentage: number }> = this._onDidScroll.event;
 
-	private readonly _onFoundInPageResults = new Emitter<Electron.FoundInPageResult>();
-	public readonly onFindResults: Event<Electron.FoundInPageResult> = this._onFoundInPageResults.event;
-
 	private readonly _onMessage = new Emitter<any>();
 	public readonly onMessage: Event<any> = this._onMessage.event;
-
-	private readonly _onFocus = new Emitter<void>();
-	public readonly onFocus: Event<void> = this._onFocus.event;
-
-	private readonly _onBlur = new Emitter<void>();
-	public readonly onBlur: Event<void> = this._onBlur.event;
 
 	private _send(channel: string, ...args: any[]): void {
 		this._ready
