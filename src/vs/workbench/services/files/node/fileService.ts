@@ -165,7 +165,7 @@ export class FileService implements IFileService {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => {
-			if (this.lifecycleService.phase === LifecyclePhase.Running) {
+			if (this.lifecycleService.phase >= LifecyclePhase.Running) {
 				this.setupFileWatching();
 			}
 		}));
