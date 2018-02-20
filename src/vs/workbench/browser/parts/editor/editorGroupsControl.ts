@@ -100,7 +100,7 @@ interface CenteredLayoutData {
  */
 export class EditorGroupsControl extends Themable implements IEditorGroupsControl, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
-	private static readonly CENTERED_LAYOUT_DATA_STORAGE_KEY = 'centeredLayoutData';
+	private static readonly CENTERED_LAYOUT_DATA_STORAGE_KEY = 'workbench.centeredlayout.layoutData';
 
 	private static readonly TITLE_AREA_CONTROL_KEY = '__titleAreaControl';
 	private static readonly PROGRESS_BAR_CONTROL_KEY = '__progressBar';
