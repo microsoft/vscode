@@ -1,4 +1,4 @@
- /*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -523,7 +523,7 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 	protected isEnabled(state: State): boolean {
 		const model = this.debugService.getModel();
 		return super.isEnabled(state) && (state === State.Running || state === State.Stopped) &&
-		(model.getFunctionBreakpoints().length + model.getBreakpoints().length + model.getExceptionBreakpoints().length > 0);
+			(model.getFunctionBreakpoints().length + model.getBreakpoints().length + model.getExceptionBreakpoints().length > 0);
 	}
 }
 
@@ -543,7 +543,7 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		return !this.debugService.getViewModel().getSelectedFunctionBreakpoint()
-		&& this.debugService.getModel().getFunctionBreakpoints().every(fbp => !!fbp.name);
+			&& this.debugService.getModel().getFunctionBreakpoints().every(fbp => !!fbp.name);
 	}
 }
 
