@@ -361,17 +361,10 @@ button {
 }
 
 .issues-container {
+	margin-left: 1.5em;
 	margin-top: .5em;
 	height: 108px;
 	overflow-y: auto;
-}
-
-div.issues-container {
-	margin-left: 1.5em;
-}
-
-.issues-container > li.issue {
-	padding: 1px 0;
 }
 
 .issues-container > .issue {

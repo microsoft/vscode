@@ -66,9 +66,7 @@ export class IssueReporter extends Disposable {
 	private telemetryService: ITelemetryService;
 	private logService: ILogService;
 	private issueReporterModel: IssueReporterModel;
-	private shouldQueueSearch = true;
 	private numberOfSearchResultsDisplayed = 0;
-	private features: IssueReporterFeatures;
 	private receivedSystemInfo = false;
 	private receivedPerformanceInfo = false;
 
@@ -85,8 +83,6 @@ export class IssueReporter extends Disposable {
 			},
 			extensionsDisabled: this.environmentService.disableExtensions,
 		});
-
-		this.features = configuration.features;
 
 		ipcRenderer.on('issuePerformanceInfoResponse', (event, info) => {
 			this.logService.trace('issueReporter: Received performance data');
@@ -338,13 +334,23 @@ export class IssueReporter extends Disposable {
 			const issueDescription = (<HTMLInputElement>event.target).value;
 			this.issueReporterModel.update({ issueDescription });
 
-			if (this.features.useDuplicateSearch) {
-				const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
+			const title = (<HTMLInputElement>document.getElementById('issue-title')).value;
+			if (title || issueDescription) {
 				this.searchDuplicates(title, issueDescription);
+			} else {
+				this.clearSearchResults();
 			}
 		});
 
-		document.getElementById('issue-title').addEventListener('input', (e) => { this.searchIssues(e); });
+		document.getElementById('issue-title').addEventListener('input', (e) => {
+			const description = this.issueReporterModel.getData().issueDescription;
+			const title = (<HTMLInputElement>event.target).value;
+			if (title || description) {
+				this.searchDuplicates(title, description);
+			} else {
+				this.clearSearchResults();
+			}
+		});
 
 		document.getElementById('github-submit-btn').addEventListener('click', () => this.createIssue());
 
@@ -427,21 +433,6 @@ export class IssueReporter extends Disposable {
 		return false;
 	}
 
-	@debounce(300)
-	private searchIssues(event: Event): void {
-		const title = (<HTMLInputElement>event.target).value;
-		if (title) {
-			if (this.features.useDuplicateSearch) {
-				const description = this.issueReporterModel.getData().issueDescription;
-				this.searchDuplicates(title, description);
-			} else {
-				this.searchGitHub(title);
-			}
-		} else {
-			this.clearSearchResults();
-		}
-	}
-
 	private clearSearchResults(): void {
 		const similarIssues = document.getElementById('similar-issues');
 		similarIssues.innerHTML = '';
@@ -479,53 +470,17 @@ export class IssueReporter extends Disposable {
 		});
 	}
 
-	private searchGitHub(title: string): void {
-		const query = `is:issue+repo:microsoft/vscode+${title}`;
-		const similarIssues = document.getElementById('similar-issues');
-
-		window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
-			response.json().then(result => {
-				similarIssues.innerHTML = '';
-				if (result && result.items) {
-					this.displaySearchResults(result.items);
-				} else {
-					// If the items property isn't present, the rate limit has been hit
-					const message = $('div.list-title');
-					message.textContent = localize('rateLimited', "GitHub query limit exceeded. Please wait.");
-					similarIssues.appendChild(message);
-
-					const resetTime = response.headers.get('X-RateLimit-Reset');
-					const timeToWait = parseInt(resetTime) - Math.floor(Date.now() / 1000);
-					if (this.shouldQueueSearch) {
-						this.shouldQueueSearch = false;
-						setTimeout(() => {
-							this.searchGitHub(title);
-							this.shouldQueueSearch = true;
-						}, timeToWait * 1000);
-					}
-
-					throw new Error(result.message);
-				}
-			}).catch((error) => {
-				this.logSearchError(error);
-			});
-		}).catch((error) => {
-			this.logSearchError(error);
-		});
-	}
-
 	private displaySearchResults(results: SearchResult[]) {
 		const similarIssues = document.getElementById('similar-issues');
 		if (results.length) {
-			const hasIssueState = results.every(result => !!result.state);
-			const issues = hasIssueState ? $('div.issues-container') : $('ul.issues-container');
+			const issues = $('div.issues-container');
 			const issuesText = $('div.list-title');
 			issuesText.textContent = localize('similarIssues', "Similar issues");
 
 			this.numberOfSearchResultsDisplayed = results.length < 5 ? results.length : 5;
 			for (let i = 0; i < this.numberOfSearchResultsDisplayed; i++) {
 				const issue = results[i];
-				const link = issue.state ? $('a.issue-link', { href: issue.html_url }) : $('a', { href: issue.html_url });
+				const link = $('a.issue-link', { href: issue.html_url });
 				link.textContent = issue.title;
 				link.title = issue.title;
 				link.addEventListener('click', (e) => this.openLink(e));
@@ -547,7 +502,7 @@ export class IssueReporter extends Disposable {
 					issueState.appendChild(issueStateLabel);
 				}
 
-				const item = issue.state ? $('div.issue', {}, issueState, link) : $('li.issue', {}, link);
+				const item = $('div.issue', {}, issueState, link);
 				issues.appendChild(item);
 			}
 
@@ -806,11 +761,9 @@ export class IssueReporter extends Disposable {
 			shell.openExternal((<HTMLAnchorElement>event.target).href);
 
 			/* __GDPR__
-				"issueReporterViewSimilarIssue" : {
-					"usingDuplicatesAPI" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
+				"issueReporterViewSimilarIssue" : { }
 			*/
-			this.telemetryService.publicLog('issueReporterViewSimilarIssue', { usingDuplicatesAPI: this.features.useDuplicateSearch });
+			this.telemetryService.publicLog('issueReporterViewSimilarIssue');
 		}
 	}
 }
