@@ -356,8 +356,7 @@ export interface MainThreadWebviewShape extends IDisposable {
 }
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: number, message: any): void;
-	$onBecameActive(handle: number): void;
-	$onBecameInactive(handle: number): void;
+	$onDidChangeActiveWeview(handle: number | undefined): void;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {

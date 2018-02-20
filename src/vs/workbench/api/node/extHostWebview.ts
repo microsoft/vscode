@@ -5,10 +5,12 @@
 
 import { MainContext, MainThreadWebviewShape, IMainContext, ExtHostWebviewsShape } from './extHost.protocol';
 import * as vscode from 'vscode';
-import { Emitter } from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 
-class ExtHostWebview implements vscode.Webview {
+export class ExtHostWebview implements vscode.Webview {
+	public readonly editorType = 'webview';
+
 	private _title: string;
 	private _html: string;
 	private _options: vscode.WebviewOptions;
@@ -17,13 +19,7 @@ class ExtHostWebview implements vscode.Webview {
 
 
 	public readonly onMessageEmitter = new Emitter<any>();
-	public readonly onMessage = this.onMessageEmitter.event;
-
-	public readonly onBecameActiveEmitter = new Emitter<void>();
-	public readonly onBecameActive = this.onBecameActiveEmitter.event;
-
-	public readonly onBecameInactiveEmitter = new Emitter<void>();
-	public readonly onBecameInactive = this.onBecameInactiveEmitter.event;
+	public readonly onMessage: Event<any> = this.onMessageEmitter.event;
 
 	constructor(
 		private readonly _proxy: MainThreadWebviewShape,
@@ -114,13 +110,11 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		webview.onMessageEmitter.fire(message);
 	}
 
-	$onBecameActive(handle: number): void {
+	$onDidChangeActiveWeview(handle: number | undefined): void {
 		const webview = this._webviews.get(handle);
-		webview.onBecameActiveEmitter.fire();
+		this._onDidChangeActiveWebview.fire(webview);
 	}
 
-	$onBecameInactive(handle: number): void {
-		const webview = this._webviews.get(handle);
-		webview.onBecameInactiveEmitter.fire();
-	}
+	private readonly _onDidChangeActiveWebview = new Emitter<ExtHostWebview | undefined>();
+	public readonly onDidChangeActiveWebview = this._onDidChangeActiveWebview.event;
 }
