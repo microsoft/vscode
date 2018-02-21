@@ -7,7 +7,7 @@
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 import * as vscode from 'vscode';
-import { getLocation, visit, parse, ParseError, ParseErrorCode } from 'jsonc-parser';
+import { getLocation, visit, parse, ParseErrorCode } from 'jsonc-parser';
 import * as path from 'path';
 import { SettingsDocument } from './settingsDocumentHelper';
 
@@ -18,7 +18,6 @@ const decoration = vscode.window.createTextEditorDecorationType({
 let pendingLaunchJsonDecoration: NodeJS.Timer;
 
 export function activate(context: vscode.ExtensionContext): void {
-
 	//keybindings.json command-suggestions
 	context.subscriptions.push(registerKeybindingsCompletions());
 
@@ -70,7 +69,6 @@ function autoFixSettingsJSON(willSaveEvent: vscode.TextDocumentWillSaveEvent): v
 
 		onError(error: ParseErrorCode, offset: number, length: number): void {
 			if (error === ParseErrorCode.CommaExpected && lastEndOfSomething > -1) {
-				const errorPosition = document.positionAt(offset);
 
 				const fixPosition = document.positionAt(lastEndOfSomething);
 				edit.insert(document.uri, fixPosition, ',');
@@ -106,6 +104,7 @@ function registerSettingsCompletions(): vscode.Disposable {
 	});
 }
 
+// tslint:disable-next-line:no-unused-variable
 function provideContributedLocalesProposals(range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
 	const contributedLocales: string[] = [];
 	for (const extension of vscode.extensions.all) {

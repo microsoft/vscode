@@ -362,6 +362,7 @@ function getGitErrorCode(stderr: string): string | undefined {
 export class Git {
 
 	private gitPath: string;
+	// tslint:disable-next-line:no-unused-variable
 	private version: string;
 	private env: any;
 

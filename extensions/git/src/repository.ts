@@ -398,6 +398,7 @@ class ProgressManager {
 
 	private disposable: IDisposable = EmptyDisposable;
 
+	// tslint:disable-next-line:no-unused-variable
 	constructor(private repository: Repository) {
 		const start = onceEvent(filterEvent(repository.onDidChangeOperations, () => repository.operations.shouldShowProgress()));
 		const end = onceEvent(filterEvent(debounceEvent(repository.onDidChangeOperations, 300), () => !repository.operations.shouldShowProgress()));
@@ -791,6 +792,7 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
+			// tslint:disable-next-line:no-unused-variable
 			const encoding = configFiles.get<string>('encoding');
 
 			// TODO@joao: REsource config api
@@ -1009,6 +1011,7 @@ export class Repository implements Disposable {
 				case 'UU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED, useIcons));
 			}
 
+			// tslint:disable-next-line:no-unused-variable
 			let isModifiedInIndex = false;
 
 			switch (raw.x) {
