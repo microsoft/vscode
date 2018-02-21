@@ -105,7 +105,8 @@ export class ReleaseNotesEditor extends WebviewEditor {
 				this._webview.initialScrollProgress = state.scrollYPercentage;
 			}
 		}
-		this.onThemeChange(this.themeService.getTheme());
+		this._webview.style(this.themeService.getTheme());
+
 		this._webview.contents = body;
 
 		this._webview.onDidClickLink(link => {
@@ -116,7 +117,6 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		this._webview.onDidScroll(event => {
 			this.scrollYPercentage = event.scrollYPercentage;
 		}, null, this.contentDisposables);
-		this.themeService.onThemeChange(this.onThemeChange, this, this.contentDisposables);
 		this.contentDisposables.push(this._webview);
 		this.contentDisposables.push(toDisposable(() => this._webview = null));
 	}
