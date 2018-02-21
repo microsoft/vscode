@@ -2211,8 +2211,10 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				}
 			}
 
-			editor.getContainer().style({ 'margin-left': `${editorPosition}px`, 'width': `${editorWidth}px` });
-			editor.getContainer().style('border-color', this.getColor(EDITOR_GROUP_BORDER) || this.getColor(contrastBorder));
+			const editorContainer = editor.getContainer();
+			editorContainer.style('margin-left', this.centeredEditorActive ? `${editorPosition}px` : null);
+			editorContainer.style('width', this.centeredEditorActive ? `${editorWidth}px` : null);
+			editorContainer.style('border-color', this.centeredEditorActive ? this.getColor(EDITOR_GROUP_BORDER) || this.getColor(contrastBorder) : null);
 			editor.layout(new Dimension(editorWidth, editorHeight));
 		}
 	}
