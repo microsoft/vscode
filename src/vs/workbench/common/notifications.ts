@@ -33,7 +33,7 @@ export interface INotificationChangeEvent {
 }
 
 export class NotificationHandle implements INotificationHandle {
-	private _onDidHide: Emitter<void> = new Emitter();
+	private _onDidDispose: Emitter<void> = new Emitter();
 
 	constructor(private item: INotificationViewItem, private disposeItem: (item: INotificationViewItem) => void) {
 		this.registerListeners();
@@ -41,13 +41,13 @@ export class NotificationHandle implements INotificationHandle {
 
 	private registerListeners(): void {
 		once(this.item.onDidDispose)(() => {
-			this._onDidHide.fire();
-			this._onDidHide.dispose();
+			this._onDidDispose.fire();
+			this._onDidDispose.dispose();
 		});
 	}
 
-	public get onDidHide(): Event<void> {
-		return this._onDidHide.event;
+	public get onDidDispose(): Event<void> {
+		return this._onDidDispose.event;
 	}
 
 	public get progress(): INotificationProgress {
@@ -68,7 +68,7 @@ export class NotificationHandle implements INotificationHandle {
 
 	public dispose(): void {
 		this.disposeItem(this.item);
-		this._onDidHide.dispose();
+		this._onDidDispose.dispose();
 	}
 }
 

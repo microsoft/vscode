@@ -143,7 +143,7 @@ suite('Notifications', () => {
 		assert.equal(model.notifications.length, 3);
 
 		let called = 0;
-		item1Handle.onDidHide(() => {
+		item1Handle.onDidDispose(() => {
 			called++;
 		});
 

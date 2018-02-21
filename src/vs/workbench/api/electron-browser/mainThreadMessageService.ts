@@ -11,7 +11,9 @@ import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThread
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IChoiceService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotificationHandle } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { once } from 'vs/base/common/event';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -19,6 +21,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IChoiceService private readonly _choiceService: IChoiceService
 	) {
 		//
@@ -40,39 +43,40 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 		return new Promise<number>(resolve => {
 
-			let messageHandle: INotificationHandle;
 			let actions: MessageItemAction[] = [];
-			let hasCloseAffordance = false;
 
 			class MessageItemAction extends Action {
 				constructor(id: string, label: string, handle: number) {
 					super(id, label, undefined, true, () => {
 						resolve(handle);
-						messageHandle.dispose(); // triggers dispose! make sure promise is already resolved
 						return undefined;
 					});
 				}
-				dispose(): void {
-					resolve(undefined);
+			}
+
+			class ManageExtensionAction extends Action {
+				constructor(id: string, label: string, commandService: ICommandService) {
+					super(id, label, undefined, true, () => {
+						return commandService.executeCommand('_extensions.manage', id);
+					});
 				}
 			}
 
 			commands.forEach(command => {
-				if (command.isCloseAffordance === true) {
-					hasCloseAffordance = true;
-				}
 				actions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
 			});
 
-			if (!hasCloseAffordance) {
-				actions.push(new MessageItemAction('__close', nls.localize('close', "Close"), undefined));
-			}
-
-			messageHandle = this._notificationService.notify({
+			const messageHandle = this._notificationService.notify({
 				severity,
 				message,
-				actions: { primary: actions },
+				actions: { primary: actions, secondary: extension ? [new ManageExtensionAction(extension.id, nls.localize('manageExtension', "Manage Extension"), this._commandService)] : [] },
 				source: extension && `${extension.displayName || extension.name}`
+			});
+
+			// if promise has not been resolved yet, now is the time to ensure a return value
+			// otherwise if already resolved it means the user clicked one of the buttons
+			once(messageHandle.onDidDispose)(() => {
+				resolve(undefined);
 			});
 		});
 	}

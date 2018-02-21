@@ -96,9 +96,9 @@ export interface INotificationProgress {
 export interface INotificationHandle extends IDisposable {
 
 	/**
-	 * Will be fired once the notification hides.
+	 * Will be fired once the notification is disposed.
 	 */
-	readonly onDidHide: Event<void>;
+	readonly onDidDispose: Event<void>;
 
 	/**
 	 * Allows to indicate progress on the notification even after the
@@ -160,10 +160,10 @@ export interface INotificationService {
 export class NoOpNotification implements INotificationHandle {
 	readonly progress = new NoOpProgress();
 
-	private _onDidHide: Emitter<void> = new Emitter();
+	private _onDidDispose: Emitter<void> = new Emitter();
 
-	public get onDidHide(): Event<void> {
-		return this._onDidHide.event;
+	public get onDidDispose(): Event<void> {
+		return this._onDidDispose.event;
 	}
 
 	updateSeverity(severity: Severity): void { }
@@ -171,7 +171,7 @@ export class NoOpNotification implements INotificationHandle {
 	updateActions(actions?: INotificationActions): void { }
 
 	dispose(): void {
-		this._onDidHide.dispose();
+		this._onDidDispose.dispose();
 	}
 }
 

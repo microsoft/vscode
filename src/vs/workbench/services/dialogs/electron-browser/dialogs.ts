@@ -150,7 +150,7 @@ export class DialogService implements IChoiceService, IConfirmationService {
 			handle = this.notificationService.notify({ severity, message, actions });
 
 			// Cancel promise when notification gets disposed
-			once(handle.onDidHide)(() => promise.cancel());
+			once(handle.onDidDispose)(() => promise.cancel());
 
 		}, () => handle.dispose());
 
