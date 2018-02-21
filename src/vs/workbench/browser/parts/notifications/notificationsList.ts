@@ -16,7 +16,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 
 export interface INotificationsListOptions {
 	ariaLabel: string;
