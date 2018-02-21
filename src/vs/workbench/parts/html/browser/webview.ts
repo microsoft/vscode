@@ -226,15 +226,15 @@ export class Webview {
 			.catch(err => console.error(err));
 	}
 
-	set initialScrollProgress(value: number) {
+	public set initialScrollProgress(value: number) {
 		this._send('initial-scroll-position', value);
 	}
 
-	set options(value: WebviewOptions) {
+	public set options(value: WebviewOptions) {
 		this._options = value;
 	}
 
-	set contents(value: string) {
+	public set contents(value: string) {
 		this._contents = value;
 		this._send('content', {
 			contents: value,
@@ -242,11 +242,11 @@ export class Webview {
 		});
 	}
 
-	set baseUrl(value: string) {
+	public set baseUrl(value: string) {
 		this._send('baseUrl', value);
 	}
 
-	focus(): void {
+	public focus(): void {
 		this._webview.focus();
 		this._send('focus');
 	}
