@@ -105,6 +105,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	private static readonly PROGRESS_BAR_CONTROL_KEY = '__progressBar';
 	private static readonly INSTANTIATION_SERVICE_KEY = '__instantiationService';
 
+	private static readonly GOLDEN_RATIO = 0.61;
 	private static readonly MIN_EDITOR_WIDTH = 170;
 	private static readonly MIN_EDITOR_HEIGHT = 70;
 
@@ -2165,6 +2166,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.centeredEditorSashRight.hide();
 		}
 		this.centeredEditorActive = doCentering;
+		this.silos[Position.ONE].setClass('centered', doCentering);
 
 		if (this.centeredEditorActive) {
 			this.centeredEditorSashLeft.layout();
@@ -2209,13 +2211,14 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			}
 
 			editor.getContainer().style({ 'margin-left': `${editorPosition}px`, 'width': `${editorWidth}px` });
+			editor.getContainer().style('border-color', this.getColor(EDITOR_GROUP_BORDER) || this.getColor(contrastBorder));
 			editor.layout(new Dimension(editorWidth, editorHeight));
 		}
 	}
 
 	private resetCenteredEditor(layout: boolean = true) {
 		this.centeredEditorLeftMarginRatio = 0.5;
-		this.centeredEditorPreferedSize = Math.floor(this.dimension.width * 0.61);
+		this.centeredEditorPreferedSize = Math.floor(this.dimension.width * EditorGroupsControl.GOLDEN_RATIO);
 		if (layout) {
 			this.layoutContainers();
 		}
