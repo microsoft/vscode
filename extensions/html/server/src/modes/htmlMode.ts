@@ -32,10 +32,21 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 			const node = htmlDocument.findNodeBefore(offset);
 			const scanner = htmlLanguageService.createScanner(document.getText(), node.start);
 			let token = scanner.scan();
+			let prevTag, prevAttributeName;
 			while (token !== TokenType.EOS && scanner.getTokenOffset() <= offset) {
 				if (token === TokenType.Content && offset <= scanner.getTokenEnd()) {
 					completionParticipants.forEach(participant => { if (participant.onHtmlContent) { participant.onHtmlContent(); } });
 					break;
+				} else if (token === TokenType.AttributeName) {
+					prevAttributeName = scanner.getTokenText();
+				} else if (token === TokenType.StartTag) {
+					prevTag = scanner.getTokenText();
+				} else if (token === TokenType.AttributeValue && offset <= scanner.getTokenEnd()) {
+					completionParticipants.forEach(participant => {
+						if (participant.onHtmlAttributeValue) {
+							participant.onHtmlAttributeValue(prevTag, prevAttributeName, scanner.getTokenText());
+						}
+					});
 				}
 				token = scanner.scan();
 			}

@@ -18,6 +18,7 @@ import { getDocumentContext } from './utils/documentContext';
 import uri from 'vscode-uri';
 import { formatError, runSafe } from './utils/errors';
 import { doComplete as emmetDoComplete, updateExtensionsPath as updateEmmetExtensionsPath, getEmmetCompletionParticipants } from 'vscode-emmet-helper';
+import { getPathCompletionParticipant } from './modes/pathCompletion';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
@@ -272,9 +273,16 @@ connection.onCompletion(async textDocumentPosition => {
 			isIncomplete: true,
 			items: undefined
 		};
+		let pathCompletionList: CompletionList = {
+			isIncomplete: false,
+			items: undefined
+		};
+
 		if (mode.setCompletionParticipants) {
 			const emmetCompletionParticipant = getEmmetCompletionParticipants(document, textDocumentPosition.position, mode.getId(), emmetSettings, emmetCompletionList);
-			mode.setCompletionParticipants([emmetCompletionParticipant]);
+			const pathCompletionParticipant = getPathCompletionParticipant(document, textDocumentPosition.position, pathCompletionList, workspaceFolders);
+
+			mode.setCompletionParticipants([emmetCompletionParticipant, pathCompletionParticipant]);
 		}
 
 		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
@@ -284,9 +292,9 @@ connection.onCompletion(async textDocumentPosition => {
 			if (emmetCompletionList.items.length && hexColorRegex.test(emmetCompletionList.items[0].label) && result.items.some(x => x.label === emmetCompletionList.items[0].label)) {
 				emmetCompletionList.items.shift();
 			}
-			return { isIncomplete: true, items: [...emmetCompletionList.items, ...result.items] };
+			return { isIncomplete: true, items: [...emmetCompletionList.items, ...pathCompletionList.items, ...result.items] };
 		}
-		return result;
+		return { isIncomplete: false, items: [...pathCompletionList.items, ...result.items] };
 	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
 });
 
