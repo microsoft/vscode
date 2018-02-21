@@ -117,7 +117,7 @@ interface WorkbenchParams {
 
 interface IZenModeSettings {
 	fullScreen: boolean;
-	centeredLayout: boolean;
+	centerLayout: boolean;
 	hideTabs: boolean;
 	hideActivityBar: boolean;
 	hideStatusBar: boolean;
@@ -1324,7 +1324,7 @@ export class Workbench implements IPartService {
 			const config = this.configurationService.getValue<IZenModeSettings>('zenMode');
 			toggleFullScreen = !browser.isFullscreen() && config.fullScreen;
 			this.zenMode.transitionedToFullScreen = toggleFullScreen;
-			toggleCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centeredLayout;
+			toggleCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
 			this.zenMode.transitionedToCenteredEditorLayout = toggleCenteredEditorLayout;
 			this.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 			this.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
