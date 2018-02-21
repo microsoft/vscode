@@ -59,7 +59,7 @@ export interface IWindowsMainService {
 
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
-	reload(win: ICodeWindow, cli?: ParsedArgs, disableExtensions?: boolean): void;
+	reload(win: ICodeWindow, cli?: ParsedArgs): void;
 	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult>;
 	closeWorkspace(win: ICodeWindow): void;

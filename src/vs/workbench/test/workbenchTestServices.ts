@@ -1061,10 +1061,6 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	reloadWindowExtensionsDisabled(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	openDevTools(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
