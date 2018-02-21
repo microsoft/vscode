@@ -16,7 +16,7 @@
     "*"
   ],
   "main": "./out/main",
-  "icon": "resources/icons/git.svg",
+  "icon": "resources/icons/git.png",
   "scripts": {
     "compile": "gulp compile-extension:git",
     "watch": "gulp watch-extension:git",
