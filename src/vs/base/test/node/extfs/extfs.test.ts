@@ -74,6 +74,41 @@ suite('Extfs', () => {
 		}); // 493 = 0755
 	});
 
+	test('stat link', function (done: () => void) {
+		const id1 = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id1);
+		const directory = path.join(parentDir, 'extfs', id1);
+
+		const id2 = uuid.generateUuid();
+		const symbolicLink = path.join(parentDir, 'extfs', id2);
+
+		mkdirp(directory, 493, error => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			fs.symlinkSync(directory, symbolicLink);
+
+			extfs.statLink(directory, (error, statAndIsLink) => {
+				if (error) {
+					return onError(error, done);
+				}
+
+				assert.ok(!statAndIsLink.isSymbolicLink);
+
+				extfs.statLink(symbolicLink, (error, statAndIsLink) => {
+					if (error) {
+						return onError(error, done);
+					}
+
+					assert.ok(statAndIsLink.isSymbolicLink);
+					extfs.delSync(directory);
+					done();
+				});
+			});
+		});
+	});
+
 	test('delSync - swallows file not found error', function () {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);

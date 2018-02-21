@@ -19,7 +19,7 @@ function create(relativePath: string): StatResolver {
 	let absolutePath = relativePath ? path.join(basePath, relativePath) : basePath;
 	let fsStat = fs.statSync(absolutePath);
 
-	return new StatResolver(uri.file(absolutePath), fsStat.isDirectory(), fsStat.mtime.getTime(), fsStat.size, void 0);
+	return new StatResolver(uri.file(absolutePath), fsStat.isSymbolicLink(), fsStat.isDirectory(), fsStat.mtime.getTime(), fsStat.size, void 0);
 }
 
 function toResource(relativePath: string): uri {
