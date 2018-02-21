@@ -87,25 +87,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 
 		await super.setInput(input, options);
 
-		const result: TPromise<IMode>[] = [];
-		const renderer = new marked.Renderer();
-		renderer.code = (code, lang) => {
-			const modeId = this.modeService.getModeIdForLanguageName(lang);
-			result.push(this.modeService.getOrCreateMode(modeId));
-			return '';
-		};
-
-		marked(text, { renderer });
-		await TPromise.join(result);
-
-		renderer.code = (code, lang) => {
-			const modeId = this.modeService.getModeIdForLanguageName(lang);
-			return `<code>${tokenizeToString(code, modeId)}</code>`;
-		};
-
-		const colorMap = TokenizationRegistry.getColorMap();
-		const css = generateTokensCSSForColorMap(colorMap);
-		const body = renderBody(marked(text, { renderer }), css);
+		const body = await this.renderBody(text);
 		this._webview = new Webview(
 			this.content,
 			this.partService.getContainer(Parts.EDITOR_PART),
@@ -166,5 +148,36 @@ export class ReleaseNotesEditor extends WebviewEditor {
 			});
 		}
 		super.shutdown();
+	}
+
+	private async renderBody(text: string) {
+		const colorMap = TokenizationRegistry.getColorMap();
+		const css = generateTokensCSSForColorMap(colorMap);
+		const body = renderBody(await this.renderContent(text), css);
+		return body;
+	}
+
+	private async renderContent(text: string): TPromise<string> {
+		const renderer = await this.getRenderer(text);
+		return marked(text, { renderer });
+	}
+
+	private async getRenderer(text: string) {
+		const result: TPromise<IMode>[] = [];
+		const renderer = new marked.Renderer();
+		renderer.code = (code, lang) => {
+			const modeId = this.modeService.getModeIdForLanguageName(lang);
+			result.push(this.modeService.getOrCreateMode(modeId));
+			return '';
+		};
+
+		marked(text, { renderer });
+		await TPromise.join(result);
+
+		renderer.code = (code, lang) => {
+			const modeId = this.modeService.getModeIdForLanguageName(lang);
+			return `<code>${tokenizeToString(code, modeId)}</code>`;
+		};
+		return renderer;
 	}
 }
