@@ -102,7 +102,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
 import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/notificationsAlerts';
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
-import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);

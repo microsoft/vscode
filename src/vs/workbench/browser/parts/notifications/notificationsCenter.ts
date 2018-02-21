@@ -13,7 +13,7 @@ import { Dimension } from 'vs/base/browser/builder';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { NotificationsCenterVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+import { NotificationsCenterVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, removeClass, isAncestor } from 'vs/base/browser/dom';
@@ -64,6 +64,11 @@ export class NotificationsCenter extends Themable {
 	}
 
 	public show(): void {
+		if (this._isVisible) {
+			this.notificationsList.show(true /* focus */);
+
+			return; // already visible
+		}
 
 		// Lazily create if showing for the first time
 		if (!this.notificationsCenterContainer) {

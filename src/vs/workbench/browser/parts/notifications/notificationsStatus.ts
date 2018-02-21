@@ -8,10 +8,11 @@
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { HIDE_NOTIFICATIONS_CENTER_COMMAND_ID, SHOW_NOTIFICATIONS_CENTER_COMMAND_ID } from 'vs/workbench/browser/parts/notifications/notificationCommands';
+import { HIDE_NOTIFICATIONS_CENTER_COMMAND_ID, SHOW_NOTIFICATIONS_CENTER_COMMAND_ID } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
 
 export class NotificationsStatus {
+	private counter: number;
 	private statusItem: IDisposable;
 	private toDispose: IDisposable[];
 	private isNotificationsCenterVisible: boolean;
@@ -21,6 +22,9 @@ export class NotificationsStatus {
 		@IStatusbarService private statusbarService: IStatusbarService
 	) {
 		this.toDispose = [];
+		this.counter = 0;
+
+		this.updateNotificationsStatusItem();
 
 		this.registerListeners();
 	}
@@ -28,6 +32,9 @@ export class NotificationsStatus {
 	public update(isCenterVisible: boolean): void {
 		if (this.isNotificationsCenterVisible !== isCenterVisible) {
 			this.isNotificationsCenterVisible = isCenterVisible;
+
+			// Showing the notification center resets the counter to 0
+			this.counter = 0;
 			this.updateNotificationsStatusItem();
 		}
 	}
@@ -41,6 +48,16 @@ export class NotificationsStatus {
 			return; // only interested in add or remove
 		}
 
+		if (this.isNotificationsCenterVisible) {
+			return; // no change if notification center is visible
+		}
+
+		if (e.kind === NotificationChangeType.ADD) {
+			this.counter++;
+		} else {
+			this.counter = Math.max(this.counter - 1, 0);
+		}
+
 		this.updateNotificationsStatusItem();
 	}
 
@@ -52,17 +69,38 @@ export class NotificationsStatus {
 		}
 
 		// Create new
-		const notificationsCount = this.model.notifications.length;
-		if (notificationsCount > 0) {
-			this.statusItem = this.statusbarService.addEntry({
-				text: this.isNotificationsCenterVisible ? '$(megaphone) ' + localize('hideNotifications', "Hide Notifications") : `$(megaphone) ${notificationsCount}`,
-				command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER_COMMAND_ID : SHOW_NOTIFICATIONS_CENTER_COMMAND_ID,
-				tooltip: this.isNotificationsCenterVisible ? localize('hideNotifications', "Hide Notifications") : localize('notifications', "{0} notifications", notificationsCount)
-			}, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
+		this.statusItem = this.statusbarService.addEntry({
+			text: this.counter === 0 ? '$(megaphone)' : `$(megaphone) ${this.counter}`,
+			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER_COMMAND_ID : this.model.notifications.length > 0 ? SHOW_NOTIFICATIONS_CENTER_COMMAND_ID : void 0,
+			tooltip: this.getTooltip()
+		}, StatusbarAlignment.RIGHT, -1000 /* towards the far end of the right hand side */);
+	}
+
+	private getTooltip(): string {
+		if (this.isNotificationsCenterVisible) {
+			return localize('hideNotifications', "Hide Notifications");
 		}
+
+		if (this.counter === 0) {
+			return localize('noNotifications', "No New Notifications");
+		}
+
+		if (this.model.notifications.length === 0) {
+			return localize('zeroNotifications', "No Notifications");
+		}
+
+		if (this.counter === 1) {
+			return localize('oneNotification', "1 new notification");
+		}
+
+		return localize('notifications', "{0} new notifications", this.counter);
 	}
 
 	public dispose() {
 		this.toDispose = dispose(this.toDispose);
+
+		if (this.statusItem) {
+			this.statusItem.dispose();
+		}
 	}
 }
