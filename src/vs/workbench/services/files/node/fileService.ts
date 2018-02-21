@@ -912,8 +912,8 @@ export class FileService implements IFileService {
 	private toStatResolver(resource: uri): TPromise<StatResolver> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		return pfs.statLink(absolutePath).then(statAndIsLink => {
-			return new StatResolver(resource, statAndIsLink.isSymbolicLink, statAndIsLink.stat.isDirectory(), statAndIsLink.stat.mtime.getTime(), statAndIsLink.stat.size, this.options.verboseLogging ? this.options.errorLogger : void 0);
+		return pfs.statLink(absolutePath).then(({ isSymbolicLink, stat }) => {
+			return new StatResolver(resource, isSymbolicLink, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.options.verboseLogging ? this.options.errorLogger : void 0);
 		});
 	}
 
