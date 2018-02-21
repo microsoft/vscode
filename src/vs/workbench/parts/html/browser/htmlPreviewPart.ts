@@ -97,8 +97,10 @@ export class HtmlPreviewPart extends WebviewEditor {
 				this._contextViewService,
 				this.contextKey,
 				this.findInputFocusContextKey,
-				webviewOptions,
-				true);
+				{
+					...webviewOptions,
+					useSameOriginForRoot: true
+				});
 
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());

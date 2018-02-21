@@ -421,7 +421,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : {};
-				this.activeWebview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.themeService, this.environmentService, this.contextService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions, false);
+				this.activeWebview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this.themeService, this.environmentService, this.contextService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 				this.activeWebview.contents = body;

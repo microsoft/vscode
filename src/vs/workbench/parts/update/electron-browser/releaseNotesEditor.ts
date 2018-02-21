@@ -97,8 +97,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 			this._contextViewService,
 			this.contextKey,
 			this.findInputFocusContextKey,
-			{},
-			false);
+			{});
 
 		if (this.input && this.input instanceof ReleaseNotesInput) {
 			const state = this.loadViewState(this.input.version);

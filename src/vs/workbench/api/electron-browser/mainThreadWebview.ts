@@ -220,9 +220,9 @@ class WebviewEditor extends BaseWebviewEditor {
 				this.contextKey,
 				this.findInputFocusContextKey,
 				{
-					enableWrappedPostMessage: true
-				},
-				false);
+					enableWrappedPostMessage: true,
+					useSameOriginForRoot: false
+				});
 
 			this._webview.onDidClickLink(this.onDidClickLink, this, this._contentDisposables);
 
