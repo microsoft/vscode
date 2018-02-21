@@ -130,14 +130,14 @@ export interface IPartService {
 	toggleZenMode(): void;
 
 	/**
-	 * Returns whether the centered layout is active.
+	 * Returns whether the centered editor layout is active.
 	 */
-	isLayoutCentered(): boolean;
+	isEditorLayoutCentered(): boolean;
 
 	/**
-	 * Toggles the workbench in and out of centered layout.
+	 * Toggles the workbench in and out of centered editor layout.
 	 */
-	toggleCenteredLayout(): void;
+	toggleCenteredEditorLayout(): void;
 
 	/**
 	 * Resizes currently focused part on main access

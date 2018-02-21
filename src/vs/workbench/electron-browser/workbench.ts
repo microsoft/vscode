@@ -155,7 +155,7 @@ export class Workbench implements IPartService {
 	private static readonly sidebarRestoreStorageKey = 'workbench.sidebar.restore';
 	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
 	private static readonly zenModeActiveStorageKey = 'workbench.zenmode.active';
-	private static readonly centeredLayoutActiveStorageKey = 'workbench.centeredlayout.active';
+	private static readonly centeredEditorLayoutActiveStorageKey = 'workbench.centered.editorlayout.active';
 	private static readonly panelPositionStorageKey = 'workbench.panel.location';
 	private static readonly defaultPanelPositionStorageKey = 'workbench.panel.defaultLocation';
 
@@ -208,13 +208,13 @@ export class Workbench implements IPartService {
 	private sideBarVisibleContext: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
 	private fontAliasing: FontAliasingOption;
+	private centeredEditorLayoutActive: boolean;
 	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
 		wasSideBarVisible: boolean;
 		wasPanelVisible: boolean;
 	};
-	private centeredLayoutActive: boolean;
 
 	constructor(
 		parent: HTMLElement,
@@ -381,9 +381,9 @@ export class Workbench implements IPartService {
 			this.toggleZenMode(true);
 		}
 
-		// Restore Forced Center Mode
-		if (this.storageService.getBoolean(Workbench.centeredLayoutActiveStorageKey, StorageScope.GLOBAL, false)) {
-			this.centeredLayoutActive = true;
+		// Restore Forced Editor Center Mode
+		if (this.storageService.getBoolean(Workbench.centeredEditorLayoutActiveStorageKey, StorageScope.GLOBAL, false)) {
+			this.centeredEditorLayoutActive = true;
 		}
 
 		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
@@ -668,8 +668,8 @@ export class Workbench implements IPartService {
 			wasPanelVisible: false
 		};
 
-		// Centered Layout
-		this.centeredLayoutActive = false;
+		// Centered Editor Layout
+		this.centeredEditorLayoutActive = false;
 	}
 
 	private setPanelPositionFromStorageOrConfig() {
@@ -1323,13 +1323,14 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	public isLayoutCentered(): boolean {
-		return this.centeredLayoutActive;
+	public isEditorLayoutCentered(): boolean {
+		return this.centeredEditorLayoutActive;
 	}
 
-	public toggleCenteredLayout(): void {
-		this.centeredLayoutActive = !this.centeredLayoutActive;
-		this.storageService.store(Workbench.centeredLayoutActiveStorageKey, this.centeredLayoutActive, StorageScope.GLOBAL);
+	public toggleCenteredEditorLayout(): void {
+		this.centeredEditorLayoutActive = !this.centeredEditorLayoutActive;
+		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, this.centeredEditorLayoutActive, StorageScope.GLOBAL);
+
 		this.layout();
 	}
 

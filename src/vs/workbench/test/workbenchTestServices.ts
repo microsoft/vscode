@@ -429,8 +429,8 @@ export class TestPartService implements IPartService {
 
 	public toggleZenMode(): void { }
 
-	public isLayoutCentered(): boolean { return false; }
-	public toggleCenteredLayout(): void { }
+	public isEditorLayoutCentered(): boolean { return false; }
+	public toggleCenteredEditorLayout(): void { }
 
 
 	public resizePart(part: Parts, sizeChange: number): void { }
