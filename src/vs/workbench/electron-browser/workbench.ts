@@ -159,6 +159,7 @@ export class Workbench implements IPartService {
 	private static readonly sidebarRestoreStorageKey = 'workbench.sidebar.restore';
 	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
 	private static readonly zenModeActiveStorageKey = 'workbench.zenmode.active';
+	private static readonly centeredEditorLayoutActiveStorageKey = 'workbench.centered.editorlayout.active';
 	private static readonly panelPositionStorageKey = 'workbench.panel.location';
 	private static readonly defaultPanelPositionStorageKey = 'workbench.panel.defaultLocation';
 
@@ -212,6 +213,7 @@ export class Workbench implements IPartService {
 	private sideBarVisibleContext: IContextKey<boolean>;
 	private hasFilesToCreateOpenOrDiff: boolean;
 	private fontAliasing: FontAliasingOption;
+	private centeredEditorLayoutActive: boolean;
 	private zenMode: {
 		active: boolean;
 		transitionedToFullScreen: boolean;
@@ -381,6 +383,11 @@ export class Workbench implements IPartService {
 		// Restore Zen Mode if active
 		if (this.storageService.getBoolean(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE, false)) {
 			this.toggleZenMode(true);
+		}
+
+		// Restore Forced Editor Center Mode
+		if (this.storageService.getBoolean(Workbench.centeredEditorLayoutActiveStorageKey, StorageScope.GLOBAL, false)) {
+			this.centeredEditorLayoutActive = true;
 		}
 
 		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
@@ -664,6 +671,9 @@ export class Workbench implements IPartService {
 			wasSideBarVisible: false,
 			wasPanelVisible: false
 		};
+
+		// Centered Editor Layout
+		this.centeredEditorLayoutActive = false;
 	}
 
 	private setPanelPositionFromStorageOrConfig() {
@@ -1354,6 +1364,17 @@ export class Workbench implements IPartService {
 		if (toggleFullScreen) {
 			this.windowService.toggleFullScreen().done(void 0, errors.onUnexpectedError);
 		}
+	}
+
+	public isEditorLayoutCentered(): boolean {
+		return this.centeredEditorLayoutActive;
+	}
+
+	public toggleCenteredEditorLayout(): void {
+		this.centeredEditorLayoutActive = !this.centeredEditorLayoutActive;
+		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, this.centeredEditorLayoutActive, StorageScope.GLOBAL);
+
+		this.layout();
 	}
 
 	// Resize requested part along the main axis
