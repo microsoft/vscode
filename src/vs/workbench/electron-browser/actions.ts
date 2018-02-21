@@ -569,7 +569,7 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action {
 	}
 
 	run(): TPromise<boolean> {
-		return this.windowService.reloadWindowExtensionsDisabled().then(() => true);
+		return this.windowService.reloadWindow({ _: [], 'disable-extensions': true }).then(() => true);
 	}
 }
 
